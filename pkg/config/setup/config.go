@@ -490,7 +490,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("leader_election_default_resource", "configmap")
 	config.BindEnvAndSetDefault("leader_election_release_on_shutdown", true)
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
-	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 5)
+	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 10)
 
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
@@ -868,8 +868,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
 	config.BindEnv("process_config.orchestrator_dd_url", "DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL", "DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL")
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints` setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints` will take precedence.
-	config.SetKnown("process_config.orchestrator_additional_endpoints.*")
-	config.SetKnown("orchestrator_explorer.orchestrator_additional_endpoints.*")
+	config.SetKnown("process_config.orchestrator_additional_endpoints")
 	config.BindEnvAndSetDefault("orchestrator_explorer.extra_tags", []string{})
 
 	// Network
@@ -898,7 +897,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
-	config.BindEnvAndSetDefault("security_agent.remote_workloadmeta", true)
 
 	// debug config to enable a remote client to receive data from the workloadmeta agent without a timeout
 	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", true)
@@ -1094,6 +1092,8 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
+	// used to override the path where the IPC cert/key files are stored/retrieved
+	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
 	config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
@@ -1282,7 +1282,6 @@ func telemetry(config pkgconfigmodel.Setup) {
 
 	// Agent Telemetry
 	config.BindEnvAndSetDefault("agent_telemetry.enabled", true)
-	config.SetKnown("agent_telemetry.additional_endpoints.*")
 	bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
 }
 
@@ -1572,6 +1571,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Add a tag to logs that are truncated by the agent
 	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
 
+	// Number of logs pipeline instances. Defaults to number of logical CPU cores as defined by GOMAXPROCS or 4, whichever is lower.
+	logsPipelines := min(4, runtime.GOMAXPROCS(0))
+	config.BindEnvAndSetDefault("logs_config.pipelines", logsPipelines)
+
 	// If true, the agent looks for container logs in the location used by podman, rather
 	// than docker.  This is a temporary configuration parameter to support podman logs until
 	// a more substantial refactor of autodiscovery is made to determine this automatically.
@@ -1814,19 +1817,18 @@ func findUnknownKeys(config pkgconfigmodel.Config) []string {
 	var unknownKeys []string
 	knownKeys := config.GetKnownKeysLowercased()
 	loadedKeys := config.AllKeysLowercased()
-	for _, key := range loadedKeys {
-		if _, found := knownKeys[key]; !found {
-			// Check if any subkey terminated with a '.*' wildcard is marked as known
-			// e.g.: apm_config.* would match all sub-keys of apm_config
-			splitPath := strings.Split(key, ".")
-			for j := range splitPath {
-				subKey := strings.Join(splitPath[:j+1], ".") + ".*"
-				if _, found = knownKeys[subKey]; found {
+	for _, loadedKey := range loadedKeys {
+		if _, found := knownKeys[loadedKey]; !found {
+			nestedValue := false
+			// If a value is within a known key it is considered known.
+			for knownKey := range knownKeys {
+				if strings.HasPrefix(loadedKey, knownKey+".") {
+					nestedValue = true
 					break
 				}
 			}
-			if !found {
-				unknownKeys = append(unknownKeys, key)
+			if !nestedValue {
+				unknownKeys = append(unknownKeys, loadedKey)
 			}
 		}
 	}

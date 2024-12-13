@@ -90,7 +90,7 @@ def deduce_and_ask_version(ctx, branch, as_str=True, trust=False) -> str | Versi
     if trust:
         return release_version
 
-    if yes_no_question(
+    if not os.isatty(sys.stdin.fileno()) or yes_no_question(
         f'Version {release_version} deduced from branch {branch}. Is this the version you want to use?',
         color="orange",
         default=False,
