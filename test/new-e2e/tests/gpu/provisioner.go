@@ -6,6 +6,8 @@
 package gpu
 
 import (
+	"strconv"
+
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/test-infra-definitions/common/utils"
@@ -24,9 +26,34 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 )
 
-const gpuEnabledAMI = "ami-0f71e237bb2ba34be" // Ubuntu 22.04 with GPU drivers
+// gpuEnabledAMI is an AMI that has GPU drivers pre-installed. In this case it's
+// an Ubuntu 22.04 with NVIDIA drivers
+const gpuEnabledAMI = "ami-0f71e237bb2ba34be"
+
+// gpuInstanceType is the instance type to use. By default we use g4dn.xlarge,
+// which is the cheapest GPU instance type
 const gpuInstanceType = "g4dn.xlarge"
+
+// nvidiaPCIVendorID is the PCI vendor ID for NVIDIA GPUs, used to identify the
+// GPU devices with lspci
 const nvidiaPCIVendorID = "10de"
+
+// cudaSanityCheckImage is a Docker image that contains a CUDA sample to
+// validate the GPU setup with the default CUDA installation. Note that the CUDA
+// version in this image must be equal or less than the one installed in the
+// AMI.
+const cudaSanityCheckImage = "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/nvidia/cuda:12.6.3-base-ubuntu22.04"
+
+// nvidiaSMIValidationCmd is a command that checks if the nvidia-smi command is
+// available and can list the GPUs
+const nvidiaSMIValidationCmd = "nvidia-smi -L | grep GPU"
+
+// validationCommandMarker is a command that can be appended to all validation commands
+// to identify them in the output, which can be useful to later force retries. Retries
+// are controlled in test/new-e2e/pkg/utils/infra/retriable_errors.go, and the way to
+// identify them are based on the pulumi logs. This command will be echoed to the output
+// and can be used to identify the validation commands.
+const validationCommandMarker = "echo 'gpu-validation-command'"
 
 const defaultGpuCheckConfig = `
 init_config:
@@ -46,6 +73,7 @@ type provisionerParams struct {
 	ami          string
 	amiOS        os.Descriptor
 	instanceType string
+	dockerImages []string
 }
 
 func getDefaultProvisionerParams() *provisionerParams {
@@ -57,6 +85,7 @@ func getDefaultProvisionerParams() *provisionerParams {
 		ami:          gpuEnabledAMI,
 		amiOS:        os.Ubuntu2204,
 		instanceType: gpuInstanceType,
+		dockerImages: []string{cudaSanityCheckImage},
 	}
 }
 
@@ -110,6 +139,18 @@ func gpuInstanceProvisioner(params *provisionerParams) e2e.Provisioner {
 			return err
 		}
 
+		// Pull all the docker images required for the tests
+		dockerPullCmds, err := downloadDockerImages(awsEnv, host, params.dockerImages, dockerManager)
+		if err != nil {
+			return err
+		}
+
+		// Validate that Docker can run CUDA samples
+		err = validateDockerCuda(awsEnv, host, dockerPullCmds...)
+		if err != nil {
+			return err
+		}
+
 		// Combine agent options from the parameters with the fakeintake and docker dependencies
 		params.agentOptions = append(params.agentOptions,
 			agentparams.WithFakeintake(fakeIntake),
@@ -139,7 +180,7 @@ func validateGPUDevices(e aws.Environment, vm *remote.Host) (*goremote.Command, 
 	pciValidate, err := vm.OS.Runner().Command(
 		e.CommonNamer().ResourceName("pci-validate"),
 		&command.Args{
-			Create: pulumi.Sprintf("lspci -d %s:: | grep NVIDIA", nvidiaPCIVendorID),
+			Create: pulumi.Sprintf("%s && lspci -d %s:: | grep NVIDIA", validationCommandMarker, nvidiaPCIVendorID),
 			Sudo:   false,
 		},
 	)
@@ -150,7 +191,7 @@ func validateGPUDevices(e aws.Environment, vm *remote.Host) (*goremote.Command, 
 	nvidiaValidate, err := vm.OS.Runner().Command(
 		e.CommonNamer().ResourceName("nvidia-validate"),
 		&command.Args{
-			Create: pulumi.Sprintf("nvidia-smi -L | grep GPU"),
+			Create: pulumi.Sprintf("%s && %s", validationCommandMarker, nvidiaSMIValidationCmd),
 			Sudo:   false,
 		},
 		utils.PulumiDependsOn(pciValidate),
@@ -160,4 +201,37 @@ func validateGPUDevices(e aws.Environment, vm *remote.Host) (*goremote.Command, 
 	}
 
 	return nvidiaValidate, nil
+}
+
+func downloadDockerImages(e aws.Environment, vm *remote.Host, images []string, dependsOn ...pulumi.Resource) ([]pulumi.Resource, error) {
+	var cmds []pulumi.Resource
+
+	for i, image := range images {
+		cmd, err := vm.OS.Runner().Command(
+			e.CommonNamer().ResourceName("docker-pull", strconv.Itoa(i)),
+			&command.Args{
+				Create: pulumi.Sprintf("docker pull %s", image),
+			},
+			utils.PulumiDependsOn(dependsOn...),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		cmds = append(cmds, cmd)
+	}
+
+	return cmds, nil
+}
+
+func validateDockerCuda(e aws.Environment, vm *remote.Host, dependsOn ...pulumi.Resource) error {
+	_, err := vm.OS.Runner().Command(
+		e.CommonNamer().ResourceName("docker-cuda-validate"),
+		&command.Args{
+			Create: pulumi.Sprintf("%s && docker run --gpus all --rm %s bash -c \"%s\"", validationCommandMarker, cudaSanityCheckImage, nvidiaSMIValidationCmd),
+		},
+		utils.PulumiDependsOn(dependsOn...),
+	)
+
+	return err
 }

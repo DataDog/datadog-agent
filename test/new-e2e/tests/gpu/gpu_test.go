@@ -30,16 +30,23 @@ var imageTag = flag.String("image-tag", "main", "Docker image tag to use")
 
 type gpuSuite struct {
 	e2e.BaseSuite[environments.Host]
-	imageTag             string
 	containerNameCounter int
 }
 
 const vectorAddDockerImg = "ghcr.io/datadog/apps-cuda-basic"
 
+func dockerImageName() string {
+	return fmt.Sprintf("%s:%s", vectorAddDockerImg, *imageTag)
+}
+
 // TestGPUSuite runs tests for the VM interface to ensure its implementation is correct.
 // Not to be run in parallel, as some tests wait until the checks are available.
 func TestGPUSuite(t *testing.T) {
 	provParams := getDefaultProvisionerParams()
+
+	// Append our vectorAdd image for testing
+	provParams.dockerImages = append(provParams.dockerImages, dockerImageName())
+
 	provisioner := gpuInstanceProvisioner(provParams)
 
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioner)}
@@ -47,21 +54,9 @@ func TestGPUSuite(t *testing.T) {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}
 
-	suite := &gpuSuite{
-		imageTag: *imageTag,
-	}
+	suite := &gpuSuite{}
 
 	e2e.Run(t, suite, suiteParams...)
-}
-
-func (v *gpuSuite) SetupSuite() {
-	v.BaseSuite.SetupSuite()
-
-	v.Env().RemoteHost.MustExecute(fmt.Sprintf("docker pull %s", v.dockerImageName()))
-}
-
-func (v *gpuSuite) dockerImageName() string {
-	return fmt.Sprintf("%s:%s", vectorAddDockerImg, v.imageTag)
 }
 
 // TODO: Extract this to common package? service_discovery uses it too
@@ -91,7 +86,7 @@ func (v *gpuSuite) runCudaDockerWorkload() string {
 	containerName := fmt.Sprintf("cuda-basic-%d", v.containerNameCounter)
 	v.containerNameCounter++
 
-	cmd := fmt.Sprintf("docker run --gpus all --name %s %s %s %d %d %d", containerName, v.dockerImageName(), binary, vectorSize, numLoops, waitTimeSeconds)
+	cmd := fmt.Sprintf("docker run --gpus all --name %s %s %s %d %d %d", containerName, dockerImageName(), binary, vectorSize, numLoops, waitTimeSeconds)
 	out, err := v.Env().RemoteHost.Execute(cmd)
 	v.Require().NoError(err)
 	v.Require().NotEmpty(out)
