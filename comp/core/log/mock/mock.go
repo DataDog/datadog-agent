@@ -10,8 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cihub/seelog"
-
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -37,7 +35,7 @@ func (tbw *tbWriter) Write(p []byte) (n int, err error) {
 // New returns a new mock for the log Component
 func New(t testing.TB) log.Component {
 	// Build a logger that only logs to t.Log(..)
-	iface, err := seelog.LoggerFromWriterWithMinLevelAndFormat(&tbWriter{t}, seelog.TraceLvl,
+	iface, err := pkglog.LoggerFromWriterWithMinLevelAndFormat(&tbWriter{t}, pkglog.TraceLvl,
 		"%Date(2006-01-02 15:04:05 MST) | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %ExtraTextContext%Msg%n")
 	if err != nil {
 		t.Fatal(err.Error())
@@ -45,7 +43,7 @@ func New(t testing.TB) log.Component {
 
 	t.Cleanup(func() {
 		// stop using the logger to avoid a race condition
-		pkglog.ChangeLogLevel(seelog.Default, "debug")
+		pkglog.ChangeLogLevel(pkglog.Default(), "debug")
 		iface.Flush()
 	})
 

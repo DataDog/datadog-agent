@@ -19,10 +19,8 @@ const (
 )
 
 const (
-	// PostgresMaxMessagesPerTailCall is the maximum number of messages that can be processed in a single tail call in our Postgres decoding solution
-	PostgresMaxMessagesPerTailCall = C.POSTGRES_MAX_MESSAGES_PER_TAIL_CALL
-	// PostgresMaxTailCalls is the maximum number of tail calls that can be made in our Postgres decoding solution
-	PostgresMaxTailCalls = C.POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES
+	// PostgresMaxTotalMessages is the maximum number of Postgres messages processed by the eBPF program.
+	PostgresMaxTotalMessages = C.POSTGRES_MAX_TOTAL_MESSAGES
 )
 
 // DispatcherProgramType is a C type to represent the eBPF programs used for tail calls.

@@ -221,9 +221,6 @@ end
 # ------------------------------------
 
 if do_build
-  # Include traps db file in snmp.d/traps_db/
-  dependency 'snmp-traps'
-
   # Datadog agent
   dependency 'datadog-agent'
 
