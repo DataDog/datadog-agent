@@ -9,9 +9,6 @@ import (
 	"os"
 	"path/filepath"
 
-	//nolint:depguard // creating a logger from a seelog config
-	"github.com/cihub/seelog"
-
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
