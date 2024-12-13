@@ -361,6 +361,10 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 	}
 }
 
+// ReleaseStats releases stats objects.
+func (p *protocol) ReleaseStats() {
+}
+
 // IsBuildModeSupported returns always true, as kafka module is supported by all modes.
 func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true

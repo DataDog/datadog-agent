@@ -367,6 +367,7 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *tracer.Tracer, targetAddr,
 		if failed {
 			t.Log(conns)
 		}
+		tr.ReleaseUSMStats()
 		return !failed
 	}, 5*time.Second, 100*time.Millisecond, "could not find incoming or outgoing connections")
 	if failed {

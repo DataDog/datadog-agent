@@ -196,6 +196,11 @@ func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 	return m.ebpfProgram.getProtocolStats()
 }
 
+// ReleaseStats release stats related objects.
+func (m *Monitor) ReleaseStats() {
+	m.ebpfProgram.releaseStats()
+}
+
 // Stop HTTP monitoring
 func (m *Monitor) Stop() {
 	if m == nil {

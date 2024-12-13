@@ -34,6 +34,9 @@ func (t *Tracer) GetActiveConnections(_ string) (*network.Connections, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
+// ReleaseUSMStats is not implemented on this OS for Tracer
+func (t *Tracer) ReleaseUSMStats() {}
+
 // GetNetworkID is not implemented on this OS for Tracer
 func (t *Tracer) GetNetworkID(_ context.Context) (string, error) {
 	return "", ebpf.ErrNotImplemented

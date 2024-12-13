@@ -21,6 +21,7 @@ import (
 type StatKeeper struct {
 	mux                  sync.Mutex
 	stats                map[Key]*RequestStats
+	prevStats            map[Key]*RequestStats
 	incomplete           IncompleteBuffer
 	maxEntries           int
 	quantizer            *URLQuantizer
@@ -87,7 +88,7 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 		}
 
 		// Rotate stats
-		stats = h.stats
+		h.prevStats = h.stats
 		h.stats = make(map[Key]*RequestStats)
 
 		// Rotate ConnectionAggregator
@@ -100,8 +101,8 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 		h.connectionAggregator = utils.NewConnectionAggregator()
 	}()
 
-	h.clearEphemeralPorts(previousAggregationState, stats)
-	return stats
+	h.clearEphemeralPorts(previousAggregationState, h.prevStats)
+	return h.prevStats
 }
 
 // Close closes the stat keeper.
@@ -216,4 +217,11 @@ func (h *StatKeeper) clearEphemeralPorts(aggregator *utils.ConnectionAggregator,
 		key.ConnectionKey = newConnKey
 		stats[key] = aggregation
 	}
+}
+
+// ReleaseStats release reported stats.
+func (h *StatKeeper) ReleaseStats() {
+	h.mux.Lock()
+	defer h.mux.Unlock()
+	h.prevStats = nil
 }

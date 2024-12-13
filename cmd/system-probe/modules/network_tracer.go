@@ -105,6 +105,8 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		marshaler := marshal.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
 
+		nt.tracer.ReleaseUSMStats()
+
 		if nt.restartTimer != nil {
 			nt.restartTimer.Reset(inactivityRestartDuration)
 		}
@@ -172,6 +174,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 
 		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP, cs.DNS))
+		nt.tracer.ReleaseUSMStats()
 	})
 
 	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {

@@ -25,7 +25,9 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	cfg.MaxHTTPStatsBuffered = 1000
 	tel := NewTelemetry("http")
 	sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
-
+	t.Cleanup(func() {
+		sk.ReleaseStats()
+	})
 	srcString := "1.1.1.1"
 	dstString := "2.2.2.2"
 	sourceIP := util.AddressFromString(srcString)
