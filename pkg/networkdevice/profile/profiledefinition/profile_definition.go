@@ -60,3 +60,11 @@ func NewProfileDefinition() *ProfileDefinition {
 	p.Metadata = make(MetadataConfig)
 	return p
 }
+
+// SplitOIDs returns two slices (scalars, columns) of all scalar and column OIDs requested by this profile.
+func (p *ProfileDefinition) SplitOIDs(includeMetadata bool) ([]string, []string) {
+	if includeMetadata {
+		return splitOIDs(p.Metrics, p.MetricTags, p.Metadata)
+	}
+	return splitOIDs(p.Metrics, p.MetricTags, nil)
+}
