@@ -188,7 +188,7 @@ func loadDWARF(binaryPath string) (*dwarf.Data, error) {
 	if err != nil {
 		return nil, fmt.Errorf("couldn't open elf binary: %w", err)
 	}
-
+	defer elfFile.Close()
 	dwarfData, err := elfFile.DWARF()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't retrieve debug info from elf: %w", err)
