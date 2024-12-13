@@ -287,7 +287,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.0
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
-	github.com/hairyhenderson/go-codeowners v0.6.1
+	github.com/hairyhenderson/go-codeowners v0.7.0
 )
 
 require (
