@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package spanpointers provides a helper functions for span pointers
 package spanpointers
 
 import (
@@ -24,6 +30,8 @@ func generateSpanPointerHash(components []string) string {
 	return hex.EncodeToString(sum[:])[:32]
 }
 
+// GetSpanPointersFromS3Event calculates span pointer attributes to uniquely identify
+// S3 event records. These attributes will later be used to create the _dd.span_links JSON object.
 func GetSpanPointersFromS3Event(event events.S3Event) []SpanPointer {
 	var pointers []SpanPointer
 	for _, record := range event.Records {
