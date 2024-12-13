@@ -7,10 +7,12 @@ package common
 
 import "io"
 
+// Output is a writer for the output. It will support some ANSI escape sequences to format the output.
 type Output struct {
 	tty io.Writer
 }
 
+// WriteString writes a string to the output.
 func (o *Output) WriteString(s string) {
-	o.tty.Write([]byte(s))
+	_, _ = o.tty.Write([]byte(s))
 }
