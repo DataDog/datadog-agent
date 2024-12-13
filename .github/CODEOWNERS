@@ -652,4 +652,8 @@
 /**/go.mod                              # do not notify anyone
 /**/go.sum                              # do not notify anyone
 
+# Add here modules that need explicit review from the team owning them
+/internal/tools/go.mod                @DataDog/agent-devx-loops
+/internal/tools/go.sum                @DataDog/agent-devx-loops
+
 
