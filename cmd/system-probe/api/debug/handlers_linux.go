@@ -24,10 +24,16 @@ func HandleSelinuxSestatus(w http.ResponseWriter, r *http.Request) {
 
 	cmd := exec.CommandContext(ctx, "sestatus")
 	output, err := cmd.CombinedOutput()
-	// exclude ExitErrors in order to report "normal" failures to the selinux_sestatus.log file
-	if err != nil && !errors.Is(err, &exec.ExitError{}) {
-		w.WriteHeader(500)
-		fmt.Fprintf(w, "sestatus command failed: %s\n%s", err, output)
+
+	var execError *exec.Error
+	var exitErr *exec.ExitError
+
+	if err != nil {
+		// don't 500 for ExitErrors etc, to report "normal" failures to the selinux_sestatus.log file
+		if !errors.As(err, &execError) && !errors.As(err, &exitErr) {
+			w.WriteHeader(500)
+		}
+		fmt.Fprintf(w, "command failed: %s\n%s", err, output)
 		return
 	}
 
