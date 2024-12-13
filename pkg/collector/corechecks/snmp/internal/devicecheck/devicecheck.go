@@ -15,14 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	helpers "github.com/DataDog/datadog-agent/comp/haagent/helpers"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/cihub/seelog"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	haagenthelpers "github.com/DataDog/datadog-agent/comp/haagent/helpers"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -250,9 +249,9 @@ func (d *DeviceCheck) setDeviceHostExternalTags() {
 		return
 	}
 	agentTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
-	if helpers.IsEnabled(d.agentConfig) {
+	if haagenthelpers.IsEnabled(d.agentConfig) {
 		// TODO: TESTME
-		agentTags = append(agentTags, helpers.GetGroup(d.agentConfig))
+		agentTags = append(agentTags, haagenthelpers.GetGroup(d.agentConfig))
 	}
 	log.Debugf("Set external tags for device host, host=`%s`, agentTags=`%v`", deviceHostname, agentTags)
 	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceType, agentTags)
