@@ -6,20 +6,19 @@
 package goflowlib
 
 import (
-	"github.com/cihub/seelog"
 	"github.com/sirupsen/logrus"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var ddLogToLogrusLevel = map[seelog.LogLevel]logrus.Level{
-	seelog.TraceLvl:    logrus.TraceLevel,
-	seelog.DebugLvl:    logrus.DebugLevel,
-	seelog.InfoLvl:     logrus.InfoLevel,
-	seelog.WarnLvl:     logrus.WarnLevel,
-	seelog.ErrorLvl:    logrus.ErrorLevel,
-	seelog.CriticalLvl: logrus.FatalLevel,
+var ddLogToLogrusLevel = map[ddlog.LogLevel]logrus.Level{
+	ddlog.TraceLvl:    logrus.TraceLevel,
+	ddlog.DebugLvl:    logrus.DebugLevel,
+	ddlog.InfoLvl:     logrus.InfoLevel,
+	ddlog.WarnLvl:     logrus.WarnLevel,
+	ddlog.ErrorLvl:    logrus.ErrorLevel,
+	ddlog.CriticalLvl: logrus.FatalLevel,
 }
 
 // GetLogrusLevel returns logrus log level from log.GetLogLevel()

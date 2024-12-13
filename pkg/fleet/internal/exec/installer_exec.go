@@ -58,7 +58,7 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 			return cmd.Process.Signal(os.Interrupt)
 		}
 	}
-	env = append(env, telemetry.EnvFromSpanContext(span.Context())...)
+	env = append(env, telemetry.EnvFromContext(ctx)...)
 	cmd.Env = env
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -252,5 +252,5 @@ func (iCmd *installerCmd) Run() error {
 	}
 
 	installerError := installerErrors.FromJSON(strings.TrimSpace(errBuf.String()))
-	return fmt.Errorf("run failed: %v \n%s", installerError, err.Error())
+	return fmt.Errorf("run failed: %w \n%s", installerError, err.Error())
 }
