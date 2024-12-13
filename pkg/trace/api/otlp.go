@@ -684,9 +684,9 @@ func resourceFromTags(meta map[string]string) string {
 			return m + " " + svc
 		}
 		return m
+	} else if typ := meta[semconv117.AttributeGraphqlOperationType]; typ != "" {
 		// Enrich GraphQL query resource names.
 		// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
-	} else if typ := meta[semconv117.AttributeGraphqlOperationType]; typ != "" {
 		if name := meta[semconv117.AttributeGraphqlOperationName]; name != "" {
 			return typ + " " + name
 		}
