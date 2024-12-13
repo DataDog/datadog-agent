@@ -6,7 +6,10 @@
 package checkconfig
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"maps"
+	"slices"
 )
 
 // LegacyMetadataConfig contains metadata config used for backward compatibility
@@ -227,9 +230,12 @@ var TopologyMetadataConfig = profiledefinition.MetadataConfig{
 	},
 }
 
-// updateMetadataDefinitionWithDefaults will add metadata config for resources
+// UpdateMetadataDefinitionWithDefaults will add metadata config for resources
 // that does not have metadata definitions
-func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, collectTopology bool) profiledefinition.MetadataConfig {
+func UpdateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, collectTopology bool) profiledefinition.MetadataConfig {
+	fmt.Println("Updating metadata...")
+	fmt.Println("Base metadata device keys:", slices.Collect(maps.Keys(metadataConfig["device"].Fields)))
+	fmt.Println("Legacy metadata device keys:", slices.Collect(maps.Keys(LegacyMetadataConfig["device"].Fields)))
 	newConfig := make(profiledefinition.MetadataConfig)
 	mergeMetadata(newConfig, metadataConfig)
 	mergeMetadata(newConfig, LegacyMetadataConfig)
