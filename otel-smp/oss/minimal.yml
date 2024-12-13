@@ -13,7 +13,12 @@ exporters:
       resource_attributes_as_tags: true
     hostname: "otelcol-test-olivierg"
     api:
-      key: ${DD_API_KEY}
+      key: 00000001
+      site: 127.0.0.1:9092
+    #metrics:
+     # endpoint: https://api.datadoghq.com
+    traces:
+      endpoint: http://127.0.0.1:9091
 processors:
   batch:
 connectors:
