@@ -1771,7 +1771,12 @@ def process_btfhub_archive(ctx, branch="main"):
                                             dst_file = os.path.join(dst_dir, file)
                                             if os.path.exists(dst_file):
                                                 raise Exit(message=f"{dst_file} already exists")
-                                            shutil.move(src_file, os.path.join(dst_dir, file))
+
+                                            shutil.move(src_file, dst_file)
+
+                                            # Always set the same mtime, so that the tarballs are deterministic
+                                            fixed_mtime = 0
+                                            os.utime(src_file, (fixed_mtime, fixed_mtime))
 
         # generate both tarballs
         for arch in ["x86_64", "arm64"]:
