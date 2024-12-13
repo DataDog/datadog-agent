@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -137,16 +137,10 @@ func TestShouldIgnoreComm(t *testing.T) {
 				_ = cmd.Process.Kill()
 			})
 
-			var proc *process.Process
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				proc, err = customNewProcess(int32(cmd.Process.Pid))
-				assert.NoError(collect, err)
-			}, 2*time.Second, 100*time.Millisecond)
-
-			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				ignore := discovery.shouldIgnoreComm(proc)
+				ignore := discovery.shouldIgnoreComm(int32(cmd.Process.Pid))
 				assert.Equal(collect, test.ignore, ignore)
-			}, 500*time.Millisecond, 100*time.Millisecond)
+			}, 2*time.Second, 100*time.Millisecond)
 		})
 	}
 }
@@ -193,9 +187,8 @@ func BenchmarkProcName(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		// create a new process on each iteration to eliminate name caching from the calculation
-		proc, err := customNewProcess(int32(cmd.Process.Pid))
-		if err != nil {
-			b.Fatal(err)
+		proc := &process.Process{
+			Pid: int32(cmd.Process.Pid),
 		}
 		comm, err := proc.Name()
 		if err != nil {
@@ -216,11 +209,7 @@ func BenchmarkShouldIgnoreComm(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		proc, err := customNewProcess(int32(cmd.Process.Pid))
-		if err != nil {
-			b.Fatal(err)
-		}
-		ok := discovery.shouldIgnoreComm(proc)
+		ok := discovery.shouldIgnoreComm(int32(cmd.Process.Pid))
 		if ok {
 			b.Fatalf("process should not have been ignored")
 		}

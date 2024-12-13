@@ -29,6 +29,9 @@ updates:
       - dependency-name: github.com/DataDog/datadog-agent/*
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
+      # OpenTelemetry collector packages need to be updated with inv rather than dependabot
+      - dependency-name: go.opentelemetry.io/collector/*
+      - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -56,6 +59,9 @@ updates:
       - dependency-name: github.com/mailru/easyjson
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
+      # OpenTelemetry collector packages need to be updated with inv rather than dependabot
+      - dependency-name: go.opentelemetry.io/collector/*
+      - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100

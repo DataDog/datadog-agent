@@ -4,6 +4,8 @@ name: Report Merged PR
 
 on:
   pull_request:
+    branches:
+      - main
     types: [closed]
 
 permissions: {}

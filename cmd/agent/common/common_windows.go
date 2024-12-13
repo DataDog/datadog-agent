@@ -9,13 +9,14 @@ import (
 	"os"
 	"path/filepath"
 
+	//nolint:depguard // creating a logger from a seelog config
+	"github.com/cihub/seelog"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings"
-
-	"github.com/cihub/seelog"
 )
 
 // ServiceName is the name of the Windows Service the agent runs as
