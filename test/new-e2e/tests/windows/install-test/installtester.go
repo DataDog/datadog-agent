@@ -473,6 +473,22 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
 				expected, err := getBaseConfigRootSecurity()
 				require.NoError(tt, err)
+				expected.Access = append(expected.Access,
+					windows.NewExplicitAccessRuleWithFlags(
+						ddAgentUserIdentity,
+						windows.FileReadAndExecute|windows.SYNCHRONIZE,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsNone,
+					),
+					windows.NewExplicitAccessRuleWithFlags(
+						ddAgentUserIdentity,
+						windows.FileWrite,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer,
+						windows.PropagationFlagsNone,
+					),
+				)
 				return expected
 			},
 		},
@@ -486,9 +502,15 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 					return expected
 				}
 				expected.Access = append(expected.Access,
-					windows.NewInheritedAccessRule(
+					windows.NewExplicitAccessRule(
 						ddAgentUserIdentity,
 						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+					),
+					// extra inherited rule for ddagentuser
+					windows.NewInheritedAccessRule(
+						ddAgentUserIdentity,
+						windows.FileReadAndExecute|windows.SYNCHRONIZE,
 						windows.AccessControlTypeAllow,
 					),
 				)
@@ -505,11 +527,26 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 					return expected
 				}
 				expected.Access = append(expected.Access,
-					windows.NewInheritedAccessRuleWithFlags(
+					windows.NewExplicitAccessRuleWithFlags(
 						ddAgentUserIdentity,
 						windows.FileFullControl,
 						windows.AccessControlTypeAllow,
 						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsNone,
+					),
+					// extra inherited rule for ddagentuser
+					windows.NewInheritedAccessRuleWithFlags(
+						ddAgentUserIdentity,
+						windows.FileReadAndExecute|windows.SYNCHRONIZE,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsNone,
+					),
+					windows.NewInheritedAccessRuleWithFlags(
+						ddAgentUserIdentity,
+						windows.FileWrite,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer,
 						windows.PropagationFlagsNone,
 					),
 				)
