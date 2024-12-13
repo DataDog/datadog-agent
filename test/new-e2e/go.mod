@@ -45,7 +45,7 @@ replace (
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.138
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.56.2
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.1
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.56.2
@@ -58,7 +58,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20241211124138-9c7c5005ca28
+	github.com/DataDog/test-infra-definitions v0.0.0-20241213131832-99c850acb59c
 	github.com/aws/aws-sdk-go-v2 v1.32.5
 	github.com/aws/aws-sdk-go-v2/config v1.28.5
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.190.0
@@ -220,7 +220,7 @@ require (
 	github.com/pulumi/esc v0.10.0 // indirect
 	github.com/pulumi/pulumi-command/sdk v1.0.1 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.5 // indirect
-	github.com/pulumi/pulumi-libvirt/sdk v0.4.7 // indirect
+	github.com/pulumi/pulumi-libvirt/sdk v0.5.3 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.16.7 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 // indirect
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0 // indirect
@@ -308,7 +308,7 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.73.1 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.73.1 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.73.1 // indirect
-	github.com/pulumi/pulumi-eks/sdk/v3 v3.3.0 // indirect
+	github.com/pulumi/pulumi-eks/sdk/v3 v3.4.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
 	github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
