@@ -521,7 +521,10 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 		}
 		experimentPackage, ok := d.catalog.getPackage(request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
 		if !ok {
-			return fmt.Errorf("could not get package %s, %s for %s, %s", request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
+			return installerErrors.Wrap(
+				installerErrors.ErrPackageNotFound,
+				fmt.Errorf("could not get package %s, %s for %s, %s", request.Package, params.Version, runtime.GOARCH, runtime.GOOS),
+			)
 		}
 		log.Infof("Installer: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
 		if request.Package == "datadog-installer" {
@@ -562,10 +565,11 @@ var requestStateKey requestKey
 
 // requestState represents the state of a task.
 type requestState struct {
-	Package string
-	ID      string
-	State   pbgo.TaskState
-	Err     *installerErrors.InstallerError
+	Package   string
+	ID        string
+	State     pbgo.TaskState
+	Err       error
+	ErrorCode installerErrors.InstallerErrorCode
 }
 
 func newRequestContext(request remoteAPIRequest) (ddtrace.Span, context.Context) {
@@ -599,7 +603,8 @@ func setRequestDone(ctx context.Context, err error) {
 	state.State = pbgo.TaskState_DONE
 	if err != nil {
 		state.State = pbgo.TaskState_ERROR
-		state.Err = installerErrors.FromErr(err)
+		state.Err = err
+		state.ErrorCode = installerErrors.GetCode(err)
 	}
 }
 
@@ -667,7 +672,7 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			var taskErr *pbgo.TaskError
 			if requestState.Err != nil {
 				taskErr = &pbgo.TaskError{
-					Code:    uint64(requestState.Err.Code()),
+					Code:    uint64(requestState.ErrorCode),
 					Message: requestState.Err.Error(),
 				}
 			}
