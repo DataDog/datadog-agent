@@ -41,6 +41,7 @@ func addDDAgentGroup(ctx context.Context) error {
 	return exec.CommandContext(ctx, "groupadd", "--system", "dd-agent").Run()
 }
 
+// PrepareInstaller prepares the installer
 func PrepareInstaller(ctx context.Context) error {
 	if err := stopUnit(ctx, installerUnit); err != nil {
 		log.Warnf("Failed to stop unit %s: %s", installerUnit, err)
