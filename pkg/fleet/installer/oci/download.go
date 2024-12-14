@@ -31,11 +31,11 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"go.uber.org/multierr"
 	"golang.org/x/net/http2"
-	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/tar"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -241,7 +241,7 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 // If they are specified, the registry and authentication overrides are applied first.
 // Then we try each registry in the list of default registries in order and return the first successful download.
 func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Image, error) {
-	transport := httptrace.WrapRoundTripper(d.client.Transport)
+	transport := telemetry.WrapRoundTripper(d.client.Transport)
 	var err error
 	if d.env.Mirror != "" {
 		transport, err = newMirrorTransport(transport, d.env.Mirror)
