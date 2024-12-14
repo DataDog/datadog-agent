@@ -116,7 +116,7 @@ function Expand-ModCache() {
 
 function Install-Deps() {
     Write-Host "Installing python requirements"
-    pip3.exe install -r .\requirements.txt
+    pip3.exe install -r .\requirements.txt -r .\tasks\requirements.txt
     Write-Host "Installing go dependencies"
     Expand-ModCache -modcache modcache
     inv -e deps
@@ -157,6 +157,40 @@ function Get-VisualStudioRoot() {
     }
     # Return a reasonable default
     return "C:\Program Files\Microsoft Visual Studio\2022\Professional"
+}
+
+<#
+.SYNOPSIS
+Fetches a secret
+
+.PARAMETER parameterName
+The name of the secret to fetch
+
+.PARAMETER parameterField
+The field of the secret to fetch. Only used with vault secrets.
+
+.EXAMPLE
+$Env:CODECOV_TOKEN=$(Get-VaultSecret -parameterName "$Env:CODECOV_TOKEN")
+
+Fetch a secret and store it in an environment variable
+
+#>
+function Get-VaultSecret() {
+    param(
+        [string]$parameterName,
+        [string]$parameterField
+    )
+    $tmpFile = [System.IO.Path]::GetTempFileName()
+    try {
+        & "$PSScriptRoot\..\..\tools\ci\fetch_secret.ps1" -parameterName $parameterName -tempFile "$tmpfile"
+        $err = $LASTEXITCODE
+        If ($LASTEXITCODE -ne "0") {
+            throw "Failed to fetch ${parameterName}: $err"
+        }
+        Get-Content -Encoding ASCII -Raw -Path $tmpFile -ErrorAction Stop
+    } finally {
+        Remove-Item -Force $tmpFile -ErrorAction Continue
+    }
 }
 
 <#
