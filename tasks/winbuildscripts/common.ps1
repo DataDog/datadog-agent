@@ -136,8 +136,27 @@ function Enable-DevEnv() {
     }
     $env:PATH = "$env:GOPATH\bin;$env:PATH"
 
+    # Add clang-format to PATH for rtloader linting
+    if (-Not (Get-Command clang-format.exe -ErrorAction SilentlyContinue)) {
+        # Included by default in Visual Studio
+        $env:PATH = "$(Get-VisualStudioRoot)\VC\Tools\Llvm\bin;$env:PATH"
+    }
+
     # Enable ruby/msys environment, for mingw, make, etc.
     ridk enable
+}
+
+function Get-VisualStudioRoot() {
+    # VSINSTALLDIR is set in the Visual Studio Developer Command Prompt
+    if (![string]::IsNullOrEmpty($env:VSINSTALLDIR)) {
+        return $env:VSINSTALLDIR
+    }
+    # VSTUDIO_ROOT is set in build container
+    if (![string]::IsNullOrEmpty($env:VSTUDIO_ROOT)) {
+        return $env:VSTUDIO_ROOT
+    }
+    # Return a reasonable default
+    return "C:\Program Files\Microsoft Visual Studio\2022\Professional"
 }
 
 <#
