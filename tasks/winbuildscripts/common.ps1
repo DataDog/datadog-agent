@@ -118,7 +118,14 @@ function Install-Deps() {
     Write-Host "Installing python requirements"
     pip3.exe install -r .\requirements.txt
     Write-Host "Installing go dependencies"
+    Expand-ModCache -modcache modcache
     inv -e deps
+}
+
+function Install-TestingDeps() {
+    Write-Host "Installing testing dependencies"
+    Expand-ModCache -modcache modcache-tools
+    inv -e install-tools
 }
 
 function Enable-DevEnv() {
@@ -198,6 +205,7 @@ function Invoke-BuildScript {
         [string] $buildroot = "c:\buildroot",
         [bool] $BuildOutOfSource = $false,
         [bool] $InstallDeps = $true,
+        [bool] $InstallTestingDeps = $false,
         [nullable[bool]] $CheckGoVersion,
         [ScriptBlock] $Command = {$null}
     )
@@ -211,12 +219,13 @@ function Invoke-BuildScript {
             Enter-BuildRoot
         }
 
-        Expand-ModCache -modcache modcache
-
         Enable-DevEnv
 
         if ($InstallDeps) {
             Install-Deps
+        }
+        if ($InstallTestingDeps) {
+            Install-TestingDeps
         }
 
         if ($CheckGoVersion) {
