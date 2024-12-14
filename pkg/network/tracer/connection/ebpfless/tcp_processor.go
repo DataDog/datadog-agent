@@ -18,6 +18,7 @@ import (
 	"github.com/google/gopacket/layers"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 type connectionState struct {
@@ -61,17 +62,22 @@ func (st *connectionState) hasMissedHandshake() bool {
 
 // TCPProcessor encapsulates TCP state tracking for the ebpfless tracer
 type TCPProcessor struct {
+	cfg *config.Config
 	// pendingConns contains connections with tcpState == connStatAttempted
 	pendingConns map[network.ConnectionTuple]*connectionState
 	// establishedConns contains connections with tcpState == connStatEstablished
 	establishedConns map[network.ConnectionTuple]*connectionState
 }
 
+// TODO make this into a config value
+const maxPendingConns = 1024
+
 // NewTCPProcessor constructs an empty TCPProcessor
-func NewTCPProcessor() *TCPProcessor {
+func NewTCPProcessor(cfg *config.Config) *TCPProcessor {
 	return &TCPProcessor{
-		pendingConns:     map[network.ConnectionTuple]*connectionState{},
-		establishedConns: map[network.ConnectionTuple]*connectionState{},
+		cfg:              cfg,
+		pendingConns:     make(map[network.ConnectionTuple]*connectionState, maxPendingConns),
+		establishedConns: make(map[network.ConnectionTuple]*connectionState, cfg.MaxTrackedConnections),
 	}
 }
 
@@ -137,7 +143,7 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 	if st.tcpState == connStatAttempted && st.localSynState.isSynAcked() && st.remoteSynState.isSynAcked() {
 		st.tcpState = connStatEstablished
 		if st.hasMissedHandshake() {
-			statsTelemetry.missedTCPConnections.Inc()
+			statsTelemetry.missedTCPHandshakes.Inc()
 		} else {
 			conn.Monotonic.TCPEstablished++
 		}
@@ -273,7 +279,11 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64
 
 	stateChanged := st.tcpState != origState
 	if stateChanged {
-		t.moveConn(conn.ConnectionTuple, st)
+		ok := t.moveConn(conn.ConnectionTuple, st)
+		// if the map is full then we are unable to move the connection, report that
+		if !ok {
+			return ProcessResultMapFull, nil
+		}
 	}
 
 	// if the connection is still established, we should update the connection map
@@ -303,18 +313,29 @@ func (t *TCPProcessor) RemoveConn(tuple network.ConnectionTuple) {
 	delete(t.pendingConns, tuple)
 	delete(t.establishedConns, tuple)
 }
-func (t *TCPProcessor) moveConn(tuple network.ConnectionTuple, st *connectionState) {
+
+// moveConn moves a connection to the correct map based on its tcpState.
+// If it had to drop the connection because the target map was full, it returns false.
+func (t *TCPProcessor) moveConn(tuple network.ConnectionTuple, st *connectionState) bool {
 	t.RemoveConn(tuple)
 
 	switch st.tcpState {
 	// For this case, simply let closed connections disappear. Process() will return
 	// ProcessResultCloseConn letting the ebpfless tracer know the connection has closed.
 	case connStatClosed:
-	// TODO limit map sizes here with a config value
 	case connStatAttempted:
-		t.pendingConns[tuple] = st
-	// TODO limit map sizes here with a config value
+		ok := WriteMapWithSizeLimit(t.pendingConns, tuple, st, maxPendingConns)
+		if !ok {
+			statsTelemetry.droppedPendingConns.Inc()
+		}
+		return ok
 	case connStatEstablished:
-		t.establishedConns[tuple] = st
+		maxTrackedConns := int(t.cfg.MaxTrackedConnections)
+		ok := WriteMapWithSizeLimit(t.establishedConns, tuple, st, maxTrackedConns)
+		if !ok {
+			statsTelemetry.droppedEstablishedConns.Inc()
+		}
+		return ok
 	}
+	return true
 }

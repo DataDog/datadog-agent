@@ -40,9 +40,11 @@ const (
 
 var (
 	ebpfLessTracerTelemetry = struct {
-		skippedPackets telemetry.Counter
+		skippedPackets     telemetry.Counter
+		droppedConnections telemetry.Counter
 	}{
 		telemetry.NewCounter(ebpfLessTelemetryPrefix, "skipped_packets", []string{"reason"}, "Counter measuring skipped packets"),
+		telemetry.NewCounter(ebpfLessTelemetryPrefix, "dropped_connections", nil, "Counter measuring dropped connections"),
 	}
 )
 
@@ -81,7 +83,7 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 		exit:         make(chan struct{}),
 		scratchConn:  &network.ConnectionStats{},
 		udp:          &udpProcessor{},
-		tcp:          ebpfless.NewTCPProcessor(),
+		tcp:          ebpfless.NewTCPProcessor(cfg),
 		conns:        make(map[network.ConnectionTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
 		boundPorts:   ebpfless.NewBoundPorts(cfg),
 		cookieHasher: newCookieHasher(),
@@ -238,10 +240,19 @@ func (t *ebpfLessTracer) processConnection(
 	switch result {
 	case ebpfless.ProcessResultNone:
 	case ebpfless.ProcessResultStoreConn:
-		t.conns[t.scratchConn.ConnectionTuple] = conn
+		maxTrackedConns := int(t.config.MaxTrackedConnections)
+		ok := ebpfless.WriteMapWithSizeLimit(t.conns, conn.ConnectionTuple, conn, maxTrackedConns)
+		// we don't have enough space to add this connection, remove its TCP state tracking
+		if !ok && conn.Type == network.TCP {
+			t.tcp.RemoveConn(conn.ConnectionTuple)
+			ebpfLessTracerTelemetry.droppedConnections.Inc()
+		}
 	case ebpfless.ProcessResultCloseConn:
 		delete(t.conns, conn.ConnectionTuple)
 		closeCallback(conn)
+	case ebpfless.ProcessResultMapFull:
+		delete(t.conns, conn.ConnectionTuple)
+		ebpfLessTracerTelemetry.droppedConnections.Inc()
 	}
 
 	return nil

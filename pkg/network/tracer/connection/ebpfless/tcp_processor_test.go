@@ -8,6 +8,7 @@
 package ebpfless
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"net"
 	"syscall"
 	"testing"
@@ -166,9 +167,10 @@ func (pb packetBuilder) outgoing(payloadLen uint16, relSeq, relAck uint32, flags
 }
 
 func newTCPTestFixture(t *testing.T) *tcpTestFixture {
+	cfg := config.New()
 	return &tcpTestFixture{
 		t:    t,
-		tcp:  NewTCPProcessor(),
+		tcp:  NewTCPProcessor(cfg),
 		conn: nil,
 	}
 }
@@ -256,6 +258,9 @@ func testBasicHandshake(t *testing.T, pb packetBuilder) {
 	}
 
 	require.Equal(t, expectedStats, f.conn.Monotonic)
+
+	require.Empty(t, f.tcp.pendingConns)
+	require.Empty(t, f.tcp.establishedConns)
 }
 
 var lowerSeq uint32 = 2134452051
@@ -323,6 +328,9 @@ func testReversedBasicHandshake(t *testing.T, pb packetBuilder) {
 		TCPClosed:      1,
 	}
 	require.Equal(t, expectedStats, f.conn.Monotonic)
+
+	require.Empty(t, f.tcp.pendingConns)
+	require.Empty(t, f.tcp.establishedConns)
 }
 
 func TestReversedBasicHandshake(t *testing.T) {
