@@ -43,7 +43,7 @@ Invoke-BuildScript `
     Write-Host Format result is $err
     if($err -ne 0){
         Write-Host -ForegroundColor Red "rtloader format failed $err"
-        exit 1
+        exit $err
     }
 
     # Lint Go
@@ -52,7 +52,7 @@ Invoke-BuildScript `
     Write-Host Go linter result is $err
     if($err -ne 0){
         Write-Host -ForegroundColor Red "go linter failed $err"
-        exit 1
+        exit $err
     }
 
     # Lint MSI .NET
@@ -62,7 +62,7 @@ Invoke-BuildScript `
         Write-Host Dotnet linter result is $err
         if($err -ne 0){
             Write-Host -ForegroundColor Red "dotnet linter failed $err"
-            exit 1
+            exit $err
         }
     }
     Write-Host "Dotnet linter run time: $($timeTaken.TotalSeconds) seconds"

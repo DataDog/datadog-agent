@@ -39,7 +39,7 @@ Invoke-BuildScript `
     $err = $LASTEXITCODE
     if($err -ne 0){
         Write-Host -ForegroundColor Red "test failed $err"
-        [Environment]::Exit($err)
+        exit $err
     }
     Write-Host Test passed
 }
