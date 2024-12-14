@@ -69,7 +69,7 @@ profiles:
 
 	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
 
-	(sess.
+	sess.
 		SetStr("1.3.6.1.2.1.1.1.0", "my_desc").
 		SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.3375.2.1.3.4.1").
 		SetTime("1.3.6.1.2.1.1.3.0", 20).
@@ -95,7 +95,7 @@ profiles:
 		// f5-specific sysStatMemoryTotal
 		SetInt("1.3.6.1.4.1.3375.2.1.1.2.1.44.0", 30).
 		// Fake metric specific to another_profile
-		SetInt("1.3.6.1.2.1.1.999.0", 100))
+		SetInt("1.3.6.1.2.1.1.999.0", 100)
 
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
@@ -132,8 +132,8 @@ profiles:
 	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.sysStatMemoryTotal", []string{"unknown_symbol:100"})
 
 	// f5 has 5 metrics, 2 tags
-	assert.Len(t, deviceCk.config.Metrics, 5)
-	assert.Len(t, deviceCk.config.MetricTags, 2)
+	assert.Len(t, deviceCk.profileCache.profile.Metrics, 5)
+	assert.Len(t, deviceCk.profileCache.profile.MetricTags, 2)
 
 	sender.ResetCalls()
 
@@ -163,8 +163,8 @@ profiles:
 	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.anotherMetric", []string{"some_tag:some_tag_value"})
 
 	// Check that we replaced the metrics, instead of just adding to them
-	assert.Len(t, deviceCk.config.Metrics, 2)
-	assert.Len(t, deviceCk.config.MetricTags, 2)
+	assert.Len(t, deviceCk.profileCache.profile.Metrics, 2)
+	assert.Len(t, deviceCk.profileCache.profile.MetricTags, 2)
 }
 
 func TestProfileDetectionPreservesGlobals(t *testing.T) {
@@ -778,8 +778,8 @@ profiles:
 	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.sysStatMemoryTotal", []string{"unknown_symbol:100"})
 
 	// f5 has 5 metrics, 2 tags
-	assert.Len(t, deviceCk.config.Metrics, 5)
-	assert.Len(t, deviceCk.config.MetricTags, 2)
+	assert.Len(t, deviceCk.profileCache.profile.Metrics, 5)
+	assert.Len(t, deviceCk.profileCache.profile.MetricTags, 2)
 
 	sender.ResetCalls()
 
@@ -809,8 +809,8 @@ profiles:
 	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.anotherMetric", []string{"some_tag:some_tag_value"})
 
 	// Check that we replaced the metrics, instead of just adding to them
-	assert.Len(t, deviceCk.config.Metrics, 2)
-	assert.Len(t, deviceCk.config.MetricTags, 2)
+	assert.Len(t, deviceCk.profileCache.profile.Metrics, 2)
+	assert.Len(t, deviceCk.profileCache.profile.MetricTags, 2)
 
 	// Assert Ping Metrics
 	sender.AssertMetric(t, "Gauge", pingReachableMetric, float64(1), "", snmpTags)
@@ -925,8 +925,8 @@ profiles:
 	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.sysStatMemoryTotal", []string{"unknown_symbol:100"})
 
 	// f5 has 5 metrics, 2 tags
-	assert.Len(t, deviceCk.config.Metrics, 5)
-	assert.Len(t, deviceCk.config.MetricTags, 2)
+	assert.Len(t, deviceCk.profileCache.profile.Metrics, 5)
+	assert.Len(t, deviceCk.profileCache.profile.MetricTags, 2)
 
 	sender.ResetCalls()
 
@@ -956,8 +956,8 @@ profiles:
 	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.anotherMetric", []string{"some_tag:some_tag_value"})
 
 	// Check that we replaced the metrics, instead of just adding to them
-	assert.Len(t, deviceCk.config.Metrics, 2)
-	assert.Len(t, deviceCk.config.MetricTags, 2)
+	assert.Len(t, deviceCk.profileCache.profile.Metrics, 2)
+	assert.Len(t, deviceCk.profileCache.profile.MetricTags, 2)
 
 	// Assert Ping reachability metrics are sent
 	sender.AssertMetric(t, "Gauge", pingReachableMetric, float64(0), "", snmpTags)
