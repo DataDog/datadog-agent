@@ -1,20 +1,24 @@
 <#
 .SYNOPSIS
-    Invoke the linters.
+Invoke the linters.
 
 .DESCRIPTION
-    Invoke the linters, with options to configure the build environment.
+Invoke the linters, with options to configure the build environment.
 
-    Runs linters for rtloader, Go, and MSI .NET.
+Runs linters for rtloader, Go, and MSI .NET.
 
 .PARAMETER BuildOutOfSource
-    Indicates whether to build out of source. Default is $false.
+Specifies whether to build out of source. Default is $false.
 
-.PARAMETER CheckGoVersion
-    Specifies whether to check the Go version. If not provided, it defaults to the value of the environment variable GO_VERSION_CHECK or $true if the environment variable is not set.
+Use this option in the CI to keep the job directory clean and avoid conflicts/stale data.
+Use this option in Hyper-V based containers to improve build performance.
 
 .PARAMETER InstallDeps
-    Indicates whether to install dependencies. Default is $true.
+Specifies whether to install dependencies (python requirements, go deps, etc.). Default is $true.
+
+.PARAMETER CheckGoVersion
+Specifies whether to check the Go version. If not provided, it defaults to the value of the environment variable GO_VERSION_CHECK or $true if the environment variable is not set.
+
 #>
 param(
     [bool] $BuildOutOfSource = $false,

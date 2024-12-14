@@ -1,18 +1,22 @@
 <#
 .SYNOPSIS
-    Invoke the integration tests.
+Invoke the integration tests.
 
 .DESCRIPTION
-    Invoke the integration tests, with options to configure the build environment.
+Invoke the integration tests, with options to configure the build environment.
 
 .PARAMETER BuildOutOfSource
-    Indicates whether to build out of source. Default is $false.
+Specifies whether to build out of source. Default is $false.
 
-.PARAMETER CheckGoVersion
-    Specifies whether to check the Go version. If not provided, it defaults to the value of the environment variable GO_VERSION_CHECK or $true if the environment variable is not set.
+Use this option in the CI to keep the job directory clean and avoid conflicts/stale data.
+Use this option in Hyper-V based containers to improve build performance.
 
 .PARAMETER InstallDeps
-    Indicates whether to install dependencies. Default is $true.
+Specifies whether to install dependencies (python requirements, go deps, etc.). Default is $true.
+
+.PARAMETER CheckGoVersion
+Specifies whether to check the Go version. If not provided, it defaults to the value of the environment variable GO_VERSION_CHECK or $true if the environment variable is not set.
+
 #>
 param(
     [bool] $BuildOutOfSource = $false,
