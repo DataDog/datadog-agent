@@ -10,7 +10,7 @@ Each script is intended to function in the CI pipeline as well as locally, and h
 
 The `Invoke-BuildScript` function provides several parameters that are shared across the build scripts:
 
-- `BuildOutOfSource`: Specifies whether to build out of source. Default is `$false`. Use this option in the CI to keep the job directory clean and avoid conflicts/stale data. Use this option in Hyper-V based containers to improve build performance.
+- `BuildOutOfSource`: Copies the entire source tree to a new directory. Default is `$false`. Use this option in the CI to keep the job directory clean and avoid conflicts/stale data. Use this option in Hyper-V based containers to improve build performance.
 - `InstallDeps`: Specifies whether to install dependencies (Python requirements, Go dependencies, etc.). Default is `$true`.
 - `CheckGoVersion`: Specifies whether to check the Go version. If not provided, it defaults to the value of the environment variable `GO_VERSION_CHECK` or `$true` if the environment variable is not set.
 
