@@ -107,7 +107,6 @@ func (s *batchStrategy) Start() {
 		defer func() {
 			s.flushBuffer(s.outputChan)
 			flushTicker.Stop()
-			s.utilization.Cancel()
 			close(s.stopChan)
 		}()
 		for {

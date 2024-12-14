@@ -3,18 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// FIXME: we require the `cgo` build tag because of this dep relationship:
-// github.com/DataDog/datadog-agent/pkg/process/net depends on `github.com/DataDog/agent-payload/v5/process`,
-// which has a hard dependency on `github.com/DataDog/zstd_0`, which requires CGO.
-// Should be removed once `github.com/DataDog/agent-payload/v5/process` can be imported with CGO disabled.
-//go:build cgo && linux
+//go:build linux
 
-//nolint:revive // TODO(PLINT) Fix revive linter
+// Package tcpqueuelength contains the TCP Queue Length check
 package tcpqueuelength
 
 import (
-	yaml "gopkg.in/yaml.v2"
+	"net/http"
 
+	"gopkg.in/yaml.v2"
+
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -24,7 +23,6 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -43,8 +41,9 @@ type TCPQueueLengthConfig struct {
 // TCPQueueLengthCheck grabs TCP queue length metrics
 type TCPQueueLengthCheck struct {
 	core.CheckBase
-	instance *TCPQueueLengthConfig
-	tagger   tagger.Component
+	instance       *TCPQueueLengthConfig
+	tagger         tagger.Component
+	sysProbeClient *http.Client
 }
 
 // Factory creates a new check factory
@@ -76,6 +75,7 @@ func (t *TCPQueueLengthCheck) Configure(senderManager sender.SenderManager, _ ui
 	if err != nil {
 		return err
 	}
+	t.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 
 	return t.instance.Parse(config)
 }
@@ -86,13 +86,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 		return nil
 	}
 
-	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil(
-		pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
-	if err != nil {
-		return err
-	}
-
-	data, err := sysProbeUtil.GetCheck(sysconfig.TCPQueueLengthTracerModule)
+	stats, err := sysprobeclient.GetCheck[model.TCPQueueLengthStats](t.sysProbeClient, sysconfig.TCPQueueLengthTracerModule)
 	if err != nil {
 		return err
 	}
@@ -100,11 +94,6 @@ func (t *TCPQueueLengthCheck) Run() error {
 	sender, err := t.GetSender()
 	if err != nil {
 		return err
-	}
-
-	stats, ok := data.(model.TCPQueueLengthStats)
-	if !ok {
-		return log.Errorf("Raw data has incorrect type")
 	}
 
 	for k, v := range stats {

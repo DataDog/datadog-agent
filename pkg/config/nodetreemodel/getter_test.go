@@ -24,7 +24,10 @@ func TestGetKnownKeysLowercased(t *testing.T) {
 	assert.Equal(t,
 		map[string]interface{}{
 			"a":     struct{}{},
+			"b":     struct{}{},
 			"b.c":   struct{}{},
+			"d":     struct{}{},
+			"d.e":   struct{}{},
 			"d.e.f": struct{}{},
 		},
 		cfg.GetKnownKeysLowercased())
@@ -37,8 +40,25 @@ func TestGet(t *testing.T) {
 
 	assert.Equal(t, 1234, cfg.Get("a"))
 
-	cfg.Set("a", "test", model.SourceAgentRuntime)
-	assert.Equal(t, "test", cfg.Get("a"))
+	cfg.Set("a", 9876, model.SourceAgentRuntime)
+	assert.Equal(t, 9876, cfg.Get("a"))
+
+	assert.Equal(t, nil, cfg.Get("does_not_exists"))
+}
+
+func TestGetCastToDefault(t *testing.T) {
+	cfg := NewConfig("test", "", nil)
+	cfg.SetDefault("a", []string{})
+	cfg.BuildSchema()
+
+	// This test that we mimic viper's behavior on Get where we convert the value from the config to the same type
+	// from the default.
+
+	cfg.Set("a", 9876, model.SourceAgentRuntime)
+	assert.Equal(t, []string{"9876"}, cfg.Get("a"))
+
+	cfg.Set("a", "a b c", model.SourceAgentRuntime)
+	assert.Equal(t, []string{"a", "b", "c"}, cfg.Get("a"))
 
 	assert.Equal(t, nil, cfg.Get("does_not_exists"))
 }
@@ -227,4 +247,35 @@ func TestGetFloat64SliceStringFromEnv(t *testing.T) {
 	cfg.Set("float_list", "1.1 2.2 3.3", model.SourceEnvVar)
 
 	assert.Equal(t, []float64{1.1, 2.2, 3.3}, cfg.GetFloat64Slice("float_list"))
+}
+
+func TestGetAllSources(t *testing.T) {
+	cfg := NewConfig("test", "", nil)
+	cfg.SetDefault("a", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("a", 1, model.SourceUnknown)
+	cfg.Set("a", 2, model.SourceFile)
+	cfg.Set("a", 3, model.SourceEnvVar)
+	cfg.Set("a", 4, model.SourceFleetPolicies)
+	cfg.Set("a", 5, model.SourceAgentRuntime)
+	cfg.Set("a", 6, model.SourceLocalConfigProcess)
+	cfg.Set("a", 7, model.SourceRC)
+	cfg.Set("a", 8, model.SourceCLI)
+
+	res := cfg.GetAllSources("a")
+	assert.Equal(t,
+		[]model.ValueWithSource{
+			{Source: model.SourceDefault, Value: 0},
+			{Source: model.SourceUnknown, Value: 1},
+			{Source: model.SourceFile, Value: 2},
+			{Source: model.SourceEnvVar, Value: 3},
+			{Source: model.SourceFleetPolicies, Value: 4},
+			{Source: model.SourceAgentRuntime, Value: 5},
+			{Source: model.SourceLocalConfigProcess, Value: 6},
+			{Source: model.SourceRC, Value: 7},
+			{Source: model.SourceCLI, Value: 8},
+		},
+		res,
+	)
 }

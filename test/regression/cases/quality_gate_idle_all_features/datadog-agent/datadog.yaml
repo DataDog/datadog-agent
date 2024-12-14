@@ -33,7 +33,7 @@ network_path:
     enabled: true
 
 runtime_security_config:
-  ## Set to true to enable Threat Detection
+  ## Set to true to enable CWS
   enabled: true
 
 cluster_checks:
@@ -46,12 +46,6 @@ otlp_config:
     enabled: true
   logs:
     enabled: true
-
-system_probe_config:
-  enabled: true
-
-network_config:
-  enabled: true
 
 # Per Cloud Security Management setup documentation
 # https://docs.datadoghq.com/security/cloud_security_management/setup/agent/linux/

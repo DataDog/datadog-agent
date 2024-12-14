@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
 const (
@@ -44,8 +45,6 @@ type RuntimeSecurityConfig struct {
 	RuntimeEnabled bool
 	// PoliciesDir defines the folder in which the policy files are located
 	PoliciesDir string
-	// WatchPoliciesDir activate policy dir inotify
-	WatchPoliciesDir bool
 	// PolicyMonitorEnabled enable policy monitoring
 	PolicyMonitorEnabled bool
 	// PolicyMonitorPerRuleEnabled enabled per-rule policy monitoring
@@ -214,8 +213,6 @@ type RuntimeSecurityConfig struct {
 	HashResolverMaxFileSize int64
 	// HashResolverMaxHashRate defines the rate at which the hash resolver may compute hashes
 	HashResolverMaxHashRate int
-	// HashResolverMaxHashBurst defines the burst of files for which the hash resolver may compute a hash
-	HashResolverMaxHashBurst int
 	// HashResolverHashAlgorithms defines the hashes that hash resolver needs to compute
 	HashResolverHashAlgorithms []model.HashAlgorithm
 	// HashResolverEventTypes defines the list of event which files may be hashed
@@ -354,7 +351,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// policy & ruleset
 		PoliciesDir:                         pkgconfigsetup.SystemProbe().GetString("runtime_security_config.policies.dir"),
-		WatchPoliciesDir:                    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.watch_dir"),
 		PolicyMonitorEnabled:                pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.enabled"),
 		PolicyMonitorPerRuleEnabled:         pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.per_rule_enabled"),
 		PolicyMonitorReportInternalPolicies: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.report_internal_policies"),
@@ -406,7 +402,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		HashResolverEventTypes:     parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.hash_resolver.event_types")),
 		HashResolverMaxFileSize:    pkgconfigsetup.SystemProbe().GetInt64("runtime_security_config.hash_resolver.max_file_size"),
 		HashResolverHashAlgorithms: parseHashAlgorithmStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.hash_resolver.hash_algorithms")),
-		HashResolverMaxHashBurst:   pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.max_hash_burst"),
 		HashResolverMaxHashRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.max_hash_rate"),
 		HashResolverCacheSize:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.cache_size"),
 		HashResolverReplace:        pkgconfigsetup.SystemProbe().GetStringMapString("runtime_security_config.hash_resolver.replace"),
@@ -454,7 +449,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		UserSessionsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.user_sessions.cache_size"),
 
 		// ebpf less
-		EBPFLessEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.ebpfless.enabled"),
+		EBPFLessEnabled: IsEBPFLessModeEnabled(),
 		EBPFLessSocket:  pkgconfigsetup.SystemProbe().GetString("runtime_security_config.ebpfless.socket"),
 
 		// IMDS
@@ -497,6 +492,20 @@ func isRemoteConfigEnabled() bool {
 	}
 
 	return false
+}
+
+// IsEBPFLessModeEnabled returns true if the ebpfless mode is enabled
+// it's based on the configuration itself, but will default on true if
+// running on fargate
+func IsEBPFLessModeEnabled() bool {
+	const cfgKey = "runtime_security_config.ebpfless.enabled"
+	// by default on fargate, we enable ebpfless mode
+	if !pkgconfigsetup.SystemProbe().IsSet(cfgKey) && fargate.IsFargateInstance() {
+		seclog.Infof("Fargate instance detected, enabling CWS ebpfless mode")
+		pkgconfigsetup.SystemProbe().Set(cfgKey, true, pkgconfigmodel.SourceAgentRuntime)
+	}
+
+	return pkgconfigsetup.SystemProbe().GetBool(cfgKey)
 }
 
 // GetAnomalyDetectionMinimumStablePeriod returns the minimum stable period for a given event type

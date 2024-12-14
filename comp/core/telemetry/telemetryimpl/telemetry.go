@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"sync"
 
-	promOtel "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -20,8 +19,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.opentelemetry.io/otel/metric"
-	sdk "go.opentelemetry.io/otel/sdk/metric"
 )
 
 // Module defines the fx options for this component.
@@ -33,16 +30,14 @@ func Module() fxutil.Module {
 // TODO (components): Remove the globals and move this into `newTelemetry` after all telemetry is migrated to the component
 var (
 	registry = newRegistry()
-	provider = newProvider(registry)
 	mutex    = sync.Mutex{}
 
 	defaultRegistry = prometheus.NewRegistry()
 )
 
 type telemetryImpl struct {
-	mutex         *sync.Mutex
-	registry      *prometheus.Registry
-	meterProvider *sdk.MeterProvider
+	mutex    *sync.Mutex
+	registry *prometheus.Registry
 
 	defaultRegistry *prometheus.Registry
 }
@@ -58,16 +53,6 @@ func newRegistry() *prometheus.Registry {
 	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	reg.MustRegister(collectors.NewGoCollector(collectors.WithGoCollectorRuntimeMetrics(collectors.MetricsGC, collectors.MetricsMemory, collectors.MetricsScheduler)))
 	return reg
-}
-
-func newProvider(reg *prometheus.Registry) *sdk.MeterProvider {
-	exporter, err := promOtel.New(promOtel.WithRegisterer(reg))
-
-	if err != nil {
-		panic(err)
-	}
-
-	return sdk.NewMeterProvider(sdk.WithReader(exporter))
 }
 
 func newTelemetryComponent(deps dependencies) telemetry.Component {
@@ -87,9 +72,8 @@ func newTelemetryComponent(deps dependencies) telemetry.Component {
 
 func newTelemetry() telemetry.Component {
 	return &telemetryImpl{
-		mutex:         &mutex,
-		registry:      registry,
-		meterProvider: provider,
+		mutex:    &mutex,
+		registry: registry,
 
 		defaultRegistry: defaultRegistry,
 	}
@@ -120,10 +104,6 @@ func (t *telemetryImpl) RegisterCollector(c prometheus.Collector) {
 // UnregisterCollector unregisters a Collector with the prometheus registry
 func (t *telemetryImpl) UnregisterCollector(c prometheus.Collector) bool {
 	return registry.Unregister(c)
-}
-
-func (t *telemetryImpl) Meter(name string, opts ...telemetry.MeterOption) metric.Meter {
-	return t.meterProvider.Meter(name, opts...)
 }
 
 func (t *telemetryImpl) NewCounter(subsystem, name string, tags []string, help string) telemetry.Counter {

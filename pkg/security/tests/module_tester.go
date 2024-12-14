@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests || stresstests
+//go:build functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -118,7 +118,7 @@ func (tm *testModule) reloadPolicies() error {
 	log.Debugf("reload policies with cfgDir: %s", commonCfgDir)
 
 	bundledPolicyProvider := bundled.NewPolicyProvider(tm.eventMonitor.Probe.Config.RuntimeSecurity)
-	policyDirProvider, err := rules.NewPoliciesDirProvider(commonCfgDir, false)
+	policyDirProvider, err := rules.NewPoliciesDirProvider(commonCfgDir)
 	if err != nil {
 		return err
 	}

@@ -1,4 +1,3 @@
-DEFAULT_BRANCH = "main"
 DEFAULT_INTEGRATIONS_CORE_BRANCH = "master"
 GITHUB_ORG = "DataDog"
 REPO_NAME = "datadog-agent"

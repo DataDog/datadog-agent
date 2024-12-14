@@ -329,7 +329,7 @@ type MatchedRule struct {
 type ActionReport interface {
 	ToJSON() ([]byte, error)
 	IsMatchingRule(ruleID eval.RuleID) bool
-	IsResolved() bool
+	IsResolved() error
 }
 
 // NewMatchedRule return a new MatchedRule instance

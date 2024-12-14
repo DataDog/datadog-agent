@@ -8,80 +8,56 @@
 package wincrashdetect
 
 import (
-	"net"
 	"net/http"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/windows/registry"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/server"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-
-	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
-
-	"golang.org/x/sys/windows/registry"
 )
 
 const (
-	// SystemProbeTestPipeName is the test named pipe for system-probe
+	// systemProbeTestPipeName is the test named pipe for system-probe
 	systemProbeTestPipeName = `\\.\pipe\dd_system_probe_wincrash_test`
-
-	// systemProbeTestPipeSecurityDescriptor has a DACL that allows Everyone access for these tests.
-	systemProbeTestPipeSecurityDescriptor = "D:PAI(A;;FA;;;WD)"
 )
 
-func createSystemProbeListener() (l net.Listener, close func()) {
-	process_net.OverrideSystemProbeNamedPipeConfig(
-		systemProbeTestPipeName,
-		systemProbeTestPipeSecurityDescriptor)
-
-	// No socket address. Windows uses a fixed name pipe
-	conn, err := process_net.NewSystemProbeListener("")
-	if err != nil {
-		panic(err)
-	}
-	return conn.GetListener(), func() {
-		_ = conn.GetListener().Close()
-	}
-}
-
-func testSetup(_ *testing.T) {
+func testSetup(t *testing.T) {
 	// change the hive to hku for the test
 	hive = registry.CURRENT_USER
 	baseKey = `SOFTWARE\Datadog\unit_test\windows_crash_reporting`
 
 	// clear the key before starting
-	registry.DeleteKey(hive, baseKey)
-}
-func testCleanup() {
-	cleanRegistryHistory()
-}
+	_ = registry.DeleteKey(hive, baseKey)
 
-func cleanRegistryHistory() {
-	// clean up registry settings we left behind
-	registry.DeleteKey(hive, baseKey)
+	t.Cleanup(func() {
+		// clean up registry settings we left behind
+		_ = registry.DeleteKey(hive, baseKey)
+	})
 }
 
 func TestWinCrashReporting(t *testing.T) {
+	mockSysProbeConfig := configmock.NewSystemProbe(t)
+	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
+	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", systemProbeTestPipeName)
 
-	listener, closefunc := createSystemProbeListener()
-	defer closefunc()
-
-	pkgconfigsetup.InitSystemProbeConfig(pkgconfigsetup.SystemProbe())
+	listener, err := server.NewListener(systemProbeTestPipeName)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() })
 
 	mux := http.NewServeMux()
-	server := http.Server{
+	srv := http.Server{
 		Handler: mux,
 	}
-	defer server.Close()
-
-	// no socket address is set in config for Windows since system probe
-	// utilizes a fixed named pipe.
+	defer srv.Close()
 
 	/*
 	 * the underlying system probe connector is a singleton.  Therefore, we can't set up different
@@ -99,11 +75,10 @@ func TestWinCrashReporting(t *testing.T) {
 	}))
 	mux.Handle("/debug/stats", http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 	}))
-	go server.Serve(listener)
+	go srv.Serve(listener)
 
 	t.Run("test that no crash detected properly reports", func(t *testing.T) {
 		testSetup(t)
-		defer testCleanup()
 
 		// set the return value handled in the check handler above
 		p = &probe.WinCrashStatus{
@@ -125,7 +100,6 @@ func TestWinCrashReporting(t *testing.T) {
 	})
 	t.Run("test that a crash is properly reported", func(t *testing.T) {
 		testSetup(t)
-		defer testCleanup()
 		p = &probe.WinCrashStatus{
 			StatusCode: probe.WinCrashStatusCodeSuccess,
 			FileName:   `c:\windows\memory.dmp`,
@@ -202,18 +176,21 @@ func TestWinCrashReporting(t *testing.T) {
 }
 
 func TestCrashReportingStates(t *testing.T) {
+	mockSysProbeConfig := configmock.NewSystemProbe(t)
+	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
+	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", systemProbeTestPipeName)
+
 	var crashStatus *probe.WinCrashStatus
 
-	listener, closefunc := createSystemProbeListener()
-	defer closefunc()
-
-	pkgconfigsetup.InitSystemProbeConfig(pkgconfigsetup.SystemProbe())
+	listener, err := server.NewListener(systemProbeTestPipeName)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() })
 
 	mux := http.NewServeMux()
-	server := http.Server{
+	srv := http.Server{
 		Handler: mux,
 	}
-	defer server.Close()
+	defer srv.Close()
 
 	cp, err := probe.NewWinCrashProbe(nil)
 	assert.NotNil(t, cp)
@@ -249,11 +226,10 @@ func TestCrashReportingStates(t *testing.T) {
 	}))
 	mux.Handle("/debug/stats", http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 	}))
-	go server.Serve(listener)
+	go srv.Serve(listener)
 
 	t.Run("test reporting a crash with a busy intermediate state", func(t *testing.T) {
 		testSetup(t)
-		defer testCleanup()
 
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
@@ -311,7 +287,6 @@ func TestCrashReportingStates(t *testing.T) {
 
 	t.Run("test that no crash is reported", func(t *testing.T) {
 		testSetup(t)
-		defer testCleanup()
 
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
@@ -337,7 +312,6 @@ func TestCrashReportingStates(t *testing.T) {
 
 	t.Run("test failure on reading crash settings", func(t *testing.T) {
 		testSetup(t)
-		defer testCleanup()
 
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)

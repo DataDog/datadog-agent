@@ -8,19 +8,18 @@
 package config
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 const (
-	defaultConfigDir          = ""
-	defaultSystemProbeAddress = ""
+	defaultConfigDir = ""
 )
 
-// ValidateSocketAddress validates that the sysprobe socket config option is of the correct format.
+// ValidateSocketAddress is not supported on this platform
 func ValidateSocketAddress(sockPath string) error {
-	return fmt.Errorf("system-probe unsupported")
+	return errors.New("system-probe unsupported")
 }
 
 // ProcessEventDataStreamSupported returns true if process event data stream is supported

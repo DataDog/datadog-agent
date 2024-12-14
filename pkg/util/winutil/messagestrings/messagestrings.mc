@@ -124,3 +124,10 @@ Severity=Warning
 Language=English
 System probe restarting after %1.  The process agent has not queried for data.  It may not be configured correctly and/or running.
 .
+
+MessageId=18
+SymbolicName=MSG_AGENT_CLEAN_STOP_AFTER_INIT
+Severity=Informational
+Language=English
+The Service requested to exit successfully. %1
+.

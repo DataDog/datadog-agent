@@ -34,6 +34,7 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         .addr[1] = syscall->connect.addr[1],
         .family = syscall->connect.family,
         .port = syscall->connect.port,
+        .protocol = syscall->connect.protocol,
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
@@ -63,8 +64,9 @@ int hook_security_socket_connect(ctx_t *ctx) {
     struct sockaddr *address = (struct sockaddr *)CTX_PARM2(ctx);
     struct pid_route_t key = {};
     u16 family = 0;
-
-
+    u16 protocol = 0;
+    short socket_type = 0;
+    
     // Extract IP and port from the sockaddr structure
     bpf_probe_read(&family, sizeof(family), &address->sa_family);
 
@@ -78,6 +80,15 @@ int hook_security_socket_connect(ctx_t *ctx) {
         bpf_probe_read(&key.addr, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
     }
 
+    bpf_probe_read(&socket_type, sizeof(socket_type), &sk->type);
+
+    // We only handle TCP and UDP sockets for now
+    if (socket_type == SOCK_STREAM) {
+        protocol = IPPROTO_TCP;
+    } else if (socket_type == SOCK_DGRAM) {
+        protocol = IPPROTO_UDP;
+    }
+
     // fill syscall_cache if necessary
     struct syscall_cache_t *syscall = peek_syscall(EVENT_CONNECT);
     if (syscall) {
@@ -85,6 +96,7 @@ int hook_security_socket_connect(ctx_t *ctx) {
         syscall->connect.addr[1] = key.addr[1];
         syscall->connect.port = key.port;
         syscall->connect.family = family;
+        syscall->connect.protocol = protocol;
     }
 
     // Only handle AF_INET and AF_INET6
@@ -92,27 +104,6 @@ int hook_security_socket_connect(ctx_t *ctx) {
         return 0;
     }
 
-    // Register service PID
-    if (key.port != 0) {
-        u64 id = bpf_get_current_pid_tgid();
-        u32 tid = (u32)id;
-
-        // add netns information
-        key.netns = get_netns_from_socket(sk);
-        if (key.netns != 0) {
-            bpf_map_update_elem(&netns_cache, &tid, &key.netns, BPF_ANY);
-        }
-
-#ifndef DO_NOT_USE_TC
-        u32 pid = id >> 32;
-        bpf_map_update_elem(&flow_pid, &key, &pid, BPF_ANY);
-#endif
-
-#if defined(DEBUG_CONNECT)
-        __bpf_printk("------------# registered (connect) pid:%d", pid);
-        __bpf_printk("------------# p:%d a:%d a:%d", key.port, key.addr[0], key.addr[1]);
-#endif
-    }
     return 0;
 }
 

@@ -1,4 +1,2 @@
 testsuite
-stresssuite
-!latency/bin
 !syscall_tester/bin

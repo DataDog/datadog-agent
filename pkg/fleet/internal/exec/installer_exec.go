@@ -18,7 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -57,7 +58,7 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 			return cmd.Process.Signal(os.Interrupt)
 		}
 	}
-	env = append(env, telemetry.EnvFromSpanContext(span.Context())...)
+	env = append(env, telemetry.EnvFromContext(ctx)...)
 	cmd.Env = env
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -247,8 +248,9 @@ func (iCmd *installerCmd) Run() error {
 	}
 
 	if len(errBuf.Bytes()) == 0 {
-		return fmt.Errorf("run failed: %s", err.Error())
+		return fmt.Errorf("run failed: %w", err)
 	}
 
-	return fmt.Errorf("run failed: %s \n%s", strings.TrimSpace(errBuf.String()), err.Error())
+	installerError := installerErrors.FromJSON(strings.TrimSpace(errBuf.String()))
+	return fmt.Errorf("run failed: %w \n%s", installerError, err.Error())
 }

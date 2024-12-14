@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && (functionaltests || stresstests)
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -45,7 +45,7 @@ func validateMessageSchema(t *testing.T, msg string) bool {
 	if !validateStringSchema(t, msg, "file:///message.schema.json") {
 		return false
 	}
-	return validateUrlSchema(t, msg, upstreamEventSchema)
+	return validateURLSchema(t, msg, upstreamEventSchema)
 }
 
 //nolint:deadcode,unused
@@ -344,7 +344,7 @@ func validateStringSchema(t *testing.T, json string, path string) bool {
 }
 
 //nolint:deadcode,unused
-func validateUrlSchema(t *testing.T, json string, url string) bool {
+func validateURLSchema(t *testing.T, json string, url string) bool {
 	t.Helper()
 
 	documentLoader := gojsonschema.NewStringLoader(json)

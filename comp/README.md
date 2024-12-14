@@ -392,7 +392,7 @@ Package logsagentpipeline contains logs agent pipeline component
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 
-*Datadog Team*: processes
+*Datadog Team*: container-intake
 
 Package process implements the "process" bundle, providing components for the Process Agent
 
@@ -596,6 +596,12 @@ Package datadogclient provides a client to query the datadog API
 *Datadog Team*: windows-agent
 
 Package etw provides an ETW tracing interface
+
+### [comp/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/haagent)
+
+*Datadog Team*: ndm-core
+
+Package haagent handles states for HA Agent feature.
 
 ### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection/client)
 

@@ -91,9 +91,18 @@ type ValueWithSource struct {
 	Value  interface{}
 }
 
-// IsGreaterOrEqualThan returns true if the current source is of higher priority than the one given as a parameter
-func (s Source) IsGreaterOrEqualThan(x Source) bool {
-	return sourcesPriority[s] >= sourcesPriority[x]
+// IsGreaterThan returns true if the current source is of higher priority than the one given as a parameter
+func (s Source) IsGreaterThan(x Source) bool {
+	return sourcesPriority[s] > sourcesPriority[x]
+}
+
+// PreviousSource returns the source before the current one, or Default (lowest priority) if there isn't one
+func (s Source) PreviousSource() Source {
+	previous := sourcesPriority[s]
+	if previous == 0 {
+		return sources[previous]
+	}
+	return sources[previous-1]
 }
 
 // String casts Source into a string
@@ -310,9 +319,11 @@ func (c *safeConfig) IsSet(key string) bool {
 }
 
 func (c *safeConfig) AllKeysLowercased() []string {
-	c.RLock()
-	defer c.RUnlock()
-	return c.Viper.AllKeys()
+	c.Lock()
+	defer c.Unlock()
+	res := c.Viper.AllKeys()
+	slices.Sort(res)
+	return res
 }
 
 // Get wraps Viper for concurrent access
@@ -703,17 +714,6 @@ func (c *safeConfig) AllSettingsBySource() map[Source]interface{} {
 	c.Lock()
 	defer c.Unlock()
 
-	sources := []Source{
-		SourceDefault,
-		SourceUnknown,
-		SourceFile,
-		SourceEnvVar,
-		SourceFleetPolicies,
-		SourceAgentRuntime,
-		SourceRC,
-		SourceCLI,
-		SourceLocalConfigProcess,
-	}
 	res := map[Source]interface{}{}
 	for _, source := range sources {
 		res[source] = c.configSources[source].AllSettingsWithoutDefault()
@@ -846,24 +846,9 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 	return &config
 }
 
-// CopyConfig copies the given config to the receiver config. This should only be used in tests as replacing
-// the global config reference is unsafe.
-func (c *safeConfig) CopyConfig(cfg Config) {
-	c.Lock()
-	defer c.Unlock()
-
-	if cfg, ok := cfg.(*safeConfig); ok {
-		c.Viper = cfg.Viper
-		c.configSources = cfg.configSources
-		c.envPrefix = cfg.envPrefix
-		c.envKeyReplacer = cfg.envKeyReplacer
-		c.proxies = cfg.proxies
-		c.configEnvVars = cfg.configEnvVars
-		c.unknownKeys = cfg.unknownKeys
-		c.notificationReceivers = cfg.notificationReceivers
-		return
-	}
-	panic("Replacement config must be an instance of safeConfig")
+// Stringify stringifies the config, but only for nodetremodel with the test build tag
+func (c *safeConfig) Stringify(_ Source) string {
+	return "safeConfig{...}"
 }
 
 // GetProxies returns the proxy settings from the configuration
@@ -876,7 +861,7 @@ func (c *safeConfig) GetProxies() *Proxy {
 	if c.Viper.GetBool("fips.enabled") {
 		return nil
 	}
-	if !c.Viper.IsSet("proxy.http") && !c.Viper.IsSet("proxy.https") && !c.Viper.IsSet("proxy.no_proxy") {
+	if c.Viper.GetString("proxy.http") == "" && c.Viper.GetString("proxy.https") == "" && len(c.Viper.GetStringSlice("proxy.no_proxy")) == 0 {
 		return nil
 	}
 	p := &Proxy{

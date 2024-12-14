@@ -9,6 +9,7 @@
 package mount
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -17,12 +18,12 @@ type ResolverInterface interface {
 	IsMountIDValid(mountID uint32) (bool, error)
 	SyncCache(pid uint32) error
 	Delete(mountID uint32) error
-	ResolveFilesystem(mountID uint32, device uint32, pid uint32, containerID string) (string, error)
+	ResolveFilesystem(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, error)
 	Insert(m model.Mount, pid uint32) error
 	DelPid(pid uint32)
-	ResolveMountRoot(mountID uint32, device uint32, pid uint32, containerID string) (string, model.MountSource, model.MountOrigin, error)
-	ResolveMountPath(mountID uint32, device uint32, pid uint32, containerID string) (string, model.MountSource, model.MountOrigin, error)
-	ResolveMount(mountID uint32, device uint32, pid uint32, containerID string) (*model.Mount, model.MountSource, model.MountOrigin, error)
+	ResolveMountRoot(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error)
+	ResolveMountPath(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error)
+	ResolveMount(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (*model.Mount, model.MountSource, model.MountOrigin, error)
 	SendStats() error
 	ToJSON() ([]byte, error)
 }

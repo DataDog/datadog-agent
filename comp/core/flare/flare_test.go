@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -35,7 +36,7 @@ import (
 )
 
 func TestFlareCreation(t *testing.T) {
-	realProvider := func(_ types.FlareBuilder) error { return nil }
+	realProvider := types.NewFiller(func(_ types.FlareBuilder) error { return nil })
 
 	fakeTagger := mockTagger.SetupFakeTagger(t)
 
@@ -56,14 +57,14 @@ func TestFlareCreation(t *testing.T) {
 			fx.Provide(func(ac autodiscovery.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
 			fx.Provide(func() mockTagger.Mock { return fakeTagger }),
 			fx.Provide(func() tagger.Component { return fakeTagger }),
-			// provider a nil FlareCallback
+			// provider a nil FlareFiller
 			fx.Provide(fx.Annotate(
-				func() types.FlareCallback { return nil },
+				func() *types.FlareFiller { return nil },
 				fx.ResultTags(`group:"flare"`),
 			)),
-			// provider a real FlareCallback
+			// provider a real FlareFiller
 			fx.Provide(fx.Annotate(
-				func() types.FlareCallback { return realProvider },
+				func() *types.FlareFiller { return realProvider },
 				fx.ResultTags(`group:"flare"`),
 			)),
 		),
@@ -74,8 +75,7 @@ func TestFlareCreation(t *testing.T) {
 }
 
 func TestRunProviders(t *testing.T) {
-	var firstRan atomic.Bool
-	var secondRan atomic.Bool
+	firstStarted := make(chan struct{}, 1)
 	var secondDone atomic.Bool
 
 	fakeTagger := mockTagger.SetupFakeTagger(t)
@@ -96,28 +96,27 @@ func TestRunProviders(t *testing.T) {
 		fx.Provide(func(ac autodiscovery.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
 		fx.Provide(func() mockTagger.Mock { return fakeTagger }),
 		fx.Provide(func() tagger.Component { return fakeTagger }),
-		// provider a nil FlareCallback
+		// provider a nil FlareFiller
 		fx.Provide(fx.Annotate(
-			func() types.FlareCallback { return nil },
+			func() *types.FlareFiller { return nil },
 			fx.ResultTags(`group:"flare"`),
 		)),
 		fx.Provide(fx.Annotate(
-			func() types.FlareCallback {
-				return func(_ types.FlareBuilder) error {
-					firstRan.Store(true)
+			func() *types.FlareFiller {
+				return types.NewFiller(func(_ types.FlareBuilder) error {
+					firstStarted <- struct{}{}
 					return nil
-				}
+				})
 			},
 			fx.ResultTags(`group:"flare"`),
 		)),
 		fx.Provide(fx.Annotate(
-			func() types.FlareCallback {
-				return func(_ types.FlareBuilder) error {
-					secondRan.Store(true)
+			func() *types.FlareFiller {
+				return types.NewFiller(func(_ types.FlareBuilder) error {
 					time.Sleep(10 * time.Second)
 					secondDone.Store(true)
 					return nil
-				}
+				})
 			},
 			fx.ResultTags(`group:"flare"`),
 		)),
@@ -126,12 +125,16 @@ func TestRunProviders(t *testing.T) {
 	cliProviderTimeout := time.Nanosecond
 	f := newFlare(deps)
 
-	fb, err := helpers.NewFlareBuilder(false)
+	fb, err := helpers.NewFlareBuilder(false, flarebuilder.FlareArgs{})
 	require.NoError(t, err)
 
+	start := time.Now()
 	f.Comp.(*flare).runProviders(fb, cliProviderTimeout)
+	// ensure that providers are actually started
+	<-firstStarted
+	elapsed := time.Since(start)
 
-	require.True(t, firstRan.Load())
-	require.True(t, secondRan.Load())
-	require.False(t, secondDone.Load())
+	// ensure that we're not blocking for the slow provider
+	assert.Less(t, elapsed, 5*time.Second)
+	assert.False(t, secondDone.Load())
 }

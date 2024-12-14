@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package mysql
 
 import (
@@ -14,7 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 const (
@@ -45,5 +48,13 @@ func RunServer(t testing.TB, serverAddr, serverPort string, withTLS bool) error 
 		env = append(env, "MYSQL_TLS_ARGS=--require-secure-transport --ssl-cert=/mysql-test/cert.pem.0 --ssl-key=/mysql-test/server.key")
 	}
 
-	return protocolsUtils.RunDockerServer(t, "MYSQL", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(fmt.Sprintf(".*ready for connections.*port: %s.*", serverPort)), protocolsUtils.DefaultTimeout, 3)
+	scanner, err := globalutils.NewScanner(regexp.MustCompile(fmt.Sprintf(".*ready for connections.*port: %s.*", serverPort)), globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
+	dockerCfg := dockerutils.NewComposeConfig("MYSQL",
+		dockerutils.DefaultTimeout,
+		dockerutils.DefaultRetries,
+		scanner,
+		env,
+		filepath.Join(dir, "testdata", "docker-compose.yml"))
+	return dockerutils.Run(t, dockerCfg)
 }
