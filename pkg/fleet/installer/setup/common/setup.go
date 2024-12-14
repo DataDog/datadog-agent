@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
@@ -62,6 +63,10 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		return nil, fmt.Errorf("failed to create installer: %w", err)
 	}
 	span, ctx := tracer.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", flavor))
+	var proxyNoProxy []string
+	if env.NoProxy != "" {
+		proxyNoProxy = strings.Split(env.NoProxy, ",")
+	}
 	s := &Setup{
 		configDir: configDir,
 		installer: installer,
@@ -76,7 +81,12 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 				APIKey:   env.APIKey,
 				Hostname: os.Getenv("DD_HOSTNAME"),
 				Site:     env.Site,
-				Env:      os.Getenv("DD_ENV"),
+				Proxy: DatadogConfigProxy{
+					HTTP:    env.HTTPProxy,
+					HTTPS:   env.HTTPSProxy,
+					NoProxy: proxyNoProxy,
+				},
+				Env: os.Getenv("DD_ENV"),
 			},
 			IntegrationConfigs: make(map[string]IntegrationConfig),
 		},
