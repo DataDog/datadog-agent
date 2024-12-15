@@ -115,14 +115,14 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	c.collectResourceTags = c.config.GetBool("ecs_collect_resource_tags_ec2")
 
 	instance, err := c.metaV1.GetInstance(ctx)
-	if err == nil {
-		c.clusterName = instance.Cluster
-	} else {
-		log.Warnf("cannot determine ECS cluster name: %s", err)
+	if err != nil {
+		log.Warnf("cannot determine ECS cluster name: %s: fallback to metadata v1 task endpoint", err)
+		c.taskCollectionParser = c.parseTasksFromV1Endpoint
+		return nil
 	}
 
+	c.clusterName = instance.Cluster
 	c.setTaskCollectionParser(instance.Version)
-
 	return nil
 }
 
