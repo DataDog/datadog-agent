@@ -44,6 +44,10 @@ func (s *service) Init() error {
 
 	s.errChan = errChan
 
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
