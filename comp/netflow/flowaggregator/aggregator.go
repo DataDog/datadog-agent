@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
@@ -54,7 +55,8 @@ type FlowAggregator struct {
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
 
-	logger log.Component
+	logger  log.Component
+	haAgent haagent.Component
 }
 
 type sequenceDeltaKey struct {
@@ -78,7 +80,7 @@ var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
 }
 
 // NewFlowAggregator returns a new FlowAggregator
-func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component) *FlowAggregator {
+func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component, haAgent haagent.Component) *FlowAggregator {
 	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
@@ -99,6 +101,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		TimeNowFunction:              time.Now,
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
+		haAgent:                      haAgent,
 	}
 }
 
@@ -129,10 +132,17 @@ func (agg *FlowAggregator) run() {
 			agg.runDone <- struct{}{}
 			return
 		case flow := <-agg.flowIn:
-			agg.receivedFlowCount.Inc()
-			agg.flowAcc.add(flow)
+			agg.add(flow)
 		}
 	}
+}
+
+func (agg *FlowAggregator) add(flow *common.Flow) {
+	agg.receivedFlowCount.Inc()
+	if agg.haAgent.Enabled() && agg.haAgent.ShouldRunIntegration() {
+
+	}
+	agg.flowAcc.add(flow)
 }
 
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) {
