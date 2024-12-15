@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -47,6 +48,43 @@ func (cg ControlGroup) GetContainerContext() (containerutils.ContainerID, contai
 func (cg ControlGroup) GetContainerID() containerutils.ContainerID {
 	id, _ := containerutils.FindContainerID(containerutils.CGroupID(cg.Path))
 	return containerutils.ContainerID(id)
+}
+
+// GetLastProcControlGroups returns the first cgroup membership of the specified task.
+func GetLastProcControlGroups(tgid, pid uint32) (ControlGroup, error) {
+	data, err := os.ReadFile(CgroupTaskPath(tgid, pid))
+	if err != nil {
+		return ControlGroup{}, err
+	}
+
+	data = bytes.TrimSpace(data)
+
+	index := bytes.LastIndexByte(data, '\n')
+	if index < 0 {
+		index = 0
+	}
+	firstLine := string(data[index:])
+
+	idstr, rest, ok := strings.Cut(firstLine, ":")
+	if !ok {
+		return ControlGroup{}, fmt.Errorf("invalid cgroup line: %s", firstLine)
+	}
+
+	id, err := strconv.Atoi(idstr)
+	if err != nil {
+		return ControlGroup{}, err
+	}
+
+	controllers, path, ok := strings.Cut(rest, ":")
+	if !ok {
+		return ControlGroup{}, fmt.Errorf("invalid cgroup line: %s", firstLine)
+	}
+
+	return ControlGroup{
+		ID:          id,
+		Controllers: strings.Split(controllers, ","),
+		Path:        path,
+	}, nil
 }
 
 // GetProcControlGroups returns the cgroup membership of the specified task.
@@ -85,15 +123,14 @@ func GetProcContainerID(tgid, pid uint32) (containerutils.ContainerID, error) {
 // GetProcContainerContext returns the container ID which the process belongs to along with its manager. Returns "" if the process does not belong
 // to a container.
 func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, model.CGroupContext, error) {
-	cgroups, err := GetProcControlGroups(tgid, pid)
-	if err != nil || len(cgroups) == 0 {
+	cgroup, err := GetLastProcControlGroups(tgid, pid)
+	if err != nil {
 		return "", model.CGroupContext{}, err
 	}
 
-	lastCgroup := len(cgroups) - 1
-	containerID, runtime := cgroups[lastCgroup].GetContainerContext()
+	containerID, runtime := cgroup.GetContainerContext()
 	cgroupContext := model.CGroupContext{
-		CGroupID:    containerutils.CGroupID(cgroups[lastCgroup].Path),
+		CGroupID:    containerutils.CGroupID(cgroup.Path),
 		CGroupFlags: runtime,
 	}
 
