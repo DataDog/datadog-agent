@@ -74,14 +74,21 @@ message Entity {
 }
 
 message GenerateContainerIDFromOriginInfoRequest {
-    // Local Data
-    string localDataContainerIDFromSocket = 1;
-    string localDataPodUID = 2;
-    string localDataContainerID = 3;
-    // External Data
-    bool externalDataInit = 4;
-    string externalDataContainerName = 5;
-    string externalDataPodUID = 6;
+    message LocalData {
+        string containerIDFromSocket = 1;
+        string containerID = 2;
+        string Inode = 3;
+        string podUID = 4;
+    }
+
+    message ExternalData {
+        bool init = 1;
+        string containerName = 2;
+        string podUID = 3;
+    }
+
+    LocalData localData = 1;
+    ExternalData externalData = 2;
 }
 
 message GenerateContainerIDFromOriginInfoResponse {

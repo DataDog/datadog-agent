@@ -74,6 +74,8 @@ func (s *serverSecure) TaggerStreamEntities(req *pb.StreamTagsRequest, srv pb.Ag
 	return s.taggerServer.TaggerStreamEntities(req, srv)
 }
 
+// TaggerGenerateContainerIDFromOriginInfo generates a container ID from the Origin Info.
+// This function takes an Origin Info but only uses the ExternalData part of it, this is done for backward compatibility.
 func (s *serverSecure) TaggerGenerateContainerIDFromOriginInfo(ctx context.Context, req *pb.GenerateContainerIDFromOriginInfoRequest) (*pb.GenerateContainerIDFromOriginInfoResponse, error) {
 	return s.taggerServer.TaggerGenerateContainerIDFromOriginInfo(ctx, req)
 }

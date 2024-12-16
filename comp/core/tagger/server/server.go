@@ -168,12 +168,13 @@ func (s *Server) TaggerFetchEntity(_ context.Context, in *pb.FetchEntityRequest)
 }
 
 // TaggerGenerateContainerIDFromOriginInfo request the generation of a container ID from external data from the Tagger.
+// This function takes an Origin Info but only uses the ExternalData part of it, this is done for backward compatibility.
 func (s *Server) TaggerGenerateContainerIDFromOriginInfo(_ context.Context, in *pb.GenerateContainerIDFromOriginInfoRequest) (*pb.GenerateContainerIDFromOriginInfoResponse, error) {
 	generatedContainerID, err := s.taggerComponent.GenerateContainerIDFromOriginInfo(origindetection.OriginInfo{
 		ExternalData: origindetection.ExternalData{
-			Init:          in.ExternalDataInit,
-			ContainerName: in.ExternalDataContainerName,
-			PodUID:        in.ExternalDataPodUID,
+			Init:          in.ExternalData.Init,
+			ContainerName: in.ExternalData.ContainerName,
+			PodUID:        in.ExternalData.PodUID,
 		},
 	})
 	if err != nil {
