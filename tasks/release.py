@@ -87,14 +87,27 @@ BACKPORT_LABEL_COLOR = "5319e7"
 def deduce_version(ctx, branch, as_str=True, trust=False) -> str | Version:
     release_version = get_next_version_from_branch(ctx, branch, as_str=as_str)
 
-    if trust:
-        return release_version
-
     print(
         f'{color_message("Info", Color.BLUE)}: Version {release_version} deduced from branch {branch}', file=sys.stderr
     )
 
-    return release_version
+    if (
+        trust
+        or not os.isatty(sys.stdin.fileno())
+        or yes_no_question(
+            'Is this the version you want to use?',
+            color="orange",
+            default=False,
+        )
+    ):
+        return release_version
+
+    raise Exit(color_message("Aborting.", "red"), code=1)
+
+
+@task
+def a(_, branch):
+    print(deduce_version(_, branch))
 
 
 def get_version_major(branch: str) -> int:
