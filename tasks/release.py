@@ -105,11 +105,6 @@ def deduce_version(ctx, branch, as_str=True, trust=False) -> str | Version:
     raise Exit(color_message("Aborting.", "red"), code=1)
 
 
-@task
-def a(_, branch):
-    print(deduce_version(_, branch))
-
-
 def get_version_major(branch: str) -> int:
     """Get the major version from a branch name."""
 
