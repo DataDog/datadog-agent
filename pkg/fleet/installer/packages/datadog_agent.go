@@ -60,6 +60,7 @@ var (
 		"system-probe.yaml",
 		"inject/tracer.yaml",
 		"inject",
+		"managed",
 	}
 	// matches omnibus/package-scripts/agent-deb/postinst
 	rootOwnedAgentPaths = []string{
