@@ -171,12 +171,11 @@ type CheckConfig struct {
 	// RequestedMetrics are the metrics explicitly requested by config.
 	RequestedMetrics []profiledefinition.MetricsConfig
 	// RequestedMetricTags are the tags explicitly requested by config.
-	RequestedMetricTags []profiledefinition.MetricTagConfig
-	OidBatchSize        int
-	BulkMaxRepetitions  uint32
-	ProfileProvider     profile.Provider
-	ProfileName         string
-
+	RequestedMetricTags   []profiledefinition.MetricTagConfig
+	OidBatchSize          int
+	BulkMaxRepetitions    uint32
+	ProfileProvider       profile.Provider
+	ProfileName           string
 	ExtraTags             []string
 	InstanceTags          []string
 	CollectDeviceMetadata bool
