@@ -75,19 +75,6 @@ func TestOTelFlareExtensionResponse(s OTelTestSuite, providedCfg string, fullCfg
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 	agent := getAgentPod(s)
-	agentJSON, err := json.Marshal(agent)
-	require.NoError(s.T(), err)
-	s.T().Log("agent pod status ", string(agentJSON))
-
-	timeout := time.Now().Add(5 * time.Minute)
-	for i := 1; time.Now().Before(timeout); i++ {
-		stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "otel-agent", []string{"curl", "localhost:13133"})
-		s.T().Log("attempt ", i, " curl health check endpoint ", stdout, stderr, err)
-		if err == nil {
-			break
-		}
-		time.Sleep(30 * time.Second)
-	}
 
 	s.T().Log("Starting flare")
 	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "flare", "--email", "e2e@test.com", "--send"})
@@ -106,6 +93,9 @@ func TestOTelFlareExtensionResponse(s OTelTestSuite, providedCfg string, fullCfg
 	assert.Equal(s.T(), "otel-agent", resp.AgentCommand)
 	assert.Equal(s.T(), "Datadog Agent OpenTelemetry Collector", resp.AgentDesc)
 	assert.Equal(s.T(), "", resp.RuntimeOverrideConfig)
+
+	s.T().Log("received provided config ", resp.CustomerConfig)
+	s.T().Log("received full config ", resp.RuntimeConfig)
 
 	validateConfigs(s.T(), providedCfg, resp.CustomerConfig)
 	validateConfigs(s.T(), fullCfg, resp.RuntimeConfig)

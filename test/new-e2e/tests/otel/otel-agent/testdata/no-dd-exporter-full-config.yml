@@ -11,10 +11,14 @@ extensions:
     compression_algorithms: []
     cors: null
     endpoint: localhost:7777
+    idle_timeout: 0s
     include_metadata: false
     max_request_body_size: 0
+    read_header_timeout: 0s
+    read_timeout: 0s
     response_headers: {}
     tls: null
+    write_timeout: 0s
   health_check/dd-autoconfigured:
     auth: null
     check_collector_pipeline:
@@ -24,12 +28,16 @@ extensions:
     compression_algorithms: []
     cors: null
     endpoint: localhost:13133
+    idle_timeout: 0s
     include_metadata: false
     max_request_body_size: 0
     path: /
+    read_header_timeout: 0s
+    read_timeout: 0s
     response_body: null
     response_headers: {}
     tls: null
+    write_timeout: 0s
   pprof/dd-autoconfigured:
     block_profile_fraction: 0
     dialer:
@@ -42,17 +50,47 @@ extensions:
     compression_algorithms: []
     cors: null
     endpoint: localhost:55679
+    idle_timeout: 0s
     include_metadata: false
     max_request_body_size: 0
+    read_header_timeout: 0s
+    read_timeout: 0s
     response_headers: {}
     tls: null
+    write_timeout: 0s
 processors: {}
 receivers:
-  hostmetrics:
-    collection_interval: 1m0s
-    initial_delay: 1s
-    root_path: ""
-    timeout: 0s
+  otlp:
+    protocols:
+      grpc:
+        auth: null
+        dialer:
+          timeout: 0s
+        endpoint: 0.0.0.0:4317
+        include_metadata: false
+        keepalive: null
+        max_concurrent_streams: 0
+        max_recv_msg_size_mib: 0
+        read_buffer_size: 524288
+        tls: null
+        transport: tcp
+        write_buffer_size: 0
+      http:
+        auth: null
+        compression_algorithms: []
+        cors: null
+        endpoint: 0.0.0.0:4318
+        idle_timeout: 0s
+        include_metadata: false
+        logs_url_path: /v1/logs
+        max_request_body_size: 0
+        metrics_url_path: /v1/metrics
+        read_header_timeout: 0s
+        read_timeout: 0s
+        response_headers: {}
+        tls: null
+        traces_url_path: /v1/traces
+        write_timeout: 0s
 service:
   extensions:
   - pprof/dd-autoconfigured
@@ -60,12 +98,24 @@ service:
   - health_check/dd-autoconfigured
   - ddflare/dd-autoconfigured
   pipelines:
-    metrics/sys:
+    logs:
       exporters:
       - debug
       processors: []
       receivers:
-      - hostmetrics
+      - otlp
+    metrics:
+      exporters:
+      - debug
+      processors: []
+      receivers:
+      - otlp
+    traces:
+      exporters:
+      - debug
+      processors: []
+      receivers:
+      - otlp
   telemetry:
     logs:
       development: false
@@ -78,16 +128,24 @@ service:
       level: info
       output_paths:
       - stderr
+      processors: []
       sampling:
         enabled: true
         initial: 10
         thereafter: 100
         tick: 10s
     metrics:
-      address: :8888
+      address: ""
       level: Normal
-      readers: []
+      readers:
+      - pull:
+          exporter:
+            additionalproperties: null
+            prometheus:
+              host: localhost
+              port: 8888
     resource: {}
     traces:
+      level: Basic
       processors: []
       propagators: []
