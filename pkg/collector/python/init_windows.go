@@ -23,6 +23,12 @@ func initializePlatform() error {
 		os.Unsetenv("PYTHONPATH")
 	}
 
+	// only use cache file when not admin
+	admin, _ := winutil.IsUserAnAdmin()
+	if admin {
+		return nil
+	}
+
 	// get program data directory and set PYTHONPYCACHEPREFIX
 	pd, err := winutil.GetProgramDataDir()
 	if err != nil {
@@ -39,7 +45,6 @@ func initializePlatform() error {
 	} else if err != nil {
 		return err
 	}
-	// TODO check if we have access to the directory ?
 
 	os.Setenv("PYTHONPYCACHEPREFIX", pycache)
 
