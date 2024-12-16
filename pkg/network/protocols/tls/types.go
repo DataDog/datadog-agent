@@ -16,10 +16,10 @@ const (
 	TagTLSVersion       = "tls.version:"
 	TagTLSCipherSuiteID = "tls.cipher_suite_id:"
 	TagTLSClientVersion = "tls.client_version:"
-	Version10           = "tls_1.0"
-	Version11           = "tls_1.1"
-	Version12           = "tls_1.2"
-	Version13           = "tls_1.3"
+	version10           = "tls_1.0"
+	version11           = "tls_1.1"
+	version12           = "tls_1.2"
+	version13           = "tls_1.3"
 )
 
 // Bitmask constants for Offered_versions matching kernelspace definitions
@@ -32,18 +32,18 @@ const (
 
 // VersionTags maps TLS versions to tag names for server chosen version (exported for testing)
 var VersionTags = map[uint16]string{
-	tls.VersionTLS10: TagTLSVersion + Version10,
-	tls.VersionTLS11: TagTLSVersion + Version11,
-	tls.VersionTLS12: TagTLSVersion + Version12,
-	tls.VersionTLS13: TagTLSVersion + Version13,
+	tls.VersionTLS10: TagTLSVersion + version10,
+	tls.VersionTLS11: TagTLSVersion + version11,
+	tls.VersionTLS12: TagTLSVersion + version12,
+	tls.VersionTLS13: TagTLSVersion + version13,
 }
 
 // ClientVersionTags maps TLS versions to tag names for client offered versions (exported for testing)
 var ClientVersionTags = map[uint16]string{
-	tls.VersionTLS10: TagTLSClientVersion + Version10,
-	tls.VersionTLS11: TagTLSClientVersion + Version11,
-	tls.VersionTLS12: TagTLSClientVersion + Version12,
-	tls.VersionTLS13: TagTLSClientVersion + Version13,
+	tls.VersionTLS10: TagTLSClientVersion + version10,
+	tls.VersionTLS11: TagTLSClientVersion + version11,
+	tls.VersionTLS12: TagTLSClientVersion + version12,
+	tls.VersionTLS13: TagTLSClientVersion + version13,
 }
 
 // Mapping of offered version bitmasks to version constants
@@ -119,10 +119,10 @@ func hexCipherSuiteTag(cipherSuite uint16) string {
 
 // GetTLSDynamicTags generates dynamic tags based on TLS information
 func GetTLSDynamicTags(tls *Tags) map[string]struct{} {
-	tags := make(map[string]struct{})
 	if tls == nil {
 		return nil
 	}
+	tags := make(map[string]struct{})
 
 	// Server chosen version
 	if tag, ok := VersionTags[tls.ChosenVersion]; ok {
