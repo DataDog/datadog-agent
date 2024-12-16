@@ -312,8 +312,11 @@ func initClosedConnEventHandler(config *config.Config, closedCallback func(*netw
 
 	handler := singleConnHandler
 	perfMode := perf.WakeupEvents(config.ClosedBufferWakeupCount)
+	// multiply by number of connections with in-buffer batching to have same effective size as with custom batching
+	chanSize := config.ClosedChannelSize * config.ClosedBufferWakeupCount
 	if config.CustomBatchingEnabled {
 		perfMode = perf.Watermark(1)
+		chanSize = config.ClosedChannelSize
 		handler = func(buf []byte) {
 			l := len(buf)
 			switch {
@@ -337,9 +340,9 @@ func initClosedConnEventHandler(config *config.Config, closedCallback func(*netw
 	}
 
 	perfBufferSize := util.ComputeDefaultClosedConnPerfBufferSize()
-	mode := perf.UsePerfBuffers(perfBufferSize, config.ClosedChannelSize, perfMode)
+	mode := perf.UsePerfBuffers(perfBufferSize, chanSize, perfMode)
 	if config.RingBufferSupportedNPM() {
-		mode = perf.UpgradePerfBuffers(perfBufferSize, config.ClosedChannelSize, perfMode, util.ComputeDefaultClosedConnRingBufferSize())
+		mode = perf.UpgradePerfBuffers(perfBufferSize, chanSize, perfMode, util.ComputeDefaultClosedConnRingBufferSize())
 	}
 
 	return perf.NewEventHandler(probes.ConnCloseEventMap, handler, mode,
