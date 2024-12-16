@@ -308,7 +308,7 @@ const (
 	MetricSourceAnyscale
 	MetricSourceMilvus
 	MetricSourceNvidiaNim
-	MetricSourceMilvus
+	MetricSourceQuarkus
 )
 
 // String returns a string representation of MetricSource
