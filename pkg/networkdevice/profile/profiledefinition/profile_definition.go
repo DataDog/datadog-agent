@@ -5,6 +5,8 @@
 
 package profiledefinition
 
+import "slices"
+
 // DeviceMeta holds device related static metadata
 // DEPRECATED in favour of profile metadata syntax
 type DeviceMeta struct {
@@ -53,4 +55,24 @@ func (p *ProfileDefinition) SplitOIDs(includeMetadata bool) ([]string, []string)
 		return splitOIDs(p.Metrics, p.MetricTags, p.Metadata)
 	}
 	return splitOIDs(p.Metrics, p.MetricTags, nil)
+}
+
+func (p *ProfileDefinition) Clone() *ProfileDefinition {
+	if p == nil {
+		return nil
+	}
+	return &ProfileDefinition{
+		Name:         p.Name,
+		Description:  p.Description,
+		SysObjectIDs: slices.Clone(p.SysObjectIDs),
+		Extends:      slices.Clone(p.Extends),
+		Metadata:     CloneMap(p.Metadata),
+		MetricTags:   CloneSlice(p.MetricTags),
+		StaticTags:   slices.Clone(p.StaticTags),
+		Metrics:      slices.Clone(p.Metrics),
+		Device: DeviceMeta{
+			Vendor: p.Device.Vendor,
+		},
+		Version: p.Version,
+	}
 }
