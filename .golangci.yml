@@ -1012,6 +1012,36 @@ issues:
     - path: comp/updater/updater/updaterimpl
       linters:
         - compimpl
+    - path: comp/api/authtoken/createandfetchimpl
+      linters:
+        - compimpl
+    - path: comp/api/authtoken/fetchonlyimpl
+      linters:
+        - compimpl
+    - path: comp/core/secrets/secretsimpl
+      linters:
+        - compimpl
+    - path: comp/core/status/statusimpl
+      linters:
+        - compimpl
+    - path: comp/core/telemetry/noopsimpl
+      linters:
+        - compimpl
+    - path: comp/core/telemetry/telemetryimpl
+      linters:
+        - compimpl
+    - path: comp/otelcol/collector-contrib/impl
+      linters:
+        - compimpl
+    - path: comp/otelcol/converter/impl
+      linters:
+        - compimpl
+    - path: comp/otelcol/ddflareextension/impl
+      linters:
+        - compimpl
+    - path: comp/otelcol/logsagentpipeline/logsagentpipelineimpl
+      linters:
+        - compimpl
 linters:
   disable-all: true
   enable:
