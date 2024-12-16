@@ -8,7 +8,6 @@ package discovery
 import (
 	"fmt"
 	"net"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -34,8 +33,7 @@ func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, tim
 }
 
 func TestDiscovery(t *testing.T) {
-	path, _ := filepath.Abs(filepath.Join(".", "test", "run_path", "TestDiscovery"))
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", path)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", t.TempDir())
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -85,8 +83,7 @@ func TestDiscovery(t *testing.T) {
 }
 
 func TestDiscoveryCache(t *testing.T) {
-	path, _ := filepath.Abs(filepath.Join(".", "test", "run_path", "TestDiscoveryCache"))
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", path)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", t.TempDir())
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -192,7 +189,7 @@ func TestDiscoveryTicker(t *testing.T) {
 }
 
 func TestDiscovery_checkDevice(t *testing.T) {
-	SetTestRunPath()
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", t.TempDir())
 	checkConfig := &checkconfig.CheckConfig{
 		Network:           "192.168.0.0/32",
 		CommunityString:   "public",
@@ -307,7 +304,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 }
 
 func TestDiscovery_createDevice(t *testing.T) {
-	SetTestRunPath()
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", t.TempDir())
 	checkConfig := &checkconfig.CheckConfig{
 		Network:                  "192.168.0.0/32",
 		CommunityString:          "public",
