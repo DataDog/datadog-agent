@@ -158,7 +158,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.1
 	github.com/DataDog/datadog-go/v5 v5.6.0
-	github.com/DataDog/datadog-operator v1.11.0-rc.2
+	github.com/DataDog/datadog-operator v1.11.0-rc.3
 	github.com/DataDog/ebpf-manager v0.7.4
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.8
@@ -1043,6 +1043,7 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	honnef.co/go/tools v0.5.1 // indirect
+	k8s.io/gengo/v2 v2.0.0-20240228010128-51d4e06bde70 // indirect
 	k8s.io/kms v0.31.2 // indirect
 	k8s.io/sample-controller v0.31.2 // indirect
 	modernc.org/gc/v3 v3.0.0-20240107210532-573471604cb6 // indirect
