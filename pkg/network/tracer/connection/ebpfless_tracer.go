@@ -242,9 +242,11 @@ func (t *ebpfLessTracer) processConnection(
 	case ebpfless.ProcessResultStoreConn:
 		maxTrackedConns := int(t.config.MaxTrackedConnections)
 		ok := ebpfless.WriteMapWithSizeLimit(t.conns, conn.ConnectionTuple, conn, maxTrackedConns)
-		// we don't have enough space to add this connection, remove its TCP state tracking
-		if !ok && conn.Type == network.TCP {
-			t.tcp.RemoveConn(conn.ConnectionTuple)
+		if !ok {
+			// we don't have enough space to add this connection, remove its TCP state tracking
+			if conn.Type == network.TCP {
+				t.tcp.RemoveConn(conn.ConnectionTuple)
+			}
 			ebpfLessTracerTelemetry.droppedConnections.Inc()
 		}
 	case ebpfless.ProcessResultCloseConn:

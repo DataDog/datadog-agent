@@ -70,7 +70,7 @@ type TCPProcessor struct {
 }
 
 // TODO make this into a config value
-const maxPendingConns = 1024
+const maxPendingConns = 4096
 
 // NewTCPProcessor constructs an empty TCPProcessor
 func NewTCPProcessor(cfg *config.Config) *TCPProcessor {
