@@ -17,7 +17,6 @@ import (
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, timeout time.Duration) error {
@@ -33,7 +32,8 @@ func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, tim
 }
 
 func TestDiscovery(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", t.TempDir())
+	config := agentconfig.NewMock(t)
+	config.SetWithoutSource("run_path", t.TempDir())
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -58,7 +58,7 @@ func TestDiscovery(t *testing.T) {
 		DiscoveryWorkers:   1,
 		IgnoredIPAddresses: map[string]bool{"192.168.0.5": true},
 	}
-	discovery := NewDiscovery(checkConfig, sessionFactory, agentconfig.NewMock(t))
+	discovery := NewDiscovery(checkConfig, sessionFactory, config)
 	discovery.Start()
 	assert.NoError(t, waitForDiscoveredDevices(discovery, 7, 2*time.Second))
 	discovery.Stop()
@@ -83,7 +83,8 @@ func TestDiscovery(t *testing.T) {
 }
 
 func TestDiscoveryCache(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", t.TempDir())
+	config := agentconfig.NewMock(t)
+	config.SetWithoutSource("run_path", t.TempDir())
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -107,7 +108,7 @@ func TestDiscoveryCache(t *testing.T) {
 		DiscoveryInterval: 3600,
 		DiscoveryWorkers:  1,
 	}
-	discovery := NewDiscovery(checkConfig, sessionFactory, agentconfig.NewMock(t))
+	discovery := NewDiscovery(checkConfig, sessionFactory, config)
 	discovery.Start()
 	assert.NoError(t, waitForDiscoveredDevices(discovery, 4, 2*time.Second))
 	discovery.Stop()
@@ -139,7 +140,7 @@ func TestDiscoveryCache(t *testing.T) {
 		DiscoveryInterval: 3600,
 		DiscoveryWorkers:  0, // no workers, the devices will be loaded from cache
 	}
-	discovery2 := NewDiscovery(checkConfig, sessionFactory, agentconfig.NewMock(t))
+	discovery2 := NewDiscovery(checkConfig, sessionFactory, config)
 	discovery2.Start()
 	assert.NoError(t, waitForDiscoveredDevices(discovery2, 4, 2*time.Second))
 	discovery2.Stop()
@@ -155,6 +156,9 @@ func TestDiscoveryCache(t *testing.T) {
 
 func TestDiscoveryTicker(t *testing.T) {
 	t.Skip() // TODO: FIX ME, currently this test is leading to data race when ran with other tests
+
+	config := agentconfig.NewMock(t)
+	config.SetWithoutSource("run_path", t.TempDir())
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -178,7 +182,7 @@ func TestDiscoveryTicker(t *testing.T) {
 		DiscoveryInterval: 1,
 		DiscoveryWorkers:  1,
 	}
-	discovery := NewDiscovery(checkConfig, sessionFactory, agentconfig.NewMock(t))
+	discovery := NewDiscovery(checkConfig, sessionFactory, config)
 	discovery.Start()
 	time.Sleep(1500 * time.Millisecond)
 	discovery.Stop()
@@ -189,7 +193,8 @@ func TestDiscoveryTicker(t *testing.T) {
 }
 
 func TestDiscovery_checkDevice(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", t.TempDir())
+	config := agentconfig.NewMock(t)
+	config.SetWithoutSource("run_path", t.TempDir())
 	checkConfig := &checkconfig.CheckConfig{
 		Network:           "192.168.0.0/32",
 		CommunityString:   "public",
@@ -225,7 +230,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 	}
 
 	var sess *session.MockSession
-	discovery := NewDiscovery(checkConfig, session.NewMockSession, agentconfig.NewMock(t))
+	discovery := NewDiscovery(checkConfig, session.NewMockSession, config)
 
 	checkDeviceOnce := func() {
 		sess = session.CreateMockSession()
@@ -304,7 +309,9 @@ func TestDiscovery_checkDevice(t *testing.T) {
 }
 
 func TestDiscovery_createDevice(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", t.TempDir())
+	config := agentconfig.NewMock(t)
+	config.SetWithoutSource("run_path", t.TempDir())
+
 	checkConfig := &checkconfig.CheckConfig{
 		Network:                  "192.168.0.0/32",
 		CommunityString:          "public",
@@ -313,7 +320,7 @@ func TestDiscovery_createDevice(t *testing.T) {
 		DiscoveryAllowedFailures: 3,
 		Namespace:                "default",
 	}
-	discovery := NewDiscovery(checkConfig, session.NewMockSession, agentconfig.NewMock(t))
+	discovery := NewDiscovery(checkConfig, session.NewMockSession, config)
 	ipAddr, ipNet, err := net.ParseCIDR(checkConfig.Network)
 	assert.Nil(t, err)
 	startingIP := ipAddr.Mask(ipNet.Mask)
