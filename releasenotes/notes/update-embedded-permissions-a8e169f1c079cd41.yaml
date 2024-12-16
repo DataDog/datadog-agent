@@ -8,4 +8,4 @@
 ---
 security:
   - |
-    On Windows, move the embedded python cache out of the installation directory.
+    Move the embedded Python cache out of the installation directory on Windows.
