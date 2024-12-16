@@ -18,9 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
@@ -42,7 +41,7 @@ type Setup struct {
 	Out      *Output
 	Env      *env.Env
 	Ctx      context.Context
-	Span     ddtrace.Span
+	Span     telemetry.Span
 	Packages Packages
 	Config   Config
 }
@@ -62,11 +61,11 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	if err != nil {
 		return nil, fmt.Errorf("failed to create installer: %w", err)
 	}
-	span, ctx := tracer.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", flavor))
 	var proxyNoProxy []string
 	if os.Getenv("DD_PROXY_NO_PROXY") != "" {
 		proxyNoProxy = strings.Split(os.Getenv("DD_PROXY_NO_PROXY"), ",")
 	}
+	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", flavor))
 	s := &Setup{
 		configDir: configDir,
 		installer: installer,
@@ -99,7 +98,7 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 
 // Run installs the packages and writes the configurations
 func (s *Setup) Run() (err error) {
-	defer func() { s.Span.Finish(tracer.WithError(err)) }()
+	defer func() { s.Span.Finish(err) }()
 	s.Out.WriteString("Applying configurations...\n")
 	err = writeConfigs(s.Config, s.configDir)
 	if err != nil {
@@ -128,8 +127,8 @@ func (s *Setup) Run() (err error) {
 
 // installPackage mimicks the telemetry of calling the install package command
 func (s *Setup) installPackage(name string, url string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(s.Ctx, "install")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, ctx := telemetry.StartSpanFromContext(s.Ctx, "install")
+	defer func() { span.Finish(err) }()
 	span.SetTag("url", url)
 	span.SetTag("_top_level", 1)
 
