@@ -253,6 +253,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, conta
 
 			if resource.ID == uuid {
 				filteredDevices = append(filteredDevices, device)
+				break
 			}
 		}
 	}
