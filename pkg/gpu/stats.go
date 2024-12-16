@@ -8,6 +8,8 @@
 package gpu
 
 import (
+	"fmt"
+
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
@@ -43,7 +45,12 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	g.currGenerationKTime = nowKtime
 
 	for key, handler := range g.streamHandlers {
-		aggr := g.getOrCreateAggregator(key)
+		aggr, err := g.getOrCreateAggregator(key)
+		if err != nil {
+			log.Errorf("Error getting or creating aggregator for key %v: %s", key, err)
+			continue
+		}
+
 		currData := handler.getCurrentData(uint64(nowKtime))
 		pastData := handler.getPastData(true)
 
@@ -79,7 +86,7 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	return stats
 }
 
-func (g *statsGenerator) getOrCreateAggregator(sKey streamKey) *aggregator {
+func (g *statsGenerator) getOrCreateAggregator(sKey streamKey) (*aggregator, error) {
 	aggKey := model.StatsKey{
 		PID:         sKey.pid,
 		DeviceUUID:  sKey.gpuUUID,
@@ -89,14 +96,12 @@ func (g *statsGenerator) getOrCreateAggregator(sKey streamKey) *aggregator {
 	if _, ok := g.aggregators[aggKey]; !ok {
 		gpuDevice, err := g.sysCtx.getDeviceByUUID(sKey.gpuUUID)
 		if err != nil {
-			log.Warnf("Error getting device by UUID %s: %s, defaulting to device 0", sKey.gpuUUID, err)
-			gpuDevice = g.sysCtx.gpuDevices[0]
+			return nil, fmt.Errorf("Error getting device by UUID %s: %s", sKey.gpuUUID, err)
 		}
 
 		maxThreads, ret := gpuDevice.GetNumGpuCores()
 		if ret != nvml.SUCCESS {
-			log.Warnf("Error getting number of GPU cores: %s, defaulting to 1", nvml.ErrorString(ret))
-			maxThreads = 1
+			return nil, fmt.Errorf("Error getting number of GPU cores: %s", nvml.ErrorString(ret))
 		}
 
 		g.aggregators[aggKey] = newAggregator(uint64(maxThreads))
@@ -105,7 +110,7 @@ func (g *statsGenerator) getOrCreateAggregator(sKey streamKey) *aggregator {
 	// Update the last check time and the measured interval, as these change between check runs
 	g.aggregators[aggKey].lastCheckKtime = uint64(g.lastGenerationKTime)
 	g.aggregators[aggKey].measuredIntervalNs = g.currGenerationKTime - g.lastGenerationKTime
-	return g.aggregators[aggKey]
+	return g.aggregators[aggKey], nil
 }
 
 // getNormalizationFactor returns the factor to use for utilization
