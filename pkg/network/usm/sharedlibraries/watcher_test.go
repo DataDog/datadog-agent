@@ -26,13 +26,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
-	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
-	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,8 +40,7 @@ func launchProcessMonitor(t *testing.T, useEventStream bool) {
 	t.Cleanup(pm.Stop)
 	require.NoError(t, pm.Initialize(useEventStream))
 	if useEventStream {
-		secutils.SetCachedHostname("test-hostname")
-		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
+		monitor.InitializeEventConsumer(testutil.NewTestProcessConsumer(t))
 	}
 }
 
@@ -104,6 +101,53 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 
 	require.Eventually(t, func() bool {
 		return unregisterRecorder.CallsForPathID(fooPathID1) == 1
+	}, time.Second*10, 100*time.Millisecond)
+}
+
+func (s *SharedLibrarySuite) TestLongPath() {
+	t := s.T()
+
+	const (
+		fileName             = "foo-libssl.so"
+		nullTerminatorLength = len("\x00")
+	)
+	padLength := LibPathMaxSize - len(fileName) - len(t.TempDir()) - len("_") - len(string(filepath.Separator)) - nullTerminatorLength
+	fooPath1, fooPathID1 := createTempTestFile(t, strings.Repeat("a", padLength)+"_"+fileName)
+	// fooPath2 is longer than the limit we have, thus it will be ignored.
+	fooPath2, fooPathID2 := createTempTestFile(t, strings.Repeat("a", padLength+1)+"_"+fileName)
+
+	registerRecorder := new(utils.CallbackRecorder)
+	unregisterRecorder := new(utils.CallbackRecorder)
+
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+		Rule{
+			Re:           regexp.MustCompile(`foo-libssl.so`),
+			RegisterCB:   registerRecorder.Callback(),
+			UnregisterCB: unregisterRecorder.Callback(),
+		},
+	)
+	require.NoError(t, err)
+	watcher.Start()
+	t.Cleanup(watcher.Stop)
+
+	// create files
+	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1)
+	require.NoError(t, err)
+
+	command2, err := fileopener.OpenFromAnotherProcess(t, fooPath2)
+	require.NoError(t, err)
+
+	require.Eventuallyf(t, func() bool {
+		return registerRecorder.CallsForPathID(fooPathID1) == 1 &&
+			registerRecorder.CallsForPathID(fooPathID2) == 0
+	}, time.Second*10, 100*time.Millisecond, "")
+
+	require.NoError(t, command1.Process.Kill())
+	require.NoError(t, command2.Process.Kill())
+
+	require.Eventually(t, func() bool {
+		return unregisterRecorder.CallsForPathID(fooPathID1) == 1 &&
+			unregisterRecorder.CallsForPathID(fooPathID2) == 0
 	}, time.Second*10, 100*time.Millisecond)
 }
 

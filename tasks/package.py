@@ -4,8 +4,8 @@ from datetime import datetime
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
+from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.package.size import (
     PACKAGE_SIZE_TEMPLATE,
     _get_deb_uncompressed_size,
@@ -13,25 +13,52 @@ from tasks.libs.package.size import (
     compare,
     compute_package_size_metrics,
 )
-from tasks.libs.package.utils import get_package_path, list_packages, retrieve_package_sizes, upload_package_sizes
+from tasks.libs.package.utils import (
+    PackageSize,
+    display_message,
+    find_package,
+    get_ancestor,
+    list_packages,
+    retrieve_package_sizes,
+    upload_package_sizes,
+)
 
 
 @task
 def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False):
     package_sizes = retrieve_package_sizes(ctx, filename, distant=not dry_run)
-    if get_current_branch(ctx) == get_default_branch():
+    on_main = os.environ['CI_COMMIT_REF_NAME'] == get_default_branch()
+    ancestor = get_ancestor(ctx, package_sizes, on_main)
+    if on_main:
         # Initialize to default values
-        ancestor = get_common_ancestor(ctx, get_default_branch())
         if ancestor in package_sizes:
             # The test already ran on this commit
             return
-        package_sizes[ancestor] = PACKAGE_SIZE_TEMPLATE
+        package_sizes[ancestor] = PACKAGE_SIZE_TEMPLATE.copy()
         package_sizes[ancestor]['timestamp'] = int(datetime.now().timestamp())
     # Check size of packages
+    print(
+        color_message(f"Checking package sizes from {os.environ['CI_COMMIT_REF_NAME']} against {ancestor}", Color.BLUE)
+    )
+    size_table = []
     for package_info in list_packages(PACKAGE_SIZE_TEMPLATE):
-        compare(ctx, package_sizes, *package_info)
-    if get_current_branch(ctx) == get_default_branch():
+        pkg_size = PackageSize(*package_info)
+        size_table.append(compare(ctx, package_sizes, ancestor, pkg_size))
+
+    if on_main:
         upload_package_sizes(ctx, package_sizes, filename, distant=not dry_run)
+    else:
+        size_table.sort(key=lambda x: (-x.diff, x.flavor, x.arch_name()))
+        size_message = "".join(f"{pkg_size.markdown()}\n" for pkg_size in size_table)
+        if "❌" in size_message:
+            decision = "❌ Failed"
+        elif "⚠️" in size_message:
+            decision = "⚠️ Warning"
+        else:
+            decision = "✅ Passed"
+        display_message(ctx, ancestor, size_message, decision)
+        if "Failed" in decision:
+            raise Exit(code=1)
 
 
 @task
@@ -39,11 +66,11 @@ def compare_size(ctx, new_package, stable_package, package_type, last_stable, th
     mb = 1000000
 
     if package_type.endswith('deb'):
-        new_package_size = _get_deb_uncompressed_size(ctx, get_package_path(new_package))
-        stable_package_size = _get_deb_uncompressed_size(ctx, get_package_path(stable_package))
+        new_package_size = _get_deb_uncompressed_size(ctx, find_package(new_package))
+        stable_package_size = _get_deb_uncompressed_size(ctx, find_package(stable_package))
     else:
-        new_package_size = _get_rpm_uncompressed_size(ctx, get_package_path(new_package))
-        stable_package_size = _get_rpm_uncompressed_size(ctx, get_package_path(stable_package))
+        new_package_size = _get_rpm_uncompressed_size(ctx, find_package(new_package))
+        stable_package_size = _get_rpm_uncompressed_size(ctx, find_package(stable_package))
 
     threshold = int(threshold)
 
