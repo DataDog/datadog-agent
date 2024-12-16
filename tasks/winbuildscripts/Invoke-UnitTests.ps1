@@ -74,6 +74,9 @@ Invoke-BuildScript `
                 exit 1
             }
         }
+        # Add the dev\lib directory to the PATH so that the go tests can find the rtloader DLL
+        # TODO: This is a weird way to load the rtloader DLLs
+        $env:PATH="$(Get-Location)\dev\lib;$env:PATH"
         # Create ddagentuser for secrets tests if it doesn't already exist
         if (-not (Get-LocalUser -Name "ddagentuser" -ErrorAction SilentlyContinue)) {
             $Password = ConvertTo-SecureString "dummyPW_:-gch6Rejae9" -AsPlainText -Force
