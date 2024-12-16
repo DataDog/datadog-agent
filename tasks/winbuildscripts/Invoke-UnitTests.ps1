@@ -54,22 +54,22 @@ Invoke-BuildScript `
     # pre-reqs
     {
         # Check required environment variables
-        if (-not $Env:TEST_EMBEDDED_PY3) {
+        if ([string]::IsNullOrEmpty($Env:TEST_EMBEDDED_PY3)) {
             Write-Host -ForegroundColor Red "TEST_EMBEDDED_PY3 environment variable is required for running embedded Python 3 tests"
             exit 1
         }
         if ($UploadCoverage) {
-            if (-not $Env:CODECOV_TOKEN) {
+            if ([string]::IsNullOrEmpty($Env:CODECOV_TOKEN)) {
                 Write-Host -ForegroundColor Red "CODECOV_TOKEN environment variable is required for uploading coverage reports to Codecov"
                 exit 1
             }
         }
         if ($UploadTestResults) {
-            if (-not $Env:API_KEY_ORG2) {
+            if ([string]::IsNullOrEmpty($Env:API_KEY_ORG2)) {
                 Write-Host -ForegroundColor Red "API_KEY_ORG2 environment variable is required for junit upload to Datadog CI"
                 exit 1
             }
-            if (-not $Env:JUNIT_TAR) {
+            if ([string]::IsNullOrEmpty($Env:JUNIT_TAR)) {
                 Write-Host -ForegroundColor Red "JUNIT_TAR environment variable is required for junit upload to Datadog CI"
                 exit 1
             }
