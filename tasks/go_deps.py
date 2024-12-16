@@ -1,5 +1,6 @@
 import datetime
 import os
+import shutil
 import tempfile
 from collections.abc import Iterable
 
@@ -227,19 +228,25 @@ def graph(
         Dependency graph of workloadmeta on Linux when using the same build tags as the core-agent
           inv -e go-deps.graph --build agent --os linux --entrypoint github.com/DataDog/datadog-agent/comp/core/workloadmeta/...:all
     """
+    if shutil.which("goda") is None:
+        raise Exit(
+            code=1,
+            message=color_message(
+                "'goda' not found in PATH. Please install it with `go install github.com/loov/goda@latest`", "red"
+            ),
+        )
+
     if os is None:
         goos = ctx.run("go env GOOS", hide=True)
-        assert goos
+        assert goos is not None
         os = goos.stdout.strip()
-    else:
-        assert os in GOOS_MAPPING.values()
+    assert os in GOOS_MAPPING.values()
 
     if arch is None:
         goarch = ctx.run("go env GOARCH", hide=True)
-        assert goarch
+        assert goarch is not None
         arch = goarch.stdout.strip()
-    else:
-        assert arch in GOARCH_MAPPING.values()
+    assert arch in GOARCH_MAPPING.values()
 
     stdarg = "-std" if std else ""
     clusterarg = "-cluster" if cluster else ""
@@ -268,6 +275,15 @@ def graph(
     print("Saving dot file in " + dotfile)
     with open(dotfile, "w") as f:
         f.write(res.stdout)
+
+    if shutil.which("dot") is None:
+        raise Exit(
+            code=1,
+            message=color_message(
+                "'dot' not found in PATH. Please follow instructions on https://graphviz.org/download/ to install it.",
+                "red",
+            ),
+        )
 
     fmtfile = tmpfile + "." + fmt
     print(f"Rendering {fmt} in {fmtfile}")
