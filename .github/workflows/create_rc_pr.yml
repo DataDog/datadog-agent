@@ -59,7 +59,7 @@ jobs:
           value: ${{fromJSON(needs.find_release_branches.outputs.branches)}}
         fail-fast: false
       steps:
-            - name: Checkout release branch
+            - name: Checkout the main branch
               uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
               with:
                 persist-credentials: true
@@ -100,4 +100,4 @@ jobs:
                 git config user.name "github-actions[bot]"
                 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
                 git fetch
-                inv -e release.create-rc "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }}
+                inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }}
