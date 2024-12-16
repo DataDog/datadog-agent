@@ -68,7 +68,7 @@ func (c *CheckConfig) BuildProfile(sysObjectID string) (profiledefinition.Profil
 		profile.Metrics = append(profile.Metrics, parentProfile.Metrics...)
 		profile.MetricTags = append(profile.MetricTags, parentProfile.MetricTags...)
 	}
-	profile.Metadata = UpdateMetadataDefinitionWithDefaults(profile.Metadata, c.CollectTopology)
+	profile.Metadata = updateMetadataDefinitionWithDefaults(profile.Metadata, c.CollectTopology)
 
 	return profile, profileErr
 }
