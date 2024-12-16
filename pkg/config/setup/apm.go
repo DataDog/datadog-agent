@@ -56,7 +56,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.SetKnown("apm_config.service_writer.queue_size")
 	config.SetKnown("apm_config.stats_writer.connection_limit")
 	config.SetKnown("apm_config.stats_writer.queue_size")
-	config.SetKnown("apm_config.analyzed_rate_by_service.*")
+	config.SetKnown("apm_config.analyzed_rate_by_service")
 	config.SetKnown("apm_config.bucket_size_seconds")
 	config.SetKnown("apm_config.watchdog_check_delay")
 	config.SetKnown("apm_config.sync_flushing")
