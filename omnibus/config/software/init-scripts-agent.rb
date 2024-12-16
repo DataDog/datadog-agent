@@ -5,7 +5,7 @@ description "Generate and configure init scripts packaging"
 always_build true
 
 build do
-  output_config_dir = ENV["OUTPUT_CONFIG_DIR"] || "" 
+  output_config_dir = ENV["OUTPUT_CONFIG_DIR"] || ""
   if linux_target?
     etc_dir = "#{output_config_dir}/etc/datadog-agent"
     mkdir "/etc/init"
@@ -89,6 +89,10 @@ build do
 
     erb source: "systemd.service.erb",
         dest: "#{systemd_directory}/datadog-agent.service",
+        mode: 0644,
+        vars: { install_dir: install_dir, etc_dir: etc_dir }
+    erb source: "systemd.checks.service.erb",
+        dest: "#{systemd_directory}/datadog-agent-checks.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
     erb source: "systemd.process.service.erb",
