@@ -77,7 +77,7 @@ message GenerateContainerIDFromOriginInfoRequest {
     message LocalData {
         string containerIDFromSocket = 1;
         string containerID = 2;
-        string Inode = 3;
+        uint64 Inode = 3;
         string podUID = 4;
     }
 
