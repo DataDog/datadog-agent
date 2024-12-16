@@ -192,14 +192,15 @@ function Get-VaultSecret() {
     )
     $tmpFile = [System.IO.Path]::GetTempFileName()
     try {
-        & "$PSScriptRoot\..\..\tools\ci\fetch_secret.ps1" -parameterName $parameterName -tempFile "$tmpfile"
+        # Use Out-Null to suppress the output of the fetch_secret script
+        & "$PSScriptRoot\..\..\tools\ci\fetch_secret.ps1" -parameterName $parameterName -tempFile "$tmpfile" | Out-Null
         $err = $LASTEXITCODE
         If ($LASTEXITCODE -ne "0") {
             throw "Failed to fetch ${parameterName}: $err"
         }
         Get-Content -Encoding ASCII -Raw -Path $tmpFile -ErrorAction Stop
     } finally {
-        Remove-Item -Force $tmpFile -ErrorAction Continue
+        Remove-Item -Force $tmpFile -ErrorAction Continue | Out-Null
     }
 }
 
