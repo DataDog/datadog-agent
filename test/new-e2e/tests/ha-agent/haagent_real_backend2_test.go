@@ -54,49 +54,11 @@ api_key: %s
 site: datad0g.com
 `, apiKey)
 
-	// language=yaml
-	snmpIntegration := `
-init_config:
-  loader: core
-  use_device_id_as_hostname: true
-instances:
-  - ip_address: 'snmp-device-10001'
-    community_string: public
-    port: 1161
-  - ip_address: 'snmp-device-10002'
-    community_string: public
-    port: 1161
-  - ip_address: 'snmp-device-10003'
-    community_string: public
-    port: 1161
-  - ip_address: 'snmp-device-10004'
-    community_string: public
-    port: 1161
-  - ip_address: 'snmp-device-10005'
-    community_string: public
-    port: 1161
-  - ip_address: 'snmp-device-10006'
-    community_string: public
-    port: 1161
-  - ip_address: 'snmp-device-10007'
-    community_string: public
-    port: 1161
-  - ip_address: 'snmp-device-10008'
-    community_string: public
-    port: 1161
-  - ip_address: 'snmp-device-10009'
-    community_string: public
-    port: 1161
-  - ip_address: 'snmp-device-10010'
-    community_string: public
-    port: 1161
-`
-
 	e2e.Run(t, &haAgentRealBackendTestSuite03Agent2{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithAgentConfig(agentConfig),
 			agentparams.WithSkipAPIKeyInConfig(),
-			agentparams.WithIntegration("snmp.d", snmpIntegration),
+			agentparams.WithIntegration("snmp.d", string(snmpIntegration)),
 		),
 		awshost.WithoutFakeIntake(),
 	),
