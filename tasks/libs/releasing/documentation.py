@@ -22,7 +22,7 @@ def _stringify_config(config_dict):
 
 
 def release_entry_for(agent_major_version):
-    return f"release-a{agent_major_version}"
+    return f"a{agent_major_version}"
 
 
 def create_release_page(version, freeze_date):
