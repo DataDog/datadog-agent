@@ -18,12 +18,12 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(_ *command.GlobalParams) []*cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "telemetry",
 		Short: "Print the telemetry metrics exposed by the agent",
 		Long:  ``,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			payload, err := queryAgentTelemetry()
 			if err != nil {
 				return err
