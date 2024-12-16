@@ -113,9 +113,9 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		zstdfx.Module(),
 		trace.Bundle(),
 		fetchonlyimpl.Module(),
-		configsyncimpl.OptionalModule(),
+		configsyncimpl.Module(),
 		// Force the instantiation of the components
-		fx.Invoke(func(_ traceagent.Component, _ optional.Option[configsync.Component], _ autoexit.Component) {}),
+		fx.Invoke(func(_ traceagent.Component, _ configsync.Component, _ autoexit.Component) {}),
 	)
 	if err != nil && errors.Is(err, traceagentimpl.ErrAgentDisabled) {
 		return nil
