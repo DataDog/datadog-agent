@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
@@ -28,8 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
@@ -165,9 +164,9 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
 	}
-	span, ok := tracer.SpanFromContext(ctx)
+	span, ok := telemetry.SpanFromContext(ctx)
 	if ok {
-		span.SetTag(ext.ResourceName, pkg.Name)
+		span.SetResourceName(pkg.Name)
 		span.SetTag("package_version", pkg.Version)
 	}
 	err = i.preparePackage(ctx, pkg.Name, args) // Preinst
@@ -482,9 +481,9 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	}
 
 	// remove all from disk
-	span, _ := tracer.StartSpanFromContext(ctx, "remove_all")
+	span, _ := telemetry.StartSpanFromContext(ctx, "remove_all")
 	err = os.RemoveAll(i.packagesDir)
-	defer span.Finish(tracer.WithError(err))
+	defer span.Finish(err)
 	if err != nil {
 		log.Warnf("could not delete packages dir: %v", err)
 	}
@@ -670,8 +669,8 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 		return nil
 	}
 
-	span, _ := tracer.StartSpanFromContext(ctx, "configure_package")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "configure_package")
+	defer func() { span.Finish(err) }()
 
 	switch pkg {
 	case packageDatadogAgent, packageAPMInjector, packageAPMLibraries:
