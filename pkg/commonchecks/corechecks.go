@@ -62,7 +62,7 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(uptime.CheckName, uptime.Factory())
 	corecheckLoader.RegisterCheck(telemetryCheck.CheckName, telemetryCheck.Factory(telemetry))
 	corecheckLoader.RegisterCheck(ntp.CheckName, ntp.Factory())
-	corecheckLoader.RegisterCheck(snmp.CheckName, snmp.Factory(cfg))
+	corecheckLoader.RegisterCheck(snmp.CheckName, snmp.Factory())
 	corecheckLoader.RegisterCheck(networkpath.CheckName, networkpath.Factory(telemetry))
 	corecheckLoader.RegisterCheck(io.CheckName, io.Factory())
 	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())

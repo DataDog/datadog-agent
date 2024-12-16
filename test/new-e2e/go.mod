@@ -62,16 +62,16 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.32.6
 	github.com/aws/aws-sdk-go-v2/config v1.28.6
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.190.0
-	github.com/aws/aws-sdk-go-v2/service/eks v1.44.1
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.50.7
+	github.com/aws/aws-sdk-go-v2/service/eks v1.51.0
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.55.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/docker/cli v27.1.1+incompatible
-	github.com/docker/docker v27.3.1+incompatible
+	github.com/docker/cli v27.4.0+incompatible
+	github.com/docker/docker v27.4.0+incompatible
 	github.com/fatih/color v1.18.0
 	github.com/google/uuid v1.6.0
 	github.com/kr/pretty v0.3.1
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
-	github.com/pkg/sftp v1.13.6
+	github.com/pkg/sftp v1.13.7
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.56.1
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.16.1
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.18.3
@@ -84,8 +84,8 @@ require (
 	golang.org/x/term v0.27.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	k8s.io/api v0.31.3
-	k8s.io/apimachinery v0.31.3
+	k8s.io/api v0.31.4
+	k8s.io/apimachinery v0.31.4
 	k8s.io/cli-runtime v0.31.2
 	k8s.io/client-go v0.31.3
 	k8s.io/kubectl v0.31.2
@@ -134,7 +134,6 @@ require (
 	github.com/charmbracelet/bubbles v0.18.0 // indirect
 	github.com/charmbracelet/bubbletea v0.25.0 // indirect
 	github.com/charmbracelet/lipgloss v0.10.0 // indirect
-	github.com/cheggaaa/pb v1.0.29 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/containerd/console v1.0.4 // indirect
 	github.com/containerd/log v0.1.0 // indirect
@@ -284,16 +283,17 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/trace v0.56.0-rc.3
-	github.com/DataDog/datadog-go/v5 v5.5.0
+	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/aws/aws-sdk-go v1.55.5
-	github.com/aws/session-manager-plugin v0.0.0-20241010233726-61cf1288c7c6
+	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
-	github.com/hairyhenderson/go-codeowners v0.5.0
+	github.com/hairyhenderson/go-codeowners v0.7.0
 )
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.59.0 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
+	github.com/cheggaaa/pb v1.0.29 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/creack/pty v1.1.20 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
