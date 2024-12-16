@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 import yaml
 from invoke import Context, Exit, task
 
@@ -51,9 +49,9 @@ def update_test_infra_definitions(ctx: Context, commit_sha: str, go_mod_only: bo
     if not go_mod_only:
         update_test_infra_def(".gitlab/common/test_infra_version.yml", commit_sha[:12], is_dev_image)
 
-    os.chdir("test/new-e2e")
-    ctx.run(f"go get github.com/DataDog/test-infra-definitions@{commit_sha}")
-    ctx.run("go mod tidy")
+    with ctx.cd("test/new-e2e"):
+        ctx.run(f"go get github.com/DataDog/test-infra-definitions@{commit_sha}")
+        ctx.run("go mod tidy")
 
 
 @task(
