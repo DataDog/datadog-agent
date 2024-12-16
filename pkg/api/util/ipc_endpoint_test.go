@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,10 +44,10 @@ func TestIPCEndpointTestSuite(t *testing.T) {
 	testSuite.conf = configmock.New(t)
 
 	// create a fake auth token
-	authTokenFile, err := os.CreateTemp("", "")
+	dir := t.TempDir()
+	authTokenPath := filepath.Join(dir, "auth_token")
+	err := os.WriteFile(authTokenPath, []byte("0123456789abcdef0123456789abcdef"), 0640)
 	require.NoError(t, err)
-	authTokenPath := authTokenFile.Name()
-	os.WriteFile(authTokenPath, []byte("0123456789abcdef0123456789abcdef"), 0640)
 	testSuite.conf.Set("auth_token_file_path", authTokenPath, pkgconfigmodel.SourceAgentRuntime)
 
 	// use the cert in the httptest server
