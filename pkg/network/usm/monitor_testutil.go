@@ -74,7 +74,9 @@ func (p *protocolMock) Stop(mgr *manager.Manager) {
 
 func (p *protocolMock) DumpMaps(io.Writer, string, *ebpf.Map) {}
 func (p *protocolMock) GetStats() *protocols.ProtocolStats    { return nil }
-func (p *protocolMock) ReleaseStats()                         {}
+func (p *protocolMock) Type() protocols.ProtocolType {
+	return protocols.Unknown
+}
 
 // IsBuildModeSupported returns always true, as the mock is supported by all modes.
 func (*protocolMock) IsBuildModeSupported(buildmode.Type) bool { return true }
