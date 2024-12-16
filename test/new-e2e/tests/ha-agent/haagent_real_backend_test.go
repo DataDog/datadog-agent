@@ -24,7 +24,7 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
 
-type haAgentRealBackendTestSuite02Agent1 struct {
+type haAgentRealBackendTestSuite03Agent1 struct {
 	e2e.BaseSuite[environments.Host]
 }
 
@@ -45,6 +45,7 @@ func TestHaAgentRealBackendSuiteAgent1(t *testing.T) {
 
 	// language=yaml
 	agentConfig := fmt.Sprintf(`
+hostname: test-agent1
 ha_agent:
     enabled: true
     group: test-group
@@ -91,7 +92,7 @@ instances:
     port: 1161
 `
 
-	e2e.Run(t, &haAgentRealBackendTestSuite02Agent1{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &haAgentRealBackendTestSuite03Agent1{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithAgentConfig(agentConfig),
 			agentparams.WithSkipAPIKeyInConfig(),
@@ -102,7 +103,7 @@ instances:
 	))
 }
 
-func (s *haAgentRealBackendTestSuite02Agent1) TestSnmpCheckIsRunningOnLeaderAgent() {
+func (s *haAgentRealBackendTestSuite03Agent1) TestSnmpCheckIsRunningOnLeaderAgent() {
 	snmpCheckSkippedLog := "check:snmp | Check is an HA integration and current agent is not leader, skipping execution..."
 	//snmpCheckRunningLog := "check:snmp | Running check..."
 
