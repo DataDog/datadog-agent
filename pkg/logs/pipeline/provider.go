@@ -33,6 +33,7 @@ type Provider interface {
 	ReconfigureSDSAgentConfig(config []byte) (bool, error)
 	StopSDSProcessing() error
 	NextPipelineChan() chan *message.Message
+	GetOutputChan() chan *message.Message
 	NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor)
 	// Flush flushes all pipeline contained in this Provider
 	Flush(ctx context.Context)
@@ -181,6 +182,10 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 	index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
 	nextPipeline := p.pipelines[index]
 	return nextPipeline.InputChan
+}
+
+func (p *provider) GetOutputChan() chan *message.Message {
+	return nil
 }
 
 // NextPipelineChanWithMonitor returns the next pipeline input channel with it's monitor.
