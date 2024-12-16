@@ -303,9 +303,9 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 		// Call the gRPC method to get the container ID from the origin info
 		containerIDResponse, err := t.client.TaggerGenerateContainerIDFromOriginInfo(t.queryCtx, &pb.GenerateContainerIDFromOriginInfoRequest{
 			ExternalData: &pb.GenerateContainerIDFromOriginInfoRequest_ExternalData{
-				Init:          originInfo.ExternalData.Init,
-				ContainerName: originInfo.ExternalData.ContainerName,
-				PodUID:        originInfo.ExternalData.PodUID,
+				Init:          &originInfo.ExternalData.Init,
+				ContainerName: &originInfo.ExternalData.ContainerName,
+				PodUID:        &originInfo.ExternalData.PodUID,
 			},
 		})
 		if err != nil {

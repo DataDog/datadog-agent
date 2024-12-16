@@ -172,9 +172,9 @@ func (s *Server) TaggerFetchEntity(_ context.Context, in *pb.FetchEntityRequest)
 func (s *Server) TaggerGenerateContainerIDFromOriginInfo(_ context.Context, in *pb.GenerateContainerIDFromOriginInfoRequest) (*pb.GenerateContainerIDFromOriginInfoResponse, error) {
 	generatedContainerID, err := s.taggerComponent.GenerateContainerIDFromOriginInfo(origindetection.OriginInfo{
 		ExternalData: origindetection.ExternalData{
-			Init:          in.ExternalData.Init,
-			ContainerName: in.ExternalData.ContainerName,
-			PodUID:        in.ExternalData.PodUID,
+			Init:          *in.ExternalData.Init,
+			ContainerName: *in.ExternalData.ContainerName,
+			PodUID:        *in.ExternalData.PodUID,
 		},
 	})
 	if err != nil {
