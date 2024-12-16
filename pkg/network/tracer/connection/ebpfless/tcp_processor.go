@@ -54,6 +54,13 @@ type connectionState struct {
 
 	// rttTracker is used to track round trip times
 	rttTracker rttTracker
+
+	// lastUpdateEpoch contains the last timestamp this connection sent/received a packet
+	// TODO find a way to combine this with ConnectionStats.lastUpdateEpoch
+	// This exists because connections in pendingConns don't have a ConnectionStats object yet.
+	// Can we make all connections in TCPProcessor have a ConnectionStats no matter what, and
+	// filter them out in GetConnections?
+	lastUpdateEpoch uint64
 }
 
 func (st *connectionState) hasMissedHandshake() bool {
@@ -71,6 +78,7 @@ type TCPProcessor struct {
 
 // TODO make this into a config value
 const maxPendingConns = 4096
+const pendingConnTimeoutNs = uint64(5 * time.Second)
 
 // NewTCPProcessor constructs an empty TCPProcessor
 func NewTCPProcessor(cfg *config.Config) *TCPProcessor {
@@ -155,6 +163,7 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 func (t *TCPProcessor) updateTCPStats(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16, timestampNs uint64) {
 	nextSeq := calcNextSeq(tcp, payloadLen)
 
+	st.lastUpdateEpoch = timestampNs
 	if pktType == unix.PACKET_OUTGOING {
 		conn.Monotonic.SentPackets++
 		// packetCanRetransmit filters out packets that look like retransmits but aren't, like TCP keepalives
@@ -338,4 +347,21 @@ func (t *TCPProcessor) moveConn(tuple network.ConnectionTuple, st *connectionSta
 		return ok
 	}
 	return true
+}
+
+// CleanupExpiredPendingConns iterates through pendingConns and removes those that
+// have existed too long - in normal TCP, they should become established right away.
+//
+// This is only required for pendingConns because the tracer already has logic to remove
+// established connections (connections that have ConnectionStats)
+func (t *TCPProcessor) CleanupExpiredPendingConns(timestampNs uint64) {
+	for tuple, st := range t.pendingConns {
+		timeoutTime := st.lastUpdateEpoch + pendingConnTimeoutNs
+
+		if timeoutTime <= timestampNs {
+			delete(t.pendingConns, tuple)
+
+			statsTelemetry.expiredPendingConns.Inc()
+		}
+	}
 }

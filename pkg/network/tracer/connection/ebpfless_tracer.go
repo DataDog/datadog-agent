@@ -303,6 +303,12 @@ func (t *ebpfLessTracer) GetConnections(buffer *network.ConnectionBuffer, filter
 	t.m.Lock()
 	defer t.m.Unlock()
 
+	// use GetConnections to periodically cleanup pending connections
+	err := t.cleanupPendingConns()
+	if err != nil {
+		return err
+	}
+
 	if len(t.conns) == 0 {
 		return nil
 	}
@@ -321,8 +327,27 @@ func (t *ebpfLessTracer) GetConnections(buffer *network.ConnectionBuffer, filter
 	return nil
 }
 
+// cleanupPendingConns removes pending connections from the TCP tracer.
+// For more information, refer to CleanupExpiredPendingConns
+func (t *ebpfLessTracer) cleanupPendingConns() error {
+	ts, err := ddebpf.NowNanoseconds()
+	if err != nil {
+		return fmt.Errorf("error getting last updated timestamp for connection: %w", err)
+	}
+	t.tcp.CleanupExpiredPendingConns(uint64(ts))
+	return nil
+}
+
 // FlushPending forces any closed connections waiting for batching to be processed immediately.
 func (t *ebpfLessTracer) FlushPending() {}
+
+func (t *ebpfLessTracer) remove(conn *network.ConnectionStats) error {
+	delete(t.conns, conn.ConnectionTuple)
+	if conn.Type == network.TCP {
+		t.tcp.RemoveConn(conn.ConnectionTuple)
+	}
+	return nil
+}
 
 // Remove deletes the connection from tracking state.
 // It does not prevent the connection from re-appearing later, if additional traffic occurs.
@@ -330,11 +355,7 @@ func (t *ebpfLessTracer) Remove(conn *network.ConnectionStats) error {
 	t.m.Lock()
 	defer t.m.Unlock()
 
-	delete(t.conns, conn.ConnectionTuple)
-	if conn.Type == network.TCP {
-		t.tcp.RemoveConn(conn.ConnectionTuple)
-	}
-	return nil
+	return t.remove(conn)
 }
 
 // GetMap returns the underlying named map. This is useful if any maps are shared with other eBPF components.
