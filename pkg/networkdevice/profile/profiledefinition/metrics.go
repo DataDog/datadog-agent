@@ -66,9 +66,8 @@ type SymbolConfig struct {
 	ExtractValue         string         `yaml:"extract_value,omitempty" json:"extract_value,omitempty"`
 	ExtractValueCompiled *regexp.Regexp `yaml:"-" json:"-"`
 
-	// MatchPattern/MatchValue are not exposed as json (UI) since ExtractValue can be used instead
-	MatchPattern         string         `yaml:"match_pattern,omitempty" json:"-"`
-	MatchValue           string         `yaml:"match_value,omitempty" json:"-"`
+	MatchPattern         string         `yaml:"match_pattern,omitempty" json:"match_pattern,omitempty"`
+	MatchValue           string         `yaml:"match_value,omitempty" json:"match_value,omitempty"`
 	MatchPatternCompiled *regexp.Regexp `yaml:"-" json:"-"`
 
 	ScaleFactor      float64 `yaml:"scale_factor,omitempty" json:"scale_factor,omitempty"`
@@ -171,9 +170,10 @@ type MetricsConfig struct {
 	StaticTags []string            `yaml:"static_tags,omitempty" json:"-"`
 	MetricTags MetricTagConfigList `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
 
-	// DEPRECATED: use MetricType instead.
+	// DEPRECATED: use Symbol.MetricType instead.
 	ForcedType ProfileMetricType `yaml:"forced_type,omitempty" json:"forced_type,omitempty" jsonschema:"-"`
-	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty"`
+	// DEPRECATED: use Symbol.MetricType instead.
+	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty" jsonschema:"-"`
 
 	Options MetricsConfigOption `yaml:"options,omitempty" json:"options,omitempty"`
 }
