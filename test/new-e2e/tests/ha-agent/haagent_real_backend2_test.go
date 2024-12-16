@@ -24,12 +24,12 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
 
-type haAgentRealBackendTestSuiteAgent1 struct {
+type haAgentRealBackendTestSuiteAgent2 struct {
 	e2e.BaseSuite[environments.Host]
 }
 
 // TestHaAgentRealBackendSuiteAgent1 runs the HA Agent e2e suite
-func TestHaAgentRealBackendSuiteAgent1(t *testing.T) {
+func TestHaAgentRealBackendSuiteAgent2(t *testing.T) {
 	apiKey := os.Getenv("DD_API_KEY") // Used to provide valid API KEY when testing locally
 	if apiKey == "" {
 		apiKeyFromSecreteStore, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
@@ -58,6 +58,7 @@ site: datad0g.com
 init_config:
   loader: core
   use_device_id_as_hostname: true
+instances:
 instances:
   - ip_address: 'snmp-device-10001'
     community_string: public
@@ -91,7 +92,7 @@ instances:
     port: 1161
 `
 
-	e2e.Run(t, &haAgentRealBackendTestSuiteAgent1{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &haAgentRealBackendTestSuiteAgent2{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithAgentConfig(agentConfig),
 			agentparams.WithSkipAPIKeyInConfig(),
@@ -102,7 +103,7 @@ instances:
 	))
 }
 
-func (s *haAgentRealBackendTestSuiteAgent1) TestSnmpCheckIsRunningOnLeaderAgent() {
+func (s *haAgentRealBackendTestSuiteAgent2) TestSnmpCheckIsRunningOnLeaderAgent() {
 	snmpCheckSkippedLog := "check:snmp | Check is an HA integration and current agent is not leader, skipping execution..."
 	//snmpCheckRunningLog := "check:snmp | Running check..."
 
