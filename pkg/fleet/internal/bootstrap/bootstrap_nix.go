@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 )
 
 func install(ctx context.Context, env *env.Env, url string, experiment bool) error {

@@ -12,7 +12,6 @@ import (
 	"github.com/gobwas/glob"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -97,7 +96,7 @@ func (c *WorkloadMetaCollector) Run(ctx context.Context, datadogConfig config.Co
 }
 
 func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, datadogConfig config.Component) {
-	c.staticTags = util.GetStaticTags(ctx)
+	c.staticTags = util.GetStaticTags(ctx, datadogConfig)
 	if _, exists := c.staticTags[clusterTagNamePrefix]; flavor.GetFlavor() == flavor.ClusterAgent && !exists {
 		// If we are running the cluster agent, we want to set the kube_cluster_name tag as a global tag if we are able
 		// to read it, for the instances where we are running in an environment where hostname cannot be detected.
@@ -129,7 +128,7 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, dat
 	c.tagProcessor.ProcessTagInfo([]*types.TagInfo{
 		{
 			Source:               staticSource,
-			EntityID:             common.GetGlobalEntityID(),
+			EntityID:             types.GetGlobalEntityID(),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,

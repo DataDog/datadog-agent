@@ -7,14 +7,15 @@ package client
 
 import (
 	"fmt"
-	"github.com/pkg/sftp"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 	"io"
 	"net"
 	"os"
 	"path"
 	"strings"
+
+	"github.com/pkg/sftp"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 func execute(sshClient *ssh.Client, command string) (string, error) {
@@ -24,6 +25,23 @@ func execute(sshClient *ssh.Client, command string) (string, error) {
 	}
 	stdout, err := session.CombinedOutput(command)
 	return string(stdout), err
+}
+
+func start(sshClient *ssh.Client, command string) (*ssh.Session, io.WriteCloser, io.Reader, error) {
+	session, err := sshClient.NewSession()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to create session: %v", err)
+	}
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to create stdin pipe: %v", err)
+	}
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to create stdout pipe: %v", err)
+	}
+	err = session.Start(command)
+	return session, stdin, stdout, err
 }
 
 func getSSHClient(user, host string, privateKey, privateKeyPassphrase []byte) (*ssh.Client, error) {

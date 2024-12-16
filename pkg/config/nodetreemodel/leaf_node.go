@@ -43,10 +43,10 @@ func (n *leafNodeImpl) Clone() Node {
 	return newLeafNode(n.val, n.source)
 }
 
-// SourceGreaterOrEqual returns true if the source of the current node is greater or equal to the one given as a
+// SourceGreaterThan returns true if the source of the current node is greater than the one given as a
 // parameter
-func (n *leafNodeImpl) SourceGreaterOrEqual(source model.Source) bool {
-	return n.source.IsGreaterOrEqualThan(source)
+func (n *leafNodeImpl) SourceGreaterThan(source model.Source) bool {
+	return n.source.IsGreaterThan(source)
 }
 
 // GetChild returns an error because a leaf has no children

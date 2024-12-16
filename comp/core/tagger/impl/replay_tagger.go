@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"time"
 
-	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
@@ -69,7 +68,7 @@ func (t *replayTagger) Tag(entityID types.EntityID, cardinality types.TagCardina
 // This function exists in order not to break backward compatibility with rtloader and python
 // integrations using the tagger
 func (t *replayTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
-	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	prefix, id, err := types.ExtractPrefixAndID(entity)
 	if err != nil {
 		return nil, err
 	}

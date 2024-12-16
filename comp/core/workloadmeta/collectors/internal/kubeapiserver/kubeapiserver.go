@@ -224,7 +224,7 @@ func runStartupCheck(ctx context.Context, stores []*reflectorStore) {
 	// There is no way to ensure liveness correctly as it would need to be plugged inside the
 	// inner loop of Reflector.
 	// However, we add Startup when we got at least some data.
-	startupHealthCheck := health.RegisterStartup(componentName)
+	startupHealthCheck := health.RegisterReadiness(componentName, health.Once)
 
 	// Checked synced, in its own scope to cleanly un-reference the syncTimer
 	{

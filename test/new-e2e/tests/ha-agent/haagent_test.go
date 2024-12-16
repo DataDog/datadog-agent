@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
@@ -40,20 +41,21 @@ log_level: debug
 	))
 }
 
-func (s *haAgentTestSuite) TestHaAgentGroupTagPresentOnDatadogAgentRunningMetric() {
+func (s *haAgentTestSuite) TestHaAgentRunningMetrics() {
 	fakeClient := s.Env().FakeIntake.Client()
+
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		s.T().Log("try assert datadog.agent.running metric")
-		metrics, err := fakeClient.FilterMetrics("datadog.agent.running")
-		assert.NoError(c, err)
+		s.T().Log("try assert datadog.agent.ha_agent.running metric")
+		metrics, err := fakeClient.FilterMetrics("datadog.agent.ha_agent.running")
+		require.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 		for _, metric := range metrics {
-			s.T().Logf("    datadog.agent.running metric tags: %+v", metric.Tags)
+			s.T().Logf("    datadog.agent.ha_agent.running metric tags: %+v", metric.Tags)
 		}
 
-		tags := []string{"agent_group:test-group01"}
-		metrics, err = fakeClient.FilterMetrics("datadog.agent.running", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
-		assert.NoError(c, err)
+		tags := []string{"agent_state:unknown"}
+		metrics, err = fakeClient.FilterMetrics("datadog.agent.ha_agent.running", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
+		require.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 	}, 5*time.Minute, 3*time.Second)
 }
@@ -62,9 +64,12 @@ func (s *haAgentTestSuite) TestHaAgentAddedToRCListeners() {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		s.T().Log("try assert HA Agent added to RCListeners in agent.log")
 		output, err := s.Env().RemoteHost.Execute("cat /var/log/datadog/agent.log")
-		if !assert.NoError(c, err) {
-			return
-		}
-		assert.Contains(c, output, "Add onHaAgentUpdate RCListener")
+		require.NoError(c, err)
+
+		assert.Contains(c, output, "Add HA Agent RCListener")
 	}, 5*time.Minute, 3*time.Second)
 }
+
+// TODO: Add test for Agent behaviour when receiving RC HA_AGENT messages
+//       - Agent receiving message to become leader
+//       - Agent receiving message to become follower
