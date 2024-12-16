@@ -43,7 +43,6 @@ datadog:
 		e2e.WithProvisioner(
 			awskubernetes.KindProvisioner(
 				awskubernetes.WithAgentOptions(
-					kubernetesagentparams.WithoutDualShipping(),
 					kubernetesagentparams.WithHelmValues(values),
 					kubernetesagentparams.WithOTelAgent(),
 					kubernetesagentparams.WithOTelConfig(noDDExporterConfig),
