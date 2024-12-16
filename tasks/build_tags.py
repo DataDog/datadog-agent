@@ -28,7 +28,6 @@ ALL_TAGS = {
     "ec2",
     "etcd",
     "fargateprocess",
-    "gce",
     "jmx",
     "jetson",
     "kubeapiserver",
@@ -68,7 +67,6 @@ AGENT_TAGS = {
     "docker",
     "ec2",
     "etcd",
-    "gce",
     "jetson",
     "jmx",
     "kubeapiserver",
@@ -109,7 +107,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
 FIPS_AGENT_TAGS = AGENT_TAGS.union({"goexperiment.systemcrypto"})
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
-CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2", "gce"}
+CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2"}
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
 CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks"}
@@ -121,7 +119,7 @@ DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"}
 IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib", "zstd"}
 
 # INSTALLER_TAGS lists the tags needed when building the installer
-INSTALLER_TAGS = {"docker", "ec2", "gce", "kubelet"}
+INSTALLER_TAGS = {"docker", "ec2", "kubelet"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess"}).difference({"otlp", "python", "trivy"})
