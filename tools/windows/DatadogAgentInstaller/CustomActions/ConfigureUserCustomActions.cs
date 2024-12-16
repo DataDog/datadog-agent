@@ -486,6 +486,46 @@ namespace Datadog.CustomActions
             }
 
         }
+        
+        private void RemoveDatadogUserFromDataFolder()
+        {
+            var dataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
+
+            FileSystemSecurity fileSystemSecurity;
+            try
+            {
+                fileSystemSecurity = _fileSystemServices.GetAccessControl(dataDirectory, AccessControlSections.All);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to get ACLs on {dataDirectory}: {e}");
+                throw;
+            }
+
+            // Remove ddagentuser from data folder
+            fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
+                _ddAgentUserSID,
+                FileSystemRights.ReadAndExecute | FileSystemRights.Synchronize,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+            fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
+                _ddAgentUserSID,
+                FileSystemRights.Write,
+                InheritanceFlags.ContainerInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+
+            try
+            {
+                UpdateAndLogAccessControl(dataDirectory, fileSystemSecurity);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to set ACLs on {dataDirectory}: {e}");
+                throw;
+            }
+        }
 
         private void ConfigureFilePermissions()
         {
@@ -727,6 +767,8 @@ namespace Datadog.CustomActions
                             _session.Log($"Failed to remove {ddAgentUserName} from {filePath}: {e}");
                         }
                     }
+                    //remove access to root folder
+                    RemoveDatadogUserFromDataFolder();
                 }
 
                 // We intentionally do NOT delete the ddagentuser account.
