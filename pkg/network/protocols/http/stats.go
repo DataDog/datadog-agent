@@ -138,7 +138,8 @@ func (r *RequestStat) initSketch() (err error) {
 
 // RequestStats stores HTTP request statistics.
 type RequestStats struct {
-	Data map[uint16]*RequestStat
+	Data   map[uint16]*RequestStat
+	Merged bool
 }
 
 // NewRequestStats creates a new RequestStats object.
@@ -194,6 +195,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 		}
 		stats.Count += newRequests.Count
 	}
+	newStats.Merged = true
 }
 
 // AddRequest takes information about a HTTP transaction and adds it to the request stats

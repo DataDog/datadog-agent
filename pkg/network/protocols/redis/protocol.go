@@ -89,6 +89,11 @@ func (p *protocol) Name() string {
 	return "redis"
 }
 
+// Type returns the protocol type
+func (p *protocol) Type() protocols.ProtocolType {
+	return protocols.Redis
+}
+
 // ConfigureOptions add the necessary options for the redis monitoring
 // to work, to be used by the manager.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
@@ -153,10 +158,6 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 		Type:  protocols.Redis,
 		Stats: p.statskeeper.GetAndResetAllStats(),
 	}
-}
-
-// ReleaseStats releases stats objects.
-func (p *protocol) ReleaseStats() {
 }
 
 // IsBuildModeSupported returns always true, as Redis module is supported by all modes.

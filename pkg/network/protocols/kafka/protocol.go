@@ -240,6 +240,11 @@ func (p *protocol) Name() string {
 	return "Kafka"
 }
 
+// Type returns the protocol type
+func (p *protocol) Type() protocols.ProtocolType {
+	return protocols.Kafka
+}
+
 // ConfigureOptions add the necessary options for the kafka monitoring to work, to be used by the manager.
 // Configuring the kafka event stream with the manager and its options, and enabling the kafka_monitoring_enabled eBPF
 // option.
@@ -359,10 +364,6 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 		Type:  protocols.Kafka,
 		Stats: p.statkeeper.GetAndResetAllStats(),
 	}
-}
-
-// ReleaseStats releases stats objects.
-func (p *protocol) ReleaseStats() {
 }
 
 // IsBuildModeSupported returns always true, as kafka module is supported by all modes.

@@ -57,12 +57,12 @@ type Protocol interface {
 	// Name returns the protocol name.
 	Name() string
 
+	// Type returns the protocol type
+	Type() ProtocolType
+
 	// GetStats returns the latest monitoring stats from a protocol
 	// implementation.
 	GetStats() *ProtocolStats
-
-	// ReleaseStats releases stats related objects.
-	ReleaseStats()
 
 	// IsBuildModeSupported return true is the given build mode is supported by this protocol.
 	IsBuildModeSupported(buildmode.Type) bool

@@ -485,6 +485,11 @@ func (o *sslProgram) Name() string {
 	return "openssl"
 }
 
+// Type is a no-op.
+func (p *sslProgram) Type() protocols.ProtocolType {
+	return protocols.Unknown
+}
+
 // ConfigureOptions changes map attributes to the given options.
 func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
@@ -567,10 +572,6 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 // GetStats returns the latest monitoring stats from a protocol implementation.
 func (o *sslProgram) GetStats() *protocols.ProtocolStats {
 	return nil
-}
-
-// ReleaseStats is a no-op.
-func (o *sslProgram) ReleaseStats() {
 }
 
 const (

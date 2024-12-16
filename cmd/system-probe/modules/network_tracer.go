@@ -105,13 +105,13 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		marshaler := marshal.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
 
-		nt.tracer.ReleaseUSMStats()
-
 		if nt.restartTimer != nil {
 			nt.restartTimer.Reset(inactivityRestartDuration)
 		}
 		count := runCounter.Inc()
 		logRequests(id, count, len(cs.Conns), start)
+
+		nt.tracer.ReleaseProtocolStats(cs)
 	}))
 
 	httpMux.HandleFunc("/network_id", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
@@ -174,7 +174,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 
 		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP, cs.DNS))
-		nt.tracer.ReleaseUSMStats()
+		nt.tracer.ReleaseProtocolStats(cs)
 	})
 
 	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {

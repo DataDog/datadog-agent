@@ -162,6 +162,11 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	events.Configure(p.cfg, eventStream, mgr, opts)
 }
 
+// Type returns the protocol type
+func (p *protocol) Type() protocols.ProtocolType {
+	return protocols.Postgres
+}
+
 // PreStart runs setup required before starting the protocol.
 func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 	p.eventsConsumer, err = events.NewConsumer(
@@ -237,10 +242,6 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 		Type:  protocols.Postgres,
 		Stats: p.statskeeper.GetAndResetAllStats(),
 	}
-}
-
-// ReleaseStats releases stats objects.
-func (p *protocol) ReleaseStats() {
 }
 
 // IsBuildModeSupported returns always true, as postgres module is supported by all modes.

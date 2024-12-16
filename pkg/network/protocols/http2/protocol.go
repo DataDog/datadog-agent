@@ -230,6 +230,11 @@ func (p *Protocol) Name() string {
 	return "HTTP2"
 }
 
+// Type returns the protocol type
+func (p *Protocol) Type() protocols.ProtocolType {
+	return protocols.HTTP2
+}
+
 const (
 	mapSizeValue = 1024
 )
@@ -429,11 +434,6 @@ func (p *Protocol) GetStats() *protocols.ProtocolStats {
 		Type:  protocols.HTTP2,
 		Stats: p.statkeeper.GetAndResetAllStats(),
 	}
-}
-
-// ReleaseStats releases stats objects.
-func (p *Protocol) ReleaseStats() {
-	p.statkeeper.ReleaseStats()
 }
 
 // IsBuildModeSupported returns always true, as http2 module is supported by all modes.

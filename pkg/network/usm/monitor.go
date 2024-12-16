@@ -20,6 +20,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -197,8 +198,8 @@ func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 }
 
 // ReleaseStats release stats related objects.
-func (m *Monitor) ReleaseStats() {
-	m.ebpfProgram.releaseStats()
+func (m *Monitor) ReleaseStats(conns *network.Connections) {
+	m.ebpfProgram.releaseStats(conns)
 }
 
 // Stop HTTP monitoring

@@ -199,6 +199,11 @@ func (p *goTLSProgram) Name() string {
 	return "go-tls"
 }
 
+// Type is a no-op.
+func (p *goTLSProgram) Type() protocols.ProtocolType {
+	return protocols.Unknown
+}
+
 // IsBuildModeSupported return true if the build mode is supported.
 func (*goTLSProgram) IsBuildModeSupported(mode buildmode.Type) bool {
 	return mode == buildmode.CORE || mode == buildmode.RuntimeCompiled
@@ -287,10 +292,6 @@ func (p *goTLSProgram) DumpMaps(io.Writer, string, *ebpf.Map) {}
 // GetStats is a no-op.
 func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
 	return nil
-}
-
-// ReleaseStats is a no-op.
-func (p *goTLSProgram) ReleaseStats() {
 }
 
 // Stop terminates goTLS main goroutine.

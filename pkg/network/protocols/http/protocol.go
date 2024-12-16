@@ -118,6 +118,11 @@ func (p *protocol) Name() string {
 	return "HTTP"
 }
 
+// Type returns the protocol type
+func (p *protocol) Type() protocols.ProtocolType {
+	return protocols.HTTP
+}
+
 // ConfigureOptions add the necessary options for the http monitoring to work,
 // to be used by the manager. These are:
 // - Set the `http_in_flight` map size to the value of the `max_tracked_connection` configuration variable.
@@ -223,11 +228,6 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 		Type:  protocols.HTTP,
 		Stats: p.statkeeper.GetAndResetAllStats(),
 	}
-}
-
-// ReleaseStats releases stats objects.
-func (p *protocol) ReleaseStats() {
-	p.statkeeper.ReleaseStats()
 }
 
 // IsBuildModeSupported returns always true, as http module is supported by all modes.
