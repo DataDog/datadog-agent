@@ -7,6 +7,7 @@ package haagentimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	helpers "github.com/DataDog/datadog-agent/comp/haagent/helpers"
 )
 
 // validHaIntegrations represent the list of integrations that will be considered as
@@ -30,7 +31,7 @@ type haAgentConfigs struct {
 
 func newHaAgentConfigs(agentConfig config.Component) *haAgentConfigs {
 	return &haAgentConfigs{
-		enabled: agentConfig.GetBool("ha_agent.enabled"),
-		group:   agentConfig.GetString("ha_agent.group"),
+		enabled: helpers.IsEnabled(agentConfig),
+		group:   helpers.GetGroup(agentConfig),
 	}
 }
