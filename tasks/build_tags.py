@@ -17,7 +17,6 @@ from tasks.flavor import AgentFlavor
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
 ALL_TAGS = {
-    "apm",
     "clusterchecks",
     "consul",
     "containerd",
@@ -41,7 +40,6 @@ ALL_TAGS = {
     "otlp",
     "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
-    "process",
     "python",
     "sds",
     "serverless",
@@ -59,7 +57,6 @@ ALL_TAGS = {
 
 # AGENT_TAGS lists the tags needed when building the agent.
 AGENT_TAGS = {
-    "apm",
     "consul",
     "containerd",
     "cri",
@@ -78,7 +75,6 @@ AGENT_TAGS = {
     "orchestrator",
     "otlp",
     "podman",
-    "process",
     "python",
     "systemd",
     "trivy",
