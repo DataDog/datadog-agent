@@ -15,12 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare"
 )
 
+// Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "telemetry",
 		Short: "Print the telemetry metrics exposed by the agent",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			payload, err := flare.QueryAgentTelemetry()
 			if err != nil {
 				return err
