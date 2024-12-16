@@ -64,8 +64,8 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	}
 	span, ctx := tracer.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", flavor))
 	var proxyNoProxy []string
-	if env.NoProxy != "" {
-		proxyNoProxy = strings.Split(env.NoProxy, ",")
+	if os.Getenv("DD_PROXY_NO_PROXY") != "" {
+		proxyNoProxy = strings.Split(os.Getenv("DD_PROXY_NO_PROXY"), ",")
 	}
 	s := &Setup{
 		configDir: configDir,
@@ -82,8 +82,8 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 				Hostname: os.Getenv("DD_HOSTNAME"),
 				Site:     env.Site,
 				Proxy: DatadogConfigProxy{
-					HTTP:    env.HTTPProxy,
-					HTTPS:   env.HTTPSProxy,
+					HTTP:    os.Getenv("DD_PROXY_HTTP"),
+					HTTPS:   os.Getenv("DD_PROXY_HTTPS"),
 					NoProxy: proxyNoProxy,
 				},
 				Env: os.Getenv("DD_ENV"),
