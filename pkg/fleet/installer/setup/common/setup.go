@@ -40,7 +40,7 @@ type Setup struct {
 	Out      *Output
 	Env      *env.Env
 	Ctx      context.Context
-	Span     telemetry.Span
+	Span     *telemetry.Span
 	Packages Packages
 	Config   Config
 }
