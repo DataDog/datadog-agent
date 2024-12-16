@@ -8,11 +8,13 @@ package telemetry
 
 import (
 	"fmt"
+	"io"
+	"net/http"
 
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -22,7 +24,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Print the telemetry metrics exposed by the agent",
 		Long:  ``,
 		RunE: func(_ *cobra.Command, args []string) error {
-			payload, err := flare.QueryAgentTelemetry()
+			payload, err := queryAgentTelemetry()
 			if err != nil {
 				return err
 			}
@@ -32,4 +34,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 
 	return []*cobra.Command{cmd}
+}
+
+// queryAgentTelemetry gets the telemetry payload exposed by the agent
+func queryAgentTelemetry() ([]byte, error) {
+	r, err := http.Get(fmt.Sprintf("http://localhost:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port")))
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+	return io.ReadAll(r.Body)
 }
