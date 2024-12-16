@@ -1,11 +1,13 @@
 <#
 .SYNOPSIS
-Invoke the linters.
+Invoke the unit tests.
 
 .DESCRIPTION
-Invoke the linters, with options to configure the build environment.
+Invoke the unit tests, with options to configure the build environment.
 
-Runs linters for rtloader, Go, and MSI .NET.
+Runs unit tests for rtloader, Go, and MSI .NET.
+
+Can upload coverage reports to Codecov and test results to Datadog CI.
 
 .PARAMETER BuildOutOfSource
 Specifies whether to build out of source. Default is $false.
@@ -19,12 +21,25 @@ Specifies whether to install dependencies (python requirements, go deps, etc.). 
 .PARAMETER CheckGoVersion
 Specifies whether to check the Go version. If not provided, it defaults to the value of the environment variable GO_VERSION_CHECK or $true if the environment variable is not set.
 
+.PARAMETER UploadCoverage
+Specifies whether to upload coverage reports to Codecov. Default is $false.
+
+Requires the CODECOV_TOKEN environment variable to be set.
+
+.PARAMETER UploadTestResults
+Specifies whether to upload test results to Datadog CI. Default is $false.
+
+Requires the API_KEY_ORG2 environment variable to be set.
+
+Requires JUNIT_TAR environment variable to be set.
+
 #>
 param(
     [bool] $BuildOutOfSource = $false,
     [nullable[bool]] $CheckGoVersion,
     [bool] $InstallDeps = $true,
-    [bool] $UploadCoverage = $false
+    [bool] $UploadCoverage = $false,
+    [bool] $UploadTestResults = $false
 )
 
 . "$PSScriptRoot\common.ps1"
@@ -40,16 +55,22 @@ Invoke-BuildScript `
     {
         # Check required environment variables
         if (-not $Env:TEST_EMBEDDED_PY3) {
-            Write-Host -ForegroundColor Red "TEST_EMBEDDED_PY3 environment variable is required"
+            Write-Host -ForegroundColor Red "TEST_EMBEDDED_PY3 environment variable is required for running embedded Python 3 tests"
             exit 1
         }
         if ($UploadCoverage) {
             if (-not $Env:CODECOV_TOKEN) {
-                Write-Host -ForegroundColor Red "CODECOV_TOKEN environment variable is required for coverage upload"
+                Write-Host -ForegroundColor Red "CODECOV_TOKEN environment variable is required for uploading coverage reports to Codecov"
                 exit 1
             }
+        }
+        if ($UploadTestResults) {
             if (-not $Env:API_KEY_ORG2) {
-                Write-Host -ForegroundColor Red "API_KEY_ORG2 environment variable is required for junit upload"
+                Write-Host -ForegroundColor Red "API_KEY_ORG2 environment variable is required for junit upload to Datadog CI"
+                exit 1
+            }
+            if (-not $Env:JUNIT_TAR) {
+                Write-Host -ForegroundColor Red "JUNIT_TAR environment variable is required for junit upload to Datadog CI"
                 exit 1
             }
         }
@@ -83,7 +104,7 @@ Invoke-BuildScript `
     Write-Host rtloader test result is $err
     if($err -ne 0){
         Write-Host -ForegroundColor Red "rtloader test failed $err"
-        [Environment]::Exit($err)
+        exit $err
     }
 
     # Sanity check that the core agent can build
@@ -91,7 +112,7 @@ Invoke-BuildScript `
     $err = $LASTEXITCODE
     if($err -ne 0){
         Write-Host -ForegroundColor Red "Agent build failed $err"
-        [Environment]::Exit($err)
+        exit $err
     }
 
     # Go unit tests
@@ -120,7 +141,8 @@ Invoke-BuildScript `
         if($LASTEXITCODE -ne 0){
             Write-Host -ForegroundColor Red "coverage upload failed $err"
         }
-
+    }
+    if ($UploadTestResults) {
         # 2. Upload junit files
         # Copy test files to c:\mnt for further gitlab upload
         Get-ChildItem -Filter "junit-out-*.xml" -Recurse | ForEach-Object {
