@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/mohae/deepcopy"
-
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
@@ -20,7 +18,7 @@ import (
 
 // CopyProfileDefinition copies a profile, it's used for testing
 func CopyProfileDefinition(profileDef profiledefinition.ProfileDefinition) profiledefinition.ProfileDefinition {
-	return deepcopy.Copy(profileDef).(profiledefinition.ProfileDefinition)
+	return *profileDef.Clone()
 }
 
 // SetConfdPathAndCleanProfiles is used for testing only

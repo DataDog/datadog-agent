@@ -82,3 +82,11 @@ type ProfileConfig struct {
 
 	IsUserProfile bool `yaml:"-"`
 }
+
+func (p ProfileConfig) Clone() ProfileConfig {
+	return ProfileConfig{
+		DefinitionFile: p.DefinitionFile,
+		Definition:     *p.Definition.Clone(),
+		IsUserProfile:  p.IsUserProfile,
+	}
+}
