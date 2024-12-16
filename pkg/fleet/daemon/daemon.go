@@ -20,9 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -34,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -271,8 +269,8 @@ func (d *daemonImpl) Install(ctx context.Context, url string, args []string) err
 }
 
 func (d *daemonImpl) install(ctx context.Context, url string, args []string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "install")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "install")
+	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -293,8 +291,8 @@ func (d *daemonImpl) StartExperiment(ctx context.Context, url string) error {
 }
 
 func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "start_experiment")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "start_experiment")
+	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -308,8 +306,8 @@ func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error
 }
 
 func (d *daemonImpl) startInstallerExperiment(ctx context.Context, url string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "start_installer_experiment")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "start_installer_experiment")
+	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -334,8 +332,8 @@ func (d *daemonImpl) PromoteExperiment(ctx context.Context, pkg string) error {
 }
 
 func (d *daemonImpl) promoteExperiment(ctx context.Context, pkg string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "promote_experiment")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "promote_experiment")
+	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -356,8 +354,8 @@ func (d *daemonImpl) StopExperiment(ctx context.Context, pkg string) error {
 }
 
 func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "stop_experiment")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "stop_experiment")
+	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -378,8 +376,8 @@ func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, vers
 }
 
 func (d *daemonImpl) startConfigExperiment(ctx context.Context, url string, version string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "start_config_experiment")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
+	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -400,8 +398,8 @@ func (d *daemonImpl) PromoteConfigExperiment(ctx context.Context, pkg string) er
 }
 
 func (d *daemonImpl) promoteConfigExperiment(ctx context.Context, pkg string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "promote_config_experiment")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "promote_config_experiment")
+	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -422,8 +420,8 @@ func (d *daemonImpl) StopConfigExperiment(ctx context.Context, pkg string) error
 }
 
 func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "stop_config_experiment")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "stop_config_experiment")
+	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -455,7 +453,7 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	defer d.m.Unlock()
 	defer d.requestsWG.Done()
 	parentSpan, ctx := newRequestContext(request)
-	defer parentSpan.Finish(tracer.WithError(err))
+	defer parentSpan.Finish(err)
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -545,25 +543,13 @@ type requestState struct {
 	ErrorCode installerErrors.InstallerErrorCode
 }
 
-func newRequestContext(request remoteAPIRequest) (ddtrace.Span, context.Context) {
+func newRequestContext(request remoteAPIRequest) (telemetry.Span, context.Context) {
 	ctx := context.WithValue(context.Background(), requestStateKey, &requestState{
 		Package: request.Package,
 		ID:      request.ID,
 		State:   pbgo.TaskState_RUNNING,
 	})
-
-	ctxCarrier := tracer.TextMapCarrier{
-		tracer.DefaultTraceIDHeader:  request.TraceID,
-		tracer.DefaultParentIDHeader: request.ParentSpanID,
-		tracer.DefaultPriorityHeader: "2",
-	}
-	spanCtx, err := tracer.Extract(ctxCarrier)
-	if err != nil {
-		log.Debugf("failed to extract span context from install script params: %v", err)
-		return tracer.StartSpan("remote_request"), ctx
-	}
-
-	return tracer.StartSpanFromContext(ctx, "remote_request", tracer.ChildOf(spanCtx))
+	return telemetry.StartSpanFromIDs(ctx, "remote_request", request.TraceID, request.ParentSpanID)
 }
 
 func setRequestInvalid(ctx context.Context) {

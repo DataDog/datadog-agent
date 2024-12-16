@@ -16,8 +16,8 @@ import (
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const policyMetadataFilename = "policy.metadata"
@@ -110,13 +110,13 @@ func New(env *env.Env, configDBPath string) (*CDN, error) {
 
 // Get fetches the configuration for the given package.
 func (c *CDN) Get(ctx context.Context, pkg string) (cfg Config, err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
+	span, _ := telemetry.StartSpanFromContext(ctx, "cdn.Get")
 	defer func() {
 		spanErr := err
 		if spanErr == ErrProductNotSupported {
 			spanErr = nil
 		}
-		span.Finish(tracer.WithError(spanErr))
+		span.Finish(spanErr)
 	}()
 
 	switch pkg {
