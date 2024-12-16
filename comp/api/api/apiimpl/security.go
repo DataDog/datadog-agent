@@ -6,6 +6,7 @@
 package apiimpl
 
 import (
+	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -34,7 +35,7 @@ func validateToken(next http.Handler) http.Handler {
 // parseToken parses the token and validate it for our gRPC API, it returns an empty
 // struct and an error or nil
 func parseToken(token string) (interface{}, error) {
-	if token != util.GetAuthToken() {
+	if subtle.ConstantTimeCompare([]byte(token), []byte(util.GetAuthToken())) == 0 {
 		return struct{}{}, errors.New("Invalid session token")
 	}
 
