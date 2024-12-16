@@ -487,7 +487,7 @@ namespace Datadog.CustomActions
 
         }
 
-        private void RemoveDatadogUserFromDataFolder()
+        private void RemoveDatadogUserFromDataFolder(SecurityIdentifier sid)
         {
             var dataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
 
@@ -504,13 +504,13 @@ namespace Datadog.CustomActions
 
             // Remove ddagentuser from data folder
             fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
-                _ddAgentUserSID,
+                sid,
                 FileSystemRights.ReadAndExecute | FileSystemRights.Synchronize,
                 InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
                 PropagationFlags.None,
                 AccessControlType.Allow));
             fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
-                _ddAgentUserSID,
+                sid,
                 FileSystemRights.Write,
                 InheritanceFlags.ContainerInherit,
                 PropagationFlags.None,
@@ -768,7 +768,7 @@ namespace Datadog.CustomActions
                         }
                     }
                     //remove access to root folder
-                    RemoveDatadogUserFromDataFolder();
+                    RemoveDatadogUserFromDataFolder(securityIdentifier);
                 }
 
                 // We intentionally do NOT delete the ddagentuser account.
