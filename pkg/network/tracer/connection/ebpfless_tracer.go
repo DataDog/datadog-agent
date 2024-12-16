@@ -148,20 +148,23 @@ func (t *ebpfLessTracer) processConnection(
 	tcp *layers.TCP,
 	decoded []gopacket.LayerType,
 ) error {
+
 	t.scratchConn.Source, t.scratchConn.Dest = util.Address{}, util.Address{}
 	t.scratchConn.SPort, t.scratchConn.DPort = 0, 0
 	t.scratchConn.TCPFailures = make(map[uint16]uint32)
-	var udpPresent, tcpPresent bool
+	var ip4Present, ip6Present, udpPresent, tcpPresent bool
 	for _, layerType := range decoded {
 		switch layerType {
 		case layers.LayerTypeIPv4:
 			t.scratchConn.Source = util.AddressFromNetIP(ip4.SrcIP)
 			t.scratchConn.Dest = util.AddressFromNetIP(ip4.DstIP)
 			t.scratchConn.Family = network.AFINET
+			ip4Present = true
 		case layers.LayerTypeIPv6:
 			t.scratchConn.Source = util.AddressFromNetIP(ip6.SrcIP)
 			t.scratchConn.Dest = util.AddressFromNetIP(ip6.DstIP)
 			t.scratchConn.Family = network.AFINET6
+			ip6Present = true
 		case layers.LayerTypeTCP:
 			t.scratchConn.SPort = uint16(tcp.SrcPort)
 			t.scratchConn.DPort = uint16(tcp.DstPort)
@@ -175,15 +178,15 @@ func (t *ebpfLessTracer) processConnection(
 		}
 	}
 
-	// check if have all the basic pieces
+	// check if we have all the basic pieces
 	if !udpPresent && !tcpPresent {
 		log.Debugf("ignoring packet since its not udp or tcp")
 		ebpfLessTracerTelemetry.skippedPackets.Inc("not_tcp_udp")
 		return nil
 	}
 
-	flipSourceDest(t.scratchConn, pktType)
 	t.determineConnectionDirection(t.scratchConn, pktType)
+	flipSourceDest(t.scratchConn, pktType)
 
 	t.m.Lock()
 	defer t.m.Unlock()
@@ -202,17 +205,17 @@ func (t *ebpfLessTracer) processConnection(
 		return fmt.Errorf("error getting last updated timestamp for connection: %w", err)
 	}
 
-	if ip4 == nil && ip6 == nil {
+	if !ip4Present && !ip6Present {
 		return nil
 	}
 	switch conn.Type {
 	case network.UDP:
-		if (ip4 != nil && !t.config.CollectUDPv4Conns) || (ip6 != nil && !t.config.CollectUDPv6Conns) {
+		if (ip4Present && !t.config.CollectUDPv4Conns) || (ip6Present && !t.config.CollectUDPv6Conns) {
 			return nil
 		}
 		err = t.udp.process(conn, pktType, udp)
 	case network.TCP:
-		if (ip4 != nil && !t.config.CollectTCPv4Conns) || (ip6 != nil && !t.config.CollectTCPv6Conns) {
+		if (ip4Present && !t.config.CollectTCPv4Conns) || (ip6Present && !t.config.CollectTCPv6Conns) {
 			return nil
 		}
 		err = t.tcp.Process(conn, uint64(ts), pktType, ip4, ip6, tcp)
@@ -224,7 +227,8 @@ func (t *ebpfLessTracer) processConnection(
 		return fmt.Errorf("error processing connection: %w", err)
 	}
 
-	if conn.Type == network.UDP || conn.Monotonic.TCPEstablished > 0 {
+	// TODO probably remove HasConnEverEstablished once we handle closed connections properly
+	if conn.Type == network.UDP || (conn.Type == network.TCP && t.tcp.HasConnEverEstablished(conn)) {
 		conn.LastUpdateEpoch = uint64(ts)
 		t.conns[t.scratchConn.ConnectionTuple] = conn
 	}

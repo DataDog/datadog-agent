@@ -54,9 +54,16 @@ var connStatusLabels = []string{
 type synState uint8
 
 const (
+	// synStateNone - Nothing seen yet (initial state)
 	synStateNone synState = iota
+	// synStateSent - We have seen the SYN but not its ACK
 	synStateSent
+	// synStateAcked - SYN is ACK'd for this side of the connection.
+	// If both sides are synStateAcked, the connection is established.
 	synStateAcked
+	// synStateMissed is effectively the same as synStateAcked but represents
+	// capturing a preexisting connection where we didn't get to see the SYN.
+	synStateMissed
 )
 
 func (ss *synState) update(synFlag, ackFlag bool) {
@@ -68,12 +75,19 @@ func (ss *synState) update(synFlag, ackFlag bool) {
 	if *ss == synStateSent && ackFlag {
 		*ss = synStateAcked
 	}
+
+	// this allows synStateMissed to recover via SYN in order to pass TestUnusualAckSyn
+	if *ss == synStateMissed && synFlag {
+		*ss = synStateAcked
+	}
 	// if we see ACK'd traffic but missed the SYN, assume the connection started before
 	// the datadog-agent starts.
 	if *ss == synStateNone && ackFlag {
-		statsTelemetry.missedTCPConnections.Inc()
-		*ss = synStateAcked
+		*ss = synStateMissed
 	}
+}
+func (ss *synState) isSynAcked() bool {
+	return *ss == synStateAcked || *ss == synStateMissed
 }
 
 func labelForState(tcpState connStatus) string {

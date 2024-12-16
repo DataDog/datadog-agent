@@ -9,6 +9,7 @@ package ebpfless
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"syscall"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/google/gopacket/layers"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type connectionState struct {
@@ -51,7 +51,12 @@ type connectionState struct {
 	// remoteFinSeq is the tcp.Seq number for the incoming FIN (including any payload length)
 	remoteFinSeq uint32
 
+	// rttTracker is used to track round trip times
 	rttTracker rttTracker
+}
+
+func (st *connectionState) hasMissedHandshake() bool {
+	return st.localSynState == synStateMissed || st.remoteSynState == synStateMissed
 }
 
 // TCPProcessor encapsulates TCP state tracking for the ebpfless tracer
@@ -125,9 +130,13 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 		updateConnStatsForOpen(conn)
 	}
 	// if both synStates are ack'd, move to established
-	if st.tcpState == connStatAttempted && st.localSynState == synStateAcked && st.remoteSynState == synStateAcked {
+	if st.tcpState == connStatAttempted && st.localSynState.isSynAcked() && st.remoteSynState.isSynAcked() {
 		st.tcpState = connStatEstablished
-		conn.Monotonic.TCPEstablished++
+		if st.hasMissedHandshake() {
+			statsTelemetry.missedTCPConnections.Inc()
+		} else {
+			conn.Monotonic.TCPEstablished++
+		}
 	}
 }
 
@@ -155,7 +164,7 @@ func (t *TCPProcessor) updateTCPStats(conn *network.ConnectionStats, st *connect
 		ackOutdated := !st.hasLocalAck || isSeqBefore(st.lastLocalAck, tcp.Ack)
 		if tcp.ACK && ackOutdated {
 			// wait until data comes in via synStateAcked
-			if st.hasLocalAck && st.remoteSynState == synStateAcked {
+			if st.hasLocalAck && st.remoteSynState.isSynAcked() {
 				ackDiff := tcp.Ack - st.lastLocalAck
 				isFinAck := st.hasRemoteFin && tcp.Ack == st.remoteFinSeq
 				if isFinAck {
@@ -259,4 +268,19 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64
 
 	t.conns[conn.ConnectionTuple] = st
 	return nil
+}
+
+// HasConnEverEstablished is used to avoid a connection appearing before the three-way handshake is complete.
+// This is done to mirror the behavior of ebpf tracing accept() and connect(), which both return
+// after the handshake is completed.
+func (t *TCPProcessor) HasConnEverEstablished(conn *network.ConnectionStats) bool {
+	st := t.conns[conn.ConnectionTuple]
+
+	// conn.Monotonic.TCPEstablished can be 0 even though isEstablished is true,
+	// because pre-existing connections don't increment TCPEstablished.
+	// That's why we use tcpState instead of conn
+	isEstablished := st.tcpState == connStatEstablished
+	// if the connection has closed in any way, report that too
+	hasEverClosed := conn.Monotonic.TCPClosed > 0 || len(conn.TCPFailures) > 0
+	return isEstablished || hasEverClosed
 }

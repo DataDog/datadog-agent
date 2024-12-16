@@ -181,7 +181,7 @@ func (fixture *tcpTestFixture) runPkt(pkt testCapture) {
 	require.NoError(fixture.t, err)
 }
 
-func (fixture *tcpTestFixture) runPkts(packets []testCapture) { //nolint:unused // TODO
+func (fixture *tcpTestFixture) runPkts(packets []testCapture) {
 	for _, pkt := range packets {
 		fixture.runPkt(pkt)
 	}
@@ -774,4 +774,33 @@ func TestOpenCloseConn(t *testing.T) {
 	// open it up again, it should not be marked closed afterward
 	f.runPkt(pb.incoming(0, 0, 0, SYN))
 	require.False(t, f.conn.IsClosed)
+}
+func TestPreexistingConn(t *testing.T) {
+	pb := newPacketBuilder(lowerSeq, higherSeq)
+
+	f := newTCPTestFixture(t)
+
+	capture := []testCapture{
+		// just sending data, no SYN
+		pb.outgoing(1, 10, 10, ACK),
+		pb.incoming(1, 10, 11, ACK),
+		// active close after sending no data
+		pb.outgoing(0, 11, 11, FIN|ACK),
+		pb.incoming(0, 11, 12, FIN|ACK),
+		pb.outgoing(0, 12, 12, ACK),
+	}
+	f.runPkts(capture)
+
+	require.Empty(t, f.conn.TCPFailures)
+
+	expectedStats := network.StatCounters{
+		SentBytes:      1,
+		RecvBytes:      1,
+		SentPackets:    3,
+		RecvPackets:    2,
+		Retransmits:    0,
+		TCPEstablished: 0, // we missed when it established
+		TCPClosed:      1,
+	}
+	require.Equal(t, expectedStats, f.conn.Monotonic)
 }
