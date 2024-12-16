@@ -308,6 +308,7 @@ const (
 	MetricSourceAnyscale
 	MetricSourceMilvus
 	MetricSourceNvidiaNim
+	MetricSourceMilvus
 )
 
 // String returns a string representation of MetricSource
@@ -879,6 +880,8 @@ func (ms MetricSource) String() string {
 		return "aws_neuron"
 	case MetricSourceMilvus:
 		return "milvus"
+	case MetricSourceQuarkus:
+		return "quarkus"
 	default:
 		return "<unknown>"
 	}
@@ -1421,6 +1424,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceTibcoEMS
 	case "milvus":
 		return MetricSourceMilvus
+	case "quarkus":
+		return MetricSourceQuarkus
 	default:
 		return MetricSourceUnknown
 	}
