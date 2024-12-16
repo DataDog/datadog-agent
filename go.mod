@@ -157,8 +157,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.1
-	github.com/DataDog/datadog-go/v5 v5.5.0
-	github.com/DataDog/datadog-operator v0.7.1-0.20241024104907-734366f3c0d1
+	github.com/DataDog/datadog-go/v5 v5.6.0
+	github.com/DataDog/datadog-operator v1.11.0-rc.2
 	github.com/DataDog/ebpf-manager v0.7.4
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.8
@@ -197,7 +197,7 @@ require (
 	github.com/cri-o/ocicni v0.4.3
 	github.com/cyphar/filepath-securejoin v0.3.4
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/docker/docker v27.3.1+incompatible
+	github.com/docker/docker v27.4.0+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit/v2 v2.5.0
@@ -323,9 +323,9 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	k8s.io/api v0.31.3
+	k8s.io/api v0.31.4
 	k8s.io/apiextensions-apiserver v0.31.2
-	k8s.io/apimachinery v0.31.3
+	k8s.io/apimachinery v0.31.4
 	k8s.io/apiserver v0.31.2 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.13.0
 	k8s.io/client-go v0.31.3
@@ -375,19 +375,19 @@ require (
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/awalterschulze/gographviz v2.0.3+incompatible // indirect
-	github.com/aws/aws-sdk-go-v2 v1.32.5
-	github.com/aws/aws-sdk-go-v2/config v1.28.5
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.46
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.20 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.24 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.24 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.32.6
+	github.com/aws/aws-sdk-go-v2/config v1.28.6
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.47
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.21 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.25 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.25 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ebs v1.27.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.190.0
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.24.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.33.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.24.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.33.2 // indirect
 	github.com/aws/smithy-go v1.22.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40 // indirect
@@ -403,7 +403,7 @@ require (
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/dgryski/go-jump v0.0.0-20211018200510-ba001c3ffce0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
-	github.com/docker/cli v27.1.1+incompatible // indirect
+	github.com/docker/cli v27.4.0+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.1 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
@@ -813,14 +813,16 @@ require (
 	github.com/Showmax/go-fqdn v1.0.0 // indirect
 	github.com/VividCortex/ewma v1.2.0 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
+	github.com/alecthomas/assert/v2 v2.6.0 // indirect
 	github.com/alecthomas/participle/v2 v2.1.1 // indirect
+	github.com/alecthomas/repr v0.4.0 // indirect
 	github.com/anchore/go-struct-converter v0.0.0-20221118182256-c68fdcfa2092 // indirect
 	github.com/antchfx/xmlquery v1.4.2 // indirect
 	github.com/antchfx/xpath v1.3.2 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/apache/thrift v0.21.0 // indirect
 	github.com/aquasecurity/trivy-java-db v0.0.0-20240109071736-184bd7481d48 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.36.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.36.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.27.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.1 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
