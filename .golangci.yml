@@ -567,196 +567,453 @@ issues:
     - path: comp/dogstatsd/packets/packet_manager_windows.go
       linters:
         - pkgconfigusage
-    - path: comp/agent/autoexit/autoexitimpl/autoexit.go
+    - path: comp/agent/autoexit/autoexitimpl
       linters:
         - compimpl
-    - path: comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl/cloudfoundrycontainer.go
+    - path: comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl
       linters:
         - compimpl
-    - path: comp/agent/expvarserver/expvarserverimpl/expvarserver.go
+    - path: comp/agent/expvarserver/expvarserverimpl
       linters:
         - compimpl
-    - path: comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl/sendermanager.go
+    - path: comp/agent/jmxlogger/jmxloggerimpl
       linters:
         - compimpl
-    - path: comp/api/api/apiimpl/api.go
+    - path: comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl
       linters:
         - compimpl
-    - path: comp/checks/windowseventlog/windowseventlogimpl/windows_event_log.go
+    - path: comp/forwarder/eventplatform/eventplatformimpl
       linters:
         - compimpl
-    - path: comp/collector/collector/collectorimpl/collector.go
+    - path: comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl
       linters:
         - compimpl
-    - path: comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go
+    - path: comp/dogstatsd/pidmap/pidmapimpl
       linters:
         - compimpl
-    - path: comp/core/autodiscovery/noopimpl/autoconfig.go
+    - path: comp/checks/agentcrashdetect/agentcrashdetectimpl
       linters:
         - compimpl
-    - path: comp/core/gui/guiimpl/gui.go
+    - path: comp/checks/windowseventlog/windowseventlogimpl
       linters:
         - compimpl
-    - path: comp/core/hostname/hostnameimpl/service.go
+    - path: comp/core/pid/pidimpl
       linters:
         - compimpl
-    - path: comp/core/hostname/remotehostnameimpl/hostname.go
+    - path: comp/core/sysprobeconfig/sysprobeconfigimpl
       linters:
         - compimpl
-    - path: comp/core/pid/pidimpl/pid.go
+    - path: comp/core/autodiscovery/noopimpl
       linters:
         - compimpl
-    - path: comp/core/settings/settingsimpl/settingsimpl.go
+    - path: comp/core/flare/flareimpl
       linters:
         - compimpl
-    - path: comp/core/sysprobeconfig/sysprobeconfigimpl/config.go
+    - path: comp/core/hostname/remotehostnameimpl
       linters:
         - compimpl
-    - path: comp/dogstatsd/pidmap/pidmapimpl/state.go
+    - path: comp/forwarder/orchestrator/orchestratorimpl
       linters:
         - compimpl
-    - path: comp/dogstatsd/serverDebug/serverdebugimpl/debug.go
+    - path: comp/logs/adscheduler/adschedulerimpl
       linters:
         - compimpl
-    - path: comp/dogstatsd/status/statusimpl/status.go
+    - path: comp/metadata/packagesigning/packagesigningimpl
       linters:
         - compimpl
-    - path: comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl/eventplatformreceiver.go
+    - path: comp/ndmtmp/forwarder/forwarderimpl
       linters:
         - compimpl
-    - path: comp/languagedetection/client/clientimpl/client.go
+    - path: comp/process/connectionscheck/connectionscheckimpl
       linters:
         - compimpl
-    - path: comp/logs/adscheduler/adschedulerimpl/adscheduler.go
+    - path: comp/process/containercheck/containercheckimpl
       linters:
         - compimpl
-    - path: comp/logs/agent/agentimpl/agent.go
+    - path: comp/process/forwarders/forwardersimpl
       linters:
         - compimpl
-    - path: comp/metadata/host/hostimpl/host.go
+    - path: comp/process/hostinfo/hostinfoimpl
       linters:
         - compimpl
-    - path: comp/metadata/inventoryagent/inventoryagentimpl/inventoryagent.go
+    - path: comp/process/processcheck/processcheckimpl
       linters:
         - compimpl
-    - path: comp/metadata/inventorychecks/inventorychecksimpl/inventorychecks.go
+    - path: comp/process/processdiscoverycheck/processdiscoverycheckimpl
       linters:
         - compimpl
-    - path: comp/metadata/inventoryhost/inventoryhostimpl/inventoryhost.go
+    - path: comp/process/processeventscheck/processeventscheckimpl
       linters:
         - compimpl
-    - path: comp/metadata/inventoryotel/inventoryotelimpl/inventoryotel.go
+    - path: comp/process/profiler/profilerimpl
       linters:
         - compimpl
-    - path: comp/metadata/packagesigning/packagesigningimpl/packagesigning.go
+    - path: comp/process/rtcontainercheck/rtcontainercheckimpl
       linters:
         - compimpl
-    - path: comp/metadata/resources/resourcesimpl/params.go
+    - path: comp/remote-config/rcservice/rcserviceimpl
       linters:
         - compimpl
-    - path: comp/metadata/runner/runnerimpl/runner.go
+    - path: comp/remote-config/rcservicemrf/rcservicemrfimpl
       linters:
         - compimpl
-    - path: comp/ndmtmp/forwarder/forwarderimpl/forwarder.go
+    - path: comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl
       linters:
         - compimpl
-    - path: comp/networkpath/npcollector/npcollectorimpl/npcollectorcomp.go
+    - path: comp/snmptraps/config/configimpl
       linters:
         - compimpl
-    - path: comp/process/agent/agentimpl/agent.go
+    - path: comp/updater/localapi/localapiimpl
       linters:
         - compimpl
-    - path: comp/process/connectionscheck/connectionscheckimpl/check.go
+    - path: comp/updater/localapiclient/localapiclientimpl
       linters:
         - compimpl
-    - path: comp/process/containercheck/containercheckimpl/check.go
+    - path: comp/updater/telemetry/telemetryimpl
       linters:
         - compimpl
-    - path: comp/process/expvars/expvarsimpl/expvars.go
+    - path: comp/aggregator/demultiplexer/demultiplexerimpl
       linters:
         - compimpl
-    - path: comp/process/forwarders/forwardersimpl/forwarders.go
+    - path: comp/api/api/apiimpl
       linters:
         - compimpl
-    - path: comp/process/hostinfo/hostinfoimpl/hostinfo.go
+    - path: comp/api/commonendpoints/impl
       linters:
         - compimpl
-    - path: comp/process/processcheck/processcheckimpl/check.go
+    - path: comp/collector/collector/collectorimpl
       linters:
         - compimpl
-    - path: comp/process/processdiscoverycheck/processdiscoverycheckimpl/check.go
+    - path: comp/core/autodiscovery/autodiscoveryimpl
       linters:
         - compimpl
-    - path: comp/process/processeventscheck/processeventscheckimpl/check.go
+    - path: comp/core/configsync/configsyncimpl
       linters:
         - compimpl
-    - path: comp/process/profiler/profilerimpl/profiler.go
+    - path: comp/core/gui/guiimpl
       linters:
         - compimpl
-    - path: comp/process/rtcontainercheck/rtcontainercheckimpl/check.go
+    - path: comp/core/hostname/hostnameimpl
       linters:
         - compimpl
-    - path: comp/process/runner/runnerimpl/runner.go
+    - path: comp/core/settings/settingsimpl
       linters:
         - compimpl
-    - path: comp/process/status/statusimpl/status.go
+    - path: comp/core/workloadmeta/impl
       linters:
         - compimpl
-    - path: comp/process/submitter/submitterimpl/submitter.go
+    - path: comp/dogstatsd/replay/impl
       linters:
         - compimpl
-    - path: comp/remote-config/rcclient/rcclientimpl/rcclient.go
+    - path: comp/dogstatsd/serverDebug/serverdebugimpl
       linters:
         - compimpl
-    - path: comp/remote-config/rcservice/rcserviceimpl/rcservice.go
+    - path: comp/dogstatsd/status/statusimpl
       linters:
         - compimpl
-    - path: comp/remote-config/rcservicemrf/rcservicemrfimpl/rcservicemrf.go
+    - path: comp/languagedetection/client/clientimpl
       linters:
         - compimpl
-    - path: comp/remote-config/rcstatus/rcstatusimpl/status.go
+    - path: comp/logs/agent/agentimpl
       linters:
         - compimpl
-    - path: comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl/rctelemetryreporter.go
+    - path: comp/logs/integrations/impl
       linters:
         - compimpl
-    - path: comp/snmptraps/config/configimpl/service.go
+    - path: comp/metadata/host/hostimpl
       linters:
         - compimpl
-    - path: comp/snmptraps/formatter/formatterimpl/formatter.go
+    - path: comp/metadata/inventoryagent/inventoryagentimpl
       linters:
         - compimpl
-    - path: comp/snmptraps/forwarder/forwarderimpl/forwarder.go
+    - path: comp/metadata/inventorychecks/inventorychecksimpl
       linters:
         - compimpl
-    - path: comp/snmptraps/listener/listenerimpl/listener.go
+    - path: comp/metadata/inventoryhost/inventoryhostimpl
       linters:
         - compimpl
-    - path: comp/snmptraps/oidresolver/oidresolverimpl/oid_resolver.go
+    - path: comp/metadata/inventoryotel/inventoryotelimpl
       linters:
         - compimpl
-    - path: comp/snmptraps/server/serverimpl/server.go
+    - path: comp/metadata/resources/resourcesimpl
       linters:
         - compimpl
-    - path: comp/snmptraps/status/statusimpl/status.go
+    - path: comp/metadata/runner/runnerimpl
       linters:
         - compimpl
-    - path: comp/trace/status/statusimpl/status.go
+    - path: comp/networkpath/npcollector/npcollectorimpl
       linters:
         - compimpl
-    - path: comp/updater/localapi/localapiimpl/local_api.go
+    - path: comp/process/agent/agentimpl
       linters:
         - compimpl
-    - path: comp/updater/localapiclient/localapiclientimpl/localapiclient.go
+    - path: comp/process/expvars/expvarsimpl
       linters:
         - compimpl
-    - path: comp/updater/telemetry/telemetryimpl/telemetry.go
+    - path: comp/process/runner/runnerimpl
       linters:
         - compimpl
-    - path: comp/updater/updater/updaterimpl/updater.go
+    - path: comp/process/status/statusimpl
       linters:
         - compimpl
-
+    - path: comp/process/submitter/submitterimpl
+      linters:
+        - compimpl
+    - path: comp/remote-config/rcclient/rcclientimpl
+      linters:
+        - compimpl
+    - path: comp/remote-config/rcstatus/rcstatusimpl
+      linters:
+        - compimpl
+    - path: comp/snmptraps/formatter/formatterimpl
+      linters:
+        - compimpl
+    - path: comp/snmptraps/forwarder/forwarderimpl
+      linters:
+        - compimpl
+    - path: comp/snmptraps/listener/listenerimpl
+      linters:
+        - compimpl
+    - path: comp/snmptraps/oidresolver/oidresolverimpl
+      linters:
+        - compimpl
+    - path: comp/snmptraps/server/serverimpl
+      linters:
+        - compimpl
+    - path: comp/snmptraps/status/statusimpl
+      linters:
+        - compimpl
+    - path: comp/trace/agent/impl
+      linters:
+        - compimpl
+    - path: comp/trace/status/statusimpl
+      linters:
+        - compimpl
+    - path: comp/updater/updater/updaterimpl
+      linters:
+        - compimpl
+    - path: comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl
+      linters:
+        - compimpl
+    - path: comp/agent/expvarserver/expvarserverimpl
+      linters:
+        - compimpl
+    - path: comp/agent/jmxlogger/jmxloggerimpl
+      linters:
+        - compimpl
+    - path: comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl
+      linters:
+        - compimpl
+    - path: comp/forwarder/eventplatform/eventplatformimpl
+      linters:
+        - compimpl
+    - path: comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl
+      linters:
+        - compimpl
+    - path: comp/dogstatsd/pidmap/pidmapimpl
+      linters:
+        - compimpl
+    - path: comp/checks/agentcrashdetect/agentcrashdetectimpl
+      linters:
+        - compimpl
+    - path: comp/checks/windowseventlog/windowseventlogimpl
+      linters:
+        - compimpl
+    - path: comp/core/pid/pidimpl
+      linters:
+        - compimpl
+    - path: comp/core/sysprobeconfig/sysprobeconfigimpl
+      linters:
+        - compimpl
+    - path: comp/core/autodiscovery/noopimpl
+      linters:
+        - compimpl
+    - path: comp/core/flare/flareimpl
+      linters:
+        - compimpl
+    - path: comp/core/hostname/remotehostnameimpl
+      linters:
+        - compimpl
+    - path: comp/forwarder/orchestrator/orchestratorimpl
+      linters:
+        - compimpl
+    - path: comp/logs/adscheduler/adschedulerimpl
+      linters:
+        - compimpl
+    - path: comp/metadata/packagesigning/packagesigningimpl
+      linters:
+        - compimpl
+    - path: comp/ndmtmp/forwarder/forwarderimpl
+      linters:
+        - compimpl
+    - path: comp/process/connectionscheck/connectionscheckimpl
+      linters:
+        - compimpl
+    - path: comp/process/containercheck/containercheckimpl
+      linters:
+        - compimpl
+    - path: comp/process/forwarders/forwardersimpl
+      linters:
+        - compimpl
+    - path: comp/process/hostinfo/hostinfoimpl
+      linters:
+        - compimpl
+    - path: comp/process/processcheck/processcheckimpl
+      linters:
+        - compimpl
+    - path: comp/process/processdiscoverycheck/processdiscoverycheckimpl
+      linters:
+        - compimpl
+    - path: comp/process/processeventscheck/processeventscheckimpl
+      linters:
+        - compimpl
+    - path: comp/process/profiler/profilerimpl
+      linters:
+        - compimpl
+    - path: comp/process/rtcontainercheck/rtcontainercheckimpl
+      linters:
+        - compimpl
+    - path: comp/remote-config/rcservice/rcserviceimpl
+      linters:
+        - compimpl
+    - path: comp/remote-config/rcservicemrf/rcservicemrfimpl
+      linters:
+        - compimpl
+    - path: comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl
+      linters:
+        - compimpl
+    - path: comp/snmptraps/config/configimpl
+      linters:
+        - compimpl
+    - path: comp/updater/localapi/localapiimpl
+      linters:
+        - compimpl
+    - path: comp/updater/localapiclient/localapiclientimpl
+      linters:
+        - compimpl
+    - path: comp/updater/telemetry/telemetryimpl
+      linters:
+        - compimpl
+    - path: comp/aggregator/demultiplexer/demultiplexerimpl
+      linters:
+        - compimpl
+    - path: comp/api/api/apiimpl
+      linters:
+        - compimpl
+    - path: comp/api/commonendpoints/impl
+      linters:
+        - compimpl
+    - path: comp/collector/collector/collectorimpl
+      linters:
+        - compimpl
+    - path: comp/core/autodiscovery/autodiscoveryimpl
+      linters:
+        - compimpl
+    - path: comp/core/configsync/configsyncimpl
+      linters:
+        - compimpl
+    - path: comp/core/gui/guiimpl
+      linters:
+        - compimpl
+    - path: comp/core/hostname/hostnameimpl
+      linters:
+        - compimpl
+    - path: comp/core/settings/settingsimpl
+      linters:
+        - compimpl
+    - path: comp/core/workloadmeta/impl
+      linters:
+        - compimpl
+    - path: comp/dogstatsd/replay/impl
+      linters:
+        - compimpl
+    - path: comp/dogstatsd/serverDebug/serverdebugimpl
+      linters:
+        - compimpl
+    - path: comp/dogstatsd/status/statusimpl
+      linters:
+        - compimpl
+    - path: comp/languagedetection/client/clientimpl
+      linters:
+        - compimpl
+    - path: comp/logs/agent/agentimpl
+      linters:
+        - compimpl
+    - path: comp/logs/integrations/impl
+      linters:
+        - compimpl
+    - path: comp/metadata/host/hostimpl
+      linters:
+        - compimpl
+    - path: comp/metadata/inventoryagent/inventoryagentimpl
+      linters:
+        - compimpl
+    - path: comp/metadata/inventorychecks/inventorychecksimpl
+      linters:
+        - compimpl
+    - path: comp/metadata/inventoryhost/inventoryhostimpl
+      linters:
+        - compimpl
+    - path: comp/metadata/inventoryotel/inventoryotelimpl
+      linters:
+        - compimpl
+    - path: comp/metadata/resources/resourcesimpl
+      linters:
+        - compimpl
+    - path: comp/metadata/runner/runnerimpl
+      linters:
+        - compimpl
+    - path: comp/networkpath/npcollector/npcollectorimpl
+      linters:
+        - compimpl
+    - path: comp/process/agent/agentimpl
+      linters:
+        - compimpl
+    - path: comp/process/expvars/expvarsimpl
+      linters:
+        - compimpl
+    - path: comp/process/runner/runnerimpl
+      linters:
+        - compimpl
+    - path: comp/process/status/statusimpl
+      linters:
+        - compimpl
+    - path: comp/process/submitter/submitterimpl
+      linters:
+        - compimpl
+    - path: comp/remote-config/rcclient/rcclientimpl
+      linters:
+        - compimpl
+    - path: comp/remote-config/rcstatus/rcstatusimpl
+      linters:
+        - compimpl
+    - path: comp/snmptraps/formatter/formatterimpl
+      linters:
+        - compimpl
+    - path: comp/snmptraps/forwarder/forwarderimpl
+      linters:
+        - compimpl
+    - path: comp/snmptraps/listener/listenerimpl
+      linters:
+        - compimpl
+    - path: comp/snmptraps/oidresolver/oidresolverimpl
+      linters:
+        - compimpl
+    - path: comp/snmptraps/server/serverimpl
+      linters:
+        - compimpl
+    - path: comp/snmptraps/status/statusimpl
+      linters:
+        - compimpl
+    - path: comp/trace/agent/impl
+      linters:
+        - compimpl
+    - path: comp/trace/status/statusimpl
+      linters:
+        - compimpl
+    - path: comp/updater/updater/updaterimpl
+      linters:
+        - compimpl
 linters:
   disable-all: true
   enable:

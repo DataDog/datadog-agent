@@ -9,7 +9,7 @@ package compimpl
 import (
 	"fmt"
 	"go/ast"
-	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -20,68 +20,89 @@ func init() {
 	RegisterLinter("compimpl", "Check the component implementation follows the naming convention", run)
 }
 
+type implFolder struct {
+	hasProvides    bool
+	HasRequires    bool
+	HasConstructor bool
+	file           *ast.File // The first file found in the folder. Used to display the diagnostic
+}
+
 func run(pass *analysis.Pass) (interface{}, error) {
-	r := regexp.MustCompile(".*comp/.*/.*/.*impl/.*")
+	// The regexp to match path like comp/core/autodiscovery/noopimpl/autoconfig.go but not the folders inside noopimpl
+	isCompRegexp := regexp.MustCompile("(.*/comp/.*/.*/.*impl)/[^/]*$")
+	compimpls := make(map[string]*implFolder)
+
 	for _, f := range pass.Files {
-		implFolder, err := doesFileImplementComp(pass, f, r)
-		if !implFolder {
+		implFolder := tryGetCompImpl(pass, f, isCompRegexp, compimpls)
+		if implFolder == nil {
 			continue
-		}
-		if err != nil {
-			return nil, err
 		}
 
 		structTypeNames := getExportedStructTypeNames(f)
-		if !structTypeNames["Provides"] {
-			pass.Report(analysis.Diagnostic{
-				Pos:     f.Pos(),
-				Message: missingProvides(),
-			})
-		}
-
-		if !structTypeNames["Requires"] {
-			pass.Report(analysis.Diagnostic{
-				Pos:     f.Pos(),
-				Message: missingRequires(),
-			})
-		}
-		if !hasComponentConstructor(f) {
-			pass.Report(analysis.Diagnostic{
-				Pos:     f.Pos(),
-				Message: missingConstructor(),
-			})
-		}
+		implFolder.hasProvides = implFolder.hasProvides || structTypeNames["Provides"]
+		implFolder.HasRequires = implFolder.HasRequires || structTypeNames["Requires"]
+		implFolder.HasConstructor = implFolder.HasConstructor || hasComponentConstructor(f)
 	}
-
+	displayDiagnostic(pass, compimpls)
 	return nil, nil
 }
 
-func doesFileImplementComp(pass *analysis.Pass, file *ast.File, r *regexp.Regexp) (bool, error) {
-	path := pass.Fset.Position(file.Pos()).Filename
-	if r.MatchString(path) {
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return false, err
+func displayDiagnostic(pass *analysis.Pass, compimpls map[string]*implFolder) {
+	for folderName, implFolder := range compimpls {
+		file := implFolder.file
+		if !implFolder.hasProvides {
+			pass.Report(analysis.Diagnostic{
+				Pos:     file.Pos(),
+				Message: missingProvides(folderName),
+			})
 		}
-		return strings.Contains(string(content), "func Module() fxutil.Module {"), nil
+		if !implFolder.HasRequires {
+			pass.Report(analysis.Diagnostic{
+				Pos:     file.Pos(),
+				Message: missingRequires(folderName),
+			})
+		}
+		if !implFolder.HasConstructor {
+			pass.Report(analysis.Diagnostic{
+				Pos:     file.Pos(),
+				Message: missingConstructor(folderName),
+			})
+		}
 	}
-	return false, nil
 }
 
-func missingProvides() string {
-	return missingEntity("type 'Provides'")
+func tryGetCompImpl(
+	pass *analysis.Pass,
+	file *ast.File,
+	isCompRegexp *regexp.Regexp,
+	compimpls map[string]*implFolder) *implFolder {
+	path := pass.Fset.Position(file.Pos()).Filename
+	capture := isCompRegexp.FindStringSubmatch(path)
+	if len(capture) != 2 {
+		return nil
+	}
+	compimplPath := filepath.Clean(capture[1])
+	if _, ok := compimpls[compimplPath]; !ok {
+		compimpls[compimplPath] = &implFolder{file: file}
+	}
+
+	return compimpls[compimplPath]
 }
 
-func missingEntity(missingEntityMsg string) string {
-	return fmt.Sprintf("This file does not follow the component naming convention. It doesn't contain the %v", missingEntityMsg)
+func missingProvides(folderName string) string {
+	return missingEntity(folderName, "type 'Provides'")
 }
 
-func missingRequires() string {
-	return missingEntity("type 'Requires'")
+func missingEntity(folderName string, missingEntityMsg string) string {
+	return fmt.Sprintf("%v does not follow the component naming convention. It doesn't contain the %v", folderName, missingEntityMsg)
 }
 
-func missingConstructor() string {
-	return missingEntity("constructor of the component doesn't take as parameter 'Provides' and doesn't return 'Requires'")
+func missingRequires(folderName string) string {
+	return missingEntity(folderName, "type 'Requires'")
+}
+
+func missingConstructor(folderName string) string {
+	return missingEntity(folderName, "constructor of the component doesn't take as parameter 'Provides' and doesn't return 'Requires'")
 }
 
 func getExportedStructTypeNames(f *ast.File) map[string]bool {
