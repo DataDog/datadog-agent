@@ -60,7 +60,7 @@ func (server *apiServer) startServers() error {
 	}
 
 	// start the IPC server
-	if ipcServerPort := server.cfg.GetInt("agent_ipc.port"); ipcServerPort != 0 {
+	if ipcServerPort := server.cfg.GetInt("agent_ipc.port"); ipcServerPort > 0 {
 		ipcServerHost := server.cfg.GetString("agent_ipc.host")
 		ipcServerHostPort := net.JoinHostPort(ipcServerHost, strconv.Itoa(ipcServerPort))
 
