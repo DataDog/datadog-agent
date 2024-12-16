@@ -55,7 +55,7 @@ func (ds *DebugServer) Start() {
 		WriteTimeout: defaultTimeout,
 		Handler:      ds.setupMux(),
 	}
-	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", ds.conf.DebugServerPort))
+	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(ds.conf.DebugServerPort)))
 	if err != nil {
 		log.Errorf("Error creating debug server listener: %s", err)
 		return

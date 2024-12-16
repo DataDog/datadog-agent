@@ -7,8 +7,6 @@ package api
 
 import (
 	"bytes"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -1099,29 +1097,23 @@ func TestExpvar(t *testing.T) {
 	}
 
 	c := newTestReceiverConfig()
-	c.DebugServerPort = 5012
+	c.DebugServerPort = 6789
 	info.InitInfo(c)
-	s := NewDebugServer(c)
 
-	// Setting tls config for the Debug server
-	cert, err := tls.X509KeyPair(localhostCert, localhostKey)
-	require.NoError(t, err)
-	s.SetTLSConfig(&tls.Config{Certificates: []tls.Certificate{cert}})
-	certPool := x509.NewCertPool()
-	ok := certPool.AppendCertsFromPEM(localhostCert)
-	require.True(t, ok)
-	clientTLSConfig := &tls.Config{
-		RootCAs: certPool,
-	}
+	// Starting a TLS httptest server to retrieve tlsCert
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
+	tlsConfig := ts.TLS.Clone()
+	// Setting a client with the proper TLS configuration
+	client := ts.Client()
+	ts.Close()
+
+	// Starting Debug Server
+	s := NewDebugServer(c)
+	s.SetTLSConfig(tlsConfig)
 
 	// Starting the Debug server
 	s.Start()
 	defer s.Stop()
-
-	// Setting a client with the proper TLS configuration
-	client := http.Client{Transport: &http.Transport{
-		TLSClientConfig: clientTLSConfig,
-	}}
 
 	resp, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d/debug/vars", c.DebugServerPort))
 	require.NoError(t, err)
