@@ -20,7 +20,7 @@ type DeviceMeta struct {
 // 2/ Datadog backend: the profiles are in json format, they are used to store profiles created via UI.
 // The serialisation of json profiles are defined by the json annotation.
 type ProfileDefinition struct {
-	Name         string            `yaml:"name" json:"name"`
+	Name         string            `yaml:"name,omitempty" json:"name,omitempty"`
 	Description  string            `yaml:"description,omitempty" json:"description,omitempty"`
 	SysObjectIDs StringArray       `yaml:"sysobjectid,omitempty" json:"sysobjectid,omitempty"`
 	Extends      []string          `yaml:"extends,omitempty" json:"extends,omitempty"`
@@ -34,7 +34,7 @@ type ProfileDefinition struct {
 
 	// Version is the profile version.
 	// It is currently used only with downloaded/RC profiles.
-	Version uint64 `yaml:"version,omitempty" json:"version"`
+	Version uint64 `yaml:"version,omitempty" json:"version,omitempty"`
 }
 
 // DeviceProfileRcConfig represent the profile stored in remote config.
