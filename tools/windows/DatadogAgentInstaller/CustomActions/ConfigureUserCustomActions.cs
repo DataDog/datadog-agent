@@ -486,7 +486,7 @@ namespace Datadog.CustomActions
             }
 
         }
-        
+
         private void RemoveDatadogUserFromDataFolder()
         {
             var dataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
