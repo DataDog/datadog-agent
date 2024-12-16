@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Added the output of ``semodule -l`` into the Agent flare. This information will appear in ``system-probe/selinux_semodule_list.log``.
+    Added the output of ``semodule -l`` to the Agent flare; this information appears in ``system-probe/selinux_semodule_list.log``.
