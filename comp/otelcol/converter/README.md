@@ -1,8 +1,6 @@
 # Converter Component
 
-The converter:
-- Enhances the user provided configuration
-- Provides an API which returns the provided and enhanced configurations
+The converter enhances the user provided configuration.
 
 ## Autoconfigure logic
 
