@@ -25,6 +25,7 @@ const (
 func SetupInstaller(_ context.Context) error {
 	rootPath := ""
 	_, err := os.Stat(paths.RootTmpDir)
+	// If bootstrap has not been called before, `paths.RootTmpDir` might not exist
 	if os.IsExist(err) {
 		rootPath = paths.RootTmpDir
 	}

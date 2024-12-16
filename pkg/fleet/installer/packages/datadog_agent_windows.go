@@ -111,7 +111,13 @@ func installAgentPackage(target string, args []string) error {
 		return fmt.Errorf("failed to get Agent user: %w", err)
 	}
 
-	tempDir, err := os.MkdirTemp(paths.RootTmpDir, "datadog-agent")
+	rootPath := ""
+	_, err = os.Stat(paths.RootTmpDir)
+	// If bootstrap has not been called before, `paths.RootTmpDir` might not exist
+	if os.IsExist(err) {
+		rootPath = paths.RootTmpDir
+	}
+	tempDir, err := os.MkdirTemp(rootPath, "datadog-agent")
 	if err != nil {
 		return err
 	}
