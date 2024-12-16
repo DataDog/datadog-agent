@@ -117,15 +117,27 @@ function Expand-ModCache() {
 function Install-Deps() {
     Write-Host "Installing python requirements"
     pip3.exe install -r .\requirements.txt -r .\tasks\requirements.txt
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to install python requirements"
+        exit 1
+    }
     Write-Host "Installing go dependencies"
     Expand-ModCache -modcache modcache
     inv -e deps
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to install dependencies"
+        exit 1
+    }
 }
 
 function Install-TestingDeps() {
     Write-Host "Installing testing dependencies"
     Expand-ModCache -modcache modcache_tools
     inv -e install-tools
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to install testing dependencies"
+        exit 1
+    }
 }
 
 function Enable-DevEnv() {
