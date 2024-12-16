@@ -254,9 +254,7 @@ def graph(
     for tag in build_tags:
         entrypoint = f"{tag}=1({entrypoint})"
 
-    expr = entrypoint
-    if target is not None:
-        expr = f"reach({entrypoint}, {target})"
+    expr = entrypoint if target is None else f"reach({entrypoint}, {target})"
 
     cmd = f"goda graph {stdarg} {clusterarg} \"{expr}\""
 
