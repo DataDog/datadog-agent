@@ -24,6 +24,10 @@ import (
 	"github.com/containerd/errdefs"
 )
 
+const (
+	cleanupTimeout = 30 * time.Second
+)
+
 // ContainerdAccessor is a function that should return a containerd client
 type ContainerdAccessor func() (cutil.ContainerdItf, error)
 
