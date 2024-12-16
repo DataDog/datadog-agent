@@ -141,7 +141,8 @@ func isProcessOrExecPresent(pl *processlist.ProcessList, pc *ProcessResolver, ev
 
 func TestFork1st(t *testing.T) {
 	pc := NewProcessResolver()
-	processList := processlist.NewProcessList(cgroupModel.WorkloadSelector{Image: "*", Tag: "*"},
+	selector, _ := cgroupModel.NewWorkloadSelector("*", "*")
+	processList := processlist.NewProcessList(selector,
 		[]model.EventType{model.ExecEventType, model.ForkEventType, model.ExitEventType}, pc /* ,nil  */, nil, nil)
 	stats := testStats{}
 
