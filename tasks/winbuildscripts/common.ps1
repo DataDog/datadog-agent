@@ -116,7 +116,7 @@ function Expand-ModCache() {
 
 function Install-Deps() {
     Write-Host "Installing python requirements"
-    pip3.exe install -r .\requirements.txt -r .\tasks\requirements.txt
+    pip3.exe install -r .\requirements.txt -r .\tasks\libs\requirements-github.txt
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to install python requirements"
         exit 1
