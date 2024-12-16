@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import os
-import sys
 import subprocess
+import sys
 import tempfile
 from contextlib import contextmanager
 from time import sleep
