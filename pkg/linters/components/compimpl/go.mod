@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/pkg/linters/compimpl
+module github.com/DataDog/datadog-agent/pkg/linters/components/compimpl
 
 go 1.23.0
 
