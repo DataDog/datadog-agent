@@ -122,7 +122,6 @@ function Install-Deps() {
         exit 1
     }
     Write-Host "Installing go dependencies"
-    Expand-ModCache -modcache modcache
     inv -e deps
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to install dependencies"
@@ -132,7 +131,6 @@ function Install-Deps() {
 
 function Install-TestingDeps() {
     Write-Host "Installing testing dependencies"
-    Expand-ModCache -modcache modcache_tools
     inv -e install-tools
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to install testing dependencies"
@@ -286,6 +284,17 @@ function Invoke-BuildScript {
 
         Enable-DevEnv
 
+        # Expand modcache
+        # TODO: Can these be moved inside the Install-Deps/Install-TestingDeps functions,
+        #       or is it important that they both be run before `inv deps` ?
+        if ($InstallDeps) {
+            Expand-ModCache -modcache modcache
+        }
+        if ($InstallTestingDeps) {
+            Expand-ModCache -modcache modcache_tools
+        }
+
+        # Install deps
         if ($InstallDeps) {
             Install-Deps
         }
