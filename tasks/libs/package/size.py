@@ -177,25 +177,11 @@ def compare(ctx, package_sizes, ancestor, pkg_size):
     return pkg_size
 
 
-def mb(value):
-    return f"{value / 1000000:.2f}MB"
-
-
 def _get_uncompressed_size(ctx, package, os_name):
     if os_name == 'deb':
-        return _get_deb_uncompressed_size(ctx, package)
+        return (
+            int(ctx.run(f'dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs', hide=True).stdout)
+            * 1024
+        )
     else:
-        return _get_rpm_uncompressed_size(ctx, package)
-
-
-def _get_deb_uncompressed_size(ctx, package):
-    # the size returned by dpkg is a number of bytes divided by 1024
-    # so we multiply it back to get the same unit as RPM or stat
-    return (
-        int(ctx.run(f'dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs', hide=True).stdout)
-        * 1024
-    )
-
-
-def _get_rpm_uncompressed_size(ctx, package):
-    return int(ctx.run(f'rpm -qip {package} | grep Size | cut -d : -f 2 | xargs', hide=True).stdout)
+        return int(ctx.run(f'rpm -qip {package} | grep Size | cut -d : -f 2 | xargs', hide=True).stdout)
