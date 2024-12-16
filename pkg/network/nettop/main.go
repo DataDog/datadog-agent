@@ -58,7 +58,6 @@ func main() {
 		for _, c := range cs.Conns {
 			fmt.Println(network.ConnectionSummary(&c, cs.DNS))
 		}
-		t.ReleaseUSMStats()
 	}
 
 	stopChan := make(chan struct{})
