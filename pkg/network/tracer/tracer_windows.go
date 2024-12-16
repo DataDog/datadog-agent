@@ -252,7 +252,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 }
 
 // ReleaseProtocolStats is not implemented on this OS for Tracer.
-func (t *Tracer) ReleaseProtocolStats(conns *network.Connections) {
+func (t *Tracer) ReleaseProtocolStats(_ *network.Connections) {
 }
 
 // RegisterClient registers the client

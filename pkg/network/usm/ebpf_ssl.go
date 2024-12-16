@@ -486,7 +486,7 @@ func (o *sslProgram) Name() string {
 }
 
 // Type is a no-op.
-func (p *sslProgram) Type() protocols.ProtocolType {
+func (o *sslProgram) Type() protocols.ProtocolType {
 	return protocols.Unknown
 }
 

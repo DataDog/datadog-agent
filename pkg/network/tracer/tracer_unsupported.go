@@ -35,7 +35,7 @@ func (t *Tracer) GetActiveConnections(_ string) (*network.Connections, error) {
 }
 
 // ReleaseProtocolStats is not implemented on this OS for Tracer
-func (t *Tracer) ReleaseProtocolStats(conns *network.Connections) {}
+func (t *Tracer) ReleaseProtocolStats(_ *network.Connections) {}
 
 // GetNetworkID is not implemented on this OS for Tracer
 func (t *Tracer) GetNetworkID(_ context.Context) (string, error) {
