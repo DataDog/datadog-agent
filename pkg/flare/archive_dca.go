@@ -91,6 +91,16 @@ func QueryDCAMetrics() ([]byte, error) {
 	return io.ReadAll(r.Body)
 }
 
+// QueryAgentTelemetry gets the telemetry payload exposed by the agent
+func QueryAgentTelemetry() ([]byte, error) {
+	r, err := http.Get(fmt.Sprintf("http://localhost:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port")))
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+	return io.ReadAll(r.Body)
+}
+
 func getMetadataMap(fb flaretypes.FlareBuilder) error {
 	metaList := apiv1.NewMetadataResponse()
 	cl, err := apiserver.GetAPIClient()

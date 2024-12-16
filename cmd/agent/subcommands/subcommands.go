@@ -36,6 +36,7 @@ import (
 	cmdstreamep "github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamep"
 	cmdstreamlogs "github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
 	cmdtaggerlist "github.com/DataDog/datadog-agent/cmd/agent/subcommands/taggerlist"
+	cmdtelemetry "github.com/DataDog/datadog-agent/cmd/agent/subcommands/telemetry"
 	cmdversion "github.com/DataDog/datadog-agent/cmd/agent/subcommands/version"
 	cmdworkloadlist "github.com/DataDog/datadog-agent/cmd/agent/subcommands/workloadlist"
 )
@@ -74,5 +75,6 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdstop.Commands,
 		cmdcontrolsvc.Commands,
 		cmdprocesschecks.Commands,
+		cmdtelemetry.Commands,
 	}
 }
