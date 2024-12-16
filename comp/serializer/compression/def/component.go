@@ -39,13 +39,3 @@ type StreamCompressor interface {
 	io.WriteCloser
 	Flush() error
 }
-
-// Requires contains the config for Compression
-type Requires struct {
-	Cfg config.Component
-}
-
-// Provides contains the compression component
-type Provides struct {
-	Comp Component
-}
