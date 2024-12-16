@@ -151,6 +151,9 @@ def test_flavor(
                     out_stream=test_profiler,
                     warn=True,
                 )
+                # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
+                if res is not None and res.exited == 130:
+                    raise KeyboardInterrupt()
 
         module_result.result_json_path = os.path.join(module_path, GO_TEST_RESULT_TMP_JSON)
 
