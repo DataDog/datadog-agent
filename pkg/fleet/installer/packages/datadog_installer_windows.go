@@ -23,7 +23,12 @@ const (
 
 // SetupInstaller installs and starts the installer
 func SetupInstaller(_ context.Context) error {
-	tempDir, err := os.MkdirTemp(paths.RootTmpDir, "datadog-installer")
+	rootPath := ""
+	_, err := os.Stat(paths.RootTmpDir)
+	if os.IsExist(err) {
+		rootPath = paths.RootTmpDir
+	}
+	tempDir, err := os.MkdirTemp(rootPath, "datadog-installer")
 	if err != nil {
 		return err
 	}
