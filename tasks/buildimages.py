@@ -37,13 +37,19 @@ def update(_: Context, tag: str = "", images: str = "", test: bool = True, list_
     print(f"  {', '.join(modified)}")
 
 
-@task(help={"commit_sha": "commit sha from the test-infra-definitions repository"})
-def update_test_infra_definitions(ctx: Context, commit_sha: str, go_mod_only: bool = False):
+@task(
+    help={
+        "commit_sha": "commit sha from the test-infra-definitions repository",
+        "go_mod_only": "Update only the go.mod file",
+        "is_dev_image": "Is the image bumped to a dev version, used to test changes in test-infra-definitions",
+    }
+)
+def update_test_infra_definitions(ctx: Context, commit_sha: str, go_mod_only: bool = False, is_dev_image: bool = False):
     """
     Update the test-infra-definition image version in the Gitlab CI as well as in the e2e go.mod
     """
     if not go_mod_only:
-        update_test_infra_def(".gitlab/common/test_infra_version.yml", commit_sha[:12])
+        update_test_infra_def(".gitlab/common/test_infra_version.yml", commit_sha[:12], is_dev_image)
 
     os.chdir("test/new-e2e")
     ctx.run(f"go get github.com/DataDog/test-infra-definitions@{commit_sha}")
