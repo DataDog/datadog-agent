@@ -124,7 +124,7 @@ function Install-Deps() {
 
 function Install-TestingDeps() {
     Write-Host "Installing testing dependencies"
-    Expand-ModCache -modcache modcache-tools
+    Expand-ModCache -modcache modcache_tools
     inv -e install-tools
 }
 
