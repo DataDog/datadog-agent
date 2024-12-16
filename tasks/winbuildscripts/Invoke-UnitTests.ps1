@@ -52,7 +52,7 @@ Invoke-BuildScript `
     -Command {
 
     # pre-reqs
-    {
+    & {
         # Check required environment variables
         if ([string]::IsNullOrEmpty($Env:TEST_EMBEDDED_PY3)) {
             Write-Host -ForegroundColor Red "TEST_EMBEDDED_PY3 environment variable is required for running embedded Python 3 tests"
