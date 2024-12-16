@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package util
+package coredump
 
 import (
 	"fmt"
@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// SetupCoreDump enables core dumps and sets the core dump size limit based on configuration
-func SetupCoreDump(cfg model.Reader) error {
+// Setup enables core dumps and sets the core dump size limit based on configuration
+func Setup(cfg model.Reader) error {
 	if cfg.GetBool("go_core_dump") {
 		debug.SetTraceback("crash")
 
