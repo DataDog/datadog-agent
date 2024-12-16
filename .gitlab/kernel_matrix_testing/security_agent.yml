@@ -411,7 +411,7 @@ kmt_run_secagent_tests_arm64_docker:
   variables:
     TEST_COMPONENT: security-agent
 
-.kmt_secagent_tests_join:
+.kmt_secagent_cleanup_tests_join:
   stage: kernel_matrix_testing_cleanup
   rules: !reference [.on_security_agent_changes_or_manual]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
@@ -419,9 +419,9 @@ kmt_run_secagent_tests_arm64_docker:
   script:
     - echo "nothing to do here"
 
-kmt_secagent_tests_join_arm64:
+kmt_secagent_cleanup_tests_join_arm64:
   extends:
-    - .kmt_secagent_tests_join
+    - .kmt_secagent_cleanup_tests_join
   needs:
     - kmt_run_secagent_tests_arm64
     - kmt_run_secagent_tests_arm64_ad
@@ -435,15 +435,15 @@ kmt_secagent_cleanup_arm64:
     - .kmt_secagent_cleanup
   needs:
     - kmt_setup_env_secagent_arm64
-    - kmt_secagent_tests_join_arm64
+    - kmt_secagent_cleanup_tests_join_arm64
     - upload_secagent_tests_arm64
   variables:
     ARCH: arm64
     INSTANCE_TYPE: "m6gd.metal"
 
-kmt_secagent_tests_join_x64:
+kmt_secagent_cleanup_tests_join_x64:
   extends:
-    - .kmt_secagent_tests_join
+    - .kmt_secagent_cleanup_tests_join
   needs:
     - kmt_run_secagent_tests_x64
     - kmt_run_secagent_tests_x64_required
@@ -458,7 +458,7 @@ kmt_secagent_cleanup_x64:
     - .kmt_secagent_cleanup
   needs:
     - kmt_setup_env_secagent_x64
-    - kmt_secagent_tests_join_x64
+    - kmt_secagent_cleanup_tests_join_x64
     - upload_dependencies_secagent_x64
     - upload_secagent_tests_x64
   variables:
