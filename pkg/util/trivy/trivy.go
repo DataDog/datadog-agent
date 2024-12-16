@@ -19,7 +19,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/containerd/containerd/mount"
 
@@ -53,8 +52,6 @@ import (
 )
 
 const (
-	cleanupTimeout = 30 * time.Second
-
 	OSAnalyzers           = "os"                  // OSAnalyzers defines an OS analyzer
 	LanguagesAnalyzers    = "languages"           // LanguagesAnalyzers defines a language analyzer
 	SecretAnalyzers       = "secret"              // SecretAnalyzers defines a secret analyzer
