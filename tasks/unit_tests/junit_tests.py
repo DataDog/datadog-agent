@@ -69,16 +69,6 @@ class TestGroupPerTag(unittest.TestCase):
         self.assertNotIn("kitchen", grouped)
         self.assertNotIn("kitchen-e2e", grouped)
 
-    def test_e2e_kitchen(self):
-        test_dir = Path("./tasks/unit_tests/testdata/to_group")
-        grouped = junit.group_per_tags(test_dir, ["upload_option.os_version_from_name"])
-        self.assertNotIn("default", grouped)
-        self.assertIn("kitchen", grouped)
-        self.assertCountEqual([f"{str(test_dir)}/onepiece", f"{str(test_dir)}/dragonball"], grouped["kitchen"])
-        self.assertIn("kitchen-e2e", grouped)
-        self.assertEqual([f"{str(test_dir)}/naruto"], grouped["kitchen-e2e"])
-        self.assertNotIn("e2e", grouped)
-
 
 class TestSetTag(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1515"})

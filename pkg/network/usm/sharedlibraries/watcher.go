@@ -275,7 +275,7 @@ func (w *Watcher) Start() {
 				return
 			case <-processSync.C:
 				processSet := w.registry.GetRegisteredProcesses()
-				deletedPids := monitor.FindDeletedProcesses(processSet)
+				deletedPids := findDeletedProcesses(processSet)
 				for deletedPid := range deletedPids {
 					_ = w.registry.Unregister(deletedPid)
 				}
@@ -289,4 +289,30 @@ func (w *Watcher) Start() {
 	}
 
 	utils.AddAttacher(consts.USMModuleName, "native", w)
+}
+
+// findDeletedProcesses returns the terminated PIDs from the given map.
+func findDeletedProcesses[V any](pids map[uint32]V) map[uint32]struct{} {
+	existingPids := make(map[uint32]struct{}, len(pids))
+
+	procIter := func(pid int) error {
+		if _, exists := pids[uint32(pid)]; exists {
+			existingPids[uint32(pid)] = struct{}{}
+		}
+		return nil
+	}
+	// Scanning already running processes
+	if err := kernel.WithAllProcs(kernel.ProcFSRoot(), procIter); err != nil {
+		return nil
+	}
+
+	res := make(map[uint32]struct{}, len(pids)-len(existingPids))
+	for pid := range pids {
+		if _, exists := existingPids[pid]; exists {
+			continue
+		}
+		res[pid] = struct{}{}
+	}
+
+	return res
 }

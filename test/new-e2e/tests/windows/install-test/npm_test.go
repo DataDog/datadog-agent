@@ -149,7 +149,7 @@ func (s *testNPMInstallSuite) TearDownSuite() {
 
 func (s *testNPMInstallSuite) installPreviousAgentVersion(vm *components.RemoteHost, options ...windowsAgent.InstallAgentOption) {
 	if s.url == "" {
-		url, err := windowsAgent.GetStableMSIURL(s.previousVersion, "x86_64")
+		url, err := windowsAgent.GetStableMSIURL(s.previousVersion, "x86_64", "")
 		s.Require().NoError(err, "should get MSI URL for version %s", s.previousVersion)
 		s.url = url
 	}

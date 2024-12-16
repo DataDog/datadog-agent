@@ -201,7 +201,7 @@ func Command() []*cobra.Command {
 						scanner := bufio.NewScanner(stderr)
 						scanner.Split(bufio.ScanLines)
 						for scanner.Scan() {
-							fmt.Println(scanner.Text())
+							_, _ = os.Stderr.Write(scanner.Bytes())
 						}
 
 						if err = cmd.Wait(); err != nil {

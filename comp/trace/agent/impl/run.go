@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -41,7 +41,7 @@ func runAgentSidekicks(ag component) error {
 
 	defer watchdog.LogOnPanic(ag.Statsd)
 
-	if err := util.SetupCoreDump(pkgconfigsetup.Datadog()); err != nil {
+	if err := coredump.Setup(pkgconfigsetup.Datadog()); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
@@ -70,6 +70,12 @@ func runAgentSidekicks(ag component) error {
 		log.Errorf("could not set auth token: %s", err)
 	} else {
 		ag.Agent.DebugServer.AddRoute("/config", ag.config.GetConfigHandler())
+		api.AttachEndpoint(api.Endpoint{
+			Pattern: "/config/set",
+			Handler: func(_ *api.HTTPReceiver) http.Handler {
+				return ag.config.SetHandler()
+			},
+		})
 	}
 	if secrets, ok := ag.secrets.Get(); ok {
 		// Adding a route to trigger a secrets refresh from the CLI.
@@ -91,13 +97,6 @@ func runAgentSidekicks(ag component) error {
 			w.Write([]byte(res))
 		}))
 	}
-
-	api.AttachEndpoint(api.Endpoint{
-		Pattern: "/config/set",
-		Handler: func(_ *api.HTTPReceiver) http.Handler {
-			return ag.config.SetHandler()
-		},
-	})
 
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)
 	if pcfg := profilingConfig(tracecfg); pcfg != nil {

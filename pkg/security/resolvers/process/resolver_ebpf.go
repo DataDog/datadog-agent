@@ -26,9 +26,8 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -40,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -340,12 +338,15 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	}
 
 	// Retrieve the container ID of the process from /proc
-	containerID, containerFlags, err := p.containerResolver.GetContainerContext(pid)
+	containerID, cgroup, err := p.containerResolver.GetContainerContext(pid)
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't parse container ID: %w", proc.Pid, err)
 	}
 
 	entry.ContainerID = containerID
+
+	entry.CGroup = cgroup
+	entry.Process.CGroup = cgroup
 
 	entry.FileEvent.FileFields = *info
 	setPathname(&entry.FileEvent, pathnameStr)
@@ -354,35 +355,14 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	entry.FileEvent.MountOrigin = model.MountOriginProcfs
 	entry.FileEvent.MountSource = model.MountSourceSnapshot
 
-	entry.Process.CGroup.CGroupFlags = containerFlags
-	var fileStats unix.Statx_t
-
-	taskPath := utils.CgroupTaskPath(pid, pid)
-	if err := unix.Statx(unix.AT_FDCWD, taskPath, 0, unix.STATX_ALL, &fileStats); err == nil {
-		entry.Process.CGroup.CGroupFile.MountID = uint32(fileStats.Mnt_id)
-		entry.Process.CGroup.CGroupFile.Inode = fileStats.Ino
-	} else {
+	if entry.Process.CGroup.CGroupFile.MountID == 0 {
 		// Get the file fields of the cgroup file
+		taskPath := utils.CgroupTaskPath(pid, pid)
 		info, err := p.retrieveExecFileFields(taskPath)
 		if err != nil {
 			seclog.Debugf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
 		} else {
 			entry.Process.CGroup.CGroupFile.MountID = info.MountID
-		}
-	}
-
-	if cgroupFileContent, err := os.ReadFile(taskPath); err == nil {
-		lines := strings.Split(string(cgroupFileContent), "\n")
-		for _, line := range lines {
-			parts := strings.SplitN(line, ":", 3)
-
-			// Skip potentially malformed lines
-			if len(parts) != 3 {
-				continue
-			}
-
-			entry.Process.CGroup.CGroupID = containerutils.CGroupID(parts[2])
-			break
 		}
 	}
 
@@ -404,14 +384,14 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	entry.ProcessContext.Pid = pid
 	entry.ProcessContext.Tid = pid
 	if len(filledProc.Uids) >= 4 {
-		entry.Credentials.UID = uint32(filledProc.Uids[0])
-		entry.Credentials.EUID = uint32(filledProc.Uids[1])
-		entry.Credentials.FSUID = uint32(filledProc.Uids[3])
+		entry.Credentials.UID = filledProc.Uids[0]
+		entry.Credentials.EUID = filledProc.Uids[1]
+		entry.Credentials.FSUID = filledProc.Uids[3]
 	}
 	if len(filledProc.Gids) >= 4 {
-		entry.Credentials.GID = uint32(filledProc.Gids[0])
-		entry.Credentials.EGID = uint32(filledProc.Gids[1])
-		entry.Credentials.FSGID = uint32(filledProc.Gids[3])
+		entry.Credentials.GID = filledProc.Gids[0]
+		entry.Credentials.EGID = filledProc.Gids[1]
+		entry.Credentials.FSGID = filledProc.Gids[3]
 	}
 	// fetch login_uid
 	entry.Credentials.AUID, err = utils.GetLoginUID(uint32(proc.Pid))
@@ -522,7 +502,7 @@ func (p *EBPFResolver) insertEntry(entry, prev *model.ProcessCacheEntry, source 
 		prev.Release()
 	}
 
-	if p.cgroupResolver != nil && entry.ContainerID != "" {
+	if p.cgroupResolver != nil && entry.CGroup.CGroupID != "" {
 		// add the new PID in the right cgroup_resolver bucket
 		p.cgroupResolver.AddPID(entry)
 	}
@@ -849,8 +829,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 		return nil
 	}
 
-	var cgroupCtx model.CGroupContext
-	cgroupRead, err := cgroupCtx.UnmarshalBinary(procCache)
+	cgroupRead, err := entry.CGroup.UnmarshalBinary(procCache)
 	if err != nil {
 		return nil
 	}
@@ -873,11 +852,10 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 	// is no insurance that the parent of this process is still running, we can't use our user space cache to check if
 	// the parent is in a container. In other words, we have to fall back to /proc to query the container ID of the
 	// process.
-	if entry.ContainerID == "" {
-		containerID, containerFlags, err := p.containerResolver.GetContainerContext(pid)
-		if err == nil {
-			entry.CGroup.CGroupFlags = containerFlags
-			entry.CGroup.CGroupID = containerutils.GetCgroupFromContainer(containerID, containerFlags)
+	if entry.ContainerID == "" || entry.CGroup.CGroupFile.Inode == 0 {
+		if containerID, cgroup, err := p.containerResolver.GetContainerContext(pid); err == nil {
+			entry.CGroup.Merge(&cgroup)
+			entry.ContainerID = containerID
 		}
 	}
 

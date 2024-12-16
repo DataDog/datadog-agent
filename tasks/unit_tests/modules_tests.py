@@ -20,7 +20,7 @@ Here is an abstract of the go.mod file format:
 
 {
     "Module": {"Path": "github.com/DataDog/datadog-agent"},
-    "Go": "1.22",
+    "Go": "1.23",
     "Require": [
         {"Path": "github.com/DataDog/datadog-agent/pkg/config/logs", "Version": "v0.51.0-rc.2"},
         {"Path": "k8s.io/kms", "Version": "v0.27.6", "Indirect": true},
@@ -133,7 +133,6 @@ class TestGoModuleSerialization(unittest.TestCase):
             lint_targets=['.'],
             should_test_condition='always',
             should_tag=True,
-            importable=True,
             independent=True,
             used_by_otel=True,
         )
@@ -159,7 +158,6 @@ class TestGoModuleSerialization(unittest.TestCase):
             'lint_targets': ['.'],
             'should_test_condition': 'always',
             'should_tag': True,
-            'importable': True,
             'independent': True,
             'used_by_otel': True,
         }
@@ -185,7 +183,6 @@ class TestGoModuleSerialization(unittest.TestCase):
             'lint_targets': ['.'],
             'should_test_condition': 'always',
             'should_tag': True,
-            'importable': True,
             'independent': True,
             'used_by_otel': True,
             'legacy_go_mod_version': None,
