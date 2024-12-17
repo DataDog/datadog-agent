@@ -155,6 +155,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/status/health v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.56.0-rc.3 // indirect

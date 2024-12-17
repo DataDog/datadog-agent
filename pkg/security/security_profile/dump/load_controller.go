@@ -88,7 +88,7 @@ func (lc *ActivityDumpLoadController) getDefaultLoadConfigs() (map[containerutil
 	return defaultConfigs, nil
 }
 
-// PushDefaultCurrentConfig pushes the current load controller config to kernel space
+// PushDefaultCurrentConfigs pushes the current load controller configs to kernel space
 func (lc *ActivityDumpLoadController) PushDefaultCurrentConfigs() error {
 	defaultConfigs, err := lc.getDefaultLoadConfigs()
 	if err != nil {

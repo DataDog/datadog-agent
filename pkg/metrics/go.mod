@@ -61,6 +61,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.57.1 // indirect

@@ -152,7 +152,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/gohai v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.59.0
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.59.0
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.60.0
 	github.com/DataDog/datadog-agent/pkg/trace v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1
