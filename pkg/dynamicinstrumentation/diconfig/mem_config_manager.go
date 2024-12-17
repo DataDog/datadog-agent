@@ -31,10 +31,10 @@ type ReaderConfigManager struct {
 	state    ditypes.DIProcs
 }
 
-type readerConfigCallback func(configsByService)
+type readerConfigCallback func(configsByService) //nolint:unused // TODO
 type configsByService = map[ditypes.ServiceName]map[ditypes.ProbeID]rcConfig
 
-func NewReaderConfigManager() (*ReaderConfigManager, error) {
+func NewReaderConfigManager() (*ReaderConfigManager, error) { //nolint:revive // TODO
 	cm := &ReaderConfigManager{
 		callback: applyConfigUpdate,
 		state:    ditypes.NewDIProcs(),
@@ -55,11 +55,11 @@ func NewReaderConfigManager() (*ReaderConfigManager, error) {
 	return cm, nil
 }
 
-func (cm *ReaderConfigManager) GetProcInfos() ditypes.DIProcs {
+func (cm *ReaderConfigManager) GetProcInfos() ditypes.DIProcs { //nolint:revive // TODO
 	return cm.state
 }
 
-func (cm *ReaderConfigManager) Stop() {
+func (cm *ReaderConfigManager) Stop() { //nolint:revive // TODO
 	cm.ConfigWriter.Stop()
 	cm.procTracker.Stop()
 }
@@ -131,7 +131,7 @@ func (cm *ReaderConfigManager) updateServiceConfigs(configs configsByService) {
 	}
 }
 
-type ConfigWriter struct {
+type ConfigWriter struct { //nolint:revive // TODO
 	io.Writer
 	updateChannel  chan ([]byte)
 	Processes      map[ditypes.PID]*ditypes.ProcessInfo
@@ -139,9 +139,9 @@ type ConfigWriter struct {
 	stopChannel    chan (bool)
 }
 
-type ConfigWriterCallback func(configsByService)
+type ConfigWriterCallback func(configsByService) //nolint:revive // TODO
 
-func NewConfigWriter(onConfigUpdate ConfigWriterCallback) *ConfigWriter {
+func NewConfigWriter(onConfigUpdate ConfigWriterCallback) *ConfigWriter { //nolint:revive // TODO
 	return &ConfigWriter{
 		updateChannel:  make(chan []byte, 1),
 		configCallback: onConfigUpdate,
@@ -154,7 +154,7 @@ func (r *ConfigWriter) Write(p []byte) (n int, e error) {
 	return 0, nil
 }
 
-func (r *ConfigWriter) Start() error {
+func (r *ConfigWriter) Start() error { //nolint:revive // TODO
 	go func() {
 	configUpdateLoop:
 		for {
@@ -175,14 +175,14 @@ func (r *ConfigWriter) Start() error {
 	return nil
 }
 
-func (cu *ConfigWriter) Stop() {
+func (cu *ConfigWriter) Stop() { //nolint:revive // TODO
 	cu.stopChannel <- true
 }
 
 // UpdateProcesses is the callback interface that ConfigWriter uses to consume the map of ProcessInfo's
 // such that it's used whenever there's an update to the state of known service processes on the machine.
 // It simply overwrites the previous state of known service processes with the new one
-func (cu *ConfigWriter) UpdateProcesses(procs ditypes.DIProcs) {
+func (cu *ConfigWriter) UpdateProcesses(procs ditypes.DIProcs) { //nolint:revive // TODO
 	current := procs
 	old := cu.Processes
 	if !reflect.DeepEqual(current, old) {

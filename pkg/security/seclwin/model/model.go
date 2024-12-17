@@ -230,6 +230,13 @@ func (e *Event) AddToFlags(flag uint32) {
 	e.Flags |= flag
 }
 
+// ResetAnomalyDetectionEvent removes the anomaly detection event flag
+func (e *Event) ResetAnomalyDetectionEvent() {
+	if e.IsAnomalyDetectionEvent() {
+		e.RemoveFromFlags(EventFlagsAnomalyDetectionEvent)
+	}
+}
+
 // RemoveFromFlags remove a flag to the event
 func (e *Event) RemoveFromFlags(flag uint32) {
 	e.Flags ^= flag
@@ -282,8 +289,8 @@ func (e *Event) Release() {
 }
 
 // ResolveProcessCacheEntry uses the field handler
-func (e *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
-	return e.FieldHandlers.ResolveProcessCacheEntry(e)
+func (e *Event) ResolveProcessCacheEntry(newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool) {
+	return e.FieldHandlers.ResolveProcessCacheEntry(e, newEntryCb)
 }
 
 // ResolveEventTime uses the field handler
@@ -322,7 +329,7 @@ type MatchedRule struct {
 type ActionReport interface {
 	ToJSON() ([]byte, error)
 	IsMatchingRule(ruleID eval.RuleID) bool
-	IsResolved() bool
+	IsResolved() error
 }
 
 // NewMatchedRule return a new MatchedRule instance
@@ -614,12 +621,12 @@ type AWSSecurityCredentials struct {
 
 // BaseExtraFieldHandlers handlers not hold by any field
 type BaseExtraFieldHandlers interface {
-	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
+	ResolveProcessCacheEntry(ev *Event, newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool)
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 }
 
 // ResolveProcessCacheEntry stub implementation
-func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCacheEntry, bool) {
+func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event, _ func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool) {
 	return nil, false
 }
 

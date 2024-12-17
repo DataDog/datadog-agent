@@ -10,7 +10,6 @@ package apm
 
 import (
 	"bufio"
-	"debug/elf"
 	"io"
 	"io/fs"
 	"os"
@@ -24,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // Instrumentation represents the state of APM instrumentation for a service.
@@ -80,17 +80,23 @@ func isInjected(envs envs.Variables) bool {
 }
 
 const (
-	// ddTraceGoPrefix is the prefix of the dd-trace-go symbols. The symbols we
-	// are looking for are for example
-	// "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.init". We use a prefix
-	// without the version number instead of a specific symbol name in an
-	// attempt to make it future-proof.
-	ddTraceGoPrefix = "gopkg.in/DataDog/dd-trace-go"
+	// ddTraceGoPrefix(V2) is the prefix of the dd-trace-go symbols. The symbols
+	// we are looking for are for example:
+	//    gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.init
+	//  github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.init
+	//
+	// We use an infix instead of a specific symbol name in an attempt to make
+	// it future-proof.
+	ddTraceGoPrefix    = "gopkg.in/DataDog/dd-trace-go"
+	ddTraceGoPrefixV2  = "github.com/DataDog/dd-trace-go/v2/"
+	ddTraceGoMinLength = min(len(ddTraceGoPrefix), len(ddTraceGoPrefixV2))
+	ddTraceGoInfix     = "DataDog/dd-trace-go"
+
 	// ddTraceGoMaxLength is the maximum length of the dd-trace-go symbols which
 	// we look for. The max length is an optimization in bininspect to avoid
 	// reading unnecesssary symbols.  As of writing, most non-internal symbols
-	// in dd-trace-go are under 100 chars. The tracer.init example above at 51
-	// chars is one of the shortest.
+	// in dd-trace-go are under 100 chars. The tracer.init example above at
+	// 51/53 chars is one of the shortest.
 	ddTraceGoMaxLength = 100
 )
 
@@ -100,19 +106,19 @@ const (
 func goDetector(ctx usm.DetectionContext) Instrumentation {
 	exePath := kernel.HostProc(strconv.Itoa(ctx.Pid), "exe")
 
-	elfFile, err := elf.Open(exePath)
+	elfFile, err := safeelf.Open(exePath)
 	if err != nil {
 		log.Debugf("Unable to open exe %s: %v", exePath, err)
 		return None
 	}
 	defer elfFile.Close()
 
-	if _, err = bininspect.GetAnySymbolWithPrefix(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength); err == nil {
+	if _, err = bininspect.GetAnySymbolWithInfix(elfFile, ddTraceGoInfix, ddTraceGoMinLength, ddTraceGoMaxLength); err == nil {
 		return Provided
 	}
 
 	// We failed to find symbols in the regular symbols section, now we can try the pclntab
-	if _, err = bininspect.GetAnySymbolWithPrefixPCLNTAB(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength); err == nil {
+	if _, err = bininspect.GetAnySymbolWithInfixPCLNTAB(elfFile, ddTraceGoInfix, ddTraceGoMinLength, ddTraceGoMaxLength); err == nil {
 		return Provided
 	}
 	return None

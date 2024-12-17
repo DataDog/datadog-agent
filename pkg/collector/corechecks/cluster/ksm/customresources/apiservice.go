@@ -10,17 +10,15 @@ package customresources
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	basemetrics "k8s.io/component-base/metrics"
 	v1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
@@ -35,22 +33,18 @@ var (
 )
 
 // NewAPIServiceFactory returns a new APIService metric family generator factory.
-func NewAPIServiceFactory(client *dynamic.DynamicClient) customresource.RegistryFactory {
+func NewAPIServiceFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &apiserviceFactory{
-		client: client,
+		client: client.APISInformerClient,
 	}
 }
 
 type apiserviceFactory struct {
-	client *dynamic.DynamicClient
+	client apiregistrationclient.ApiregistrationV1Interface
 }
 
 func (f *apiserviceFactory) CreateClient(_ *rest.Config) (interface{}, error) {
-	return f.client.Resource(schema.GroupVersionResource{
-		Group:    v1.GroupName,
-		Version:  v1.SchemeGroupVersion.Version,
-		Resource: "apiservices",
-	}), nil
+	return f.client, nil
 }
 
 func (f *apiserviceFactory) Name() string {
@@ -126,33 +120,32 @@ func (f *apiserviceFactory) MetricFamilyGenerators() []generator.FamilyGenerator
 }
 
 func (f *apiserviceFactory) ExpectedType() interface{} {
-	u := unstructured.Unstructured{}
-	u.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("APIService"))
-	return &u
+	return &v1.APIService{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "APIService",
+			APIVersion: v1.SchemeGroupVersion.String(),
+		},
+	}
 }
 
 func (f *apiserviceFactory) ListWatch(customresourceClient interface{}, _ string, fieldSelector string) cache.ListerWatcher {
-	client := customresourceClient.(dynamic.ResourceInterface)
+	client := customresourceClient.(apiregistrationclient.ApiregistrationV1Interface)
 	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.List(ctx, opts)
+			return client.APIServices().List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.Watch(ctx, opts)
+			return client.APIServices().Watch(ctx, opts)
 		},
 	}
 }
 
 func wrapAPIServiceFunc(f func(*v1.APIService) *metric.Family) func(interface{}) *metric.Family {
 	return func(obj interface{}) *metric.Family {
-		apiservice := &v1.APIService{}
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(*unstructured.Unstructured).Object, apiservice); err != nil {
-			log.Warnf("cannot decode object %q into v1.APIService, err=%s, skipping", obj.(*unstructured.Unstructured).Object["apiVersion"], err)
-			return nil
-		}
+		apiservice := obj.(*v1.APIService)
 
 		metricFamily := f(apiservice)
 

@@ -17,14 +17,12 @@ package customresources
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	autoscaling "k8s.io/api/autoscaling/v2beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	basemetrics "k8s.io/component-base/metrics"
@@ -60,14 +58,14 @@ var (
 
 // NewHorizontalPodAutoscalerV2Beta2Factory returns a new
 // HorizontalPodAutoscaler metric family generator factory.
-func NewHorizontalPodAutoscalerV2Beta2Factory(client *dynamic.DynamicClient) customresource.RegistryFactory {
+func NewHorizontalPodAutoscalerV2Beta2Factory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &hpav2Factory{
-		client: client,
+		client: client.Cl,
 	}
 }
 
 type hpav2Factory struct {
-	client *dynamic.DynamicClient
+	client kubernetes.Interface
 }
 
 func (f *hpav2Factory) Name() string {
@@ -75,11 +73,7 @@ func (f *hpav2Factory) Name() string {
 }
 
 func (f *hpav2Factory) CreateClient(_ *rest.Config) (interface{}, error) {
-	return f.client.Resource(schema.GroupVersionResource{
-		Group:    autoscaling.GroupName,
-		Version:  autoscaling.SchemeGroupVersion.Version,
-		Resource: "horizontalpodautoscalers",
-	}), nil
+	return f.client, nil
 }
 
 func (f *hpav2Factory) MetricFamilyGenerators() []generator.FamilyGenerator {
@@ -374,33 +368,32 @@ func (f *hpav2Factory) MetricFamilyGenerators() []generator.FamilyGenerator {
 }
 
 func (f *hpav2Factory) ExpectedType() interface{} {
-	u := unstructured.Unstructured{}
-	u.SetGroupVersionKind(autoscaling.SchemeGroupVersion.WithKind("HorizontalPodAutoscaler"))
-	return &u
+	return &autoscaling.HorizontalPodAutoscaler{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "HorizontalPodAutoscaler",
+			APIVersion: autoscaling.SchemeGroupVersion.String(),
+		},
+	}
 }
 
 func (f *hpav2Factory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
-	client := customResourceClient.(dynamic.NamespaceableResourceInterface).Namespace(ns)
+	client := customResourceClient.(kubernetes.Interface)
 	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.List(ctx, opts)
+			return client.AutoscalingV2beta2().HorizontalPodAutoscalers(ns).List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.Watch(ctx, opts)
+			return client.AutoscalingV2beta2().HorizontalPodAutoscalers(ns).Watch(ctx, opts)
 		},
 	}
 }
 
 func wrapHPAFunc(f func(*autoscaling.HorizontalPodAutoscaler) *metric.Family) func(interface{}) *metric.Family {
 	return func(obj interface{}) *metric.Family {
-		hpa := &autoscaling.HorizontalPodAutoscaler{}
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(*unstructured.Unstructured).Object, hpa); err != nil {
-			log.Warnf("cannot decode object %q into autoscaling/v2beta2.HorizontalPodAutoscaler, err=%s, skipping", obj.(*unstructured.Unstructured).Object["apiVersion"], err)
-			return nil
-		}
+		hpa := obj.(*autoscaling.HorizontalPodAutoscaler)
 
 		metricFamily := f(hpa)
 

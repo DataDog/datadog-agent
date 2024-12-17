@@ -145,14 +145,14 @@ func TestEBPFErrorsCollector_SingleCollect(t *testing.T) {
 				resourceName: &MockProgramName{n: mockProbeName},
 				moduleName:   names.NewModuleName("m3"),
 			},
-		}: {Count: [320]uint64{helperErrorsMockValue}},
+		}: {Count: [384]uint64{helperErrorsMockValue}},
 		{
 			eBPFKey: 3,
 			tKey: telemetryKey{
 				resourceName: &MockProgramName{n: mockProbeName},
 				moduleName:   names.NewModuleName("m4"),
 			},
-		}: {Count: [320]uint64{helperErrorsMockValue}},
+		}: {Count: [384]uint64{helperErrorsMockValue}},
 	}
 
 	//check expected metrics and labels
@@ -251,14 +251,14 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 				resourceName: &MockProgramName{n: mockProbeName},
 				moduleName:   names.NewModuleName("m3"),
 			},
-		}: {Count: [320]uint64{helperErrorsMockValue1}},
+		}: {Count: [384]uint64{helperErrorsMockValue1}},
 		{
 			eBPFKey: 3,
 			tKey: telemetryKey{
 				resourceName: &MockProgramName{n: mockProbeName},
 				moduleName:   names.NewModuleName("m4"),
 			},
-		}: {Count: [320]uint64{helperErrorsMockValue1}},
+		}: {Count: [384]uint64{helperErrorsMockValue1}},
 	}
 
 	//in this test we expect the values to match the delta between second and first collects
@@ -318,14 +318,14 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 					resourceName: &MockProgramName{n: mockProbeName},
 					moduleName:   names.NewModuleName("m3"),
 				},
-			}: {Count: [320]uint64{helperErrorsMockValue2}},
+			}: {Count: [384]uint64{helperErrorsMockValue2}},
 			{
 				eBPFKey: 3,
 				tKey: telemetryKey{
 					resourceName: &MockProgramName{n: mockProbeName},
 					moduleName:   names.NewModuleName("m4"),
 				},
-			}: {Count: [320]uint64{helperErrorsMockValue2}},
+			}: {Count: [384]uint64{helperErrorsMockValue2}},
 		},
 	}
 

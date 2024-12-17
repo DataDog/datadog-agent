@@ -76,7 +76,7 @@ func renderError(name string) (string, error) {
 func fillTemplate(w io.Writer, data Data, request string) error {
 	t := template.New(request + ".tmpl")
 	t.Funcs(fmap)
-	tmpl, err := viewsFS.ReadFile("views/templates/" + request + ".tmpl")
+	tmpl, err := templatesFS.ReadFile("views/templates/" + request + ".tmpl")
 	if err != nil {
 		return err
 	}

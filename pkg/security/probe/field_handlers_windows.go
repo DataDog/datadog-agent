@@ -77,7 +77,7 @@ func (fh *FieldHandlers) ResolveProcessEnvs(_ *model.Event, process *model.Proce
 }
 
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
+func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event, _ func(*model.ProcessCacheEntry, error)) (*model.ProcessCacheEntry, bool) {
 	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
 		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid)
 	}

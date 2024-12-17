@@ -16,22 +16,43 @@ import (
 // DefaultGpuCores is the default number of cores for a GPU device in the mock.
 const DefaultGpuCores = 10
 
+// GPUUUIDs is a list of UUIDs for the devices returned by the mock
+var GPUUUIDs = []string{
+	"GPU-12345678-1234-1234-1234-123456789012",
+	"GPU-99999999-1234-1234-1234-123456789013",
+	"GPU-00000000-1234-1234-1234-123456789014",
+}
+
+// GPUCores is a list of number of cores for the devices returned by the mock, should be the same length as GPUUUIDs
+var GPUCores = []int{DefaultGpuCores, 20, 30}
+
+// DefaultGpuUUID is the UUID for the default device returned by the mock
+var DefaultGpuUUID = GPUUUIDs[0]
+
+// GetDeviceMock returns a mock of the nvml.Device with the given UUID.
+func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
+	return &nvmlmock.Device{
+		GetNumGpuCoresFunc: func() (int, nvml.Return) {
+			return GPUCores[deviceIdx], nvml.SUCCESS
+		},
+		GetCudaComputeCapabilityFunc: func() (int, int, nvml.Return) {
+			return 7, 5, nvml.SUCCESS
+		},
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return GPUUUIDs[deviceIdx], nvml.SUCCESS
+		},
+	}
+}
+
 // GetBasicNvmlMock returns a mock of the nvml.Interface with a single device with 10 cores,
 // useful for basic tests that need only the basic interaction with NVML to be working.
 func GetBasicNvmlMock() *nvmlmock.Interface {
 	return &nvmlmock.Interface{
 		DeviceGetCountFunc: func() (int, nvml.Return) {
-			return 1, nvml.SUCCESS
+			return len(GPUUUIDs), nvml.SUCCESS
 		},
-		DeviceGetHandleByIndexFunc: func(int) (nvml.Device, nvml.Return) {
-			return &nvmlmock.Device{
-				GetNumGpuCoresFunc: func() (int, nvml.Return) {
-					return DefaultGpuCores, nvml.SUCCESS
-				},
-				GetCudaComputeCapabilityFunc: func() (int, int, nvml.Return) {
-					return 7, 5, nvml.SUCCESS
-				},
-			}, nvml.SUCCESS
+		DeviceGetHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
+			return GetDeviceMock(index), nvml.SUCCESS
 		},
 		DeviceGetCudaComputeCapabilityFunc: func(nvml.Device) (int, int, nvml.Return) {
 			return 7, 5, nvml.SUCCESS

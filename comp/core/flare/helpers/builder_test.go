@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
@@ -49,7 +50,7 @@ func assertFileContent(t *testing.T, fb *builder, expected string, path string) 
 }
 
 func getNewBuilder(t *testing.T) *builder {
-	f, err := NewFlareBuilder(false)
+	f, err := NewFlareBuilder(false, flarebuilder.FlareArgs{})
 	require.NotNil(t, f)
 	require.NoError(t, err)
 
@@ -133,6 +134,37 @@ func TestAddFile(t *testing.T) {
 
 	fb.AddFile(FromSlash("test/AddFile_scrubbed_api_key"), []byte("api_key : 123456789006789009"))
 	assertFileContent(t, fb, "api_key: \"********\"", "test/AddFile_scrubbed_api_key")
+}
+
+func TestAddNonLocalFileFlare(t *testing.T) {
+	fb := getNewBuilder(t)
+	defer fb.clean()
+
+	expectedError := "the destination path is not local to the flare root path"
+
+	err := fb.AddFile(FromSlash("../test/AddFile"), []byte{})
+	assert.ErrorContains(t, err, expectedError)
+
+	err = fb.AddFileWithoutScrubbing(FromSlash("../test/AddFile"), []byte{})
+	assert.ErrorContains(t, err, expectedError)
+
+	err = fb.AddFileFromFunc(FromSlash("../test/AddFile"), func() ([]byte, error) { return []byte{}, nil })
+	assert.ErrorContains(t, err, expectedError)
+
+	path := filepath.Join(t.TempDir(), "test.data")
+	os.WriteFile(path, []byte("some data"), os.ModePerm)
+	err = fb.CopyFileTo(path, FromSlash("../test/AddFile"))
+	assert.ErrorContains(t, err, expectedError)
+
+	root := setupDirWithData(t)
+	err = fb.CopyDirTo(root, "../test", func(string) bool { return true })
+	assert.ErrorContains(t, err, expectedError)
+
+	err = fb.CopyDirToWithoutScrubbing(root, "../test", func(string) bool { return true })
+	assert.ErrorContains(t, err, expectedError)
+
+	_, err = fb.PrepareFilePath("../test")
+	assert.ErrorContains(t, err, expectedError)
 }
 
 func TestAddFileWithoutScrubbing(t *testing.T) {

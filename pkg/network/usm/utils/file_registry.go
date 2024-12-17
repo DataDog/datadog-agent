@@ -13,7 +13,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
@@ -90,7 +89,7 @@ var IgnoreCB = func(FilePath) error { return nil }
 var ErrEnvironment = errors.New("Environment error, path will not be blocked")
 
 // NewFileRegistry creates a new `FileRegistry` instance
-func NewFileRegistry(programName string) *FileRegistry {
+func NewFileRegistry(moduleName, programName string) *FileRegistry {
 	blocklistByID, err := simplelru.NewLRU[PathIdentifier, string](2000, nil)
 	if err != nil {
 		log.Warnf("running without block cache list, creation error: %s", err)
@@ -106,7 +105,7 @@ func NewFileRegistry(programName string) *FileRegistry {
 
 	// Add self to the debugger so we can inspect internal state of this
 	// FileRegistry using our debugging endpoint
-	debugger.AddRegistry(r)
+	debugger.AddRegistry(moduleName, r)
 
 	return r
 }
@@ -263,7 +262,7 @@ func (r *FileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
 
 // Log state of `FileRegistry`
 func (r *FileRegistry) Log() {
-	if log.ShouldLog(seelog.DebugLvl) {
+	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("file_registry summary: program=%s %s", r.telemetry.programName, r.telemetry.metricGroup.Summary())
 	}
 }

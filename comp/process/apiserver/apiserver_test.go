@@ -13,12 +13,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -34,10 +35,12 @@ func TestLifecycle(t *testing.T) {
 				PythonVersionGetFunc: func() string { return "n/a" },
 			},
 		),
-		fx.Supply(tagger.NewFakeTaggerParams()),
-		taggerimpl.Module(),
+		taggerfx.Module(tagger.Params{
+			UseFakeTagger: true,
+		}),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
+		fetchonlyimpl.MockModule(),
 	))
 
 	assert.Eventually(t, func() bool {

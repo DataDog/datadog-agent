@@ -17,6 +17,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"golang.org/x/sys/unix"
 )
 
 // ContainerIDLen is the length of a container ID is the length of the hex representation of a sha256 hash
@@ -37,13 +39,13 @@ type ControlGroup struct {
 
 // GetContainerContext returns both the container ID and its flags
 func (cg ControlGroup) GetContainerContext() (containerutils.ContainerID, containerutils.CGroupFlags) {
-	id, flags := containerutils.FindContainerID(cg.Path)
+	id, flags := containerutils.FindContainerID(containerutils.CGroupID(cg.Path))
 	return containerutils.ContainerID(id), containerutils.CGroupFlags(flags)
 }
 
 // GetContainerID returns the container id extracted from the path of the control group
 func (cg ControlGroup) GetContainerID() containerutils.ContainerID {
-	id, _ := containerutils.FindContainerID(cg.Path)
+	id, _ := containerutils.FindContainerID(containerutils.CGroupID(cg.Path))
 	return containerutils.ContainerID(id)
 }
 
@@ -82,16 +84,25 @@ func GetProcContainerID(tgid, pid uint32) (containerutils.ContainerID, error) {
 
 // GetProcContainerContext returns the container ID which the process belongs to along with its manager. Returns "" if the process does not belong
 // to a container.
-func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, containerutils.CGroupFlags, error) {
+func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, model.CGroupContext, error) {
 	cgroups, err := GetProcControlGroups(tgid, pid)
-	if err != nil {
-		return "", 0, err
+	if err != nil || len(cgroups) == 0 {
+		return "", model.CGroupContext{}, err
 	}
 
-	for _, cgroup := range cgroups {
-		containerID, runtime := cgroup.GetContainerContext()
-		return containerID, runtime, nil
+	lastCgroup := len(cgroups) - 1
+	containerID, runtime := cgroups[lastCgroup].GetContainerContext()
+	cgroupContext := model.CGroupContext{
+		CGroupID:    containerutils.CGroupID(cgroups[lastCgroup].Path),
+		CGroupFlags: runtime,
 	}
 
-	return "", 0, nil
+	var fileStats unix.Statx_t
+	taskPath := CgroupTaskPath(pid, pid)
+	if err := unix.Statx(unix.AT_FDCWD, taskPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStats); err == nil {
+		cgroupContext.CGroupFile.MountID = uint32(fileStats.Mnt_id)
+		cgroupContext.CGroupFile.Inode = fileStats.Ino
+	}
+
+	return containerID, cgroupContext, nil
 }

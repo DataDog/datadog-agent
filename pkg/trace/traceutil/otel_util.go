@@ -87,8 +87,8 @@ func GetTopLevelOTelSpans(spanByID map[pcommon.SpanID]ptrace.Span, resByID map[p
 			continue
 		}
 
-		svc := GetOTelService(span, resByID[spanID], true)
-		parentSvc := GetOTelService(parentSpan, resByID[parentSpan.SpanID()], true)
+		svc := GetOTelService(resByID[spanID], true)
+		parentSvc := GetOTelService(resByID[parentSpan.SpanID()], true)
 		if svc != parentSvc {
 			// case 3: parent is not in the same service
 			topLevelSpans[spanID] = struct{}{}
@@ -153,9 +153,9 @@ func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
 }
 
 // GetOTelService returns the DD service name based on OTel span and resource attributes.
-func GetOTelService(span ptrace.Span, res pcommon.Resource, normalize bool) string {
+func GetOTelService(res pcommon.Resource, normalize bool) string {
 	// No need to normalize with NormalizeTagValue since we will do NormalizeService later
-	svc := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeServiceName)
+	svc := GetOTelAttrVal(res.Attributes(), false, semconv.AttributeServiceName)
 	if svc == "" {
 		svc = "otlpresourcenoservicename"
 	}
@@ -194,6 +194,13 @@ func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) 
 			if svc := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeRPCService); m != "" {
 				// ...and service if available
 				resName = resName + " " + svc
+			}
+		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv117.AttributeGraphqlOperationType); m != "" {
+			// Enrich GraphQL query resource names.
+			// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
+			resName = m
+			if name := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv117.AttributeGraphqlOperationName); name != "" {
+				resName = resName + " " + name
 			}
 		} else {
 			resName = span.Name()
@@ -246,6 +253,16 @@ func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) (resName string) 
 		if svc := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeRPCService); m != "" {
 			// ...and service if available
 			resName = resName + " " + svc
+		}
+		return
+	}
+
+	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv117.AttributeGraphqlOperationType); m != "" {
+		// Enrich GraphQL query resource names.
+		// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
+		resName = m
+		if name := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv117.AttributeGraphqlOperationName); name != "" {
+			resName = resName + " " + name
 		}
 		return
 	}
@@ -452,6 +469,12 @@ func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
 		}
 	}
 	return containerTags
+}
+
+// GetOTelEnv returns the environment based on OTel resource attributes.
+func GetOTelEnv(res pcommon.Resource) string {
+	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
+	return GetOTelAttrVal(res.Attributes(), true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
 }
 
 // OTelTraceIDToUint64 converts an OTel trace ID to an uint64

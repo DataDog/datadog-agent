@@ -17,16 +17,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	basemetrics "k8s.io/component-base/metrics"
@@ -44,14 +42,14 @@ var (
 )
 
 // NewCronJobV1Beta1Factory returns a new CronJob metric family generator factory.
-func NewCronJobV1Beta1Factory(client *dynamic.DynamicClient) customresource.RegistryFactory {
+func NewCronJobV1Beta1Factory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &cronjobv1beta1Factory{
-		client: client,
+		client: client.Cl,
 	}
 }
 
 type cronjobv1beta1Factory struct {
-	client *dynamic.DynamicClient
+	client kubernetes.Interface
 }
 
 func (f *cronjobv1beta1Factory) Name() string {
@@ -59,11 +57,7 @@ func (f *cronjobv1beta1Factory) Name() string {
 }
 
 func (f *cronjobv1beta1Factory) CreateClient(_ *rest.Config) (interface{}, error) {
-	return f.client.Resource(schema.GroupVersionResource{
-		Group:    batchv1beta1.GroupName,
-		Version:  batchv1beta1.SchemeGroupVersion.Version,
-		Resource: "cronjobs",
-	}), nil
+	return f.client, nil
 }
 
 func (f *cronjobv1beta1Factory) MetricFamilyGenerators() []generator.FamilyGenerator {
@@ -317,11 +311,7 @@ func (f *cronjobv1beta1Factory) MetricFamilyGenerators() []generator.FamilyGener
 
 func wrapCronJobFunc(f func(*batchv1beta1.CronJob) *metric.Family) func(interface{}) *metric.Family {
 	return func(obj interface{}) *metric.Family {
-		cronJob := &batchv1beta1.CronJob{}
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(*unstructured.Unstructured).Object, cronJob); err != nil {
-			log.Warnf("cannot decode object %q into batchv1beta1.CronJob, err=%s, skipping", obj.(*unstructured.Unstructured).Object["apiVersion"], err)
-			return nil
-		}
+		cronJob := obj.(*batchv1beta1.CronJob)
 
 		metricFamily := f(cronJob)
 
@@ -334,22 +324,25 @@ func wrapCronJobFunc(f func(*batchv1beta1.CronJob) *metric.Family) func(interfac
 }
 
 func (f *cronjobv1beta1Factory) ExpectedType() interface{} {
-	u := unstructured.Unstructured{}
-	u.SetGroupVersionKind(batchv1beta1.SchemeGroupVersion.WithKind("CronJob"))
-	return &u
+	return &batchv1beta1.CronJob{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CronJob",
+			APIVersion: batchv1beta1.SchemeGroupVersion.String(),
+		},
+	}
 }
 
 func (f *cronjobv1beta1Factory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
-	client := customResourceClient.(dynamic.NamespaceableResourceInterface).Namespace(ns)
+	client := customResourceClient.(kubernetes.Interface)
 	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.List(ctx, opts)
+			return client.BatchV1beta1().CronJobs(ns).List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.Watch(ctx, opts)
+			return client.BatchV1beta1().CronJobs(ns).Watch(ctx, opts)
 		},
 	}
 }

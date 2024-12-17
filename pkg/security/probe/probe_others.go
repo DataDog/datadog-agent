@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -66,7 +68,7 @@ func (p *Probe) GetService(_ *model.Event) string {
 }
 
 // GetEventTags returns the event tags
-func (p *Probe) GetEventTags(_ string) []string {
+func (p *Probe) GetEventTags(_ containerutils.ContainerID) []string {
 	return nil
 }
 
@@ -96,7 +98,7 @@ func (p *Probe) FlushDiscarders() error {
 }
 
 // RefreshUserCache refreshes the user cache
-func (p *Probe) RefreshUserCache(_ string) error {
+func (p *Probe) RefreshUserCache(_ containerutils.ContainerID) error {
 	return nil
 }
 
@@ -105,3 +107,8 @@ func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}
 
 // EnableEnforcement sets the enforcement mode
 func (p *Probe) EnableEnforcement(_ bool) {}
+
+// GetAgentContainerContext returns nil
+func (p *Probe) GetAgentContainerContext() *events.AgentContainerContext {
+	return nil
+}

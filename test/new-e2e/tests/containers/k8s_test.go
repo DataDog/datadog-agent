@@ -41,7 +41,9 @@ const (
 	kubeNamespaceDogstatsWorkload           = "workload-dogstatsd"
 	kubeNamespaceDogstatsStandaloneWorkload = "workload-dogstatsd-standalone"
 	kubeNamespaceTracegenWorkload           = "workload-tracegen"
+	kubeDeploymentDogstatsdUDP              = "dogstatsd-udp"
 	kubeDeploymentDogstatsdUDPOrigin        = "dogstatsd-udp-origin-detection"
+	kubeDeploymentDogstatsdUDPExternalData  = "dogstatsd-udp-external-data-only"
 	kubeDeploymentDogstatsdUDS              = "dogstatsd-uds"
 	kubeDeploymentTracegenTCPWorkload       = "tracegen-tcp"
 	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
@@ -197,17 +199,15 @@ func (suite *k8sSuite) TestAdmissionControllerWebhooksExist() {
 	expectedWebhookName := "datadog-webhook"
 
 	suite.Run("agent registered mutating webhook configuration", func() {
-		mutatingConfigs, err := suite.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().List(ctx, metav1.ListOptions{})
+		mutatingConfig, err := suite.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, expectedWebhookName, metav1.GetOptions{})
 		suite.Require().NoError(err)
-		suite.NotEmpty(mutatingConfigs.Items, "No mutating webhook configuration found")
-		found := false
-		for _, mutatingConfig := range mutatingConfigs.Items {
-			if mutatingConfig.Name == expectedWebhookName {
-				found = true
-				break
-			}
-		}
-		suite.Require().True(found, fmt.Sprintf("None of the mutating webhook configurations have the name '%s'", expectedWebhookName))
+		suite.NotNilf(mutatingConfig, "None of the mutating webhook configurations have the name '%s'", expectedWebhookName)
+	})
+
+	suite.Run("agent registered validating webhook configuration", func() {
+		validatingConfig, err := suite.K8sClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, expectedWebhookName, metav1.GetOptions{})
+		suite.Require().NoError(err)
+		suite.NotNilf(validatingConfig, "None of the validating webhook configurations have the name '%s'", expectedWebhookName)
 	})
 }
 
@@ -469,7 +469,10 @@ func (suite *k8sSuite) TestNginx() {
 				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-nginx-server$`,
-				`^email:team-container-platform@datadoghq.com$`,
+				`^domain:deployment$`,
+				`^mail:team-container-platform@datadoghq.com$`,
+				`^org:agent-org$`,
+				`^parent-name:nginx$`,
 				`^team:contp$`,
 			},
 			AcceptUnexpectedTags: true,
@@ -544,7 +547,10 @@ func (suite *k8sSuite) TestNginx() {
 				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-nginx-server$`,
-				`^email:team-container-platform@datadoghq.com$`,
+				`^domain:deployment$`,
+				`^mail:team-container-platform@datadoghq.com$`,
+				`^org:agent-org$`,
+				`^parent-name:nginx$`,
 				`^team:contp$`,
 			},
 			Message: `GET / HTTP/1\.1`,
@@ -795,50 +801,44 @@ func (suite *k8sSuite) TestCPU() {
 	})
 }
 
-func (suite *k8sSuite) TestDogstatsdInAgent() {
-	// Test with UDS
-	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
-	// Test with UDP + Origin detection
-	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
-	// Test with UDP + DD_ENTITY_ID
-	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
-}
-
-func (suite *k8sSuite) TestDogstatsdStandalone() {
-	// Test with UDS
-	suite.testDogstatsdContainerID(kubeNamespaceDogstatsStandaloneWorkload, kubeDeploymentDogstatsdUDS)
-	// Dogstatsd standalone does not support origin detection
-	// Test with UDP + DD_ENTITY_ID
-	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
-}
-
-func (suite *k8sSuite) testDogstatsdPodUID(kubeNamespace string) {
-	// Test dogstatsd origin detection with UDP + DD_ENTITY_ID
+func (suite *k8sSuite) TestKSM() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
-			Name: "custom.metric",
-			Tags: []string{
-				"^kube_deployment:dogstatsd-udp$",
-				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
-			},
+			Name: "kubernetes_state.vpa.count",
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
-				`^kube_deployment:dogstatsd-udp$`,
-				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
-				`^kube_ownerref_kind:replicaset$`,
-				`^kube_ownerref_name:dogstatsd-udp-[[:alnum:]]+$`,
-				`^kube_qos:Burstable$`,
-				`^kube_replica_set:dogstatsd-udp-[[:alnum:]]+$`,
-				`^pod_name:dogstatsd-udp-[[:alnum:]]+-[[:alnum:]]+$`,
-				`^pod_phase:running$`,
-				`^series:`,
+				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^kube_namespace:workload-(?:nginx|redis)$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 1,
+				Min: 1,
 			},
 		},
 	})
 }
 
-func (suite *k8sSuite) testDogstatsdContainerID(kubeNamespace, kubeDeployment string) {
+func (suite *k8sSuite) TestDogstatsdInAgent() {
+	// Test with UDS
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
+	// Test with UDP + Origin detection
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
+	// Test with UDP + DD_ENTITY_ID
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDP)
+	// Test with UDP + External Data
+	suite.testDogstatsdExternalData(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPExternalData)
+}
+
+func (suite *k8sSuite) TestDogstatsdStandalone() {
+	// Test with UDS
+	suite.testDogstatsd(kubeNamespaceDogstatsStandaloneWorkload, kubeDeploymentDogstatsdUDS)
+	// Dogstatsd standalone does not support origin detection
+	// Test with UDP + DD_ENTITY_ID
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDP)
+}
+
+func (suite *k8sSuite) testDogstatsd(kubeNamespace, kubeDeployment string) {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
@@ -853,7 +853,79 @@ func (suite *k8sSuite) testDogstatsdContainerID(kubeNamespace, kubeDeployment st
 				`^container_name:dogstatsd$`,
 				`^display_container_name:dogstatsd`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+				`^image_id:ghcr.io/datadog/apps-dogstatsd@sha256:`,
+				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
+				`^image_tag:main$`,
+				`^kube_container_name:dogstatsd$`,
+				`^kube_deployment:` + regexp.QuoteMeta(kubeDeployment) + `$`,
+				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+$`,
+				`^pod_name:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^series:`,
+				`^short_image:apps-dogstatsd$`,
+			},
+		},
+	})
+}
+
+// testDogstatsdExternalData tests that the External Data origin resolution works for the dogstatsd.
+func (suite *k8sSuite) testDogstatsdExternalData(kubeNamespace, kubeDeployment string) {
+	ctx := context.Background()
+
+	// Record old pod, so we can be sure we are not looking at the incorrect one after deletion
+	oldPods, err := suite.K8sClient.CoreV1().Pods(kubeNamespace).List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", kubeDeployment).String(),
+	})
+	suite.Require().NoError(err)
+	suite.Require().Len(oldPods.Items, 1)
+	oldPod := oldPods.Items[0]
+
+	// Delete the pod to ensure it is recreated after the admission controller is deployed
+	err = suite.K8sClient.CoreV1().Pods(kubeNamespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", kubeDeployment).String(),
+	})
+	suite.Require().NoError(err)
+
+	// Wait for the fresh pod to be created
+	var pod corev1.Pod
+	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
+		pods, err := suite.K8sClient.CoreV1().Pods(kubeNamespace).List(ctx, metav1.ListOptions{
+			LabelSelector: fields.OneTermEqualSelector("app", kubeDeployment).String(),
+		})
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.Len(c, pods.Items, 1) {
+			return
+		}
+		pod = pods.Items[0]
+		if !assert.NotEqual(c, oldPod.Name, pod.Name) {
+			return
+		}
+	}, 2*time.Minute, 10*time.Second, "Failed to witness the creation of pod with name %s in namespace %s", kubeDeployment, kubeNamespace)
+
+	suite.Require().Len(pod.Spec.Containers, 1)
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "custom.metric",
+			Tags: []string{
+				"^kube_deployment:" + regexp.QuoteMeta(kubeDeployment) + "$",
+				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:dogstatsd$`,
+				`^display_container_name:dogstatsd`,
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr.io/datadog/apps-dogstatsd@sha256:`,
 				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
 				`^image_tag:main$`,

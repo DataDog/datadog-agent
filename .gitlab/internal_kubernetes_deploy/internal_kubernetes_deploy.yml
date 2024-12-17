@@ -24,6 +24,22 @@ internal_kubernetes_deploy_experimental:
       artifacts: false
     - job: docker_trigger_cluster_agent_internal
       artifacts: false
+    - job: docker_build_agent7_windows1809
+      artifacts: false
+    - job: docker_build_agent7_windows2022
+      artifacts: false
+    - job: docker_build_agent7_windows1809_jmx
+      artifacts: false
+    - job: docker_build_agent7_windows2022_jmx
+      artifacts: false
+    - job: docker_build_agent7_windows1809_core
+      artifacts: false
+    - job: docker_build_agent7_windows2022_core
+      artifacts: false
+    - job: docker_build_agent7_windows1809_core_jmx
+      artifacts: false
+    - job: docker_build_agent7_windows2022_core_jmx
+      artifacts: false
     - job: k8s-e2e-main # Currently only require container Argo workflow
       artifacts: false
       optional: true

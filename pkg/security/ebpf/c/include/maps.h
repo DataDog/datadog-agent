@@ -29,8 +29,8 @@ BPF_ARRAY_MAP(syscall_ctx, char[MAX_SYSCALL_CTX_SIZE], MAX_SYSCALL_CTX_ENTRIES)
 
 BPF_HASH_MAP(activity_dumps_config, u64, struct activity_dump_config, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(activity_dump_config_defaults, u32, struct activity_dump_config, 1)
-BPF_HASH_MAP(traced_cgroups, container_id_t, u64, 1) // max entries will be overridden at runtime
-BPF_HASH_MAP(cgroup_wait_list, container_id_t, u64, 1) // max entries will be overridden at runtime
+BPF_HASH_MAP(traced_cgroups, struct path_key_t, u64, 1) // max entries will be overridden at runtime
+BPF_HASH_MAP(cgroup_wait_list, struct path_key_t, u64, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(traced_pids, u32, u64, 8192) // max entries will be overridden at runtime
 BPF_HASH_MAP(basename_approvers, struct basename_t, struct event_mask_filter_t, 255)
 BPF_HASH_MAP(register_netdevice_cache, u64, struct register_netdevice_cache_t, 1024)
@@ -88,14 +88,16 @@ BPF_PERCPU_ARRAY_MAP(packets, struct packet_t, 1)
 BPF_PERCPU_ARRAY_MAP(selinux_write_buffer, struct selinux_write_buffer_t, 1)
 BPF_PERCPU_ARRAY_MAP(is_new_kthread, u32, 1)
 BPF_PERCPU_ARRAY_MAP(syscalls_stats, struct syscalls_stats_t, EVENT_MAX)
-BPF_PERCPU_ARRAY_MAP(raw_packets, struct raw_packet_t, 1)
+BPF_PERCPU_ARRAY_MAP(raw_packet_event, struct raw_packet_event_t, 1)
+BPF_PERCPU_ARRAY_MAP(raw_packet_enabled, u32, 1)
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_callbacks, EVENT_MAX)
 BPF_PROG_ARRAY(dentry_resolver_tracepoint_callbacks, EVENT_MAX)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_progs, 6)
 BPF_PROG_ARRAY(dentry_resolver_tracepoint_progs, 3)
-BPF_PROG_ARRAY(classifier_router, 100)
+BPF_PROG_ARRAY(classifier_router, 10)
 BPF_PROG_ARRAY(sys_exit_progs, 64)
+BPF_PROG_ARRAY(raw_packet_classifier_router, 32)
 
 #endif

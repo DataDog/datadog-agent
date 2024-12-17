@@ -56,7 +56,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testOrigExecutable, "/tmp/test1")
 			return cmd.Run()
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_orig_exec")
 		})
 
@@ -72,14 +72,14 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 				t.Fatal(err)
 			}
 			return err
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link_creation")
 		})
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testNewExecutable, "/tmp/test2")
 			return cmd.Run()
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link_exec")
 		})
 	})
@@ -97,21 +97,21 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 				t.Fatal(err)
 			}
 			return err
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link_creation")
 		})
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testOrigExecutable, "/tmp/test1")
 			return cmd.Run()
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_orig_exec")
 		})
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testNewExecutable, "/tmp/test2")
 			return cmd.Run()
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link_exec")
 		})
 	})
@@ -170,7 +170,7 @@ func TestHardLink(t *testing.T) {
 				t.Fatal(err)
 			}
 			return err
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link_creation")
 		})
 	})

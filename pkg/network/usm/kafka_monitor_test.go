@@ -44,6 +44,7 @@ import (
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -167,7 +168,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 
 	for mode, name := range map[bool]string{false: "without TLS", true: "with TLS"} {
 		t.Run(name, func(t *testing.T) {
-			if mode && !gotlsutils.GoTLSSupported(t, config.New()) {
+			if mode && !gotlsutils.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 				t.Skip("GoTLS not supported for this setup")
 			}
 			if mode && isUnsupportedUbuntu(t) {
@@ -520,14 +521,14 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 						require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 
 						var telemetryMap *kafka.RawKernelTelemetry
-						require.Eventually(t, func() bool {
+						require.EventuallyWithT(t, func(collect *assert.CollectT) {
 							telemetryMap, err = kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
-							require.NoError(t, err)
+							require.NoError(collect, err)
 
 							// Ensure that the other buckets remain unchanged before verifying the expected bucket.
 							for idx := 0; idx < kafka.TopicNameBuckets; idx++ {
 								if idx != tt.expectedBucketIndex {
-									require.Equal(t, currentRawKernelTelemetry.Topic_name_size_buckets[idx],
+									require.Equal(collect, currentRawKernelTelemetry.Topic_name_size_buckets[idx],
 										telemetryMap.Topic_name_size_buckets[idx],
 										"Expected bucket (%d) to remain unchanged", idx)
 								}
@@ -535,7 +536,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 
 							// Verify that the expected bucket contains the correct number of occurrences.
 							expectedNumberOfOccurrences := fixCount(2) // (1 produce request + 1 fetch request)
-							return uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Topic_name_size_buckets[tt.expectedBucketIndex] == telemetryMap.Topic_name_size_buckets[tt.expectedBucketIndex]
+							require.Equal(collect, uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Topic_name_size_buckets[tt.expectedBucketIndex], telemetryMap.Topic_name_size_buckets[tt.expectedBucketIndex])
 						}, time.Second*3, time.Millisecond*100)
 
 						// Update the current raw kernel telemetry for the next iteration
@@ -560,7 +561,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 			})
 			monitor := newKafkaMonitor(t, cfg)
 			if tls && cfg.EnableGoTLSSupport {
-				utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
 			tt.testBody(t, &tt.context, monitor)
 		})
@@ -1158,7 +1159,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
 	if tls {
-		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
 	}
 
 	for _, tt := range tests {
@@ -1264,7 +1265,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaFetchRaw() {
 	})
 
 	t.Run("with TLS", func(t *testing.T) {
-		if !gotlsutils.GoTLSSupported(t, config.New()) {
+		if !gotlsutils.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 		if isUnsupportedUbuntu(t) {
@@ -1386,7 +1387,7 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 
 	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
 	if tls {
-		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
 	}
 
 	for _, tt := range tests {
@@ -1493,7 +1494,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProduceRaw() {
 	})
 
 	t.Run("with TLS", func(t *testing.T) {
-		if !gotlsutils.GoTLSSupported(t, config.New()) {
+		if !gotlsutils.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 		if isUnsupportedUbuntu(t) {
@@ -1618,13 +1619,11 @@ func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expe
 }
 
 func getDefaultTestConfiguration(tls bool) *config.Config {
-	cfg := config.New()
+	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableKafkaMonitoring = true
 	cfg.MaxTrackedConnections = 1000
-	if tls {
-		cfg.EnableGoTLSSupport = true
-		cfg.GoTLSExcludeSelf = true
-	}
+	cfg.EnableGoTLSSupport = tls
+	cfg.GoTLSExcludeSelf = tls
 	return cfg
 }
 
@@ -1724,8 +1723,9 @@ func TestLoadKafkaBinary(t *testing.T) {
 }
 
 func loadKafkaBinary(t *testing.T, debug bool) {
-	cfg := config.New()
+	cfg := utils.NewUSMEmptyConfig()
 	// We don't have a way of enabling kafka without http at the moment
+	cfg.EnableGoTLSSupport = false
 	cfg.EnableKafkaMonitoring = true
 	cfg.MaxTrackedConnections = 1000
 	cfg.BPFDebug = debug

@@ -12,11 +12,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
+	"go.opentelemetry.io/collector/component/componenttest"
+
 	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
-	"go.opentelemetry.io/collector/component/componenttest"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -39,7 +40,7 @@ func addFactories(factories otelcol.Factories) {
 	factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(nil, nil, nil, nil, nil)
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(nil, nil)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
-	factories.Extensions[Type] = NewFactory(nil, otelcol.ConfigProviderSettings{})
+	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{})
 }
 
 func TestGetConfDump(t *testing.T) {
@@ -56,7 +57,7 @@ func TestGetConfDump(t *testing.T) {
 		factories:              &factories,
 		configProviderSettings: newConfigProviderSettings(uriFromFile("simple-dd/config.yaml"), false),
 	}
-	extension, err := NewExtension(context.TODO(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{})
+	extension, err := NewExtension(context.TODO(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, true)
 	assert.NoError(t, err)
 
 	ext, ok := extension.(*ddExtension)
@@ -148,6 +149,7 @@ func TestGetConfDump(t *testing.T) {
 
 		assertEqual(t, expectedStringMap, actualStringMap)
 	})
+
 }
 
 func confmapFromResolverSettings(t *testing.T, resolverSettings confmap.ResolverSettings) *confmap.Conf {
@@ -189,14 +191,14 @@ func newResolverSettings(uris []string, enhanced bool) confmap.ResolverSettings 
 			httpprovider.NewFactory(),
 			httpsprovider.NewFactory(),
 		},
-		ConverterFactories: newConverterFactorie(enhanced),
+		ConverterFactories: newConverterFactory(enhanced),
 	}
 }
 
-func newConverterFactorie(enhanced bool) []confmap.ConverterFactory {
+func newConverterFactory(enhanced bool) []confmap.ConverterFactory {
 	converterFactories := []confmap.ConverterFactory{}
 
-	converter, err := converterimpl.NewConverter(converterimpl.Requires{})
+	converter, err := converterimpl.NewConverterForAgent(converterimpl.Requires{})
 	if err != nil {
 		return []confmap.ConverterFactory{}
 	}

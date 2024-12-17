@@ -20,7 +20,6 @@ import (
 	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
@@ -129,6 +128,18 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 		case "perf_buffers", "perf_event_mmap":
 			ms.MaxEntries = nrcpus * maxMapsTracked
 		}
+	}
+
+	// `security_bpf_map_alloc` was renamed to `security_bpf_map_create`
+	// in this commit: https://github.com/torvalds/linux/commit/a2431c7eabcf9bd5a1e7a1f7ecded40fdda4a8c5
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kernel version: %s", err)
+	}
+	if kv >= kernel.VersionCode(6, 9, 0) {
+		delete(collSpec.Programs, "k_map_alloc")
+	} else {
+		delete(collSpec.Programs, "k_map_create")
 	}
 
 	p := Probe{nrcpus: nrcpus}
@@ -306,7 +317,7 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 		stats.Programs = append(stats.Programs, ps)
 	}
 
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("found %d programs", len(stats.Programs))
 		for _, ps := range stats.Programs {
 			log.Tracef("name=%s prog_id=%d type=%s", ps.Name, ps.ID, ps.Type.String())

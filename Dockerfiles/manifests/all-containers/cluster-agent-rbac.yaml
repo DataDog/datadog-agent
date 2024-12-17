@@ -6,7 +6,7 @@ automountServiceAccountToken: true
 metadata:
   labels:
     app: "datadog"
-    chart: "datadog-3.49.6"
+    chart: "datadog-3.79.0"
     heritage: "Helm"
     release: "datadog"
   name: datadog-cluster-agent
@@ -28,6 +28,7 @@ rules:
       - nodes
       - namespaces
       - componentstatuses
+      - limitranges
     verbs:
       - get
       - list
@@ -153,6 +154,7 @@ rules:
       - networking.k8s.io
     resources:
       - ingresses
+      - networkpolicies
     verbs:
       - list
       - get
@@ -164,6 +166,14 @@ rules:
       - rolebindings
       - clusterroles
       - clusterrolebindings
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
+      - "storage.k8s.io"
+    resources:
+      - storageclasses
     verbs:
       - list
       - get
@@ -187,6 +197,7 @@ rules:
   - apiGroups:
       - admissionregistration.k8s.io
     resources:
+      - validatingwebhookconfigurations
       - mutatingwebhookconfigurations
     resourceNames:
       - "datadog-webhook"
@@ -194,6 +205,7 @@ rules:
   - apiGroups:
       - admissionregistration.k8s.io
     resources:
+      - validatingwebhookconfigurations
       - mutatingwebhookconfigurations
     verbs: ["create"]
   - apiGroups: ["batch"]
@@ -209,6 +221,14 @@ rules:
       - namespaces
     verbs:
       - list
+  - apiGroups:
+      - "policy"
+    resources:
+      - poddisruptionbudgets
+    verbs:
+      - get
+      - list
+      - watch
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:

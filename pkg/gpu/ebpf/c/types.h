@@ -10,14 +10,18 @@ typedef struct {
 typedef enum {
     cuda_kernel_launch,
     cuda_memory_event,
-    cuda_sync
+    cuda_sync,
+    cuda_set_device,
 } cuda_event_type_t;
+
+#define MAX_CONTAINER_ID_LEN 129
 
 typedef struct {
     cuda_event_type_t type;
     __u64 pid_tgid;
     __u64 stream_id;
     __u64 ktime_ns;
+    char cgroup[MAX_CONTAINER_ID_LEN];
 } cuda_event_header_t;
 
 typedef struct {
@@ -48,5 +52,10 @@ typedef struct {
     __u64 size;
     void **devPtr;
 } cuda_alloc_request_args_t;
+
+typedef struct {
+    cuda_event_header_t header;
+    int device;
+} cuda_set_device_event_t;
 
 #endif
