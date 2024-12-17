@@ -48,7 +48,7 @@ import (
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
@@ -63,7 +63,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -104,14 +104,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				dogstatsd.ClientBundle,
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
-				workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
-					catalog := workloadmeta.NodeAgent
-					if config.GetBool("security_agent.remote_workloadmeta") {
-						catalog = workloadmeta.Remote
-					}
-					return workloadmeta.Params{
-						AgentType: catalog,
-					}
+				workloadmetafx.Module(workloadmeta.Params{
+					AgentType: workloadmeta.Remote,
 				}),
 				remoteTaggerfx.Module(tagger.RemoteParams{
 					RemoteTarget: func(c config.Component) (string, error) {
@@ -263,7 +257,7 @@ var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
 func RunAgent(log log.Component, config config.Component, telemetry telemetry.Component, statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component) (err error) {
-	if err := util.SetupCoreDump(config); err != nil {
+	if err := coredump.Setup(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 

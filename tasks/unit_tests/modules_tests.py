@@ -133,7 +133,6 @@ class TestGoModuleSerialization(unittest.TestCase):
             lint_targets=['.'],
             should_test_condition='always',
             should_tag=True,
-            importable=True,
             independent=True,
             used_by_otel=True,
         )
@@ -159,7 +158,6 @@ class TestGoModuleSerialization(unittest.TestCase):
             'lint_targets': ['.'],
             'should_test_condition': 'always',
             'should_tag': True,
-            'importable': True,
             'independent': True,
             'used_by_otel': True,
         }
@@ -185,7 +183,6 @@ class TestGoModuleSerialization(unittest.TestCase):
             'lint_targets': ['.'],
             'should_test_condition': 'always',
             'should_tag': True,
-            'importable': True,
             'independent': True,
             'used_by_otel': True,
             'legacy_go_mod_version': None,

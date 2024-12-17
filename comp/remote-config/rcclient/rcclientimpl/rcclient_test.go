@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 )
@@ -96,7 +95,7 @@ func TestRCClientCreate(t *testing.T) {
 }
 
 func TestAgentConfigCallback(t *testing.T) {
-	pkglog.SetupLogger(seelog.Default, "info")
+	pkglog.SetupLogger(pkglog.Default(), "info")
 	cfg := configmock.New(t)
 
 	rc := fxutil.Test[rcclient.Component](t,
