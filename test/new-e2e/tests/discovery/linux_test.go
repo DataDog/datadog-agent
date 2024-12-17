@@ -170,7 +170,19 @@ func assertRunningCheck(t *assert.CollectT, remoteHost *components.RemoteHost, c
 func (s *linuxTestSuite) provisionServer() {
 	err := s.Env().RemoteHost.CopyFolder("testdata/provision", "/home/ubuntu/e2e-test")
 	require.NoError(s.T(), err)
-	s.Env().RemoteHost.MustExecute("sudo bash /home/ubuntu/e2e-test/provision.sh")
+
+	cmd := "sudo bash /home/ubuntu/e2e-test/provision.sh"
+	_, err = s.Env().RemoteHost.Execute(cmd)
+	if err != nil {
+		// Sometimes temporary network errors are seen which cause the provision
+		// script to fail.
+		s.T().Log("Retrying provision due to failure", err)
+		time.Sleep(30 * time.Second)
+		_, err := s.Env().RemoteHost.Execute(cmd)
+		if err != nil {
+			s.T().Skip("Unable to provision server")
+		}
+	}
 }
 
 func (s *linuxTestSuite) startServices() {
