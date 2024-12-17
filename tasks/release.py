@@ -34,6 +34,7 @@ from tasks.libs.common.git import (
     get_last_commit,
     get_last_release_tag,
     is_agent6,
+    set_git_config,
     try_git_command,
 )
 from tasks.libs.common.gomodules import get_default_modules
@@ -84,16 +85,21 @@ GITLAB_FILES_TO_UPDATE = [
 BACKPORT_LABEL_COLOR = "5319e7"
 
 
-def deduce_and_ask_version(ctx, branch, as_str=True, trust=False) -> str | Version:
+def deduce_version(ctx, branch, as_str=True, trust=False) -> str | Version:
     release_version = get_next_version_from_branch(ctx, branch, as_str=as_str)
 
-    if trust:
-        return release_version
+    print(
+        f'{color_message("Info", Color.BLUE)}: Version {release_version} deduced from branch {branch}', file=sys.stderr
+    )
 
-    if not os.isatty(sys.stdin.fileno()) or yes_no_question(
-        f'Version {release_version} deduced from branch {branch}. Is this the version you want to use?',
-        color="orange",
-        default=False,
+    if (
+        trust
+        or not os.isatty(sys.stdin.fileno())
+        or yes_no_question(
+            'Is this the version you want to use?',
+            color="orange",
+            default=False,
+        )
     ):
         return release_version
 
@@ -170,7 +176,7 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
 
     assert release_branch or version
 
-    agent_version = version or deduce_and_ask_version(ctx, release_branch, trust=trust)
+    agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         modules = get_default_modules()
@@ -235,7 +241,7 @@ def tag_modules(
 
     assert release_branch or version
 
-    agent_version = version or deduce_and_ask_version(ctx, release_branch, trust=trust)
+    agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
     tags = []
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
@@ -274,7 +280,7 @@ def tag_version(
 
     assert release_branch or version
 
-    agent_version = version or deduce_and_ask_version(ctx, release_branch, trust=trust)
+    agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
     # Always tag the main module
     force_option = __get_force_option(force)
@@ -427,11 +433,16 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
         release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
-
     major_version = get_version_major(release_branch)
 
     with agent_context(ctx, release_branch):
         github = GithubAPI(repository=GITHUB_REPO_NAME)
+        github_action = os.environ.get("GITHUB_ACTIONS")
+
+        if github_action:
+            set_git_config('user.name', 'github-actions[bot]')
+            set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
+            upstream = f"https://x-access-token:{os.environ.get('GITHUB_TOKEN')}@github.com/{GITHUB_REPO_NAME}.git"
 
         # Get the version of the highest major: useful for some logging & to get
         # the version to use for Go submodules updates
@@ -463,12 +474,6 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         # Step 1: Update release entries
         print(color_message("Updating release entries", "bold"))
         new_version = next_rc_version(ctx, major_version, patch_version)
-        if not yes_no_question(
-            f'Do you want to create release candidate with:\n- new version: {new_version}\n- new highest version: {new_highest_version}\n- new final version: {new_final_version}?',
-            color="bold",
-            default=False,
-        ):
-            raise Exit(color_message("Aborting.", "red"), code=1)
 
         update_release_json(new_version, new_final_version)
 
@@ -492,7 +497,9 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
         ok = try_git_command(
-            ctx, f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'"
+            ctx,
+            f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'",
+            github_action,
         )
         if not ok:
             raise Exit(
@@ -1257,7 +1264,7 @@ def create_github_release(ctx, release_branch, draft=True):
     )
 
     notes = []
-    version = deduce_and_ask_version(ctx, release_branch)
+    version = deduce_version(ctx, release_branch)
 
     with agent_context(ctx, release_branch):
         for section, filename in sections:
