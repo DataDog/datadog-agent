@@ -94,9 +94,6 @@ func TestOTelFlareExtensionResponse(s OTelTestSuite, providedCfg string, fullCfg
 	assert.Equal(s.T(), "Datadog Agent OpenTelemetry Collector", resp.AgentDesc)
 	assert.Equal(s.T(), "", resp.RuntimeOverrideConfig)
 
-	s.T().Log("received provided config ", resp.CustomerConfig)
-	s.T().Log("received full config ", resp.RuntimeConfig)
-
 	validateConfigs(s.T(), providedCfg, resp.CustomerConfig)
 	validateConfigs(s.T(), fullCfg, resp.RuntimeConfig)
 
