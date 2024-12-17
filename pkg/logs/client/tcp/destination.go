@@ -165,7 +165,7 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) {
 //nolint:revive // TODO(AML) Fix revive linter
 func CheckConnectivityDiagnose(endpoint config.Endpoint) (url string, err error) {
 	destinationsCtx := client.NewDestinationsContext()
-	connManager := NewConnectionManager(endpoint, nil)
+	connManager := NewConnectionManager(endpoint, statusinterface.NewNoopStatusProvider())
 	destinationsCtx.Start()
 	defer destinationsCtx.Stop()
 
