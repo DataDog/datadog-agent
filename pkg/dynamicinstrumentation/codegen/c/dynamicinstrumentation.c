@@ -11,13 +11,13 @@
 SEC("uprobe/{{.GetBPFFuncName}}")
 int {{.GetBPFFuncName}}(struct pt_regs *ctx)
 {
-    bpf_printk("{{.GetBPFFuncName}} probe in {{.ServiceName}} has triggered");
+    log_debug("{{.GetBPFFuncName}} probe in {{.ServiceName}} has triggered");
 
     // reserve space on ringbuffer
     struct event *event;
     event = bpf_ringbuf_reserve(&events, sizeof(struct event), 0);
     if (!event) {
-        bpf_printk("No space available on ringbuffer, dropping event");
+        log_debug("No space available on ringbuffer, dropping event");
         return 0;
     }
 
@@ -25,7 +25,7 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     __u32 key = 0;
     zero_string = bpf_map_lookup_elem(&zeroval, &key);
     if (!zero_string) {
-        bpf_printk("couldn't lookup zero value in zeroval array map, dropping event for {{.GetBPFFuncName}}");
+        log_debug("couldn't lookup zero value in zeroval array map, dropping event for {{.GetBPFFuncName}}");
         bpf_ringbuf_discard(event, 0);
         return 0;
     }
@@ -75,8 +75,11 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     int chunk_size = 0;
     __u64 outputOffset = 0;
 
+    // Set up temporary storage array which is used by some location expressions
+    // to have memory off the stack to work with
     __u64 *temp_storage = bpf_map_lookup_elem(&temp_storage_array, &key) ;
     if (!temp_storage) {
+        log_debug("could not lookup temporary storage array");
         bpf_ringbuf_discard(event, 0);
         return 0;
     }

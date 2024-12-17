@@ -92,11 +92,11 @@ set_limit_entry(context, {{.Arg1}}, "{{.CollectionIdentifier}}");
 var jumpIfGreaterThanLimitText = `
 collectionLimit = bpf_map_lookup_elem(&collection_limits, "{{.CollectionIdentifier}}");
 if (!collectionLimit) {
-    bpf_printk("couldn't find collection limit for %s", "{{.CollectionIdentifier}}");
+    log_debug("couldn't find collection limit for {{.CollectionIdentifier}}");
     collectionLimit = &collectionMax;
 }
 if ({{.Arg1}} == *collectionLimit) {
-    bpf_printk("collection limit for {{.CollectionIdentifier}} exceeded: %d", *collectionLimit);
+    log_debug("collection limit for {{.CollectionIdentifier}} exceeded: %d", *collectionLimit);
     goto {{.Label}};
 }
 `
@@ -110,5 +110,5 @@ var commentText = `
 `
 
 var printStatementText = `
-bpf_printk("{{.Label}}", "{{.CollectionIdentifier}}");
+log_debug("{{.Label}}", "{{.CollectionIdentifier}}");
 `
