@@ -129,6 +129,20 @@ func SkipIfNotAvailable(t *testing.T) {
 	}
 }
 
+// getPIDCGroup returns the path of the first cgroup found for a PID
+func getPIDCGroup(pid uint32) (string, error) {
+	cgroups, err := utils.GetProcControlGroups(pid, pid)
+	if err != nil {
+		return "", err
+	}
+
+	if len(cgroups) == 0 {
+		return "", fmt.Errorf("failed to find cgroup for pid %d", pid)
+	}
+
+	return cgroups[0].Path, nil
+}
+
 func preTestsHook() {
 	if trace {
 		args := slices.DeleteFunc(os.Args, func(arg string) bool {

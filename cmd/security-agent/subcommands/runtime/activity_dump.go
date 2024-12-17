@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -37,6 +38,7 @@ type activityDumpCliParams struct {
 
 	name                     string
 	containerID              string
+	cgroupID                 string
 	file                     string
 	file2                    string
 	timeout                  string
@@ -113,7 +115,13 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		&cliParams.containerID,
 		"container-id",
 		"",
-		"an containerID can be used to filter the activity dump.",
+		"a containerID can be used to filter the activity dump.",
+	)
+	activityDumpStopCmd.Flags().StringVar(
+		&cliParams.cgroupID,
+		"cgroup-id",
+		"",
+		"a cgroup ID can be used to filter the activity dump.",
 	)
 
 	return []*cobra.Command{activityDumpStopCmd}
@@ -158,9 +166,15 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		"a container identifier can be used to filter the activity dump from a specific container.",
 	)
 	activityDumpGenerateDumpCmd.Flags().StringVar(
+		&cliParams.cgroupID,
+		"cgroup-id",
+		"",
+		"a cgroup identifier can be used to filter the activity dump from a specific cgroup.",
+	)
+	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.timeout,
 		"timeout",
-		"1m",
+		"",
 		"timeout for the activity dump",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
@@ -172,7 +186,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.localStorageDirectory,
 		"output",
-		"/tmp/activity_dumps/",
+		"",
 		"local storage output directory",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
@@ -459,8 +473,15 @@ func generateActivityDump(_ log.Component, _ config.Component, _ secrets.Compone
 		return err
 	}
 
+	if activityDumpArgs.timeout != "" {
+		if _, err = time.ParseDuration(activityDumpArgs.timeout); err != nil {
+			return err
+		}
+	}
+
 	output, err := client.GenerateActivityDump(&api.ActivityDumpParams{
 		ContainerID:       activityDumpArgs.containerID,
+		CGroupID:          activityDumpArgs.cgroupID,
 		Timeout:           activityDumpArgs.timeout,
 		DifferentiateArgs: activityDumpArgs.differentiateArgs,
 		Storage:           storage,
@@ -609,7 +630,7 @@ func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 	}
 	defer client.Close()
 
-	output, err := client.StopActivityDump(activityDumpArgs.name, activityDumpArgs.containerID)
+	output, err := client.StopActivityDump(activityDumpArgs.name, activityDumpArgs.containerID, activityDumpArgs.cgroupID)
 	if err != nil {
 		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}

@@ -16,9 +16,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
@@ -59,6 +59,7 @@ var (
 		"system-probe.yaml",
 		"inject/tracer.yaml",
 		"inject",
+		"managed",
 	}
 	// matches omnibus/package-scripts/agent-deb/postinst
 	rootOwnedAgentPaths = []string{
@@ -71,8 +72,8 @@ var (
 
 // PrepareAgent prepares the machine to install the agent
 func PrepareAgent(ctx context.Context) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "prepare_agent")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "prepare_agent")
+	defer func() { span.Finish(err) }()
 
 	err = removeDebRPMPackage(ctx, "datadog-agent")
 	if err != nil {
@@ -92,13 +93,13 @@ func PrepareAgent(ctx context.Context) (err error) {
 
 // SetupAgent installs and starts the agent
 func SetupAgent(ctx context.Context, _ []string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
+	span, ctx := telemetry.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup agent, reverting: %s", err)
 			err = errors.Join(err, RemoveAgent(ctx))
 		}
-		span.Finish(tracer.WithError(err))
+		span.Finish(err)
 	}()
 
 	for _, unit := range stableUnits {
@@ -163,38 +164,45 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 
 // RemoveAgent stops and removes the agent
 func RemoveAgent(ctx context.Context) error {
-	span, ctx := tracer.StartSpanFromContext(ctx, "remove_agent_units")
-	defer span.Finish()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "remove_agent_units")
+	var spanErr error
+	defer func() { span.Finish(spanErr) }()
 	// stop experiments, they can restart stable agent
 	for _, unit := range experimentalUnits {
 		if err := stopUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
+			spanErr = err
 		}
 	}
 	// stop stable agents
 	for _, unit := range stableUnits {
 		if err := stopUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
+			spanErr = err
 		}
 	}
 
 	if err := disableUnit(ctx, agentUnit); err != nil {
 		log.Warnf("Failed to disable %s: %s", agentUnit, err)
+		spanErr = err
 	}
 
 	// remove units from disk
 	for _, unit := range experimentalUnits {
 		if err := removeUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to remove %s: %s", unit, err)
+			spanErr = err
 		}
 	}
 	for _, unit := range stableUnits {
 		if err := removeUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to remove %s: %s", unit, err)
+			spanErr = err
 		}
 	}
 	if err := os.Remove(agentSymlink); err != nil {
 		log.Warnf("Failed to remove agent symlink: %s", err)
+		spanErr = err
 	}
 	installinfo.RmInstallInfo()
 	// TODO: Return error to caller?
