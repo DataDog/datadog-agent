@@ -237,7 +237,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, conta
 			return devices, nil
 		}
 
-		// Some error ocurred while retrieving the container, this could be a
+		// Some error occurred while retrieving the container, this could be a
 		// general error with the store, report it.
 		return nil, fmt.Errorf("cannot retrieve data for container %s: %s", containerID, err)
 	}
