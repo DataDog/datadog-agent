@@ -43,7 +43,7 @@
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
-    # AWS SSH Key configuration  
+    # AWS SSH Key configuration
     E2E_AWS_PUBLIC_KEY_PATH: /tmp/agent-qa-aws-ssh-key.pub
     E2E_AWS_PRIVATE_KEY_PATH: /tmp/agent-qa-aws-ssh-key
     E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
@@ -412,8 +412,8 @@ new-e2e-installer:
     - deploy_rpm_testing-a7_x64
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
-    - qa_installer_oci
-    - qa_agent_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
@@ -428,8 +428,8 @@ new-e2e-installer-windows:
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
-    - qa_installer_oci
-    - qa_agent_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
   before_script:
     # CURRENT_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
@@ -471,8 +471,8 @@ new-e2e-installer-ansible:
     - deploy_rpm_testing-a7_x64
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
-    - qa_installer_oci
-    - qa_agent_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
@@ -512,7 +512,7 @@ new-e2e-ha-agent:
     TEAM: ndm-core
 
 new-e2e-netpath:
-  extends: .new_e2e_template_needs_deb_x64
+  extends: .new_e2e_template_needs_deb_windows_x64
   rules:
     - !reference [.on_netpath_or_e2e_changes]
     - !reference [.manual]
@@ -663,8 +663,8 @@ generate-flakes-finder-pipeline:
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
     - deploy_windows_testing-a7
-    - qa_installer_oci
-    - qa_agent_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
     - qa_cws_instrumentation
     - qa_dca
     - qa_dogstatsd

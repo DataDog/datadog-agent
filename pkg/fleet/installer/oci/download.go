@@ -20,7 +20,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/awslabs/amazon-ecr-credential-helper/ecr-login"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	oci "github.com/google/go-containerregistry/pkg/v1"
@@ -31,11 +30,11 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"go.uber.org/multierr"
 	"golang.org/x/net/http2"
-	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/tar"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,8 +43,6 @@ const (
 	RegistryAuthDefault string = "docker"
 	// RegistryAuthGCR is the Google Container Registry authentication method.
 	RegistryAuthGCR string = "gcr"
-	// RegistryAuthECR is the Amazon Elastic Container Registry authentication method.
-	RegistryAuthECR string = "ecr"
 	// RegistryAuthPassword is the password registry authentication method.
 	RegistryAuthPassword string = "password"
 )
@@ -154,8 +151,6 @@ func getKeychain(auth string, username string, password string) authn.Keychain {
 	switch auth {
 	case RegistryAuthGCR:
 		return google.Keychain
-	case RegistryAuthECR:
-		return authn.NewKeychainFromHelper(ecr.NewECRHelper())
 	case RegistryAuthPassword:
 		return usernamePasswordKeychain{
 			username: username,
@@ -241,7 +236,7 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 // If they are specified, the registry and authentication overrides are applied first.
 // Then we try each registry in the list of default registries in order and return the first successful download.
 func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Image, error) {
-	transport := httptrace.WrapRoundTripper(d.client.Transport)
+	transport := telemetry.WrapRoundTripper(d.client.Transport)
 	var err error
 	if d.env.Mirror != "" {
 		transport, err = newMirrorTransport(transport, d.env.Mirror)

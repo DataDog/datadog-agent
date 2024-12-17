@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	// SectorSize is used here to substitute non-exporeted from github.com/shirou/gopsutil/v3/disk package constant named "sectorSize"
+	// SectorSize is used here to substitute non-exporeted from github.com/shirou/gopsutil/v4/disk package constant named "sectorSize"
 	SectorSize = 512
 	kB         = (1 << 10)
 	CheckName  = "io"

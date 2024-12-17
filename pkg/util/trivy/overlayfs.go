@@ -23,7 +23,7 @@ import (
 
 // whiteoutCharDev is defined as zero and is not const only for testing as it
 // is not allowed to mknod a 0/0 char dev in userns.
-var whiteoutCharDev uint64 = 0 //nolint:revive
+var whiteoutCharDev uint64 // = 0
 
 var whiteout *fs.DirEntry
 
