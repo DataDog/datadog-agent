@@ -509,7 +509,7 @@ class CollectorVersionUpdater:
 
 
 @task(post=[tidy])
-def update(ctx):
+def update(_):
     updater = CollectorVersionUpdater()
     updater.update()
     print("Update complete.")
@@ -518,12 +518,12 @@ def update(ctx):
 @task()
 def pull_request(ctx):
     # Save current Git configuration
-    original_config = {'user.name': get_git_config('user.name'), 'user.email': get_git_config('user.email')}
+    original_config = {'user.name': get_git_config(ctx, 'user.name'), 'user.email': get_git_config(ctx, 'user.email')}
 
     try:
         # Set new Git configuration
-        set_git_config('user.name', 'github-actions[bot]')
-        set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
+        set_git_config(ctx, 'user.name', 'github-actions[bot]')
+        set_git_config(ctx, 'user.email', 'github-actions[bot]@users.noreply.github.com')
 
         # Perform Git operations
         ctx.run('git add .')
@@ -554,4 +554,4 @@ def pull_request(ctx):
             print("No changes detected, skipping PR creation.")
     finally:
         # Revert to original Git configuration
-        revert_git_config(original_config)
+        revert_git_config(ctx, original_config)

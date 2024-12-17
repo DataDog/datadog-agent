@@ -119,6 +119,7 @@ jobs:
               env:
                 MATRIX: ${{ matrix.value }}
               run: |
+                git fetch
                 if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
                   inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT6_RELEASE_SLACK_WEBHOOK }} --patch-version
                 else

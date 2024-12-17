@@ -41,6 +41,7 @@ from tasks.libs.common.git import (
 )
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
+from tasks.libs.common.utils import set_gitconfig_in_ci
 from tasks.libs.common.worktree import agent_context
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -206,6 +207,7 @@ def tag_modules(
 
         if push:
             tags_list = ' '.join(tags)
+            set_gitconfig_in_ci(ctx)
             for idx in range(0, len(tags), TAG_BATCH_SIZE):
                 batch_tags = tags[idx : idx + TAG_BATCH_SIZE]
                 ctx.run(f"git push origin {' '.join(batch_tags)}{force_option}")
@@ -250,6 +252,7 @@ def tag_version(
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         tags = __tag_single_module(ctx, get_default_modules()["."], agent_version, commit, force_option, devel)
 
+        set_gitconfig_in_ci(ctx)
         # create or update the qualification tag using the force option (points tag to next RC)
         if is_agent6(ctx) and (start_qual or is_qualification(ctx, "6.53.x")):
             if FINAL_VERSION_RE.match(agent_version):
@@ -323,6 +326,7 @@ def finish(ctx, release_branch, upstream="origin"):
 
         commit_message = f"'Final updates for release.json and Go modules for {new_version} release'"
 
+        set_gitconfig_in_ci(ctx)
         ok = try_git_command(ctx, f"git commit -m {commit_message}")
         if not ok:
             raise Exit(
@@ -394,12 +398,6 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
 
     with agent_context(ctx, release_branch):
         github = GithubAPI(repository=GITHUB_REPO_NAME)
-        github_action = os.environ.get("GITHUB_ACTIONS")
-
-        if github_action:
-            set_git_config('user.name', 'github-actions[bot]')
-            set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
-            upstream = f"https://x-access-token:{os.environ.get('GITHUB_TOKEN')}@github.com/{GITHUB_REPO_NAME}.git"
 
         # Get the version of the highest major: useful for some logging & to get
         # the version to use for Go submodules updates
@@ -454,10 +452,10 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         ctx.run("git add release.json")
         ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
+        set_gitconfig_in_ci(ctx)
         ok = try_git_command(
             ctx,
             f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'",
-            github_action,
         )
         if not ok:
             raise Exit(
@@ -673,6 +671,7 @@ def create_and_update_release_branch(
         # Step 2 - Push newly created release branch to the remote repository
 
         print(color_message("Pushing new branch to the upstream repository", "bold"))
+        set_gitconfig_in_ci(ctx)
         res = ctx.run(f"git push --set-upstream {upstream} {release_branch}", warn=True)
         if res.exited is None or res.exited > 0:
             raise Exit(
@@ -863,6 +862,7 @@ def cleanup(ctx, release_branch):
         ctx.run("git add release.json")
 
         commit_message = f"Update last_stable to {version}"
+        set_gitconfig_in_ci(ctx)
         ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
         if not ok:
             raise Exit(
@@ -1175,6 +1175,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
                         with clone(ctx, repo_name, repo['branch'], options="--filter=blob:none --no-checkout"):
                             # We can add the new commit now to be used by release candidate creation
                             print(f"Creating new tag {next_version} on {repo_name}", file=sys.stderr)
+                            set_gitconfig_in_ci(ctx)
                             ctx.run(f"git tag {next_version}")
                             ctx.run(f"git push origin tag {next_version}")
                 # This repo has changes, the next check is not needed
