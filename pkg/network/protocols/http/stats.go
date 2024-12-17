@@ -126,6 +126,9 @@ type RequestStat struct {
 
 	// Dynamic tags (if attached)
 	DynamicTags []string
+
+	// CanRelease is true when the struct is no longer referenced
+	CanRelease bool
 }
 
 func (r *RequestStat) initSketch() (err error) {
@@ -138,8 +141,7 @@ func (r *RequestStat) initSketch() (err error) {
 
 // RequestStats stores HTTP request statistics.
 type RequestStats struct {
-	Data   map[uint16]*RequestStat
-	Merged bool
+	Data map[uint16]*RequestStat
 }
 
 // NewRequestStats creates a new RequestStats object.
@@ -160,6 +162,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 	for statusCode, newRequests := range newStats.Data {
 		if newRequests.Count == 0 {
 			// Nothing to do in this case
+			newRequests.CanRelease = true
 			continue
 		}
 
@@ -195,7 +198,6 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 		}
 		stats.Count += newRequests.Count
 	}
-	newStats.Merged = true
 }
 
 // AddRequest takes information about a HTTP transaction and adds it to the request stats
@@ -244,6 +246,15 @@ func (r *RequestStats) HalfAllCounts() {
 	for _, stats := range r.Data {
 		if stats != nil {
 			stats.Count = stats.Count / 2
+		}
+	}
+}
+
+// ReleaseStats deletes requests which are not referenced.
+func (r *RequestStats) ReleaseStats() {
+	for statusCode, requests := range r.Data {
+		if requests.CanRelease {
+			delete(r.Data, statusCode)
 		}
 	}
 }

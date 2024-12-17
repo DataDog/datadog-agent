@@ -548,16 +548,8 @@ func (e *ebpfProgram) releaseStats(conns *network.Connections) {
 	for _, protocol := range e.enabledProtocols {
 		switch protocol.Instance.Type() {
 		case protocols.HTTP:
-			for key, rs := range conns.HTTP {
-				if rs.Merged {
-					delete(conns.HTTP, key)
-				}
-			}
-		case protocols.HTTP2:
-			for key, rs := range conns.HTTP2 {
-				if rs.Merged {
-					delete(conns.HTTP2, key)
-				}
+			for _, rs := range conns.HTTP {
+				rs.ReleaseStats()
 			}
 		}
 	}
