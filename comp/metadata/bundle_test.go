@@ -10,7 +10,7 @@ import (
 
 	"go.uber.org/fx"
 
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fx-fetchonly"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
