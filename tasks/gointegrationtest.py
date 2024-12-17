@@ -154,7 +154,8 @@ def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
                 # Storing the traceback to print it at the end without directly raising the exception
                 tests_failures[t_name] = traceback.format_exc()
     if tests_failures:
-        print("Integration tests failed:")
-        for t_name, t_failure in tests_failures.items():
-            print(f"{t_name}:\n{t_failure}")
+        print("The following integration tests failed:")
+        for t_name in tests_failures:
+            print(f"- {t_name}")
+        print("See the above logs to get the full traceback.")
         raise Exit(code=1)
