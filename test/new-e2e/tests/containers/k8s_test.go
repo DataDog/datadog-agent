@@ -41,6 +41,7 @@ const (
 	kubeNamespaceDogstatsWorkload           = "workload-dogstatsd"
 	kubeNamespaceDogstatsStandaloneWorkload = "workload-dogstatsd-standalone"
 	kubeNamespaceTracegenWorkload           = "workload-tracegen"
+	kubeDeploymentDogstatsdUDP              = "dogstatsd-udp"
 	kubeDeploymentDogstatsdUDPOrigin        = "dogstatsd-udp-origin-detection"
 	kubeDeploymentDogstatsdUDPExternalData  = "dogstatsd-udp-external-data-only"
 	kubeDeploymentDogstatsdUDS              = "dogstatsd-uds"
@@ -468,7 +469,10 @@ func (suite *k8sSuite) TestNginx() {
 				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-nginx-server$`,
-				`^email:team-container-platform@datadoghq.com$`,
+				`^domain:deployment$`,
+				`^mail:team-container-platform@datadoghq.com$`,
+				`^org:agent-org$`,
+				`^parent-name:nginx$`,
 				`^team:contp$`,
 			},
 			AcceptUnexpectedTags: true,
@@ -543,7 +547,10 @@ func (suite *k8sSuite) TestNginx() {
 				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-nginx-server$`,
-				`^email:team-container-platform@datadoghq.com$`,
+				`^domain:deployment$`,
+				`^mail:team-container-platform@datadoghq.com$`,
+				`^org:agent-org$`,
+				`^parent-name:nginx$`,
 				`^team:contp$`,
 			},
 			Message: `GET / HTTP/1\.1`,
@@ -796,44 +803,53 @@ func (suite *k8sSuite) TestCPU() {
 
 func (suite *k8sSuite) TestDogstatsdInAgent() {
 	// Test with UDS
-	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
 	// Test with UDP + Origin detection
-	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
 	// Test with UDP + DD_ENTITY_ID
-	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDP)
 	// Test with UDP + External Data
 	suite.testDogstatsdExternalData(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPExternalData)
 }
 
 func (suite *k8sSuite) TestDogstatsdStandalone() {
 	// Test with UDS
-	suite.testDogstatsdContainerID(kubeNamespaceDogstatsStandaloneWorkload, kubeDeploymentDogstatsdUDS)
+	suite.testDogstatsd(kubeNamespaceDogstatsStandaloneWorkload, kubeDeploymentDogstatsdUDS)
 	// Dogstatsd standalone does not support origin detection
 	// Test with UDP + DD_ENTITY_ID
-	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDP)
 }
 
-func (suite *k8sSuite) testDogstatsdPodUID(kubeNamespace string) {
-	// Test dogstatsd origin detection with UDP + DD_ENTITY_ID
+func (suite *k8sSuite) testDogstatsd(kubeNamespace, kubeDeployment string) {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
-				"^kube_deployment:dogstatsd-udp$",
+				"^kube_deployment:" + regexp.QuoteMeta(kubeDeployment) + "$",
 				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
 			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
-				`^kube_deployment:dogstatsd-udp$`,
+				`^container_id:`,
+				`^container_name:dogstatsd$`,
+				`^display_container_name:dogstatsd`,
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+				`^image_id:ghcr.io/datadog/apps-dogstatsd@sha256:`,
+				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
+				`^image_tag:main$`,
+				`^kube_container_name:dogstatsd$`,
+				`^kube_deployment:` + regexp.QuoteMeta(kubeDeployment) + `$`,
 				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
 				`^kube_ownerref_kind:replicaset$`,
-				`^kube_ownerref_name:dogstatsd-udp-[[:alnum:]]+$`,
+				`^kube_ownerref_name:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+$`,
 				`^kube_qos:Burstable$`,
-				`^kube_replica_set:dogstatsd-udp-[[:alnum:]]+$`,
-				`^pod_name:dogstatsd-udp-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^kube_replica_set:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+$`,
+				`^pod_name:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^series:`,
+				`^short_image:apps-dogstatsd$`,
 			},
 		},
 	})
@@ -892,41 +908,6 @@ func (suite *k8sSuite) testDogstatsdExternalData(kubeNamespace, kubeDeployment s
 				`^display_container_name:dogstatsd`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
-				`^image_id:ghcr.io/datadog/apps-dogstatsd@sha256:`,
-				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
-				`^image_tag:main$`,
-				`^kube_container_name:dogstatsd$`,
-				`^kube_deployment:` + regexp.QuoteMeta(kubeDeployment) + `$`,
-				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
-				`^kube_ownerref_kind:replicaset$`,
-				`^kube_ownerref_name:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+$`,
-				`^kube_qos:Burstable$`,
-				`^kube_replica_set:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+$`,
-				`^pod_name:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+-[[:alnum:]]+$`,
-				`^pod_phase:running$`,
-				`^series:`,
-				`^short_image:apps-dogstatsd$`,
-			},
-		},
-	})
-}
-
-func (suite *k8sSuite) testDogstatsdContainerID(kubeNamespace, kubeDeployment string) {
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
-			Name: "custom.metric",
-			Tags: []string{
-				"^kube_deployment:" + regexp.QuoteMeta(kubeDeployment) + "$",
-				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
-			},
-		},
-		Expect: testMetricExpectArgs{
-			Tags: &[]string{
-				`^container_id:`,
-				`^container_name:dogstatsd$`,
-				`^display_container_name:dogstatsd`,
-				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr.io/datadog/apps-dogstatsd@sha256:`,
 				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
 				`^image_tag:main$`,
