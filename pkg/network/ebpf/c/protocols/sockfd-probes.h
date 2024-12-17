@@ -54,7 +54,7 @@ int BPF_KPROBE(kprobe__sockfd_lookup_light, int sockfd) {
     // but can reduce the accuracy of programs relying on socket FDs for
     // processes with a lot of FD churn
     pid_fd_t key = {
-        .pid = GET_PID(pid_tgid),
+        .pid = GET_USER_MODE_PID(pid_tgid),
         .fd = sockfd,
     };
     conn_tuple_t *t = bpf_map_lookup_elem(&tuple_by_pid_fd, &key);
@@ -122,7 +122,7 @@ int BPF_KRETPROBE(kretprobe__sockfd_lookup_light, struct socket *socket) {
     }
 
     pid_fd_t pid_fd = {
-        .pid = GET_PID(pid_tgid),
+        .pid = GET_USER_MODE_PID(pid_tgid),
         .fd = (*sockfd),
     };
 

@@ -46,7 +46,7 @@
  *                         ^^^^^^^^
  *                         KERNEL VIEW
  */
-#define GET_PID(x) ((x) >> 32)
+#define GET_USER_MODE_PID(x) ((x) >> 32)
 #define GET_TGID(x) ((x) & 0xFFFFFFFF)
 
 #endif // __PID_TGID_H

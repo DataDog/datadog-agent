@@ -39,7 +39,7 @@ static __always_inline void do_sys_open_helper_enter(const char *filename) {
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    path.pid = GET_PID(pid_tgid);
+    path.pid = GET_USER_MODE_PID(pid_tgid);
     bpf_map_update_with_telemetry(open_at_args, &pid_tgid, &path, BPF_ANY);
     return;
 }

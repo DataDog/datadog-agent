@@ -50,7 +50,7 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* 
 
     // The code path below should be executed only once during the lifecycle of a TLS connection
     pid_fd_t pid_fd = {
-        .pid = GET_PID(pid_tgid),
+        .pid = GET_USER_MODE_PID(pid_tgid),
         // fd is populated by the code downstream
         .fd = 0,
     };
