@@ -2,7 +2,7 @@
 # choco_build stage
 # Contains jobs which build the chocolatey Agent package.
 
-# The online version of the choco job gets the msi package through the gitlab artifacts
+# The choco job gets the msi package through the gitlab artifacts
 .windows_choco_7_x64:
   rules:
     !reference [.on_deploy_stable_or_beta_repo_branch]
@@ -13,11 +13,7 @@
   script:
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - $ErrorActionPreference = "Stop"
-    - mkdir temp\
-    - copy omnibus\pkg\*.msi temp\
-    - if (Test-Path omnibus) { remove-item -recurse -force omnibus }
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
-    - mkdir omnibus\pkg
     - >
       docker run --rm
       -v "$(Get-Location):c:\mnt"
@@ -26,10 +22,8 @@
       -e BUCKET_BRANCH="$BUCKET_BRANCH"
       -e AWS_NETWORKING=true
       registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
-      powershell.exe -C "C:\mnt\tasks\winbuildscripts\Generate-Chocolatey-Package.ps1 -MSIDirectory c:\mnt\temp -Flavor $FLAVOR -InstallDeps 1"
+      powershell.exe -C "C:\mnt\tasks\winbuildscripts\Generate-Chocolatey-Package.ps1 -MSIDirectory c:\mnt\omnibus\pkg -Flavor $FLAVOR -InstallDeps 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-    - Remove-Item -Path "temp\" -Recurse -Force
-    - copy build-out\*.nupkg omnibus\pkg
     - $CopyNupkgToS3 = "$S3_CP_CMD --recursive --exclude '*' --include '*.nupkg' build-out $S3_RELEASE_ARTIFACTS_URI/choco/nupkg"
     - Invoke-Expression $CopyNupkgToS3
   artifacts:

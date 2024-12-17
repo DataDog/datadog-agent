@@ -15,7 +15,7 @@ Overrides the Agent version when building packages locally for testing.
 Indicates whether to install dependencies. The default value is $true.
 
 .EXAMPLE
-.\Generate-Chocolatey-Package.ps1 -Flavor datadog-agent -VersionOverride "7.62.0" -msiDirectory C:\mnt\omnibus\pkg\
+.\Generate-Chocolatey-Package.ps1 -Flavor datadog-agent -VersionOverride "7.62.0" -msiDirectory C:\mnt\omnibus\pkg
 
 Generates a chocolatey package for 7.62.0, requires the MSI file to be present in MSIDirectory.
 
@@ -26,7 +26,7 @@ Generates a chocolatey package for PR/devel build 7.62.0-devel.git.276.e59b1b3.p
 The generated chocolatey package requires the MSI be uploaded to the dd-agent-mstesting bucket.
 #>
 Param(
-    [Parameter(Mandatory=$false)]
+    [Parameter(Mandatory=$true)]
     [String]
     $msiDirectory,
 
@@ -79,16 +79,14 @@ try {
         # For historical reasons, use a different artifact name for the datadog-agent flavor
         # See agent-release-management for more details
         $artifactName = "ddagent-cli"
-        $packageSource = "$repoRoot\chocolatey\datadog-agent"
-        $nuspecFile = "datadog-agent.nuspec"
     } elseif ($Flavor -eq "datadog-fips-agent") {
         $artifactName = "datadog-fips-agent"
-        $packageSource = "$repoRoot\chocolatey\datadog-fips-agent"
-        $nuspecFile = "datadog-fips-agent.nuspec"
     } else {
         Write-Error "Unknown flavor $Flavor"
         exit 1
-    }
+
+    $packageSource = "$repoRoot\chocolatey\$Flavor"
+    $nuspecFile = "$Flavor.nuspec"
 
     # These files/directories are referenced in the nuspec file
     $licensePath = "tools\LICENSE.txt"
@@ -141,16 +139,16 @@ try {
 
     # Template the install script with the URL and checksum
     try {
-        $tempMsi = Join-Path -Path "$msiDirectory" "$flavor-$rawAgentVersion-1-x86_64.msi"
-        if (!(Test-Path $tempMsi)) {
-            Write-Host "Error: Could not find MSI file in $tempMsi"
+        $msiPath = Join-Path -Path "$msiDirectory" "$flavor-$rawAgentVersion-1-x86_64.msi"
+        if (!(Test-Path $msiPath)) {
+            Write-Host "Error: Could not find MSI file in $msiPath"
             Get-ChildItem "$msiDirectory"
             exit 1
         }
-        $checksum = (Get-FileHash $tempMsi -Algorithm SHA256).Hash
+        $checksum = (Get-FileHash $msiPath -Algorithm SHA256).Hash
     }
     catch {
-        Write-Host "Error: Could not generate checksum for package $($tempMsi): $($_)"
+        Write-Host "Error: Could not generate checksum for package $($msiPath): $($_)"
         exit 1
     }
     # Set the $url in the install script
