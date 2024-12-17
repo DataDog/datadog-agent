@@ -34,6 +34,10 @@ func (t *Tracer) GetActiveConnections(_ string) (*network.Connections, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
+// ReleaseProtocolStats is not implemented on this OS for Tracer
+func (t *Tracer) ReleaseProtocolStats(_ *network.Connections) {
+}
+
 // GetNetworkID is not implemented on this OS for Tracer
 func (t *Tracer) GetNetworkID(_ context.Context) (string, error) {
 	return "", ebpf.ErrNotImplemented
