@@ -9,6 +9,7 @@ package setup
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
@@ -17,23 +18,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 )
 
-const (
-	// FlavorDatabricks is the flavor for the Data Jobs Monitoring databricks setup.
-	FlavorDatabricks = "databricks"
-)
+type flavor struct {
+	path string // path is used to print the path to the setup script for users.
+	run  func(*common.Setup) error
+}
+
+var flavors = map[string]flavor{
+	"databricks": {path: "djm/databricks.go", run: djm.SetupDatabricks},
+}
 
 // Setup installs Datadog.
 func Setup(ctx context.Context, env *env.Env, flavor string) error {
-	s, err := common.NewSetup(ctx, env, flavor)
+	f, ok := flavors[flavor]
+	if !ok {
+		return fmt.Errorf("unknown flavor %s", flavor)
+	}
+	s, err := common.NewSetup(ctx, env, flavor, f.path, os.Stdout)
 	if err != nil {
 		return err
 	}
-	switch flavor {
-	case FlavorDatabricks:
-		err = djm.SetupDatabricks(s)
-	default:
-		return fmt.Errorf("unknown setup flavor %s", flavor)
-	}
+	err = f.run(s)
 	if err != nil {
 		return err
 	}

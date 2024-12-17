@@ -61,6 +61,10 @@ type Store struct {
 	// notification with a group of events.
 	Receives telemetry.Counter
 
+	// OriginInfoRequests tracks the number of requests to the Tagger
+	// to generate a container ID from Origin Info.
+	OriginInfoRequests telemetry.Counter
+
 	LowCardinalityQueries          CardinalityTelemetry
 	OrchestratorCardinalityQueries CardinalityTelemetry
 	HighCardinalityQueries         CardinalityTelemetry
@@ -129,6 +133,12 @@ func NewStore(telemetryComp telemetry.Component) *Store {
 			// Remote
 			Receives: telemetryComp.NewCounterWithOpts(subsystem, "receives",
 				[]string{}, "Number of of times the tagger has received a notification with a group of events",
+				telemetry.Options{NoDoubleUnderscoreSep: true}),
+
+			// OriginInfoRequests tracks the number of requests to the tagger
+			// to generate a container ID from origin info.
+			OriginInfoRequests: telemetryComp.NewCounterWithOpts(subsystem, "origin_info_requests",
+				[]string{"status"}, "Number of requests to the tagger to generate a container ID from origin info.",
 				telemetry.Options{NoDoubleUnderscoreSep: true}),
 
 			LowCardinalityQueries:          newCardinalityTelemetry(queries, types.LowCardinalityString),
