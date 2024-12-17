@@ -17,6 +17,7 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -46,7 +47,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			sysprobeconfigimpl.MockModule(),
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			authtokenimpl.Module(),
+			authtokenmock.Module(),
 		),
 	)
 }
@@ -525,7 +526,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			config.MockModule(),
 			sysprobeconfig.NoneModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			authtokenimpl.Module(),
+			authtokenmock.Module(),
 		),
 	)
 	ia = p.Comp.(*inventoryagent)

@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	fetchonlyimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fxfetchonly"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -27,8 +27,8 @@ import (
 func makeDeps(t *testing.T) dependencies {
 	return fxutil.Test[dependencies](t, fx.Options(
 		core.MockBundle(),
-		fetchonlyimpl.MockModule(), // use the mock to avoid trying to read the file
 		fx.Supply(NewParams(0, 0, false)),
+		authtokenmock.Module(),
 	))
 }
 

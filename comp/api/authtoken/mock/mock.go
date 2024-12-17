@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build test
-
 // Package mock provides a mock for the authtoken component
 package mock
 
@@ -12,16 +10,30 @@ import (
 	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
-	"testing"
 
 	authtoken "github.com/DataDog/datadog-agent/comp/api/authtoken/def"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type mock struct{}
 
+// Module is a module containing the mock, useful for testing
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(Mock),
+	)
+}
+
+// Provides defines the output of the authtoken mock component
+type Provides struct {
+	Comp authtoken.Component
+}
+
 // Mock returns a mock for authtoken component.
-func Mock(t *testing.T) authtoken.Component {
-	return &mock{}
+func Mock() Provides {
+	return Provides{
+		Comp: &mock{},
+	}
 }
 
 // Get is a mock of the fetchonly Get function

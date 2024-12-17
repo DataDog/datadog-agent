@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	fetchonlyimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fxfetchonly"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -76,7 +76,7 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 		demultiplexerimpl.MockModule(),
 		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
 		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
-		fetchonlyimpl.MockModule(),
+		authtokenmock.Module(),
 		fx.Supply(context.Background()),
 		taggermock.Module(),
 		fx.Provide(func(mock taggermock.Mock) tagger.Component {
