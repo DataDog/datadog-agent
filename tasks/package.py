@@ -14,9 +14,10 @@ from tasks.libs.package.size import (
     compute_package_size_metrics,
 )
 from tasks.libs.package.utils import (
+    PackageSize,
     display_message,
+    find_package,
     get_ancestor,
-    get_package_path,
     list_packages,
     retrieve_package_sizes,
     upload_package_sizes,
@@ -33,26 +34,29 @@ def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False)
         if ancestor in package_sizes:
             # The test already ran on this commit
             return
-        package_sizes[ancestor] = PACKAGE_SIZE_TEMPLATE
+        package_sizes[ancestor] = PACKAGE_SIZE_TEMPLATE.copy()
         package_sizes[ancestor]['timestamp'] = int(datetime.now().timestamp())
     # Check size of packages
     print(
         color_message(f"Checking package sizes from {os.environ['CI_COMMIT_REF_NAME']} against {ancestor}", Color.BLUE)
     )
-    size_table = ""
+    size_table = []
     for package_info in list_packages(PACKAGE_SIZE_TEMPLATE):
-        size_table += f"{compare(ctx, package_sizes, ancestor, *package_info)}\n"
+        pkg_size = PackageSize(*package_info)
+        size_table.append(compare(ctx, package_sizes, ancestor, pkg_size))
 
     if on_main:
         upload_package_sizes(ctx, package_sizes, filename, distant=not dry_run)
     else:
-        if "❌" in size_table:
+        size_table.sort(key=lambda x: (-x.diff, x.flavor, x.arch_name()))
+        size_message = "".join(f"{pkg_size.markdown()}\n" for pkg_size in size_table)
+        if "❌" in size_message:
             decision = "❌ Failed"
-        elif "⚠️" in size_table:
+        elif "⚠️" in size_message:
             decision = "⚠️ Warning"
         else:
             decision = "✅ Passed"
-        display_message(ctx, ancestor, size_table, decision)
+        display_message(ctx, ancestor, size_message, decision)
         if "Failed" in decision:
             raise Exit(code=1)
 
@@ -62,11 +66,11 @@ def compare_size(ctx, new_package, stable_package, package_type, last_stable, th
     mb = 1000000
 
     if package_type.endswith('deb'):
-        new_package_size = _get_deb_uncompressed_size(ctx, get_package_path(new_package))
-        stable_package_size = _get_deb_uncompressed_size(ctx, get_package_path(stable_package))
+        new_package_size = _get_deb_uncompressed_size(ctx, find_package(new_package))
+        stable_package_size = _get_deb_uncompressed_size(ctx, find_package(stable_package))
     else:
-        new_package_size = _get_rpm_uncompressed_size(ctx, get_package_path(new_package))
-        stable_package_size = _get_rpm_uncompressed_size(ctx, get_package_path(stable_package))
+        new_package_size = _get_rpm_uncompressed_size(ctx, find_package(new_package))
+        stable_package_size = _get_rpm_uncompressed_size(ctx, find_package(stable_package))
 
     threshold = int(threshold)
 

@@ -312,3 +312,17 @@ func (ctx *systemContext) setDeviceSelection(pid int, tid int, deviceIndex int32
 
 	ctx.selectedDeviceByPIDAndTID[pid][tid] = deviceIndex
 }
+
+// getDeviceByUUID returns the device with the given UUID.
+func (ctx *systemContext) getDeviceByUUID(uuid string) (nvml.Device, error) {
+	for _, dev := range ctx.gpuDevices {
+		devUUID, ret := dev.GetUUID()
+		if ret != nvml.SUCCESS {
+			return nil, fmt.Errorf("error getting device UUID: %s", nvml.ErrorString(ret))
+		}
+		if devUUID == uuid {
+			return dev, nil
+		}
+	}
+	return nil, fmt.Errorf("device with UUID %s not found", uuid)
+}

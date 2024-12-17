@@ -9,6 +9,7 @@ package ebpfless
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"syscall"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 	"github.com/google/gopacket/layers"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 type connectionState struct {
@@ -51,18 +52,40 @@ type connectionState struct {
 	// remoteFinSeq is the tcp.Seq number for the incoming FIN (including any payload length)
 	remoteFinSeq uint32
 
+	// rttTracker is used to track round trip times
 	rttTracker rttTracker
+
+	// lastUpdateEpoch contains the last timestamp this connection sent/received a packet
+	// TODO find a way to combine this with ConnectionStats.lastUpdateEpoch
+	// This exists because connections in pendingConns don't have a ConnectionStats object yet.
+	// Can we make all connections in TCPProcessor have a ConnectionStats no matter what, and
+	// filter them out in GetConnections?
+	lastUpdateEpoch uint64
+}
+
+func (st *connectionState) hasMissedHandshake() bool {
+	return st.localSynState == synStateMissed || st.remoteSynState == synStateMissed
 }
 
 // TCPProcessor encapsulates TCP state tracking for the ebpfless tracer
 type TCPProcessor struct {
-	conns map[network.ConnectionTuple]connectionState
+	cfg *config.Config
+	// pendingConns contains connections with tcpState == connStatAttempted
+	pendingConns map[network.ConnectionTuple]*connectionState
+	// establishedConns contains connections with tcpState == connStatEstablished
+	establishedConns map[network.ConnectionTuple]*connectionState
 }
 
+// TODO make this into a config value
+const maxPendingConns = 4096
+const pendingConnTimeoutNs = uint64(5 * time.Second)
+
 // NewTCPProcessor constructs an empty TCPProcessor
-func NewTCPProcessor() *TCPProcessor {
+func NewTCPProcessor(cfg *config.Config) *TCPProcessor {
 	return &TCPProcessor{
-		conns: map[network.ConnectionTuple]connectionState{},
+		cfg:              cfg,
+		pendingConns:     make(map[network.ConnectionTuple]*connectionState, maxPendingConns),
+		establishedConns: make(map[network.ConnectionTuple]*connectionState, cfg.MaxTrackedConnections),
 	}
 }
 
@@ -125,9 +148,13 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 		updateConnStatsForOpen(conn)
 	}
 	// if both synStates are ack'd, move to established
-	if st.tcpState == connStatAttempted && st.localSynState == synStateAcked && st.remoteSynState == synStateAcked {
+	if st.tcpState == connStatAttempted && st.localSynState.isSynAcked() && st.remoteSynState.isSynAcked() {
 		st.tcpState = connStatEstablished
-		conn.Monotonic.TCPEstablished++
+		if st.hasMissedHandshake() {
+			statsTelemetry.missedTCPHandshakes.Inc()
+		} else {
+			conn.Monotonic.TCPEstablished++
+		}
 	}
 }
 
@@ -136,6 +163,7 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 func (t *TCPProcessor) updateTCPStats(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16, timestampNs uint64) {
 	nextSeq := calcNextSeq(tcp, payloadLen)
 
+	st.lastUpdateEpoch = timestampNs
 	if pktType == unix.PACKET_OUTGOING {
 		conn.Monotonic.SentPackets++
 		// packetCanRetransmit filters out packets that look like retransmits but aren't, like TCP keepalives
@@ -155,7 +183,7 @@ func (t *TCPProcessor) updateTCPStats(conn *network.ConnectionStats, st *connect
 		ackOutdated := !st.hasLocalAck || isSeqBefore(st.lastLocalAck, tcp.Ack)
 		if tcp.ACK && ackOutdated {
 			// wait until data comes in via synStateAcked
-			if st.hasLocalAck && st.remoteSynState == synStateAcked {
+			if st.hasLocalAck && st.remoteSynState.isSynAcked() {
 				ackDiff := tcp.Ack - st.lastLocalAck
 				isFinAck := st.hasRemoteFin && tcp.Ack == st.remoteFinSeq
 				if isFinAck {
@@ -232,13 +260,13 @@ func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connecti
 
 // Process handles a TCP packet, calculating stats and keeping track of its state according to the
 // TCP state machine.
-func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64, pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) error {
+func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64, pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) (ProcessResult, error) {
 	if pktType != unix.PACKET_OUTGOING && pktType != unix.PACKET_HOST {
-		return fmt.Errorf("TCPProcessor saw invalid pktType: %d", pktType)
+		return ProcessResultNone, fmt.Errorf("TCPProcessor saw invalid pktType: %d", pktType)
 	}
 	payloadLen, err := TCPPayloadLen(conn.Family, ip4, ip6, tcp)
 	if err != nil {
-		return err
+		return ProcessResultNone, err
 	}
 
 	log.TraceFunc(func() string {
@@ -247,16 +275,93 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64
 
 	// skip invalid packets we don't recognize:
 	if checkInvalidTCP(tcp) {
-		return nil
+		return ProcessResultNone, nil
 	}
 
-	st := t.conns[conn.ConnectionTuple]
+	st := t.getConn(conn.ConnectionTuple)
+	origState := st.tcpState
 
-	t.updateSynFlag(conn, &st, pktType, tcp, payloadLen)
-	t.updateTCPStats(conn, &st, pktType, tcp, payloadLen, timestampNs)
-	t.updateFinFlag(conn, &st, pktType, tcp, payloadLen)
-	t.updateRstFlag(conn, &st, pktType, tcp, payloadLen)
+	t.updateSynFlag(conn, st, pktType, tcp, payloadLen)
+	t.updateTCPStats(conn, st, pktType, tcp, payloadLen, timestampNs)
+	t.updateFinFlag(conn, st, pktType, tcp, payloadLen)
+	t.updateRstFlag(conn, st, pktType, tcp, payloadLen)
 
-	t.conns[conn.ConnectionTuple] = st
-	return nil
+	stateChanged := st.tcpState != origState
+	if stateChanged {
+		ok := t.moveConn(conn.ConnectionTuple, st)
+		// if the map is full then we are unable to move the connection, report that
+		if !ok {
+			return ProcessResultMapFull, nil
+		}
+	}
+
+	// if the connection is still established, we should update the connection map
+	if st.tcpState == connStatEstablished {
+		return ProcessResultStoreConn, nil
+	}
+	// if the connection just closed, store it in the tracer's closeCallback
+	if st.tcpState == connStatClosed && stateChanged {
+		return ProcessResultCloseConn, nil
+	}
+	return ProcessResultNone, nil
+}
+
+func (t *TCPProcessor) getConn(tuple network.ConnectionTuple) *connectionState {
+	if st, ok := t.establishedConns[tuple]; ok {
+		return st
+	}
+	if st, ok := t.pendingConns[tuple]; ok {
+		return st
+	}
+	// otherwise, create a fresh state object that will be stored by moveConn later
+	return &connectionState{}
+}
+
+// RemoveConn clears a ConnectionTuple from its internal state.
+func (t *TCPProcessor) RemoveConn(tuple network.ConnectionTuple) {
+	delete(t.pendingConns, tuple)
+	delete(t.establishedConns, tuple)
+}
+
+// moveConn moves a connection to the correct map based on its tcpState.
+// If it had to drop the connection because the target map was full, it returns false.
+func (t *TCPProcessor) moveConn(tuple network.ConnectionTuple, st *connectionState) bool {
+	t.RemoveConn(tuple)
+
+	switch st.tcpState {
+	// For this case, simply let closed connections disappear. Process() will return
+	// ProcessResultCloseConn letting the ebpfless tracer know the connection has closed.
+	case connStatClosed:
+	case connStatAttempted:
+		ok := WriteMapWithSizeLimit(t.pendingConns, tuple, st, maxPendingConns)
+		if !ok {
+			statsTelemetry.droppedPendingConns.Inc()
+		}
+		return ok
+	case connStatEstablished:
+		maxTrackedConns := int(t.cfg.MaxTrackedConnections)
+		ok := WriteMapWithSizeLimit(t.establishedConns, tuple, st, maxTrackedConns)
+		if !ok {
+			statsTelemetry.droppedEstablishedConns.Inc()
+		}
+		return ok
+	}
+	return true
+}
+
+// CleanupExpiredPendingConns iterates through pendingConns and removes those that
+// have existed too long - in normal TCP, they should become established right away.
+//
+// This is only required for pendingConns because the tracer already has logic to remove
+// established connections (connections that have ConnectionStats)
+func (t *TCPProcessor) CleanupExpiredPendingConns(timestampNs uint64) {
+	for tuple, st := range t.pendingConns {
+		timeoutTime := st.lastUpdateEpoch + pendingConnTimeoutNs
+
+		if timeoutTime <= timestampNs {
+			delete(t.pendingConns, tuple)
+
+			statsTelemetry.expiredPendingConns.Inc()
+		}
+	}
 }
