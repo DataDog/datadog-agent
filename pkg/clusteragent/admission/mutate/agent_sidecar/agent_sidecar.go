@@ -157,14 +157,15 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 }
 
 // isReadOnlyRootFilesystem returns whether the agent sidecar should have the readOnlyRootFilesystem security setup
-// This will always activate unless a profile is provided with a securityContext that has readOnlyRootFilesystem set to false
-// We want to default to true to ensure that the agent sidecar has the least amount of permissions as possible
 func (w *Webhook) isReadOnlyRootFilesystem() bool {
 	if len(w.profileOverrides) == 0 {
-		return true
+		return false
 	}
 	securityContext := w.profileOverrides[0].SecurityContext
-	return securityContext == nil || securityContext.ReadOnlyRootFilesystem == nil || *securityContext.ReadOnlyRootFilesystem
+	if securityContext != nil && securityContext.ReadOnlyRootFilesystem != nil {
+		return *securityContext.ReadOnlyRootFilesystem
+	}
+	return false // default to false (temp)
 }
 
 func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {

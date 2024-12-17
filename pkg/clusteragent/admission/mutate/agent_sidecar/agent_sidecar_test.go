@@ -59,8 +59,12 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:        "",
-			profilesJSON:    "[]",
+			provider: "",
+			profilesJSON: `[{
+				"securityContext": {
+					"readOnlyRootFilesystem": true
+				}
+			}]`,
 			ExpectError:     false,
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
@@ -250,8 +254,12 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:        "fargate",
-			profilesJSON:    "[]",
+			provider: "fargate",
+			profilesJSON: `[{
+				"securityContext": {
+					"readOnlyRootFilesystem": true
+				}
+			}]`,
 			ExpectError:     false,
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
@@ -354,7 +362,10 @@ func TestInjectAgentSidecar(t *testing.T) {
 		            "cpu": "0.5",
 		            "memory": "256Mi"
 		        }
-		    }
+		    },
+			"securityContext": {
+				"readOnlyRootFilesystem": true
+			}
 		}]`,
 			ExpectError:     false,
 			ExpectInjection: true,
@@ -711,12 +722,12 @@ func TestIsReadOnlyRootFilesystem(t *testing.T) {
 		{
 			name:     "no profile",
 			profile:  "",
-			expected: true,
+			expected: false,
 		},
 		{
 			name:     "empty or default profile",
 			profile:  "[]",
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "profile without security context",
@@ -725,14 +736,14 @@ func TestIsReadOnlyRootFilesystem(t *testing.T) {
 					{"name": "ENV_VAR_2", "value": "value2"}
 				],
 			}]`,
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "profile with security context, readOnlyRootFilesystem empty",
 			profile: `[{
 				"securityContext": {}
 			}]`,
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "profile with security context, readOnlyRootFilesystem true",
@@ -765,16 +776,16 @@ func TestIsReadOnlyRootFilesystem(t *testing.T) {
 			assert.Equal(tt, test.expected, webhook.isReadOnlyRootFilesystem())
 
 			if test.expected {
+				// Webhook properly applies the security context to the sidecar
 				webhook.addSecurityConfigToAgent(sidecar)
+				assert.NotNil(t, sidecar.SecurityContext)
+				assert.NotNil(t, sidecar.SecurityContext.ReadOnlyRootFilesystem)
+				assert.Equal(t, test.expected, *sidecar.SecurityContext.ReadOnlyRootFilesystem)
 			} else {
 				assert.Nil(t, sidecar.SecurityContext)
 				profile, _ := loadSidecarProfiles(test.profile)
 				applyProfileOverrides(sidecar, profile)
 			}
-			// Webhook properly applies the security context to the sidecar
-			assert.NotNil(t, sidecar.SecurityContext)
-			assert.NotNil(t, sidecar.SecurityContext.ReadOnlyRootFilesystem)
-			assert.Equal(t, test.expected, *sidecar.SecurityContext.ReadOnlyRootFilesystem)
 		})
 	}
 }
