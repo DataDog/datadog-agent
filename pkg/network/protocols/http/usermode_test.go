@@ -46,6 +46,7 @@ func structToBytes(b *testing.B, events []EbpfEvent, numOfEventsInBatch int) [40
 
 // setupBenchmark sets up the benchmark environment by creating a consumer, protocol, and configuration.
 func setupBenchmark(b *testing.B, c *config.Config, totalEventsCount int) (*events.Consumer[EbpfEvent], *protocol, *manager.Manager) {
+	// Serialized data can't exceed 4096 bytes that why we can insert 14 events in a batch.
 	const numOfEventsInBatch = 14
 
 	program, err := events.NewEBPFProgram(c)
