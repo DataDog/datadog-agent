@@ -11,8 +11,3 @@ test/new-e2e/tests/containers:
   - TestECSSuite/TestCPU/metric___container.cpu.usage{^ecs_container_name:stress-ng$}
   - TestEKSSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
   - TestKindSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
-
-  - TestEKSSuite/TestDogstatsdInAgent/metric___custom.metric{^kube_deployment:dogstatsd-udp$,^kube_namespace:workload-dogstatsd$}
-  - TestEKSSuite/TestDogstatsdStandalone/metric___custom.metric{^kube_deployment:dogstatsd-udp$,^kube_namespace:workload-dogstatsd$}
-  - TestKindSuite/TestDogstatsdInAgent/metric___custom.metric{^kube_deployment:dogstatsd-udp$,^kube_namespace:workload-dogstatsd$}
-  - TestKindSuite/TestDogstatsdStandalone/metric___custom.metric{^kube_deployment:dogstatsd-udp$,^kube_namespace:workload-dogstatsd$}
