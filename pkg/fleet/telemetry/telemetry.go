@@ -93,6 +93,7 @@ func (t *Telemetry) sendCompletedSpans() {
 		span.span.Service = t.service
 		span.span.Meta["env"] = t.env
 		span.span.Meta["version"] = version.AgentVersion
+		span.span.Metrics["_sampling_priority_v1"] = 2
 		traces[span.span.TraceID] = append(traces[span.span.TraceID], &span.span)
 	}
 	tracesArray := make([]pb.Trace, 0, len(traces))
@@ -136,8 +137,8 @@ func StartSpanFromIDs(ctx context.Context, operationName, traceID, parentID stri
 		parentIDInt = 0
 	}
 	span, ctx := startSpanFromIDs(ctx, operationName, traceIDInt, parentIDInt)
-	span.SetTag("_top_level", 1)
-	return startSpanFromIDs(ctx, operationName, traceIDInt, parentIDInt)
+	span.SetTopLevel()
+	return span, ctx
 }
 
 func startSpanFromIDs(ctx context.Context, operationName string, traceID, parentID uint64) (*Span, context.Context) {
@@ -163,12 +164,3 @@ func EnvFromContext(ctx context.Context) []string {
 		fmt.Sprintf("%s=%s", envParentID, strconv.FormatUint(sIDs.spanID, 10)),
 	}
 }
-
-/*
-// WithSamplingRules sets the sampling rules for the telemetry.
-func WithSamplingRules(rules ...tracer.SamplingRule) Option {
-	return func(t *Telemetry) {
-		t.samplingRules = rules
-	}
-}
-*/

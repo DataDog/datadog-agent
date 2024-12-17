@@ -6,10 +6,21 @@
 // Package telemetry provides the telemetry for fleet components.
 package telemetry
 
-import "sync"
+import (
+	"math"
+	"strings"
+	"sync"
+)
+
+const dropTraceID = 1
 
 var (
-	globalTracer *tracer
+	globalTracer  *tracer
+	samplingRates = map[string]float64{
+		"cdn":             0.1,
+		"garbage_collect": 0.05,
+		"HTTPClient":      0.05,
+	}
 )
 
 func init() {
@@ -25,6 +36,9 @@ type tracer struct {
 }
 
 func (t *tracer) registerSpan(span *Span) {
+	if span.span.TraceID == dropTraceID {
+		return
+	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.spans[span.span.SpanID] = span
@@ -51,4 +65,20 @@ func (t *tracer) flushCompletedSpans() []*Span {
 	completedSpans := t.completedSpans
 	t.completedSpans = newSpanArray
 	return completedSpans
+}
+
+func headSamplingKeep(spanName string, traceID uint64) bool {
+	for k, r := range samplingRates {
+		if strings.Contains(spanName, k) {
+			return sampledByRate(traceID, r)
+		}
+	}
+	return true
+}
+
+func sampledByRate(n uint64, rate float64) bool {
+	if rate < 1 {
+		return n*uint64(1111111111111111111) < uint64(rate*math.MaxUint64)
+	}
+	return true
 }

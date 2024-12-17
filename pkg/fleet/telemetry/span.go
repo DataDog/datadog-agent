@@ -34,6 +34,9 @@ func newSpan(name string, parentID, traceID uint64) *Span {
 	var noParent bool
 	if traceID == 0 {
 		traceID = rand.Uint64()
+		if !headSamplingKeep(name, traceID) {
+			traceID = dropTraceID
+		}
 		noParent = true
 	}
 	s := &Span{
@@ -49,7 +52,7 @@ func newSpan(name string, parentID, traceID uint64) *Span {
 		},
 	}
 	if noParent {
-		s.SetTag("_top_level", 1)
+		s.SetTopLevel()
 	}
 
 	globalTracer.registerSpan(s)
@@ -80,6 +83,11 @@ func (s *Span) SetResourceName(name string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.span.Resource = name
+}
+
+// SetTopLevel sets the span as a top level span.
+func (s *Span) SetTopLevel() {
+	s.SetTag("_top_level", 1)
 }
 
 // SetTag sets a tag on the span.

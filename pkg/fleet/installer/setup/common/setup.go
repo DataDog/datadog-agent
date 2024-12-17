@@ -120,7 +120,7 @@ func (s *Setup) installPackage(name string, url string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(s.Ctx, "install")
 	defer func() { span.Finish(err) }()
 	span.SetTag("url", url)
-	span.SetTag("_top_level", 1)
+	span.SetTopLevel()
 
 	s.Out.WriteString(fmt.Sprintf("Installing %s...\n", name))
 	err = s.installer.Install(ctx, url, nil)
