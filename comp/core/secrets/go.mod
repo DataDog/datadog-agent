@@ -28,7 +28,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.22.2
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f
-	golang.org/x/sys v0.27.0
+	golang.org/x/sys v0.28.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
