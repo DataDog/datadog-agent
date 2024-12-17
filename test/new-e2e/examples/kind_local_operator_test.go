@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/operatorparams"
 	compkube "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/DataDog/test-infra-definitions/resources/local"
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"strings"
 	"testing"
@@ -23,7 +24,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )
 
 const namespace = "datadog"
@@ -57,6 +57,8 @@ func localKindOperatorProvisioner() e2e.PulumiEnvRunFunc[environments.Kubernetes
 			return err
 		}
 
+		kindCluster.KubeProvider = kindKubeProvider
+
 		fakeIntake, err := fakeintakeComp.NewLocalDockerFakeintake(&kindEnv, "fakeintake")
 		if err != nil {
 			return err
@@ -73,14 +75,14 @@ func localKindOperatorProvisioner() e2e.PulumiEnvRunFunc[environments.Kubernetes
 		)
 
 		// Create Operator component
-		_, err = operator.NewOperator(&kindEnv, kindEnv.CommonNamer().ResourceName("dd-operator-agent"), kindKubeProvider, operatorOpts...)
+		_, err = operator.NewOperator(&kindEnv, kindEnv.CommonNamer().ResourceName("dd-operator"), kindCluster.KubeProvider, operatorOpts...)
 
 		if err != nil {
 			return err
 		}
 
 		customDDA := agentwithoperatorparams.DDAConfig{
-			Name: "apm-enabled-no-ccr",
+			Name: "ccr-enabled",
 			YamlConfig: `
 apiVersion: datadoghq.com/v2alpha1
 kind: DatadogAgent
@@ -89,8 +91,8 @@ spec:
     kubelet:
       tlsVerify: false
   features:
-    apm:
-      enabled: true
+    clusterChecks:
+      useClusterChecksRunners: true
 `,
 		}
 
@@ -104,13 +106,13 @@ spec:
 		)
 
 		// Create Datadog Agent with Operator component
-		agentComponent, err := agent.NewDDAWithOperator(&kindEnv, kindEnv.CommonNamer().ResourceName("dd-operator-agent"), kindKubeProvider, ddaOptions...)
+		agentComponent, err := agent.NewDDAWithOperator(&kindEnv, ctx.Stack(), kindCluster.KubeProvider, ddaOptions...)
 
 		if err != nil {
 			return err
 		}
-
-		if err = agentComponent.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
+		err = agentComponent.Export(ctx, &env.Agent.KubernetesAgentOutput)
+		if err != nil {
 			return err
 		}
 
@@ -122,14 +124,14 @@ func TestOperatorKindSuite(t *testing.T) {
 	e2e.Run(t, &localKindOperatorSuite{}, e2e.WithPulumiProvisioner(localKindOperatorProvisioner(), nil))
 }
 
-func (k *localKindOperatorSuite) TestClusterAgentInstalled() {
+func (k *localKindOperatorSuite) TestClusterChecksRunner() {
 	res, _ := k.Env().KubernetesCluster.Client().CoreV1().Pods(namespace).List(context.TODO(), v1.ListOptions{})
-	containsClusterAgent := false
+	containsCCR := false
 	for _, pod := range res.Items {
-		if strings.Contains(pod.Name, "cluster-agent") {
-			containsClusterAgent = true
+		if strings.Contains(pod.Name, "cluster-checks-runner") {
+			containsCCR = true
 			break
 		}
 	}
-	assert.True(k.T(), containsClusterAgent, "Cluster Agent not found")
+	assert.True(k.T(), containsCCR, "Cluster checks runner not found")
 }

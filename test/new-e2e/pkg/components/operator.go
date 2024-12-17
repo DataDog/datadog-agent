@@ -10,6 +10,6 @@ import (
 )
 
 // Operator is a Datadog Operator running in a Kubernetes cluster
-type Operator struct {
+type Operator struct { // nolint:revive, We want to keep the name as <Component>
 	operator.OperatorOutput
 }

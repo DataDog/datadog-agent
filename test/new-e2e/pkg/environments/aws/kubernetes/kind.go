@@ -228,14 +228,14 @@ agents:
 		}
 	}
 
-	if params.operatorDDAOptions != nil {
+	if params.deployOperator && params.operatorDDAOptions != nil {
 		ddaOptions := make([]agentwithoperatorparams.Option, 0)
 		ddaOptions = append(
 			ddaOptions,
 			params.operatorDDAOptions...,
 		)
 
-		ddaWithOperatorComp, err := agent.NewDDAWithOperator(&awsEnv, awsEnv.CommonNamer().ResourceName("dd-operator-agent"), kubeProvider, ddaOptions...)
+		ddaWithOperatorComp, err := agent.NewDDAWithOperator(&awsEnv, awsEnv.CommonNamer().ResourceName("kind-with-operator"), kubeProvider, ddaOptions...)
 		if err != nil {
 			return err
 		}
