@@ -9,8 +9,6 @@ package compression
 import (
 	"bytes"
 	"io"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
 )
 
 // team: agent-metrics-logs
