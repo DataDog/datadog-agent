@@ -720,7 +720,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 		}
 	}
 
-	// flush exited processpe
+	// flush exited process
 	p.Resolvers.ProcessResolver.DequeueExited()
 
 	return true
