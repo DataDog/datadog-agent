@@ -16,6 +16,7 @@ from collections import defaultdict
 from datetime import date
 from time import sleep
 
+import github
 from gitlab import GitlabError
 from invoke import task
 from invoke.exceptions import Exit
@@ -1279,7 +1280,14 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
     next.devel = False
 
     print(f"Creating the {next} milestone...")
-    gh.create_milestone(str(next))
+
+    try:
+        gh.create_milestone(str(next))
+    except github.GithubException as e:
+        if e.status == 422:
+            print(f"Milestone {next} already exists")
+        else:
+            raise e
 
     with agent_context(ctx, get_default_branch(major=major_version)):
         milestone_branch = f"release_milestone-{int(time.time())}"
