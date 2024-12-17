@@ -11,10 +11,11 @@ package packages
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"os"
 	"path"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 )
 
 const (
@@ -22,7 +23,7 @@ const (
 )
 
 // PrepareInstaller prepares the installer
-func PrepareInstaller(ctx context.Context) error {
+func PrepareInstaller(_ context.Context) error {
 	return nil
 }
 
