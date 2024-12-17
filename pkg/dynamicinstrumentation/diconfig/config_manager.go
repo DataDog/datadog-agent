@@ -242,7 +242,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 }
 
 func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
-	fmt.Printf("Applying config update: %v\n", probe)
+	log.Tracef("Applying config update: %v\n", probe)
 	err := AnalyzeBinary(procInfo)
 	if err != nil {
 		log.Errorf("couldn't inspect binary: %v\n", err)
@@ -296,7 +296,7 @@ func newConfigProbe() *ditypes.Probe {
 				ArgumentsMaxSize:  50000,
 				StringMaxSize:     10000,
 				MaxFieldCount:     int(ditypes.MaxFieldCount),
-				MaxReferenceDepth: 10,
+				MaxReferenceDepth: 8,
 				CaptureParameters: true,
 			},
 		},

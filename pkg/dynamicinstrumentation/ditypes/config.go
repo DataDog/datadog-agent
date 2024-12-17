@@ -32,7 +32,7 @@ var (
 	StringMaxSize           = 64    // StringMaxSize is the default size in bytes of a single string
 	MaxReferenceDepth uint8 = 4     // MaxReferenceDepth is the default depth that DI will traverse datatypes for capturing values
 	MaxFieldCount           = 20    // MaxFieldCount is the default limit for how many fields DI will capture in a single data type
-	SliceMaxLength          = 3     // SliceMaxLength is the default limit in number of elements of a slice
+	SliceMaxLength          = 10    // SliceMaxLength is the default limit in number of elements of a slice
 )
 
 // ProbeID is the unique identifier for probes
@@ -259,7 +259,6 @@ type InstrumentationOptions struct {
 	StringMaxSize     int
 	MaxReferenceDepth int
 	MaxFieldCount     int
-	SliceMaxSize      int
 	SliceMaxLength    int
 }
 

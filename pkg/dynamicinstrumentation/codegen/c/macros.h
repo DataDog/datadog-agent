@@ -6,10 +6,9 @@
 #ifndef DI_MACROS_H
 #define DI_MACROS_H
 
-#define MAX_STRING_SIZE {{ .InstrumentationInfo.InstrumentationOptions.StringMaxSize}}
-#define PARAM_BUFFER_SIZE {{ .InstrumentationInfo.InstrumentationOptions.ArgumentsMaxSize}}
+#define MAX_STRING_SIZE {{ .InstrumentationInfo.InstrumentationOptions.StringMaxSize }}
+#define PARAM_BUFFER_SIZE {{ .InstrumentationInfo.InstrumentationOptions.ArgumentsMaxSize }}
 #define STACK_DEPTH_LIMIT 10
-#define MAX_SLICE_SIZE 1800
-#define MAX_SLICE_LENGTH 20
+#define MAX_SLICE_LENGTH {{ .InstrumentationInfo.InstrumentationOptions.SliceMaxLength }}
 
 #endif
