@@ -20,6 +20,11 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// DefaultMaxCacheSize is the default maximum size of the cache in bytes.
+// The reason for this value is explained by DD_APM_OBFUSCATION_CACHE_MAX_SIZE
+// in pkg/config/config_template.yaml.
+const DefaultMaxCacheSize = 5000000
+
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
 // concurrent use.
 type Obfuscator struct {
@@ -277,6 +282,9 @@ type CreditCardsConfig struct {
 type CacheConfig struct {
 	// Enabled specifies whether caching should be enabled.
 	Enabled bool `mapstructure:"enabled"`
+
+	// MaxSize is the maximum size of the cache in bytes.
+	MaxSize int64 `mapstructure:"max_size"`
 }
 
 // NewObfuscator creates a new obfuscator
@@ -286,7 +294,7 @@ func NewObfuscator(cfg Config) *Obfuscator {
 	}
 	o := Obfuscator{
 		opts:              &cfg,
-		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd}),
+		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd, MaxSize: cfg.Cache.MaxSize}),
 		sqlLiteralEscapes: atomic.NewBool(false),
 		log:               cfg.Logger,
 	}

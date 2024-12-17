@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
@@ -425,6 +426,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.Obfuscation.Redis.Enabled = true
 		c.Obfuscation.CreditCards.Enabled = true
 		c.Obfuscation.Cache.Enabled = true
+		c.Obfuscation.Cache.MaxSize = obfuscate.DefaultMaxCacheSize
 
 		// TODO(x): There is an issue with pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation"), probably coming from Viper,
 		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
@@ -503,6 +505,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.cache.enabled") {
 			c.Obfuscation.Cache.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled")
+		}
+		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.cache.max_size") {
+			c.Obfuscation.Cache.MaxSize = pkgconfigsetup.Datadog().GetInt64("apm_config.obfuscation.cache.max_size")
 		}
 	}
 
