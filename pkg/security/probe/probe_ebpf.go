@@ -68,7 +68,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
@@ -119,7 +119,7 @@ type EBPFProbe struct {
 	// internals
 	event           *model.Event
 	monitors        *EBPFMonitors
-	profileManagers *SecurityProfileManagers
+	profileManagers securityprofile.ManagerInterface
 	fieldHandlers   *EBPFFieldHandlers
 	eventPool       *ddsync.TypedPool[model.Event]
 	numCPU          int
@@ -136,7 +136,7 @@ type EBPFProbe struct {
 	eventStream EventStream
 
 	// ActivityDumps section
-	activityDumpHandler dump.ActivityDumpHandler
+	activityDumpHandler securityprofile.ActivityDumpHandler
 
 	// Approvers / discarders section
 	Erpc                     *erpc.ERPC
@@ -163,7 +163,7 @@ type EBPFProbe struct {
 	useMmapableMaps    bool
 	cgroup2MountPath   string
 
-	// On demand
+	// On demand1
 	onDemandManager     *OnDemandProbesManager
 	onDemandRateLimiter *rate.Limiter
 
@@ -178,11 +178,6 @@ type EBPFProbe struct {
 // GetUseRingBuffers returns p.useRingBuffers
 func (p *EBPFProbe) GetUseRingBuffers() bool {
 	return p.useRingBuffers
-}
-
-// GetProfileManager returns the Profile Managers
-func (p *EBPFProbe) GetProfileManager() interface{} {
-	return p.profileManagers
 }
 
 func (p *EBPFProbe) detectKernelVersion() error {
@@ -471,11 +466,10 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
-	p.profileManagers, err = NewSecurityProfileManagers(p)
+	p.profileManagers, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler)
 	if err != nil {
 		return err
 	}
-	p.profileManagers.AddActivityDumpHandler(p.activityDumpHandler)
 
 	p.eventStream.SetMonitor(p.monitors.eventStreamMonitor)
 
@@ -485,7 +479,14 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	p.processKiller.Start(p.ctx, &p.wg)
-	p.profileManagers.Start(p.ctx, &p.wg)
+
+	if p.config.RuntimeSecurity.ActivityDumpEnabled || p.config.RuntimeSecurity.SecurityProfileEnabled {
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			p.profileManagers.Start(p.ctx)
+		}()
+	}
 
 	return nil
 }
@@ -670,7 +671,7 @@ func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
 }
 
 // AddActivityDumpHandler set the probe activity dump handler
-func (p *EBPFProbe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
+func (p *EBPFProbe) AddActivityDumpHandler(handler securityprofile.ActivityDumpHandler) {
 	p.activityDumpHandler = handler
 }
 
@@ -679,16 +680,12 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	logTraceEvent(event.GetEventType(), event)
 
 	// filter out event if already present on a profile
-	if p.config.RuntimeSecurity.SecurityProfileEnabled {
-		p.profileManagers.securityProfileManager.LookupEventInProfiles(event)
-	}
+	p.profileManagers.LookupEventInProfiles(event)
 
 	// mark the events that have an associated activity dump
 	// this is needed for auto suppressions performed by the CWS rule engine
-	if p.profileManagers.activityDumpManager != nil {
-		if p.profileManagers.activityDumpManager.HasActiveActivityDump(event) {
-			event.AddToFlags(model.EventFlagsHasActiveActivityDump)
-		}
+	if p.profileManagers.HasActiveActivityDump(event) {
+		event.AddToFlags(model.EventFlagsHasActiveActivityDump)
 	}
 
 	// send event to wildcard handlers, like the CWS rule engine, first
@@ -702,15 +699,13 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
 		imageTag := utils.GetTagValue("image_tag", event.ContainerContext.Tags)
-		p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext, imageTag)
+		p.profileManagers.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext, imageTag)
 		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
 			p.sendAnomalyDetection(event)
 		}
 	} else if event.Error == nil {
 		// Process event after evaluation because some monitors need the DentryResolver to have been called first.
-		if p.profileManagers.activityDumpManager != nil {
-			p.profileManagers.activityDumpManager.ProcessEvent(event)
-		}
+		p.profileManagers.ProcessEvent(event)
 	}
 	p.monitors.ProcessEvent(event)
 }
@@ -967,7 +962,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			}
 
 			event.CGroupContext = cgroupContext
-			p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
+			p.profileManagers.HandleCGroupTracingEvent(&event.CgroupTracing)
 		}
 		return
 	case model.CgroupWriteEventType:
@@ -2492,7 +2487,7 @@ func getFuncArgCount(prog *lib.ProgramSpec) uint64 {
 }
 
 // GetProfileManagers returns the security profile managers
-func (p *EBPFProbe) GetProfileManagers() *SecurityProfileManagers {
+func (p *EBPFProbe) GetProfileManagers() securityprofile.ManagerInterface {
 	return p.profileManagers
 }
 
