@@ -13,7 +13,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtoken "github.com/DataDog/datadog-agent/comp/api/authtoken/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
