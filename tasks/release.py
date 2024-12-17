@@ -731,10 +731,8 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
 
     current = current_version(ctx, major_version)
-    next = current.next_version(bump_minor=True)
     current.rc = False
     current.devel = False
-    next.devel = False
 
     # Strings with proper branch/tag names
     release_branch = current.branch()
@@ -772,43 +770,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
         )
 
         # Step 2 - Create PRs with new settings in datadog-agent repository
-        # Step 2.0 - Create milestone update
-        milestone_branch = f"release_milestone-{int(time.time())}"
-        ctx.run(f"git switch -c {milestone_branch}")
-        rj = load_release_json()
-        rj["current_milestone"] = f"{next}"
-        _save_release_json(rj)
-        # Commit release.json
-        ctx.run("git add release.json")
-        ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
-
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually and push the commit to the {milestone_branch} branch.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        res = ctx.run(f"git push --set-upstream {upstream} {milestone_branch}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push branch {milestone_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        create_release_pr(
-            f"[release] Update current milestone to {next}",
-            get_default_branch(),
-            milestone_branch,
-            next,
-        )
-
-        # Step 2.1 - Update release.json
+        # Step 2.0 - Update release.json
         update_branch = f"{release_branch}-updates"
 
         ctx.run(f"git checkout {release_branch}")
@@ -1303,3 +1265,54 @@ def create_github_release(ctx, release_branch, draft=True):
         )
 
         print(f"Link to the release note: {release.html_url}")
+
+
+@task
+def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
+    """
+    Create a PR to bump the current_milestone in the release.json file
+    """
+    gh = GithubAPI()
+
+    current = current_version(ctx, major_version)
+    next = current.next_version(bump_minor=True)
+    next.devel = False
+
+    print(f"Creating the {next} milestone...")
+    gh.create_milestone(str(next))
+
+    with agent_context(ctx, get_default_branch(major=major_version)):
+        milestone_branch = f"release_milestone-{int(time.time())}"
+        ctx.run(f"git switch -c {milestone_branch}")
+        rj = load_release_json()
+        rj["current_milestone"] = f"{next}"
+        _save_release_json(rj)
+        # Commit release.json
+        ctx.run("git add release.json")
+        ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
+
+        if not ok:
+            raise Exit(
+                color_message(
+                    f"Could not create commit. Please commit manually and push the commit to the {milestone_branch} branch.",
+                    Color.RED,
+                ),
+                code=1,
+            )
+
+        res = ctx.run(f"git push --set-upstream {upstream} {milestone_branch}", warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    f"Could not push branch {milestone_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against main.",
+                    Color.RED,
+                ),
+                code=1,
+            )
+
+        create_release_pr(
+            f"[release] Update current milestone to {next}",
+            get_default_branch(),
+            milestone_branch,
+            next,
+        )
