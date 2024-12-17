@@ -245,7 +245,6 @@ agents:
 		if err := ddaWithOperatorComp.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
 			return err
 		}
-		dependsOnCrd = append(dependsOnCrd, ddaWithOperatorComp)
 
 	} else {
 		env.Agent = nil
