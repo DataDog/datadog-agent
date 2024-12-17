@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
@@ -58,7 +59,7 @@ func NewActivityDumpLoadController(adm *ActivityDumpManager) (*ActivityDumpLoadC
 	}, nil
 }
 
-func (lc *ActivityDumpLoadController) getDefaultLoadConfig() *model.ActivityDumpLoadConfig {
+func (lc *ActivityDumpLoadController) getDefaultLoadConfigs() (map[containerutils.CGroupManager]*model.ActivityDumpLoadConfig, error) {
 	defaults := NewActivityDumpLoadConfig(
 		lc.adm.config.RuntimeSecurity.ActivityDumpTracedEventTypes,
 		lc.adm.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout,
@@ -68,14 +69,37 @@ func (lc *ActivityDumpLoadController) getDefaultLoadConfig() *model.ActivityDump
 		lc.adm.resolvers.TimeResolver,
 	)
 	defaults.WaitListTimestampRaw = uint64(lc.adm.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout)
-	return defaults
+
+	allDefaultConfigs := map[string]containerutils.CGroupManager{
+		containerutils.CGroupManagerDocker.String():  containerutils.CGroupManagerDocker,
+		containerutils.CGroupManagerPodman.String():  containerutils.CGroupManagerPodman,
+		containerutils.CGroupManagerCRI.String():     containerutils.CGroupManagerCRI,
+		containerutils.CGroupManagerCRIO.String():    containerutils.CGroupManagerCRIO,
+		containerutils.CGroupManagerSystemd.String(): containerutils.CGroupManagerSystemd,
+	}
+	defaultConfigs := make(map[containerutils.CGroupManager]*model.ActivityDumpLoadConfig)
+	for _, cgroupManager := range lc.adm.config.RuntimeSecurity.ActivityDumpCgroupsManagers {
+		cgroupManager, found := allDefaultConfigs[cgroupManager]
+		if !found {
+			return nil, fmt.Errorf("unsupported cgroup manager '%s'", cgroupManager)
+		}
+		defaultConfigs[cgroupManager] = defaults
+	}
+	return defaultConfigs, nil
 }
 
-// PushCurrentConfig pushes the current load controller config to kernel space
-func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
+// PushDefaultCurrentConfig pushes the current load controller config to kernel space
+func (lc *ActivityDumpLoadController) PushDefaultCurrentConfigs() error {
+	defaultConfigs, err := lc.getDefaultLoadConfigs()
+	if err != nil {
+		return err
+	}
+
 	// push default load config values
-	if err := lc.activityDumpConfigDefaults.Put(uint32(0), lc.getDefaultLoadConfig()); err != nil {
-		return fmt.Errorf("couldn't update default activity dump load config: %w", err)
+	for cgroupManager, defaultConfig := range defaultConfigs {
+		if err := lc.activityDumpConfigDefaults.Put(uint32(cgroupManager), defaultConfig); err != nil {
+			return fmt.Errorf("couldn't update default activity dump load config: %w", err)
+		}
 	}
 	return nil
 }
