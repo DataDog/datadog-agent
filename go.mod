@@ -26,6 +26,7 @@ replace (
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ./comp/api/api/def/
 	github.com/DataDog/datadog-agent/comp/api/authtoken => ./comp/api/authtoken
+	github.com/DataDog/datadog-agent/comp/api/authtoken/def => ./comp/api/authtoken/def
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config/
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
@@ -616,6 +617,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/api/authtoken/def v0.0.0-00010101000000-000000000000
 	github.com/shirou/gopsutil/v4 v4.24.11
 	go.opentelemetry.io/collector/component/componenttest v0.115.0
 )
