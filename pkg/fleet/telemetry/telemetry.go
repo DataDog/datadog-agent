@@ -15,10 +15,7 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-
 	"github.com/DataDog/datadog-agent/pkg/internaltelemetry"
-	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -40,7 +37,7 @@ type Telemetry struct {
 
 // NewTelemetry creates a new telemetry instance
 func NewTelemetry(client *http.Client, apiKey string, site string, service string) *Telemetry {
-	endpoint := &traceconfig.Endpoint{
+	endpoint := &internaltelemetry.Endpoint{
 		Host:   fmt.Sprintf("https://%s.%s", telemetrySubdomain, strings.TrimSpace(site)),
 		APIKey: apiKey,
 	}
@@ -50,7 +47,7 @@ func NewTelemetry(client *http.Client, apiKey string, site string, service strin
 	}
 
 	t := &Telemetry{
-		telemetryClient: internaltelemetry.NewClient(client, []*traceconfig.Endpoint{endpoint}, service, site == "datad0g.com"),
+		telemetryClient: internaltelemetry.NewClient(client, []*internaltelemetry.Endpoint{endpoint}, service, site == "datad0g.com"),
 		done:            make(chan struct{}),
 		flushed:         make(chan struct{}),
 		env:             env,
@@ -88,7 +85,7 @@ func (t *Telemetry) sendCompletedSpans() {
 	if len(spans) == 0 {
 		return
 	}
-	traces := make(map[uint64][]*pb.Span)
+	traces := make(map[uint64][]*internaltelemetry.Span)
 	for _, span := range spans {
 		span.span.Service = t.service
 		span.span.Meta["env"] = t.env
@@ -96,11 +93,11 @@ func (t *Telemetry) sendCompletedSpans() {
 		span.span.Metrics["_sampling_priority_v1"] = 2
 		traces[span.span.TraceID] = append(traces[span.span.TraceID], &span.span)
 	}
-	tracesArray := make([]pb.Trace, 0, len(traces))
+	tracesArray := make([]internaltelemetry.Trace, 0, len(traces))
 	for _, trace := range traces {
-		tracesArray = append(tracesArray, pb.Trace(trace))
+		tracesArray = append(tracesArray, internaltelemetry.Trace(trace))
 	}
-	t.telemetryClient.SendTraces(pb.Traces(tracesArray))
+	t.telemetryClient.SendTraces(internaltelemetry.Traces(tracesArray))
 }
 
 // SpanFromContext returns the span from the context if available.
