@@ -47,7 +47,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.21.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.22.0
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
 )
@@ -85,7 +85,7 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
-	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95 // indirect
+	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
