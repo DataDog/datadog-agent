@@ -265,7 +265,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, conta
 
 	// We didn't find any devices assigned to the container, report it as an error.
 	if len(filteredDevices) == 0 {
-		return nil, fmt.Errorf("no GPU devices found for container %d that matched its allocated resources %+v", containerID, container.AllocatedResources)
+		return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v", containerID, container.AllocatedResources)
 	}
 
 	return filteredDevices, nil
