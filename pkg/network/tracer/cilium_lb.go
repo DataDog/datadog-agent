@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,6 +39,16 @@ const (
 	TUPLE_F_SERVICE = 4
 	//revive:enable
 )
+
+const ciliumConntrackerModuleName = "network_tracer__cilium_conntracker"
+
+var ciliumConntrackerTelemetry = struct {
+	getsDuration telemetry.Histogram
+	getsTotal    telemetry.Counter
+}{
+	telemetry.NewHistogram(ciliumConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
+	telemetry.NewCounter(ciliumConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
+}
 
 type tupleKey4 struct {
 	DestAddr   [4]byte
@@ -90,6 +101,7 @@ type ciliumLoadBalancerConntracker struct {
 	ctTCP, ctUDP       *maps.GenericMap[tupleKey4, ctEntry]
 	backendIDToBackend map[uint32]backend
 	stop               chan struct{}
+	closeOnce          sync.Once
 }
 
 func newCiliumLoadBalancerConntracker(cfg *config.Config) (netlink.Conntracker, error) {
@@ -199,6 +211,12 @@ func (clb *ciliumLoadBalancerConntracker) GetTranslationForConn(c *network.Conne
 		return nil
 	}
 
+	startTime := time.Now()
+	defer func() {
+		ciliumConntrackerTelemetry.getsTotal.Inc()
+		ciliumConntrackerTelemetry.getsDuration.Observe(float64(time.Since(startTime).Nanoseconds()))
+	}()
+
 	queryMap := clb.ctTCP
 	t := tupleKey4{
 		Flags:      TUPLE_F_OUT | TUPLE_F_SERVICE,
@@ -263,8 +281,10 @@ func (clb *ciliumLoadBalancerConntracker) DumpCachedTable(context.Context) (map[
 }
 
 func (clb *ciliumLoadBalancerConntracker) Close() {
-	clb.stop <- struct{}{}
-	<-clb.stop
-	clb.ctTCP.Map().Close()
-	clb.backends.Map().Close()
+	clb.closeOnce.Do(func() {
+		clb.stop <- struct{}{}
+		<-clb.stop
+		clb.ctTCP.Map().Close()
+		clb.backends.Map().Close()
+	})
 }
