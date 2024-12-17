@@ -502,7 +502,7 @@ func TestTransportProtocol_HTTP1WhenUsingProxy(t *testing.T) {
 	c.SetWithoutSource("logs_config.http_protocol", "auto")
 	c.SetWithoutSource("skip_ssl_validation", true)
 
-	// The test server uses TLS, so if we set the http proxy (not https), it will still make
+	// The test server uses TLS, so if we set the http proxy (not https), it still makes
 	// a request to the test server, but disable HTTP/2 since a proxy is configured.
 	c.SetWithoutSource("proxy.http", "http://foo.bar")
 
