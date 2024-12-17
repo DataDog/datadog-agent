@@ -20,7 +20,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0
-	github.com/DataDog/datadog-go/v5 v5.5.0
+	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.22.0
 	github.com/DataDog/sketches-go v1.4.6
 	github.com/Microsoft/go-winio v0.6.2
