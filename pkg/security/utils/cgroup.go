@@ -90,9 +90,10 @@ func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, mode
 		return "", model.CGroupContext{}, err
 	}
 
-	containerID, runtime := cgroups[0].GetContainerContext()
+	lastCgroup := len(cgroups) - 1
+	containerID, runtime := cgroups[lastCgroup].GetContainerContext()
 	cgroupContext := model.CGroupContext{
-		CGroupID:    containerutils.CGroupID(cgroups[0].Path),
+		CGroupID:    containerutils.CGroupID(cgroups[lastCgroup].Path),
 		CGroupFlags: runtime,
 	}
 

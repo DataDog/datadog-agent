@@ -162,7 +162,6 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 	for statusCode, newRequests := range newStats.Data {
 		if newRequests.Count == 0 {
 			// Nothing to do in this case
-			newRequests.CanRelease = true
 			continue
 		}
 
