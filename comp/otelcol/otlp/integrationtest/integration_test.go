@@ -64,8 +64,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
-	implzlib "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zlib"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
@@ -94,7 +93,6 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
 		converterfx.Module(),
-		compressionfx.MockModule(),
 		fx.Provide(func(cp converter.Component) confmap.Converter {
 			return cp
 		}),
@@ -121,9 +119,10 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		}),
 		logsagentpipelineimpl.Module(),
 		// We create strategy.ZlibStrategy directly to avoid build tags
-		fx.Provide(implzlib.NewComponent),
-		fx.Provide(func(s implzlib.Provides) compression.Component {
-			return s.Comp
+		compressionfx.NoopModule(),
+		fx.Decorate(func(compression compression.Component) compression.Component {
+			// We directly select zlib
+			return compression.WithKindAndLevel("zlib", 0)
 		}),
 		fx.Provide(serializer.NewSerializer),
 		// For FX to provide the serializer.MetricSerializer from the serializer.Serializer

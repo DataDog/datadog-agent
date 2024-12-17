@@ -80,7 +80,7 @@ func main() {
 	err := fxutil.OneShot(
 		runAgent,
 		taggernoop.Module(),
-		compressionfx.Module(),
+		compressionfx.NoopModule(),
 	)
 
 	if err != nil {

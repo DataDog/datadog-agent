@@ -59,6 +59,16 @@ func NewCompressorReq(req Requires) Provides {
 	}
 }
 
+// NewNoopCompressorReq returns a new Noop Compressor. It does not do any
+// compression, but can be used to create a compressor that does at a later
+// point.
+// This function is called only when the zlib build tag is included
+func NewNoopCompressorReq() Provides {
+	return Provides{Comp: implnoop.NewComponent(implnoop.Requires{
+		NewKind: NewCompressorKind,
+	}).Comp}
+}
+
 // NewCompressor returns a new Compressor based on serializer_compressor_kind
 // This function is called only when the zlib build tag is included
 func NewCompressor(cfg config.Component) compression.Component {
