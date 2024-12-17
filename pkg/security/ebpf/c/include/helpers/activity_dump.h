@@ -61,7 +61,8 @@ __attribute__((always_inline)) u32 is_cgroup_activity_dumps_supported(struct cgr
 
 __attribute__((always_inline)) bool reserve_traced_cgroup_spot(struct cgroup_context_t *cgroup, u64 now, u64 cookie, struct activity_dump_config *config) {
     // insert dump config defaults
-    struct activity_dump_config *defaults = bpf_map_lookup_elem(&activity_dump_config_defaults, &cgroup->cgroup_flags);
+    u32 cgroup_flags = cgroup->cgroup_flags;
+    struct activity_dump_config *defaults = bpf_map_lookup_elem(&activity_dump_config_defaults, &cgroup_flags);
     if (defaults == NULL) {
         // should never happen, ignore
         return false;
