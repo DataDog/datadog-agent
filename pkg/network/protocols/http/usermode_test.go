@@ -117,7 +117,7 @@ func createHTTPEvents() []EbpfEvent {
 	}
 }
 
-// BenchmarkConsumer benchmarks the consumer with a large number of events to measure the performance.
+// BenchmarkHTTPEventConsumer benchmarks the consumer with a large number of events to measure the performance.
 func BenchmarkHTTPEventConsumer(b *testing.B) {
 	const TotalEventsCount = 42000
 	// Set MemProfileRate to 1 in order to collect every allocation
