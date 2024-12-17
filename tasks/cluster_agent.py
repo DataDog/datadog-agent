@@ -15,7 +15,7 @@ from invoke.exceptions import Exit
 from tasks.build_tags import get_default_build_tags
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
-from tasks.gointegrationtest import CLUSTER_AGENT, containerized_integration_tests
+from tasks.gointegrationtest import CLUSTER_AGENT_IT_CONF, containerized_integration_tests
 from tasks.libs.releasing.version import load_release_versions
 
 # constants
@@ -94,7 +94,7 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", t
     """
     containerized_integration_tests(
         ctx,
-        CLUSTER_AGENT,
+        CLUSTER_AGENT_IT_CONF,
         race=race,
         remote_docker=remote_docker,
         go_mod=go_mod,

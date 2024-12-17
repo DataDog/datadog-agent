@@ -34,7 +34,7 @@ class IntegrationTestsConfig:
     is_windows_supported: bool = True
 
 
-CORE_AGENT_LINUX = IntegrationTestsConfig(
+CORE_AGENT_LINUX_IT_CONF = IntegrationTestsConfig(
     name="Core Agent Linux",
     go_build_tags=get_default_build_tags(build="test"),
     tests=[
@@ -46,7 +46,7 @@ CORE_AGENT_LINUX = IntegrationTestsConfig(
     is_windows_supported=False,
 )
 
-CORE_AGENT_WINDOWS = IntegrationTestsConfig(
+CORE_AGENT_WINDOWS_IT_CONF = IntegrationTestsConfig(
     name="Core Agent Windows",
     go_build_tags=get_default_build_tags(build="test"),
     tests=[
@@ -62,14 +62,14 @@ CORE_AGENT_WINDOWS = IntegrationTestsConfig(
     ],
 )
 
-DOGSTATSD = IntegrationTestsConfig(
+DOGSTATSD_IT_CONF = IntegrationTestsConfig(
     name="DogStatsD",
     go_build_tags=get_default_build_tags(build="test"),
     tests=[IntegrationTest(prefix="./test/integration/dogstatsd/...")],
     is_windows_supported=False,
 )
 
-CLUSTER_AGENT = IntegrationTestsConfig(
+CLUSTER_AGENT_IT_CONF = IntegrationTestsConfig(
     name="Cluster Agent",
     go_build_tags=get_default_build_tags(build="cluster-agent") + ["docker", "test"],
     tests=[
@@ -79,7 +79,7 @@ CLUSTER_AGENT = IntegrationTestsConfig(
     is_windows_supported=False,
 )
 
-TRACE_AGENT = IntegrationTestsConfig(
+TRACE_AGENT_IT_CONF = IntegrationTestsConfig(
     name="Trace Agent",
     go_build_tags=get_default_build_tags(build="test"),
     tests=[IntegrationTest(prefix="./cmd/trace-agent/test/testsuite/...")],
@@ -128,18 +128,18 @@ def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
     """
     Run all the available integration tests
     """
-    core_agent_conf = CORE_AGENT_WINDOWS if sys.platform == 'win32' else CORE_AGENT_LINUX
+    core_agent_conf = CORE_AGENT_WINDOWS_IT_CONF if sys.platform == 'win32' else CORE_AGENT_LINUX_IT_CONF
     tests = {
         "Agent Core": lambda: containerized_integration_tests(
             ctx, core_agent_conf, race=race, remote_docker=remote_docker, timeout=timeout
         ),
         "DogStatsD": lambda: containerized_integration_tests(
-            ctx, DOGSTATSD, race=race, remote_docker=remote_docker, timeout=timeout
+            ctx, DOGSTATSD_IT_CONF, race=race, remote_docker=remote_docker, timeout=timeout
         ),
         "Cluster Agent": lambda: containerized_integration_tests(
-            ctx, CLUSTER_AGENT, race=race, remote_docker=remote_docker, timeout=timeout
+            ctx, CLUSTER_AGENT_IT_CONF, race=race, remote_docker=remote_docker, timeout=timeout
         ),
-        "Trace Agent": lambda: containerized_integration_tests(ctx, TRACE_AGENT, race=race, timeout=timeout),
+        "Trace Agent": lambda: containerized_integration_tests(ctx, TRACE_AGENT_IT_CONF, race=race, timeout=timeout),
     }
     tests_failures = {}
     for t_name, t in tests.items():

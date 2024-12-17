@@ -17,7 +17,11 @@ from invoke.exceptions import Exit
 from tasks.build_tags import add_fips_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
-from tasks.gointegrationtest import CORE_AGENT_LINUX, CORE_AGENT_WINDOWS, containerized_integration_tests
+from tasks.gointegrationtest import (
+    CORE_AGENT_LINUX_IT_CONF,
+    CORE_AGENT_WINDOWS_IT_CONF,
+    containerized_integration_tests,
+)
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -532,10 +536,12 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", t
     Run integration tests for the Agent
     """
     if sys.platform == 'win32':
-        return containerized_integration_tests(ctx, CORE_AGENT_WINDOWS, race=race, go_mod=go_mod, timeout=timeout)
+        return containerized_integration_tests(
+            ctx, CORE_AGENT_WINDOWS_IT_CONF, race=race, go_mod=go_mod, timeout=timeout
+        )
     return containerized_integration_tests(
         ctx,
-        CORE_AGENT_LINUX,
+        CORE_AGENT_LINUX_IT_CONF,
         race=race,
         remote_docker=remote_docker,
         go_mod=go_mod,
