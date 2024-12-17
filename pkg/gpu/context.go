@@ -280,7 +280,8 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerI
 		// first. In a container setting, the environment variable acts as a
 		// filter on the devices that are available to the process, not on the
 		// devices available on the host system.
-		visibleDevices, err := ctx.filterDevicesForContainer(ctx.gpuDevices, containerID)
+		var err error // avoid shadowing visibleDevices, declare error before so we can use = instead of :=
+		visibleDevices, err = ctx.filterDevicesForContainer(ctx.gpuDevices, containerID)
 		if err != nil {
 			return nil, fmt.Errorf("error filtering devices for container %s: %w", containerID, err)
 		}
