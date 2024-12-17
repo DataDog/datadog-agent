@@ -5,7 +5,7 @@ from invoke import task
 
 from tasks.build_tags import add_fips_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.gointegrationtest import trace_integration_tests
+from tasks.gointegrationtest import TRACE_AGENT, containerized_integration_tests
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -82,7 +82,14 @@ def integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):
     """
     Run integration tests for trace agent
     """
-    trace_integration_tests(ctx=ctx, race=race, go_mod=go_mod, timeout=timeout)
+    containerized_integration_tests(
+        ctx,
+        TRACE_AGENT,
+        race=race,
+        remote_docker=False,
+        go_mod=go_mod,
+        timeout=timeout,
+    )
 
 
 @task

@@ -31,6 +31,7 @@ class IntegrationTestsConfig:
     go_build_tags: list[str]
     tests: list[IntegrationTest]
     env: dict[str, str] = None
+    is_windows_supported: bool = True
 
 
 CORE_AGENT_LINUX = IntegrationTestsConfig(
@@ -42,6 +43,7 @@ CORE_AGENT_LINUX = IntegrationTestsConfig(
         IntegrationTest(prefix="./test/integration/listeners/..."),
         IntegrationTest(prefix="./test/integration/util/kubelet/..."),
     ],
+    is_windows_supported=False,
 )
 
 CORE_AGENT_WINDOWS = IntegrationTestsConfig(
@@ -64,6 +66,7 @@ DOGSTATSD = IntegrationTestsConfig(
     name="DogStatsD",
     go_build_tags=get_default_build_tags(build="test"),
     tests=[IntegrationTest(prefix="./test/integration/dogstatsd/...")],
+    is_windows_supported=False,
 )
 
 CLUSTER_AGENT = IntegrationTestsConfig(
@@ -73,6 +76,7 @@ CLUSTER_AGENT = IntegrationTestsConfig(
         IntegrationTest(prefix="./test/integration/util/kube_apiserver"),
         IntegrationTest(prefix="./test/integration/util/leaderelection"),
     ],
+    is_windows_supported=False,
 )
 
 TRACE_AGENT = IntegrationTestsConfig(
@@ -80,6 +84,7 @@ TRACE_AGENT = IntegrationTestsConfig(
     go_build_tags=get_default_build_tags(build="test"),
     tests=[IntegrationTest(prefix="./cmd/trace-agent/test/testsuite/...")],
     env={"INTEGRATION": "yes"},
+    is_windows_supported=False,
 )
 
 
@@ -91,6 +96,8 @@ def containerized_integration_tests(
     go_mod="readonly",
     timeout="",
 ):
+    if sys.platform == 'win32' and not integration_tests_config.is_windows_supported:
+        raise TestsNotSupportedError(f'{integration_tests_config.name} integration tests are not supported on Windows')
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(integration_tests_config.go_build_tags),
@@ -116,80 +123,23 @@ def containerized_integration_tests(
             ctx.run(f"{go_cmd} {it.prefix}", env=integration_tests_config.env)
 
 
-def dsd_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
-    """
-    Run integration tests for dogstatsd
-    """
-    if sys.platform == 'win32':
-        raise TestsNotSupportedError('DogStatsD integration tests are not supported on Windows')
-    containerized_integration_tests(
-        ctx,
-        DOGSTATSD,
-        race=race,
-        remote_docker=remote_docker,
-        go_mod=go_mod,
-        timeout=timeout,
-    )
-
-
-def dca_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
-    """
-    Run integration tests for cluster-agent
-    """
-    if sys.platform == 'win32':
-        raise TestsNotSupportedError('Cluster Agent integration tests are not supported on Windows')
-    containerized_integration_tests(
-        ctx,
-        CLUSTER_AGENT,
-        race=race,
-        remote_docker=remote_docker,
-        go_mod=go_mod,
-        timeout=timeout,
-    )
-
-
-def trace_integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):
-    """
-    Run integration tests for trace agent
-    """
-    if sys.platform == 'win32':
-        raise TestsNotSupportedError('Trace Agent integration tests are not supported on Windows')
-    containerized_integration_tests(
-        ctx,
-        TRACE_AGENT,
-        race=race,
-        remote_docker=False,
-        go_mod=go_mod,
-        timeout=timeout,
-    )
-
-
-def core_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
-    """
-    Run integration tests for the Agent
-    """
-    if sys.platform == 'win32':
-        return containerized_integration_tests(ctx, CORE_AGENT_WINDOWS, race=race, go_mod=go_mod, timeout=timeout)
-    return containerized_integration_tests(
-        ctx,
-        CORE_AGENT_LINUX,
-        race=race,
-        remote_docker=remote_docker,
-        go_mod=go_mod,
-        timeout=timeout,
-    )
-
-
 @task
 def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
     """
     Run all the available integration tests
     """
+    core_agent_conf = CORE_AGENT_WINDOWS if sys.platform == 'win32' else CORE_AGENT_LINUX
     tests = {
-        "Agent": lambda: core_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        "DogStatsD": lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        "Cluster Agent": lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        "Trace Agent": lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
+        "Agent Core": lambda: containerized_integration_tests(
+            ctx, core_agent_conf, race=race, remote_docker=remote_docker, timeout=timeout
+        ),
+        "DogStatsD": lambda: containerized_integration_tests(
+            ctx, DOGSTATSD, race=race, remote_docker=remote_docker, timeout=timeout
+        ),
+        "Cluster Agent": lambda: containerized_integration_tests(
+            ctx, CLUSTER_AGENT, race=race, remote_docker=remote_docker, timeout=timeout
+        ),
+        "Trace Agent": lambda: containerized_integration_tests(ctx, TRACE_AGENT, race=race, timeout=timeout),
     }
     tests_failures = {}
     for t_name, t in tests.items():

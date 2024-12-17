@@ -11,7 +11,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.gointegrationtest import dsd_integration_tests
+from tasks.gointegrationtest import DOGSTATSD, containerized_integration_tests
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_root
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -175,7 +175,14 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", t
     """
     Run integration tests for dogstatsd
     """
-    dsd_integration_tests(ctx=ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, timeout=timeout)
+    containerized_integration_tests(
+        ctx,
+        DOGSTATSD,
+        race=race,
+        remote_docker=remote_docker,
+        go_mod=go_mod,
+        timeout=timeout,
+    )
 
 
 @task
