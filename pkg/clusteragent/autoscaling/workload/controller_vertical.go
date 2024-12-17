@@ -42,11 +42,11 @@ type verticalController struct {
 	clock         clock.Clock
 	eventRecorder record.EventRecorder
 	dynamicClient dynamic.Interface
-	podWatcher    podWatcher
+	podWatcher    PodWatcher
 }
 
 // newVerticalController creates a new *verticalController
-func newVerticalController(clock clock.Clock, eventRecorder record.EventRecorder, cl dynamic.Interface, pw podWatcher) *verticalController {
+func newVerticalController(clock clock.Clock, eventRecorder record.EventRecorder, cl dynamic.Interface, pw PodWatcher) *verticalController {
 	res := &verticalController{
 		clock:         clock,
 		eventRecorder: eventRecorder,

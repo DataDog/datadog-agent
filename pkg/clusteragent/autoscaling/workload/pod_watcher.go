@@ -32,7 +32,7 @@ type NamespacedPodOwner struct {
 }
 
 // podWatcher indexes pods by their owner
-type podWatcher interface {
+type PodWatcher interface {
 	// Start starts the PodWatcher.
 	Run(ctx context.Context)
 	// GetPodsForOwner returns the pods for the given owner.
