@@ -64,7 +64,7 @@ func newMeasuredCache(opts cacheOptions) *measuredCache {
 	}
 	cfg := &ristretto.Config{
 		MaxCost:     opts.MaxSize,
-		NumCounters: opts.MaxSize * 10, // Multipled by 10 as per ristretto recommendation
+		NumCounters: opts.MaxSize * 10, // Multiplied by 10 as per ristretto recommendation
 		BufferItems: 64,                // default recommended value
 		Metrics:     true,              // enable hit/miss counters
 	}
