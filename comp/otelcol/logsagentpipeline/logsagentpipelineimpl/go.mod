@@ -106,7 +106,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sds v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0 // indirect
