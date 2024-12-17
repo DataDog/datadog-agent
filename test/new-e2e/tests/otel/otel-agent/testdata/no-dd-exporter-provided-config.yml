@@ -81,7 +81,6 @@ exporters:
       compute_top_level_by_span_kind: true
       dialer:
         timeout: 0s
-      endpoint: https://5cc6b946943fbd35.lb3.fi.qa.dda-testing.com
       ignore_resources: []
       peer_service_aggregation: false
       peer_tags: []
