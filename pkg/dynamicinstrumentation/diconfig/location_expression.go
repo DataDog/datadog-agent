@@ -128,7 +128,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 							ditypes.PopLocationExpression(1, 2),
 						)
 					} else {
-						stringLength.LocationExpressions = append(targetExpressions,
+						stringLength.LocationExpressions = append(stringLength.LocationExpressions,
 							ditypes.ApplyOffsetLocationExpression(uint(stringLength.FieldOffset)),
 							ditypes.DereferenceToOutputLocationExpression(2),
 						)
@@ -163,12 +163,11 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 							ditypes.PopLocationExpression(1, 2),
 						)
 					} else {
-						sliceLength.LocationExpressions = append(targetExpressions,
+						sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
 							ditypes.ApplyOffsetLocationExpression(uint(sliceLength.FieldOffset)),
 							ditypes.DereferenceToOutputLocationExpression(2),
 						)
 					}
-
 					if len(slicePointer.ParameterPieces) == 0 {
 						continue
 					}
