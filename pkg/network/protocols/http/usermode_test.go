@@ -10,8 +10,7 @@ package http
 import (
 	"bytes"
 	"encoding/binary"
-	"os"
-	"runtime/pprof"
+	"runtime"
 	"testing"
 	"time"
 	"unsafe"
@@ -45,6 +44,49 @@ func structToBytes(b *testing.B, events []EbpfEvent, numOfEventsInBatch int) [40
 	return result
 }
 
+// setupBenchmark sets up the benchmark environment by creating a consumer, protocol, and configuration.
+func setupBenchmark(b *testing.B, c *config.Config, totalEventsCount int) (*events.Consumer[EbpfEvent], *protocol, *manager.Manager) {
+	const numOfEventsInBatch = 14
+
+	program, err := events.NewEBPFProgram(c)
+	require.NoError(b, err)
+
+	httpTelemetry := NewTelemetry("http")
+
+	p := protocol{
+		cfg:        c,
+		telemetry:  httpTelemetry,
+		statkeeper: NewStatkeeper(c, httpTelemetry, NewIncompleteBuffer(c, httpTelemetry)),
+	}
+	consumer, err := events.NewConsumer("test", program, p.processHTTP)
+	require.NoError(b, err)
+
+	go generateMockEvents(b, c, consumer, numOfEventsInBatch, totalEventsCount)
+
+	return consumer, &p, program
+}
+
+// generateMockEvents generates mock events to be used in the benchmark.
+func generateMockEvents(b *testing.B, c *config.Config, consumer *events.Consumer[EbpfEvent], numOfEventsInBatch, totalEvents int) {
+	httpEvents := createHTTPEvents()
+	require.NotEmpty(b, httpEvents, "httpEvents slice is empty")
+
+	mockBatch := events.Batch{
+		Len:        uint16(numOfEventsInBatch),
+		Cap:        uint16(numOfEventsInBatch),
+		Event_size: uint16(unsafe.Sizeof(httpEvents[0])),
+		Data:       structToBytes(b, httpEvents, numOfEventsInBatch),
+	}
+
+	for i := 0; i < totalEvents/numOfEventsInBatch; i++ {
+		mockBatch.Idx = uint64(i)
+		var buf bytes.Buffer
+		require.NoError(b, binary.Write(&buf, binary.LittleEndian, &mockBatch))
+		events.RecordSample(c, consumer, buf.Bytes())
+		buf.Reset()
+	}
+}
+
 // createHTTPEvents creates a slice of HTTP events to be used in the benchmark.
 func createHTTPEvents() []EbpfEvent {
 	httpReq1 := "GET /etc/os-release HTTP/1.1\nHost: localhost:8001\nUser-Agent: curl/7.81.0\nAccept: */*"
@@ -76,64 +118,26 @@ func createHTTPEvents() []EbpfEvent {
 }
 
 // BenchmarkConsumer benchmarks the consumer with a large number of events to measure the performance.
-func BenchmarkFlow(b *testing.B) {
-	// Serialized data can't exceed 4096 bytes that why we can insert 14 events in a batch.
-	const numOfEventsInBatch = 14
-	// The capacity of the data chanel is 100 batches, so we can process 1400 events in total.
-	const TotalEventsCount = 1400
-	c := config.New()
+func BenchmarkHTTPEventConsumer(b *testing.B) {
+	const TotalEventsCount = 42000
+	// Set MemProfileRate to 1 in order to collect every allocation
+	runtime.MemProfileRate = 1
 
-	program, err := events.NewEBPFProgram(c)
-	require.NoError(b, err)
-
-	httpEvents := createHTTPEvents()
-	require.NotEmpty(b, httpEvents, "httpEvents slice is empty")
-
-	httpTelemetry := NewTelemetry("http")
-
-	p := protocol{
-		cfg:        c,
-		telemetry:  httpTelemetry,
-		statkeeper: NewStatkeeper(c, httpTelemetry, NewIncompleteBuffer(c, httpTelemetry)),
-	}
-	consumer, err := events.NewConsumer("test", program, p.processHTTP)
-	require.NoError(b, err)
-
-	mockBatch := events.Batch{
-		Len:        uint16(numOfEventsInBatch),
-		Cap:        uint16(numOfEventsInBatch),
-		Event_size: uint16(unsafe.Sizeof(httpEvents[0])),
-		Data:       structToBytes(b, httpEvents, numOfEventsInBatch),
-	}
-
-	for i := 0; i < TotalEventsCount/numOfEventsInBatch; i++ {
-		mockBatch.Idx = uint64(i)
-		var buf bytes.Buffer
-		require.NoError(b, binary.Write(&buf, binary.LittleEndian, &mockBatch))
-		events.RecordSample(c, consumer, buf.Bytes())
-		buf.Reset()
-	}
+	consumer, p, program := setupBenchmark(b, config.New(), TotalEventsCount)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		consumer.Start()
-
-		f, err := os.Create("/tmp/consumer_mem.prof")
-		if err != nil {
-			b.Logf("failed to create memory profile: %v", err)
-		} else {
-			pprof.Lookup("goroutine").WriteTo(f, 0)
-			f.Close()
-		}
-
 		require.Eventually(b, func() bool {
-			// Ensure all events were processed by hits 2XX counter for each iteration
-			return TotalEventsCount == int(httpTelemetry.hits2XX.counterPlain.Get())
-		}, 5*time.Second, 1000*time.Millisecond)
+			return TotalEventsCount == int(p.telemetry.hits2XX.counterPlain.Get())
+		}, 5*time.Second, 100*time.Millisecond)
 	}
+
 	b.Cleanup(func() {
+		b.Logf("USM summary: %s", p.telemetry.metricGroup.Summary())
+		p.telemetry.hits2XX.counterPlain.Reset()
 		program.Stop(manager.CleanAll)
 	})
 }
