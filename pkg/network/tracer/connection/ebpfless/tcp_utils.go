@@ -40,6 +40,7 @@ const (
 )
 
 var statsTelemetry = struct {
+	expiredPendingConns     telemetry.Counter
 	droppedPendingConns     telemetry.Counter
 	droppedEstablishedConns telemetry.Counter
 	missedTCPHandshakes     telemetry.Counter
@@ -48,6 +49,7 @@ var statsTelemetry = struct {
 	tcpRstAndSyn            telemetry.Counter
 	tcpRstAndFin            telemetry.Counter
 }{
+	expiredPendingConns:     telemetry.NewCounter(ebpflessModuleName, "expired_pending_conns", nil, "Counter measuring the number of TCP connections which expired because it took too long to complete the handshake"),
 	droppedPendingConns:     telemetry.NewCounter(ebpflessModuleName, "dropped_pending_conns", nil, "Counter measuring the number of TCP connections which were dropped during the handshake (because the map was full)"),
 	droppedEstablishedConns: telemetry.NewCounter(ebpflessModuleName, "dropped_established_conns", nil, "Counter measuring the number of TCP connections which were dropped while established (because the map was full)"),
 	missedTCPHandshakes:     telemetry.NewCounter(ebpflessModuleName, "missed_tcp_handshakes", nil, "Counter measuring the number of TCP connections where we missed the SYN handshake"),

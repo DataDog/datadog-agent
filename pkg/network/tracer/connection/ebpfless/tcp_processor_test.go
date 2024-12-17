@@ -12,6 +12,7 @@ import (
 	"net"
 	"syscall"
 	"testing"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -791,4 +792,26 @@ func TestPreexistingConn(t *testing.T) {
 		TCPClosed:      1,
 	}
 	require.Equal(t, expectedStats, f.conn.Monotonic)
+}
+
+func TestPendingConnExpiry(t *testing.T) {
+	now := uint64(time.Now().UnixNano())
+
+	pb := newPacketBuilder(lowerSeq, higherSeq)
+	pkt := pb.outgoing(0, 0, 0, SYN)
+	pkt.timestampNs = now
+
+	f := newTCPTestFixture(t)
+
+	f.runPkt(pkt)
+	require.Len(t, f.tcp.pendingConns, 1)
+
+	// if no time has passed, should not remove the connection
+	f.tcp.CleanupExpiredPendingConns(now)
+	require.Len(t, f.tcp.pendingConns, 1)
+
+	// if too much time has passed, should remove the connection
+	tenSecNs := uint64((10 * time.Second).Nanoseconds())
+	f.tcp.CleanupExpiredPendingConns(now + tenSecNs)
+	require.Empty(t, f.tcp.pendingConns)
 }
