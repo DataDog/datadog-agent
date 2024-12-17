@@ -64,6 +64,10 @@ build do
           dest: "/etc/init/datadog-agent.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "upstart_redhat.checks.conf.erb",
+          dest: "/etc/init/datadog-agent-checks.conf",
+          mode: 0644,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_redhat.process.conf.erb",
           dest: "/etc/init/datadog-agent-process.conf",
           mode: 0644,
@@ -82,6 +86,7 @@ build do
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     end
     project.extra_package_file '/etc/init/datadog-agent.conf'
+    project.extra_package_file '/etc/init/datadog-agent-checks.conf'
     project.extra_package_file '/etc/init/datadog-agent-process.conf'
     project.extra_package_file '/etc/init/datadog-agent-sysprobe.conf'
     project.extra_package_file '/etc/init/datadog-agent-trace.conf'
