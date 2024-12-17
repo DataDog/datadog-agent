@@ -84,7 +84,7 @@ const (
 	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
 	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
 	// in situations where we have a high value for `GOMAXPROCS`.
-	DefaultZstdCompressionLevel = 1
+	DefaultZstdCompressionLevel = 5
 
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
