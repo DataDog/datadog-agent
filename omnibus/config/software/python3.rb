@@ -81,7 +81,6 @@ else
     license "Python-2.0"
 
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""
-    command "copy /y \"#{windows_safe_path(vcrt140_root)}\\*.dll\" \"#{windows_safe_path(python_3_embedded)}\""
 
     # Install pip
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
