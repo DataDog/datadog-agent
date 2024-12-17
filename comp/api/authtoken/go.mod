@@ -4,7 +4,8 @@ go 1.22.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/api/authtoken/def => ./def
+	github.com/DataDog/datadog-agent/comp/api/authtoken/def => ../authtoken/def
+	github.com/DataDog/datadog-agent/comp/api/authtoken/impl-none => ../authtoken/impl-none
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
