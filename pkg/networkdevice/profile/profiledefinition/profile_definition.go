@@ -43,6 +43,6 @@ type DeviceProfileRcConfig struct {
 // NewProfileDefinition creates a new ProfileDefinition
 func NewProfileDefinition() *ProfileDefinition {
 	p := &ProfileDefinition{}
-	p.Metadata = make(MetadataConfig)
+	p.Metadata = MetadataConfig{}
 	return p
 }

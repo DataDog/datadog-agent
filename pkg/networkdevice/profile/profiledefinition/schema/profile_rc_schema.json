@@ -12,6 +12,57 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "DeviceMetadata": {
+      "properties": {
+        "fields": {
+          "$ref": "#/$defs/DeviceMetadataFields"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DeviceMetadataFields": {
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "description": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "location": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "vendor": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "serial_number": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "version": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "product_name": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "model": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "os_name": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "os_version": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "os_hostname": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "type": {
+          "$ref": "#/$defs/MetadataField"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "DeviceProfileRcConfig": {
       "properties": {
         "profile_definition": {
@@ -23,6 +74,18 @@
       "required": [
         "profile_definition"
       ]
+    },
+    "InterfaceMetadata": {
+      "properties": {
+        "fields": {
+          "type": "string"
+        },
+        "id_tags": {
+          "$ref": "#/$defs/MetricTagConfigList"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
     },
     "ListMap[string]": {
       "items": {
@@ -44,9 +107,15 @@
       "type": "array"
     },
     "MetadataConfig": {
-      "additionalProperties": {
-        "$ref": "#/$defs/MetadataResourceConfig"
+      "properties": {
+        "device": {
+          "$ref": "#/$defs/DeviceMetadata"
+        },
+        "interface": {
+          "$ref": "#/$defs/InterfaceMetadata"
+        }
       },
+      "additionalProperties": false,
       "type": "object"
     },
     "MetadataField": {
@@ -66,24 +135,6 @@
       },
       "additionalProperties": false,
       "type": "object"
-    },
-    "MetadataResourceConfig": {
-      "properties": {
-        "fields": {
-          "additionalProperties": {
-            "$ref": "#/$defs/MetadataField"
-          },
-          "type": "object"
-        },
-        "id_tags": {
-          "$ref": "#/$defs/MetricTagConfigList"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "fields"
-      ]
     },
     "MetricIndexTransform": {
       "properties": {

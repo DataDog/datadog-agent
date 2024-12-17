@@ -8,8 +8,48 @@ package profiledefinition
 // MetadataDeviceResource is the device resource name
 const MetadataDeviceResource = "device"
 
-// MetadataConfig holds configs per resource type
-type MetadataConfig map[string]MetadataResourceConfig
+// MetadataConfig holds metadata config per resource type
+type MetadataConfig struct {
+	Device    DeviceMetadata    `yaml:"device,omitempty" json:"device,omitempty"`
+	Interface InterfaceMetadata `yaml:"interface,omitempty" json:"interface,omitempty"`
+}
+
+// DeviceMetadata holds device metadata
+type DeviceMetadata struct {
+	Fields DeviceMetadataFields `yaml:"fields,omitempty" json:"fields,omitempty"`
+}
+
+// DeviceMetadataFields holds device metadata fields
+type DeviceMetadataFields struct {
+	Name         MetadataField `yaml:"name,omitempty" json:"name,omitempty"`
+	Description  MetadataField `yaml:"description,omitempty" json:"description,omitempty"`
+	Location     MetadataField `yaml:"location,omitempty" json:"location,omitempty"`
+	Vendor       MetadataField `yaml:"vendor,omitempty" json:"vendor,omitempty"`
+	SerialNumber MetadataField `yaml:"serial_number,omitempty" json:"serial_number,omitempty"`
+	Version      MetadataField `yaml:"version,omitempty" json:"version,omitempty"`
+	ProductName  MetadataField `yaml:"product_name,omitempty" json:"product_name,omitempty"`
+	Model        MetadataField `yaml:"model,omitempty" json:"model,omitempty"`
+	OsName       MetadataField `yaml:"os_name,omitempty" json:"os_name,omitempty"`
+	OsVersion    MetadataField `yaml:"os_version,omitempty" json:"os_version,omitempty"`
+	OsHostname   MetadataField `yaml:"os_hostname,omitempty" json:"os_hostname,omitempty"`
+	DeviceType   MetadataField `yaml:"type,omitempty" json:"type,omitempty"`
+}
+
+// InterfaceMetadata holds interface metadata
+type InterfaceMetadata struct {
+	Fields string              `yaml:"fields,omitempty" json:"fields,omitempty"`
+	IDTags MetricTagConfigList `yaml:"id_tags,omitempty" json:"id_tags,omitempty"`
+}
+
+// InterfaceMetadataFields holds interface metadata fields
+type InterfaceMetadataFields struct {
+	Name        MetadataField `yaml:"name,omitempty" json:"name,omitempty"`
+	Alias       MetadataField `yaml:"alias,omitempty" json:"alias,omitempty"`
+	Description MetadataField `yaml:"description,omitempty" json:"description,omitempty"`
+	MacAddress  MetadataField `yaml:"mac_address,omitempty" json:"mac_address,omitempty"` // add mac_Address format
+	AdminStatus MetadataField `yaml:"admin_status,omitempty" json:"admin_status,omitempty"`
+	OperStatus  MetadataField `yaml:"oper_status,omitempty" json:"oper_status,omitempty"`
+}
 
 // MetadataResourceConfig holds configs for a metadata resource
 type MetadataResourceConfig struct {
