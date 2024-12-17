@@ -16,7 +16,6 @@ from collections import defaultdict
 from datetime import date
 from time import sleep
 
-import github
 from gitlab import GitlabError
 from invoke import task
 from invoke.exceptions import Exit
@@ -1273,6 +1272,8 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
     """
     Create a PR to bump the current_milestone in the release.json file
     """
+    import github
+
     gh = GithubAPI()
 
     current = current_version(ctx, major_version)
