@@ -47,7 +47,7 @@ type Conntracker interface {
 	// Collect returns the current state of all metrics of the collector
 	Collect(metrics chan<- prometheus.Metric)
 	GetTranslationForConn(*network.ConnectionTuple) *network.IPTranslation
-	// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
+	// GetType returns a string describing the conntracker type
 	GetType() string
 	DeleteTranslation(*network.ConnectionTuple)
 	DumpCachedTable(context.Context) (map[uint32][]DebugConntrackEntry, error)

@@ -190,6 +190,7 @@ func (clb *ciliumLoadBalancerConntracker) updateBackends() {
 	}
 }
 
+// Describe returns all descriptions of the collector
 func (clb *ciliumLoadBalancerConntracker) Describe(chan<- *prometheus.Desc) {
 }
 
@@ -197,6 +198,7 @@ func (clb *ciliumLoadBalancerConntracker) Describe(chan<- *prometheus.Desc) {
 func (clb *ciliumLoadBalancerConntracker) Collect(chan<- prometheus.Metric) {
 }
 
+// GetTranslationForConn returns the network address translation for a given connection tuple
 func (clb *ciliumLoadBalancerConntracker) GetTranslationForConn(c *network.ConnectionTuple) *network.IPTranslation {
 	// TODO: add ipv6 support
 	if c.Family != network.AFINET {
@@ -268,18 +270,21 @@ func (clb *ciliumLoadBalancerConntracker) GetTranslationForConn(c *network.Conne
 	return nil
 }
 
-// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
+// GetType returns a string describing the conntracker type
 func (clb *ciliumLoadBalancerConntracker) GetType() string {
 	return "cilium_lb"
 }
 
+// DeleteTranslation delete the network address translation for a tuple
 func (clb *ciliumLoadBalancerConntracker) DeleteTranslation(*network.ConnectionTuple) {
 }
 
+// DumpCachedTable dumps the in-memory address translation table
 func (clb *ciliumLoadBalancerConntracker) DumpCachedTable(context.Context) (map[uint32][]netlink.DebugConntrackEntry, error) {
 	return nil, nil
 }
 
+// Close closes the conntracker
 func (clb *ciliumLoadBalancerConntracker) Close() {
 	clb.closeOnce.Do(func() {
 		clb.stop <- struct{}{}
