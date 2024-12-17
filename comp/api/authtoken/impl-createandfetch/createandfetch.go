@@ -1,50 +1,44 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2023-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
 
-// Package createandfetchimpl implements the creation and access to the auth_token used to communicate between Agent
-// processes.
+// Package createandfetchimpl implements the authtoken component interface
+// It create or fetch the auth_token depending if it is already existing in the file system
 package createandfetchimpl
 
 import (
 	"crypto/tls"
 
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtoken "github.com/DataDog/datadog-agent/comp/api/authtoken/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newAuthToken),
-		fxutil.ProvideOptional[authtoken.Component](),
-	)
-}
 
 type authToken struct{}
 
 var _ authtoken.Component = (*authToken)(nil)
 
-type dependencies struct {
-	fx.In
-
+// Requires defines the dependencies for the authtoken component
+type Requires struct {
 	Conf config.Component
 	Log  log.Component
 }
 
-func newAuthToken(deps dependencies) (authtoken.Component, error) {
-	if err := util.CreateAndSetAuthToken(deps.Conf); err != nil {
-		deps.Log.Error("could not create auth_token: %s", err)
-		return nil, err
+// Provides defines the output of the authtoken component
+type Provides struct {
+	Comp authtoken.Component
+}
+
+// NewComponent creates a new authtoken component
+func NewComponent(reqs Requires) (Provides, error) {
+	if err := util.CreateAndSetAuthToken(reqs.Conf); err != nil {
+		reqs.Log.Error("could not create auth_token: %s", err)
+		return Provides{}, err
 	}
 
-	return &authToken{}, nil
+	return Provides{Comp: &authToken{}}, nil
 }
 
 // Get returns the session token

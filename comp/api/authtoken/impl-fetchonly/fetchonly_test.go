@@ -12,33 +12,29 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 )
 
 func TestGet(t *testing.T) {
 	dir := t.TempDir()
 	authPath := filepath.Join(dir, "auth_token")
-	var cfg config.Component
-	overrides := map[string]any{
-		"auth_token_file_path": authPath,
+
+	configComp := config.NewMock(t)
+	configComp.SetWithoutSource("auth_token_file_path", authPath)
+	logComp := logmock.New(t)
+
+	requires := Requires{
+		Conf: configComp,
+		Log:  logComp,
 	}
 
-	comp := newAuthToken(
-		fxutil.Test[dependencies](
-			t,
-			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
-			fx.Populate(&cfg),
-			fx.Replace(config.MockParams{Overrides: overrides}),
-		),
-	).(*authToken)
+	provider := NewComponent(requires)
+
+	comp := provider.Comp.(*authToken)
 
 	assert.Empty(t, comp.Get())
 	assert.False(t, comp.tokenLoaded)
@@ -51,7 +47,7 @@ func TestGet(t *testing.T) {
 	assert.False(t, comp.tokenLoaded)
 
 	// generating IPC cert/key files
-	_, _, err = cert.CreateOrFetchAgentIPCCert(cfg)
+	_, _, err = cert.CreateOrFetchAgentIPCCert(configComp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", comp.Get())

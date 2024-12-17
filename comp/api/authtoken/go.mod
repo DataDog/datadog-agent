@@ -4,6 +4,7 @@ go 1.22.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
+	github.com/DataDog/datadog-agent/comp/api/authtoken/def => ./def
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
@@ -41,14 +42,13 @@ replace (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/api/authtoken/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.58.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.58.0-devel
 	github.com/DataDog/datadog-agent/pkg/api v0.56.0
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0
 	github.com/stretchr/testify v1.10.0
-	go.uber.org/fx v1.23.0
 )
 
 require (
@@ -70,6 +70,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.58.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.59.0 // indirect
@@ -105,6 +106,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.18.0 // indirect
+	go.uber.org/fx v1.23.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20241210194714-1829a127f884 // indirect

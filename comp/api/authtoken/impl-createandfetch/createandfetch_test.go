@@ -12,33 +12,30 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestGet(t *testing.T) {
 	dir := t.TempDir()
 	authPath := filepath.Join(dir, "auth_token")
-	ipcPath := filepath.Join(dir, "ipc_cert")
-	overrides := map[string]any{
-		"auth_token_file_path": authPath,
-		"ipc_cert_file_path":   ipcPath,
+
+	configComp := config.NewMock(t)
+	configComp.SetWithoutSource("auth_token_file_path", authPath)
+	logComp := logmock.New(t)
+
+	requires := Requires{
+		Conf: configComp,
+		Log:  logComp,
 	}
 
-	comp, err := newAuthToken(
-		fxutil.Test[dependencies](
-			t,
-			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
-			fx.Replace(config.MockParams{Overrides: overrides}),
-		),
-	)
+	provider, err := NewComponent(requires)
+
 	require.NoError(t, err)
+
+	comp := provider.Comp
 
 	data, err := os.ReadFile(authPath)
 	require.NoError(t, err)
