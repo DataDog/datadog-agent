@@ -105,6 +105,7 @@ func (s *packageInstallerSuite) TestReInstall() {
 func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 	// Install prod
 	err := s.RunInstallScriptProdOci(
+		"DD_REMOTE_UPDATES=true",
 		envForceVersion("datadog-installer", "7.58.0-installer-0.5.1-1"),
 	)
 	defer s.Purge()
