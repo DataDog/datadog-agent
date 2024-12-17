@@ -48,6 +48,7 @@ build do
 
   patch source: "rpmdb-no-create.patch", env: env # don't create db if it doesn't exist already
   patch source: "0001-remove-__plugindir.patch", env: env
+  patch source: "0002-force-a-separate-local-state-dir.patch", env: env
 
   cmake_options = [
     "-DENABLE_NLS=OFF",
