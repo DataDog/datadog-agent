@@ -5,8 +5,8 @@
 
 //go:build linux
 
-// Package dump holds dump related files
-package dump
+// Package securityprofile holds security profiles related files
+package securityprofile
 
 import (
 	"bytes"

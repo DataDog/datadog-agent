@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	activitydump "github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -158,7 +158,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 		}
 	}()
 
-	for activeEventTypes := activitydump.TracedEventTypesReductionOrder; ; activeEventTypes = activeEventTypes[1:] {
+	for activeEventTypes := securityprofile.TracedEventTypesReductionOrder; ; activeEventTypes = activeEventTypes[1:] {
 		testName := ""
 		for i, activeEventType := range activeEventTypes {
 			if i > 0 {
