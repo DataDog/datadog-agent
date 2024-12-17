@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
-	activitydump "github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
 
 	"github.com/stretchr/testify/assert"
@@ -79,7 +79,7 @@ func TestActivityDumps(t *testing.T) {
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 		})
 
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -93,13 +93,13 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name)
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes(goSyscallTester)
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes(goSyscallTester)
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
@@ -120,7 +120,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-process", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,13 +134,13 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name)
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes(syscallTester)
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes(syscallTester)
 			if nodes == nil {
 				t.Fatalf("Node not found in activity dump: %+v", nodes)
 			}
@@ -197,7 +197,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-bind", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -211,13 +211,13 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name)
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes(syscallTester)
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes(syscallTester)
 			if nodes == nil {
 				t.Fatalf("Node not found in activity dump: %+v", nodes)
 			}
@@ -242,7 +242,7 @@ func TestActivityDumps(t *testing.T) {
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 		})
 
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -256,13 +256,13 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name)
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes("nslookup")
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes("nslookup")
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
@@ -278,7 +278,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-file", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -295,14 +295,14 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name)
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		tempPathParts := strings.Split(temp.Name(), "/")
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes("touch")
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes("touch")
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
@@ -324,7 +324,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-syscalls", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -338,13 +338,13 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name)
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes(syscallTester)
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes(syscallTester)
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
@@ -370,7 +370,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-rate-limiter", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -394,13 +394,13 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name)
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes(syscallTester)
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes(syscallTester)
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
