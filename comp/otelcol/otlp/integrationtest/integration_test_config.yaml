@@ -28,7 +28,7 @@ exporters:
   debug:
   datadog:
     api:
-      key: "key"
+      key: ${env:DD_API_KEY}
     traces:
       endpoint: ${env:SERVER_URL}
       trace_buffer: 10
