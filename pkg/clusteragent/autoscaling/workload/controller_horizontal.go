@@ -32,12 +32,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
-type scaleDirection string
+type ScaleDirection string
 
 const (
-	noScale   scaleDirection = "noScale"
-	scaleUp   scaleDirection = "scaleUp"
-	scaleDown scaleDirection = "scaleDown"
+	NoScale   ScaleDirection = "noScale"
+	ScaleUp   ScaleDirection = "scaleUp"
+	ScaleDown ScaleDirection = "scaleDown"
 
 	defaultMinReplicas int32 = 1
 	defaultMaxReplicas int32 = math.MaxInt32
@@ -182,17 +182,17 @@ func (hr *horizontalController) computeScaleAction(
 	}
 
 	// Checking scale direction
-	var scaleDirection scaleDirection
+	var scaleDirection ScaleDirection
 	if targetDesiredReplicas == currentDesiredReplicas {
-		scaleDirection = noScale
+		scaleDirection = NoScale
 	} else if targetDesiredReplicas > currentDesiredReplicas {
-		scaleDirection = scaleUp
+		scaleDirection = ScaleUp
 	} else {
-		scaleDirection = scaleDown
+		scaleDirection = ScaleDown
 	}
 
 	// No scaling needed
-	if scaleDirection == noScale {
+	if scaleDirection == NoScale {
 		return nil, 0, nil
 	}
 
@@ -233,9 +233,9 @@ func (hr *horizontalController) computeScaleAction(
 	var rulesLimitReason string
 	var rulesLimitedReplicas int32
 	var rulesNextEvalAfter time.Duration
-	if scaleDirection == scaleUp && autoscalerSpec.Policy != nil {
+	if scaleDirection == ScaleUp && autoscalerSpec.Policy != nil {
 		rulesLimitedReplicas, rulesNextEvalAfter, rulesLimitReason = applyScaleUpPolicy(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), autoscalerSpec.Policy.Upscale, currentDesiredReplicas, targetDesiredReplicas)
-	} else if scaleDirection == scaleDown && autoscalerSpec.Policy != nil {
+	} else if scaleDirection == ScaleDown && autoscalerSpec.Policy != nil {
 		rulesLimitedReplicas, rulesNextEvalAfter, rulesLimitReason = applyScaleDownPolicy(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), autoscalerSpec.Policy.Downscale, currentDesiredReplicas, targetDesiredReplicas)
 	}
 	// If rules had any effect, use values from rules
@@ -280,7 +280,7 @@ func (hr *horizontalController) computeScaleAction(
 	return horizontalAction, evalAfter, nil
 }
 
-func isScalingAllowed(autoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, source datadoghq.DatadogPodAutoscalerValueSource, direction scaleDirection) (bool, string) {
+func isScalingAllowed(autoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, source datadoghq.DatadogPodAutoscalerValueSource, direction ScaleDirection) (bool, string) {
 	// If we don't have spec, we cannot take decisions, should not happen.
 	if autoscalerSpec == nil {
 		return false, "pod autoscaling hasn't been initialized yet"
@@ -303,12 +303,12 @@ func isScalingAllowed(autoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, source
 	}
 
 	// Check if scaling direction is allowed
-	if direction == scaleUp && autoscalerSpec.Policy.Upscale != nil && autoscalerSpec.Policy.Upscale.Strategy != nil {
+	if direction == ScaleUp && autoscalerSpec.Policy.Upscale != nil && autoscalerSpec.Policy.Upscale.Strategy != nil {
 		if *autoscalerSpec.Policy.Upscale.Strategy == datadoghq.DatadogPodAutoscalerDisabledStrategySelect {
 			return false, "upscaling disabled by strategy"
 		}
 	}
-	if direction == scaleDown && autoscalerSpec.Policy.Downscale != nil && autoscalerSpec.Policy.Downscale.Strategy != nil {
+	if direction == ScaleDown && autoscalerSpec.Policy.Downscale != nil && autoscalerSpec.Policy.Downscale.Strategy != nil {
 		if *autoscalerSpec.Policy.Downscale.Strategy == datadoghq.DatadogPodAutoscalerDisabledStrategySelect {
 			return false, "downscaling disabled by strategy"
 		}
