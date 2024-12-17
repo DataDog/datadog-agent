@@ -6,6 +6,7 @@
 package tcp
 
 import (
+	"context"
 	"expvar"
 	"fmt"
 	"net"
@@ -164,12 +165,17 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) {
 //
 //nolint:revive // TODO(AML) Fix revive linter
 func CheckConnectivityDiagnose(endpoint config.Endpoint) (url string, err error) {
+	const operationTimeout = 10 * time.Second
 	destinationsCtx := client.NewDestinationsContext()
 	connManager := NewConnectionManager(endpoint, statusinterface.NewNoopStatusProvider())
 	destinationsCtx.Start()
 	defer destinationsCtx.Stop()
 
-	_, err = connManager.NewConnection(destinationsCtx.Context())
+	ctx := destinationsCtx.Context()
+	ctx, cancel := context.WithTimeout(context.Background(), operationTimeout)
+	defer cancel()
+
+	_, err = connManager.NewConnection(ctx)
 
 	return fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port), err
 }
