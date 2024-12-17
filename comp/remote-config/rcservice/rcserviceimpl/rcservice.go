@@ -75,6 +75,8 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 
 	options := []remoteconfig.Option{
 		remoteconfig.WithAPIKey(apiKey),
+		// KEA: Temp For Testing Out Impl in Staging
+		remoteconfig.WithPARJWT("eyJhbGciOiJFUzI1NiIsImN0eSI6IkpXVCIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MzUyOTU4NjEsIm9yZ0lkIjoyLCJydW5uZXJJZCI6InJ1bm5lci1YUzI2ZWFUVkZaM21KWDNMWktDWXhRIn0.0ZSfsRyZdKzHG_wYjyJAI9zPG7t-ZPhW7U9x0vqMs10cOO_RCbwJCafmZt3LJlCImk3K5wuODEs6RQBQYbCwOQ"),
 		remoteconfig.WithTraceAgentEnv(traceAgentEnv),
 		remoteconfig.WithConfigRootOverride(deps.Cfg.GetString("site"), deps.Cfg.GetString("remote_configuration.config_root")),
 		remoteconfig.WithDirectorRootOverride(deps.Cfg.GetString("site"), deps.Cfg.GetString("remote_configuration.director_root")),

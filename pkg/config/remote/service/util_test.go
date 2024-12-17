@@ -27,6 +27,7 @@ func TestAuthKeys(t *testing.T) {
 	tests := []struct {
 		rcKey  string
 		apiKey string
+		parJWT string
 		err    bool
 		output remoteConfigAuthKeys
 	}{
@@ -45,7 +46,7 @@ func TestAuthKeys(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%s|%s", test.apiKey, test.rcKey), func(tt *testing.T) {
-			output, err := getRemoteConfigAuthKeys(test.apiKey, test.rcKey)
+			output, err := getRemoteConfigAuthKeys(test.apiKey, test.rcKey, test.parJWT)
 			if test.err {
 				assert.Error(tt, err)
 			} else {
