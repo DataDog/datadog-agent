@@ -149,14 +149,14 @@ func TestConvert(t *testing.T) {
 			expectedResult: "receivers/no-receivers-defined/config-result.yaml",
 		},
 		{
-			name:           "receivers/prometheus-incomplete/empty-static-configs",
-			provided:       "receivers/prometheus-incomplete/empty-static-configs/config.yaml",
-			expectedResult: "receivers/prometheus-incomplete/empty-static-configs/config-result.yaml",
+			name:           "receivers/empty-static-configs",
+			provided:       "receivers/empty-static-configs/config.yaml",
+			expectedResult: "receivers/empty-static-configs/config-result.yaml",
 		},
 		{
-			name:           "receivers/prometheus-incomplete/missing-static-configs-section",
-			provided:       "receivers/prometheus-incomplete/missing-static-configs-section/config.yaml",
-			expectedResult: "receivers/prometheus-incomplete/missing-static-configs-section/config-result.yaml",
+			name:           "receivers/missing-static-configs-section",
+			provided:       "receivers/missing-static-configs-section/config.yaml",
+			expectedResult: "receivers/missing-static-configs-section/config-result.yaml",
 		},
 		{
 			name:           "processors/dd-connector",
