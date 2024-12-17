@@ -40,9 +40,11 @@ const (
 
 var (
 	ebpfLessTracerTelemetry = struct {
-		skippedPackets telemetry.Counter
+		skippedPackets     telemetry.Counter
+		droppedConnections telemetry.Counter
 	}{
 		telemetry.NewCounter(ebpfLessTelemetryPrefix, "skipped_packets", []string{"reason"}, "Counter measuring skipped packets"),
+		telemetry.NewCounter(ebpfLessTelemetryPrefix, "dropped_connections", nil, "Counter measuring dropped connections"),
 	}
 )
 
@@ -81,7 +83,7 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 		exit:         make(chan struct{}),
 		scratchConn:  &network.ConnectionStats{},
 		udp:          &udpProcessor{},
-		tcp:          ebpfless.NewTCPProcessor(),
+		tcp:          ebpfless.NewTCPProcessor(cfg),
 		conns:        make(map[network.ConnectionTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
 		boundPorts:   ebpfless.NewBoundPorts(cfg),
 		cookieHasher: newCookieHasher(),
@@ -96,7 +98,7 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 }
 
 // Start begins collecting network connection data.
-func (t *ebpfLessTracer) Start(_ func(*network.ConnectionStats)) error {
+func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) error {
 	if err := t.boundPorts.Start(); err != nil {
 		return fmt.Errorf("could not update bound ports: %w", err)
 	}
@@ -123,7 +125,7 @@ func (t *ebpfLessTracer) Start(_ func(*network.ConnectionStats)) error {
 					return nil
 				}
 
-				if err := t.processConnection(pktType, &ip4, &ip6, &udp, &tcp, decoded); err != nil {
+				if err := t.processConnection(pktType, &ip4, &ip6, &udp, &tcp, decoded, closeCallback); err != nil {
 					log.Warnf("could not process packet: %s", err)
 				}
 
@@ -147,8 +149,8 @@ func (t *ebpfLessTracer) processConnection(
 	udp *layers.UDP,
 	tcp *layers.TCP,
 	decoded []gopacket.LayerType,
+	closeCallback func(*network.ConnectionStats),
 ) error {
-
 	t.scratchConn.Source, t.scratchConn.Dest = util.Address{}, util.Address{}
 	t.scratchConn.SPort, t.scratchConn.DPort = 0, 0
 	t.scratchConn.TCPFailures = make(map[uint16]uint32)
@@ -204,21 +206,25 @@ func (t *ebpfLessTracer) processConnection(
 	if ts, err = ddebpf.NowNanoseconds(); err != nil {
 		return fmt.Errorf("error getting last updated timestamp for connection: %w", err)
 	}
+	conn.LastUpdateEpoch = uint64(ts)
 
 	if !ip4Present && !ip6Present {
 		return nil
 	}
+
+	var result ebpfless.ProcessResult
 	switch conn.Type {
 	case network.UDP:
 		if (ip4Present && !t.config.CollectUDPv4Conns) || (ip6Present && !t.config.CollectUDPv6Conns) {
 			return nil
 		}
+		result = ebpfless.ProcessResultStoreConn
 		err = t.udp.process(conn, pktType, udp)
 	case network.TCP:
 		if (ip4Present && !t.config.CollectTCPv4Conns) || (ip6Present && !t.config.CollectTCPv6Conns) {
 			return nil
 		}
-		err = t.tcp.Process(conn, uint64(ts), pktType, ip4, ip6, tcp)
+		result, err = t.tcp.Process(conn, uint64(ts), pktType, ip4, ip6, tcp)
 	default:
 		err = fmt.Errorf("unsupported connection type %d", conn.Type)
 	}
@@ -227,15 +233,30 @@ func (t *ebpfLessTracer) processConnection(
 		return fmt.Errorf("error processing connection: %w", err)
 	}
 
-	// TODO probably remove HasConnEverEstablished once we handle closed connections properly
-	if conn.Type == network.UDP || (conn.Type == network.TCP && t.tcp.HasConnEverEstablished(conn)) {
-		conn.LastUpdateEpoch = uint64(ts)
-		t.conns[t.scratchConn.ConnectionTuple] = conn
-	}
-
 	log.TraceFunc(func() string {
 		return fmt.Sprintf("connection: %s", conn)
 	})
+
+	switch result {
+	case ebpfless.ProcessResultNone:
+	case ebpfless.ProcessResultStoreConn:
+		maxTrackedConns := int(t.config.MaxTrackedConnections)
+		ok := ebpfless.WriteMapWithSizeLimit(t.conns, conn.ConnectionTuple, conn, maxTrackedConns)
+		if !ok {
+			// we don't have enough space to add this connection, remove its TCP state tracking
+			if conn.Type == network.TCP {
+				t.tcp.RemoveConn(conn.ConnectionTuple)
+			}
+			ebpfLessTracerTelemetry.droppedConnections.Inc()
+		}
+	case ebpfless.ProcessResultCloseConn:
+		delete(t.conns, conn.ConnectionTuple)
+		closeCallback(conn)
+	case ebpfless.ProcessResultMapFull:
+		delete(t.conns, conn.ConnectionTuple)
+		ebpfLessTracerTelemetry.droppedConnections.Inc()
+	}
+
 	return nil
 }
 
@@ -310,6 +331,9 @@ func (t *ebpfLessTracer) Remove(conn *network.ConnectionStats) error {
 	defer t.m.Unlock()
 
 	delete(t.conns, conn.ConnectionTuple)
+	if conn.Type == network.TCP {
+		t.tcp.RemoveConn(conn.ConnectionTuple)
+	}
 	return nil
 }
 

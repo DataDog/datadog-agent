@@ -21,18 +21,40 @@ import (
 
 const ebpflessModuleName = "ebpfless_network_tracer"
 
+// ProcessResult represents what the ebpfless tracer should do with ConnectionStats after processing a packet
+type ProcessResult uint8
+
+const (
+	// ProcessResultNone - the updated ConnectionStats should NOT be stored in the connection map.
+	// Usually, this is because the connection is not established yet.
+	ProcessResultNone ProcessResult = iota
+	// ProcessResultStoreConn - the updated ConnectionStats should be stored in the connection map.
+	// This happens when the connection is established.
+	ProcessResultStoreConn
+	// ProcessResultCloseConn - this connection is done and its ConnectionStats should be passed
+	// to the ebpfless tracer's closed connection handler.
+	ProcessResultCloseConn
+	// ProcessResultMapFull - this connection can't be tracked because the TCPProcessor's connection
+	// map is full. This connection should be removed from the tracer as well.
+	ProcessResultMapFull
+)
+
 var statsTelemetry = struct {
-	missedTCPConnections telemetry.Counter
-	missingTCPFlags      telemetry.Counter
-	tcpSynAndFin         telemetry.Counter
-	tcpRstAndSyn         telemetry.Counter
-	tcpRstAndFin         telemetry.Counter
+	droppedPendingConns     telemetry.Counter
+	droppedEstablishedConns telemetry.Counter
+	missedTCPHandshakes     telemetry.Counter
+	missingTCPFlags         telemetry.Counter
+	tcpSynAndFin            telemetry.Counter
+	tcpRstAndSyn            telemetry.Counter
+	tcpRstAndFin            telemetry.Counter
 }{
-	telemetry.NewCounter(ebpflessModuleName, "missed_tcp_connections", []string{}, "Counter measuring the number of TCP connections where we missed the SYN handshake"),
-	telemetry.NewCounter(ebpflessModuleName, "missing_tcp_flags", []string{}, "Counter measuring packets encountered with none of SYN, FIN, ACK, RST set"),
-	telemetry.NewCounter(ebpflessModuleName, "tcp_syn_and_fin", []string{}, "Counter measuring packets encountered with SYN+FIN together"),
-	telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_syn", []string{}, "Counter measuring packets encountered with RST+SYN together"),
-	telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_fin", []string{}, "Counter measuring packets encountered with RST+FIN together"),
+	droppedPendingConns:     telemetry.NewCounter(ebpflessModuleName, "dropped_pending_conns", nil, "Counter measuring the number of TCP connections which were dropped during the handshake (because the map was full)"),
+	droppedEstablishedConns: telemetry.NewCounter(ebpflessModuleName, "dropped_established_conns", nil, "Counter measuring the number of TCP connections which were dropped while established (because the map was full)"),
+	missedTCPHandshakes:     telemetry.NewCounter(ebpflessModuleName, "missed_tcp_handshakes", nil, "Counter measuring the number of TCP connections where we missed the SYN handshake"),
+	missingTCPFlags:         telemetry.NewCounter(ebpflessModuleName, "missing_tcp_flags", nil, "Counter measuring packets encountered with none of SYN, FIN, ACK, RST set"),
+	tcpSynAndFin:            telemetry.NewCounter(ebpflessModuleName, "tcp_syn_and_fin", nil, "Counter measuring packets encountered with SYN+FIN together"),
+	tcpRstAndSyn:            telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_syn", nil, "Counter measuring packets encountered with RST+SYN together"),
+	tcpRstAndFin:            telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_fin", nil, "Counter measuring packets encountered with RST+FIN together"),
 }
 
 const tcpSeqMidpoint = 0x80000000
