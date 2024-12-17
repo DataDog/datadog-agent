@@ -154,7 +154,6 @@ def trace_integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):
     """
     if sys.platform == 'win32':
         raise TestsNotSupportedError('Trace Agent integration tests are not supported on Windows')
-
     containerized_integration_tests(
         ctx,
         TRACE_AGENT,
@@ -171,15 +170,14 @@ def core_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonl
     """
     if sys.platform == 'win32':
         return containerized_integration_tests(ctx, CORE_AGENT_WINDOWS, race=race, go_mod=go_mod, timeout=timeout)
-    else:
-        return containerized_integration_tests(
-            ctx,
-            CORE_AGENT_LINUX,
-            race=race,
-            remote_docker=remote_docker,
-            go_mod=go_mod,
-            timeout=timeout,
-        )
+    return containerized_integration_tests(
+        ctx,
+        CORE_AGENT_LINUX,
+        race=race,
+        remote_docker=remote_docker,
+        go_mod=go_mod,
+        timeout=timeout,
+    )
 
 
 @task
