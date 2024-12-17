@@ -78,13 +78,15 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 			})
 		} else {
 			var url string
+			connType := "HTTPS"
 			if useTCP {
+				connType = "TCP"
 				url, err = logstcp.CheckConnectivityDiagnose(endpoints.Main)
 			} else {
 				url, err = logshttp.CheckConnectivityDiagnose(endpoints.Main, pkgconfigsetup.Datadog())
 			}
 
-			name := fmt.Sprintf("Connectivity to %s", url)
+			name := fmt.Sprintf("%s connectivity to %s", connType, url)
 			diag := createDiagnosis(name, url, "", err)
 
 			diagnoses = append(diagnoses, diag)
@@ -119,6 +121,7 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 				// Check if there is a response and if it's valid
 				report, reportErr := verifyEndpointResponse(diagCfg, statusCode, responseBody, err)
+
 				diagnosisName := "Connectivity to " + logURL
 				d := createDiagnosis(diagnosisName, logURL, report, reportErr)
 
