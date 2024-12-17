@@ -81,7 +81,7 @@ func NewResolver() (*Resolver, error) {
 		return nil, err
 	}
 
-	cr.cgroups, err = simplelru.NewLRU(2048, func(_ model.PathKey, value *model.CGroupContext) {})
+	cr.cgroups, err = simplelru.NewLRU(2048, func(_ model.PathKey, _ *model.CGroupContext) {})
 	if err != nil {
 		return nil, err
 	}
