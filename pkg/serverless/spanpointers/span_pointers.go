@@ -14,7 +14,9 @@ import (
 )
 
 const (
-	s3PointerKind = "aws.s3.object"
+	s3PointerKind          = "aws.s3.object"
+	SpanPointerLinkKind    = "span-pointer"
+	SpanPointerUpDirection = "u" // Tracers will handle cases where direction is down
 )
 
 // SpanPointer is a struct that stores a hash and span kind to uniquely

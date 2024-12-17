@@ -8,6 +8,7 @@ package invocationlifecycle
 import (
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/serverless/spanpointers"
 	"net/http"
 	"os"
 	"regexp"
@@ -28,9 +29,7 @@ import (
 )
 
 const (
-	functionNameEnvVar     = "AWS_LAMBDA_FUNCTION_NAME"
-	spanPointerLinkKind    = "span-pointer"
-	spanPointerUpDirection = "u" // Tracers will handle cases where direction is down
+	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 )
 
 var /* const */ runtimeRegex = regexp.MustCompile(`^(dotnet|go|java|ruby)(\d+(\.\d+)*|\d+(\.x))$`)
@@ -169,8 +168,8 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 		for _, sp := range lp.requestHandler.spanPointers {
 			spanLink := map[string]interface{}{
 				"attributes": map[string]string{
-					"link.kind": spanPointerLinkKind,
-					"ptr.dir":   spanPointerUpDirection,
+					"link.kind": spanpointers.SpanPointerLinkKind,
+					"ptr.dir":   spanpointers.SpanPointerUpDirection,
 					"ptr.hash":  sp.Hash,
 					"ptr.kind":  sp.Kind,
 				},
