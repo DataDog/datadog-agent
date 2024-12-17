@@ -26,7 +26,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -384,14 +384,14 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	entry.ProcessContext.Pid = pid
 	entry.ProcessContext.Tid = pid
 	if len(filledProc.Uids) >= 4 {
-		entry.Credentials.UID = uint32(filledProc.Uids[0])
-		entry.Credentials.EUID = uint32(filledProc.Uids[1])
-		entry.Credentials.FSUID = uint32(filledProc.Uids[3])
+		entry.Credentials.UID = filledProc.Uids[0]
+		entry.Credentials.EUID = filledProc.Uids[1]
+		entry.Credentials.FSUID = filledProc.Uids[3]
 	}
 	if len(filledProc.Gids) >= 4 {
-		entry.Credentials.GID = uint32(filledProc.Gids[0])
-		entry.Credentials.EGID = uint32(filledProc.Gids[1])
-		entry.Credentials.FSGID = uint32(filledProc.Gids[3])
+		entry.Credentials.GID = filledProc.Gids[0]
+		entry.Credentials.EGID = filledProc.Gids[1]
+		entry.Credentials.FSGID = filledProc.Gids[3]
 	}
 	// fetch login_uid
 	entry.Credentials.AUID, err = utils.GetLoginUID(uint32(proc.Pid))
@@ -502,7 +502,7 @@ func (p *EBPFResolver) insertEntry(entry, prev *model.ProcessCacheEntry, source 
 		prev.Release()
 	}
 
-	if p.cgroupResolver != nil && entry.ContainerID != "" {
+	if p.cgroupResolver != nil && entry.CGroup.CGroupID != "" {
 		// add the new PID in the right cgroup_resolver bucket
 		p.cgroupResolver.AddPID(entry)
 	}
@@ -852,7 +852,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 	// is no insurance that the parent of this process is still running, we can't use our user space cache to check if
 	// the parent is in a container. In other words, we have to fall back to /proc to query the container ID of the
 	// process.
-	if entry.ContainerID == "" || entry.CGroup.CGroupFile.Inode == 0 {
+	if entry.CGroup.CGroupFile.Inode == 0 {
 		if containerID, cgroup, err := p.containerResolver.GetContainerContext(pid); err == nil {
 			entry.CGroup.Merge(&cgroup)
 			entry.ContainerID = containerID

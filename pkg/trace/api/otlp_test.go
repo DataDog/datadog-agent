@@ -1573,6 +1573,18 @@ func TestOTLPHelpers(t *testing.T) {
 				meta: map[string]string{semconv.AttributeRPCMethod: "M"},
 				out:  "M",
 			},
+			{
+				meta: map[string]string{"graphql.operation.name": "myQuery"},
+				out:  "",
+			},
+			{
+				meta: map[string]string{"graphql.operation.type": "query"},
+				out:  "query",
+			},
+			{
+				meta: map[string]string{"graphql.operation.type": "query", "graphql.operation.name": "myQuery"},
+				out:  "query myQuery",
+			},
 		} {
 			assert.Equal(t, tt.out, resourceFromTags(tt.meta))
 		}

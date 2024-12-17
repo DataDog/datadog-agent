@@ -20,9 +20,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/v3/process"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 type dockerDaemonConfig map[string]interface{}
@@ -73,14 +73,14 @@ func (a *apmInjectorInstaller) uninstrumentDocker(ctx context.Context) error {
 }
 
 // setDockerConfigContent sets the content of the docker daemon configuration
-func (a *apmInjectorInstaller) setDockerConfigContent(ctx context.Context, previousContent []byte) ([]byte, error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "set_docker_config_content")
-	defer span.Finish()
+func (a *apmInjectorInstaller) setDockerConfigContent(ctx context.Context, previousContent []byte) (res []byte, err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "set_docker_config_content")
+	defer span.Finish(err)
 
 	dockerConfig := dockerDaemonConfig{}
 
 	if len(previousContent) > 0 {
-		err := json.Unmarshal(previousContent, &dockerConfig)
+		err = json.Unmarshal(previousContent, &dockerConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -140,8 +140,8 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(_ context.Context, prev
 //
 // This method is valid since at least Docker 17.03 (last update 2018-08-30)
 func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "verify_docker_runtime")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "verify_docker_runtime")
+	defer func() { span.Finish(err) }()
 
 	if !isDockerActive(ctx) {
 		log.Warn("docker is inactive, skipping docker runtime verification")
@@ -172,8 +172,8 @@ func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err err
 }
 
 func reloadDockerConfig(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "reload_docker")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "reload_docker")
+	defer func() { span.Finish(err) }()
 	if !isDockerActive(ctx) {
 		log.Warn("docker is inactive, skipping docker reload")
 		return nil
@@ -205,8 +205,8 @@ func reloadDockerConfig(ctx context.Context) (err error) {
 
 // isDockerInstalled checks if docker is installed on the system
 func isDockerInstalled(ctx context.Context) bool {
-	span, _ := tracer.StartSpanFromContext(ctx, "is_docker_installed")
-	defer span.Finish()
+	span, _ := telemetry.StartSpanFromContext(ctx, "is_docker_installed")
+	defer span.Finish(nil)
 
 	// Docker is installed if the docker binary is in the PATH
 	_, err := exec.LookPath("docker")
