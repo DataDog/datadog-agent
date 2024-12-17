@@ -50,14 +50,15 @@ func TestLifecycle(t *testing.T) {
 		fetchonlyimpl.MockModule(),
 	))
 
-	assert.Eventually(t, func() bool {
-		res, err := http.Get("http://localhost:43424/config")
-		if err != nil {
-			return false
-		}
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		req, err := http.NewRequest("GET", "http://localhost:43424/agent/status", nil)
+		require.NoError(c, err)
+		util.CreateAndSetAuthToken(pkgconfigsetup.Datadog())
+		req.Header.Set("Authorization", "Bearer "+util.GetAuthToken())
+		res, err := util.GetClient(false).Do(req)
+		require.NoError(c, err)
 		defer res.Body.Close()
-
-		return res.StatusCode == http.StatusOK
+		assert.Equal(c, http.StatusOK, res.StatusCode)
 	}, 5*time.Second, time.Second)
 }
 
@@ -79,6 +80,7 @@ func TestPostAuthentication(t *testing.T) {
 		}),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
+		fetchonlyimpl.MockModule(),
 	))
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
