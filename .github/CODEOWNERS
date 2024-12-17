@@ -181,6 +181,8 @@
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
 
 /.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
+/.gitlab/functional_test/regression_detector_otel_oss.yml     @DataDog/agent-shared-components
+/.gitlab/functional_test/regression_detector_otel.yml     @DataDog/agent-shared-components
 
 
 
