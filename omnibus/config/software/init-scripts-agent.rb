@@ -19,6 +19,10 @@ build do
           dest: "/etc/init/datadog-agent.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "upstart_debian.checks.conf.erb",
+          dest: "/etc/init/datadog-agent-checks.conf",
+          mode: 0644,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_debian.process.conf.erb",
           dest: "/etc/init/datadog-agent-process.conf",
           mode: 0644,
@@ -37,6 +41,10 @@ build do
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_debian.erb",
           dest: "/etc/init.d/datadog-agent",
+          mode: 0755,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "sysvinit_debian.checks.erb",
+          dest: "/etc/init.d/datadog-agent-checks",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_debian.process.erb",
