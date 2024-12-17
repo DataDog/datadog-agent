@@ -149,14 +149,14 @@ func TestConvert(t *testing.T) {
 			expectedResult: "receivers/no-receivers-defined/config-result.yaml",
 		},
 		{
-			name:           "receivers/empty-static-configs",
-			provided:       "receivers/empty-static-configs/config.yaml",
-			expectedResult: "receivers/empty-static-configs/config-result.yaml",
+			name:           "receivers/empty-staticconfigs",
+			provided:       "receivers/empty-staticconfigs/config.yaml",
+			expectedResult: "receivers/empty-staticconfigs/config-result.yaml",
 		},
 		{
-			name:           "receivers/missing-static-configs-section",
-			provided:       "receivers/missing-static-configs-section/config.yaml",
-			expectedResult: "receivers/missing-static-configs-section/config-result.yaml",
+			name:           "receivers/missing-staticconfigs-section",
+			provided:       "receivers/missing-staticconfigs-section/config.yaml",
+			expectedResult: "receivers/missing-staticconfigs-section/config-result.yaml",
 		},
 		{
 			name:           "processors/dd-connector",
