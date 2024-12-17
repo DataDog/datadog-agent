@@ -264,11 +264,13 @@ func writeFileAndSync(name string, data []byte, perm os.FileMode) error {
 		return err
 	}
 	_, err = f.Write(data)
-	if err1 := f.Sync(); err1 != nil && err == nil {
-		err = err1
+	// only sync data if the write was successful
+	if err == nil {
+		err = f.Sync()
 	}
-	if err2 := f.Close(); err2 != nil && err == nil {
-		err = err2
+	// but always close the file and report the first error that occurred
+	if err1 := f.Close(); err1 != nil && err == nil {
+		err = err1
 	}
 	return err
 }
