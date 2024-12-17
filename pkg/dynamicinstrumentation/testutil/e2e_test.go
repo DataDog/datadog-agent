@@ -34,12 +34,12 @@ import (
 
 type testResult struct {
 	testName          string
-	successTally      []bool
+	matches           []bool
 	expectation       ditypes.CapturedValueMap
 	unexpectedResults []ditypes.CapturedValueMap
 }
 
-var eventsTally = make(map[string]*testResult)
+var results = make(map[string]*testResult)
 
 func TestGoDI(t *testing.T) {
 	flake.Mark(t)
@@ -117,10 +117,10 @@ func TestGoDI(t *testing.T) {
 		buf = bytes.NewBuffer(b)
 		functionWithoutPackagePrefix, _ := strings.CutPrefix(function, "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.")
 		t.Log("Instrumenting ", functionWithoutPackagePrefix)
-		eventsTally[function] = &testResult{
+		results[function] = &testResult{
 			testName:          functionWithoutPackagePrefix,
 			expectation:       expectedCaptureValue,
-			successTally:      []bool{},
+			matches:           []bool{},
 			unexpectedResults: []ditypes.CapturedValueMap{},
 		}
 		err = cfgTemplate.Execute(buf, configDataType{functionWithoutPackagePrefix})
@@ -138,15 +138,14 @@ func TestGoDI(t *testing.T) {
 		doCapture = false
 	}
 
-probeLoop:
-	for i := range eventsTally {
-		for _, ok := range eventsTally[i].successTally {
+	for i := range results {
+		for _, ok := range results[i].matches {
 			if !ok {
 				t.Errorf("Failed test for: %s\nReceived event: %v\nExpected: %v",
-					eventsTally[i].testName,
-					pretty.Sprint(eventsTally[i].unexpectedResults),
-					pretty.Sprint(eventsTally[i].expectation))
-				continue probeLoop
+					results[i].testName,
+					pretty.Sprint(results[i].unexpectedResults),
+					pretty.Sprint(results[i].expectation))
+				break
 			}
 		}
 	}
@@ -171,17 +170,17 @@ func (e *eventOutputTestWriter) Write(p []byte) (n int, err error) {
 	funcName := snapshot.Debugger.ProbeInSnapshot.Method
 	actual := snapshot.Debugger.Captures.Entry.Arguments
 	scrubPointerValues(actual)
-	b, ok := eventsTally[funcName]
+	b, ok := results[funcName]
 	if !ok {
 		e.t.Errorf("received event from unexpected probe: %s", funcName)
 		return
 	}
 	if !reflect.DeepEqual(e.expectedResult, actual) {
-		b.successTally = append(b.successTally, false)
+		b.matches = append(b.matches, false)
 		b.unexpectedResults = append(b.unexpectedResults, actual)
 		e.t.Error("received unexpected value")
 	} else {
-		b.successTally = append(b.successTally, true)
+		b.matches = append(b.matches, true)
 	}
 
 	return len(p), nil
@@ -232,7 +231,7 @@ var configTemplateText = `
             ],
             "captureSnapshot": false,
             "capture": {
-                "maxReferenceDepth": 10
+                "maxReferenceDepth": 5
             },
             "sampling": {
                 "snapshotsPerSecond": 5000
