@@ -234,7 +234,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // Get network namespace id
-    log_debug("fentry/tcp_close: tgid: %llu, pid: %llu", GET_TGID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
+    log_debug("fentry/tcp_close: tgid: %llu, pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
@@ -451,7 +451,7 @@ SEC("fentry/tcp_connect")
 int BPF_PROG(tcp_connect, struct sock *sk) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_connect");
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("fentry/tcp_connect: tgid: %llu, pid: %llu", GET_TGID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
+    log_debug("fentry/tcp_connect: tgid: %llu, pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
@@ -481,7 +481,7 @@ int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
     }
     u64 pid_tgid = pid_tgid_p->pid_tgid;
     t.pid = GET_USER_MODE_PID(pid_tgid);
-    log_debug("fentry/tcp_finish_connect: tgid: %llu, pid: %llu", GET_TGID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
+    log_debug("fentry/tcp_finish_connect: tgid: %llu, pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
 
     handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, sk);
@@ -499,7 +499,7 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool k
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("fexit/inet_csk_accept: tgid: %llu, pid: %llu", GET_TGID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
+    log_debug("fexit/inet_csk_accept: tgid: %llu, pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
