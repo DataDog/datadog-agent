@@ -46,7 +46,7 @@ build do
     if linux_target?
       copy "/usr/local/lib*/ossl-modules/fips.so", "#{install_dir}/embedded/lib/ossl-modules/fips.so"
     elsif windows_target?
-      copy "providers/fips.dll", "#{install_dir}/embedded/lib/ossl-modules/fips.dll"
+      copy "providers/fips.dll", "#{windows_safe_path(python_3_embedded)}/lib/ossl-modules/fips.dll"
     end
 
     erb source: "openssl.cnf.erb",
