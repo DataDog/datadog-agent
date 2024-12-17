@@ -12,7 +12,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.60.0
 	github.com/shirou/gopsutil/v3 v3.24.1
-	golang.org/x/sys v0.26.0
+	golang.org/x/sys v0.28.0
 )
 
 require (
