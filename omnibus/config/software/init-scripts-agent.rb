@@ -112,6 +112,7 @@ build do
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
     project.extra_package_file "#{systemd_directory}/datadog-agent.service"
+    project.extra_package_file "#{systemd_directory}/datadog-agent-checks.service"
     project.extra_package_file "#{systemd_directory}/datadog-agent-process.service"
     project.extra_package_file "#{systemd_directory}/datadog-agent-sysprobe.service"
     project.extra_package_file "#{systemd_directory}/datadog-agent-trace.service"
