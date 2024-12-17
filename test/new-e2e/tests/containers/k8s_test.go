@@ -801,6 +801,24 @@ func (suite *k8sSuite) TestCPU() {
 	})
 }
 
+func (suite *k8sSuite) TestKSM() {
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kubernetes_state.vpa.count",
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^kube_namespace:workload-(?:nginx|redis)$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 1,
+				Min: 1,
+			},
+		},
+	})
+}
+
 func (suite *k8sSuite) TestDogstatsdInAgent() {
 	// Test with UDS
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
