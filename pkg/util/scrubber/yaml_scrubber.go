@@ -87,7 +87,7 @@ func (c *Scrubber) ScrubDataObj(data *interface{}) {
 				continue
 			}
 
-			if c.ShouldApply != nil && !c.ShouldApply(replacer) {
+			if c.shouldApply != nil && !c.shouldApply(replacer) {
 				continue
 			}
 

@@ -10,17 +10,17 @@ package kubernetesresourceparsers
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestPodParser_Parse(t *testing.T) {
-	flake.Mark(t)
 	filterAnnotations := []string{"ignoreAnnotation"}
 
 	parser, err := NewPodParser(filterAnnotations)
@@ -126,5 +126,11 @@ func TestPodParser_Parse(t *testing.T) {
 		QOSClass:                   "Guaranteed",
 	}
 
-	assert.Equal(t, expected, parsed)
+	opt := cmpopts.SortSlices(func(a, b string) bool {
+		return a < b
+	})
+	assert.True(t,
+		cmp.Equal(expected, parsed, opt),
+		cmp.Diff(expected, parsed, opt),
+	)
 }

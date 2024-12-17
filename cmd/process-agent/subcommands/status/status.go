@@ -28,8 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-var httpClient = apiutil.GetClient(false)
-
 const (
 	notRunning = `
 =============
@@ -111,6 +109,7 @@ func writeError(log log.Component, w io.Writer, e error) {
 }
 
 func fetchStatus(statusURL string) ([]byte, error) {
+	httpClient := apiutil.GetClient(false)
 	body, err := apiutil.DoGet(httpClient, statusURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return nil, status.NewConnectionError(err)

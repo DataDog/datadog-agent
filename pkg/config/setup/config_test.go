@@ -6,11 +6,11 @@
 package setup
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -45,7 +45,7 @@ func unsetEnvForTest(t *testing.T, env string) {
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.Config {
 	conf := newTestConf()
 	conf.SetConfigType("yaml")
-	err := conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
+	err := conf.ReadConfig(strings.NewReader(yamlConfig))
 	require.NoError(t, err)
 	return conf
 }
@@ -133,15 +133,39 @@ func TestUnexpectedWhitespace(t *testing.T) {
 }
 
 func TestUnknownKeysWarning(t *testing.T) {
-	conf := newTestConf()
-	conf.SetWithoutSource("site", "datadoghq.eu")
-	assert.Len(t, findUnknownKeys(conf), 0)
+	yaml := `
+a: 21
+aa: 21
+b:
+  c:
+    d: "test"
+`
+	conf := confFromYAML(t, yaml)
+
+	res := findUnknownKeys(conf)
+	slices.Sort(res)
+	assert.Equal(t, []string{"a", "aa", "b.c.d"}, res)
+
+	conf.SetDefault("a", 0)
+	res = findUnknownKeys(conf)
+	slices.Sort(res)
+	assert.Equal(t, []string{"aa", "b.c.d"}, res)
+
+	conf.SetWithoutSource("a", 12)
+	res = findUnknownKeys(conf)
+	slices.Sort(res)
+	assert.Equal(t, []string{"aa", "b.c.d"}, res)
+
+	// testing that nested value are correctly detected
+	conf.SetDefault("b.c", map[string]string{})
+	res = findUnknownKeys(conf)
+	slices.Sort(res)
+	assert.Equal(t, []string{"aa"}, res)
 
 	conf.SetWithoutSource("unknown_key.unknown_subkey", "true")
-	assert.Len(t, findUnknownKeys(conf), 1)
-
-	conf.SetKnown("unknown_key.*")
-	assert.Len(t, findUnknownKeys(conf), 0)
+	res = findUnknownKeys(conf)
+	slices.Sort(res)
+	assert.Equal(t, []string{"aa", "unknown_key.unknown_subkey"}, res)
 }
 
 func TestUnknownVarsWarning(t *testing.T) {
@@ -243,7 +267,7 @@ func TestProxy(t *testing.T) {
 		{
 			name: "no values",
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
-				assert.Nil(t, config.Get("proxy"))
+				assert.Equal(t, map[string]interface{}{"http": "", "https": "", "no_proxy": []interface{}{}}, config.Get("proxy"))
 				assert.Nil(t, config.GetProxies())
 			},
 			proxyForCloudMetadata: true,
@@ -373,7 +397,7 @@ func TestProxy(t *testing.T) {
 			proxyForCloudMetadata: true,
 		},
 		{
-			name: "proxy withou no_proxy",
+			name: "proxy without no_proxy",
 			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
 				t.Setenv("DD_PROXY_HTTP", "http_url")
 				t.Setenv("DD_PROXY_HTTPS", "https_url")
@@ -385,7 +409,8 @@ func TestProxy(t *testing.T) {
 						HTTPS: "https_url",
 					},
 					config.GetProxies())
-				assert.Equal(t, []interface{}{}, config.Get("proxy.no_proxy"))
+				fmt.Printf("%#v\n", config.Get("proxy.no_proxy"))
+				assert.Equal(t, []string(nil), config.Get("proxy.no_proxy"))
 			},
 			proxyForCloudMetadata: true,
 		},

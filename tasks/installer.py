@@ -10,14 +10,16 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.libs.releasing.version import get_version
 
 DIR_BIN = os.path.join(".", "bin", "installer")
 INSTALLER_BIN = os.path.join(DIR_BIN, bin_name("installer"))
 DOWNLOADER_BIN = os.path.join(DIR_BIN, bin_name("downloader"))
-INSTALL_SCRIPT = os.path.join(DIR_BIN, "install.sh")
 INSTALL_SCRIPT_TEMPLATE = os.path.join("pkg", "fleet", "installer", "setup", "install.sh")
+DOWNLOADER_MAIN_PACKAGE = "cmd/installer-downloader"
+
 MAJOR_VERSION = '7'
 
 
@@ -76,14 +78,18 @@ def build(
 @task
 def build_downloader(
     ctx,
+    flavor,
+    version,
     os="linux",
     arch="amd64",
 ):
     '''
     Builds the installer downloader binary.
     '''
+    version_flag = f'-X main.Version={version}'
+    flavor_flag = f'-X main.Flavor={flavor}'
     ctx.run(
-        f'go build -ldflags="-s -w" -o {DOWNLOADER_BIN} {REPO_PATH}/cmd/installer-downloader',
+        f'go build -ldflags="-s -w {version_flag} {flavor_flag}" -o {DOWNLOADER_BIN} {REPO_PATH}/{DOWNLOADER_MAIN_PACKAGE}',
         env={'GOOS': os, 'GOARCH': arch, 'CGO_ENABLED': '0'},
     )
 
@@ -91,6 +97,8 @@ def build_downloader(
 @task
 def build_linux_script(
     ctx,
+    flavor,
+    version,
 ):
     '''
     Builds the linux script that is used to install the agent on linux.
@@ -99,17 +107,21 @@ def build_linux_script(
     with open(INSTALL_SCRIPT_TEMPLATE) as f:
         install_script = f.read()
 
+    # default version on pipelines, using the commit sha instead
+    if version == "nightly-a7":
+        version = get_commit_sha(ctx)
+
     archs = ['amd64', 'arm64']
     for arch in archs:
-        build_downloader(ctx, os='linux', arch=arch)
+        build_downloader(ctx, flavor=flavor, version=version, os='linux', arch=arch)
         with open(DOWNLOADER_BIN, 'rb') as f:
             encoded_bin = base64.encodebytes(f.read()).decode('utf-8')
-        install_script = install_script.replace(f'DOWNLOADER_BIN_{arch.upper()}', encoded_bin)
+        install_script = install_script.replace(f'DOWNLOADER_BIN_LINUX_{arch.upper()}', encoded_bin)
 
     commit_sha = ctx.run('git rev-parse HEAD', hide=True).stdout.strip()
     install_script = install_script.replace('INSTALLER_COMMIT', commit_sha)
 
-    with open(INSTALL_SCRIPT, 'w') as f:
+    with open(os.path.join(DIR_BIN, f'install-{flavor}.sh'), 'w') as f:
         f.write(install_script)
 
 

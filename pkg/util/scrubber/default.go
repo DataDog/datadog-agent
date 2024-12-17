@@ -32,7 +32,7 @@ var (
 	dynamicReplacers      = []Replacer{}
 	dynamicReplacersMutex = sync.Mutex{}
 
-	// defaultVersion is the version were all old replacers were migrated to the first version of the agent scrubber.
+	// defaultVersion is the first version of the agent scrubber.
 	// https://github.com/DataDog/datadog-agent/pull/9618
 	defaultVersion = parseVersion("7.33.0")
 )
@@ -51,7 +51,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Hints: []string{"api_key", "apikey"},
 		Repl:  []byte(`$1***************************$2`),
 
-		ImplementVersion: defaultVersion,
+		LastUpdated: defaultVersion,
 	}
 	hintedAPPKeyReplacer := Replacer{
 		// If hinted, mask the value regardless if it doesn't match 40-char hexadecimal string
@@ -59,7 +59,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Hints: []string{"app_key", "appkey", "application_key"},
 		Repl:  []byte(`$1***********************************$2`),
 
-		ImplementVersion: defaultVersion,
+		LastUpdated: defaultVersion,
 	}
 
 	// replacers are check one by one in order. We first try to scrub 64 bytes token, keeping the last 5 digit. If
@@ -70,7 +70,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Repl:  []byte(`Bearer ***********************************************************$1`),
 
 		// https://github.com/DataDog/datadog-agent/pull/12338
-		ImplementVersion: parseVersion("7.38.0"),
+		LastUpdated: parseVersion("7.38.0"),
 	}
 	// For this one we match any characters
 	hintedBearerInvalidReplacer := Replacer{
@@ -79,7 +79,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Repl:  []byte("Bearer " + defaultReplacement),
 
 		// https://github.com/DataDog/datadog-agent/pull/23448
-		ImplementVersion: parseVersion("7.53.0"),
+		LastUpdated: parseVersion("7.53.0"),
 	}
 
 	apiKeyReplacerYAML := Replacer{
@@ -87,33 +87,33 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Repl:  []byte(`$1$2"***************************$3"`),
 
 		// https://github.com/DataDog/datadog-agent/pull/12605
-		ImplementVersion: parseVersion("7.39.0"),
+		LastUpdated: parseVersion("7.39.0"),
 	}
 	apiKeyReplacer := Replacer{
 		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`***************************$1`),
 
-		ImplementVersion: defaultVersion,
+		LastUpdated: defaultVersion,
 	}
 	appKeyReplacerYAML := Replacer{
 		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`$1$2"***********************************$3"`),
 
 		// https://github.com/DataDog/datadog-agent/pull/12605
-		ImplementVersion: parseVersion("7.39.0"),
+		LastUpdated: parseVersion("7.39.0"),
 	}
 	appKeyReplacer := Replacer{
 		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`***********************************$1`),
 
-		ImplementVersion: defaultVersion,
+		LastUpdated: defaultVersion,
 	}
 	rcAppKeyReplacer := Replacer{
 		Regex: regexp.MustCompile(`\bDDRCM_[A-Z0-9]+([A-Z0-9]{5})\b`),
 		Repl:  []byte(`***********************************$1`),
 
 		// https://github.com/DataDog/datadog-agent/pull/14681
-		ImplementVersion: parseVersion("7.42.0"),
+		LastUpdated: parseVersion("7.42.0"),
 	}
 
 	// URI Generic Syntax
@@ -123,14 +123,14 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Repl:  []byte(`$1$2:********@`),
 
 		// https://github.com/DataDog/datadog-agent/pull/15959
-		ImplementVersion: parseVersion("7.45.0"),
+		LastUpdated: parseVersion("7.45.0"),
 	}
 	yamlPasswordReplacer := matchYAMLKeyPart(
 		`(pass(word)?|pwd)`,
 		[]string{"pass", "pwd"},
 		[]byte(`$1 "********"`),
 	)
-	yamlPasswordReplacer.ImplementVersion = defaultVersion
+	yamlPasswordReplacer.LastUpdated = defaultVersion
 	passwordReplacer := Replacer{
 		// this regex has three parts:
 		// * key: case-insensitive, optionally quoted (pass | password | pswd | pwd), not anchored to match on args like --mysql_password= etc.
@@ -141,26 +141,26 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Repl: []byte(`$1$2********`),
 
 		// https://github.com/DataDog/datadog-agent/pull/28144
-		ImplementVersion: parseVersion("7.57.0"),
+		LastUpdated: parseVersion("7.57.0"),
 	}
 	tokenReplacer := matchYAMLKeyEnding(
 		`token`,
 		[]string{"token"},
 		[]byte(`$1 "********"`),
 	)
-	tokenReplacer.ImplementVersion = defaultVersion
+	tokenReplacer.LastUpdated = defaultVersion
 	snmpReplacer := matchYAMLKey(
 		`(community_string|authKey|privKey|community|authentication_key|privacy_key|Authorization|authorization)`,
 		[]string{"community_string", "authKey", "privKey", "community", "authentication_key", "privacy_key", "Authorization", "authorization"},
 		[]byte(`$1 "********"`),
 	)
-	snmpReplacer.ImplementVersion = parseVersion("7.53.0") // https://github.com/DataDog/datadog-agent/pull/23515
+	snmpReplacer.LastUpdated = parseVersion("7.53.0") // https://github.com/DataDog/datadog-agent/pull/23515
 	snmpMultilineReplacer := matchYAMLKeyWithListValue(
 		"(community_strings)",
 		"community_strings",
 		[]byte(`$1 "********"`),
 	)
-	snmpMultilineReplacer.ImplementVersion = parseVersion("7.34.0") // https://github.com/DataDog/datadog-agent/pull/10305
+	snmpMultilineReplacer.LastUpdated = parseVersion("7.34.0") // https://github.com/DataDog/datadog-agent/pull/10305
 	certReplacer := Replacer{
 		/*
 		   Try to match as accurately as possible. RFC 7468's ABNF
@@ -171,7 +171,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Hints: []string{"BEGIN"},
 		Repl:  []byte(`********`),
 
-		ImplementVersion: defaultVersion,
+		LastUpdated: defaultVersion,
 	}
 
 	// The following replacers works on YAML object only
@@ -191,7 +191,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 			return defaultReplacement
 		},
 	)
-	apiKeyYaml.ImplementVersion = parseVersion("7.44.0") // https://github.com/DataDog/datadog-agent/pull/15707
+	apiKeyYaml.LastUpdated = parseVersion("7.44.0") // https://github.com/DataDog/datadog-agent/pull/15707
 
 	appKeyYaml := matchYAMLOnly(
 		`ap(?:p|plication)_?key`,
@@ -208,7 +208,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 			return defaultReplacement
 		},
 	)
-	appKeyYaml.ImplementVersion = parseVersion("7.44.0") // https://github.com/DataDog/datadog-agent/pull/15707
+	appKeyYaml.LastUpdated = parseVersion("7.44.0") // https://github.com/DataDog/datadog-agent/pull/15707
 
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
