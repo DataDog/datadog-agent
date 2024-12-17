@@ -15,7 +15,7 @@ exporters:
     hostname: "otelcol-test-olivierg"
     api:
       key: "00000001"
-  #    site: "127.0.0.1:9092"
+#      site: "127.0.0.1:9092"
     # #metrics:
     #  # endpoint: https://api.datadoghq.com
       
