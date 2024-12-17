@@ -28,7 +28,7 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 	out := bytes.NewBuffer(parameterBytes)
 
 	if probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters {
-		params := procInfo.TypeMap.Functions[probe.FuncName] //applyCaptureDepth(procInfo.TypeMap.Functions[probe.FuncName], probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth)
+		params := procInfo.TypeMap.Functions[probe.FuncName]
 		if params != nil {
 			for i := range params {
 				flattenedParams := flattenParameters([]*ditypes.Parameter{params[i]})
@@ -113,7 +113,7 @@ func generateParametersTextViaLocationExpressions(params []*ditypes.Parameter, o
 }
 
 // collectLocationExpressions goes through the parameter tree (param.ParameterPieces) via
-// depth first traversal, collecting the LocationExpression's from each parameter and appending them
+// breadth first traversal, collecting the LocationExpression's from each parameter and appending them
 // to a collective slice.
 func collectLocationExpressions(param *ditypes.Parameter) []ditypes.LocationExpression {
 	collectedExpressions := []ditypes.LocationExpression{}
@@ -141,64 +141,48 @@ func collectLocationExpressions(param *ditypes.Parameter) []ditypes.LocationExpr
 }
 
 func resolveLocationExpressionTemplate(locationExpression ditypes.LocationExpression) (*template.Template, error) {
-	if locationExpression.Opcode == ditypes.OpReadUserRegister {
+	switch locationExpression.Opcode {
+	case ditypes.OpReadUserRegister:
 		return template.New("read_register_location_expression").Parse(readRegisterTemplateText)
-	}
-	if locationExpression.Opcode == ditypes.OpReadUserStack {
+	case ditypes.OpReadUserStack:
 		return template.New("read_stack_location_expression").Parse(readStackTemplateText)
-	}
-	if locationExpression.Opcode == ditypes.OpReadUserRegisterToOutput {
+	case ditypes.OpReadUserRegisterToOutput:
 		return template.New("read_register_to_output_location_expression").Parse(readRegisterValueToOutputTemplateText)
-	}
-	if locationExpression.Opcode == ditypes.OpReadUserStackToOutput {
+	case ditypes.OpReadUserStackToOutput:
 		return template.New("read_stack_to_output_location_expression").Parse(readStackValueToOutputTemplateText)
-	}
-	if locationExpression.Opcode == ditypes.OpDereference {
+	case ditypes.OpDereference:
 		return template.New("dereference_location_expression").Parse(dereferenceTemplateText)
-	}
-	if locationExpression.Opcode == ditypes.OpDereferenceToOutput {
+	case ditypes.OpDereferenceToOutput:
 		return template.New("dereference_to_output_location_expression").Parse(dereferenceToOutputTemplateText)
-	}
-	if locationExpression.Opcode == ditypes.OpDereferenceLarge {
+	case ditypes.OpDereferenceLarge:
 		return template.New("dereference_large_location_expression").Parse(dereferenceLargeTemplateText)
-	}
-	if locationExpression.Opcode == ditypes.OpDereferenceLargeToOutput {
+	case ditypes.OpDereferenceLargeToOutput:
 		return template.New("dereference_large_to_output_location_expression").Parse(dereferenceLargeToOutputTemplateText)
-	}
-	if locationExpression.Opcode == ditypes.OpDereferenceDynamic {
+	case ditypes.OpDereferenceDynamic:
 		return template.New("dereference_dynamic_location_expression").Parse(dereferenceDynamicTemplateText)
-	}
-	if locationExpression.Opcode == ditypes.OpDereferenceDynamicToOutput {
+	case ditypes.OpDereferenceDynamicToOutput:
 		return template.New("dereference_dynamic_to_output_location_expression").Parse(dereferenceDynamicToOutputTemplateText)
-	}
-	if locationExpression.Opcode == ditypes.OpReadStringToOutput {
+	case ditypes.OpReadStringToOutput:
 		return template.New("read_string_to_output").Parse(readStringToOutputTemplateText)
-	}
-	if locationExpression.Opcode == ditypes.OpApplyOffset {
+	case ditypes.OpApplyOffset:
 		return template.New("apply_offset_location_expression").Parse(applyOffsetTemplateText)
-	}
-	if locationExpression.Opcode == ditypes.OpPop {
+	case ditypes.OpPop:
 		return template.New("pop_location_expression").Parse(popTemplateText)
-	}
-	if locationExpression.Opcode == ditypes.OpCopy {
+	case ditypes.OpCopy:
 		return template.New("copy_location_expression").Parse(copyTemplateText)
-	}
-	if locationExpression.Opcode == ditypes.OpLabel {
+	case ditypes.OpLabel:
 		return template.New("label").Parse(labelTemplateText)
-	}
-	if locationExpression.Opcode == ditypes.OpSetGlobalLimit {
+	case ditypes.OpSetGlobalLimit:
 		return template.New("set_limit_entry").Parse(setLimitEntryText)
-	}
-	if locationExpression.Opcode == ditypes.OpJumpIfGreaterThanLimit {
+	case ditypes.OpJumpIfGreaterThanLimit:
 		return template.New("jump_if_greater_than_limit").Parse(jumpIfGreaterThanLimitText)
-	}
-	if locationExpression.Opcode == ditypes.OpPrintStatement {
+	case ditypes.OpPrintStatement:
 		return template.New("print_statement").Parse(printStatementText)
-	}
-	if locationExpression.Opcode == ditypes.OpComment {
+	case ditypes.OpComment:
 		return template.New("comment").Parse(commentText)
+	default:
+		return nil, errors.New("invalid location expression opcode")
 	}
-	return nil, errors.New("invalid location expression opcode")
 }
 
 func cleanupTypeName(s string) string {
