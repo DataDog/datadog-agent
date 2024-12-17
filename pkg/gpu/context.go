@@ -222,19 +222,24 @@ func (ctx *systemContext) cleanupOldEntries() {
 // container. If the ID is not empty, we check the assignment of GPU resources
 // to the container and return only the devices that are available to the
 // container.
-func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, containerID string) []nvml.Device {
+func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, containerID string) ([]nvml.Device, error) {
 	if containerID == "" {
 		// If the process is not running in a container, we assume all devices are available.
-		return devices
+		return devices, nil
 	}
 
 	container, err := ctx.workloadmeta.GetContainer(containerID)
 	if err != nil {
-		if !errors.IsNotFound(err) {
-			log.Warnf("Error getting container %s: %s", containerID, err)
+		// If we don't find the container, we assume all devices are available.
+		// This can happen sometimes, e.g. if we don't have the container in the
+		// store yet. Do not block metrics on that.
+		if errors.IsNotFound(err) {
+			return devices, nil
 		}
 
-		return devices
+		// Some error ocurred while retrieving the container, this could be a
+		// general error with the store, report it.
+		return nil, fmt.Errorf("cannot retrieve data for container %s: %s", containerID, err)
 	}
 
 	var filteredDevices []nvml.Device
@@ -258,13 +263,12 @@ func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, conta
 		}
 	}
 
-	// If no devices are available, we assume all devices are available. This probably comes from a
-	// problem with the pod resources API or the kubelet check, we don't want to block metrics based on that
+	// We didn't find any devices assigned to the container, report it as an error.
 	if len(filteredDevices) == 0 {
-		return devices
+		return nil, fmt.Errorf("no GPU devices found for container %d that matched its allocated resources %+v", containerID, container.AllocatedResources)
 	}
 
-	return filteredDevices
+	return filteredDevices, nil
 }
 
 // getCurrentActiveGpuDevice returns the active GPU device for a given process and thread, based on the
@@ -276,9 +280,11 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerI
 		// first. In a container setting, the environment variable acts as a
 		// filter on the devices that are available to the process, not on the
 		// devices available on the host system.
-		visibleDevices = ctx.filterDevicesForContainer(ctx.gpuDevices, containerID)
+		visibleDevices, err := ctx.filterDevicesForContainer(ctx.gpuDevices, containerID)
+		if err != nil {
+			return nil, fmt.Errorf("error filtering devices for container %s: %w", containerID, err)
+		}
 
-		var err error
 		visibleDevices, err = cuda.GetVisibleDevicesForProcess(visibleDevices, pid, ctx.procRoot)
 		if err != nil {
 			return nil, fmt.Errorf("error getting visible devices for process %d: %w", pid, err)
