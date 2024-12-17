@@ -1,32 +1,21 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2023-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
 
-// Package fetchonlyimpl implements the access to the auth_token used to communicate between Agent
-// processes but does not create it.
+// Package fetchonlyimpl implements the authtoken component interface
+// It fetch the auth_token from the file system
 package fetchonlyimpl
 
 import (
 	"crypto/tls"
 	"fmt"
 
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtoken "github.com/DataDog/datadog-agent/comp/api/authtoken/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newAuthToken),
-		fxutil.ProvideOptional[authtoken.Component](),
-	)
-}
 
 type authToken struct {
 	log         log.Component
@@ -36,18 +25,23 @@ type authToken struct {
 
 var _ authtoken.Component = (*authToken)(nil)
 
-type dependencies struct {
-	fx.In
-
-	Log  log.Component
+// Requires defines the dependencies for the authtoken component
+type Requires struct {
 	Conf config.Component
+	Log  log.Component
 }
 
-func newAuthToken(deps dependencies) authtoken.Component {
-	return &authToken{
-		log:  deps.Log,
-		conf: deps.Conf,
-	}
+// Provides defines the output of the authtoken component
+type Provides struct {
+	Comp authtoken.Component
+}
+
+// NewComponent creates a new authtoken component
+func NewComponent(reqs Requires) Provides {
+	return Provides{Comp: &authToken{
+		log:  reqs.Log,
+		conf: reqs.Conf,
+	}}
 }
 
 func (at *authToken) setToken() error {
