@@ -257,7 +257,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // Get network namespace id
-    log_debug("kprobe/tcp_close: tgid: %llu, pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
+    log_debug("kprobe/tcp_close: kernel thread id: %llu, user mode pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
@@ -735,7 +735,7 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__udpv6_recvmsg) {
 
 static __always_inline int handle_ret_udp_recvmsg_pre_4_7_0(int copied, void *udp_sock_map) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kretprobe/udp_recvmsg: tgid: %llu, pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
+    log_debug("kretprobe/udp_recvmsg: kernel thread id: %llu, user mode pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
 
     // Retrieve socket pointer from kprobe via pid/tgid
     udp_recv_sock_t *st = bpf_map_lookup_elem(udp_sock_map, &pid_tgid);
@@ -943,7 +943,7 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_retransmit_skb, int rc) {
 SEC("kprobe/tcp_connect")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_connect, struct sock *skp) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/tcp_connect: tgid: %llu, pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
+    log_debug("kprobe/tcp_connect: kernel thread id: %llu, user mode pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, skp, 0, CONN_TYPE_TCP)) {
@@ -973,7 +973,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_finish_connect, struct sock *skp) {
 
     u64 pid_tgid = pid_tgid_p->pid_tgid;
     t.pid = GET_USER_MODE_PID(pid_tgid);
-    log_debug("kprobe/tcp_finish_connect: tgid: %llu, pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
+    log_debug("kprobe/tcp_finish_connect: kernel thread id: %llu, user mode pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
 
     handle_tcp_stats(&t, skp, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, skp);
@@ -990,7 +990,7 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__inet_csk_accept, struct sock *sk) {
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kretprobe/inet_csk_accept: tgid: %llu, pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
+    log_debug("kretprobe/inet_csk_accept: kernel thread id: %llu, user mode pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
