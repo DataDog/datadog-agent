@@ -149,6 +149,16 @@ func TestConvert(t *testing.T) {
 			expectedResult: "receivers/no-receivers-defined/config-result.yaml",
 		},
 		{
+			name:           "receivers/prometheus-incomplete/empty-static-configs",
+			provided:       "receivers/prometheus-incomplete/empty-static-configs/config.yaml",
+			expectedResult: "receivers/prometheus-incomplete/empty-static-configs/config-result.yaml",
+		},
+		{
+			name:           "receivers/prometheus-incomplete/missing-static-configs-section",
+			provided:       "receivers/prometheus-incomplete/missing-static-configs-section/config.yaml",
+			expectedResult: "receivers/prometheus-incomplete/missing-static-configs-section/config-result.yaml",
+		},
+		{
 			name:           "processors/dd-connector",
 			provided:       "processors/dd-connector/config.yaml",
 			expectedResult: "processors/dd-connector/config-result.yaml",
