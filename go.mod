@@ -1,8 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.22.1
-
-toolchain go1.22.8
+go 1.23.0
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -355,7 +353,7 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/AlekSi/pointer v1.2.0 // indirect
-	github.com/BurntSushi/toml v1.4.0 // indirect
+	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/DataDog/aptly v1.5.3 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2
 	github.com/DataDog/gostackparse v0.7.0 // indirect
@@ -1044,7 +1042,7 @@ require (
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	honnef.co/go/tools v0.4.7 // indirect
+	honnef.co/go/tools v0.5.1 // indirect
 	k8s.io/kms v0.31.2 // indirect
 	k8s.io/sample-controller v0.31.2 // indirect
 	modernc.org/gc/v3 v3.0.0-20240107210532-573471604cb6 // indirect

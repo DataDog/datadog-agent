@@ -180,7 +180,7 @@ func TestDestroySender(t *testing.T) {
 		return aggregatorInstance.checkSamplers[checkID1].deregistered
 	}, time.Second, 10*time.Millisecond)
 
-	aggregatorInstance.Flush(testNewFlushTrigger(time.Now(), false))
+	aggregatorInstance.Flush(testNewFlushTrigger(time.Now(), false, nil))
 	assertAggSamplersLen(t, aggregatorInstance, 1)
 }
 

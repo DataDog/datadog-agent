@@ -57,7 +57,7 @@ type AstFiles struct {
 }
 
 // LookupSymbol lookups symbol
-func (af *AstFiles) LookupSymbol(symbol string) *ast.Object {
+func (af *AstFiles) LookupSymbol(symbol string) *ast.Object { //nolint:staticcheck
 	for _, file := range af.files {
 		if obj := file.Scope.Lookup(symbol); obj != nil {
 			return obj

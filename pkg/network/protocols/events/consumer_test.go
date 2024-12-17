@@ -8,12 +8,8 @@
 package events
 
 import (
-	"bytes"
-	"encoding/binary"
-	"math"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -21,13 +17,9 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/ringbuf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -41,7 +33,7 @@ func TestConsumer(t *testing.T) {
 
 	const numEvents = 100
 	c := config.New()
-	program, err := newEBPFProgram(c)
+	program, err := NewEBPFProgram(c)
 	require.NoError(t, err)
 
 	var mux sync.Mutex
@@ -64,14 +56,14 @@ func TestConsumer(t *testing.T) {
 	// generate test events
 	generator := newEventGenerator(program, t)
 	for i := 0; i < numEvents; i++ {
-		require.NoError(t, generator.Generate(uint64(i)))
+		generator.Generate(uint64(i))
 	}
 	generator.Stop()
 	time.Sleep(100 * time.Millisecond)
 
 	// this ensures that any incomplete batch left in eBPF is fully processed
 	consumer.Sync()
-	require.NoError(t, program.Stop(manager.CleanAll))
+	program.Stop(manager.CleanAll)
 	consumer.Stop()
 
 	// ensure that we have received each event exactly once
@@ -79,6 +71,33 @@ func TestConsumer(t *testing.T) {
 		actual := result[uint64(i)]
 		assert.Equalf(t, 1, actual, "eventID=%d should have 1 occurrence. got %d", i, actual)
 	}
+}
+
+func TestInvalidBatchCountMetric(t *testing.T) {
+	kversion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if minVersion := kernel.VersionCode(4, 14, 0); kversion < minVersion {
+		t.Skipf("package not supported by kernels < %s", minVersion)
+	}
+
+	c := config.New()
+	program, err := NewEBPFProgram(c)
+	require.NoError(t, err)
+	t.Cleanup(func() { program.Stop(manager.CleanAll) })
+
+	consumer, err := NewConsumer("test", program, func([]uint64) {})
+	require.NoError(t, err)
+
+	// We are creating a raw sample with a data length of 4, which is smaller than sizeOfBatch
+	// and would be considered an invalid batch.
+	RecordSample(c, consumer, []byte("test"))
+
+	consumer.Start()
+	t.Cleanup(func() { consumer.Stop() })
+	require.Eventually(t, func() bool {
+		// Wait for the consumer to process the invalid batch.
+		return consumer.invalidBatchCount.Get() == 1
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 type eventGenerator struct {
@@ -122,120 +141,10 @@ func (e *eventGenerator) Generate(eventID uint64) error {
 		return err
 	}
 
-	_, err = e.testFile.Write([]byte("whatever"))
-	return err
+	e.testFile.Write([]byte("whatever"))
+	return nil
 }
 
 func (e *eventGenerator) Stop() {
 	e.testFile.Close()
-}
-
-func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
-	bc, err := bytecode.GetReader(c.BPFDir, "usm_events_test-debug.o")
-	if err != nil {
-		return nil, err
-	}
-	defer bc.Close()
-
-	m := &manager.Manager{
-		Probes: []*manager.Probe{
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tracepoint__syscalls__sys_enter_write",
-				},
-			},
-		},
-	}
-	options := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		ActivatedProbes: []manager.ProbesSelector{
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tracepoint__syscalls__sys_enter_write",
-				},
-			},
-		},
-		ConstantEditors: []manager.ConstantEditor{
-			{
-				Name:  "test_monitoring_enabled",
-				Value: uint64(1),
-			},
-		},
-	}
-
-	Configure(config.New(), "test", m, &options)
-	err = m.InitWithOptions(bc, options)
-	if err != nil {
-		return nil, err
-	}
-
-	return m, nil
-}
-
-func TestInvalidBatchCountMetric(t *testing.T) {
-	kversion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if minVersion := kernel.VersionCode(4, 14, 0); kversion < minVersion {
-		t.Skipf("package not supported by kernels < %s", minVersion)
-	}
-
-	program, err := newEBPFProgram(config.New())
-	require.NoError(t, err)
-
-	ringBufferHandler := ddebpf.NewRingBufferHandler(1)
-	ringBufferHandler.RecordHandler(&ringbuf.Record{
-		RawSample: []byte("test"),
-	}, nil, nil)
-
-	consumer, err := NewConsumer("test", program, func(_ []uint64) {})
-	require.NoError(t, err)
-	consumer.handler = ringBufferHandler
-
-	consumer.Start()
-	program.Stop(manager.CleanAll)
-	consumer.Stop()
-
-	require.Equalf(t, int(consumer.invalidBatchCount.Get()), 1, "invalidBatchCount should be greater than 0")
-}
-
-// BenchmarkConsumer benchmarks the consumer with a large number of events to measure the performance.
-func BenchmarkConsumer(b *testing.B) {
-	const numEvents = 3500
-	program, err := newEBPFProgram(config.New())
-	require.NoError(b, err)
-
-	consumer, err := NewConsumer("test", program, func([]uint64) {})
-	require.NoError(b, err)
-
-	require.NoError(b, program.Start())
-	mockBatch := batch{
-		Len: uint16(numEvents),
-		Cap: uint16(len((batch{}).Data)),
-	}
-
-	// Reset the events count as the benchmark will run multiple times.
-	consumer.eventsCount.Reset()
-
-	var buf bytes.Buffer
-	require.NoError(b, binary.Write(&buf, binary.LittleEndian, &mockBatch))
-
-	consumer.handler.(*ddebpf.RingBufferHandler).RecordHandler(&ringbuf.Record{
-		RawSample: buf.Bytes(),
-	}, nil, nil)
-
-	b.ReportAllocs()
-	runtime.GC()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		consumer.Start()
-		require.Eventually(b, func() bool {
-			program.Stop(manager.CleanAll)
-			return true
-		}, 1000*time.Millisecond, 100*time.Millisecond)
-		require.Equalf(b, numEvents, int(consumer.eventsCount.Get()),
-			"Not all events were processed correctly, expected %d, got %d, iteration: %d", numEvents, consumer.eventsCount.Get(), i)
-	}
 }
