@@ -38,8 +38,9 @@ var GPUUUIDs = []string{
 	"GPU-66666666-1234-1234-1234-123456789018",
 }
 
-// GPUCores is a list of number of cores for the devices returned by the mock, should be the same length as GPUUUIDs
-var GPUCores = []int{DefaultGpuCores, 20, 30}
+// GPUCores is a list of number of cores for the devices returned by the mock,
+// should be the same length as GPUUUIDs. If not, GetBasicNvmlMock will panic.
+var GPUCores = []int{DefaultGpuCores, 20, 30, 40, 50, 60, 70}
 
 // DefaultGpuUUID is the UUID for the default device returned by the mock
 var DefaultGpuUUID = GPUUUIDs[0]
@@ -62,6 +63,11 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 // GetBasicNvmlMock returns a mock of the nvml.Interface with a single device with 10 cores,
 // useful for basic tests that need only the basic interaction with NVML to be working.
 func GetBasicNvmlMock() *nvmlmock.Interface {
+	if len(GPUUUIDs) != len(GPUCores) {
+		// Make it really easy to spot errors if we change any of the arrays.
+		panic("GPUUUIDs and GPUCores must have the same length, please fix it")
+	}
+
 	return &nvmlmock.Interface{
 		DeviceGetCountFunc: func() (int, nvml.Return) {
 			return len(GPUUUIDs), nvml.SUCCESS
