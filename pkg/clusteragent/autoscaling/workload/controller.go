@@ -62,7 +62,7 @@ type Controller struct {
 
 	limitHeap *autoscaling.HashHeap
 
-	podWatcher           podWatcher
+	podWatcher           PodWatcher
 	horizontalController *horizontalController
 	verticalController   *verticalController
 
@@ -79,7 +79,7 @@ func newController(
 	dynamicInformer dynamicinformer.DynamicSharedInformerFactory,
 	isLeader func() bool,
 	store *store,
-	podWatcher podWatcher,
+	podWatcher PodWatcher,
 	localSender sender.Sender,
 	limitHeap *autoscaling.HashHeap,
 ) (*Controller, error) {
