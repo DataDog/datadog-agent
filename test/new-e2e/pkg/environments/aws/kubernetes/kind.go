@@ -136,8 +136,6 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 
 	var dependsOnCrd []pulumi.Resource
 	if params.agentOptions != nil && !params.deployOperator {
-		helmValues := `
-	if params.agentOptions != nil {
 		kindClusterName := ctx.Stack()
 		helmValues := fmt.Sprintf(`
 datadog:
