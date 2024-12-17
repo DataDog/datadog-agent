@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/syndtr/gocapability/capability"
