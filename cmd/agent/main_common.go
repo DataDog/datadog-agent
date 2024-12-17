@@ -3,15 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !gce
+//go:build !linux
 
-package gce
+package main
 
-import "context"
-
-// GetTags gets the tags from the GCE api
-func GetTags(_ context.Context) ([]string, error) {
-	tags := []string{}
-
-	return tags, nil
+// nolint: deadcode, unused
+func setProcessName(_ string) error {
+	return nil
 }
