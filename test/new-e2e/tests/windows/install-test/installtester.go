@@ -466,6 +466,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 		path             string
 		expectedSecurity func(t *testing.T) windows.ObjectSecurity
 	}{
+		//ConfigRoot is only owned by SYSTEM and Administrators
 		{
 			name: "ConfigRoot",
 			path: t.expectedConfigRoot,
@@ -478,9 +479,16 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 				expected.Access = append(expected.Access,
 					windows.NewExplicitAccessRuleWithFlags(
 						ddAgentUserIdentity,
-						windows.FileFullControl,
+						windows.FileReadAndExecute|windows.SYNCHRONIZE,
 						windows.AccessControlTypeAllow,
 						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsNone,
+					),
+					windows.NewExplicitAccessRuleWithFlags(
+						ddAgentUserIdentity,
+						windows.FileWrite|windows.SYNCHRONIZE,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer,
 						windows.PropagationFlagsNone,
 					),
 				)
@@ -497,9 +505,15 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 					return expected
 				}
 				expected.Access = append(expected.Access,
-					windows.NewInheritedAccessRule(
+					windows.NewExplicitAccessRule(
 						ddAgentUserIdentity,
 						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+					),
+					// extra inherited rule for ddagentuser
+					windows.NewInheritedAccessRule(
+						ddAgentUserIdentity,
+						windows.FileReadAndExecute|windows.SYNCHRONIZE,
 						windows.AccessControlTypeAllow,
 					),
 				)
@@ -516,11 +530,26 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 					return expected
 				}
 				expected.Access = append(expected.Access,
-					windows.NewInheritedAccessRuleWithFlags(
+					windows.NewExplicitAccessRuleWithFlags(
 						ddAgentUserIdentity,
 						windows.FileFullControl,
 						windows.AccessControlTypeAllow,
 						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsNone,
+					),
+					// extra inherited rule for ddagentuser
+					windows.NewInheritedAccessRuleWithFlags(
+						ddAgentUserIdentity,
+						windows.FileReadAndExecute|windows.SYNCHRONIZE,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsNone,
+					),
+					windows.NewInheritedAccessRuleWithFlags(
+						ddAgentUserIdentity,
+						windows.FileWrite|windows.SYNCHRONIZE,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer,
 						windows.PropagationFlagsNone,
 					),
 				)

@@ -446,6 +446,87 @@ namespace Datadog.CustomActions
             }
         }
 
+        private void AddDatadogUserToDataFolder()
+        {
+            var dataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
+
+            FileSystemSecurity fileSystemSecurity;
+            try
+            {
+                fileSystemSecurity = _fileSystemServices.GetAccessControl(dataDirectory, AccessControlSections.All);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to get ACLs on {dataDirectory}: {e}");
+                throw;
+            }
+            // ddagentuser Read and execute permissions, enable child inheritance of this ACE
+            fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                _ddAgentUserSID,
+                FileSystemRights.ReadAndExecute | FileSystemRights.Synchronize,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+
+            // datadog write on this folder
+            fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                _ddAgentUserSID,
+                FileSystemRights.Write,
+                InheritanceFlags.ContainerInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+            try
+            {
+                UpdateAndLogAccessControl(dataDirectory, fileSystemSecurity);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to set ACLs on {dataDirectory}: {e}");
+                throw;
+            }
+
+        }
+
+        private void RemoveDatadogUserFromDataFolder(SecurityIdentifier sid)
+        {
+            var dataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
+
+            FileSystemSecurity fileSystemSecurity;
+            try
+            {
+                fileSystemSecurity = _fileSystemServices.GetAccessControl(dataDirectory, AccessControlSections.All);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to get ACLs on {dataDirectory}: {e}");
+                throw;
+            }
+
+            // Remove ddagentuser from data folder
+            fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
+                sid,
+                FileSystemRights.ReadAndExecute | FileSystemRights.Synchronize,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+            fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
+                sid,
+                FileSystemRights.Write,
+                InheritanceFlags.ContainerInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+
+            try
+            {
+                UpdateAndLogAccessControl(dataDirectory, fileSystemSecurity);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to set ACLs on {dataDirectory}: {e}");
+                throw;
+            }
+        }
+
         private void ConfigureFilePermissions()
         {
             try
@@ -471,6 +552,7 @@ namespace Datadog.CustomActions
 
                 if (_ddAgentUserSID != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
                 {
+                    AddDatadogUserToDataFolder();
                     GrantAgentAccessPermissions();
                 }
             }
@@ -579,17 +661,20 @@ namespace Datadog.CustomActions
 
         private List<string> PathsWithAgentAccess()
         {
-            return new List<string>
-            {
-                // agent needs to be able to write logs/
-                // agent GUI needs to be able to edit config
-                // agent needs to be able to write to run/
-                // agent needs to be able to create auth_token
-                _session.Property("APPLICATIONDATADIRECTORY"),
-                // allow agent to write __pycache__
+            var configRoot = _session.Property("APPLICATIONDATADIRECTORY");
+
+            return new List<string> {
+                Path.Combine(configRoot, "conf.d"),
+                Path.Combine(configRoot, "checks.d"),
+                Path.Combine(configRoot, "run"),
+                Path.Combine(configRoot, "logs"),
+                Path.Combine(configRoot, "datadog.yaml"),
+                Path.Combine(configRoot, "system-probe.yaml"),
+                Path.Combine(configRoot, "auth_token"),
+                Path.Combine(configRoot, "install_info"),
                 Path.Combine(_session.Property("PROJECTLOCATION"), "embedded2"),
                 Path.Combine(_session.Property("PROJECTLOCATION"), "embedded3"),
-            };
+            }; ;
         }
 
         /// <summary>
@@ -682,6 +767,8 @@ namespace Datadog.CustomActions
                             _session.Log($"Failed to remove {ddAgentUserName} from {filePath}: {e}");
                         }
                     }
+                    //remove access to root folder
+                    RemoveDatadogUserFromDataFolder(securityIdentifier);
                 }
 
                 // We intentionally do NOT delete the ddagentuser account.
