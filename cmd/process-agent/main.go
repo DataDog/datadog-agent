@@ -10,6 +10,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 
+	"github.com/DataDog/datadog-agent/cmd/internal/rssshrinker"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
@@ -18,6 +19,8 @@ import (
 
 // main is the main application entry point
 func main() {
+	rssshrinker.Setup()
+
 	flavor.SetFlavor(flavor.ProcessAgent)
 
 	os.Args = command.FixDeprecatedFlags(os.Args, os.Stdout)

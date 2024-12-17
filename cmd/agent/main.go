@@ -16,6 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
+
+	"github.com/DataDog/datadog-agent/cmd/internal/rssshrinker"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/spf13/cobra"
 )
@@ -37,6 +39,8 @@ func init() {
 }
 
 func main() {
+	rssshrinker.Setup()
+
 	process := strings.TrimSpace(os.Getenv("DD_BUNDLED_AGENT"))
 
 	if process == "" {
