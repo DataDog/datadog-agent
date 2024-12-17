@@ -52,17 +52,20 @@ func TestFilterDevicesForContainer(t *testing.T) {
 	require.NotNil(t, storeContainer, "container should be found in the store")
 
 	t.Run("NoContainer", func(t *testing.T) {
-		filtered := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, "")
+		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, "")
+		require.NoError(t, err)
 		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.gpuDevices) // With no container, all devices should be returned
 	})
 
 	t.Run("NonExistentContainer", func(t *testing.T) {
-		filtered := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, "non-existent-at-all")
+		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, "non-existent-at-all")
+		require.NoError(t, err)
 		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.gpuDevices) // If we can't find the container, all devices should be returned
 	})
 
 	t.Run("ContainerWithGPU", func(t *testing.T) {
-		filtered := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, containerID)
+		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, containerID)
+		require.NoError(t, err)
 		require.Len(t, filtered, 1)
 		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.gpuDevices[deviceIndex:deviceIndex+1])
 	})
