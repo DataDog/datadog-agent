@@ -120,7 +120,9 @@ func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 	}, 30*time.Second, 1*time.Second)
 
 	// Install from QA registry
-	err = s.RunInstallScriptWithError()
+	err = s.RunInstallScriptWithError(
+		"DD_REMOTE_UPDATES=true",
+	)
 	assert.NoError(s.T(), err)
 
 	versionDisk = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
