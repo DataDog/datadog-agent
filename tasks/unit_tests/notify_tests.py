@@ -31,7 +31,6 @@ def get_github_slack_map():
 
 
 class TestSendMessage(unittest.TestCase):
-    @patch.dict('os.environ', {'CI_PIPELINE_SOURCE': 'push', 'CI_PIPELINE_ID': '42'})
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
     @patch('builtins.print')
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
@@ -40,15 +39,15 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.return_value.artifact.return_value = b"{}"
         repo_mock.jobs.get.return_value.trace.return_value = b"Log trace"
         repo_mock.pipelines.get.return_value.ref = "test"
+        repo_mock.pipelines.get.return_value.source = "push"
         list_mock = repo_mock.pipelines.get.return_value.jobs.list
         list_mock.side_effect = [get_fake_jobs(), []]
-        notify.send_message(MockContext(), dry_run=True)
+        notify.send_message(MockContext(), "42", dry_run=True)
         list_mock.assert_called()
-        repo_mock.pipelines.get.assert_called_with('42')
+        repo_mock.pipelines.get.assert_called_with("42")
         self.assertTrue("merge" in print_mock.mock_calls[0].args[0])
         repo_mock.jobs.get.assert_called()
 
-    @patch.dict('os.environ', {'DEPLOY_AGENT': 'false', 'CI_PIPELINE_SOURCE': 'push', 'CI_PIPELINE_ID': '42'})
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch('tasks.libs.notify.pipeline_status.get_failed_jobs')
     @patch('builtins.print')
@@ -58,6 +57,7 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.return_value.artifact.return_value = b"{}"
         repo_mock.jobs.get.return_value.trace.return_value = b"Log trace"
         repo_mock.pipelines.get.return_value.ref = "test"
+        repo_mock.pipelines.get.return_value.source = "push"
 
         failed = FailedJobs()
         failed.add_failed_job(
@@ -121,7 +121,7 @@ class TestSendMessage(unittest.TestCase):
             )
         )
         get_failed_jobs_mock.return_value = failed
-        notify.send_message(MockContext(), dry_run=True)
+        notify.send_message(MockContext(), "42", dry_run=True)
         self.assertTrue("merge" in print_mock.mock_calls[0].args[0])
         get_failed_jobs_mock.assert_called()
         repo_mock.jobs.get.assert_called()
@@ -199,7 +199,6 @@ class TestSendMessage(unittest.TestCase):
         self.assertNotIn("@DataDog/agent-devx-loops", owners)
         self.assertNotIn("@DataDog/agent-delivery", owners)
 
-    @patch.dict('os.environ', {'DEPLOY_AGENT': 'false', 'CI_PIPELINE_SOURCE': 'push', 'CI_PIPELINE_ID': '42'})
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch('builtins.print')
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
@@ -212,14 +211,15 @@ class TestSendMessage(unittest.TestCase):
         list_mock.return_value = get_fake_jobs()
         repo_mock.jobs.get.return_value.artifact.return_value = b"{}"
         repo_mock.pipelines.get.return_value.ref = "test"
+        repo_mock.pipelines.get.return_value.source = "push"
 
-        notify.send_message(MockContext(), dry_run=True)
+        notify.send_message(MockContext(), "42", dry_run=True)
         self.assertTrue("merge" in print_mock.mock_calls[0].args[0])
         trace_mock.assert_called()
         list_mock.assert_called()
         repo_mock.jobs.get.assert_called()
 
-    @patch.dict('os.environ', {'DEPLOY_AGENT': 'true', 'CI_PIPELINE_SOURCE': 'push', 'CI_PIPELINE_ID': '42'})
+    @patch.dict('os.environ', {'DEPLOY_AGENT': 'true'})
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch('builtins.print')
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
@@ -232,14 +232,14 @@ class TestSendMessage(unittest.TestCase):
         list_mock.return_value = get_fake_jobs()
         repo_mock.jobs.get.return_value.artifact.return_value = b"{}"
         repo_mock.pipelines.get.return_value.ref = "test"
+        repo_mock.pipelines.get.return_value.source = "push"
 
-        notify.send_message(MockContext(), dry_run=True)
+        notify.send_message(MockContext(), "42", dry_run=True)
         self.assertTrue("rocket" in print_mock.mock_calls[0].args[0])
         trace_mock.assert_called()
         list_mock.assert_called()
         repo_mock.jobs.get.assert_called()
 
-    @patch.dict('os.environ', {'DEPLOY_AGENT': 'false', 'CI_PIPELINE_SOURCE': 'api', 'CI_PIPELINE_ID': '42'})
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch('builtins.print')
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
@@ -252,14 +252,15 @@ class TestSendMessage(unittest.TestCase):
         list_mock.return_value = get_fake_jobs()
         repo_mock.jobs.get.return_value.artifact.return_value = b"{}"
         repo_mock.pipelines.get.return_value.ref = "test"
+        repo_mock.pipelines.get.return_value.source = "api"
 
-        notify.send_message(MockContext(), dry_run=True)
+        notify.send_message(MockContext(), "42", dry_run=True)
         self.assertTrue("arrow_forward" in print_mock.mock_calls[0].args[0])
         trace_mock.assert_called()
         list_mock.assert_called()
         repo_mock.jobs.get.assert_called()
 
-    @patch.dict('os.environ', {'DEPLOY_AGENT': 'false', 'CI_PIPELINE_SOURCE': 'pipeline', 'CI_PIPELINE_ID': '42'})
+    @patch.dict('os.environ', {'DDR': 'true', 'DDR_WORKFLOW_ID': '1337'})
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch('builtins.print')
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
@@ -272,20 +273,20 @@ class TestSendMessage(unittest.TestCase):
         list_mock.return_value = get_fake_jobs()
         repo_mock.jobs.get.return_value.artifact.return_value = b"{}"
         repo_mock.pipelines.get.return_value.ref = "test"
-        repo_mock.pipelines.get.return_value.user.__getitem__.return_value = 8278
+        repo_mock.pipelines.get.return_value.source = "pipeline"
 
-        notify.send_message(MockContext(), dry_run=True)
+        notify.send_message(MockContext(), "42", dry_run=True)
         self.assertTrue("arrow_forward" in print_mock.mock_calls[0].args[0])
         trace_mock.assert_called()
         list_mock.assert_called()
         repo_mock.jobs.get.assert_called()
 
-    @patch.dict('os.environ', {'CI_PIPELINE_SOURCE': 'pipeline', 'CI_PIPELINE_ID': '42'})
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_dismiss_notification(self, api_mock):
         repo_mock = api_mock.return_value.projects.get.return_value
+        repo_mock.pipelines.get.return_value.source = "pipeline"
 
-        notify.send_message(MockContext(), dry_run=True)
+        notify.send_message(MockContext(), "42", dry_run=True)
         repo_mock.jobs.get.assert_not_called()
 
     def test_post_to_channel1(self):
