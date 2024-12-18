@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -84,9 +85,11 @@ func (ku *KubeUtil) init() error {
 		}
 	}
 
-	ku.podResourcesClient, err = NewPodResourcesClient(pkgconfigsetup.Datadog())
-	if err != nil {
-		log.Warnf("Failed to create pod resources client, resource data will not be available: %s", err)
+	if env.IsFeaturePresent(env.PodResources) {
+		ku.podResourcesClient, err = NewPodResourcesClient(pkgconfigsetup.Datadog())
+		if err != nil {
+			log.Warnf("Failed to create pod resources client, resource data will not be available: %s", err)
+		}
 	}
 
 	return nil
@@ -214,8 +217,7 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 
 	err = ku.addContainerResourcesData(ctx, pods.Items)
 	if err != nil {
-		// TODO: Switch back to error level once the socket issue is fixed.
-		log.Debugf("Error adding container resources data: %s", err)
+		log.Errorf("Error adding container resources data: %s", err)
 	}
 
 	// ensure we dont have nil pods

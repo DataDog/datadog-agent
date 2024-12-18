@@ -48,7 +48,7 @@ jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-delivery"
 github_labels = ["team/agent-delivery"]
-exclude_members = ["hithwen"]
+exclude_members = ["KSerrania"]
 
 [teams."Universal Service Monitoring"]
 jira_project = "USMON"
@@ -176,12 +176,12 @@ jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-cspm"
 github_labels = ["team/agent-cspm"]
 
-[teams."Processes"]
-jira_project = "PROCS"
+[teams."Container Intake"]
+jira_project = "CTK"
 jira_issue_type = "Task"
 jira_statuses = ["TRIAGE", "In Progress", "Done"]
-github_team = "processes"
-github_labels = ["team/processes"]
+github_team = "container-intake"
+github_labels = ["team/container-intake"]
 
 [teams."Windows Agent"]
 jira_project = "WINA"

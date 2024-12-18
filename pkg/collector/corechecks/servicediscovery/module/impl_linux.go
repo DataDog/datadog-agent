@@ -21,7 +21,7 @@ import (
 	"time"
 
 	agentPayload "github.com/DataDog/agent-payload/v5/process"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
@@ -51,6 +51,7 @@ var _ module.Module = &discovery{}
 type serviceInfo struct {
 	generatedName        string
 	generatedNameSource  string
+	containerServiceName string
 	ddServiceName        string
 	ddServiceInjected    bool
 	checkedContainerData bool
@@ -383,7 +384,11 @@ func (s *discovery) cleanIgnoredPids(alivePids map[int32]struct{}) {
 
 // getServiceInfo gets the service information for a process using the
 // servicedetector module.
-func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) {
+func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
+	proc := &process.Process{
+		Pid: pid,
+	}
+
 	cmdline, err := proc.CmdlineSlice()
 	if err != nil {
 		return nil, err
@@ -432,39 +437,17 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	}, nil
 }
 
-// customNewProcess is the same implementation as process.NewProcess but without calling CreateTimeWithContext, which
-// is not needed and costly for the discovery module.
-func customNewProcess(pid int32) (*process.Process, error) {
-	p := &process.Process{
-		Pid: pid,
-	}
-
-	exists, err := process.PidExists(pid)
-	if err != nil {
-		return p, err
-	}
-	if !exists {
-		return p, process.ErrorProcessNotRunning
-	}
-	return p, nil
-}
-
 // maxNumberOfPorts is the maximum number of listening ports which we report per
 // service.
 const maxNumberOfPorts = 50
 
 // getService gets information for a single service.
 func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
-	proc, err := customNewProcess(pid)
-	if err != nil {
+	if s.shouldIgnorePid(pid) {
 		return nil
 	}
-
-	if s.shouldIgnorePid(proc.Pid) {
-		return nil
-	}
-	if s.shouldIgnoreComm(proc) {
-		s.addIgnoredPid(proc.Pid)
+	if s.shouldIgnoreComm(pid) {
+		s.addIgnoredPid(pid)
 		return nil
 	}
 
@@ -523,7 +506,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		ports = ports[:maxNumberOfPorts]
 	}
 
-	rss, err := getRSS(proc)
+	rss, err := getRSS(pid)
 	if err != nil {
 		return nil
 	}
@@ -535,7 +518,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	if ok {
 		info = cached
 	} else {
-		info, err = s.getServiceInfo(proc)
+		info, err = s.getServiceInfo(pid)
 		if err != nil {
 			return nil
 		}
@@ -550,7 +533,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		name = info.generatedName
 	}
 	if s.shouldIgnoreService(name) {
-		s.addIgnoredPid(proc.Pid)
+		s.addIgnoredPid(pid)
 		return nil
 	}
 
@@ -618,7 +601,7 @@ func (s *discovery) updateServicesCPUStats(services []model.Service) error {
 	return nil
 }
 
-func getServiceNameFromContainerTags(tags []string) string {
+func getServiceNameFromContainerTags(tags []string) (string, string) {
 	// The tags we look for service name generation, in their priority order.
 	// The map entries will be filled as we go through the containers tags.
 	tagsPriority := []struct {
@@ -659,10 +642,10 @@ func getServiceNameFromContainerTags(tags []string) string {
 		}
 
 		log.Debugf("Using %v:%v tag for service name", tag.tagName, *tag.tagValue)
-		return *tag.tagValue
+		return tag.tagName, *tag.tagValue
 	}
 
-	return ""
+	return "", ""
 }
 
 func (s *discovery) enrichContainerData(service *model.Service, containers map[string]*agentPayload.Container, pidToCid map[int]string) {
@@ -673,7 +656,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 
 	service.ContainerID = id
 
-	// We got the service name from container tags before, no need to do it again.
+	// We checked the container tags before, no need to do it again.
 	if service.CheckedContainerData {
 		return
 	}
@@ -683,25 +666,15 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		return
 	}
 
-	serviceName := getServiceNameFromContainerTags(container.Tags)
-
-	if serviceName != "" {
-		service.GeneratedName = serviceName
-		// Update the legacy name field as well
-		if service.DDService == "" {
-			service.Name = serviceName
-		}
-		service.GeneratedNameSource = string(usm.Container)
-	}
+	tagName, serviceName := getServiceNameFromContainerTags(container.Tags)
+	service.ContainerServiceName = serviceName
+	service.ContainerServiceNameSource = tagName
 	service.CheckedContainerData = true
 
 	s.mux.Lock()
 	serviceInfo, ok := s.cache[int32(service.PID)]
 	if ok {
-		if serviceName != "" {
-			serviceInfo.generatedName = serviceName
-			serviceInfo.generatedNameSource = string(usm.Container)
-		}
+		serviceInfo.containerServiceName = serviceName
 		serviceInfo.checkedContainerData = true
 	}
 	s.mux.Unlock()

@@ -211,7 +211,7 @@ func TestSubscribe(t *testing.T) {
 				coreClient:      client.CoreV1(),
 				coordClient:     client.CoordinationV1(),
 				leaderMetric:    &dummyGauge{},
-				lockType:        cmLock.ConfigMapsResourceLock,
+				lockType:        tc.lockType,
 			}
 
 			notif1 := le.Subscribe()
@@ -226,6 +226,9 @@ func TestSubscribe(t *testing.T) {
 
 			le.EnsureLeaderElectionRuns()
 			require.True(t, le.IsLeader())
+
+			err = tc.getTokenFunc(client)
+			require.NoError(t, err)
 
 			counter1, counter2 := 0, 0
 			for {
