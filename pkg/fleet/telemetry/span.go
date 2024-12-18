@@ -31,13 +31,11 @@ type Span struct {
 }
 
 func newSpan(name string, parentID, traceID uint64) *Span {
-	var noParent bool
 	if traceID == 0 {
 		traceID = rand.Uint64()
 		if !headSamplingKeep(name, traceID) {
 			traceID = dropTraceID
 		}
-		noParent = true
 	}
 	s := &Span{
 		span: internaltelemetry.Span{
@@ -51,7 +49,7 @@ func newSpan(name string, parentID, traceID uint64) *Span {
 			Metrics:  make(map[string]float64),
 		},
 	}
-	if noParent {
+	if parentID == 0 {
 		s.SetTopLevel()
 	}
 

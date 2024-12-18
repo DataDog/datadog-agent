@@ -37,7 +37,7 @@ type Client interface {
 	SendTraces(traces Traces)
 }
 
-// Endpoit defines the endpoint object
+// Endpoint defines the endpoint object
 type Endpoint struct {
 	APIKey string `json:"-"`
 	Host   string

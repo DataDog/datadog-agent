@@ -39,13 +39,6 @@ func newTelemetry(deps dependencies) (telemetry.Component, error) {
 		Transport: httputils.CreateHTTPTransport(deps.Config),
 	}
 	telemetry := fleettelemetry.NewTelemetry(client, utils.SanitizeAPIKey(deps.Config.GetString("api_key")), deps.Config.GetString("site"), "datadog-installer-daemon")
-	/*
-		fleettelemetry.WithSamplingRules(
-			tracer.NameServiceRule("cdn.*", "datadog-installer-daemon", 0.1),
-			tracer.NameServiceRule("*garbage_collect*", "datadog-installer-daemon", 0.05),
-			tracer.NameServiceRule("HTTPClient.*", "datadog-installer-daemon", 0.05),
-		),
-	)*/
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error { telemetry.Stop(); return nil }})
 	return telemetry, nil
 }

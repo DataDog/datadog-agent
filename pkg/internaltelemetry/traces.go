@@ -27,7 +27,7 @@ type Span struct {
 	// ParentID is the ID of the parent span.
 	ParentID uint64 `json:"parent_id"`
 	// Start is the start time of this span in nanoseconds since the Unix epoch.
-	Start int64 `json:"start""`
+	Start int64 `json:"start"`
 	// Duration is the duration of this span in nanoseconds.
 	Duration int64 `json:"duration"`
 	// Error is the error status of this span.

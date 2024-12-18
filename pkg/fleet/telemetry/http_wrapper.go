@@ -37,7 +37,7 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (res *http.Response, err er
 	url.User = nil
 
 	span.span.Type = "http"
-	span.SetResourceName(req.Method + " " + urlFromRequest(req, true))
+	span.SetResourceName(req.Method + " " + urlFromRequest(req))
 	span.span.Meta["http.method"] = req.Method
 	span.span.Meta["http.url"] = req.URL.String()
 	span.span.Meta["span.kind"] = "client"
@@ -56,7 +56,7 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (res *http.Response, err er
 
 // urlFromRequest returns the URL from the HTTP request. The URL query string is included in the return object iff queryString is true
 // See https://docs.datadoghq.com/tracing/configure_data_security#redacting-the-query-in-the-url for more information.
-func urlFromRequest(r *http.Request, queryString bool) string {
+func urlFromRequest(r *http.Request) string {
 	// Quoting net/http comments about net.Request.URL on server requests:
 	// "For most requests, fields other than Path and RawQuery will be
 	// empty. (See RFC 7230, Section 5.3)"
@@ -73,7 +73,7 @@ func urlFromRequest(r *http.Request, queryString bool) string {
 		url = path
 	}
 	// Collect the query string if we are allowed to report it and obfuscate it if possible/allowed
-	if queryString && r.URL.RawQuery != "" {
+	if r.URL.RawQuery != "" {
 		query := r.URL.RawQuery
 		url = strings.Join([]string{url, query}, "?")
 	}
