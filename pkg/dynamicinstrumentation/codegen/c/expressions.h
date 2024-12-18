@@ -60,7 +60,7 @@ static __always_inline int pop(struct expression_context context, __u64 num_elem
     int i;
     for(i = 0; i < num_elements; i++) {
         bpf_map_pop_elem(&param_stack, &valueHolder);
-        log_debug("Popping to output: %llud", valueHolder);
+        log_debug("Popping to output: %llu", valueHolder);
         err = bpf_probe_read(&context.event->output[*(context.output_offset)+i], element_size, &valueHolder);
         if (err != 0) {
             log_debug("error when reading data while popping from bpf stack: %ld", err);

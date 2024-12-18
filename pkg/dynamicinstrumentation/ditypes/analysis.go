@@ -108,6 +108,10 @@ func (op LocationExpressionOpcode) String() string {
 	switch op {
 	case OpInvalid:
 		return "Invalid"
+	case OpComment:
+		return "Comment"
+	case OpPrintStatement:
+		return "PrintStatement"
 	case OpReadUserRegister:
 		return "ReadUserRegister"
 	case OpReadUserStack:
@@ -128,17 +132,24 @@ func (op LocationExpressionOpcode) String() string {
 		return "DereferenceDynamic"
 	case OpDereferenceDynamicToOutput:
 		return "DereferenceDynamicToOutput"
+	case OpReadStringToOutput:
+		return "ReadStringToOutput"
 	case OpApplyOffset:
 		return "ApplyOffset"
 	case OpPop:
 		return "Pop"
 	case OpCopy:
 		return "Copy"
+	case OpLabel:
+		return "Label"
+	case OpSetGlobalLimit:
+		return "SetGlobalLimit"
+	case OpJumpIfGreaterThanLimit:
+		return "JumpIfGreaterThanLimit"
 	default:
-		return "Unknown Opcode"
+		return fmt.Sprintf("LocationExpressionOpcode(%d)", int(op))
 	}
 }
-
 func CopyLocationExpression() LocationExpression {
 	return LocationExpression{Opcode: OpCopy}
 }

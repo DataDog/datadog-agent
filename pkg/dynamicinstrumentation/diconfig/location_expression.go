@@ -8,6 +8,7 @@
 package diconfig
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -108,6 +109,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						// Apply the appropriate offset for the next element (the struct field)
 						structField := getParamFromTriePaths(pathElements[pathElementIndex+1])
 						targetExpressions = append(targetExpressions,
+							ditypes.CopyLocationExpression(),
 							ditypes.ApplyOffsetLocationExpression(uint(structField.FieldOffset)),
 						)
 					}
@@ -157,6 +159,9 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					sliceIdentifier := randomLabel()
 					slicePointer := elementParam.ParameterPieces[0]
 					sliceLength := elementParam.ParameterPieces[1]
+					sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
+						ditypes.PrintStatement("%s", "Reading the length of slice"),
+					)
 					if sliceLength.Location != nil {
 						sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
 							ditypes.DirectReadLocationExpression(sliceLength),
@@ -179,6 +184,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					if slicePointer.Location != nil && sliceLength.Location != nil {
 						// Fields of the slice are directly assigned
 						targetExpressions = append(targetExpressions,
+							ditypes.PrintStatement("%s", "Reading the length of slice and setting limit (directly read)"),
 							ditypes.DirectReadLocationExpression(sliceLength),
 							ditypes.SetLimitEntry(sliceIdentifier, uint(ditypes.SliceMaxLength)),
 						)
@@ -187,6 +193,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 							expressionsToUseForEachSliceElement := collectAllLocationExpressions(sliceElementType, true)
 							labelName := randomLabel()
 							targetExpressions = append(targetExpressions,
+								ditypes.PrintStatement("%s", "Reading slice element "+fmt.Sprintf("%d", i)),
 								ditypes.JumpToLabelIfEqualToLimit(uint(i), sliceIdentifier, labelName),
 								ditypes.DirectReadLocationExpression(slicePointer),
 								ditypes.ApplyOffsetLocationExpression(uint(sliceElementType.TotalSize)*uint(i)),
@@ -197,6 +204,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					} else {
 						// Expect address of the slice struct on stack, use offsets accordingly
 						targetExpressions = append(targetExpressions,
+							ditypes.PrintStatement("%s", "Reading the length of slice and setting limit (indirect read)"),
 							ditypes.CopyLocationExpression(),         // Setup stack so it has two pointers to slice struct
 							ditypes.ApplyOffsetLocationExpression(8), // Change the top pointer to the address of the length field
 							ditypes.DereferenceLocationExpression(8), // Dereference to place length on top of the stack
@@ -208,6 +216,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 							expressionsToUseForEachSliceElement := collectAllLocationExpressions(sliceElementType, true)
 							labelName := randomLabel()
 							targetExpressions = append(targetExpressions,
+								ditypes.PrintStatement("%s", "Reading slice element "+fmt.Sprintf("%d", i)),
 								ditypes.JumpToLabelIfEqualToLimit(uint(i), sliceIdentifier, labelName),
 								ditypes.CopyLocationExpression(),
 								ditypes.DereferenceLocationExpression(8),
@@ -260,6 +269,19 @@ func collectAllLocationExpressions(parameter *ditypes.Parameter, remove bool) []
 		parameter.LocationExpressions = []ditypes.LocationExpression{}
 	}
 	return expressions
+}
+
+func printLocationExpressions(expressions []ditypes.LocationExpression) {
+	for i := range expressions {
+		fmt.Printf("%s %d %d %d %s %s\n",
+			expressions[i].Opcode.String(),
+			expressions[i].Arg1,
+			expressions[i].Arg2,
+			expressions[i].Arg3,
+			expressions[i].Label,
+			expressions[i].CollectionIdentifier,
+		)
+	}
 }
 
 type ExpressionParamTuple struct {

@@ -57,6 +57,7 @@ func ParseEvent(procs ditypes.DIProcs, record []byte, ratelimiters *ratelimiter.
 }
 
 func readParamsForProbe(probe *ditypes.Probe, values []byte) []*ditypes.Param {
+	log.Tracef("DI event bytes (0:100): %v", values[0:100])
 	outputParams := []*ditypes.Param{}
 	for i := 0; i < probe.InstrumentationInfo.InstrumentationOptions.ArgumentsMaxSize; {
 		if i+3 >= len(values) {
