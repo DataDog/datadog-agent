@@ -312,9 +312,6 @@ static __always_inline int read_str_to_output(struct expression_context context,
     if (err != 0) {
         log_debug("error reading string: %ld", err);
     }
-    if (length > limit) {
-        length = limit;
-    }
     *context.output_offset += length;
     log_debug("Read %u bytes (limit = %hu)", length, limit);
 
