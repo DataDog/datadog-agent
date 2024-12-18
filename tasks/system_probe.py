@@ -1621,7 +1621,7 @@ def generate_minimized_btfs(
                     },
                 )
 
-    ctx.run(f"ninja -f {ninja_file_path}")
+    ctx.run(f"ninja -f {ninja_file_path}", env={"NINJA_STATUS": "(%r running) (%c/s) (%es) [%f/%t] "})
 
 
 @task
@@ -1678,13 +1678,12 @@ def process_btfhub_archive(ctx, branch="main"):
         # generate both tarballs
         for arch in ["x86_64", "arm64"]:
             btfs_dir = os.path.join(temp_dir, f"btfs-{arch}")
-            output_path = os.path.join(output_dir, f"btfs-{arch}.tar.gz")
+            output_path = os.path.join(output_dir, f"btfs-{arch}.tar")
             # at least one file needs to be moved for directory to exist
             if os.path.exists(btfs_dir):
                 with ctx.cd(temp_dir):
-                    # gzip ends up being much faster than xz, for roughly the same output file size
                     # include btfs-$ARCH as prefix for all paths
-                    ctx.run(f"tar -czf {output_path} btfs-{arch}")
+                    ctx.run(f"tar -cf {output_path} btfs-{arch}")
 
 
 @task
@@ -1768,8 +1767,12 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
     if is_windows:
         return
 
+    # crane does not accept 'x86_64' as a valid architecture
+    if arch == "x86_64":
+        arch = "amd64"
+
     # only download images not present in preprepared vm disk
-    resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/docker.ls')
+    resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker.ls')
     docker_ls = {line for line in resp.text.split('\n') if line.strip()}
 
     images = _test_docker_image_list()
@@ -1872,6 +1875,7 @@ def save_build_outputs(ctx, destfile):
 
     absdest = os.path.abspath(destfile)
     count = 0
+    outfiles = []
     with tempfile.TemporaryDirectory() as stagedir:
         with open("compile_commands.json", "r") as compiledb:
             for outputitem in json.load(compiledb):
@@ -1886,8 +1890,13 @@ def save_build_outputs(ctx, destfile):
                 outdir = os.path.join(stagedir, filedir)
                 ctx.run(f"mkdir -p {outdir}")
                 ctx.run(f"cp {outputitem['output']} {outdir}/")
+                outfiles.append(outputitem['output'])
                 count += 1
 
         if count == 0:
             raise Exit(message="no build outputs captured")
         ctx.run(f"tar -C {stagedir} -cJf {absdest} .")
+
+    outfiles.sort()
+    for outfile in outfiles:
+        ctx.run(f"sha256sum {outfile} >> {absdest}.sum")
