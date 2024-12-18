@@ -580,9 +580,7 @@ func TestGenericHashMapCanUseBatchAPI(t *testing.T) {
 		ValueSize:  4,
 		MaxEntries: 10,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() { hash.Close() })
 
 	gm, err := Map[int32, int32](hash)
