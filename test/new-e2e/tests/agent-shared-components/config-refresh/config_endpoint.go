@@ -24,7 +24,7 @@ func traceConfigEndpoint(port int) agentConfigEndpointInfo {
 }
 
 func processConfigEndpoint(port int) agentConfigEndpointInfo {
-	return agentConfigEndpointInfo{"process-agent", "http", port, "/config/all"}
+	return agentConfigEndpointInfo{"process-agent", "https", port, "/config/all"}
 }
 
 func securityConfigEndpoint(port int) agentConfigEndpointInfo {
