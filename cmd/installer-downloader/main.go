@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
@@ -49,7 +48,7 @@ func main() {
 	defer func() { _ = t.Stop(ctx) }()
 	var err error
 	span, ctx := telemetry.StartSpanFromEnv(ctx, fmt.Sprintf("downloader-%s", Flavor))
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	defer func() { span.Finish(err) }()
 	err = runDownloader(ctx, env, Version, Flavor)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Installation failed: %v\n", err)

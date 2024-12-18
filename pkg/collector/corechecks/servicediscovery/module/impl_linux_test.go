@@ -288,13 +288,23 @@ func TestPorts(t *testing.T) {
 	startUDP("udp4")
 	startUDP("udp6")
 
+	expectedPortsMap := make(map[uint16]struct{}, len(expectedPorts))
+
 	serviceMap := getServicesMap(t, url)
 	pid := os.Getpid()
 	require.Contains(t, serviceMap, pid)
 	for _, port := range expectedPorts {
+		expectedPortsMap[port] = struct{}{}
 		assert.Contains(t, serviceMap[pid].Ports, port)
 	}
 	for _, port := range unexpectedPorts {
+		// An unexpected port number can also be expected since UDP and TCP and
+		// v4 and v6 are all in the same list. Just skip the extra check in that
+		// case since it should be rare.
+		if _, alsoExpected := expectedPortsMap[port]; alsoExpected {
+			continue
+		}
+
 		assert.NotContains(t, serviceMap[pid].Ports, port)
 	}
 }

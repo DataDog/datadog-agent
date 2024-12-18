@@ -78,7 +78,7 @@ func (suite *ConfigTestSuite) TestAgentConfigDefaults() {
 	assert.Equal(t, 6, c.Get("logs_config.compression_level"))
 	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
-	assert.Equal(t, true, c.Get("otlp_config.traces.span_name_as_resource_name"))
+	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
 	assert.Equal(t, []string{"enable_receive_resource_spans_v2", "enable_operation_and_resource_name_logic_v2", "enable_otlp_compute_top_level_by_span_kind"},
 		c.Get("apm_config.features"))
 }
@@ -104,7 +104,7 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlDefaults() {
 	assert.Equal(t, 6, c.Get("logs_config.compression_level"))
 	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
-	assert.Equal(t, true, c.Get("otlp_config.traces.span_name_as_resource_name"))
+	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
 	assert.Equal(t, []string{"enable_receive_resource_spans_v2", "enable_operation_and_resource_name_logic_v2", "enable_otlp_compute_top_level_by_span_kind"}, c.Get("apm_config.features"))
 
 	// log_level from datadog.yaml takes precedence -> more verbose
