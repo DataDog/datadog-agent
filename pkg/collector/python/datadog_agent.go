@@ -248,6 +248,12 @@ var (
 	obfuscatorLoader sync.Once
 )
 
+type obfuscationLogger struct{}
+
+func (obfuscationLogger) Debugf(format string, args ...interface{}) {
+	log.Debugf(format, args...)
+}
+
 // lazyInitObfuscator initializes the obfuscator the first time it is used. We can't initialize during the package init
 // because the obfuscator depends on pkgconfigsetup.Datadog and it isn't guaranteed to be initialized during package init, but
 // will definitely be initialized by the time one of the python checks runs
@@ -267,6 +273,7 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 		if !cfg.Mongo.Enabled {
 			cfg.Mongo = defaultMongoObfuscateSettings
 		}
+		cfg.Logger = obfuscationLogger{}
 		obfuscator = obfuscate.NewObfuscator(cfg)
 	})
 	return obfuscator
