@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,7 +44,7 @@ func structToBytes(b *testing.B, events []EbpfEvent, numOfEventsInBatch int) [40
 }
 
 // setupBenchmark sets up the benchmark environment by creating a consumer, protocol, and configuration.
-func setupBenchmark(b *testing.B, c *config.Config, totalEventsCount int) (*events.Consumer[EbpfEvent], *protocol, *manager.Manager) {
+func setupBenchmark(b *testing.B, c *config.Config, totalEventsCount int) (*events.Consumer[EbpfEvent], *protocol) {
 	// Serialized data can't exceed 4096 bytes that why we can insert 14 events in a batch.
 	const numOfEventsInBatch = 14
 
@@ -64,7 +63,7 @@ func setupBenchmark(b *testing.B, c *config.Config, totalEventsCount int) (*even
 
 	go generateMockEvents(b, c, consumer, numOfEventsInBatch, totalEventsCount)
 
-	return consumer, &p, program
+	return consumer, &p
 }
 
 // generateMockEvents generates mock events to be used in the benchmark.
@@ -72,6 +71,7 @@ func generateMockEvents(b *testing.B, c *config.Config, consumer *events.Consume
 	httpEvents := createHTTPEvents()
 	require.NotEmpty(b, httpEvents, "httpEvents slice is empty")
 
+	// TODO: Determine if testing the CPU flow is necessary.
 	mockBatch := events.Batch{
 		Len:        uint16(numOfEventsInBatch),
 		Cap:        uint16(numOfEventsInBatch),
@@ -124,7 +124,7 @@ func BenchmarkHTTPEventConsumer(b *testing.B) {
 	// Set MemProfileRate to 1 in order to collect every allocation
 	runtime.MemProfileRate = 1
 
-	consumer, p, program := setupBenchmark(b, config.New(), TotalEventsCount)
+	consumer, p := setupBenchmark(b, config.New(), TotalEventsCount)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -139,6 +139,5 @@ func BenchmarkHTTPEventConsumer(b *testing.B) {
 	b.Cleanup(func() {
 		b.Logf("USM summary: %s", p.telemetry.metricGroup.Summary())
 		p.telemetry.hits2XX.counterPlain.Reset()
-		program.Stop(manager.CleanAll)
 	})
 }
