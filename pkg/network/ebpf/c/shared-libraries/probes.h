@@ -19,7 +19,7 @@ static __always_inline void fill_path_safe(lib_path_t *path, const char *path_ar
 }
 
 static __always_inline bool fill_lib_path(lib_path_t *path, const char *path_argument) {
-    path->pid = GET_PID(bpf_get_current_pid_tgid());
+    path->pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());
     if (bpf_probe_read_user_with_telemetry(path->buf, sizeof(path->buf), path_argument) >= 0) {
 // Find the null character and clean up the garbage following it
 #pragma unroll
