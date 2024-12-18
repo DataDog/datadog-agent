@@ -12,7 +12,10 @@ import (
 	"sync"
 )
 
-const dropTraceID = 1
+const (
+	dropTraceID      = 1
+	maxSpansInFlight = 1000
+)
 
 var (
 	globalTracer  *tracer
@@ -41,6 +44,11 @@ func (t *tracer) registerSpan(span *Span) {
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	// naive maxSpansInFlight check as this is just telemetry
+	// next iteration if needed would be to flush long running spans to troubleshoot
+	if len(t.spans) >= maxSpansInFlight {
+		return
+	}
 	t.spans[span.span.SpanID] = span
 }
 
