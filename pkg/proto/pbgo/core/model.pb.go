@@ -1155,8 +1155,8 @@ type GenerateContainerIDFromOriginInfoRequest_ExternalData struct {
 	unknownFields protoimpl.UnknownFields
 
 	Init          *bool   `protobuf:"varint,1,opt,name=init,proto3,oneof" json:"init,omitempty"`                  // Init is true if the container is an init container.
-	ContainerName *string `protobuf:"bytes,2,opt,name=containerName,proto3,oneof" json:"containerName,omitempty"` // Container name as seen by the Admission Controller.
-	PodUID        *string `protobuf:"bytes,3,opt,name=podUID,proto3,oneof" json:"podUID,omitempty"`               // Pod UID as seen by the Admission Controller.
+	ContainerName *string `protobuf:"bytes,2,opt,name=containerName,proto3,oneof" json:"containerName,omitempty"` // Container name in the Kubernetes Pod spec.
+	PodUID        *string `protobuf:"bytes,3,opt,name=podUID,proto3,oneof" json:"podUID,omitempty"`               // Pod UID in the Kubernetes Pod spec.
 }
 
 func (x *GenerateContainerIDFromOriginInfoRequest_ExternalData) Reset() {

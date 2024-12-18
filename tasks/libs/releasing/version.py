@@ -6,6 +6,7 @@ import sys
 from invoke import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
     AGENT_VERSION_CACHE_NAME,
     ALLOWED_REPO_NIGHTLY_BRANCHES,
@@ -441,3 +442,80 @@ def get_matching_pattern(ctx, major_version, release=False):
         )
         pattern = max(tags, key=cmp_to_key(semver.compare))
     return pattern
+
+
+def deduce_version(ctx, branch, as_str: bool = True, trust: bool = False, next_version: bool = True) -> str | Version:
+    """Deduces the version from the release branch name.
+
+    Args:
+        next_version: If True, will return the next tag version, otherwise will return the current tag version. Example: If there are 7.60.0 and 7.60.1 tags, it will return 7.60.2 if next_tag is True, 7.60.1 otherwise.
+    """
+    release_version = get_next_version_from_branch(ctx, branch, as_str=as_str, next_version=next_version)
+
+    print(
+        f'{color_message("Info", Color.BLUE)}: Version {release_version} deduced from branch {branch}', file=sys.stderr
+    )
+
+    if (
+        trust
+        or not os.isatty(sys.stdin.fileno())
+        or yes_no_question(
+            'Is this the version you want to use?',
+            color="orange",
+            default=False,
+        )
+    ):
+        return release_version
+
+    raise Exit(color_message("Aborting.", "red"), code=1)
+
+
+def get_version_major(branch: str) -> int:
+    """Get the major version from a branch name."""
+
+    return 7 if branch == 'main' else int(branch.split('.')[0])
+
+
+def get_all_version_tags(ctx) -> list[str]:
+    """Returns the tags for all the versions of the Agent in git."""
+
+    cmd = "bash -c 'git tag | grep -E \"^[0-9]\\.[0-9]+\\.[0-9]+$\"'"
+
+    return ctx.run(cmd, hide=True).stdout.strip().split('\n')
+
+
+def get_next_version_from_branch(ctx, branch: str, as_str: bool = True, next_version: bool = True) -> str | Version:
+    """Returns the latest version + 1 belonging to a branch.
+
+    Args:
+        next_version: If True, will return the next tag version, otherwise will return the current tag version. Example: If there are 7.60.0 and 7.60.1 tags, it will return 7.60.2 if next_tag is True, 7.60.1 otherwise.
+
+    Example:
+        get_latest_version_from_branch("7.55.x") -> Version(7, 55, 4) if there are 7.55.0, 7.55.1, 7.55.2, 7.55.3 tags.
+        get_latest_version_from_branch("6.99.x") -> Version(6, 99, 0) if there are no 6.99.* tags.
+    """
+
+    re_branch = re.compile(r"^([0-9]\.[0-9]+\.)x$")
+
+    try:
+        matched = re_branch.match(branch).group(1)
+    except Exception as e:
+        raise Exit(
+            f'{color_message("Error:", "red")}: Branch {branch} is not a release branch (should be X.Y.x)', code=1
+        ) from e
+
+    tags = [tuple(map(int, tag.split('.'))) for tag in get_all_version_tags(ctx) if tag.startswith(matched)]
+    versions = sorted(Version(*tag) for tag in tags)
+
+    minor, major = tuple(map(int, branch.split('.')[:2]))
+
+    if next_version:
+        # Get version after the latest one
+        version = versions[-1].next_version(bump_patch=True) if versions else Version(minor, major, 0)
+    else:
+        # Get current latest version
+        assert versions, f"No tags found for branch {branch} (expected at least one tag)"
+
+        version = versions[-1]
+
+    return str(version) if as_str else version
