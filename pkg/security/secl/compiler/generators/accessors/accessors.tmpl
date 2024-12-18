@@ -140,11 +140,11 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					{{if $Field.GetArrayPrefix}}
 						{{$AncestorFunc = "newAncestorsIteratorArray"}}
 					{{end}}
-					results = {{$AncestorFunc}}(iterator, ctx, {{$Event}}, func(ev *Event, pce *ProcessCacheEntry) {{$Field.GetArrayPrefix}}{{$Field.ReturnType}} {
+					results = {{$AncestorFunc}}(iterator, field, ctx, {{$Event}}, func(ev *Event, current *{{$Field.Iterator.OrigType}}) {{$Field.GetArrayPrefix}}{{$Field.ReturnType}} {
 						{{range $Check := $Checks}}
 							{{if $Field.Iterator.Name | HasPrefix $Check}}
 								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
-								{{$Check = $SubName | printf "pce%s"}}
+								{{$Check = $SubName | printf "current%s"}}
 								if !{{$Check}}() {
 									ctx.Error = &eval.ErrNotSupported{Field: field}
 									{{if $Field.GetArrayPrefix}}
@@ -158,11 +158,11 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 						{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
 
-						{{$Return := $SubName | printf "pce%s"}}
+						{{$Return := $SubName | printf "current%s"}}
 						{{if $Field.Handler }}
 							{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
 							{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
-							{{$Return = print "ev.FieldHandlers." $Handler "(ev, &pce" $SubName ")"}}
+							{{$Return = print "ev.FieldHandlers." $Handler "(ev, &current" $SubName ")"}}
 						{{end}}
 
 						{{if eq $Field.ReturnType "int"}}
@@ -182,7 +182,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				},
 			{{- else}}
 				{{- $ReturnType := $Field.ReturnType}}
-				EvalFnc: func(ctx *eval.Context) {{$Field.GetArrayPrefix}}{{$ReturnType}} {
+				EvalFnc: func(ctx *eval.Context) {{- if not $Field.IsIterator}}{{$Field.GetArrayPrefix}}{{end}}{{$ReturnType}} {
 					ctx.AppendResolvedField(field)
 					{{- if not (and $Field.IsLength $Field.IsIterator)}}
 						ev := ctx.Event.(*Event)
@@ -320,7 +320,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			{{end}}
 		{{end}}
 
-		{{$FieldName := $Field.Name | printf "ev.%s"}}
+		{{$FieldName := $Field | BuildFirstAccessor $.AllFields}}
 		case "{{$Name}}":
 			{{- $Field | NewField $.AllFields}}
 			{{if $Field.IsLength}}

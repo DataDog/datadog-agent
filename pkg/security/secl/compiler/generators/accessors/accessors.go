@@ -751,9 +751,9 @@ func formatBuildTags(buildTags string) []string {
 	return formattedBuildTags
 }
 
-func newField(allFields map[string]*common.StructField, field *common.StructField) string {
+func newField(allFields map[string]*common.StructField, inputField *common.StructField) string {
 	var fieldPath, result string
-	for _, node := range strings.Split(field.Name, ".") {
+	for _, node := range strings.Split(inputField.Name, ".") {
 		if fieldPath != "" {
 			fieldPath += "." + node
 		} else {
@@ -763,11 +763,32 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 		if field, ok := allFields[fieldPath]; ok {
 			if field.IsOrigTypePtr {
 				result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
+			} else if field.IsArray && fieldPath != inputField.Name {
+				result += fmt.Sprintf("if len(ev.%s) == 0 { ev.%s = append(ev.%s, %s{}) }\n", field.Name, field.Name, field.Name, field.OrigType)
 			}
 		}
 	}
 
 	return result
+}
+
+func buildFirstAccessor(allFields map[string]*common.StructField, inputField *common.StructField) string {
+	var fieldPath string
+	for _, node := range strings.Split(inputField.Name, ".") {
+		if fieldPath != "" {
+			fieldPath += "." + node
+		} else {
+			fieldPath = node
+		}
+
+		if field, ok := allFields[fieldPath]; ok {
+			if field.IsArray && fieldPath != inputField.Name {
+				fieldPath += "[0]"
+			}
+		}
+	}
+
+	return "ev." + fieldPath
 }
 
 func generatePrefixNilChecks(allFields map[string]*common.StructField, returnType string, field *common.StructField) string {
@@ -840,7 +861,7 @@ func getDefaultValueOfType(returnType string) string {
 		return "false"
 	} else if baseType == "net.IPNet" {
 		if isArray {
-			return "&eval.CIDRValues{}"
+			return "[]net.IPNet{}"
 		}
 		return "net.IPNet{}"
 	} else if baseType == "time.Time" {
@@ -1004,6 +1025,7 @@ var funcMap = map[string]interface{}{
 	"TrimSuffix":               strings.TrimSuffix,
 	"HasPrefix":                strings.HasPrefix,
 	"NewField":                 newField,
+	"BuildFirstAccessor":       buildFirstAccessor,
 	"GeneratePrefixNilChecks":  generatePrefixNilChecks,
 	"GetFieldHandler":          getFieldHandler,
 	"FieldADPrint":             fieldADPrint,

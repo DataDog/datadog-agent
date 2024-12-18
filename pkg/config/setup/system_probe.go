@@ -376,6 +376,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.lazy_interface_prefixes"), []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.classifier_priority"), 10)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.classifier_handle"), 0)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.flow_monitor.enabled"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.flow_monitor.period"), "10s")
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_classifier_handle"), 0)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_ring_buffer"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry"), true)
