@@ -574,6 +574,10 @@ func TestIterateWithPointerKey(t *testing.T) {
 }
 
 func TestGenericHashMapCanUseBatchAPI(t *testing.T) {
+	if !BatchAPISupported() {
+		t.Skip("Skipping because batch API not supported")
+	}
+
 	hash, err := ebpf.NewMap(&ebpf.MapSpec{
 		Type:       ebpf.Hash,
 		KeySize:    4,
