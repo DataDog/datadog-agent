@@ -80,6 +80,7 @@ func TestPostAuthentication(t *testing.T) {
 		}),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
+		fetchonlyimpl.MockModule(),
 	))
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
