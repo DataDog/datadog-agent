@@ -19,10 +19,11 @@ import (
 )
 
 const (
-	emrInjectorVersion = "0.26.0-1"
-	emrJavaVersion     = "1.42.2-1"
-	emrAgentVersion    = "7.58.2-1"
-	emrInfoPath        = "/mnt/var/lib/info"
+	emrInjectorVersion     = "0.26.0-1"
+	emrJavaVersion         = "1.42.2-1"
+	emrAgentVersion        = "7.58.2-1"
+	emrInfoPath            = "/mnt/var/lib/info"
+	commandTimeoutDuration = 10 * time.Second
 )
 
 var tracerEnvConfigEmr = []common.InjectTracerConfigEnvVar{
@@ -163,7 +164,7 @@ func setupEmrDriver(s *common.Setup, host string, clusterName string) {
 }
 
 func executeCommandWithTimeout(command string, args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeoutDuration)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, command, args...)
