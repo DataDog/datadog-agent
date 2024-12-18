@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Module defines the fx options for this component.
@@ -56,7 +56,7 @@ type rcClient struct {
 	taskListeners     []types.RCAgentTaskListener
 	settingsComponent settings.Component
 	config            configcomp.Component
-	sysprobeConfig    optional.Option[sysprobeconfig.Component]
+	sysprobeConfig    option.Option[sysprobeconfig.Component]
 	isSystemProbe     bool
 }
 
@@ -71,7 +71,7 @@ type dependencies struct {
 	TaskListeners     []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 	SettingsComponent settings.Component
 	Config            configcomp.Component
-	SysprobeConfig    optional.Option[sysprobeconfig.Component]
+	SysprobeConfig    option.Option[sysprobeconfig.Component]
 }
 
 // newRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by

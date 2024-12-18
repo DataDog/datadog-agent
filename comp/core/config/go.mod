@@ -23,7 +23,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
-	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../pkg/util/optional/
+	github.com/DataDog/datadog-agent/pkg/util/option => ../../../pkg/util/option/
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber/
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../../pkg/util/system
@@ -41,7 +41,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.59.1
 	github.com/DataDog/viper v1.14.0
 	github.com/stretchr/testify v1.10.0

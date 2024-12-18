@@ -104,7 +104,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/trace => ../../
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../../../util/cgroups
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../util/log
-	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../util/optional
+	github.com/DataDog/datadog-agent/pkg/util/option => ../../../util/option
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../util/scrubber
 )
