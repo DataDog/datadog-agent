@@ -51,7 +51,7 @@ func TestLifecycle(t *testing.T) {
 	))
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		req, err := http.NewRequest("POST", "http://localhost:43424/config", nil)
+		req, err := http.NewRequest("GET", "http://localhost:43424/agent/status", nil)
 		require.NoError(c, err)
 		util.CreateAndSetAuthToken(pkgconfigsetup.Datadog())
 		req.Header.Set("Authorization", "Bearer "+util.GetAuthToken())
