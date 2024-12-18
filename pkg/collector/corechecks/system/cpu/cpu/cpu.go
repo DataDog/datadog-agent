@@ -12,7 +12,6 @@ import (
 
 	"github.com/shirou/gopsutil/v4/cpu"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -150,11 +149,6 @@ func (c *Check) reportCpuMetricsPerCpu(sender sender.Sender) (err error) {
 		sender.Gauge("system.cpu.guestnice.total", t.GuestNice, "", tags)
 	}
 	return nil
-}
-
-// Configure the CPU check
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
-	return c.CommonConfigure(senderManager, initConfig, data, source)
 }
 
 // Factory creates a new check factory

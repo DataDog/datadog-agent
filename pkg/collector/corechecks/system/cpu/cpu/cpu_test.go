@@ -130,6 +130,7 @@ func TestCPUCheckLinuxErrorStoppedSender(t *testing.T) {
 	}
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
+	m.SetupAcceptAll()
 
 	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 	m.GetSenderManager().(*aggregator.AgentDemultiplexer).Stop(false)
