@@ -17,6 +17,7 @@
 #include "bpf_builtins.h"
 #include "port_range.h"
 #include "sock.h"
+#include "pid_tgid.h"
 
 #include "protocols/amqp/helpers.h"
 #include "protocols/redis/helpers.h"
@@ -250,7 +251,7 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
 
     // the code path below should be executed only once during the lifecycle of a SSL session
     pid_fd_t pid_fd = {
-        .pid = pid_tgid >> 32,
+        .pid = GET_USER_MODE_PID(pid_tgid),
         .fd = ssl_sock->fd,
     };
 

@@ -1707,9 +1707,6 @@
     "container": {
       "$ref": "#/$defs/ContainerContext"
     },
-    "cgroup": {
-      "$ref": "#/$defs/CGroupContext"
-    },
     "network": {
       "$ref": "#/$defs/NetworkContext"
     },
@@ -1718,6 +1715,9 @@
     },
     "security_profile": {
       "$ref": "#/$defs/SecurityProfileContext"
+    },
+    "cgroup": {
+      "$ref": "#/$defs/CGroupContext"
     },
     "selinux": {
       "$ref": "#/$defs/SELinuxEvent"
