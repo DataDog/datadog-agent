@@ -71,7 +71,7 @@ func (c *Check) reportContextSwitches(sender sender.Sender) {
 func (c *Check) reportCpuInfo(sender sender.Sender) (numCores int32, err error) {
 	cpuInfo, err := getCpuInfo()
 	if err != nil {
-		log.Errorf("could not retrieve cpu stats: %s", err.Error())
+		log.Errorf("could not retrieve cpu info: %s", err.Error())
 		return 0, err
 	}
 	log.Debugf("getCpuInfo: %s", cpuInfo)
@@ -86,7 +86,7 @@ func (c *Check) reportCpuInfo(sender sender.Sender) (numCores int32, err error) 
 func (c *Check) reportCpuMetricsPercent(sender sender.Sender, numCores int32) (err error) {
 	cpuTimes, err := getCpuTimes(false)
 	if err != nil {
-		log.Errorf("could not retrieve cpu stats: %s", err.Error())
+		log.Errorf("could not retrieve cpu times: %s", err.Error())
 		return err
 	}
 	log.Debugf("getCpuTimes(false): %s", cpuTimes)
@@ -131,7 +131,7 @@ func (c *Check) reportCpuMetricsPercent(sender sender.Sender, numCores int32) (e
 func (c *Check) reportCpuMetricsPerCpu(sender sender.Sender) (err error) {
 	cpuTimes, err := getCpuTimes(true)
 	if err != nil {
-		log.Errorf("could not retrieve cpu stats: %s", err.Error())
+		log.Errorf("could not retrieve cpu times: %s", err.Error())
 		return err
 	}
 	log.Debugf("getCpuTimes(true): %s", cpuTimes)
