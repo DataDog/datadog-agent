@@ -46,7 +46,7 @@ var (
 		Guest:     0,
 		GuestNice: 0,
 	}
-	perCpuSamples = []cpu.TimesStat{
+	perCPUSamples = []cpu.TimesStat{
 		{
 			CPU:       "cpu0",
 			User:      83970.9,
@@ -108,7 +108,7 @@ func setupDefaultMocks() {
 	}
 	getCpuTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
 		if perCpu {
-			return perCpuSamples, nil
+			return perCPUSamples, nil
 		}
 		return []cpu.TimesStat{firstTotalSample}, nil
 	}
@@ -200,7 +200,7 @@ func TestNumCoresOk(t *testing.T) {
 func TestSystemCpuMetricsError(t *testing.T) {
 	setupDefaultMocks()
 	cpuTimesError := errors.New("cpu.Check: could not query CPU times")
-	getCpuTimes = func(percpu bool) ([]cpu.TimesStat, error) {
+	getCpuTimes = func(bool) ([]cpu.TimesStat, error) {
 		return nil, cpuTimesError
 	}
 	cpuCheck := createCheck()
@@ -223,7 +223,7 @@ func TestSystemCpuMetricsError(t *testing.T) {
 func TestSystemCpuMetricsEmpty(t *testing.T) {
 	setupDefaultMocks()
 	expectedError := errors.New("no cpu stats retrieve (empty results)")
-	getCpuTimes = func(percpu bool) ([]cpu.TimesStat, error) {
+	getCpuTimes = func(bool) ([]cpu.TimesStat, error) {
 		return []cpu.TimesStat{}, nil
 	}
 	cpuCheck := createCheck()
@@ -267,7 +267,7 @@ func TestSystemCpuMetricsReportedOnSecondCheck(t *testing.T) {
 	callCount := 0
 	getCpuTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
 		if perCpu {
-			return perCpuSamples, nil
+			return perCPUSamples, nil
 		}
 		callCount++
 		switch callCount {
@@ -331,7 +331,7 @@ func TestSystemCpuMetricsPerCpuOk(t *testing.T) {
 	setupDefaultMocks()
 	getCpuTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
 		if perCpu {
-			return perCpuSamples, nil
+			return perCPUSamples, nil
 		}
 		return []cpu.TimesStat{firstTotalSample}, nil
 	}

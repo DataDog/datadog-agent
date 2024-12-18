@@ -16,6 +16,8 @@ import (
 	"strings"
 )
 
+// GetContextSwitches retrieves the number of context switches for the current process.
+// It returns an integer representing the count and an error if the retrieval fails.
 func GetContextSwitches() (ctxSwitches int64, err error) {
 	log.Debug("collecting ctx switches")
 	procfsPath := "/proc"

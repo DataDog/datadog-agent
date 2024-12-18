@@ -65,7 +65,7 @@ func (c *Check) reportContextSwitches(sender sender.Sender) {
 		// Don't return error here, we still want to collect the CPU metrics even if we could not
 		// read the context switches
 	} else {
-		log.Debugf("getContextSwitches: %s", ctxSwitches)
+		log.Debugf("getContextSwitches: %d", ctxSwitches)
 		sender.MonotonicCount("system.cpu.context_switches", float64(ctxSwitches), "", nil)
 	}
 }
