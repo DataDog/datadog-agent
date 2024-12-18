@@ -14,7 +14,7 @@ import (
 	"time"
 	"unsafe"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"

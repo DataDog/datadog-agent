@@ -19,7 +19,7 @@ import (
 
 	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/gorilla/mux"
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"

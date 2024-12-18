@@ -311,6 +311,7 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 		},
 	}
 
+	fmt.Println("config: ", config)
 	if err := w.walk(&config); err != nil {
 		return nil, err
 	}

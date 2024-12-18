@@ -15,7 +15,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"go.uber.org/fx"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -386,7 +386,7 @@ func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
   `
@@ -426,7 +426,7 @@ func TestNoTagSpecifiedAggregationGauge(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
   `
@@ -466,7 +466,7 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
   `
@@ -508,7 +508,7 @@ func TestTagSpecifiedAggregationCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags:
                   - tag1
@@ -557,7 +557,7 @@ func TestTagAggregateTotalCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_total: true
                 aggregate_tags:
