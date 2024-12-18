@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"os/exec"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 )
 
 // removeDebRPMPackage removes a package installed via deb/rpm package manager
@@ -21,8 +21,8 @@ import (
 // and reinstall the package using the installer.
 // Note: we don't run the pre/post remove scripts as we want to avoid surprises for older agent versions (like removing config)
 func removeDebRPMPackage(ctx context.Context, pkg string) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "remove_deb_rpm_package")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "remove_deb_rpm_package")
+	defer func() { span.Finish(err) }()
 	// Compute the right command depending on the package manager
 	var cmd *exec.Cmd
 	if _, pathErr := exec.LookPath("dpkg"); pathErr == nil {
