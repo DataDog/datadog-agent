@@ -83,6 +83,7 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, getSyscallMonitorProbes()...)
 	allProbes = append(allProbes, getChdirProbes(fentry)...)
 	allProbes = append(allProbes, GetOnDemandProbes()...)
+	allProbes = append(allProbes, GetPerfEventProbes()...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{
@@ -136,6 +137,13 @@ func AllMaps() []*manager.Map {
 	}
 }
 
+// AllSKStorageMaps returns the list of SKStorage map section names
+func AllSKStorageMaps() []string {
+	return []string{
+		"sock_active_pid_route",
+	}
+}
+
 func getMaxEntries(numCPU int, min int, max int) uint32 {
 	maxEntries := int(math.Min(float64(max), float64(min*numCPU)/4))
 	if maxEntries < min {
@@ -183,6 +191,18 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.Ma
 			EditorFlag: manager.EditMaxEntries,
 		},
 
+		"active_flows": {
+			MaxEntries: procPidCacheMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"active_flows_spin_locks": {
+			MaxEntries: procPidCacheMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"inet_bind_args": {
+			MaxEntries: procPidCacheMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
 		"activity_dumps_config": {
 			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,

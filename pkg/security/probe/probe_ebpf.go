@@ -251,6 +251,16 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.NetworkRawPacketEnabled = false
 	}
 
+	if p.config.Probe.NetworkFlowMonitorEnabled && !p.config.Probe.NetworkEnabled {
+		seclog.Warnf("The network flow monitor feature of CWS requires event_monitoring_config.network.enabled to be true, setting event_monitoring_config.network.flow_monitor.enabled to false")
+		p.config.Probe.NetworkFlowMonitorEnabled = false
+	}
+
+	if p.config.Probe.NetworkFlowMonitorEnabled && (!p.kernelVersion.IsMapValuesToMapHelpersAllowed() || !p.kernelVersion.HasBPFForEachMapElemHelper()) {
+		seclog.Warnf("The network flow monitor feature of CWS requires a more recent kernel (at least 5.13) with support for SK storage in Tracing programs and the bpf_for_each_elem map helper, setting event_monitoring_config.network.flow_monitor.enabled to false")
+		p.config.Probe.NetworkFlowMonitorEnabled = false
+	}
+
 	return nil
 }
 
@@ -647,7 +657,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 }
 
 func eventWithNoProcessContext(eventType model.EventType) bool {
-	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.RawPacketEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
+	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.RawPacketEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType || eventType == model.NetworkFlowMonitorEventType
 }
 
 func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
@@ -1215,6 +1225,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.NetworkFlowMonitorEventType:
+		if _, err = event.NetworkFlowMonitor.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode NetworkFlowMonitor event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	case model.AcceptEventType:
 		if _, err = event.Accept.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode accept event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1424,6 +1439,8 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 		return p.probe.IsNetworkEnabled()
 	case "packet":
 		return p.probe.IsNetworkRawPacketEnabled()
+	case "network_flow_monitor":
+		return p.probe.IsNetworkFlowMonitorEnabled()
 	}
 	return true
 }
@@ -2123,6 +2140,18 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 			Value: uint64(config.RuntimeSecurity.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
 		},
 		manager.ConstantEditor{
+			Name:  "network_monitor_period",
+			Value: uint64(config.Probe.NetworkFlowMonitorPeriod.Nanoseconds()),
+		},
+		manager.ConstantEditor{
+			Name:  "is_sk_storage_supported",
+			Value: utils.BoolTouint64(p.useFentry && p.kernelVersion.HasSKStorageInTracingPrograms()),
+		},
+		manager.ConstantEditor{
+			Name:  "is_network_flow_monitor_enabled",
+			Value: utils.BoolTouint64(p.config.Probe.NetworkFlowMonitorEnabled),
+		},
+		manager.ConstantEditor{
 			Name:  "send_signal",
 			Value: utils.BoolTouint64(p.kernelVersion.SupportBPFSendSignal()),
 		},
@@ -2190,6 +2219,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
 	} else if !p.config.Probe.NetworkRawPacketEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetRawPacketTCProgramFunctions()...)
+	}
+
+	if !p.kernelVersion.HasSKStorage() {
+		// prevent SK Storage map from being loaded
+		p.managerOptions.ExcludedMaps = append(p.managerOptions.ExcludedMaps, probes.AllSKStorageMaps()...)
 	}
 
 	if p.useFentry {
@@ -2508,6 +2542,11 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructSADDR, "struct flowi6", "saddr")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructULI, "struct flowi6", "uli")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSocketStructSK, "struct socket", "sk")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockCommonStructSKCNum, "struct sock_common", "skc_num")
+	// TODO: needed for l4_protocol resolution, see network/flow.h
+	//constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI4StructProto, "struct flowi4", "flowi4_proto")
+	// TODO: needed for l4_protocol resolution, see network/flow.h
+	//constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructProto, "struct flowi6", "flowi6_proto")
 
 	// Interpreter constants
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmStructFile, "struct linux_binprm", "file")
