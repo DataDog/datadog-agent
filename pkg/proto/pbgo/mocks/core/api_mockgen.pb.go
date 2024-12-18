@@ -299,6 +299,26 @@ func (mr *MockAgentSecureClientMockRecorder) TaggerFetchEntity(ctx, in interface
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaggerFetchEntity", reflect.TypeOf((*MockAgentSecureClient)(nil).TaggerFetchEntity), varargs...)
 }
 
+// TaggerGenerateContainerIDFromOriginInfo mocks base method.
+func (m *MockAgentSecureClient) TaggerGenerateContainerIDFromOriginInfo(ctx context.Context, in *core.GenerateContainerIDFromOriginInfoRequest, opts ...grpc.CallOption) (*core.GenerateContainerIDFromOriginInfoResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "TaggerGenerateContainerIDFromOriginInfo", varargs...)
+	ret0, _ := ret[0].(*core.GenerateContainerIDFromOriginInfoResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// TaggerGenerateContainerIDFromOriginInfo indicates an expected call of TaggerGenerateContainerIDFromOriginInfo.
+func (mr *MockAgentSecureClientMockRecorder) TaggerGenerateContainerIDFromOriginInfo(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaggerGenerateContainerIDFromOriginInfo", reflect.TypeOf((*MockAgentSecureClient)(nil).TaggerGenerateContainerIDFromOriginInfo), varargs...)
+}
+
 // TaggerStreamEntities mocks base method.
 func (m *MockAgentSecureClient) TaggerStreamEntities(ctx context.Context, in *core.StreamTagsRequest, opts ...grpc.CallOption) (core.AgentSecure_TaggerStreamEntitiesClient, error) {
 	m.ctrl.T.Helper()
@@ -863,6 +883,21 @@ func (m *MockAgentSecureServer) TaggerFetchEntity(arg0 context.Context, arg1 *co
 func (mr *MockAgentSecureServerMockRecorder) TaggerFetchEntity(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaggerFetchEntity", reflect.TypeOf((*MockAgentSecureServer)(nil).TaggerFetchEntity), arg0, arg1)
+}
+
+// TaggerGenerateContainerIDFromOriginInfo mocks base method.
+func (m *MockAgentSecureServer) TaggerGenerateContainerIDFromOriginInfo(arg0 context.Context, arg1 *core.GenerateContainerIDFromOriginInfoRequest) (*core.GenerateContainerIDFromOriginInfoResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TaggerGenerateContainerIDFromOriginInfo", arg0, arg1)
+	ret0, _ := ret[0].(*core.GenerateContainerIDFromOriginInfoResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// TaggerGenerateContainerIDFromOriginInfo indicates an expected call of TaggerGenerateContainerIDFromOriginInfo.
+func (mr *MockAgentSecureServerMockRecorder) TaggerGenerateContainerIDFromOriginInfo(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaggerGenerateContainerIDFromOriginInfo", reflect.TypeOf((*MockAgentSecureServer)(nil).TaggerGenerateContainerIDFromOriginInfo), arg0, arg1)
 }
 
 // TaggerStreamEntities mocks base method.

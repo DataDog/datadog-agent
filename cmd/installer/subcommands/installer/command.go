@@ -22,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"gopkg.in/yaml.v2"
 )
 
@@ -89,7 +87,7 @@ func UnprivilegedCommands(_ *command.GlobalParams) []*cobra.Command {
 type cmd struct {
 	t    *telemetry.Telemetry
 	ctx  context.Context
-	span ddtrace.Span
+	span telemetry.Span
 	env  *env.Env
 }
 
@@ -107,7 +105,7 @@ func newCmd(operation string) *cmd {
 }
 
 func (c *cmd) Stop(err error) {
-	c.span.Finish(tracer.WithError(err))
+	c.span.Finish(err)
 	if c.t != nil {
 		err := c.t.Stop(context.Background())
 		if err != nil {

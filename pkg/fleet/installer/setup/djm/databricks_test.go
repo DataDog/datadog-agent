@@ -13,9 +13,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 )
 
 func TestSetupCommonHostTags(t *testing.T) {
@@ -70,7 +70,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 			for k, v := range tt.env {
 				require.NoError(t, os.Setenv(k, v))
 			}
-			span, _ := tracer.StartSpanFromContext(context.Background(), "test")
+			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
 			s := &common.Setup{Span: span}
 
 			setupCommonHostTags(s)
