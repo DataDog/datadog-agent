@@ -57,6 +57,9 @@ type Protocol interface {
 	// Name returns the protocol name.
 	Name() string
 
+	// Type returns the protocol type
+	Type() ProtocolType
+
 	// GetStats returns the latest monitoring stats from a protocol
 	// implementation.
 	GetStats() *ProtocolStats

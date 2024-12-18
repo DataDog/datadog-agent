@@ -89,6 +89,11 @@ func (p *protocol) Name() string {
 	return "redis"
 }
 
+// Type returns the protocol type
+func (p *protocol) Type() protocols.ProtocolType {
+	return protocols.Redis
+}
+
 // ConfigureOptions add the necessary options for the redis monitoring
 // to work, to be used by the manager.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
