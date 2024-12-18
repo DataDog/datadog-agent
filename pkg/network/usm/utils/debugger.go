@@ -31,6 +31,7 @@ type Attacher interface {
 type TracedProgram struct {
 	ProgramType string
 	FilePath    string
+	PathID      PathIdentifier
 	PIDs        []uint32
 }
 
@@ -131,6 +132,7 @@ func (d *tlsDebugger) GetTracedPrograms(moduleName string) []TracedProgram {
 
 			program.ProgramType = programType
 			program.FilePath = registration.sampleFilePath
+			program.PathID = pathID
 		}
 		registry.m.Unlock()
 
