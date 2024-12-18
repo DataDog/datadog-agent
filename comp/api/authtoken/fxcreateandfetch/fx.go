@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package fxcreateandfetch provides the fx module for the authtoken component
-package fxcreateandfetch
+// Package fx provides the fx module for the authtoken component
+package fx
 
 import (
 	authtoken "github.com/DataDog/datadog-agent/comp/api/authtoken/def"
