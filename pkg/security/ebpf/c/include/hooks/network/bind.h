@@ -64,68 +64,34 @@ HOOK_ENTRY("security_socket_bind")
 int hook_security_socket_bind(ctx_t *ctx) {
     struct socket *sk = (struct socket *)CTX_PARM1(ctx);
     struct sockaddr *address = (struct sockaddr *)CTX_PARM2(ctx);
-    struct pid_route_t key = {};
-    u16 family = 0;
-    u16 protocol = 0;
     short socket_type = 0;
-
-    // Extract IP and port from the sockaddr structure
-    bpf_probe_read(&family, sizeof(family), &address->sa_family);
-    if (family == AF_INET) {
-        struct sockaddr_in *addr_in = (struct sockaddr_in *)address;
-        bpf_probe_read(&key.port, sizeof(addr_in->sin_port), &addr_in->sin_port);
-        bpf_probe_read(&key.addr, sizeof(addr_in->sin_addr.s_addr), &addr_in->sin_addr.s_addr);
-    } else if (family == AF_INET6) {
-        struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)address;
-        bpf_probe_read(&key.port, sizeof(addr_in6->sin6_port), &addr_in6->sin6_port);
-        bpf_probe_read(&key.addr, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
-    }
-
-    bpf_probe_read(&socket_type, sizeof(socket_type), &sk->type);
-
-    // We only handle TCP and UDP sockets for now
-    if (socket_type == SOCK_STREAM) {
-        protocol = IPPROTO_TCP;
-    } else if (socket_type == SOCK_DGRAM) {
-        protocol = IPPROTO_UDP;
-    }
 
     // fill syscall_cache if necessary
     struct syscall_cache_t *syscall = peek_syscall(EVENT_BIND);
-    if (syscall) {
-        syscall->bind.addr[0] = key.addr[0];
-        syscall->bind.addr[1] = key.addr[1];
-        syscall->bind.port = key.port;
-        syscall->bind.family = family;
-        syscall->connect.protocol = protocol;
-    }
-
-    // past this point we care only about AF_INET and AF_INET6
-    if (family != AF_INET && family != AF_INET6) {
+    if (!syscall) {
         return 0;
     }
 
-    // Register service PID
-    if (key.port != 0) {
-        u64 id = bpf_get_current_pid_tgid();
-        u32 tid = (u32)id;
-
-        // add netns information
-        key.netns = get_netns_from_socket(sk);
-        if (key.netns != 0) {
-            bpf_map_update_elem(&netns_cache, &tid, &key.netns, BPF_ANY);
-        }
-
-#ifndef DO_NOT_USE_TC
-        u32 pid = id >> 32;
-        bpf_map_update_elem(&flow_pid, &key, &pid, BPF_ANY);
-#endif
-
-#if defined(DEBUG_BIND)
-        bpf_printk("# registered (bind) pid:%d", pid);
-        bpf_printk("# p:%d a:%d a:%d", key.port, key.addr[0], key.addr[1]);
-#endif
+    // Extract IP and port from the sockaddr structure
+    bpf_probe_read(&syscall->bind.family, sizeof(syscall->bind.family), &address->sa_family);
+    if (syscall->bind.family == AF_INET) {
+        struct sockaddr_in *addr_in = (struct sockaddr_in *)address;
+        bpf_probe_read(&syscall->bind.port, sizeof(addr_in->sin_port), &addr_in->sin_port);
+        bpf_probe_read(&syscall->bind.addr, sizeof(addr_in->sin_addr.s_addr), &addr_in->sin_addr.s_addr);
+    } else if (syscall->bind.family == AF_INET6) {
+        struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)address;
+        bpf_probe_read(&syscall->bind.port, sizeof(addr_in6->sin6_port), &addr_in6->sin6_port);
+        bpf_probe_read(&syscall->bind.addr, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
     }
+
+    // We only handle TCP and UDP sockets for now
+    bpf_probe_read(&socket_type, sizeof(socket_type), &sk->type);
+    if (socket_type == SOCK_STREAM) {
+        syscall->connect.protocol = IPPROTO_TCP;
+    } else if (socket_type == SOCK_DGRAM) {
+        syscall->connect.protocol = IPPROTO_UDP;
+    }
+
     return 0;
 }
 

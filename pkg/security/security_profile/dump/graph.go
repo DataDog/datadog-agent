@@ -11,7 +11,6 @@ package dump
 import (
 	"bytes"
 	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -19,24 +18,42 @@ import (
 
 // ActivityDumpGraphTemplate is the template used to generate graphs
 var ActivityDumpGraphTemplate = `digraph {
-		label = "{{ .Title }}"
+		label = {{ .Title }}
 		labelloc =  "t"
-		fontsize = 75
 		fontcolor = "black"
 		fontname = "arial"
+		fontsize = 5
 		ratio = expand
-		ranksep = 2
+		ranksep = 1.5
 
 		graph [pad=2]
-		node [margin=0.3, padding=1, penwidth=3]
-		edge [penwidth=2]
+		node [margin=0.05, padding=1, penwidth=1]
+		edge [penwidth=1]
 
 		{{ range .Nodes }}
 		{{ .ID }} [label={{ if not .IsTable }}"{{ end }}{{ .Label }}{{ if not .IsTable }}"{{ end }}, fontsize={{ .Size }}, shape={{ .Shape }}, fontname = "arial", color="{{ .Color }}", fillcolor="{{ .FillColor }}", style="filled"]
 		{{ end }}
 
 		{{ range .Edges }}
-		{{ .From }} -> {{ .To }} [arrowhead=none, color="{{ .Color }}"]
+		{{ .From }} -> {{ .To }} [{{ if not .HasArrowHead}}arrowhead=none,{{ end }} color="{{ .Color }}", label={{ if not .IsTable }}"{{ end }}{{ .Label }}{{ if not .IsTable }}"{{ end }}]
+		{{ end }}
+
+		{{ range .SubGraphs }}
+		subgraph {{ .Name }} {
+			style=filled;
+			color="{{ .Color }}";
+			label="{{ .Title }}";
+			fontSize={{ .TitleSize }};
+			margin=5;
+
+			{{ range .Nodes }}
+			{{ .ID }} [label={{ if not .IsTable }}"{{ end }}{{ .Label }}{{ if not .IsTable }}"{{ end }}, fontsize={{ .Size }}, shape={{ .Shape }}, fontname = "arial", color="{{ .Color }}", fillcolor="{{ .FillColor }}", style="filled"]
+			{{ end }}
+
+			{{ range .Edges }}
+			{{ .From }} -> {{ .To }} [{{ if not .HasArrowHead}}arrowhead=none,{{ end }} color="{{ .Color }}", label={{ if not .IsTable }}"{{ end }}{{ .Label }}{{ if not .IsTable }}"{{ end }}]
+			{{ end }}
+  		}
 		{{ end }}
 }`
 
@@ -45,12 +62,11 @@ func (ad *ActivityDump) ToGraph() utils.Graph {
 	ad.Lock()
 	defer ad.Unlock()
 
-	title := fmt.Sprintf("%s: %s", ad.Metadata.Name, ad.getSelectorStr())
 	var resolver *process.EBPFResolver
 	if ad.adm != nil {
 		resolver = ad.adm.resolvers.ProcessResolver
 	}
-	return ad.ActivityTree.PrepareGraphData(title, resolver)
+	return ad.ActivityTree.PrepareGraphData(ad.Metadata.Name, ad.getSelectorStr(), resolver)
 }
 
 // EncodeDOT encodes an activity dump in the DOT format

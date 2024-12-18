@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -67,23 +68,42 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 	return fan
 }
 
-func (fn *FileNode) getNodeLabel() string {
-	label := fn.Name
-	if fn.Open != nil {
-		label += " [open]"
+func (fn *FileNode) getNodeLabel(prefix string) string {
+	var label string
+	if prefix == "" {
+		label += tableHeader
+		label += "<TR>"
+		label += "<TD>Events</TD>"
+		label += "<TD>Hash count</TD>"
+		label += "<TD>File</TD>"
+		label += "<TD>Package</TD>"
+		label += "</TR>"
 	}
-	if fn.File != nil {
-		if len(fn.File.PkgName) != 0 {
-			label += fmt.Sprintf("|%s:%s}", fn.File.PkgName, fn.File.PkgVersion)
-		}
-		// add hashes
-		if len(fn.File.Hashes) > 0 {
-			label += fmt.Sprintf("|%v", strings.Join(fn.File.Hashes, "|"))
-		} else {
-			label += fmt.Sprintf("|(%s)", fn.File.HashState)
-		}
+	label += fn.buildNodeRow(prefix)
+	for _, child := range fn.Children {
+		label += child.getNodeLabel(prefix + "/" + fn.Name)
+	}
+	if prefix == "" {
+		label += "</TABLE>>"
 	}
 	return label
+}
+
+func (fn *FileNode) buildNodeRow(prefix string) string {
+	var out string
+	if fn.Open != nil && fn.File != nil {
+		var pkg string
+		if len(fn.File.PkgName) != 0 {
+			pkg = fmt.Sprintf("%s:%s", fn.File.PkgName, fn.File.PkgVersion)
+		}
+		out += "<TR>"
+		out += "<TD>open</TD>"
+		out += "<TD>" + strconv.Itoa(len(fn.File.Hashes)) + " hash(es)</TD>"
+		out += "<TD ALIGN=\"LEFT\">" + fmt.Sprintf("%s/%s", prefix, fn.Name) + "</TD>"
+		out += "<TD>" + pkg + "</TD>"
+		out += "</TR>"
+	}
+	return out
 }
 
 func (fn *FileNode) enrichFromEvent(event *model.Event) {

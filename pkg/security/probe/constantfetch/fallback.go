@@ -113,8 +113,15 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getNFConnCTNetOffset(f.kernelVersion)
 	case OffsetNameSockCommonStructSKCFamily:
 		value = getSockCommonSKCFamilyOffset(f.kernelVersion)
+	case OffsetNameSockCommonStructSKCNum:
+		value = getSockCommonSKCNumOffset(f.kernelVersion)
 	case OffsetNameFlowI4StructSADDR:
 		value = getFlowi4SAddrOffset(f.kernelVersion)
+	// TODO: needed for l4_protocol resolution, see network/flow.h
+	//case OffsetNameFlowI4StructProto:
+	//	value = getFlowi4ProtoOffset(f.kernelVersion)
+	//case OffsetNameFlowI6StructProto:
+	//	value = getFlowi6ProtoOffset(f.kernelVersion)
 	case OffsetNameFlowI6StructSADDR:
 		value = getFlowi6SAddrOffset(f.kernelVersion)
 	case OffsetNameFlowI4StructULI:
@@ -806,6 +813,10 @@ func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
 	}
 }
 
+func getSockCommonSKCNumOffset(_ *kernel.Version) uint64 {
+	return 14
+}
+
 func getSockCommonSKCFamilyOffset(_ *kernel.Version) uint64 {
 	return 16
 }
@@ -832,6 +843,16 @@ func getFlowi4SAddrOffset(kv *kernel.Version) uint64 {
 	}
 
 	return offset
+}
+
+//nolint:deadcode,unused
+func getFlowi4ProtoOffset(kv *kernel.Version) uint64 {
+	return 18
+}
+
+//nolint:deadcode,unused
+func getFlowi6ProtoOffset(kv *kernel.Version) uint64 {
+	return 18
 }
 
 func getFlowi4ULIOffset(kv *kernel.Version) uint64 {

@@ -10,15 +10,14 @@ package activitytree
 
 import (
 	"fmt"
-	"io"
-	"sort"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"golang.org/x/exp/slices"
+	"io"
+	"sort"
+	"strconv"
 )
 
 // ProcessNodeParent is an interface used to identify the parent of a process node
@@ -38,9 +37,10 @@ type ProcessNode struct {
 	ImageTags      []string
 	MatchedRules   []*model.MatchedRule
 
-	Files      map[string]*FileNode
-	DNSNames   map[string]*DNSNode
-	IMDSEvents map[model.IMDSEvent]*IMDSNode
+	Files          map[string]*FileNode
+	DNSNames       map[string]*DNSNode
+	IMDSEvents     map[model.IMDSEvent]*IMDSNode
+	NetworkDevices map[model.NetworkDeviceContext]*NetworkDeviceNode
 
 	Sockets  []*SocketNode
 	Syscalls []*SyscallNode
@@ -62,6 +62,7 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 		Files:          make(map[string]*FileNode),
 		DNSNames:       make(map[string]*DNSNode),
 		IMDSEvents:     make(map[model.IMDSEvent]*IMDSNode),
+		NetworkDevices: make(map[model.NetworkDeviceContext]*NetworkDeviceNode),
 	}
 }
 
@@ -95,22 +96,30 @@ func (pn *ProcessNode) AppendImageTag(imageTag string) {
 }
 
 func (pn *ProcessNode) getNodeLabel(args string) string {
-	var label string
+	label := tableHeader
+
+	label += "<TR><TD>Command</TD><TD><FONT POINT-SIZE=\"" + strconv.Itoa(bigText) + "\">"
 	if sprocess.IsBusybox(pn.Process.FileEvent.PathnameStr) {
 		arg0, _ := sprocess.GetProcessArgv0(&pn.Process)
-		label = fmt.Sprintf("%s %s", arg0, args)
+		label += fmt.Sprintf("%s %s", arg0, args) + "</FONT></TD></TR>"
 	} else {
-		label = fmt.Sprintf("%s %s", pn.Process.FileEvent.PathnameStr, args)
+		label += fmt.Sprintf("%s %s", pn.Process.FileEvent.PathnameStr, args)
 	}
+	label += "</FONT></TD></TR>"
+
 	if len(pn.Process.FileEvent.PkgName) != 0 {
-		label += fmt.Sprintf(" \\{%s %s\\}", pn.Process.FileEvent.PkgName, pn.Process.FileEvent.PkgVersion)
+		label += "<TR><TD>Package</TD><TD>" + fmt.Sprintf("%s:%s", pn.Process.FileEvent.PkgName, pn.Process.FileEvent.PkgVersion) + "</TD></TR>"
 	}
 	// add hashes
 	if len(pn.Process.FileEvent.Hashes) > 0 {
-		label += fmt.Sprintf("|%v", strings.Join(pn.Process.FileEvent.Hashes, "|"))
+		label += "<TR><TD>Hashes</TD><TD>" + pn.Process.FileEvent.Hashes[0] + "</TD></TR>"
+		for _, h := range pn.Process.FileEvent.Hashes {
+			label += "<TR><TD></TD><TD>" + h + "</TD></TR>"
+		}
 	} else {
-		label += fmt.Sprintf("|(%s)", pn.Process.FileEvent.HashState)
+		label += "<TR><TD>Hash state</TD><TD>" + pn.Process.FileEvent.HashState.String() + "</TD></TR>"
 	}
+	label += "</TABLE>>"
 	return label
 }
 
@@ -338,6 +347,21 @@ func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTag string, genera
 	return true
 }
 
+// InsertNetworkFlowMonitorEvent inserts a Network Flow Monitor event in a process node
+func (pn *ProcessNode) InsertNetworkFlowMonitorEvent(evt *model.Event, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
+	deviceNode, ok := pn.NetworkDevices[evt.NetworkFlowMonitor.Device]
+	if ok {
+		return deviceNode.insertNetworkFlowMonitorEvent(&evt.NetworkFlowMonitor, dryRun, evt.Rules, generationType, imageTag, stats)
+	}
+
+	if !dryRun {
+		newNode := NewNetworkDeviceNode(&evt.NetworkFlowMonitor.Device, generationType)
+		newNode.insertNetworkFlowMonitorEvent(&evt.NetworkFlowMonitor, dryRun, evt.Rules, generationType, imageTag, stats)
+		pn.NetworkDevices[evt.NetworkFlowMonitor.Device] = newNode
+	}
+	return true
+}
+
 // InsertBindEvent inserts a bind event in a process node
 func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
 	if evt.Bind.SyscallEvent.Retval != 0 {
@@ -401,6 +425,12 @@ func (pn *ProcessNode) TagAllNodes(imageTag string) {
 	for _, scall := range pn.Syscalls {
 		scall.appendImageTag(imageTag)
 	}
+	for _, imds := range pn.IMDSEvents {
+		imds.appendImageTag(imageTag)
+	}
+	for _, device := range pn.NetworkDevices {
+		device.appendImageTag(imageTag)
+	}
 	for _, child := range pn.Children {
 		child.TagAllNodes(imageTag)
 	}
@@ -450,6 +480,13 @@ func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys
 	for key, imds := range pn.IMDSEvents {
 		if shouldRemoveNode := imds.evictImageTag(imageTag); shouldRemoveNode {
 			delete(pn.IMDSEvents, key)
+		}
+	}
+
+	// Evict image tag from network device nodes
+	for key, device := range pn.NetworkDevices {
+		if shouldRemoveNode := device.evictImageTag(imageTag); shouldRemoveNode {
+			delete(pn.NetworkDevices, key)
 		}
 	}
 

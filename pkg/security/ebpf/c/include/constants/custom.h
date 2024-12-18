@@ -196,4 +196,38 @@ static __attribute__((always_inline)) u64 get_imds_ip() {
 #define CGROUP_MANAGER_CRI 4
 #define CGROUP_MANAGER_SYSTEMD 5
 
+#define ACTIVE_FLOWS_MAX_SIZE 128
+
+enum PID_ROUTE_TYPE
+{
+    BIND_ENTRY,
+    PROCFS_ENTRY,
+    FLOW_CLASSIFICATION_ENTRY,
+};
+
+enum FLUSH_NETWORK_STATS_TYPE
+{
+    NETWORK_STATS_TICKER,
+    PID_EXIT,
+    PID_EXEC,
+};
+
+static __attribute__((always_inline)) u64 get_network_monitor_period() {
+    u64 network_monitor_period;
+    LOAD_CONSTANT("network_monitor_period", network_monitor_period);
+    return network_monitor_period;
+}
+
+static __attribute__((always_inline)) u64 is_sk_storage_supported() {
+    u64 is_sk_storage_supported;
+    LOAD_CONSTANT("is_sk_storage_supported", is_sk_storage_supported);
+    return is_sk_storage_supported;
+}
+
+static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {
+    u64 is_network_flow_monitor_enabled;
+    LOAD_CONSTANT("is_network_flow_monitor_enabled", is_network_flow_monitor_enabled);
+    return is_network_flow_monitor_enabled;
+}
+
 #endif

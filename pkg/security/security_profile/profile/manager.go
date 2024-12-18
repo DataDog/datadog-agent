@@ -561,10 +561,10 @@ func (m *SecurityProfileManager) SendStats() error {
 		}
 	}
 
-	tags := []string{
+	t := []string{
 		fmt.Sprintf("in_kernel:%v", profilesLoadedInKernel),
 	}
-	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, float64(len(m.profiles)), tags, 1.0); err != nil {
+	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, float64(len(m.profiles)), t, 1.0); err != nil {
 		return fmt.Errorf("couldn't send MetricSecurityProfileProfiles: %w", err)
 	}
 
@@ -587,9 +587,9 @@ func (m *SecurityProfileManager) SendStats() error {
 	}
 
 	for entry, count := range m.eventFiltering {
-		tags := []string{fmt.Sprintf("event_type:%s", entry.eventType), entry.state.ToTag(), entry.result.toTag()}
+		t := []string{fmt.Sprintf("event_type:%s", entry.eventType), entry.state.ToTag(), entry.result.toTag()}
 		if value := count.Swap(0); value > 0 {
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), t, 1.0); err != nil {
 				return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
 			}
 		}
@@ -600,8 +600,8 @@ func (m *SecurityProfileManager) SendStats() error {
 	m.evictedVersions = []cgroupModel.WorkloadSelector{}
 	m.evictedVersionsLock.Unlock()
 	for _, version := range evictedVersions {
-		tags := version.ToTags()
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileEvictedVersions, 1, tags, 1.0); err != nil {
+		t := version.ToTags()
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileEvictedVersions, 1, t, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSecurityProfileEvictedVersions metric: %w", err)
 		}
 
@@ -746,7 +746,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	profile.versionContextsLock.Lock()
 	ctx, found := profile.versionContexts[imageTag]
 	if found {
-		// update the lastseen of this version
+		// update the last seen of this version
 		ctx.lastSeenNano = uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
 	} else {
 		// create a new version

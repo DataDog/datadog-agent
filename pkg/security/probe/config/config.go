@@ -121,6 +121,12 @@ type Config struct {
 	// RawNetworkClassifierHandle defines the handle at which CWS should insert its Raw TC classifiers.
 	RawNetworkClassifierHandle uint16
 
+	// NetworkFlowMonitorEnabled defines if the network flow monitor should be enabled.
+	NetworkFlowMonitorEnabled bool
+
+	// NetworkFlowMonitorPeriod defines the period at which collected flows should flushed to user space.
+	NetworkFlowMonitorPeriod time.Duration
+
 	// ProcessConsumerEnabled defines if the process-agent wants to receive kernel events
 	ProcessConsumerEnabled bool
 
@@ -173,6 +179,8 @@ func NewConfig() (*Config, error) {
 		NetworkClassifierPriority:    uint16(getInt("network.classifier_priority")),
 		NetworkClassifierHandle:      uint16(getInt("network.classifier_handle")),
 		RawNetworkClassifierHandle:   uint16(getInt("network.raw_classifier_handle")),
+		NetworkFlowMonitorPeriod:     getDuration("network.flow_monitor.period"),
+		NetworkFlowMonitorEnabled:    getBool("network.flow_monitor.enabled"),
 		EventStreamUseRingBuffer:     getBool("event_stream.use_ring_buffer"),
 		EventStreamBufferSize:        getInt("event_stream.buffer_size"),
 		EventStreamUseFentry:         getEventStreamFentryValue(),
@@ -311,6 +319,15 @@ func getInt(key string) int {
 		return pkgconfigsetup.SystemProbe().GetInt(deprecatedKey)
 	}
 	return pkgconfigsetup.SystemProbe().GetInt(newKey)
+}
+
+func getDuration(key string) time.Duration {
+	deprecatedKey, newKey := getAllKeys(key)
+	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
+		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
+		return pkgconfigsetup.SystemProbe().GetDuration(deprecatedKey)
+	}
+	return pkgconfigsetup.SystemProbe().GetDuration(newKey)
 }
 
 func getString(key string) string {

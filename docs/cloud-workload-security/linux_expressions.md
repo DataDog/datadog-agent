@@ -550,6 +550,7 @@ A DNS request was sent
 | [`network.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
 | [`network.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`network.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
+| [`network.network_direction`](#common-networkcontext-network_direction-doc) | Network direction of the network packet |
 | [`network.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
@@ -756,6 +757,7 @@ An IMDS event was captured
 | [`network.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
 | [`network.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`network.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
+| [`network.network_direction`](#common-networkcontext-network_direction-doc) | Network direction of the network packet |
 | [`network.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
@@ -977,6 +979,7 @@ A raw network packet captured
 | [`packet.filter`](#packet-filter-doc) | pcap filter expression |
 | [`packet.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`packet.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
+| [`packet.network_direction`](#common-networkcontext-network_direction-doc) | Network direction of the network packet |
 | [`packet.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
 | [`packet.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`packet.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
@@ -2310,6 +2313,18 @@ exec.file.name == "apt"
 {{< /code-block >}}
 
 Matches the execution of any file named apt.
+
+### `*.network_direction` {#common-networkcontext-network_direction-doc}
+Type: int
+
+Definition: Network direction of the network packet
+
+`*.network_direction` has 2 possible prefixes:
+`network` `packet`
+
+Constants: [Network directions](#network-directions)
+
+
 
 ### `*.package.name` {#common-fileevent-package-name-doc}
 Type: string
@@ -4235,6 +4250,14 @@ Network Address Family constants are the supported network address families.
 | `AF_SMC` | all |
 | `AF_XDP` | all |
 | `AF_MAX` | all |
+
+### `Network directions` {#network-directions}
+Network directions are the supported directions of network packets.
+
+| Name | Architectures |
+| ---- |---------------|
+| `INGRESS` | all |
+| `EGRESS` | all |
 
 ### `Open flags` {#open-flags}
 Open flags are the supported flags for the open syscall.

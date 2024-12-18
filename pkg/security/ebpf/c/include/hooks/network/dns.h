@@ -1,8 +1,9 @@
 #ifndef _HOOKS_NETWORK_DNS_H_
 #define _HOOKS_NETWORK_DNS_H_
 
-#include "helpers/dns.h"
-#include "helpers/network.h"
+#include "helpers/network/dns.h"
+#include "helpers/network/parser.h"
+#include "helpers/network/router.h"
 #include "perf_ring.h"
 
 __attribute__((always_inline)) int parse_dns_request(struct __sk_buff *skb, struct packet_t *pkt, struct dns_event_t *evt) {

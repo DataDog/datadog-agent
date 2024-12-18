@@ -710,6 +710,9 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 			FileNodesCount:    ad.ActivityTree.Stats.FileNodes,
 			DNSNodesCount:     ad.ActivityTree.Stats.DNSNodes,
 			SocketNodesCount:  ad.ActivityTree.Stats.SocketNodes,
+			IMDSNodesCount:    ad.ActivityTree.Stats.IMDSNodes,
+			SyscallNodesCount: ad.ActivityTree.Stats.SyscallNodes,
+			FlowNodesCount:    ad.ActivityTree.Stats.FlowNodes,
 			ApproximateSize:   ad.ActivityTree.Stats.ApproximateSize(),
 		}
 	}
