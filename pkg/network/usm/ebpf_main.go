@@ -545,7 +545,15 @@ func (e *ebpfProgram) getProtocolStats() map[protocols.ProtocolType]interface{} 
 }
 
 // releaseProtocolStats release stats objects for enabled protocols.
-func (e *ebpfProgram) releaseProtocolStats(_ *network.Connections) {
+func (e *ebpfProgram) releaseProtocolStats(conns *network.Connections) {
+	for _, protocol := range e.enabledProtocols {
+		switch protocol.Instance.Type() {
+		case protocols.HTTP:
+			for _, rs := range conns.HTTP {
+				rs.ReleaseStats()
+			}
+		}
+	}
 }
 
 // executePerProtocol runs the given callback (`cb`) for every protocol in the given list (`protocolList`).
