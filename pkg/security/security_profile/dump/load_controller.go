@@ -35,6 +35,7 @@ type ActivityDumpLoadController struct {
 
 	// eBPF maps
 	activityDumpConfigDefaults *ebpf.Map
+	activityDumpLoadConfig     map[containerutils.CGroupManager]*model.ActivityDumpLoadConfig
 }
 
 // NewActivityDumpLoadController returns a new activity dump load controller
@@ -60,6 +61,10 @@ func NewActivityDumpLoadController(adm *ActivityDumpManager) (*ActivityDumpLoadC
 }
 
 func (lc *ActivityDumpLoadController) getDefaultLoadConfigs() (map[containerutils.CGroupManager]*model.ActivityDumpLoadConfig, error) {
+	if lc.activityDumpLoadConfig != nil {
+		return lc.activityDumpLoadConfig, nil
+	}
+
 	defaults := NewActivityDumpLoadConfig(
 		lc.adm.config.RuntimeSecurity.ActivityDumpTracedEventTypes,
 		lc.adm.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout,
@@ -85,6 +90,7 @@ func (lc *ActivityDumpLoadController) getDefaultLoadConfigs() (map[containerutil
 		}
 		defaultConfigs[cgroupManager] = defaults
 	}
+	lc.activityDumpLoadConfig = defaultConfigs
 	return defaultConfigs, nil
 }
 
