@@ -290,21 +290,21 @@ func (p *EBPFResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 }
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
-func (p *EBPFResolver) AddForkEntry(event *model.Event, newEntryCb func(*model.ProcessCacheEntry, error)) {
-	if IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
-		return
-	}
-
+func (p *EBPFResolver) AddForkEntry(event *model.Event, newEntryCb func(*model.ProcessCacheEntry, error)) error {
 	p.ApplyBootTime(event.ProcessCacheEntry)
 	event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
 
 	if event.ProcessCacheEntry.Pid == 0 {
-		return
+		return errors.New("no pid")
+	}
+	if IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
+		return errors.New("process is kthread")
 	}
 
 	p.Lock()
 	defer p.Unlock()
 	p.insertForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode, model.ProcessCacheEntryFromEvent, newEntryCb)
+	return nil
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
@@ -314,9 +314,13 @@ func (p *EBPFResolver) AddExecEntry(event *model.Event) error {
 		return errors.New("no pid context")
 	}
 
-	err := p.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, event.ContainerContext)
-	if err != nil {
-		return err
+	if err := p.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, event.ContainerContext); err != nil {
+		var errResolution *spath.ErrPathResolution
+		if errors.As(err, &errResolution) {
+			event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
+		} else {
+			return err
+		}
 	}
 
 	event.Exec.Process = &event.ProcessCacheEntry.Process
@@ -327,8 +331,8 @@ func (p *EBPFResolver) AddExecEntry(event *model.Event) error {
 	return nil
 }
 
-// AddExitEntry delete entry from the local cache if present
-func (p *EBPFResolver) AddExitEntry(event *model.Event, newEntryCb func(*model.ProcessCacheEntry, error)) bool {
+// ApplyExitEntry delete entry from the local cache if present
+func (p *EBPFResolver) ApplyExitEntry(event *model.Event, newEntryCb func(*model.ProcessCacheEntry, error)) bool {
 	event.ProcessCacheEntry = p.resolve(event.PIDContext.Pid, event.PIDContext.Tid, event.PIDContext.ExecInode, false, newEntryCb)
 	if event.ProcessCacheEntry == nil {
 		// no need to dispatch an exit event that don't have the corresponding cache entry
@@ -563,10 +567,6 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 	}
 	if entry.Pid != 1 {
 		parent := p.entryCache[entry.PPid]
-		if parent != nil {
-			fmt.Println(parent.FileEvent.Inode, inode)
-		}
-
 		if entry.PPid >= 1 && inode != 0 && (parent == nil || parent.FileEvent.Inode != inode) {
 			if candidate := p.resolve(entry.PPid, entry.PPid, inode, true, newEntryCb); candidate != nil {
 				parent = candidate

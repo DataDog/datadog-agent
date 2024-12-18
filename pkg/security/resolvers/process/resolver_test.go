@@ -118,7 +118,7 @@ func TestFork1st(t *testing.T) {
 
 	// X(pid:3)
 	exit(child)
-	resolver.AddExitEntry(child, nil)
+	resolver.ApplyExitEntry(child, nil)
 	resolver.DeleteEntry(child.ProcessCacheEntry.Pid, child.ResolveEventTime())
 
 	assert.Nil(t, resolver.entryCache[child.ProcessCacheEntry.Pid])
@@ -126,7 +126,7 @@ func TestFork1st(t *testing.T) {
 
 	// nothing in the entryCache
 	exit(parent)
-	resolver.AddExitEntry(parent, nil)
+	resolver.ApplyExitEntry(parent, nil)
 	resolver.DeleteEntry(parent.ProcessCacheEntry.Pid, parent.ResolveEventTime())
 	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 0, len(resolver.entryCache))
@@ -162,7 +162,7 @@ func TestFork2nd(t *testing.T) {
 	//    |
 	// X(pid:4)
 	exit(parent)
-	resolver.AddExitEntry(parent, nil)
+	resolver.ApplyExitEntry(parent, nil)
 	resolver.DeleteEntry(parent.ProcessContext.Pid, parent.ResolveEventTime())
 	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
@@ -170,7 +170,7 @@ func TestFork2nd(t *testing.T) {
 
 	// nothing in the entryCache
 	exit(child)
-	resolver.AddExitEntry(child, nil)
+	resolver.ApplyExitEntry(child, nil)
 	resolver.DeleteEntry(child.ProcessContext.Pid, child.ResolveEventTime())
 	assert.Nil(t, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 0, len(resolver.entryCache))
@@ -217,7 +217,7 @@ func TestForkExec(t *testing.T) {
 	//    |
 	// X(pid:4) -- Y(pid:4)
 	exit(parent)
-	resolver.AddExitEntry(parent, nil)
+	resolver.ApplyExitEntry(parent, nil)
 	resolver.DeleteEntry(parent.ProcessContext.Pid, parent.ResolveEventTime())
 	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
@@ -226,7 +226,7 @@ func TestForkExec(t *testing.T) {
 
 	// nothing in the entryCache
 	exit(child)
-	resolver.AddExitEntry(child, nil)
+	resolver.ApplyExitEntry(child, nil)
 	resolver.DeleteEntry(child.ProcessContext.Pid, child.ResolveEventTime())
 	assert.Zero(t, len(resolver.entryCache))
 	testCacheSize(t, resolver)
@@ -261,7 +261,7 @@ func TestOrphanExec(t *testing.T) {
 	//    |
 	//  X(pid:4)
 	exit(parent)
-	resolver.AddExitEntry(parent, nil)
+	resolver.ApplyExitEntry(parent, nil)
 	resolver.DeleteEntry(parent.ProcessContext.Pid, parent.ResolveEventTime())
 	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
@@ -279,7 +279,7 @@ func TestOrphanExec(t *testing.T) {
 
 	// nothing in the entryCache
 	exit(exec)
-	resolver.AddExitEntry(exec, nil)
+	resolver.ApplyExitEntry(exec, nil)
 	resolver.DeleteEntry(exec.ProcessCacheEntry.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
 
@@ -316,7 +316,7 @@ func TestForkExecExec(t *testing.T) {
 	//    |
 	//  X(pid:4)
 	exit(parent)
-	resolver.AddExitEntry(parent, nil)
+	resolver.ApplyExitEntry(parent, nil)
 	resolver.DeleteEntry(parent.ProcessContext.Pid, parent.ResolveEventTime())
 	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
@@ -345,7 +345,7 @@ func TestForkExecExec(t *testing.T) {
 
 	// nothing in the entryCache in the entryCache
 	exit(exec2)
-	resolver.AddExitEntry(exec2, nil)
+	resolver.ApplyExitEntry(exec2, nil)
 	resolver.DeleteEntry(exec1.ProcessCacheEntry.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
 
@@ -383,7 +383,7 @@ func TestForkReuse(t *testing.T) {
 	//    |
 	//  X(pid:4)
 	exit(parent1)
-	resolver.AddExitEntry(parent1, nil)
+	resolver.ApplyExitEntry(parent1, nil)
 	resolver.DeleteEntry(parent1.ProcessContext.Pid, parent1.ResolveEventTime())
 	assert.Nil(t, resolver.entryCache[parent1.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
@@ -426,7 +426,7 @@ func TestForkReuse(t *testing.T) {
 	//    |
 	// T(pid:5)
 	exit(exec1)
-	resolver.AddExitEntry(exec1, nil)
+	resolver.ApplyExitEntry(exec1, nil)
 	resolver.DeleteEntry(exec1.ProcessContext.Pid, exec1.ResolveEventTime())
 	assert.Nil(t, resolver.entryCache[exec1.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
@@ -435,7 +435,7 @@ func TestForkReuse(t *testing.T) {
 	//    |
 	// T(pid:5)
 	exit(parent2)
-	resolver.AddExitEntry(parent2, nil)
+	resolver.ApplyExitEntry(parent2, nil)
 	resolver.DeleteEntry(parent2.ProcessContext.Pid, parent2.ResolveEventTime())
 	assert.Nil(t, resolver.entryCache[parent2.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
@@ -443,7 +443,7 @@ func TestForkReuse(t *testing.T) {
 
 	// nothing in the entryCache
 	exit(child2)
-	resolver.AddExitEntry(child2, nil)
+	resolver.ApplyExitEntry(child2, nil)
 	resolver.DeleteEntry(child2.ProcessCacheEntry.Pid, child2.ResolveEventTime())
 	assert.Zero(t, len(resolver.entryCache))
 
@@ -508,7 +508,7 @@ func TestForkForkExec(t *testing.T) {
 	//    |
 	// X(pid:5)
 	exit(parent)
-	resolver.AddExitEntry(parent, nil)
+	resolver.ApplyExitEntry(parent, nil)
 	resolver.DeleteEntry(parent.ProcessContext.Pid, parent.ResolveEventTime())
 	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
@@ -520,14 +520,14 @@ func TestForkForkExec(t *testing.T) {
 	//    |
 	// X(pid:5)
 	exit(childExec)
-	resolver.AddExitEntry(childExec, nil)
+	resolver.ApplyExitEntry(childExec, nil)
 	resolver.DeleteEntry(childExec.ProcessContext.Pid, childExec.ResolveEventTime())
 	assert.Nil(t, resolver.entryCache[childExec.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 
 	// nothing in the entryCache
 	exit(grandChild)
-	resolver.AddExitEntry(grandChild, nil)
+	resolver.ApplyExitEntry(grandChild, nil)
 	resolver.DeleteEntry(grandChild.ProcessContext.Pid, grandChild.ResolveEventTime())
 	assert.Zero(t, len(resolver.entryCache))
 
@@ -564,7 +564,7 @@ func TestExecBomb(t *testing.T) {
 	//    |
 	// X(pid:4)
 	exit(parent)
-	resolver.AddExitEntry(parent, nil)
+	resolver.ApplyExitEntry(parent, nil)
 	resolver.DeleteEntry(parent.ProcessContext.Pid, parent.ResolveEventTime())
 	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
@@ -591,7 +591,7 @@ func TestExecBomb(t *testing.T) {
 
 	// nothing in the entryCache
 	exit(exec1)
-	resolver.AddExitEntry(exec1, nil)
+	resolver.ApplyExitEntry(exec1, nil)
 	resolver.DeleteEntry(exec1.ProcessContext.Pid, exec1.ResolveEventTime())
 	assert.Zero(t, len(resolver.entryCache))
 

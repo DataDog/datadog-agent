@@ -886,7 +886,10 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		p.Resolvers.ProcessResolver.AddForkEntry(event, newEntryCb)
+		if err := p.Resolvers.ProcessResolver.AddForkEntry(event, newEntryCb); err != nil {
+			seclog.Errorf("failed to insert fork event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
+			return
+		}
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
 		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
@@ -896,13 +899,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 		err = p.Resolvers.ProcessResolver.AddExecEntry(event)
 		if err != nil {
-			var errResolution *path.ErrPathResolution
-			if errors.As(err, &errResolution) {
-				event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
-			} else {
-				seclog.Errorf("failed to insert exec event: %s (offset %d, len %d)", err, offset, len(data))
-				return
-			}
+			seclog.Errorf("failed to insert exec event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
+			return
 		}
 
 	}
@@ -1015,7 +1013,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode exit event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		exists := p.Resolvers.ProcessResolver.AddExitEntry(event, newEntryCb)
+		exists := p.Resolvers.ProcessResolver.ApplyExitEntry(event, newEntryCb)
 		if !exists {
 			p.Resolvers.MountResolver.DelPid(event.Exit.Pid)
 			// update action reports
