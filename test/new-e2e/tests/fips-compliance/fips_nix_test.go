@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
@@ -31,6 +32,7 @@ func TestLinuxFIPSComplianceSuite(t *testing.T) {
 	e2e.Run(t, &LinuxFIPSComplianceSuite{},
 		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)),
+			awshost.WithAgentOptions(agentparams.WithFlavor("datadog-fips-agent")),
 		)))
 }
 
