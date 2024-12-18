@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/windows"
 )
 
 // TracerouteSequential runs a traceroute sequentially where a packet is
@@ -71,14 +72,19 @@ func (t *TCPv4) sendAndReceive(rs *common.Winrawsocket, ttl int, seqNum uint32, 
 		return nil, err
 	}
 
-	err = common.SendRawPacket(rs, t.Target, t.DestPort, buffer)
+	err = rs.SendRawPacket(t.Target, t.DestPort, buffer)
 	if err != nil {
 		log.Errorf("failed to send TCP packet: %s", err.Error())
 		return nil, err
 	}
 
+	tcpParser := newTCPParser()
+	matcherFuncs := map[int]common.MatcherFunc{
+		windows.IPPROTO_ICMP: common.MatchICMP,
+		windows.IPPROTO_TCP:  tcpParser.MatchTCP,
+	}
 	start := time.Now() // TODO: is this the best place to start?
-	hopIP, end, err := listenPackets(rs, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
+	hopIP, end, err := rs.ListenPackets(timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, matcherFuncs)
 	if err != nil {
 		log.Errorf("failed to listen for packets: %s", err.Error())
 		return nil, err
