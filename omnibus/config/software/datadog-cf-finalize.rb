@@ -35,6 +35,7 @@ build do
             copy "#{install_dir}/bin/agent/agent.exe", "#{cf_bin_root_bin}"
             copy "#{install_dir}/bin/agent/libdatadog-agent-three.dll", "#{cf_bin_root_bin}"
 
+            copy "#{install_dir}/bin/agent/checks-agent.exe", "#{cf_bin_root_bin}/agent"
             copy "#{install_dir}/bin/agent/process-agent.exe", "#{cf_bin_root_bin}/agent"
             copy "#{install_dir}/bin/agent/trace-agent.exe", "#{cf_bin_root_bin}/agent"
         end

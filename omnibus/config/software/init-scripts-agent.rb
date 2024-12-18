@@ -61,6 +61,7 @@ build do
           vars: { install_dir: install_dir, etc_dir: etc_dir }
 
       project.extra_package_file '/etc/init.d/datadog-agent'
+      project.extra_package_file '/etc/init.d/datadog-agent-checks'
       project.extra_package_file '/etc/init.d/datadog-agent-process'
       project.extra_package_file '/etc/init.d/datadog-agent-trace'
       project.extra_package_file '/etc/init.d/datadog-agent-security'
