@@ -16,8 +16,12 @@ def create_metric(metric_type, metric_name, timestamp, value, tags, unit=None, m
     unit = unit or unset
     metadata = unset
 
-    if metric_origin:
-        metadata = MetricMetadata(origin=MetricOrigin(**metric_origin))
+    origin_metadata = metric_origin or {
+        "origin_product": 10,  # Agent
+        "origin_sub_product": 54,  # Agent CI
+        "origin_product_detail": 64,  # Gitlab
+    }
+    metadata = MetricMetadata(origin=MetricOrigin(**origin_metadata))
 
     return MetricSeries(
         metric=metric_name,
@@ -49,22 +53,12 @@ def create_gauge(metric_name, timestamp, value, tags, unit=None, metric_origin=N
 def send_metrics(series):
     from datadog_api_client import ApiClient, Configuration
     from datadog_api_client.v2.api.metrics_api import MetricsApi
-    from datadog_api_client.v2.model.metric_metadata import MetricMetadata
-    from datadog_api_client.v2.model.metric_origin import MetricOrigin
     from datadog_api_client.v2.model.metric_payload import MetricPayload
-
-    origin_metadata = {
-        "origin_product": 10,  # Agent
-        "origin_sub_product": 54,  # Agent CI
-        "origin_product_detail": 64,  # Gitlab
-    }
 
     configuration = Configuration()
     with ApiClient(configuration) as api_client:
         api_instance = MetricsApi(api_client)
-        response = api_instance.submit_metrics(
-            body=MetricPayload(series=series, metadata=MetricMetadata(origin=MetricOrigin(origin_metadata)))
-        )
+        response = api_instance.submit_metrics(body=MetricPayload(series=series))
 
         if response["errors"]:
             print(
