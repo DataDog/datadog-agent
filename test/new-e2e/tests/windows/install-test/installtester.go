@@ -488,8 +488,17 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 						ddAgentUserIdentity,
 						windows.FileWrite|windows.SYNCHRONIZE,
 						windows.AccessControlTypeAllow,
-						windows.InheritanceFlagsContainer,
+						windows.InheritanceFlagsNone,
 						windows.PropagationFlagsNone,
+					),
+					// add creator owner permissions
+					windows.NewExplicitAccessRuleWithFlags(
+						windows.GetIdentityForSID("S-1-3-0"),
+						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						// yes this flag is wrong, but go has the wrong value for it
+						windows.PropagationFlagsNoPropagate,
 					),
 				)
 				return expected
@@ -529,7 +538,21 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 				if windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
 					return expected
 				}
-				expected.Access = append(expected.Access,
+				expected.Access = []windows.AccessRule{
+					windows.NewInheritedAccessRuleWithFlags(
+						windows.GetIdentityForSID(windows.LocalSystemSID),
+						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsNoPropagate,
+					),
+					windows.NewInheritedAccessRuleWithFlags(
+						windows.GetIdentityForSID(windows.AdministratorsSID),
+						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsNone,
+					),
 					windows.NewExplicitAccessRuleWithFlags(
 						ddAgentUserIdentity,
 						windows.FileFullControl,
@@ -545,14 +568,23 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
 						windows.PropagationFlagsNone,
 					),
+					// add creator owner permissions
 					windows.NewInheritedAccessRuleWithFlags(
-						ddAgentUserIdentity,
-						windows.FileWrite|windows.SYNCHRONIZE,
+						windows.GetIdentityForSID("S-1-3-0"),
+						windows.FileFullControl,
 						windows.AccessControlTypeAllow,
-						windows.InheritanceFlagsContainer,
-						windows.PropagationFlagsNone,
+						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsNoPropagate,
 					),
-				)
+					// create owner inherited permissions
+					windows.NewInheritedAccessRuleWithFlags(
+						windows.GetIdentityForSID(windows.LocalSystemSID),
+						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+						windows.PropagationFlagsNone,
+						windows.InheritanceFlagsNone,
+					),
+				}
 				return expected
 			},
 		},

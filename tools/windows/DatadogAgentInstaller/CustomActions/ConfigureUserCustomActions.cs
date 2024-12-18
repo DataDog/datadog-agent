@@ -471,9 +471,17 @@ namespace Datadog.CustomActions
             // datadog write on this folder
             fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
                 _ddAgentUserSID,
-                FileSystemRights.Write,
-                InheritanceFlags.ContainerInherit,
+                FileSystemRights.WriteData | FileSystemRights.AppendData | FileSystemRights.WriteAttributes | FileSystemRights.WriteExtendedAttributes | FileSystemRights.Synchronize,
+                InheritanceFlags.None,
                 PropagationFlags.None,
+                AccessControlType.Allow));
+
+            // add full control to CREATOR OWNER
+            fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.CreatorOwnerSid, null),
+                FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.InheritOnly,
                 AccessControlType.Allow));
             try
             {
@@ -512,8 +520,16 @@ namespace Datadog.CustomActions
             fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
                 sid,
                 FileSystemRights.Write,
-                InheritanceFlags.ContainerInherit,
+                InheritanceFlags.None,
                 PropagationFlags.None,
+                AccessControlType.Allow));
+
+            // remove full control to CREATOR OWNER
+            fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.CreatorOwnerSid, null),
+                FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.InheritOnly,
                 AccessControlType.Allow));
 
             try
