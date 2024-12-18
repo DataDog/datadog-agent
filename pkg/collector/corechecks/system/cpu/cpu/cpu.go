@@ -61,7 +61,7 @@ func (c *Check) Run() error {
 func (c *Check) reportContextSwitches(sender sender.Sender) {
 	ctxSwitches, err := getContextSwitches()
 	if err != nil {
-		log.Debugf("reportContextSwitches: could not read context switches: %s", err.Error())
+		log.Debugf("could not read context switches: %s", err.Error())
 		// Don't return error here, we still want to collect the CPU metrics even if we could not
 		// read the context switches
 	} else {
@@ -73,10 +73,10 @@ func (c *Check) reportContextSwitches(sender sender.Sender) {
 func (c *Check) reportCpuInfo(sender sender.Sender) (numCores int32, err error) {
 	cpuInfo, err := getCpuInfo()
 	if err != nil {
-		log.Errorf("reportCpuInfo: could not retrieve cpu stats: %s", err)
+		log.Errorf("could not retrieve cpu stats: %s", err.Error())
 		return 0, err
 	}
-	log.Debugf("cpuInfoFunc: %s", cpuInfo)
+	log.Debugf("getCpuInfo: %s", cpuInfo)
 	numCores = 0
 	for _, i := range cpuInfo {
 		numCores += i.Cores
@@ -88,13 +88,13 @@ func (c *Check) reportCpuInfo(sender sender.Sender) (numCores int32, err error) 
 func (c *Check) reportCpuMetricsPercent(sender sender.Sender, numCores int32) (err error) {
 	cpuTimes, err := getCpuTimes(false)
 	if err != nil {
-		log.Errorf("reportCpuMetrics: could not retrieve cpu stats: %s", err)
+		log.Errorf("could not retrieve cpu stats: %s", err.Error())
 		return err
 	}
-	log.Debugf("cpuTimesFunc(false): %s", cpuTimes)
+	log.Debugf("getCpuTimes(false): %s", cpuTimes)
 	if len(cpuTimes) == 0 {
 		err = fmt.Errorf("no cpu stats retrieve (empty results)")
-		log.Errorf("cpu.Check: %s", err)
+		log.Errorf("%s", err.Error())
 		return err
 	}
 	t := cpuTimes[0]
@@ -133,10 +133,10 @@ func (c *Check) reportCpuMetricsPercent(sender sender.Sender, numCores int32) (e
 func (c *Check) reportCpuMetricsPerCpu(sender sender.Sender) (err error) {
 	cpuTimes, err := getCpuTimes(true)
 	if err != nil {
-		log.Errorf("reportCpuMetricsPerCpu: could not retrieve cpu stats: %s", err)
+		log.Errorf("could not retrieve cpu stats: %s", err.Error())
 		return err
 	}
-	log.Debugf("cpuTimesFunc(true): %s", cpuTimes)
+	log.Debugf("getCpuTimes(true): %s", cpuTimes)
 	for _, t := range cpuTimes {
 		tags := []string{fmt.Sprintf("core:%s", t.CPU)}
 		sender.Gauge("system.cpu.user.total", t.User, "", tags)
