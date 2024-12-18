@@ -147,6 +147,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getRenameStructOldDentryOffset(f.kernelVersion)
 	case OffsetNameRenameStructNewDentry:
 		value = getRenameStructNewDentryOffset(f.kernelVersion)
+	case OffsetInodeIno:
+		value = getInodeInoOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -234,6 +236,10 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	}
 
 	return sizeOf
+}
+
+func getInodeInoOffset(_ *kernel.Version) uint64 {
+	return uint64(64)
 }
 
 func getSuperBlockFlagsOffset(_ *kernel.Version) uint64 {
