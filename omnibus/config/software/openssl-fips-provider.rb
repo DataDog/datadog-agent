@@ -48,7 +48,6 @@ build do
     if linux_target?
       copy "/usr/local/lib*/ossl-modules/fips.so", "#{dest}/lib/ossl-modules/fips.so"
     elsif windows_target?
-      mkdir
       copy "providers/fips.dll", "#{dest}/lib/ossl-modules/fips.dll"
     end
 
