@@ -53,10 +53,16 @@ __attribute__((always_inline)) struct cgroup_tracing_event_t *get_cgroup_tracing
     return evt;
 }
 
+__attribute__((always_inline)) u32 is_cgroup_activity_dumps_supported(struct cgroup_context_t *cgroup) {
+    u32 cgroup_manager = cgroup->cgroup_flags & CGROUP_MANAGER_MASK;
+    u32 supported = (cgroup->cgroup_flags != 0) && (bpf_map_lookup_elem(&activity_dump_config_defaults, &cgroup_manager) != NULL);
+    return supported;
+}
+
 __attribute__((always_inline)) bool reserve_traced_cgroup_spot(struct cgroup_context_t *cgroup, u64 now, u64 cookie, struct activity_dump_config *config) {
     // insert dump config defaults
-    u32 defaults_key = 0;
-    struct activity_dump_config *defaults = bpf_map_lookup_elem(&activity_dump_config_defaults, &defaults_key);
+    u32 cgroup_flags = cgroup->cgroup_flags;
+    struct activity_dump_config *defaults = bpf_map_lookup_elem(&activity_dump_config_defaults, &cgroup_flags);
     if (defaults == NULL) {
         // should never happen, ignore
         return false;
@@ -102,21 +108,21 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, struct c
         return 0;
     }
 
-    if ((container->cgroup_context.cgroup_flags & 0b111) == CGROUP_MANAGER_SYSTEMD) {
+    if (!is_cgroup_activity_dumps_supported(&container->cgroup_context)) {
         return 0;
     }
 
-    copy_container_id(container->container_id, evt->container.container_id);
+    if ((container->cgroup_context.cgroup_flags&CGROUP_MANAGER_MASK) != CGROUP_MANAGER_SYSTEMD) {
+        copy_container_id(container->container_id, evt->container.container_id);
+    } else {
+        evt->container.container_id[0] = '\0';
+    }
     evt->container.cgroup_context = container->cgroup_context;
     evt->cookie = cookie;
     evt->config = config;
     send_event_ptr(ctx, EVENT_CGROUP_TRACING, evt);
 
     return cookie;
-}
-
-__attribute__((always_inline)) u64 is_cgroup_activity_dumps_supported(struct cgroup_context_t *cgroup) {
-   return (cgroup->cgroup_flags != 0) && ((cgroup->cgroup_flags&0b111) != CGROUP_MANAGER_SYSTEMD);
 }
 
 __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u64 now, u32 pid, struct container_context_t *container) {

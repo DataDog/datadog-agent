@@ -219,6 +219,10 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 
 // ResolveCGroupContext resolves the cgroup context from a cgroup path key
 func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags containerutils.CGroupFlags) (*model.CGroupContext, error) {
+	if cgroupContext, found := r.CGroupResolver.GetCGroupContext(pathKey); found {
+		return cgroupContext, nil
+	}
+
 	path, err := r.DentryResolver.Resolve(pathKey, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)

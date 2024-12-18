@@ -340,7 +340,7 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	// Retrieve the container ID of the process from /proc
 	containerID, cgroup, err := p.containerResolver.GetContainerContext(pid)
 	if err != nil {
-		return fmt.Errorf("snapshot failed for %d: couldn't parse container ID: %w", proc.Pid, err)
+		return fmt.Errorf("snapshot failed for %d: couldn't parse container and cgroup context: %w", proc.Pid, err)
 	}
 
 	entry.ContainerID = containerID

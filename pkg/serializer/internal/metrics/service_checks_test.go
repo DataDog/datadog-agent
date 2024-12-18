@@ -126,7 +126,7 @@ func TestPayloadsEmptyServiceCheck(t *testing.T) {
 
 func TestPayloadsServiceChecks(t *testing.T) {
 	config := mock.New(t)
-	config.Set("serializer_max_payload_size", 200, pkgconfigmodel.SourceAgentRuntime)
+	config.Set("serializer_max_payload_size", 250, pkgconfigmodel.SourceAgentRuntime)
 
 	serviceCheckCollection := []ServiceChecks{
 		{createServiceCheck("1"), createServiceCheck("2"), createServiceCheck("3")},

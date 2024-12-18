@@ -1258,12 +1258,10 @@ def full_config_get_all_stages(full_config: dict) -> set[str]:
     return all_stages
 
 
-def update_test_infra_def(file_path, image_tag, is_dev_image=False):
+def update_test_infra_def(file_path, image_tag, is_dev_image=False, prefix_comment=""):
     """
     Updates TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
     """
-    import yaml
-
     test_infra_def = {}
     with open(file_path) as test_infra_version_file:
         try:
@@ -1276,6 +1274,7 @@ def update_test_infra_def(file_path, image_tag, is_dev_image=False):
         except yaml.YAMLError as e:
             raise Exit(f"Error while loading {file_path}: {e}") from e
     with open(file_path, "w") as test_infra_version_file:
+        test_infra_version_file.write(prefix_comment + ('\n\n' if prefix_comment else ''))
         # Add explicit_start=True to keep the document start marker ---
         # See "Document Start" in https://www.yaml.info/learn/document.html for more details
         yaml.dump(test_infra_def, test_infra_version_file, explicit_start=True)

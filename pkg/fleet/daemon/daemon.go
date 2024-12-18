@@ -570,7 +570,7 @@ type requestState struct {
 	ErrorCode installerErrors.InstallerErrorCode
 }
 
-func newRequestContext(request remoteAPIRequest) (telemetry.Span, context.Context) {
+func newRequestContext(request remoteAPIRequest) (*telemetry.Span, context.Context) {
 	ctx := context.WithValue(context.Background(), requestStateKey, &requestState{
 		Package: request.Package,
 		ID:      request.ID,

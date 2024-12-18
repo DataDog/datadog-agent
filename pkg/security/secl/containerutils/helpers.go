@@ -29,39 +29,42 @@ func init() {
 	containerIDPattern = regexp.MustCompile(ContainerIDPatternStr)
 }
 
-func isSystemdCgroup(cgroup CGroupID) bool {
-	return strings.HasSuffix(string(cgroup), ".service") || strings.HasSuffix(string(cgroup), ".scope")
+func isSystemdScope(cgroup CGroupID) bool {
+	return strings.HasSuffix(string(cgroup), ".scope")
+}
+
+func isSystemdService(cgroup CGroupID) bool {
+	return strings.HasSuffix(string(cgroup), ".service")
+}
+
+func getSystemdCGroupFlags(cgroup CGroupID) uint64 {
+	if isSystemdScope(cgroup) {
+		return uint64(CGroupManagerSystemd) | uint64(SystemdScope)
+	} else if isSystemdService(cgroup) {
+		return uint64(CGroupManagerSystemd) | uint64(SystemdService)
+	}
+	return 0
 }
 
 // FindContainerID extracts the first sub string that matches the pattern of a container ID along with the container flags induced from the container runtime prefix
 func FindContainerID(s CGroupID) (ContainerID, uint64) {
 	match := containerIDPattern.FindIndex([]byte(s))
 	if match == nil {
-		if isSystemdCgroup(s) {
-			return "", uint64(CGroupManagerSystemd)
-		}
-
-		return "", 0
+		return "", getSystemdCGroupFlags(s)
 	}
 
 	// first, check what's before
 	if match[0] != 0 {
 		previousChar := string(s[match[0]-1])
 		if strings.ContainsAny(previousChar, containerIDCoreChars) {
-			if isSystemdCgroup(s) {
-				return "", uint64(CGroupManagerSystemd)
-			}
-			return "", 0
+			return "", getSystemdCGroupFlags(s)
 		}
 	}
 	// then, check what's after
 	if match[1] < len(s) {
 		nextChar := string(s[match[1]])
 		if strings.ContainsAny(nextChar, containerIDCoreChars) {
-			if isSystemdCgroup(s) {
-				return "", uint64(CGroupManagerSystemd)
-			}
-			return "", 0
+			return "", getSystemdCGroupFlags(s)
 		}
 	}
 

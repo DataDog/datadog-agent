@@ -48,6 +48,7 @@ type ResolverInterface interface {
 type Resolver struct {
 	*utils.Notifier[Event, *cgroupModel.CacheEntry]
 	sync.Mutex
+	cgroups            *simplelru.LRU[model.PathKey, *model.CGroupContext]
 	hostWorkloads      *simplelru.LRU[containerutils.CGroupID, *cgroupModel.CacheEntry]
 	containerWorkloads *simplelru.LRU[containerutils.ContainerID, *cgroupModel.CacheEntry]
 }
@@ -76,6 +77,11 @@ func NewResolver() (*Resolver, error) {
 	cr.containerWorkloads, err = simplelru.NewLRU(1024, func(_ containerutils.ContainerID, value *cgroupModel.CacheEntry) {
 		cleanup(value)
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	cr.cgroups, err = simplelru.NewLRU(2048, func(_ model.PathKey, _ *model.CGroupContext) {})
 	if err != nil {
 		return nil, err
 	}
@@ -121,8 +127,17 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	} else {
 		cr.hostWorkloads.Add(process.CGroup.CGroupID, newCGroup)
 	}
+	cr.cgroups.Add(process.CGroup.CGroupFile, &process.CGroup)
 
 	cr.NotifyListeners(CGroupCreated, newCGroup)
+}
+
+// GetCGroupContext returns the cgroup context with the specified path key
+func (cr *Resolver) GetCGroupContext(cgroupPath model.PathKey) (*model.CGroupContext, bool) {
+	cr.Lock()
+	defer cr.Unlock()
+
+	return cr.cgroups.Get(cgroupPath)
 }
 
 // GetWorkload returns the workload referenced by the provided ID
@@ -171,6 +186,7 @@ func (cr *Resolver) deleteWorkloadPID(pid uint32, workload *cgroupModel.CacheEnt
 
 	// check if the workload should be deleted
 	if len(workload.PIDs) <= 0 {
+		cr.cgroups.Remove(workload.CGroupFile)
 		cr.hostWorkloads.Remove(workload.CGroupID)
 		if workload.ContainerID != "" {
 			cr.containerWorkloads.Remove(workload.ContainerID)
@@ -183,5 +199,5 @@ func (cr *Resolver) Len() int {
 	cr.Lock()
 	defer cr.Unlock()
 
-	return cr.hostWorkloads.Len() + cr.containerWorkloads.Len()
+	return cr.cgroups.Len()
 }

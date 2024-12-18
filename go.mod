@@ -654,7 +654,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/status v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.0.0-20241217122454-175edb6c74f2
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.59.0

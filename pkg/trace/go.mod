@@ -52,6 +52,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.0.0-20241217122454-175edb6c74f2
 	github.com/shirou/gopsutil/v4 v4.24.11
 	go.opentelemetry.io/collector/component/componenttest v0.115.0
 )
@@ -115,6 +116,7 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent => ../../
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection => ../../comp/core/tagger/origindetection
 	github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../comp/trace/compression/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../comp/trace/compression/impl-gzip
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../comp/trace/compression/impl-zstd

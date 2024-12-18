@@ -141,7 +141,7 @@ func NewHTTPReceiver(
 		}
 	}
 	log.Infof("Receiver configured with %d decoders and a timeout of %dms", semcount, conf.DecoderTimeout)
-	containerIDProvider := NewIDProvider(conf.ContainerProcRoot)
+	containerIDProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
 	telemetryForwarder := NewTelemetryForwarder(conf, containerIDProvider, statsd)
 	return &HTTPReceiver{
 		Stats: info.NewReceiverStats(),

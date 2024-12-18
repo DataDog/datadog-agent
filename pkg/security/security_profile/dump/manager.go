@@ -321,7 +321,8 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate the activity dump load controller: %w", err)
 	}
-	if err = loadController.PushCurrentConfig(); err != nil {
+
+	if err = loadController.PushDefaultCurrentConfigs(); err != nil {
 		return nil, fmt.Errorf("failed to push load controller config settings to kernel space: %w", err)
 	}
 	adm.loadController = loadController
@@ -449,8 +450,8 @@ func (adm *ActivityDumpManager) HandleCGroupTracingEvent(event *model.CgroupTrac
 	adm.Lock()
 	defer adm.Unlock()
 
-	if len(event.ContainerContext.ContainerID) == 0 {
-		seclog.Warnf("received a cgroup tracing event with an empty container ID")
+	if len(event.CGroupContext.CGroupID) == 0 {
+		seclog.Warnf("received a cgroup tracing event with an empty cgroup ID")
 		return
 	}
 
@@ -514,7 +515,19 @@ workloadLoop:
 		}
 
 		// if we're still here, we can start tracing this workload
-		if err := adm.startDumpWithConfig(workloads[0].ContainerID, workloads[0].CGroupContext, utils.NewCookie(), *adm.loadController.getDefaultLoadConfig()); err != nil {
+		defaultConfigs, err := adm.loadController.getDefaultLoadConfigs()
+		if err != nil {
+			seclog.Errorf("%v", err)
+			continue
+		}
+
+		defaultConfig, found := defaultConfigs[containerutils.CGroupManager(workloads[0].CGroupContext.CGroupFlags)]
+		if !found {
+			seclog.Errorf("Failed to find default activity dump config for %s", containerutils.CGroupManager(workloads[0].CGroupContext.CGroupFlags).String())
+			continue
+		}
+
+		if err := adm.startDumpWithConfig(workloads[0].ContainerID, workloads[0].CGroupContext, utils.NewCookie(), *defaultConfig); err != nil {
 			if !errors.Is(err, unix.E2BIG) {
 				seclog.Debugf("%v", err)
 				break

@@ -79,7 +79,7 @@ const (
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
 	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
-	DefaultCompressorKind = "zlib"
+	DefaultCompressorKind = "zstd"
 
 	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
 	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially

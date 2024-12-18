@@ -7,20 +7,144 @@
 package telemetry
 
 import (
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"context"
+	"fmt"
+	"math/rand/v2"
+	"runtime/debug"
+	"strconv"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/internaltelemetry"
 )
 
-// Span is an alias for ddtrace.Span until we phase ddtrace out.
-type Span struct{ ddtrace.Span }
+const spanKey = spanContextKey("span_context")
+
+type spanContextKey string
+
+// Span represents a span.
+type Span struct {
+	mu       sync.Mutex
+	span     internaltelemetry.Span
+	finished atomic.Bool
+}
+
+func newSpan(name string, parentID, traceID uint64) *Span {
+	if traceID == 0 {
+		traceID = rand.Uint64()
+		if !headSamplingKeep(name, traceID) {
+			traceID = dropTraceID
+		}
+	}
+	s := &Span{
+		span: internaltelemetry.Span{
+			TraceID:  traceID,
+			ParentID: parentID,
+			SpanID:   rand.Uint64(),
+			Name:     name,
+			Resource: name,
+			Start:    time.Now().UnixNano(),
+			Meta:     make(map[string]string),
+			Metrics:  make(map[string]float64),
+		},
+	}
+	if parentID == 0 {
+		s.SetTopLevel()
+	}
+
+	globalTracer.registerSpan(s)
+	return s
+}
 
 // Finish finishes the span with an error.
 func (s *Span) Finish(err error) {
-	s.Span.Finish(tracer.WithError(err))
+	s.finished.Store(true)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.span.Duration = time.Now().UnixNano() - s.span.Start
+	if err != nil {
+		s.span.Error = 1
+		s.span.Meta = map[string]string{
+			"error.message": err.Error(),
+			"error.stack":   string(debug.Stack()),
+		}
+	}
+	globalTracer.finishSpan(s)
 }
 
 // SetResourceName sets the resource name of the span.
 func (s *Span) SetResourceName(name string) {
-	s.Span.SetTag(ext.ResourceName, name)
+	if s.finished.Load() {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.span.Resource = name
+}
+
+// SetTopLevel sets the span as a top level span.
+func (s *Span) SetTopLevel() {
+	s.SetTag("_top_level", 1)
+}
+
+// SetTag sets a tag on the span.
+func (s *Span) SetTag(key string, value interface{}) {
+	if s.finished.Load() {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if value == nil {
+		s.span.Meta[key] = "nil"
+	}
+	switch v := value.(type) {
+	case string:
+		s.span.Meta[key] = v
+	case bool:
+		s.span.Meta[key] = strconv.FormatBool(v)
+	case int:
+		s.span.Metrics[key] = float64(v)
+	case int8:
+		s.span.Metrics[key] = float64(v)
+	case int16:
+		s.span.Metrics[key] = float64(v)
+	case int32:
+		s.span.Metrics[key] = float64(v)
+	case int64:
+		s.span.Metrics[key] = float64(v)
+	case uint:
+		s.span.Metrics[key] = float64(v)
+	case uint8:
+		s.span.Metrics[key] = float64(v)
+	case uint16:
+		s.span.Metrics[key] = float64(v)
+	case uint32:
+		s.span.Metrics[key] = float64(v)
+	case uint64:
+		s.span.Metrics[key] = float64(v)
+	case float32:
+		s.span.Metrics[key] = float64(v)
+	case float64:
+		s.span.Metrics[key] = v
+	default:
+		s.span.Meta[key] = fmt.Sprintf("not_supported_type %T", v)
+	}
+}
+
+type spanIDs struct {
+	traceID uint64
+	spanID  uint64
+}
+
+func getSpanIDsFromContext(ctx context.Context) (spanIDs, bool) {
+	sIDs, ok := ctx.Value(spanKey).(spanIDs)
+	if !ok {
+		return spanIDs{}, false
+	}
+	return sIDs, true
+}
+
+func setSpanIDsInContext(ctx context.Context, span *Span) context.Context {
+	return context.WithValue(ctx, spanKey, spanIDs{traceID: span.span.TraceID, spanID: span.span.SpanID})
 }

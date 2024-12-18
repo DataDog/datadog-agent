@@ -35,7 +35,8 @@ modules:
   comp/core/status:
     used_by_otel: true
   comp/core/status/statusimpl: default
-  comp/core/tagger/origindetection: default
+  comp/core/tagger/origindetection:
+    used_by_otel: true
   comp/core/tagger/tags:
     used_by_otel: true
   comp/core/tagger/types:

@@ -818,15 +818,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		if cgroupContext, err := p.Resolvers.ResolveCGroupContext(event.CgroupTracing.CGroupContext.CGroupFile, containerutils.CGroupFlags(event.CgroupTracing.CGroupContext.CGroupFlags)); err != nil {
+		cgroupContext, err := p.Resolvers.ResolveCGroupContext(event.CgroupTracing.CGroupContext.CGroupFile, containerutils.CGroupFlags(event.CgroupTracing.CGroupContext.CGroupFlags))
+		if err != nil {
 			seclog.Debugf("Failed to resolve cgroup: %s", err)
 		} else {
 			event.CgroupTracing.CGroupContext = *cgroupContext
-			if cgroupContext.CGroupFlags.IsContainer() {
-				containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
-				event.CgroupTracing.ContainerContext.ContainerID = containerID
-			}
-
 			p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 		}
 

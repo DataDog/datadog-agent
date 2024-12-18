@@ -68,6 +68,7 @@ type Store struct {
 	LowCardinalityQueries          CardinalityTelemetry
 	OrchestratorCardinalityQueries CardinalityTelemetry
 	HighCardinalityQueries         CardinalityTelemetry
+	NoneCardinalityQueries         CardinalityTelemetry
 	UnknownCardinalityQueries      CardinalityTelemetry
 }
 
@@ -144,6 +145,7 @@ func NewStore(telemetryComp telemetry.Component) *Store {
 			LowCardinalityQueries:          newCardinalityTelemetry(queries, types.LowCardinalityString),
 			OrchestratorCardinalityQueries: newCardinalityTelemetry(queries, types.OrchestratorCardinalityString),
 			HighCardinalityQueries:         newCardinalityTelemetry(queries, types.HighCardinalityString),
+			NoneCardinalityQueries:         newCardinalityTelemetry(queries, types.NoneCardinalityString),
 			UnknownCardinalityQueries:      newCardinalityTelemetry(queries, types.UnknownCardinalityString),
 		}
 	})
@@ -160,6 +162,8 @@ func (s *Store) QueriesByCardinality(card types.TagCardinality) *CardinalityTele
 		return &s.OrchestratorCardinalityQueries
 	case types.HighCardinality:
 		return &s.HighCardinalityQueries
+	case types.NoneCardinality:
+		return &s.NoneCardinalityQueries
 	default:
 		return &s.UnknownCardinalityQueries
 	}

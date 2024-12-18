@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -444,6 +445,9 @@ type AgentConfig struct {
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
+
+	// ContainerIDFromOriginInfo ...
+	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-"`
 
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
