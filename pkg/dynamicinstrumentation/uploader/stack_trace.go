@@ -114,6 +114,9 @@ func pcToLine(procInfo *ditypes.ProcessInfo, pc uint64) (*funcInfo, error) {
 		return nil, fmt.Errorf("invalid file number in dwarf function entry associated with compile unit")
 	}
 
+	if int(fileNumber) >= len(files) || files[fileNumber] == nil {
+		return nil, fmt.Errorf("could not find file")
+	}
 	file = files[fileNumber].Name
 
 	return &funcInfo{
