@@ -51,6 +51,7 @@ class TestCheckConsistentFailures(unittest.TestCase):
         with test_job_executions() as path:
             notify.check_consistent_failures(
                 MockContext(run=Result("test")),
+                1979,
                 path,
             )
 
