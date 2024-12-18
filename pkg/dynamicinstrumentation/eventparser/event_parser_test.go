@@ -12,6 +12,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
 
@@ -110,10 +112,16 @@ func TestParseParamValue(t *testing.T) {
 			},
 		},
 	}
-
+	probe := &ditypes.Probe{
+		InstrumentationInfo: &ditypes.InstrumentationInfo{
+			InstrumentationOptions: &ditypes.InstrumentationOptions{
+				ArgumentsMaxSize: 300,
+			},
+		},
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			val, _ := parseParamValue(tt.inputDefinition, tt.inputBuffer)
+			val, _ := parseParamValueForProbe(probe, tt.inputDefinition, tt.inputBuffer)
 			if !reflect.DeepEqual(val, tt.expectedValue) {
 				t.Errorf("Parsed incorrectly! Got %+v, expected %+v", val, tt.expectedValue)
 			}
@@ -164,9 +172,16 @@ func TestReadParams(t *testing.T) {
 		},
 	}
 
+	probe := &ditypes.Probe{
+		InstrumentationInfo: &ditypes.InstrumentationInfo{
+			InstrumentationOptions: &ditypes.InstrumentationOptions{
+				ArgumentsMaxSize: 300,
+			},
+		},
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output := readParams(tt.inputBuffer)
+			output := readParamsForProbe(probe, tt.inputBuffer)
 			if !reflect.DeepEqual(output, tt.expectedResult) {
 				fmt.Printf("Got: %v\n", output)
 				fmt.Printf("Expected: %v\n", tt.expectedResult)
@@ -293,6 +308,158 @@ func TestParseTypeDefinition(t *testing.T) {
 				fmt.Printf("%v\n", tt.expectedResult)
 				t.Errorf("Not equal!")
 			}
+		})
+	}
+}
+
+func TestParseParams(t *testing.T) {
+	type testCase struct {
+		Name           string
+		Buffer         []byte
+		ExpectedOutput []*ditypes.Param
+	}
+
+	testCases := []testCase{
+		{
+			Name:   "uint slice ok",
+			Buffer: []byte{23, 3, 0, 7, 8, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			ExpectedOutput: []*ditypes.Param{
+				&ditypes.Param{
+					Type: "slice",
+					Size: 3,
+					Kind: byte(reflect.Slice),
+					Fields: []*ditypes.Param{
+						{
+							Kind:     byte(reflect.Uint),
+							ValueStr: "1",
+							Type:     "uint",
+							Size:     8,
+						},
+						{
+							Kind:     byte(reflect.Uint),
+							ValueStr: "2",
+							Type:     "uint",
+							Size:     8,
+						},
+						{
+							Kind:     byte(reflect.Uint),
+							ValueStr: "3",
+							Type:     "uint",
+							Size:     8,
+						},
+					},
+				},
+			},
+		},
+		{
+			Name:   "uint pointer ok",
+			Buffer: []byte{22, 8, 0, 7, 8, 0, 123, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			ExpectedOutput: []*ditypes.Param{
+				&ditypes.Param{
+					Type: "ptr",
+					Size: 8,
+					Kind: byte(reflect.Pointer),
+					Fields: []*ditypes.Param{
+						{
+							Kind:     byte(reflect.Uint),
+							ValueStr: "123",
+							Type:     "uint",
+							Size:     8,
+						},
+					},
+				},
+			},
+		},
+		{
+			Name:   "struct pointer ok",
+			Buffer: []byte{22, 8, 0, 25, 3, 0, 1, 1, 0, 2, 8, 0, 4, 2, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			ExpectedOutput: []*ditypes.Param{
+				&ditypes.Param{
+					Type: "ptr",
+					Size: 8,
+					Kind: byte(reflect.Pointer),
+					Fields: []*ditypes.Param{
+						&ditypes.Param{
+							Type: "struct",
+							Size: 3,
+							Kind: byte(reflect.Struct),
+							Fields: []*ditypes.Param{
+								{
+									Kind:     byte(reflect.Bool),
+									ValueStr: "true",
+									Type:     "bool",
+									Size:     1,
+								},
+								{
+									Kind:     byte(reflect.Int),
+									ValueStr: "1",
+									Type:     "int",
+									Size:     8,
+								},
+								{
+									Kind:     byte(reflect.Int16),
+									ValueStr: "2",
+									Type:     "int16",
+									Size:     2,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name:   "struct pointer nil",
+			Buffer: []byte{22, 8, 0, 25, 3, 0, 1, 1, 0, 2, 8, 0, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			ExpectedOutput: []*ditypes.Param{
+				&ditypes.Param{
+					Type: "ptr",
+					Size: 8,
+					Kind: byte(reflect.Pointer),
+					Fields: []*ditypes.Param{
+						&ditypes.Param{
+							Type: "struct",
+							Size: 3,
+							Kind: byte(reflect.Struct),
+							Fields: []*ditypes.Param{
+								{
+									Kind:     byte(reflect.Bool),
+									ValueStr: "false",
+									Type:     "bool",
+									Size:     1,
+								},
+								{
+									Kind:     byte(reflect.Int),
+									ValueStr: "0",
+									Type:     "int",
+									Size:     8,
+								},
+								{
+									Kind:     byte(reflect.Int16),
+									ValueStr: "0",
+									Type:     "int16",
+									Size:     2,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	probe := &ditypes.Probe{
+		InstrumentationInfo: &ditypes.InstrumentationInfo{
+			InstrumentationOptions: &ditypes.InstrumentationOptions{
+				ArgumentsMaxSize: 1000,
+			},
+		},
+	}
+
+	for i := range testCases {
+		t.Run(testCases[i].Name, func(t *testing.T) {
+			result := readParamsForProbe(probe, testCases[i].Buffer)
+			assert.Equal(t, testCases[i].ExpectedOutput, result)
 		})
 	}
 }
