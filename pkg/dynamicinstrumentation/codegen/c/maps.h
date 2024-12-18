@@ -45,7 +45,7 @@ struct {
 // of collections such as slices so that they can later be referenced
 // when reading the values in the collection.
 struct {
-    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1024);
     __type(key, char[6]);
     __type(value, __u16);
