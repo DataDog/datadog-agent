@@ -41,20 +41,23 @@ build do
       # ---------------- DO NOT MODIFY LINES ABOVE HERE ----------------
     end
 
-    mkdir "#{install_dir}/embedded/ssl"
-    mkdir "#{install_dir}/embedded/lib/ossl-modules"
+
+    dest = unless windows_target? then "#{install_dir}/embedded" else "#{windows_safe_path(python_3_embedded)}" end
+    mkdir "#{dest}/ssl"
+    mkdir "#{dest}/lib/ossl-modules"
     if linux_target?
-      copy "/usr/local/lib*/ossl-modules/fips.so", "#{install_dir}/embedded/lib/ossl-modules/fips.so"
+      copy "/usr/local/lib*/ossl-modules/fips.so", "#{dest}/lib/ossl-modules/fips.so"
     elsif windows_target?
-      copy "providers/fips.dll", "#{windows_safe_path(python_3_embedded)}/lib/ossl-modules/fips.dll"
+      mkdir
+      copy "providers/fips.dll", "#{dest}/lib/ossl-modules/fips.dll"
     end
 
     erb source: "openssl.cnf.erb",
-        dest: "#{install_dir}/embedded/ssl/openssl.cnf.tmp",
+        dest: "#{dest}/ssl/openssl.cnf.tmp",
         mode: 0644,
         vars: { install_dir: install_dir }
     erb source: "fipsinstall.sh.erb",
-        dest: "#{install_dir}/embedded/bin/fipsinstall.sh",
+        dest: "#{dest}/bin/fipsinstall.sh",
         mode: 0755,
         vars: { install_dir: install_dir }
 end
