@@ -378,6 +378,126 @@ int self_exec(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_accept_af_inet(int argc, char** argv) {
+    if (argc != 3) {
+        fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
+        fprintf(stderr, "Arg2: IP address where the socket should bind to\n");
+        fprintf(stderr, "Arg3: Port to bind\n");
+        return EXIT_FAILURE;
+    }
+
+    const char* ip = argv[1];
+    int port = atoi(argv[2]);
+
+    int s;
+    s = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+
+    int ip32 = 0;
+    if (inet_pton(AF_INET, ip, &ip32) != 1) {
+        perror("inet_pton");
+        return EXIT_FAILURE;
+    }
+
+    addr.sin_addr.s_addr = htonl(ip32);
+    addr.sin_port = htons(port);
+
+    if (bind(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        close(s);
+        perror("Failed to connect to port");
+        return EXIT_FAILURE;
+    }
+
+    if (listen(s, 1111) < 0) {
+        close(s);
+        perror("Failed to listen");
+        return EXIT_FAILURE;
+    }
+
+    if (accept(s, NULL, NULL) < 0) {
+        perror("Failed to accept");
+    }
+
+    close (s);
+    return EXIT_SUCCESS;
+}
+
+int test_accept_af_inet6(int argc, char** argv) {
+    if (argc != 3) {
+        fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
+        fprintf(stderr, "Arg2: IP address where the socket should bind to\n");
+        fprintf(stderr, "Arg3: Port to bind\n");
+        return EXIT_FAILURE;
+    }
+
+    const char* ip = argv[1];
+    int port = atoi(argv[2]);
+
+    int s;
+    s = socket(PF_INET6, SOCK_STREAM, IPPROTO_TCP);
+
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    struct sockaddr_in6 addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin6_family = AF_INET6;
+
+    struct in6_addr ip6;
+
+    if (inet_pton(AF_INET6, ip, &ip6) != 1) {
+        perror("inet_pton");
+        return EXIT_FAILURE;
+    }
+
+    addr.sin6_addr = ip6;
+    addr.sin6_port = htons(port);
+
+    if (bind(s, &addr, sizeof(addr)) < 0) {
+        close(s);
+        perror("Failed to connect to port");
+        return EXIT_FAILURE;
+    }
+
+    if (listen(s, 1111) < 0) {
+        close(s);
+        perror("Failed to listen");
+        return EXIT_FAILURE;
+    }
+
+    if (accept(s, NULL, NULL) < 0) {
+        perror("Failed to accept");
+    }
+
+    close (s);
+    return EXIT_SUCCESS;
+}
+
+int test_accept(int argc, char** argv) {
+    if (argc <= 1) {
+        fprintf(stderr, "Please specify an addr_type\n");
+        return EXIT_FAILURE;
+    }
+
+    if(strcmp(argv[1],"AF_INET") == 0) {
+        return test_accept_af_inet(argc - 1, argv + 1);
+    } else if(strcmp(argv[1], "AF_INET6") == 0) {
+        return test_accept_af_inet6(argc - 1, argv + 1);
+    }
+
+    return EXIT_FAILURE;
+}
+
 int test_bind_af_inet(int argc, char** argv) {
 
     if (argc != 3) {
@@ -915,6 +1035,8 @@ int main(int argc, char **argv) {
             exit_code = test_process_set(sub_argc, sub_argv);
         } else if (strcmp(cmd, "self-exec") == 0) {
             exit_code = self_exec(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "accept") == 0) {
+            exit_code = test_accept(sub_argc, sub_argv);
         } else if (strcmp(cmd, "bind") == 0) {
             exit_code = test_bind(sub_argc, sub_argv);
         } else if (strcmp(cmd, "connect") == 0) {

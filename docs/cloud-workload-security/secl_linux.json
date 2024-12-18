@@ -1320,6 +1320,40 @@
       ]
     },
     {
+      "name": "accept",
+      "definition": "An accept was executed",
+      "type": "Network",
+      "from_agent_version": "7.60",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "accept.addr.family",
+          "definition": "Address family",
+          "property_doc_link": "accept-addr-family-doc"
+        },
+        {
+          "name": "accept.addr.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "accept.addr.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "accept.addr.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "accept.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
       "name": "bind",
       "definition": "A bind was executed",
       "type": "Network",
@@ -8418,6 +8452,7 @@
       "type": "IP/CIDR",
       "definition": "IP address",
       "prefixes": [
+        "accept.addr",
         "bind.addr",
         "connect.addr",
         "network.destination",
@@ -8479,6 +8514,7 @@
       "type": "bool",
       "definition": "Whether the IP address belongs to a public network",
       "prefixes": [
+        "accept.addr",
         "bind.addr",
         "connect.addr",
         "network.destination",
@@ -9174,6 +9210,7 @@
       "type": "int",
       "definition": "Port number",
       "prefixes": [
+        "accept.addr",
         "bind.addr",
         "connect.addr",
         "network.destination",
@@ -9213,6 +9250,7 @@
       "type": "int",
       "definition": "Return value of the syscall",
       "prefixes": [
+        "accept",
         "bind",
         "bpf",
         "chdir",
@@ -9515,6 +9553,18 @@
         "signal.target.ancestors.cgroup",
         "signal.target.cgroup",
         "signal.target.parent.cgroup"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "accept.addr.family",
+      "link": "accept-addr-family-doc",
+      "type": "int",
+      "definition": "Address family",
+      "prefixes": [
+        "accept"
       ],
       "constants": "",
       "constants_link": "",
