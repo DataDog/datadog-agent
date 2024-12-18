@@ -444,7 +444,7 @@ def get_matching_pattern(ctx, major_version, release=False):
     return pattern
 
 
-def deduce_version(ctx, branch, as_str=True, trust=False, next_version=True) -> str | Version:
+def deduce_version(ctx, branch, as_str: bool = True, trust: bool = False, next_version: bool = True) -> str | Version:
     """Deduces the version from the release branch name.
 
     Args:
@@ -484,7 +484,7 @@ def get_all_version_tags(ctx) -> list[str]:
     return ctx.run(cmd, hide=True).stdout.strip().split('\n')
 
 
-def get_next_version_from_branch(ctx, branch: str, as_str=True, next_version=True) -> str | Version:
+def get_next_version_from_branch(ctx, branch: str, as_str: bool = True, next_version: bool = True) -> str | Version:
     """Returns the latest version + 1 belonging to a branch.
 
     Args:
