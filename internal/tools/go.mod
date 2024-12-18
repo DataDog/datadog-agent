@@ -245,3 +245,6 @@ require (
 	mvdan.cc/gofumpt v0.7.0 // indirect
 	mvdan.cc/unparam v0.0.0-20240528143540-8a5130ca722f // indirect
 )
+
+// github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
+replace github.com/golang/mock => github.com/golang/mock v1.6.0

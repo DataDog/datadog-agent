@@ -103,3 +103,6 @@ require (
 )
 
 replace github.com/DataDog/datadog-agent/pkg/version => ../../../../../pkg/version
+
+// github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
+replace github.com/golang/mock => github.com/golang/mock v1.6.0

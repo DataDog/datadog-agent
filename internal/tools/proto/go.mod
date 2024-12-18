@@ -32,3 +32,6 @@ require (
 )
 
 replace google.golang.org/protobuf v1.33.0 => google.golang.org/protobuf v1.34.0
+
+// github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
+replace github.com/golang/mock => github.com/golang/mock v1.6.0

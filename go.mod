@@ -1100,3 +1100,6 @@ replace k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f => gi
 
 // Remove once https://github.com/Iceber/iouring-go/pull/31 or equivalent is merged
 replace github.com/iceber/iouring-go => github.com/paulcacheux/iouring-go v0.0.0-20241115154236-2c7785c40a0f
+
+// github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
+replace github.com/golang/mock => github.com/golang/mock v1.6.0
