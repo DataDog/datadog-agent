@@ -117,7 +117,7 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	errorStack := r.Header.Get(invocationlifecycle.InvocationErrorStackHeader)
 	if decodedStack, err := base64.StdEncoding.DecodeString(errorStack); err != nil {
-		log.Debug("Error stack header may not be encoded, setting as is")
+		log.Debug("Could not decode error stack header")
 	} else {
 		errorStack = string(decodedStack)
 	}
