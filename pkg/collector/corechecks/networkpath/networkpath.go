@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -40,6 +41,7 @@ type Check struct {
 	config        *CheckConfig
 	lastCheckTime time.Time
 	telemetryComp telemetryComp.Component
+	rDNSQuerier   rdnsquerier.Component
 }
 
 // Run executes the check
@@ -94,6 +96,56 @@ func (c *Check) Run() error {
 	return nil
 }
 
+func (c *Check) enrichPathWithRDNS(path *payload.NetworkPath) {
+	// if !s.collectorConfigs.reverseDNSEnabled {
+	// 	return
+	// }
+
+	// collect unique IP addresses from destination and hops
+	ipSet := make(map[string]struct{}, len(path.Hops)+1) // +1 for destination
+	ipSet[path.Destination.IPAddress] = struct{}{}
+	for _, hop := range path.Hops {
+		if !hop.Reachable {
+			continue
+		}
+		ipSet[hop.IPAddress] = struct{}{}
+	}
+	ipAddrs := make([]string, 0, len(ipSet))
+	for ip := range ipSet {
+		ipAddrs = append(ipAddrs, ip)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), s.collectorConfigs.reverseDNSTimeout)
+	defer cancel()
+
+	// perform reverse DNS lookup on destination and hops
+	results := c.rdnsquerier.GetHostnames(ctx, ipAddrs)
+	if len(results) != len(ipAddrs) {
+		//s.statsdClient.Incr(reverseDNSLookupMetricPrefix+"results_length_mismatch", []string{}, 1) //nolint:errcheck
+		c.logger.Debugf("Reverse lookup failed for all hops in path from %s to %s", path.Source.Hostname, path.Destination.Hostname)
+	}
+
+	// assign resolved hostnames to destination and hops
+	hostname := c.getReverseDNSResult(path.Destination.IPAddress, results)
+	// if hostname is blank, use what's given by traceroute
+	// TODO: would it be better to move the logic up from the traceroute command?
+	// benefit to the current approach is having consistent behavior for all paths
+	// both static and dynamic
+	if hostname != "" {
+		path.Destination.ReverseDNSHostname = hostname
+	}
+
+	for i, hop := range path.Hops {
+		if !hop.Reachable {
+			continue
+		}
+		hostname := c.getReverseDNSResult(hop.IPAddress, results)
+		if hostname != "" {
+			path.Hops[i].Hostname = hostname
+		}
+	}
+}
+
 // SendNetPathMDToEP sends a traced network path to EP
 func (c *Check) SendNetPathMDToEP(sender sender.Sender, path payload.NetworkPath) error {
 	payloadBytes, err := json.Marshal(path)
@@ -140,11 +192,12 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 }
 
 // Factory creates a new check factory
-func Factory(telemetry telemetryComp.Component) optional.Option[func() check.Check] {
+func Factory(telemetry telemetryComp.Component, rDNSQuerier rdnsquerier.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
 		return &Check{
 			CheckBase:     core.NewCheckBase(CheckName),
 			telemetryComp: telemetry,
+			rDNSQuerier:   rDNSQuerier,
 		}
 	})
 }
