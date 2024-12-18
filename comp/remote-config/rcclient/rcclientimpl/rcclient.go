@@ -168,6 +168,10 @@ func (rc rcClient) start() {
 	}
 }
 
+// mrfUpdateCallback is the callback function for the AGENT_FAILOVER configs.
+// It fetches all the configs targeting the agent and applies the failover settings
+// using an OR strategy. In case of nil the value is not updated, for a false it does not update if
+// the setting is already set to true.
 func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	// If the updates map is empty, we should unset the failover settings if they were set via RC previously
 	if len(updates) == 0 {
@@ -223,7 +227,7 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 	if enableMetrics != nil {
 		err := rc.applyMRFRuntimeSetting("multi_region_failover.failover_metrics", *enableMetrics, enableMetricsCfgPth, applyStateCallback)
 		if err != nil {
-			pkglog.Errorf("Multi-Region Failover update unmarshal failed: %s", err)
+			pkglog.Errorf("Multi-Region Failover failed to apply new metrics settings : %s", err)
 			applyStateCallback(enableMetricsCfgPth, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
@@ -241,7 +245,7 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 	if enableLogs != nil {
 		err := rc.applyMRFRuntimeSetting("multi_region_failover.failover_logs", *enableLogs, enableLogsCfgPth, applyStateCallback)
 		if err != nil {
-			pkglog.Errorf("Multi-Region Failover update unmarshal failed: %s", err)
+			pkglog.Errorf("Multi-Region Failover failed to apply new logs settings : %s", err)
 			applyStateCallback(enableMetricsCfgPth, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
