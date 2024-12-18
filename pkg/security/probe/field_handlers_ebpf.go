@@ -11,7 +11,6 @@ package probe
 import (
 	"encoding/binary"
 	"path"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -516,23 +515,9 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupCon
 				return string(entry.CGroup.CGroupID)
 			}
 
-			path, err := fh.resolvers.DentryResolver.Resolve(e.CGroupFile, true)
-			if err == nil && path != "" {
-				cgroup := filepath.Dir(string(path))
-				if cgroup == "/" {
-					cgroup = path
-				}
-
-				entry.Process.CGroup.CGroupID = containerutils.CGroupID(cgroup)
-				entry.CGroup.CGroupID = containerutils.CGroupID(cgroup)
-				containerID, _ := containerutils.GetContainerFromCgroup(entry.CGroup.CGroupID)
-				entry.Process.ContainerID = containerutils.ContainerID(containerID)
-				entry.ContainerID = containerutils.ContainerID(containerID)
-			} else {
-				entry.CGroup.CGroupID = containerutils.GetCgroupFromContainer(entry.ContainerID, entry.CGroup.CGroupFlags)
+			if cgroupContext, err := fh.resolvers.ResolveCGroupContext(e.CGroupFile, e.CGroupFlags); err == nil {
+				*e = *cgroupContext
 			}
-
-			e.CGroupID = entry.CGroup.CGroupID
 		}
 	}
 
@@ -548,6 +533,18 @@ func (fh *EBPFFieldHandlers) ResolveCGroupManager(ev *model.Event, _ *model.CGro
 	}
 
 	return ""
+}
+
+// ResolveCGroupVersion resolves the version of the cgroup API
+func (fh *EBPFFieldHandlers) ResolveCGroupVersion(ev *model.Event, e *model.CGroupContext) int {
+	if e.CGroupVersion == 0 {
+		if filesystem, _ := fh.resolvers.MountResolver.ResolveFilesystem(e.CGroupFile.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ContainerID); filesystem == "cgroup2" {
+			e.CGroupVersion = 2
+		} else {
+			e.CGroupVersion = 1
+		}
+	}
+	return e.CGroupVersion
 }
 
 // ResolveContainerID resolves the container ID of the event

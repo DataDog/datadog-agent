@@ -45,7 +45,7 @@ def generate_dummy_package(ctx, folder):
     try:
         import_paths = []
         for mod in get_default_modules().values():
-            if mod.path != "." and mod.should_test() and mod.importable:
+            if mod.path != "." and mod.should_test():
                 import_paths.append(mod.import_path)
 
         os.mkdir(folder)
@@ -79,27 +79,14 @@ def generate_dummy_package(ctx, folder):
 
 
 @task
-def go_work(_: Context):
+def go_work(ctx: Context):
     """
-    Create a go.work file using the module list contained in get_default_modules()
-    and the go version contained in the file .go-version.
-    If there is already a go.work file, it is renamed go.work.backup and a warning is printed.
+    Update the go work to use all the modules defined in modules.yml
     """
 
-    # read go version from the .go-version file, removing the bugfix part of the version
-
-    with open(".go-version") as f:
-        go_version = f.read().strip()
-
-    if os.path.exists("go.work"):
-        print("go.work already exists. Renaming to go.work.backup")
-        os.rename("go.work", "go.work.backup")
-
-    with open("go.work", "w") as f:
-        f.write(f"go {go_version}\n\nuse (\n")
-        for mod in get_default_modules().values():
-            f.write(f"\t{mod.path}\n")
-        f.write(")\n")
+    ctx.run(
+        "go run ./internal/tools/worksynchronizer/worksynchronizer.go --path ./go.work --modules-file ./modules.yml"
+    )
 
 
 @task

@@ -9,17 +9,20 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
-	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Tagger is the entry class for entity tagging. It hold the tagger collector,
@@ -100,12 +103,18 @@ func (t *localTagger) Tag(entityID types.EntityID, cardinality types.TagCardinal
 	return tags.Copy(), nil
 }
 
+// GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
+func (t *localTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
+	metaCollector := metrics.GetProvider(optional.NewOption(t.workloadStore)).GetMetaCollector()
+	return metaCollector.ContainerIDForPodUIDAndContName(originInfo.ExternalData.PodUID, originInfo.ExternalData.ContainerName, originInfo.ExternalData.Init, time.Second)
+}
+
 // LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
 // If possible, avoid using this function, and use the Tag method instead.
 // This function exists in order not to break backward compatibility with rtloader and python
 // integrations using the tagger
 func (t *localTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
-	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	prefix, id, err := types.ExtractPrefixAndID(entity)
 	if err != nil {
 		return nil, err
 	}

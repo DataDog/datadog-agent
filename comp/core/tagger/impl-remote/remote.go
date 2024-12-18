@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package remotetaggerimpl implements a remote Tagger.
-package remotetaggerimpl
+// Package remoteimpl implements a remote Tagger.
+package remoteimpl
 
 import (
 	"context"
@@ -26,8 +26,8 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
@@ -47,6 +47,8 @@ const (
 )
 
 var errTaggerStreamNotStarted = errors.New("tagger stream not started")
+
+var errTaggerFailedGenerateContainerIDFromOriginInfo = errors.New("tagger failed to generate container ID from origin info")
 
 // Requires defines the dependencies for the remote tagger.
 type Requires struct {
@@ -76,12 +78,16 @@ type remoteTagger struct {
 	log log.Component
 
 	conn   *grpc.ClientConn
+	token  string
 	client pb.AgentSecureClient
 	stream pb.AgentSecure_TaggerStreamEntitiesClient
 
 	streamCtx    context.Context
 	streamCancel context.CancelFunc
 	filter       *types.Filter
+
+	queryCtx    context.Context
+	queryCancel context.CancelFunc
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -242,13 +248,86 @@ func (t *remoteTagger) Tag(entityID types.EntityID, cardinality types.TagCardina
 // This function exists in order not to break backward compatibility with rtloader and python
 // integrations using the tagger
 func (t *remoteTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
-	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	prefix, id, err := types.ExtractPrefixAndID(entity)
 	if err != nil {
 		return nil, err
 	}
 
 	entityID := types.NewEntityID(prefix, id)
 	return t.Tag(entityID, cardinality)
+}
+
+// GenerateContainerIDFromOriginInfo returns a container ID for the given Origin Info.
+// This function currently only uses the External Data from the Origin Info to generate the container ID.
+func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
+	fail := true
+	defer func() {
+		if fail {
+			t.telemetryStore.OriginInfoRequests.Inc("failed")
+		} else {
+			t.telemetryStore.OriginInfoRequests.Inc("success")
+		}
+	}()
+
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 500 * time.Millisecond
+	expBackoff.MaxInterval = 1 * time.Second
+	expBackoff.MaxElapsedTime = 15 * time.Second
+
+	var containerID string
+
+	err := backoff.Retry(func() error {
+		select {
+		case <-t.ctx.Done():
+			return &backoff.PermanentError{Err: errTaggerFailedGenerateContainerIDFromOriginInfo}
+		default:
+		}
+
+		// Fetch the auth token
+		if t.token == "" {
+			var authError error
+			t.token, authError = t.options.TokenFetcher()
+			if authError != nil {
+				_ = t.log.Errorf("unable to fetch auth token, will possibly retry: %s", authError)
+				return authError
+			}
+		}
+
+		// Create the context with the auth token
+		t.queryCtx, t.queryCancel = context.WithCancel(
+			metadata.NewOutgoingContext(t.ctx, metadata.MD{
+				"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
+			}),
+		)
+
+		// Call the gRPC method to get the container ID from the origin info
+		containerIDResponse, err := t.client.TaggerGenerateContainerIDFromOriginInfo(t.queryCtx, &pb.GenerateContainerIDFromOriginInfoRequest{
+			ExternalData: &pb.GenerateContainerIDFromOriginInfoRequest_ExternalData{
+				Init:          &originInfo.ExternalData.Init,
+				ContainerName: &originInfo.ExternalData.ContainerName,
+				PodUID:        &originInfo.ExternalData.PodUID,
+			},
+		})
+		if err != nil {
+			_ = t.log.Errorf("unable to generate container ID from origin info, will retry: %s", err)
+			return err
+		}
+
+		if containerIDResponse == nil {
+			_ = t.log.Warnf("unable to generate container ID from origin info, will retry: %s", err)
+			return errors.New("containerIDResponse is nil")
+		}
+		containerID = containerIDResponse.ContainerID
+
+		fail = false
+		t.log.Debugf("Container ID generated successfully from origin info %+v: %s", originInfo, containerID)
+		return nil
+	}, expBackoff)
+
+	if err != nil {
+		return "", err
+	}
+	return containerID, nil
 }
 
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.
@@ -322,7 +401,7 @@ func (t *remoteTagger) AgentTags(_ types.TagCardinality) ([]string, error) {
 }
 
 func (t *remoteTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
-	return t.Tag(taggercommon.GetGlobalEntityID(), cardinality)
+	return t.Tag(types.GetGlobalEntityID(), cardinality)
 }
 
 func (t *remoteTagger) SetNewCaptureTagger(tagger.Component) {}
@@ -335,7 +414,7 @@ func (t *remoteTagger) ResetCaptureTagger() {}
 // and they always use the local tagger.
 // This function can only add the global tags.
 func (t *remoteTagger) EnrichTags(tb tagset.TagsAccumulator, _ taggertypes.OriginInfo) {
-	if err := t.AccumulateTagsFor(taggercommon.GetGlobalEntityID(), t.dogstatsdCardinality, tb); err != nil {
+	if err := t.AccumulateTagsFor(types.GetGlobalEntityID(), t.dogstatsdCardinality, tb); err != nil {
 		t.log.Error(err.Error())
 	}
 }

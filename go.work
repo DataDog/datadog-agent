@@ -1,4 +1,6 @@
-go 1.22.8
+go 1.23.0
+
+toolchain go1.23.3
 
 use (
 	.
@@ -15,6 +17,7 @@ use (
 	comp/core/secrets
 	comp/core/status
 	comp/core/status/statusimpl
+	comp/core/tagger/origindetection
 	comp/core/tagger/tags
 	comp/core/tagger/types
 	comp/core/tagger/utils
@@ -49,6 +52,7 @@ use (
 	internal/tools/modformatter
 	internal/tools/modparser
 	internal/tools/proto
+	internal/tools/worksynchronizer
 	pkg/aggregator/ckey
 	pkg/api
 	pkg/collector/check/defaults
@@ -126,4 +130,5 @@ use (
 	test/fakeintake
 	test/new-e2e
 	test/otel
+	tools/retry_file_dump
 )

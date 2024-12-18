@@ -9,6 +9,7 @@ on:
       - 'pkg/serverless/**'
       - 'test/integration/serverless/**'
       - '.github/workflows/serverless-integration.yml'
+      - 'go.mod'
   schedule:
     - cron: '0 14 * * *' # cron schedule uses UTC timezone. Run tests at the beginning of the day in US-East
 
@@ -53,7 +54,7 @@ jobs:
           platforms: amd64,arm64
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.7.1
 
       - name: Create raw logs directory
         id: rawlogs
@@ -67,8 +68,9 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }}
+          GOWORK: off
         with:
-          timeout_minutes: 60
+          timeout_minutes: 120
           max_attempts: 2
           command: |
             RAWLOGS_DIR="${{ steps.rawlogs.outputs.dir }}/${{ matrix.architecture }}"
@@ -78,7 +80,7 @@ jobs:
 
       - name: Archive raw logs
         if: always()
-        uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: rawlogs-${{ matrix.suite }}-${{ matrix.architecture }}
           path: ${{ steps.rawlogs.outputs.dir }}

@@ -16,7 +16,7 @@
         }                                                                                                   \
         type val;                                                                                           \
         bpf_memset(&val, 0, sizeof(type));                                                                  \
-        bpf_skb_load_bytes_with_telemetry(skb, offset, &val, sizeof(type));                                 \
+        bpf_skb_load_bytes(skb, offset, &val, sizeof(type));                                 \
         *out = transformer(val);                                                                            \
         return true;                                                                                        \
     }
