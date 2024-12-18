@@ -330,7 +330,7 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string)
 				err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
 				uncompressedLayer.Close()
 				if err != nil {
-					if !isStreamResetError(err) && !isConnectionResetByPeerError(err) {
+					if !isRetryableNetError(err) {
 						return fmt.Errorf("could not extract layer: %w", err)
 					}
 					log.Warnf("network error while extracting layer, retrying")
@@ -342,6 +342,10 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string)
 				} else {
 					break
 				}
+
+				if i == extractLayerRetries-1 {
+					return fmt.Errorf("could not write OCI layout after %d retries", extractLayerRetries)
+				}
 			}
 		}
 	}
@@ -349,14 +353,36 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string)
 }
 
 // WriteOCILayout writes the image as an OCI layout to the given directory.
-func (d *DownloadedPackage) WriteOCILayout(dir string) error {
-	layoutPath, err := layout.Write(dir, empty.Index)
-	if err != nil {
-		return fmt.Errorf("could not write layout: %w", err)
-	}
-	err = layoutPath.AppendImage(d.Image)
-	if err != nil {
-		return fmt.Errorf("could not append image to layout: %w", err)
+func (d *DownloadedPackage) WriteOCILayout(dir string) (err error) {
+	var layoutPath layout.Path
+	// Retries for temporary network errors
+	for i := 0; i < extractLayerRetries; i++ {
+		if i > 0 {
+			time.Sleep(time.Second)
+		}
+		layoutPath, err = layout.Write(dir, empty.Index)
+		if err != nil {
+			if !isRetryableNetError(err) {
+				return fmt.Errorf("could not write layout: %w", err)
+			}
+			log.Warnf("network error while writing OCI layout, retrying")
+		} else {
+			break
+		}
+
+		err = layoutPath.AppendImage(d.Image)
+		if err != nil {
+			if !isRetryableNetError(err) {
+				return fmt.Errorf("could not append image to layout: %w", err)
+			}
+			log.Warnf("network error while writing OCI layout, retrying")
+		} else {
+			break
+		}
+
+		if i == extractLayerRetries-1 {
+			return fmt.Errorf("could not write OCI layout after %d retries", extractLayerRetries)
+		}
 	}
 	return nil
 }
@@ -371,15 +397,34 @@ func PackageURL(env *env.Env, pkg string, version string) string {
 	}
 }
 
+// isRetryableNetError returns true if the error is a network error we should retry on
+func isRetryableNetError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if netErr, ok := err.(*net.OpError); ok {
+		if netErr.Temporary() {
+			// Temporary errors, such as "connection timed out"
+			return true
+		}
+		if syscallErr, ok := netErr.Err.(*os.SyscallError); ok {
+			if errno, ok := syscallErr.Err.(syscall.Errno); ok {
+				// Connection reset errors, such as "connection reset by peer"
+				return errno == syscall.ECONNRESET
+			}
+		}
+	}
+
+	return isStreamResetError(err)
+}
+
 // isStreamResetError returns true if the given error is a stream reset error.
 // Sometimes, in GCR, the tar extract fails with "stream error: stream ID x; INTERNAL_ERROR; received from peer".
 // This happens because the uncompressed layer reader is a http/2 response body under the hood. That body is
 // streamed and receives a "reset stream frame", with the code 0x2 (INTERNAL_ERROR). This is an error from the server
 // that we need to retry.
 func isStreamResetError(err error) bool {
-	if err == nil {
-		return false
-	}
 	serr := http2.StreamError{}
 	if errors.As(err, &serr) {
 		return serr.Code == http2.ErrCodeInternal
@@ -387,18 +432,6 @@ func isStreamResetError(err error) bool {
 	serrp := &http2.StreamError{}
 	if errors.As(err, &serrp) {
 		return serrp.Code == http2.ErrCodeInternal
-	}
-	return false
-}
-
-// isConnectionResetByPeer returns true if the error is a connection reset by peer error
-func isConnectionResetByPeerError(err error) bool {
-	if netErr, ok := err.(*net.OpError); ok {
-		if syscallErr, ok := netErr.Err.(*os.SyscallError); ok {
-			if errno, ok := syscallErr.Err.(syscall.Errno); ok {
-				return errno == syscall.ECONNRESET
-			}
-		}
 	}
 	return false
 }
