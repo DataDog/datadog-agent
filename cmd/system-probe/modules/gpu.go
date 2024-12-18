@@ -55,6 +55,7 @@ var GPUMonitoring = module.Factory{
 			//(https://github.com/NVIDIA/go-nvml/blob/main/pkg/nvml/lib.go#L30)
 			NvmlLib:        nvml.New(nvml.WithLibraryPath(c.NVMLLibraryPath)),
 			ProcessMonitor: processEventConsumer,
+			WorkloadMeta:   deps.WMeta,
 		}
 
 		ret := probeDeps.NvmlLib.Init()
