@@ -18,15 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-// CGroupContextSerializer serializes a cgroup context to JSON
-// easyjson:json
-type CGroupContextSerializer struct {
-	// CGroup ID
-	ID string `json:"id,omitempty"`
-	// CGroup manager
-	Manager string `json:"manager,omitempty"`
-}
-
 // ContainerContextSerializer serializes a container context to JSON
 // easyjson:json
 type ContainerContextSerializer struct {
@@ -213,7 +204,6 @@ type BaseEventSerializer struct {
 	*ExitEventSerializer        `json:"exit,omitempty"`
 	*ProcessContextSerializer   `json:"process,omitempty"`
 	*ContainerContextSerializer `json:"container,omitempty"`
-	*CGroupContextSerializer    `json:"cgroup,omitempty"`
 }
 
 // TLSContextSerializer defines a tls context serializer
