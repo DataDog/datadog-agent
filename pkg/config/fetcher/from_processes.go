@@ -71,7 +71,7 @@ func TraceAgentConfig(config config.Reader) (string, error) {
 	c := util.GetClient(false)
 	c.Timeout = config.GetDuration("server_timeout") * time.Second
 
-	ipcAddressWithPort := fmt.Sprintf("https://127.0.0.1:%d/config", port)
+	ipcAddressWithPort := fmt.Sprintf("http://127.0.0.1:%d/config", port)
 
 	client := settingshttp.NewClient(c, ipcAddressWithPort, "trace-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
 	return client.FullConfig()
