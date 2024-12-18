@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// The code beloe is essentially responsible for embedding the CO-RE artifacts
+// The code below is essentially responsible for embedding the CO-RE artifacts
 // during compilation time and writing them to a temporary folder during
 // runtime, so they can be loaded by the `usm.Monitor` as regular compilation
 // assets.
