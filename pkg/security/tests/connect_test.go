@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"sync"
 	"testing"
 
 	"golang.org/x/net/nettest"
@@ -50,14 +49,10 @@ func TestConnectEvent(t *testing.T) {
 	}
 
 	t.Run("connect-af-inet-any-tcp-success", func(t *testing.T) {
-		var wg sync.WaitGroup
-		wg.Add(1)
-		defer wg.Wait()
 
 		done := make(chan struct{})
 		defer close(done)
 		go func() {
-			defer wg.Done()
 			err := bindAndAcceptConnection("tcp", ":4242", done)
 			if err != nil {
 				t.Error(err)
@@ -78,14 +73,10 @@ func TestConnectEvent(t *testing.T) {
 	})
 
 	t.Run("connect-af-inet-any-udp-success", func(t *testing.T) {
-		var wg sync.WaitGroup
-		wg.Add(1)
-		defer wg.Wait()
 
 		done := make(chan struct{})
 		defer close(done)
 		go func() {
-			defer wg.Done()
 			err := bindAndAcceptConnection("udp", ":4242", done)
 			if err != nil {
 				t.Error(err)
@@ -110,14 +101,9 @@ func TestConnectEvent(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		var wg sync.WaitGroup
-		wg.Add(1)
-		defer wg.Wait()
-
 		done := make(chan struct{})
 		defer close(done)
 		go func() {
-			defer wg.Done()
 			err := bindAndAcceptConnection("tcp", ":4242", done)
 			if err != nil {
 				t.Error(err)
@@ -142,14 +128,9 @@ func TestConnectEvent(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		var wg sync.WaitGroup
-		wg.Add(1)
-		defer wg.Wait()
-
 		done := make(chan struct{})
 		defer close(done)
 		go func() {
-			defer wg.Done()
 			err := bindAndAcceptConnection("udp", ":4242", done)
 			if err != nil {
 				t.Error(err)
@@ -180,18 +161,14 @@ func bindAndAcceptConnection(proto, address string, done chan struct{}) error {
 		}
 		defer listener.Close()
 
-		// Start a goroutine to accept connections continuously
-		go func() {
-			for {
-				c, err := listener.Accept()
-				if err != nil {
-					fmt.Printf("accept error: %v\n", err)
-					return
-				}
-				fmt.Println("Connection accepted")
-				defer c.Close()
-			}
-		}()
+		c, err := listener.Accept()
+		defer c.Close()
+
+		if err != nil {
+			fmt.Printf("accept error: %v\n", err)
+			return err
+		}
+		fmt.Println("Connection accepted")
 
 	case "udp", "unixgram":
 		conn, err := net.ListenPacket(proto, address)
