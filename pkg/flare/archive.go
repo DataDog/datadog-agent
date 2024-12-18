@@ -27,7 +27,6 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
@@ -395,7 +394,7 @@ func getProcessAgentTaggerList() ([]byte, error) {
 		return nil, fmt.Errorf("wrong configuration to connect to process-agent")
 	}
 
-	err = util.SetAuthToken(pkgconfigsetup.Datadog())
+	err = apiutil.SetAuthToken(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
