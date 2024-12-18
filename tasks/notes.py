@@ -7,7 +7,9 @@ from invoke.exceptions import Exit
 from tasks.libs.ciproviders.github_api import create_release_pr
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_current_branch, try_git_command
+from tasks.libs.common.worktree import agent_context
 from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude, update_changelog_generic
+from tasks.libs.releasing.version import deduce_version
 
 
 @task
@@ -41,7 +43,7 @@ def add_installscript_prelude(ctx, version):
 
 
 @task
-def update_changelog(ctx, new_version=None, target="all", upstream="origin"):
+def update_changelog(ctx, release_branch, target="all", upstream="origin"):
     """
     Quick task to generate the new CHANGELOG using reno when releasing a minor
     version (linux/macOS only).
@@ -51,12 +53,14 @@ def update_changelog(ctx, new_version=None, target="all", upstream="origin"):
     will be generated.
     """
 
-    # Step 1 - generate the changelogs
+    new_version = deduce_version(ctx, release_branch, next_version=False)
 
-    generate_agent = target in ["all", "agent"]
-    generate_cluster_agent = target in ["all", "cluster-agent"]
+    with agent_context(ctx, release_branch):
+        # Step 1 - generate the changelogs
 
-    if new_version is not None:
+        generate_agent = target in ["all", "agent"]
+        generate_cluster_agent = target in ["all", "cluster-agent"]
+
         new_version_int = list(map(int, new_version.split(".")))
         if len(new_version_int) != 3:
             print(f"Error: invalid version: {new_version_int}")
@@ -69,9 +73,6 @@ def update_changelog(ctx, new_version=None, target="all", upstream="origin"):
             print("Error: You have uncommitted change, please commit or stash before using update_changelog")
             return
 
-        # make sure we are up to date
-        ctx.run("git fetch")
-
         # let's check that the tag for the new version is present
         try:
             ctx.run(f"git tag --list | grep {new_version}")
@@ -79,55 +80,55 @@ def update_changelog(ctx, new_version=None, target="all", upstream="origin"):
             print(f"Missing '{new_version}' git tag: mandatory to use 'reno'")
             raise
 
-    if generate_agent:
-        update_changelog_generic(ctx, new_version, "releasenotes", "CHANGELOG.rst")
-    if generate_cluster_agent:
-        update_changelog_generic(ctx, new_version, "releasenotes-dca", "CHANGELOG-DCA.rst")
+        if generate_agent:
+            update_changelog_generic(ctx, new_version, "releasenotes", "CHANGELOG.rst")
+        if generate_cluster_agent:
+            update_changelog_generic(ctx, new_version, "releasenotes-dca", "CHANGELOG-DCA.rst")
 
-    # Step 2 - commit changes
+        # Step 2 - commit changes
 
-    update_branch = f"changelog-update-{new_version}"
-    base_branch = get_current_branch(ctx)
+        update_branch = f"changelog-update-{new_version}"
+        base_branch = get_current_branch(ctx)
 
-    print(color_message(f"Branching out to {update_branch}", "bold"))
-    ctx.run(f"git checkout -b {update_branch}")
+        print(color_message(f"Branching out to {update_branch}", "bold"))
+        ctx.run(f"git checkout -b {update_branch}")
 
-    print(color_message("Committing CHANGELOG.rst and CHANGELOG-DCA.rst", "bold"))
-    print(
-        color_message(
-            "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
-        )
-    )
-    ctx.run("git add CHANGELOG.rst CHANGELOG-DCA.rst")
-
-    commit_message = f"'Changelog updates for {new_version} release'"
-
-    ok = try_git_command(ctx, f"git commit -m {commit_message}")
-    if not ok:
-        raise Exit(
+        print(color_message("Committing CHANGELOG.rst and CHANGELOG-DCA.rst", "bold"))
+        print(
             color_message(
-                f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {update_branch} branch and then open a PR.",
-                "red",
-            ),
-            code=1,
+                "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
+            )
         )
+        ctx.run("git add CHANGELOG.rst CHANGELOG-DCA.rst")
 
-    # Step 3 - Push and create PR
+        commit_message = f"'Changelog updates for {new_version} release'"
 
-    print(color_message("Pushing new branch to the upstream repository", "bold"))
-    res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
-    if res.exited is None or res.exited > 0:
-        raise Exit(
-            color_message(
-                f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR.",
-                "red",
-            ),
-            code=1,
+        ok = try_git_command(ctx, f"git commit -m {commit_message}")
+        if not ok:
+            raise Exit(
+                color_message(
+                    f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {update_branch} branch and then open a PR.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        # Step 3 - Push and create PR
+
+        print(color_message("Pushing new branch to the upstream repository", "bold"))
+        res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        create_release_pr(
+            f"Changelog update for {new_version} release", base_branch, update_branch, new_version, changelog_pr=True
         )
-
-    create_release_pr(
-        f"Changelog update for {new_version} release", base_branch, update_branch, new_version, changelog_pr=True
-    )
 
 
 @task
