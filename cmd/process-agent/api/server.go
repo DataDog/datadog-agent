@@ -44,6 +44,7 @@ func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
 	r.HandleFunc("/config/list-runtime", deps.Settings.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", deps.Settings.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", deps.Settings.SetValue).Methods("POST")
+
 	r.HandleFunc("/agent/status", injectDeps(deps, statusHandler)).Methods("GET")
 	r.HandleFunc("/agent/tagger-list", injectDeps(deps, getTaggerList)).Methods("GET")
 	r.HandleFunc("/agent/workload-list/short", func(w http.ResponseWriter, _ *http.Request) {
