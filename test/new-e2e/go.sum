@@ -17,8 +17,8 @@ github.com/DataDog/datadog-go/v5 v5.6.0 h1:2oCLxjF/4htd55piM75baflj/KoE6VYS7alEU
 github.com/DataDog/datadog-go/v5 v5.6.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
-github.com/DataDog/test-infra-definitions v0.0.0-20241218082354-6459608ed9fa h1:l8KLWgU9l2qTlMtu4ing3V6PptTO+suaU8zusc45IiM=
-github.com/DataDog/test-infra-definitions v0.0.0-20241218082354-6459608ed9fa/go.mod h1:1PAUwGjC25ACjfft4HrLEmHliuajlvjzcLFWpuqAIyk=
+github.com/DataDog/test-infra-definitions v0.0.0-20241218115252-9a55e9585d69 h1:sPdEjjAS9UbxkiYIJMwUK5g2xobAR8fws0Jr5Y/vaB0=
+github.com/DataDog/test-infra-definitions v0.0.0-20241218115252-9a55e9585d69/go.mod h1:QZQcJtmDUFDzGJBC/2jtKj96o9xDB4KZVJQfog6zwDE=
 github.com/DataDog/zstd v1.5.6 h1:LbEglqepa/ipmmQJUDnSsfvA8e8IStVcGaFWDuxvGOY=
 github.com/DataDog/zstd v1.5.6/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f h1:5Vuo4niPKFkfwW55jV4vY0ih3VQ9RaQqeqY67fvRn8A=
@@ -268,8 +268,8 @@ github.com/hashicorp/go-multierror v1.1.1 h1:H5DkEtf6CXdFp0N0Em5UCwQpXMWke8IA0+l
 github.com/hashicorp/go-multierror v1.1.1/go.mod h1:iw975J/qwKPdAO1clOe2L8331t/9/fmwbPZ6JB6eMoM=
 github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=
 github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
-github.com/hashicorp/hcl/v2 v2.20.1 h1:M6hgdyz7HYt1UN9e61j+qKJBqR3orTWbI1HKBJEdxtc=
-github.com/hashicorp/hcl/v2 v2.20.1/go.mod h1:TZDqQ4kNKCbh1iJp99FdPiUaVDDUPivbqxZulxDYqL4=
+github.com/hashicorp/hcl/v2 v2.22.0 h1:hkZ3nCtqeJsDhPRFz5EA9iwcG1hNWGePOTw6oyul12M=
+github.com/hashicorp/hcl/v2 v2.22.0/go.mod h1:62ZYHrXgPoX8xBnzl8QzbWq4dyDsDtfCRgIq1rbJEvA=
 github.com/imdario/mergo v0.3.16 h1:wwQJbIsHYGMUyLSPrEq1CT16AhnhNJQ51+4fdHUnCl4=
 github.com/imdario/mergo v0.3.16/go.mod h1:WBLT9ZmE3lPoWsEzCh9LPo3TiwVN+ZKEjmz+hD27ysY=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
@@ -403,10 +403,10 @@ github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 h1:vkHw5I/plNdTr435
 github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231/go.mod h1:murToZ2N9hNJzewjHBgfFdXhZKjY3z5cYC1VXk+lbFE=
 github.com/pulumi/esc v0.10.0 h1:jzBKzkLVW0mePeanDRfqSQoCJ5yrkux0jIwAkUxpRKE=
 github.com/pulumi/esc v0.10.0/go.mod h1:2Bfa+FWj/xl8CKqRTWbWgDX0SOD4opdQgvYSURTGK2c=
-github.com/pulumi/pulumi-aws/sdk/v6 v6.56.1 h1:wA38Ep4sEphX+3YGwFfaxRHs7NQv8dNObFepX6jaRa4=
-github.com/pulumi/pulumi-aws/sdk/v6 v6.56.1/go.mod h1:m/ejZ2INurqq/ncDjJfgC1Ff/lnbt0J/uO33BnPVots=
-github.com/pulumi/pulumi-awsx/sdk/v2 v2.16.1 h1:6082hB+ILpPB/0V5F+LTmHbX1BO54tCVOQCVOL/FYI4=
-github.com/pulumi/pulumi-awsx/sdk/v2 v2.16.1/go.mod h1:z2bnBPHNYfk72IW1P01H9qikBtBSBhCwi3QpH6Y/38Q=
+github.com/pulumi/pulumi-aws/sdk/v6 v6.59.1 h1:RlYprZBCafE2XK6jIA7DxqSoqlNrMpQtDdg6swm0yOA=
+github.com/pulumi/pulumi-aws/sdk/v6 v6.59.1/go.mod h1:fQAH7UktKbtth0KNGZfvopLRIjWve8v8LfzOvqmQUXs=
+github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0 h1:jil2EBzZnKsRDrLfvx2gnAaq17HQLrTbpPsIb3h+98U=
+github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0/go.mod h1:r+K4M7jnLqvvQDeR/0mBRq2EPZaqsDg24Ciy3ml/thA=
 github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.73.1 h1:miIJy4njnFYw7VxMLvEztoMPr9zYC2kqBTwRlaFAf48=
 github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.73.1/go.mod h1:LR1QBq0C1NIhmD9E0uKozCAu32j5qsamhrIsTSNVMS8=
 github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.73.1 h1:79HTKSE1uJQolCRUHRFnIbSPNSIhxekIhznHnjpLi6s=
