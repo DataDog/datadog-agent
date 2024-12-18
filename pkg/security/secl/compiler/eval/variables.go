@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/jellydator/ttlcache/v3"
 )
 
@@ -512,6 +513,7 @@ func NewIntArrayVariable(size int, ttl time.Duration) *IntArrayVariable {
 // VariableScope is the interface to be implemented by scoped variable in order to be released
 type VariableScope interface {
 	AppendReleaseCallback(callback func())
+	// Hash() string
 }
 
 // Scoper maps a variable to the entity its scoped to
@@ -589,7 +591,10 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 
 		vars := v.vars[key]
 		if vars == nil {
+			seclog.Debugf("Attaching a new instance of %s with value %v to %v", name, value, key)
+
 			key.AppendReleaseCallback(func() {
+				seclog.Debugf("Release variable instance of %s with value %v to %v", name, value, key)
 				v.ReleaseVariable(key)
 			})
 

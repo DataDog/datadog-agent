@@ -239,13 +239,13 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 				var variableProvider VariableProvider
 
 				if actionDef.Set.Scope != "" {
-					stateScopeBuilder := rs.opts.StateScopes[actionDef.Set.Scope]
-					if stateScopeBuilder == nil {
-						errs = multierror.Append(errs, fmt.Errorf("invalid scope '%s'", actionDef.Set.Scope))
-						continue
-					}
-
 					if _, found := rs.scopedVariables[actionDef.Set.Scope]; !found {
+						stateScopeBuilder := rs.opts.StateScopes[actionDef.Set.Scope]
+						if stateScopeBuilder == nil {
+							errs = multierror.Append(errs, fmt.Errorf("invalid scope '%s'", actionDef.Set.Scope))
+							continue
+						}
+
 						rs.scopedVariables[actionDef.Set.Scope] = stateScopeBuilder()
 					}
 

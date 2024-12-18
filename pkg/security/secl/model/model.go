@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/netip"
 	"reflect"
-	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -26,29 +25,7 @@ type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
 }
 
-var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
 var containerContextZero ContainerContext
-
-// NewEvent returns a new Event
-func (m *Model) NewEvent() eval.Event {
-	return &Event{
-		BaseEvent: BaseEvent{
-			ContainerContext: &ContainerContext{},
-			Os:               runtime.GOOS,
-		},
-	}
-}
-
-// NewDefaultEventWithType returns a new Event for the given type
-func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
-	return &Event{
-		BaseEvent: BaseEvent{
-			Type:             uint32(kind),
-			FieldHandlers:    &FakeFieldHandlers{},
-			ContainerContext: &ContainerContext{},
-		},
-	}
-}
 
 // Releasable represents an object than can be released
 type Releasable struct {
@@ -188,26 +165,9 @@ func initMember(member reflect.Value, deja map[string]bool) {
 	}
 }
 
-// NewFakeEvent returns a new event using the default field handlers
-func NewFakeEvent() *Event {
-	return &Event{
-		BaseEvent: BaseEvent{
-			FieldHandlers:    &FakeFieldHandlers{},
-			ContainerContext: &ContainerContext{},
-			Os:               runtime.GOOS,
-		},
-	}
-}
-
 // Init initialize the event
 func (e *Event) Init() {
 	initMember(reflect.ValueOf(e).Elem(), map[string]bool{})
-}
-
-// Zero the event
-func (e *Event) Zero() {
-	*e = eventZero
-	*e.BaseEvent.ContainerContext = containerContextZero
 }
 
 // IsSavedByActivityDumps return whether saved by AD

@@ -13,6 +13,7 @@ package model
 import (
 	"net"
 	"net/netip"
+	"runtime"
 	"time"
 
 	"github.com/google/gopacket"
@@ -26,6 +27,29 @@ const (
 	// FileFieldsSize is the size used by the file_t structure
 	FileFieldsSize = 72
 )
+
+// NewEvent returns a new Event
+func (m *Model) NewEvent() eval.Event {
+	return &Event{
+		BaseEvent: BaseEvent{
+			ContainerContext: &ContainerContext{},
+			Os:               runtime.GOOS,
+		},
+		CGroupContext: &CGroupContext{},
+	}
+}
+
+// NewFakeEvent returns a new event using the default field handlers
+func NewFakeEvent() *Event {
+	return &Event{
+		BaseEvent: BaseEvent{
+			FieldHandlers:    &FakeFieldHandlers{},
+			ContainerContext: &ContainerContext{},
+			Os:               runtime.GOOS,
+		},
+		CGroupContext: &CGroupContext{},
+	}
+}
 
 // Event represents an event sent from the kernel
 // genaccessors
@@ -58,7 +82,7 @@ type Event struct {
 	// context
 	SpanContext    SpanContext    `field:"-"`
 	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds"` // [7.36] [Network] Network context
-	CGroupContext  CGroupContext  `field:"cgroup"`
+	CGroupContext  *CGroupContext `field:"cgroup"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
@@ -121,8 +145,19 @@ type Event struct {
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
 }
 
+var eventZero = Event{CGroupContext: &CGroupContext{}, BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
+var cgroupContextZero CGroupContext
+
+// Zero the event
+func (e *Event) Zero() {
+	*e = eventZero
+	*e.BaseEvent.ContainerContext = containerContextZero
+	*e.CGroupContext = cgroupContextZero
+}
+
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
+	Releasable
 	CGroupID      containerutils.CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
 	CGroupFlags   containerutils.CGroupFlags `field:"-"`
 	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`[Experimental] Lifecycle manager of the cgroup`
@@ -144,6 +179,11 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 	if cg.CGroupFile.MountID == 0 {
 		cg.CGroupFile.MountID = cg2.CGroupFile.MountID
 	}
+}
+
+// IsContainer returns whether a cgroup maps to a container
+func (cg *CGroupContext) IsContainer() bool {
+	return cg.CGroupFlags.IsContainer()
 }
 
 // SyscallEvent contains common fields for all the event
