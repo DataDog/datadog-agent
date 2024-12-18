@@ -6,6 +6,8 @@
 package apiserver
 
 import (
+	"fmt"
+	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -14,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -30,11 +32,15 @@ import (
 )
 
 func TestLifecycle(t *testing.T) {
+	listener, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+	port := listener.Addr().(*net.TCPAddr).Port
+
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
 		core.MockBundle(),
 		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"process_config.cmd_port": 43424,
+			"process_config.cmd_port": port,
 		}}),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(
@@ -47,13 +53,13 @@ func TestLifecycle(t *testing.T) {
 		}),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
-		fetchonlyimpl.MockModule(),
+		createandfetchimpl.Module(),
 	))
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		req, err := http.NewRequest("GET", "http://localhost:43424/agent/status", nil)
+		url := fmt.Sprintf("http://localhost:%d/agent/status", port)
+		req, err := http.NewRequest("GET", url, nil)
 		require.NoError(c, err)
-		util.CreateAndSetAuthToken(pkgconfigsetup.Datadog())
 		req.Header.Set("Authorization", "Bearer "+util.GetAuthToken())
 		res, err := util.GetClient(false).Do(req)
 		require.NoError(c, err)
@@ -63,11 +69,15 @@ func TestLifecycle(t *testing.T) {
 }
 
 func TestPostAuthentication(t *testing.T) {
+	listener, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+	port := listener.Addr().(*net.TCPAddr).Port
+
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
 		core.MockBundle(),
 		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"process_config.cmd_port": 43424,
+			"process_config.cmd_port": port,
 		}}),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(
@@ -80,12 +90,13 @@ func TestPostAuthentication(t *testing.T) {
 		}),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
-		fetchonlyimpl.MockModule(),
+		createandfetchimpl.Module(),
 	))
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		// No authentication
-		req, err := http.NewRequest("POST", "http://localhost:43424/config/log_level?value=debug", nil)
+		url := fmt.Sprintf("http://localhost:%d/config/log_level?value=debug", port)
+		req, err := http.NewRequest("POST", url, nil)
 		require.NoError(c, err)
 		res, err := util.GetClient(false).Do(req)
 		require.NoError(c, err)
