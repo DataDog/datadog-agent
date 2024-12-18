@@ -36,7 +36,6 @@ type Check struct {
 
 // Run executes the check
 func (c *Check) Run() error {
-	log.Debug("running cpu check")
 	sender, err := c.GetSender()
 	if err != nil {
 		return err
