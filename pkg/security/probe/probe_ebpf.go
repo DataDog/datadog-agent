@@ -1014,7 +1014,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		exists := p.Resolvers.ProcessResolver.ApplyExitEntry(event, newEntryCb)
-		if !exists {
+		if exists {
 			p.Resolvers.MountResolver.DelPid(event.Exit.Pid)
 			// update action reports
 			p.processKiller.HandleProcessExited(event)
