@@ -8,8 +8,11 @@ package telemetry
 
 import (
 	"context"
+	"net/http"
+	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/internaltelemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,4 +65,139 @@ func TestStartSpanFromIDs(t *testing.T) {
 	spanFromCtx, ok := SpanFromContext(ctx)
 	require.True(t, ok)
 	require.Equal(t, span, spanFromCtx)
+}
+
+func strPtr(s string) *string {
+	return &s
+}
+
+func TestSpanFromEnv(t *testing.T) {
+	randTraceID := uint64(9)
+	tt := []struct {
+		name             string
+		envTraceID       *string
+		envParentID      *string
+		expectedTraceID  uint64
+		expectedParentID uint64
+	}{
+		{
+			name:             "no parent env",
+			envTraceID:       strPtr("100"),
+			envParentID:      nil,
+			expectedTraceID:  randTraceID,
+			expectedParentID: 0,
+		},
+		{
+			name:             "no trace env",
+			envTraceID:       nil,
+			envParentID:      strPtr("100"),
+			expectedTraceID:  randTraceID,
+			expectedParentID: 0,
+		},
+		{
+			name:             "traceID malformed",
+			envTraceID:       strPtr("not-a-number"),
+			envParentID:      strPtr("200"),
+			expectedTraceID:  randTraceID,
+			expectedParentID: 0,
+		},
+		{
+			name:             "parentID malformed",
+			envTraceID:       strPtr("100"),
+			envParentID:      strPtr("not-a-number"),
+			expectedTraceID:  randTraceID,
+			expectedParentID: 0,
+		},
+		{
+			name:             "inheritance",
+			envTraceID:       strPtr("100"),
+			envParentID:      strPtr("200"),
+			expectedTraceID:  100,
+			expectedParentID: 200,
+		},
+	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.envTraceID != nil {
+				os.Setenv(envTraceID, *tc.envTraceID)
+				defer os.Unsetenv(envTraceID)
+			}
+			if tc.envParentID != nil {
+				os.Setenv(envParentID, *tc.envParentID)
+				defer os.Unsetenv(envParentID)
+			}
+
+			span, ctx := StartSpanFromEnv(context.Background(), "env-operation")
+			require.NotNil(t, span, "Expected a span")
+			s, ok := SpanFromContext(ctx)
+			assert.True(t, ok)
+			assert.Equal(t, span, s)
+
+			assert.Equal(t, tc.expectedParentID, span.span.ParentID)
+			if tc.expectedTraceID != randTraceID {
+				assert.Equal(t, tc.expectedTraceID, span.span.TraceID)
+			} else {
+				assert.NotEqual(t, 0, span.span.TraceID)
+			}
+
+		})
+	}
+}
+
+func TestLimit(t *testing.T) {
+	totalSpans := maxSpansInFlight + 2
+	ctx := context.Background()
+	for i := 0; i < totalSpans; i++ {
+		_, ctx = StartSpanFromContext(ctx, "test")
+	}
+	assert.Len(t, globalTracer.spans, maxSpansInFlight)
+}
+
+func TestEnvFromContext(t *testing.T) {
+	s, ctx := StartSpanFromContext(context.Background(), "test")
+	s.span.TraceID = 456
+	s.span.SpanID = 123
+	ctx = setSpanIDsInContext(ctx, s)
+
+	env := EnvFromContext(ctx)
+	assert.ElementsMatch(t, []string{"DATADOG_TRACE_ID=456", "DATADOG_PARENT_ID=123"}, env)
+}
+
+func TestRemapOnFlush(t *testing.T) {
+	const testService = "test-service"
+	const numTraces = 10
+	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", testService)
+
+	// traces with 2 spans
+	for i := 0; i < numTraces; i++ {
+		parentSpan, ctx := StartSpanFromContext(context.Background(), "parent")
+		childSpan, _ := StartSpanFromContext(ctx, "child")
+		childSpan.Finish(nil)
+		parentSpan.Finish(nil)
+	}
+	resTraces := telem.extractCompletedSpans()
+	require.Len(t, resTraces, numTraces)
+
+	for _, trace := range resTraces {
+		assert.Len(t, trace, 2)
+		for _, span := range trace {
+			assert.Equal(t, testService, span.Service)
+			assert.Equal(t, "staging", span.Meta["env"])
+			assert.Equal(t, 2.0, span.Metrics["_sampling_priority_v1"])
+		}
+		var parent, child *internaltelemetry.Span
+		if trace[0].Name == "parent" {
+			parent = trace[0]
+			child = trace[1]
+		} else {
+			parent = trace[1]
+			child = trace[0]
+		}
+		assert.Equal(t, parent.SpanID, child.ParentID)
+		val, ok := parent.Metrics["_top_level"]
+		require.True(t, ok)
+		require.Equal(t, 1.0, val)
+		_, ok = child.Metrics["_top_level"]
+		require.False(t, ok)
+	}
 }

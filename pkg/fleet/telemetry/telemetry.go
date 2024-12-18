@@ -37,6 +37,12 @@ type Telemetry struct {
 
 // NewTelemetry creates a new telemetry instance
 func NewTelemetry(client *http.Client, apiKey string, site string, service string) *Telemetry {
+	t := newTelemetry(client, apiKey, site, service)
+	t.Start()
+	return t
+}
+
+func newTelemetry(client *http.Client, apiKey string, site string, service string) *Telemetry {
 	endpoint := &internaltelemetry.Endpoint{
 		Host:   fmt.Sprintf("https://%s.%s", telemetrySubdomain, strings.TrimSpace(site)),
 		APIKey: apiKey,
@@ -46,15 +52,13 @@ func NewTelemetry(client *http.Client, apiKey string, site string, service strin
 		env = "staging"
 	}
 
-	t := &Telemetry{
+	return &Telemetry{
 		telemetryClient: internaltelemetry.NewClient(client, []*internaltelemetry.Endpoint{endpoint}, service, site == "datad0g.com"),
 		done:            make(chan struct{}),
 		flushed:         make(chan struct{}),
 		env:             env,
 		service:         service,
 	}
-	t.Start()
-	return t
 }
 
 // Start starts the telemetry
@@ -80,10 +84,10 @@ func (t *Telemetry) Stop() {
 	<-t.flushed
 }
 
-func (t *Telemetry) sendCompletedSpans() {
+func (t *Telemetry) extractCompletedSpans() internaltelemetry.Traces {
 	spans := globalTracer.flushCompletedSpans()
 	if len(spans) == 0 {
-		return
+		return internaltelemetry.Traces{}
 	}
 	traces := make(map[uint64][]*internaltelemetry.Span)
 	for _, span := range spans {
@@ -97,7 +101,15 @@ func (t *Telemetry) sendCompletedSpans() {
 	for _, trace := range traces {
 		tracesArray = append(tracesArray, internaltelemetry.Trace(trace))
 	}
-	t.telemetryClient.SendTraces(internaltelemetry.Traces(tracesArray))
+	return internaltelemetry.Traces(tracesArray)
+}
+
+func (t *Telemetry) sendCompletedSpans() {
+	tracesArray := t.extractCompletedSpans()
+	if len(tracesArray) == 0 {
+		return
+	}
+	t.telemetryClient.SendTraces(tracesArray)
 }
 
 // SpanFromContext returns the span from the context if available.
@@ -111,28 +123,38 @@ func SpanFromContext(ctx context.Context) (*Span, bool) {
 
 // StartSpanFromEnv starts a span using the environment variables to find the parent span.
 func StartSpanFromEnv(ctx context.Context, operationName string) (*Span, context.Context) {
-	traceID, ok := os.LookupEnv(envTraceID)
-	if !ok {
-		traceID = "0"
-	}
+	traceID, parentID := extractIDsFromEnv()
+	return StartSpanFromIDs(ctx, operationName, traceID, parentID)
+}
+
+func extractIDsFromEnv() (string, string) {
 	parentID, ok := os.LookupEnv(envParentID)
 	if !ok {
-		parentID = "0"
+		return "0", "0"
 	}
-	return StartSpanFromIDs(ctx, operationName, traceID, parentID)
+	traceID, ok := os.LookupEnv(envTraceID)
+	if !ok {
+		return "0", "0"
+	}
+	return traceID, parentID
+}
+
+func converIDsToUint64(traceID, parentID string) (uint64, uint64) {
+	traceIDInt, err := strconv.ParseUint(traceID, 10, 64)
+	if err != nil {
+		return 0, 0
+	}
+	parentIDInt, err := strconv.ParseUint(parentID, 10, 64)
+	if err != nil {
+		return 0, 0
+	}
+	return traceIDInt, parentIDInt
 }
 
 // StartSpanFromIDs starts a span using the trace and parent
 // IDs provided.
 func StartSpanFromIDs(ctx context.Context, operationName, traceID, parentID string) (*Span, context.Context) {
-	traceIDInt, err := strconv.ParseUint(traceID, 10, 64)
-	if err != nil {
-		traceIDInt = 0
-	}
-	parentIDInt, err := strconv.ParseUint(parentID, 10, 64)
-	if err != nil {
-		parentIDInt = 0
-	}
+	traceIDInt, parentIDInt := converIDsToUint64(traceID, parentID)
 	span, ctx := startSpanFromIDs(ctx, operationName, traceIDInt, parentIDInt)
 	span.SetTopLevel()
 	return span, ctx
