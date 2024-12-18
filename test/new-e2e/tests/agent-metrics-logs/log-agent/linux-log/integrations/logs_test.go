@@ -74,7 +74,9 @@ func (v *IntegrationsLogsSuite) TestWriteTenLogsCheck() {
 		agentparams.WithFile("/etc/datadog-agent/conf.d/writeTenLogs.yaml", string(yamlData), true),
 		agentparams.WithFile("/etc/datadog-agent/checks.d/writeTenLogs.py", customIntegration, true))))
 
-	utils.CheckLogsExpected(v.T(), v.Env().FakeIntake, "logs_from_integrations_service", "", tags)
+	logs, err := utils.FetchAndFilterLogs(v.Env().FakeIntake, "logs_from_integrations_service", "Custom log message")
+	assert.Nil(v.T(), err)
+	assert.GreaterOrEqual(v.T(), len(logs), 10)
 }
 
 // TestIntegrationLogFileRotation ensures logs are captured after a integration
@@ -108,14 +110,14 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 				log := logs[i]
 				regex := regexp.MustCompile(`counter: (\d+)`)
 				matches := regex.FindStringSubmatch(log.Message)
-				assert.Greater(v.T(), len(matches), 1, "Did not find count in log")
+				assert.Greater(c, len(matches), 1, "Did not find count in log")
 
 				number := matches[1]
 				count, err := strconv.Atoi(number)
-				assert.Nil(v.T(), err)
+				assert.Nil(c, err)
 
 				if prevLogCount != -1 {
-					assert.Equal(v.T(), prevLogCount+1, count)
+					assert.Equal(c, prevLogCount+1, count)
 				}
 
 				prevLogCount = count
