@@ -288,6 +288,10 @@ func formatTitle(title string) string {
 	}
 	title = strings.Join(words, " ")
 
+	if title == "" {
+		return ""
+	}
+
 	// Capitalize the first letter
 	return strings.ToUpper(string(title[0])) + title[1:]
 }

@@ -308,6 +308,9 @@ func toCamelCase(s string) string {
 	parts := strings.Split(s, "_")
 	var camelCase string
 	for _, p := range parts {
+		if p == "" {
+			continue
+		}
 		camelCase += strings.ToUpper(string(p[0]))
 		camelCase += string(p[1:])
 	}
