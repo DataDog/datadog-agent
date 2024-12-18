@@ -103,12 +103,20 @@ type DatadogConfig struct {
 	APIKey               string                     `yaml:"api_key"`
 	Hostname             string                     `yaml:"hostname,omitempty"`
 	Site                 string                     `yaml:"site,omitempty"`
+	Proxy                DatadogConfigProxy         `yaml:"proxy,omitempty"`
 	Env                  string                     `yaml:"env,omitempty"`
 	Tags                 []string                   `yaml:"tags,omitempty"`
 	LogsEnabled          bool                       `yaml:"logs_enabled,omitempty"`
 	DJM                  DatadogConfigDJM           `yaml:"djm,omitempty"`
 	ProcessConfig        DatadogConfigProcessConfig `yaml:"process_config,omitempty"`
 	ExpectedTagsDuration string                     `yaml:"expected_tags_duration,omitempty"`
+}
+
+// DatadogConfigProxy represents the configuration for the proxy
+type DatadogConfigProxy struct {
+	HTTP    string   `yaml:"http,omitempty"`
+	HTTPS   string   `yaml:"https,omitempty"`
+	NoProxy []string `yaml:"no_proxy,omitempty"`
 }
 
 // DatadogConfigDJM represents the configuration for the Data Jobs Monitoring
@@ -123,7 +131,7 @@ type DatadogConfigProcessConfig struct {
 
 // IntegrationConfig represents the configuration for an integration under conf.d/
 type IntegrationConfig struct {
-	InitConfig []any                   `yaml:"init_config,omitempty"`
+	InitConfig []any                   `yaml:"init_config"`
 	Instances  []any                   `yaml:"instances,omitempty"`
 	Logs       []IntegrationConfigLogs `yaml:"logs,omitempty"`
 }
