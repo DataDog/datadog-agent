@@ -2,13 +2,12 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-//go:build !linux && !windows
+//go:build darwin
 
 package cpu
 
-import "github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+import "fmt"
 
-func collectCtxSwitches(_ sender.Sender) error {
-	// On non-linux systems, do nothing
-	return nil
+func GetContextSwitches() (int64, error) {
+	return 0, fmt.Errorf("context switches not supported on macOS")
 }
