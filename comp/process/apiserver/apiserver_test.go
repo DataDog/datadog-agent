@@ -27,7 +27,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -104,7 +103,6 @@ func TestPostAuthentication(t *testing.T) {
 		assert.Equal(c, http.StatusUnauthorized, res.StatusCode)
 
 		// With authentication
-		util.CreateAndSetAuthToken(pkgconfigsetup.Datadog())
 		req.Header.Set("Authorization", "Bearer "+util.GetAuthToken())
 		res, err = util.GetClient(false).Do(req)
 		require.NoError(c, err)
