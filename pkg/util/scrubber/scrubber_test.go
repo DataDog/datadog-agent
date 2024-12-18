@@ -104,3 +104,13 @@ func TestScrubBig(t *testing.T) {
 	_, err := scrubber.ScrubBytes(content)
 	require.NoError(t, err)
 }
+
+func TestLastUpdated(t *testing.T) {
+	scrubber := NewWithDefaults()
+	for _, replacer := range scrubber.singleLineReplacers {
+		assert.NotNil(t, replacer.LastUpdated)
+	}
+	for _, replacer := range scrubber.multiLineReplacers {
+		assert.NotNil(t, replacer.LastUpdated)
+	}
+}
