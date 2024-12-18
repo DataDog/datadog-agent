@@ -29,6 +29,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 
 | SECL Event | Type | Definition | Agent Version |
 | ---------- | ---- | ---------- | ------------- |
+| `accept` | Network | An accept was executed | 7.60 |
 | `bind` | Network | A bind was executed | 7.37 |
 | `bpf` | Kernel | A BPF command was executed | 7.33 |
 | `capset` | Process | A process changed its capacity set | 7.27 |
@@ -381,6 +382,18 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`process.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`process.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+
+### Event `accept`
+
+An accept was executed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`accept.addr.family`](#accept-addr-family-doc) | Address family |
+| [`accept.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`accept.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
+| [`accept.addr.port`](#common-ipportcontext-port-doc) | Port number |
+| [`accept.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `bind`
 
@@ -2154,8 +2167,8 @@ Type: IP/CIDR
 
 Definition: IP address
 
-`*.ip` has 6 possible prefixes:
-`bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.ip` has 7 possible prefixes:
+`accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.is_exec` {#common-process-is_exec-doc}
@@ -2181,8 +2194,8 @@ Type: bool
 
 Definition: Whether the IP address belongs to a public network
 
-`*.is_public` has 6 possible prefixes:
-`bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.is_public` has 7 possible prefixes:
+`accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.is_thread` {#common-process-is_thread-doc}
@@ -2378,8 +2391,8 @@ Type: int
 
 Definition: Port number
 
-`*.port` has 6 possible prefixes:
-`bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.port` has 7 possible prefixes:
+`accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.ppid` {#common-process-ppid-doc}
@@ -2396,8 +2409,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 23 possible prefixes:
-`bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
+`*.retval` has 24 possible prefixes:
+`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -2494,6 +2507,13 @@ Definition: Version of the cgroup API
 
 `*.version` has 12 possible prefixes:
 `cgroup` `exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
+
+
+### `accept.addr.family` {#accept-addr-family-doc}
+Type: int
+
+Definition: Address family
+
 
 
 ### `bind.addr.family` {#bind-addr-family-doc}
