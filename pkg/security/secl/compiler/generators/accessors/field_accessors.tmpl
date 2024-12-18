@@ -33,7 +33,7 @@ import (
     {{$accessorReturnType = $Field.ReturnType}}
 {{ end }}
 
-{{ if or (and $Field.Iterator (not $Field.IsIterator)) ($Field.IsArray) }}
+{{ if or (and $Field.Iterator (not $Field.IsIterator)) (and $Field.IsArray (not $Field.IsIterator)) }}
     {{$accessorReturnType = $accessorReturnType | printf "[]%s" }}
 {{ end }}
 
@@ -92,7 +92,7 @@ func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
             values = append(values, result...)
             {{end}}
 
-            ptr = iterator.Next()
+            ptr = iterator.Next(ctx)
         }
 
         return values
