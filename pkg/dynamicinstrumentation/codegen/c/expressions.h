@@ -6,6 +6,8 @@
 #ifndef DI_EXPRESIONS_H
 #define DI_EXPRESIONS_H
 
+// read_register reads `element_size` bytes from register `reg` into a u64 which is then pushed to
+// the top of the BPF parameter stack.
 static __always_inline int read_register(struct expression_context context, __u64 reg, __u32 element_size)
 {
     long err;
@@ -18,6 +20,8 @@ static __always_inline int read_register(struct expression_context context, __u6
     return err;
 }
 
+// read_stack reads `element_size` bytes from the traced program's stack at offset `stack_offset`
+// into a u64 which is then pushed to the top of the BPF parameter stack.
 static __always_inline int read_stack(struct expression_context context, size_t stack_offset, __u32 element_size)
 {
     long err;
@@ -30,6 +34,8 @@ static __always_inline int read_stack(struct expression_context context, size_t 
     return err;
 }
 
+// read_register_value_to_output reads `element_size` bytes from register `reg` into a u64 which is then written to
+// the output buffer.
 static __always_inline int read_register_value_to_output(struct expression_context context, __u64 reg, __u32 element_size)
 {
     long err;
@@ -41,6 +47,8 @@ static __always_inline int read_register_value_to_output(struct expression_conte
     return err;
 }
 
+// read_stack_to_output reads `element_size` bytes from the traced program's stack at offset `stack_offset`
+// into a u64 which is then written to the output buffer.
 static __always_inline int read_stack_value_to_output(struct expression_context context, __u64 stack_offset, __u32 element_size)
 {
     long err;
@@ -52,6 +60,7 @@ static __always_inline int read_stack_value_to_output(struct expression_context 
     return err;
 }
 
+// pop writes to output `num_elements` elements, each of size `element_size, from the top of the stack.
 static __always_inline int pop(struct expression_context context, __u64 num_elements, __u32 element_size)
 {
     long return_err;
@@ -71,6 +80,10 @@ static __always_inline int pop(struct expression_context context, __u64 num_elem
     return return_err;
 }
 
+// dereference pops the 8-byte address from the top of the BPF parameter stack and dereferences
+// it, reading a value of size `element_size` from it, and pushes that value (encoded as a u64)
+// back to the BPF parameter stack.
+// It should only be used for types of 8 bytes or less (see `dereference_large`).
 static __always_inline int dereference(struct expression_context context, __u32 element_size)
 {
     long err;
@@ -93,6 +106,10 @@ static __always_inline int dereference(struct expression_context context, __u32 
     return err;
 }
 
+// dereference_to_output pops the 8-byte address from the top of the BPF parameter stack and
+// dereferences it, reading a value of size `element_size` from it, and writes that value
+// directly to the output buffer.
+// It should only be used for types of 8 bytes or less (see `dereference_large_to_output`).
 static __always_inline int dereference_to_output(struct expression_context context, __u32 element_size)
 {
     long return_err;
@@ -121,6 +138,10 @@ static __always_inline int dereference_to_output(struct expression_context conte
     return return_err;
 }
 
+// dereference_large pops the 8-byte address from the top of the BPF parameter stack and dereferences
+// it, reading a value of size `element_size` from it, and pushes that value, encoded in 8-byte chunks
+// to the BPF parameter stack. This is safe to use for types larger than 8-bytes.
+// back to the BPF parameter stack.
 static __always_inline int dereference_large(struct expression_context context, __u32 element_size, __u8 num_chunks)
 {
     long return_err;
@@ -158,6 +179,9 @@ static __always_inline int dereference_large(struct expression_context context, 
     return return_err;
 }
 
+// dereference_large pops the 8-byte address from the top of the BPF parameter stack and dereferences
+// it, reading a value of size `element_size` from it, and writes that value to the output buffer.
+// This is safe to use for types larger than 8-bytes.
 static __always_inline int dereference_large_to_output(struct expression_context context, __u32 element_size)
 {
     long err;
@@ -171,6 +195,7 @@ static __always_inline int dereference_large_to_output(struct expression_context
     return err;
 }
 
+// apply_offset adds `offset` to the 8-byte address on the top of the BPF parameter stack.
 static __always_inline int apply_offset(struct expression_context context, size_t offset)
 {
     __u64 addressHolder = 0;
@@ -180,40 +205,9 @@ static __always_inline int apply_offset(struct expression_context context, size_
     return 0;
 }
 
-// Expects the stack to set up such that first pop is length, second is address
-static __always_inline int dereference_dynamic(struct expression_context context, __u32 bytes_limit, __u8 num_chunks, __u32 element_size)
-{
-    long return_err;
-    long err;
-    __u64 lengthToRead = 0;
-    bpf_map_pop_elem(&param_stack, &lengthToRead);
-
-    __u64 addressHolder = 0;
-    bpf_map_pop_elem(&param_stack, &addressHolder);
-
-    int i;
-    __u32 chunk_size;
-    for (i = 0; i < num_chunks; i++) {
-        chunk_size = (i == num_chunks - 1 && bytes_limit % 8 != 0) ? (bytes_limit % 8) : 8;
-        err = bpf_probe_read(&context.temp_storage[i], chunk_size, (void*)(addressHolder + (i * 8)));
-        if (err != 0) {
-            return_err = err;
-            log_debug("error when reading data dereferencing dynamically into shared memory: %ld", err);
-        }
-    }
-
-    for (i = 0; i < num_chunks; i++) {
-        err = bpf_probe_read(&context.event->output[*(context.output_offset)], 8, &context.temp_storage[i]);
-        if (err != 0) {
-            return_err = err;
-            log_debug("error when reading data dereferencing dynamically: %ld", err);
-        }
-        *context.output_offset += 8;
-    }
-    return return_err;
-}
-
-// Expects the stack to set up such that first pop is length, second is address
+// dereference_dynamic_to_output reads an 8-byte length from the top of the BPF parameter stack, followed by
+// an 8-byte address. It applies the maximum `bytes_limit` to the length, then dereferences the address to
+// the output buffer.
 static __always_inline int dereference_dynamic_to_output(struct expression_context context, __u16 bytes_limit)
 {
     long err = 0;
@@ -240,6 +234,10 @@ static __always_inline int dereference_dynamic_to_output(struct expression_conte
     return err;
 }
 
+// set_limit_entry is used to set a limit for a specific collection (such as a slice). It reads the true length of the
+// collection from the top of the BPF parameter stack, applies the passed `limit` to it, and updates the `collection_limit`
+// map entry associated with `collection_identifier` to this limit. The `collection_identifier` is a user space generated
+// and track identifier for each collection which can be referenced in BPF code.
 static __always_inline int set_limit_entry(struct expression_context context, __u16 limit, char collection_identifier[6])
 {
     // Read the 2 byte length from top of the stack, then set collectionLimit to the minimum of the two
@@ -261,6 +259,7 @@ static __always_inline int set_limit_entry(struct expression_context context, __
     return 0;
 }
 
+// copy duplicates the u64 element on the top of the BPF parameter stack.
 static __always_inline int copy(struct expression_context context)
 {
     __u64 holder;
@@ -269,11 +268,13 @@ static __always_inline int copy(struct expression_context context)
     return 0;
 }
 
+// read_str_to_output reads a Go string to the output buffer, limited in length by `limit`.
+// In Go, strings are internally implemented as structs with two fields. The fields are length, 
+// and a pointer to a character array. This expression expects the address of the string struct
+// itself to be on the top of the stack.
 static __always_inline int read_str_to_output(struct expression_context context, __u16 limit)
 {
-    // Expect the address of the string struct on the stack
     long err;
-
     __u64 stringStructAddressHolder = 0;
     err = bpf_map_pop_elem(&param_stack, &stringStructAddressHolder);
     if (err != 0) {
