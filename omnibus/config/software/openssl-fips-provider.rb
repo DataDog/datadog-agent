@@ -45,6 +45,7 @@ build do
     dest = unless windows_target? then "#{install_dir}/embedded" else "#{windows_safe_path(python_3_embedded)}" end
     mkdir "#{dest}/ssl"
     mkdir "#{dest}/lib/ossl-modules"
+    mkdir "#{dest}/bin"
     if linux_target?
       copy "/usr/local/lib*/ossl-modules/fips.so", "#{dest}/lib/ossl-modules/fips.so"
     elsif windows_target?
