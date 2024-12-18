@@ -8,6 +8,7 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
 	"testing"
@@ -158,21 +159,35 @@ func TestEnvFromContext(t *testing.T) {
 	s.span.TraceID = 456
 	s.span.SpanID = 123
 	ctx = setSpanIDsInContext(ctx, s)
-
 	env := EnvFromContext(ctx)
 	assert.ElementsMatch(t, []string{"DATADOG_TRACE_ID=456", "DATADOG_PARENT_ID=123"}, env)
+
+	env = EnvFromContext(context.Background())
+	assert.ElementsMatch(t, []string{}, env)
+}
+
+func TestSpanFinished(t *testing.T) {
+	s, _ := StartSpanFromContext(context.Background(), "test")
+	s.Finish(nil)
+	s.SetResourceName("new")
+	s.SetTag("key", "value")
+
+	assert.Equal(t, "test", s.span.Resource)
+	_, ok := s.span.Meta["key"]
+	assert.False(t, ok)
 }
 
 func TestRemapOnFlush(t *testing.T) {
 	const testService = "test-service"
 	const numTraces = 10
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", testService)
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 
 	// traces with 2 spans
 	for i := 0; i < numTraces; i++ {
 		parentSpan, ctx := StartSpanFromContext(context.Background(), "parent")
 		childSpan, _ := StartSpanFromContext(ctx, "child")
-		childSpan.Finish(nil)
+		childSpan.Finish(errors.New("test_error"))
 		parentSpan.Finish(nil)
 	}
 	resTraces := telem.extractCompletedSpans()
@@ -199,5 +214,9 @@ func TestRemapOnFlush(t *testing.T) {
 		require.Equal(t, 1.0, val)
 		_, ok = child.Metrics["_top_level"]
 		require.False(t, ok)
+
+		require.Equal(t, int32(1), child.Error)
+		require.Equal(t, "test_error", child.Meta["error.message"])
+		require.Contains(t, child.Meta["error.stack"], "telemetry_test.go")
 	}
 }
