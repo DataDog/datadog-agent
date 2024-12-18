@@ -54,14 +54,17 @@ type cacheOptions struct {
 	On      bool
 	Statsd  StatsClient
 	MaxSize int64
+	logger  Logger
 }
 
 // newMeasuredCache returns a new measuredCache.
 func newMeasuredCache(opts cacheOptions) *measuredCache {
 	if !opts.On {
 		// a nil *ristretto.Cache is a no-op cache
+		opts.logger.Debugf("query cache is disabled")
 		return &measuredCache{}
 	}
+	opts.logger.Debugf("starting query cache with max size %d bytes", opts.MaxSize)
 	cfg := &ristretto.Config{
 		MaxCost:     opts.MaxSize,
 		NumCounters: opts.MaxSize * 10, // Multiplied by 10 as per ristretto recommendation
