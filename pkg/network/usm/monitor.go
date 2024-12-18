@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
@@ -194,6 +195,10 @@ func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 	}()
 
 	return m.ebpfProgram.getProtocolStats()
+}
+
+// ReleaseProtocolStats release stats related objects.
+func (m *Monitor) ReleaseProtocolStats(_ *network.Connections) {
 }
 
 // Stop HTTP monitoring
