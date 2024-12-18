@@ -1262,8 +1262,6 @@ def update_test_infra_def(file_path, image_tag, is_dev_image=False):
     """
     Updates TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
     """
-    import yaml
-
     test_infra_def = {}
     with open(file_path) as test_infra_version_file:
         try:
