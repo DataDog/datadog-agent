@@ -63,6 +63,7 @@ from tasks import (
     trace_agent,
     vim,
     vscode,
+    winbuild,
     worktree,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
@@ -86,13 +87,13 @@ from tasks.go import (
     tidy,
     tidy_all,
 )
+from tasks.gointegrationtest import integration_tests
 from tasks.gotest import (
     check_otel_build,
     check_otel_module_versions,
     e2e_tests,
     get_impacted_packages,
     get_modified_packages,
-    integration_tests,
     lint_go,
     send_unit_tests_stats,
     test,
@@ -212,6 +213,7 @@ ns.add_collection(omnibus)
 ns.add_collection(collector)
 ns.add_collection(invoke_unit_tests)
 ns.add_collection(debug)
+ns.add_collection(winbuild)
 ns.add_collection(worktree)
 ns.configure(
     {

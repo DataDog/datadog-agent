@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: processes
+// team: container-intake
 
 // Bundle defines the fx options for this bundle.
 // Do not add modules not owned by the processes team here as it breaks fx best practices

@@ -96,7 +96,7 @@ func (c *WorkloadMetaCollector) Run(ctx context.Context, datadogConfig config.Co
 }
 
 func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, datadogConfig config.Component) {
-	c.staticTags = util.GetStaticTags(ctx)
+	c.staticTags = util.GetStaticTags(ctx, datadogConfig)
 	if _, exists := c.staticTags[clusterTagNamePrefix]; flavor.GetFlavor() == flavor.ClusterAgent && !exists {
 		// If we are running the cluster agent, we want to set the kube_cluster_name tag as a global tag if we are able
 		// to read it, for the instances where we are running in an environment where hostname cannot be detected.

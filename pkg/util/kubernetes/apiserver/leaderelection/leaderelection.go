@@ -228,9 +228,15 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 
 func (le *LeaderEngine) runLeaderElection() {
 	for {
-		log.Infof("Starting leader election process for %q...", le.HolderIdentity)
-		le.leaderElector.Run(le.ctx)
-		log.Info("Leader election lost")
+		select {
+		case <-le.ctx.Done():
+			log.Infof("Quitting leader election process: context was cancelled")
+			return
+		default:
+			log.Infof("Starting leader election process for %q...", le.HolderIdentity)
+			le.leaderElector.Run(le.ctx)
+			log.Info("Leader election lost")
+		}
 	}
 }
 
