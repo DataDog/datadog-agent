@@ -25,6 +25,16 @@ const (
 	// * "ci-<container-id>,in-<cgroupv2-inode>"
 	LocalData = "Datadog-Entity-ID"
 
+	// ExternalData is a list that contain prefixed-items, split by a ','. Current items are:
+	// * "it-<init>" if the container is an init container.
+	// * "cn-<container-name>" for the container name.
+	// * "pu-<pod-uid>" for the pod UID.
+	// Order does not matter.
+	// Possible values:
+	// * "it-false,cn-nginx,pu-3413883c-ac60-44ab-96e0-9e52e4e173e2"
+	// * "cn-init,pu-cb4aba1d-0129-44f1-9f1b-b4dc5d29a3b3,it-true"
+	ExternalData = "Datadog-External-Env"
+
 	// Lang specifies the name of the header which contains the language from
 	// which the traces originate.
 	Lang = "Datadog-Meta-Lang"
