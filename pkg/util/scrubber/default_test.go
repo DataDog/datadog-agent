@@ -474,6 +474,8 @@ func TestAddStrippedKeys(t *testing.T) {
 	AddStrippedKeys([]string{"foobar"})
 
 	assertClean(t, contents, `foobar: "********"`)
+
+	dynamicReplacers = []Replacer{}
 }
 
 func TestAddStrippedKeysNewReplacer(t *testing.T) {
@@ -486,6 +488,8 @@ func TestAddStrippedKeysNewReplacer(t *testing.T) {
 	cleaned, err := newScrubber.ScrubBytes([]byte(contents))
 	require.NoError(t, err)
 	assert.Equal(t, strings.TrimSpace(`foobar: "********"`), strings.TrimSpace(string(cleaned)))
+
+	dynamicReplacers = []Replacer{}
 }
 
 func TestCertConfig(t *testing.T) {
