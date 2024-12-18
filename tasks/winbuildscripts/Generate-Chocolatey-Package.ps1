@@ -61,9 +61,9 @@ if (![string]::IsNullOrEmpty($VersionOverride)) {
 }
 $copyright = "Datadog {0}" -f (Get-Date).Year
 
-$releasePattern = "(\d+\.\d+\.\d+)$"
-$releaseCandidatePattern = "(\d+\.\d+\.\d+)-rc\.(\d+)"
-$develPattern = "(\d+\.\d+\.\d+)-devel\.git\.\d+\.(.+)"
+$releasePattern = "^(\d+\.\d+\.\d+)$"
+$releaseCandidatePattern = "^(\d+\.\d+\.\d+)-rc\.(\d+)$"
+$develPattern = "^(\d+\.\d+\.\d+)-devel\.git\.\d+\.(.+)"
 
 # Build the package in a temporary directory
 # Some of the build steps modify the package source, so we don't want to do this in the source directory
@@ -84,6 +84,7 @@ try {
     } else {
         Write-Error "Unknown flavor $Flavor"
         exit 1
+    }
 
     $packageSource = "$repoRoot\chocolatey\$Flavor"
     $nuspecFile = "$Flavor.nuspec"
