@@ -444,8 +444,13 @@ def get_matching_pattern(ctx, major_version, release=False):
     return pattern
 
 
-def deduce_version(ctx, branch, as_str=True, trust=False) -> str | Version:
-    release_version = get_next_version_from_branch(ctx, branch, as_str=as_str)
+def deduce_version(ctx, branch, as_str=True, trust=False, next_version=True) -> str | Version:
+    """Deduces the version from the release branch name.
+
+    Args:
+        next_version: If True, will return the next tag version, otherwise will return the current tag version. Example: If there are 7.60.0 and 7.60.1 tags, it will return 7.60.2 if next_tag is True, 7.60.1 otherwise.
+    """
+    release_version = get_next_version_from_branch(ctx, branch, as_str=as_str, next_version=next_version)
 
     print(
         f'{color_message("Info", Color.BLUE)}: Version {release_version} deduced from branch {branch}', file=sys.stderr
@@ -479,8 +484,11 @@ def get_all_version_tags(ctx) -> list[str]:
     return ctx.run(cmd, hide=True).stdout.strip().split('\n')
 
 
-def get_next_version_from_branch(ctx, branch: str, as_str=True) -> str | Version:
+def get_next_version_from_branch(ctx, branch: str, as_str=True, next_version=True) -> str | Version:
     """Returns the latest version + 1 belonging to a branch.
+
+    Args:
+        next_version: If True, will return the next tag version, otherwise will return the current tag version. Example: If there are 7.60.0 and 7.60.1 tags, it will return 7.60.2 if next_tag is True, 7.60.1 otherwise.
 
     Example:
         get_latest_version_from_branch("7.55.x") -> Version(7, 55, 4) if there are 7.55.0, 7.55.1, 7.55.2, 7.55.3 tags.
@@ -501,6 +509,13 @@ def get_next_version_from_branch(ctx, branch: str, as_str=True) -> str | Version
 
     minor, major = tuple(map(int, branch.split('.')[:2]))
 
-    latest = versions[-1].next_version(bump_patch=True) if versions else Version(minor, major, 0)
+    if next_version:
+        # Get version after the latest one
+        version = versions[-1].next_version(bump_patch=True) if versions else Version(minor, major, 0)
+    else:
+        # Get current latest version
+        assert versions, f"No tags found for branch {branch} (expected at least one tag)"
 
-    return str(latest) if as_str else latest
+        version = versions[-1]
+
+    return str(version) if as_str else version

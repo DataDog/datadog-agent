@@ -1165,7 +1165,7 @@ def create_github_release(ctx, release_branch, draft=True):
     )
 
     notes = []
-    version = deduce_version(ctx, release_branch)
+    version = deduce_version(ctx, release_branch, next_version=False)
 
     with agent_context(ctx, release_branch):
         for section, filename in sections:
