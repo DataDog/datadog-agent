@@ -456,7 +456,11 @@ require (
 	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/mkrautz/goar v0.0.0-20150919110319-282caa8bd9da // indirect
+<<<<<<< HEAD
 	github.com/moby/buildkit v0.16.0 // indirect
+=======
+	github.com/moby/buildkit v0.12.5 // indirect
+>>>>>>> 20429478e0 (Remove transitive dependency upgrade)
 	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/sys/signal v0.7.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
