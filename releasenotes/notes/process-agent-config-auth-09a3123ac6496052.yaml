@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    The process agent endpoint for setting config values now uses authentication.
+    All process agent endpoints now require authentication.
