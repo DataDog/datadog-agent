@@ -62,12 +62,18 @@ func GetLastProcControlGroups(tgid, pid uint32) (ControlGroup, error) {
 	index := bytes.LastIndexByte(data, '\n')
 	if index < 0 {
 		index = 0
+	} else {
+		index++ // to skip the \n
 	}
-	firstLine := string(data[index:])
+	if index >= len(data) {
+		return ControlGroup{}, fmt.Errorf("invalid cgroup data: %s", data)
+	}
 
-	idstr, rest, ok := strings.Cut(firstLine, ":")
+	lastLine := string(data[index:])
+
+	idstr, rest, ok := strings.Cut(lastLine, ":")
 	if !ok {
-		return ControlGroup{}, fmt.Errorf("invalid cgroup line: %s", firstLine)
+		return ControlGroup{}, fmt.Errorf("invalid cgroup line: %s", lastLine)
 	}
 
 	id, err := strconv.Atoi(idstr)
@@ -77,7 +83,7 @@ func GetLastProcControlGroups(tgid, pid uint32) (ControlGroup, error) {
 
 	controllers, path, ok := strings.Cut(rest, ":")
 	if !ok {
-		return ControlGroup{}, fmt.Errorf("invalid cgroup line: %s", firstLine)
+		return ControlGroup{}, fmt.Errorf("invalid cgroup line: %s", lastLine)
 	}
 
 	return ControlGroup{
