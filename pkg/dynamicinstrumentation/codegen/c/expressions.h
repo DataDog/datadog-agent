@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-#ifndef DI_EXPRESIONS_H
-#define DI_EXPRESIONS_H
+#ifndef DI_EXPRESSIONS_H
+#define DI_EXPRESSIONS_H
 
 // read_register reads `element_size` bytes from register `reg` into a u64 which is then pushed to
 // the top of the BPF parameter stack.
