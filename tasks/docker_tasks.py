@@ -112,12 +112,6 @@ echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USER" --password-stdin "
         pid_mode="host",  # For origin detection
         cgroupns="host",  # To allow proper network mode detection in integration tests
         environment=container_env,
-        volumes={
-            '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'},
-            '/proc': {'bind': '/host/proc', 'mode': 'ro'},
-            '/sys/fs/cgroup': {'bind': '/host/sys/fs/cgroup', 'mode': 'ro'},
-            scratch_volume.name: {'bind': '/tmp/scratch', 'mode': 'rw'},
-        },
     )
 
     exit_code = test_container.wait()['StatusCode']
