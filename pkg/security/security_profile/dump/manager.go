@@ -548,11 +548,24 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 	adm.Lock()
 	defer adm.Unlock()
 
+	var dumpDuration time.Duration
+	var err error
+	if params.Timeout != "" {
+		if dumpDuration, err = time.ParseDuration(params.Timeout); err != nil {
+			return nil, err
+		}
+	} else {
+		dumpDuration = adm.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout
+	}
+
+	if params.Storage.LocalStorageDirectory == "" {
+		params.Storage.LocalStorageDirectory = adm.config.RuntimeSecurity.ActivityDumpLocalStorageDirectory
+	}
+
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.Metadata.ContainerID = containerutils.ContainerID(params.GetContainerID())
 		ad.Metadata.CGroupContext.CGroupID = containerutils.CGroupID(params.GetCGroupID())
 
-		dumpDuration, _ := time.ParseDuration(params.Timeout)
 		ad.SetTimeout(dumpDuration)
 
 		if params.GetDifferentiateArgs() {
