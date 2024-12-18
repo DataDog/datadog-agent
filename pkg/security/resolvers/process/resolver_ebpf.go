@@ -461,15 +461,15 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	return nil
 }
 
-// retrieveFileFields fetches inode metadata from kernel space
-func (p *EBPFResolver) retrieveFileFields(filePath string) (*model.FileFields, error) {
-	fi, err := os.Stat(filePath)
+// retrieveExecFileFields fetches inode metadata from kernel space
+func (p *EBPFResolver) retrieveExecFileFields(procExecPath string) (*model.FileFields, error) {
+	fi, err := os.Stat(procExecPath)
 	if err != nil {
-		return nil, fmt.Errorf("snapshot failed for `%s`: couldn't stat binary: %w", filePath, err)
+		return nil, fmt.Errorf("snapshot failed for `%s`: couldn't stat binary: %w", procExecPath, err)
 	}
 	stat, ok := fi.Sys().(*syscall.Stat_t)
 	if !ok {
-		return nil, fmt.Errorf("snapshot failed for `%s`: couldn't stat binary", filePath)
+		return nil, fmt.Errorf("snapshot failed for `%s`: couldn't stat binary", procExecPath)
 	}
 	inode := stat.Ino
 
@@ -491,11 +491,6 @@ func (p *EBPFResolver) retrieveFileFields(filePath string) (*model.FileFields, e
 	}
 
 	return &fileFields, nil
-}
-
-// retrieveExecFileFields fetches inode metadata from kernel space
-func (p *EBPFResolver) retrieveExecFileFields(procExecPath string) (*model.FileFields, error) {
-	return p.retrieveFileFields(procExecPath)
 }
 
 func (p *EBPFResolver) insertEntry(entry, prev *model.ProcessCacheEntry, source uint64) {
