@@ -54,9 +54,9 @@ def send_metrics(series):
     from datadog_api_client.v2.model.metric_payload import MetricPayload
 
     origin_metadata = {
-        "origin_product": "Agent",
-        "origin_sub_product": "Agent CI",
-        "origin_product_detail": "Gitlab",
+        "origin_product": 10,  # Agent
+        "origin_sub_product": 54,  # Agent CI
+        "origin_product_detail": 64,  # Gitlab
     }
 
     configuration = Configuration()
