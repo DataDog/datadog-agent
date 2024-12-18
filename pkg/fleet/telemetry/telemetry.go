@@ -219,10 +219,9 @@ func StartSpanFromIDs(ctx context.Context, operationName, traceID, parentID stri
 	spanCtx, err := tracer.Extract(ctxCarrier)
 	if err != nil {
 		log.Debugf("failed to extract span context from install script params: %v", err)
-		return Span{tracer.StartSpan("remote_request")}, ctx
+		return StartSpanFromContext(ctx, operationName, spanOptions...)
 	}
 	spanOptions = append([]ddtrace.StartSpanOption{tracer.ChildOf(spanCtx)}, spanOptions...)
-
 	return StartSpanFromContext(ctx, operationName, spanOptions...)
 }
 
