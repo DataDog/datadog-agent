@@ -9,13 +9,37 @@
 package selector
 
 import (
+	"slices"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	implgzip "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-gzip"
 	implnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
 	implzlib "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zlib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// NewCompressor returns a new Compressor based on serializer_compressor_kind
+// This function is called only when the zlib build tag is included
+func NewCompressorKind(kind string, level int) compression.Component {
+	switch kind {
+	case common.ZlibKind:
+		return implzlib.NewComponent().Comp
+	case common.ZstdKind:
+		log.Warn("zstd build tag not included. using zlib")
+		return implzlib.NewComponent().Comp
+	case common.GzipKind:
+		return implgzip.NewComponent(implgzip.Requires{Level: level}).Comp
+	case common.NoneKind:
+		log.Warn("no " + option + " set. use one of " + strings.Join(valid, ", "))
+		return implnoop.NewComponent().Comp
+	default:
+		log.Warn("invalid " + option + " set. use one of " + strings.Join(valid, ", "))
+		return implnoop.NewComponent().Comp
+	}
+}
 
 // NewCompressorReq returns a new Compressor based on serializer_compressor_kind
 // This function is called only when the zlib build tag is included
@@ -33,6 +57,16 @@ func NewCompressorReq(req Requires) Provides {
 		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
 		return Provides{implnoop.NewComponent().Comp}
 	}
+}
+
+// NewNoopCompressorReq returns a new Noop Compressor. It does not do any
+// compression, but can be used to create a compressor that does at a later
+// point.
+// This function is called only when the zlib build tag is included
+func NewNoopCompressorReq() Provides {
+	return Provides{Comp: implnoop.NewComponent(implnoop.Requires{
+		NewKind: NewCompressorKind,
+	}).Comp}
 }
 
 // NewCompressor returns a new Compressor based on serializer_compressor_kind

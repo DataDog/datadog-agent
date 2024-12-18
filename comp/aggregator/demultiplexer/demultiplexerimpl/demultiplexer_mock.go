@@ -76,7 +76,7 @@ func newMock(deps mockDependencies) MockProvides {
 		Log:             deps.Log,
 		Hostname:        deps.Hostname,
 		SharedForwarder: defaultforwarder.NoopForwarder{},
-		Compressor:      compressionmock.NewMockCompressor(),
+		Compression:     compressionmock.NewMockCompressor(),
 		HaAgent:         haagentmock.NewMockHaAgent(),
 	}
 

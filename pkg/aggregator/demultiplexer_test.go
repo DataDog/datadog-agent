@@ -23,7 +23,6 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -295,7 +294,6 @@ func createDemuxDepsWithOrchestratorFwd(
 		orchestratorForwarderImpl.Module(orchestratorParams),
 		eventplatformimpl.Module(eventPlatformParams),
 		eventplatformreceiverimpl.Module(),
-		compressionmock.MockModule(),
 		haagentmock.Module(),
 	)
 	deps := fxutil.Test[internalDemutiplexerDeps](t, modules)
@@ -304,6 +302,7 @@ func createDemuxDepsWithOrchestratorFwd(
 		TestDeps:         deps.TestDeps,
 		Demultiplexer:    InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, deps.HaAgent, deps.Compressor, nooptagger.NewComponent(), ""),
 		OrchestratorFwd:  deps.OrchestratorForwarder,
+		Compressor:       deps.Compressor,
 		EventPlatformFwd: deps.Eventplatform,
 	}
 }

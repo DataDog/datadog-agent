@@ -13,6 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	compressioncommon "github.com/DataDog/datadog-agent/comp/serializer/compression/common"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -48,7 +50,9 @@ func NewPipeline(outputChan chan *message.Payload,
 	pipelineID int,
 	status statusinterface.Status,
 	hostname hostnameinterface.Component,
-	cfg pkgconfigmodel.Reader) *Pipeline {
+	cfg pkgconfigmodel.Reader,
+	compression compression.Component,
+) *Pipeline {
 
 	var senderDoneChan chan *sync.WaitGroup
 	var flushWg *sync.WaitGroup
@@ -77,7 +81,7 @@ func NewPipeline(outputChan chan *message.Payload,
 		encoder = processor.RawEncoder
 	}
 
-	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushWg, pipelineMonitor)
+	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushWg, pipelineMonitor, compression)
 	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, pkgconfigsetup.Datadog().GetInt("logs_config.payload_channel_size"), senderDoneChan, flushWg, pipelineMonitor)
 
 	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
@@ -156,13 +160,24 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, flushWg *sync.WaitGroup, pipelineMonitor metrics.PipelineMonitor) sender.Strategy {
+func getStrategy(
+	inputChan chan *message.Message,
+	outputChan chan *message.Payload,
+	flushChan chan struct{},
+	endpoints *config.Endpoints,
+	serverless bool,
+	flushWg *sync.WaitGroup,
+	pipelineMonitor metrics.PipelineMonitor,
+	compressor compression.Component,
+) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
-		encoder := sender.IdentityContentType
+		var encoder compression.Component
+		encoder = compressor.WithKindAndLevel(compressioncommon.NoneKind, 0)
 		if endpoints.Main.UseCompression {
-			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
+			encoder = compressor.WithKindAndLevel(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
 		}
+
 		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor)
 	}
-	return sender.NewStreamStrategy(inputChan, outputChan, sender.IdentityContentType)
+	return sender.NewStreamStrategy(inputChan, outputChan, compressor.WithKindAndLevel(compressioncommon.NoneKind, 0))
 }
