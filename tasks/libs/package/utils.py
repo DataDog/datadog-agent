@@ -57,7 +57,7 @@ class PackageSize:
 
     @staticmethod
     def mb(value):
-        return f"{value / pow(10, 6):.2f}MB"
+        return f"{value / 1e6:.2f}MB"
 
     def log(self):
         return f"{self.emoji} - {self.name} size {self.mb(self.size)}: {self.mb(self.diff)} diff[{self.diff}] with previous {self.mb(self.ancestor_size)} (max: {self.mb(self.threshold)})"
