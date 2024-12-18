@@ -276,44 +276,52 @@ func buildKeysForMetricsPreviousValues(mt dto.MetricType, metricName string, met
 			keyName = builder.String()
 		}
 
+		// Add bucket names to the key
 		if mt == dto.MetricType_HISTOGRAM {
 			// add bucket names to the key
 			for _, bucket := range m.Histogram.GetBucket() {
 				keyNames = append(keyNames, fmt.Sprintf("%v:%v", keyName, bucket.GetUpperBound()))
 			}
-		} else {
-			keyNames = append(keyNames, keyName)
 		}
+
+		// For regular metric (and for HISTOGRAM +Inf bucket which follows the last bucket)
+		keyNames = append(keyNames, keyName)
 	}
 
 	return keyNames
 }
 
+// Swap current value with the previous value and deduct the previous value from the current value
+func deductAndUpdatePrevValue(key string, prevPromMetricValues map[string]uint64, curValue *uint64) {
+	origCurValue := *curValue
+	if prevValue, ok := prevPromMetricValues[key]; ok {
+		*curValue -= prevValue
+	}
+	prevPromMetricValues[key] = origCurValue
+}
+
 func convertPromHistogramsToDatadogHistogramsValues(metrics []*dto.Metric, prevPromMetricValues map[string]uint64, keyNames []string) {
 	if len(metrics) > 0 {
 		bucketCount := len(metrics[0].Histogram.GetBucket())
+		var prevValue uint64
+
 		for i, m := range metrics {
-			// First, deduct the previous cumulative count from the current one
+			// 1. deduct the previous cumulative count from each explicit  buckets
 			for j, b := range m.Histogram.GetBucket() {
-				key := keyNames[(i*bucketCount)+j]
-				curValue := b.GetCumulativeCount()
-
-				// Adjust the counter value if found
-				if prevValue, ok := prevPromMetricValues[key]; ok {
-					*b.CumulativeCount -= prevValue
-				}
-
-				// Upsert the cache of previous counter values
-				prevPromMetricValues[key] = curValue
+				deductAndUpdatePrevValue(keyNames[(i*(bucketCount+1))+j], prevPromMetricValues, b.CumulativeCount)
 			}
+			// 2. deduct the previous cumulative count from the implicit  "+Inf" bucket
+			deductAndUpdatePrevValue(keyNames[((i+1)*(bucketCount+1))-1], prevPromMetricValues, m.Histogram.SampleCount)
 
-			// Then, de-cumulate next bucket value from the previous bucket values
-			var prevValue uint64
+			// 3. "De-cumulate" next explicit bucket value from the preceding bucket value
+			prevValue = 0
 			for _, b := range m.Histogram.GetBucket() {
 				curValue := b.GetCumulativeCount()
 				*b.CumulativeCount -= prevValue
 				prevValue = curValue
 			}
+			// 4. "De-cumulate" implicit "+Inf" bucket value from the preceding bucket value
+			*m.Histogram.SampleCount -= prevValue
 		}
 	}
 }

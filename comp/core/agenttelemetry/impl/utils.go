@@ -98,11 +98,16 @@ func aggregateMetric(mt dto.MetricType, aggm *dto.Metric, srcm *dto.Metric) {
 					aggmb.Exemplar.Label = nil
 				}
 			}
+
+			// copy the sample count (it is implicit "+Inf" bucket)
+			aggm.Histogram.SampleCount = srcm.Histogram.SampleCount
 		} else {
 			// for the same metric family bucket structure is the same
 			for i, srcb := range srcm.Histogram.Bucket {
 				*aggm.Histogram.Bucket[i].CumulativeCount += srcb.GetCumulativeCount()
 			}
+			// copy the sample count (it is implicit "+Inf" bucket)
+			*aggm.Histogram.SampleCount += srcm.Histogram.GetSampleCount()
 		}
 	}
 }

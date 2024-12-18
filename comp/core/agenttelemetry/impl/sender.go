@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -133,6 +134,9 @@ type MetricPayload struct {
 	Type    string                 `json:"type"`
 	Tags    map[string]interface{} `json:"tags,omitempty"`
 	Buckets map[string]uint64      `json:"buckets,omitempty"`
+	P75     *float64               `json:"p75,omitempty"`
+	P95     *float64               `json:"p95,omitempty"`
+	P99     *float64               `json:"p99,omitempty"`
 }
 
 func httpClientFactory(cfg config.Reader, timeout time.Duration) func() *http.Client {
@@ -253,7 +257,52 @@ func (s *senderImpl) addMetricPayload(
 		for _, bucket := range histogram.GetBucket() {
 			boundNameRaw := fmt.Sprintf("%v", bucket.GetUpperBound())
 			boundName := strings.ReplaceAll(boundNameRaw, ".", "_")
+
 			payload.Buckets[boundName] = bucket.GetCumulativeCount()
+		}
+		payload.Buckets["+Inf"] = histogram.GetSampleCount()
+
+		// Calculate fixed 75, 95 and 99 precentiles. Percentile calculation finds
+		// a bucket which, with all preceding buckets, contains that percentile item.
+		// For convenience, percentile values are not the bucket number but its
+		// upper-bound. If a percentile belongs to the implicit "+inf" bucket, which
+		// has no explicit upper-bound, we will use the last bucket upper bound times 2.
+		// The upper-bound of the "+Inf" bucket is defined as 2x of the preceding
+		// bucket boundary, but it is totally arbitrary. In the future we may use a
+		// configuration value to set it up.
+		var totalCount uint64
+		for _, bucket := range histogram.GetBucket() {
+			totalCount += bucket.GetCumulativeCount()
+		}
+		totalCount += histogram.GetSampleCount()
+		p75 := uint64(math.Floor(float64(totalCount) * 0.75))
+		p95 := uint64(math.Floor(float64(totalCount) * 0.95))
+		p99 := uint64(math.Floor(float64(totalCount) * 0.99))
+		var curCount uint64
+		for _, bucket := range histogram.GetBucket() {
+			curCount += bucket.GetCumulativeCount()
+			if payload.P75 == nil && curCount >= p75 {
+				p75Value := bucket.GetUpperBound()
+				payload.P75 = &p75Value
+			}
+			if payload.P95 == nil && curCount >= p95 {
+				p95Value := bucket.GetUpperBound()
+				payload.P95 = &p95Value
+			}
+			if payload.P99 == nil && curCount >= p99 {
+				p99Value := bucket.GetUpperBound()
+				payload.P99 = &p99Value
+			}
+		}
+		maxUpperBound := 2 * (histogram.GetBucket()[len(histogram.GetBucket())-1].GetUpperBound())
+		if payload.P75 == nil {
+			payload.P75 = &maxUpperBound
+		}
+		if payload.P95 == nil {
+			payload.P95 = &maxUpperBound
+		}
+		if payload.P99 == nil {
+			payload.P99 = &maxUpperBound
 		}
 	}
 
