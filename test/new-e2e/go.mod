@@ -58,7 +58,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20241218082354-6459608ed9fa
+	github.com/DataDog/test-infra-definitions v0.0.0-20241218140841-21a734ab35f8
 	github.com/aws/aws-sdk-go-v2 v1.32.6
 	github.com/aws/aws-sdk-go-v2/config v1.28.6
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.190.0
@@ -72,10 +72,10 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/pkg/sftp v1.13.7
-	github.com/pulumi/pulumi-aws/sdk/v6 v6.56.1
-	github.com/pulumi/pulumi-awsx/sdk/v2 v2.16.1
-	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.18.3
-	github.com/pulumi/pulumi/sdk/v3 v3.140.0
+	github.com/pulumi/pulumi-aws/sdk/v6 v6.59.1
+	github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0
+	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.19.0
+	github.com/pulumi/pulumi/sdk/v3 v3.142.0
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.10.0
 	github.com/xeipuuv/gojsonschema v1.2.0
@@ -171,7 +171,7 @@ require (
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/hashicorp/hcl/v2 v2.20.1 // indirect
+	github.com/hashicorp/hcl/v2 v2.22.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
