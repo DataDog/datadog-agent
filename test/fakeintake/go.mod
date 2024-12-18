@@ -23,7 +23,7 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.10.0
 	github.com/tinylib/msgp v1.2.4
-	google.golang.org/protobuf v1.35.2
+	google.golang.org/protobuf v1.36.0
 	modernc.org/sqlite v1.34.1
 )
 
