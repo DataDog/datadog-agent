@@ -13,33 +13,42 @@ from tasks.libs.releasing.version import deduce_version
 
 
 @task
-def add_prelude(ctx, version):
-    _add_prelude(ctx, version)
+def add_prelude(ctx, release_branch):
+    version = deduce_version(ctx, release_branch, next_version=False)
+
+    with agent_context(ctx, release_branch):
+        _add_prelude(ctx, version)
 
 
 @task
-def add_dca_prelude(ctx, version):
+def add_dca_prelude(ctx, release_branch):
     """
     Release of the Cluster Agent should be pinned to a version of the Agent.
     """
-    _add_dca_prelude(ctx, version)
+    version = deduce_version(ctx, release_branch, next_version=False)
+
+    with agent_context(ctx, release_branch):
+        _add_dca_prelude(ctx, version)
 
 
 @task
-def add_installscript_prelude(ctx, version):
-    res = ctx.run(f"reno --rel-notes-dir releasenotes-installscript new prelude-release-{version}")
-    new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
+def add_installscript_prelude(ctx, release_branch):
+    version = deduce_version(ctx, release_branch, next_version=False)
 
-    with open(new_releasenote, "w") as f:
-        f.write(
-            f"""prelude:
-    |
-    Released on: {date.today()}"""
-        )
+    with agent_context(ctx, release_branch):
+        res = ctx.run(f"reno --rel-notes-dir releasenotes-installscript new prelude-release-{version}")
+        new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
 
-    ctx.run(f"git add {new_releasenote}")
-    print("\nCommit this with:")
-    print(f"git commit -m \"Add prelude for {version} release\"")
+        with open(new_releasenote, "w") as f:
+            f.write(
+                f"""prelude:
+        |
+        Released on: {date.today()}"""
+            )
+
+        ctx.run(f"git add {new_releasenote}")
+        print("\nCommit this with:")
+        print(f"git commit -m \"Add prelude for {version} release\"")
 
 
 @task
@@ -137,59 +146,64 @@ def update_installscript_changelog(ctx, new_version):
     Quick task to generate the new CHANGELOG-INSTALLSCRIPT using reno when releasing a minor
     version (linux/macOS only).
     """
-    new_version_int = list(map(int, new_version.split(".")))
+    new_version = deduce_version(ctx, new_version, next_version=False)
 
-    if len(new_version_int) != 3:
-        print(f"Error: invalid version: {new_version_int}")
-        raise Exit(code=1)
+    with agent_context(ctx, new_version):
+        new_version_int = list(map(int, new_version.split(".")))
 
-    # let's avoid losing uncommitted change with 'git reset --hard'
-    try:
-        ctx.run("git diff --exit-code HEAD", hide="both")
-    except Failure:
-        print("Error: You have uncommitted changes, please commit or stash before using update-installscript-changelog")
-        return
+        if len(new_version_int) != 3:
+            print(f"Error: invalid version: {new_version_int}")
+            raise Exit(code=1)
 
-    # make sure we are up to date
-    ctx.run("git fetch")
-
-    # let's check that the tag for the new version is present (needed by reno)
-    try:
-        ctx.run(f"git tag --list | grep installscript-{new_version}")
-    except Failure:
-        print(f"Missing 'installscript-{new_version}' git tag: mandatory to use 'reno'")
-        raise
-
-    # generate the new changelog
-    ctx.run(
-        f"reno --rel-notes-dir releasenotes-installscript report             --ignore-cache             --version installscript-{new_version}             --no-show-source > /tmp/new_changelog-installscript.rst"
-    )
-
-    # reseting git
-    ctx.run("git reset --hard HEAD")
-
-    # mac's `sed` has a different syntax for the "-i" paramter
-    sed_i_arg = "-i"
-    if sys.platform == 'darwin':
-        sed_i_arg = "-i ''"
-    # remove the old header from the existing changelog
-    ctx.run(f"sed {sed_i_arg} -e '1,4d' CHANGELOG-INSTALLSCRIPT.rst")
-
-    if sys.platform != 'darwin':
-        # sed on darwin doesn't support `-z`. On mac, you will need to manually update the following.
-        ctx.run(
-            "sed -z {0} -e 's/installscript-{1}\\n===={2}/{1}\\n{2}/' /tmp/new_changelog-installscript.rst".format(  # noqa: FS002
-                sed_i_arg, new_version, '=' * len(new_version)
+        # let's avoid losing uncommitted change with 'git reset --hard'
+        try:
+            ctx.run("git diff --exit-code HEAD", hide="both")
+        except Failure:
+            print(
+                "Error: You have uncommitted changes, please commit or stash before using update-installscript-changelog"
             )
+            return
+
+        # make sure we are up to date
+        ctx.run("git fetch")
+
+        # let's check that the tag for the new version is present (needed by reno)
+        try:
+            ctx.run(f"git tag --list | grep installscript-{new_version}")
+        except Failure:
+            print(f"Missing 'installscript-{new_version}' git tag: mandatory to use 'reno'")
+            raise
+
+        # generate the new changelog
+        ctx.run(
+            f"reno --rel-notes-dir releasenotes-installscript report             --ignore-cache             --version installscript-{new_version}             --no-show-source > /tmp/new_changelog-installscript.rst"
         )
 
-    # merging to CHANGELOG-INSTALLSCRIPT.rst
-    ctx.run(
-        "cat CHANGELOG-INSTALLSCRIPT.rst >> /tmp/new_changelog-installscript.rst && mv /tmp/new_changelog-installscript.rst CHANGELOG-INSTALLSCRIPT.rst"
-    )
+        # reseting git
+        ctx.run("git reset --hard HEAD")
 
-    # commit new CHANGELOG-INSTALLSCRIPT
-    ctx.run("git add CHANGELOG-INSTALLSCRIPT.rst")
+        # mac's `sed` has a different syntax for the "-i" paramter
+        sed_i_arg = "-i"
+        if sys.platform == 'darwin':
+            sed_i_arg = "-i ''"
+        # remove the old header from the existing changelog
+        ctx.run(f"sed {sed_i_arg} -e '1,4d' CHANGELOG-INSTALLSCRIPT.rst")
 
-    print("\nCommit this with:")
-    print(f"git commit -m \"[INSTALLSCRIPT] Update CHANGELOG-INSTALLSCRIPT for {new_version}\"")
+        if sys.platform != 'darwin':
+            # sed on darwin doesn't support `-z`. On mac, you will need to manually update the following.
+            ctx.run(
+                "sed -z {0} -e 's/installscript-{1}\\n===={2}/{1}\\n{2}/' /tmp/new_changelog-installscript.rst".format(  # noqa: FS002
+                    sed_i_arg, new_version, '=' * len(new_version)
+                )
+            )
+
+        # merging to CHANGELOG-INSTALLSCRIPT.rst
+        ctx.run(
+            "cat CHANGELOG-INSTALLSCRIPT.rst >> /tmp/new_changelog-installscript.rst && mv /tmp/new_changelog-installscript.rst CHANGELOG-INSTALLSCRIPT.rst"
+        )
+
+        # commit new CHANGELOG-INSTALLSCRIPT
+        ctx.run("git add CHANGELOG-INSTALLSCRIPT.rst")
+
+        print("\nCommit this with:")
+        print(f"git commit -m \"[INSTALLSCRIPT] Update CHANGELOG-INSTALLSCRIPT for {new_version}\"")
