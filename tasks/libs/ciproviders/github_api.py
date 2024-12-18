@@ -523,6 +523,9 @@ class GithubAPI:
         """
         return self._repository.create_label(name, color, description)
 
+    def create_milestone(self, title):
+        self._repository.create_milestone(title)
+
     def create_release(self, tag, message, draft=True):
         return self._repository.create_git_release(
             tag=tag,

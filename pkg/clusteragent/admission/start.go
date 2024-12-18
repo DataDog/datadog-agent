@@ -79,7 +79,7 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		return webhooks, err
 	}
 
-	webhookConfig := webhook.NewConfig(v1Enabled, nsSelectorEnabled, matchConditionsSupported)
+	webhookConfig := webhook.NewConfig(v1Enabled, nsSelectorEnabled, matchConditionsSupported, datadogConfig)
 	webhookController := webhook.NewController(
 		ctx.Client,
 		ctx.SecretInformers.Core().V1().Secrets(),

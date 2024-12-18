@@ -20,7 +20,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/awslabs/amazon-ecr-credential-helper/ecr-login"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	oci "github.com/google/go-containerregistry/pkg/v1"
@@ -44,8 +43,6 @@ const (
 	RegistryAuthDefault string = "docker"
 	// RegistryAuthGCR is the Google Container Registry authentication method.
 	RegistryAuthGCR string = "gcr"
-	// RegistryAuthECR is the Amazon Elastic Container Registry authentication method.
-	RegistryAuthECR string = "ecr"
 	// RegistryAuthPassword is the password registry authentication method.
 	RegistryAuthPassword string = "password"
 )
@@ -154,8 +151,6 @@ func getKeychain(auth string, username string, password string) authn.Keychain {
 	switch auth {
 	case RegistryAuthGCR:
 		return google.Keychain
-	case RegistryAuthECR:
-		return authn.NewKeychainFromHelper(ecr.NewECRHelper())
 	case RegistryAuthPassword:
 		return usernamePasswordKeychain{
 			username: username,
