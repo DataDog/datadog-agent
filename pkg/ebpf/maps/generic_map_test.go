@@ -574,10 +574,6 @@ func TestIterateWithPointerKey(t *testing.T) {
 }
 
 func TestGenericHashMapCanUseBatchAPI(t *testing.T) {
-	if !BatchAPISupported() {
-		t.Skip("Skipping because batch API not supported")
-	}
-
 	hash, err := ebpf.NewMap(&ebpf.MapSpec{
 		Type:       ebpf.Hash,
 		KeySize:    4,
@@ -592,5 +588,5 @@ func TestGenericHashMapCanUseBatchAPI(t *testing.T) {
 	gm, err := Map[int32, int32](hash)
 	require.NoError(t, err)
 
-	require.True(t, gm.CanUseBatchAPI())
+	require.Equal(t, BatchAPISupported(), gm.CanUseBatchAPI())
 }
