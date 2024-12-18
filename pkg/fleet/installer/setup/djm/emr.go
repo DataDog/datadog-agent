@@ -7,19 +7,22 @@
 package djm
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"time"
 )
 
 const (
 	emrInjectorVersion = "0.26.0-1"
 	emrJavaVersion     = "1.42.2-1"
 	emrAgentVersion    = "7.58.2-1"
+	emrInfoPath        = "/mnt/var/lib/info"
 )
 
 var tracerEnvConfigEmr = []common.InjectTracerConfigEnvVar{
@@ -36,14 +39,6 @@ var tracerEnvConfigEmr = []common.InjectTracerConfigEnvVar{
 		Value: ".*org.apache.spark.deploy.*",
 	},
 	{
-		Key:   "DD_TRACE_AGENT_URL",
-		Value: "http://localhost:8126",
-	},
-	{
-		Key:   "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_ENABLED",
-		Value: "true",
-	},
-	{
 		Key:   "DD_SPARK_APP_NAME_AS_SERVICE",
 		Value: "true",
 	},
@@ -53,12 +48,27 @@ var tracerEnvConfigEmr = []common.InjectTracerConfigEnvVar{
 	},
 }
 
+type emrInstanceInfo struct {
+	IsMaster        string `json:"isMaster"`
+	InstanceGroupID string `json:"instanceGroupId"`
+}
+
+type Cluster struct {
+	Name string `json:"Name"`
+}
+
+type EmrResponse struct {
+	Cluster Cluster `json:"Cluster"`
+}
+
+type extraEmrInstanceInfo struct {
+	JobFlowID    string `json:"jobFlowId"`
+	ReleaseLabel string `json:"releaseLabel"`
+}
+
 // SetupEmr sets up the DJM environment on EMR
 func SetupEmr(s *common.Setup) error {
-	err := getEmrInstanceData()
-	if err != nil {
-		return fmt.Errorf("failed to get EMR instance data: %w", err)
-	}
+
 	s.Packages.Install(common.DatadogAgentPackage, emrAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, emrInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, emrJavaVersion)
@@ -71,113 +81,97 @@ func SetupEmr(s *common.Setup) error {
 	s.Config.DatadogYAML.DJM.Enabled = true
 
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
-
-	setupCommonEmrHostTags(s)
-
-	switch os.Getenv("IS_MASTER") {
-	case "true":
-		setupEmrDriver(s)
-	default:
-		setupEmrWorker(s)
+	isMaster, clusterName, err := setupCommonEmrHostTags(s)
+	if err != nil {
+		return fmt.Errorf("failed to set tags: %w", err)
+	}
+	if isMaster == "true" {
+		setupEmrDriver(s, hostname, clusterName)
 	}
 	return nil
 }
 
-func setupCommonEmrHostTags(s *common.Setup) {
+func setupCommonEmrHostTags(s *common.Setup) (string, string, error) {
 
-	setIfExists(s, "CLUSTER_NAME", "cluster_name", nil)
-	setIfExists(s, "CLUSTER_ID", "cluster_id", nil)
-	setIfExists(s, "JOB_FLOW_ID", "job_flow_id", nil)
-	setIfExists(s, "INSTANCE_GROUP_ID", "instance_group_id", nil)
+	instanceInfoRaw, err := os.ReadFile(filepath.Join(emrInfoPath, "instance.json"))
+	if err != nil {
+		return "", "", fmt.Errorf("error reading instance file: %w", err)
+	}
+
+	var info emrInstanceInfo
+	if err = json.Unmarshal(instanceInfoRaw, &info); err != nil {
+		return "", "", fmt.Errorf("error umarshalling instance file: %w", err)
+	}
+
+	setHostTag(s, "instance_group_id", info.InstanceGroupID)
+	setHostTag(s, "is_master_node", info.IsMaster)
+	s.Span.SetTag("host_tag."+"is_master_node", info.IsMaster)
+
+	extraInstanceInfoRaw, err := os.ReadFile(filepath.Join(emrInfoPath, "extraInstanceData.json"))
+	if err != nil {
+		return info.IsMaster, "", fmt.Errorf("error reading extra instance data file: %w", err)
+	}
+
+	var extraInfo extraEmrInstanceInfo
+	if err = json.Unmarshal(extraInstanceInfoRaw, &extraInfo); err != nil {
+		return info.IsMaster, "", fmt.Errorf("error umarshalling extra instance data file: %w", err)
+	}
+	setHostTag(s, "job_flow_id", extraInfo.JobFlowID)
+	setHostTag(s, "cluster_id", extraInfo.JobFlowID)
+	setHostTag(s, "cluster_id", extraInfo.JobFlowID)
+
+	emrResponseRaw, err := executeCommandWithTimeout("aws", "emr", "describe-cluster", "--cluster-id", extraInfo.JobFlowID)
+	var response EmrResponse
+	if err = json.Unmarshal(emrResponseRaw, &response); err != nil {
+		return info.IsMaster, "", fmt.Errorf("error unmarshalling AWS EMR response: %w", err)
+	}
+
+	setHostTag(s, "cluster_name", response.Cluster.Name)
+	return info.IsMaster, response.Cluster.Name, nil
 }
 
-func getEmrInstanceData() error {
-	isMasterCmd := exec.Command("bash", "-c", `cat /mnt/var/lib/info/instance.json | jq -r ".isMaster"`)
-	output, err := isMasterCmd.Output()
-	if err != nil {
-		return err
-	}
-	isMaster := strings.TrimSpace(string(output))
-	err = os.Setenv("IS_MASTER", isMaster)
-	if err != nil {
-		return err
-	}
-
-	jobFlowIDCmd := exec.Command("bash", "-c", `cat /mnt/var/lib/instance-controller/extraInstanceData.json | jq -r ".jobFlowId"`)
-	output, err = jobFlowIDCmd.Output()
-	if err != nil {
-		return err
-	}
-	jobFlowID := strings.TrimSpace(string(output))
-	err = os.Setenv("JOB_FLOW_ID", jobFlowID)
-	if err != nil {
-		return err
-	}
-
-	instanceGroupIDCmd := exec.Command("bash", "-c", `cat /mnt/var/lib/info/instance.json | jq -r ".instanceGroupId"`)
-	output, err = instanceGroupIDCmd.Output()
-	if err != nil {
-		return err
-	}
-	instanceGroupID := strings.TrimSpace(string(output))
-	err = os.Setenv("INSTANCE_GROUP_ID", instanceGroupID)
-	if err != nil {
-		return err
-	}
-
-	clusterNameCmd := exec.Command("bash", "-c", `cat /mnt/var/lib/info/instance.json | jq -r ".instanceGroupId"`)
-	output, err = clusterNameCmd.Output()
-	if err != nil {
-		return err
-	}
-	clusterName := strings.TrimSpace(string(output))
-	err = os.Setenv("CLUSTER_NAME", clusterName)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func setupEmrDriver(s *common.Setup) {
-	s.Span.SetTag("is_driver", "true")
+func setupEmrDriver(s *common.Setup, host string, clusterName string) {
 
 	s.Packages.Install(common.DatadogAPMInjectPackage, emrInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, emrJavaVersion)
 
-	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "is_master_node:true")
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfig
+	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigEmr
 
 	var sparkIntegration common.IntegrationConfig
 	var yarnIntegration common.IntegrationConfig
 
-	if os.Getenv("CLUSTER_NAME") != "" {
+	if host != "" {
 		sparkIntegration.Instances = []any{
 			common.IntegrationConfigInstanceSpark{
-				SparkURL:         "http://" + os.Getenv("HOST") + ":8088",
+				SparkURL:         "http://" + host + ":8088",
 				SparkClusterMode: "spark_yarn_mode",
-				ClusterName:      os.Getenv("CLUSTER_NAME"),
+				ClusterName:      clusterName,
 				StreamingMetrics: false,
 			},
 		}
 		yarnIntegration.Instances = []any{
 			common.IntegrationConfigInstanceYarn{
-				ResourceManagerURI: "http://" + os.Getenv("HOST") + ":8088",
-				ClusterName:        os.Getenv("CLUSTER_NAME"),
+				ResourceManagerURI: "http://" + host + ":8088",
+				ClusterName:        clusterName,
 			},
 		}
+		s.Config.IntegrationConfigs["spark.d/conf.yaml"] = sparkIntegration
+		s.Config.IntegrationConfigs["yarn.d/conf.yaml"] = yarnIntegration
 	} else {
-		log.Warn("CLUSTER_NAME not set")
+		log.Warn("host is empty, Spark and yarn integrations are not set up")
 	}
-	s.Config.IntegrationConfigs["spark.d/conf.yaml"] = sparkIntegration
-	s.Config.IntegrationConfigs["yarn.d/conf.yaml"] = yarnIntegration
 }
 
-func setupEmrWorker(s *common.Setup) {
-	s.Span.SetTag("is_driver", "false")
+func executeCommandWithTimeout(command string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "is_master_node:false")
+	cmd := exec.CommandContext(ctx, command, args...)
+	output, err := cmd.Output()
 
-	var sparkIntegration common.IntegrationConfig
+	if err != nil {
+		return []byte(""), fmt.Errorf("error executing command: %w", err)
+	}
 
-	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
+	return output, nil
 }
