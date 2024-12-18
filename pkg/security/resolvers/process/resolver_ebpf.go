@@ -340,7 +340,7 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	// Retrieve the container ID of the process from /proc
 	containerID, cgroup, err := p.containerResolver.GetContainerContext(pid)
 	if err != nil {
-		return fmt.Errorf("snapshot failed for %d: couldn't parse container ID: %w", proc.Pid, err)
+		return fmt.Errorf("snapshot failed for %d: couldn't parse container and cgroup context: %w", proc.Pid, err)
 	}
 
 	entry.ContainerID = containerID
@@ -852,7 +852,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 	// is no insurance that the parent of this process is still running, we can't use our user space cache to check if
 	// the parent is in a container. In other words, we have to fall back to /proc to query the container ID of the
 	// process.
-	if entry.ContainerID == "" || entry.CGroup.CGroupFile.Inode == 0 {
+	if entry.CGroup.CGroupFile.Inode == 0 {
 		if containerID, cgroup, err := p.containerResolver.GetContainerContext(pid); err == nil {
 			entry.CGroup.Merge(&cgroup)
 			entry.ContainerID = containerID
