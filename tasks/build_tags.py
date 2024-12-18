@@ -162,7 +162,6 @@ SYSTEM_PROBE_TAGS = {
     "netcgo",
     "npm",
     "pcap",
-    "process",
     "trivy",
     "zlib",
     "zstd",
