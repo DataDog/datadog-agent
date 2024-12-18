@@ -54,7 +54,7 @@ __attribute__((always_inline)) struct cgroup_tracing_event_t *get_cgroup_tracing
 }
 
 __attribute__((always_inline)) u32 is_cgroup_activity_dumps_supported(struct cgroup_context_t *cgroup) {
-    u32 cgroup_manager = cgroup->cgroup_flags & 0b111;
+    u32 cgroup_manager = cgroup->cgroup_flags & CGROUP_MANAGER_MASK;
     u32 supported = (cgroup->cgroup_flags != 0) && (bpf_map_lookup_elem(&activity_dump_config_defaults, &cgroup_manager) != NULL);
     return supported;
 }
@@ -112,7 +112,7 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, struct c
         return 0;
     }
 
-    if ((container->cgroup_context.cgroup_flags&0b111) != CGROUP_MANAGER_SYSTEMD) {
+    if ((container->cgroup_context.cgroup_flags&CGROUP_MANAGER_MASK) != CGROUP_MANAGER_SYSTEMD) {
         copy_container_id(container->container_id, evt->container.container_id);
     } else {
         evt->container.container_id[0] = '\0';
