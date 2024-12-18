@@ -502,6 +502,8 @@ func (e *RuleEngine) getEventTypeEnabled() map[eval.EventType]bool {
 				switch eventType {
 				case model.RawPacketEventType.String():
 					enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
+				case model.NetworkFlowMonitorEventType.String():
+					enabled[eventType] = e.probe.IsNetworkFlowMonitorEnabled()
 				default:
 					enabled[eventType] = true
 				}

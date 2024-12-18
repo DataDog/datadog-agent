@@ -5,6 +5,7 @@
 #include "constants/offsets/filesystem.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "helpers/network/stats.h"
 #include "constants/fentry_macro.h"
 
 int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *path, const char **argv, const char **env) {
@@ -282,6 +283,11 @@ int hook_do_exit(ctx_t *ctx) {
     if (ignored) {
         bpf_map_delete_elem(&pid_ignored, &pid);
         return 0;
+    }
+
+    if (is_network_flow_monitor_enabled()) {
+        // flush network stats
+        flush_pid_network_stats(tgid, ctx, PID_EXIT);
     }
 
     // delete netns entry
@@ -659,6 +665,11 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 now = bpf_ktime_get_ns();
     u32 tgid = pid_tgid >> 32;
+
+    if (is_network_flow_monitor_enabled()) {
+        // flush network stats
+        flush_pid_network_stats(tgid, ctx, PID_EXEC);
+    }
 
     bpf_map_delete_elem(&exec_pid_transfer, &tgid);
 

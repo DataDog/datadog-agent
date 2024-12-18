@@ -96,15 +96,30 @@ type IPPortContext struct {
 	IsPublicResolved bool      `field:"-"`
 }
 
+// GetComparable returns a comparable version of IPPortContext
+func (ipc *IPPortContext) GetComparable() IPPortContextComparable {
+	return IPPortContextComparable{
+		IP:   ipc.IPNet.String(),
+		Port: ipc.Port,
+	}
+}
+
+// IPPortContextComparable is used by activity trees to lookup flows quickly
+type IPPortContextComparable struct {
+	IP   string
+	Port uint16
+}
+
 // NetworkContext represents the network context of the event
 type NetworkContext struct {
 	Device NetworkDeviceContext `field:"device"` // network device on which the network packet was captured
 
-	L3Protocol  uint16        `field:"l3_protocol"` // SECLDoc[l3_protocol] Definition:`L3 protocol of the network packet` Constants:`L3 protocols`
-	L4Protocol  uint16        `field:"l4_protocol"` // SECLDoc[l4_protocol] Definition:`L4 protocol of the network packet` Constants:`L4 protocols`
-	Source      IPPortContext `field:"source"`      // source of the network packet
-	Destination IPPortContext `field:"destination"` // destination of the network packet
-	Size        uint32        `field:"size"`        // SECLDoc[size] Definition:`Size in bytes of the network packet`
+	L3Protocol       uint16        `field:"l3_protocol"`       // SECLDoc[l3_protocol] Definition:`L3 protocol of the network packet` Constants:`L3 protocols`
+	L4Protocol       uint16        `field:"l4_protocol"`       // SECLDoc[l4_protocol] Definition:`L4 protocol of the network packet` Constants:`L4 protocols`
+	Source           IPPortContext `field:"source"`            // source of the network packet
+	Destination      IPPortContext `field:"destination"`       // destination of the network packet
+	NetworkDirection uint32        `field:"network_direction"` // SECLDoc[network_direction] Definition:`Network direction of the network packet` Constants:`Network directions`
+	Size             uint32        `field:"size"`              // SECLDoc[size] Definition:`Size in bytes of the network packet`
 }
 
 // IsZero returns if there is a network context
@@ -508,7 +523,7 @@ func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) *ProcessCacheEntry 
 }
 
 // Next returns the next element
-func (it *ProcessAncestorsIterator) Next() *ProcessCacheEntry {
+func (it *ProcessAncestorsIterator) Next(_ *eval.Context) *ProcessCacheEntry {
 	if next := it.prev.Ancestor; next != nil {
 		it.prev = next
 		return next

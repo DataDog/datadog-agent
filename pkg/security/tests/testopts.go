@@ -75,6 +75,8 @@ type testOpts struct {
 	eventServerRetention                       time.Duration
 	discardRuntime                             bool
 	enableSelfTests                            bool
+	eventStreamUseFentry                       bool
+	networkFlowMonitorEnabled                  bool
 }
 
 type dynamicTestOpts struct {
@@ -160,5 +162,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.enforcementDisarmerExecutableMaxAllowed == opts.enforcementDisarmerExecutableMaxAllowed &&
 		to.enforcementDisarmerExecutablePeriod == opts.enforcementDisarmerExecutablePeriod &&
 		to.eventServerRetention == opts.eventServerRetention &&
-		to.discardRuntime == opts.discardRuntime
+		to.discardRuntime == opts.discardRuntime &&
+		to.eventStreamUseFentry == opts.eventStreamUseFentry &&
+		to.networkFlowMonitorEnabled == opts.networkFlowMonitorEnabled
 }
