@@ -94,7 +94,7 @@ func ProcessAgentConfig(config config.Reader, getEntireConfig bool) (string, err
 		return "", fmt.Errorf("invalid process_config.cmd_port -- %d", port)
 	}
 
-	ipcAddressWithPort := fmt.Sprintf("http://%s:%d/config", ipcAddress, port)
+	ipcAddressWithPort := fmt.Sprintf("https://%s:%d/config", ipcAddress, port)
 	if getEntireConfig {
 		ipcAddressWithPort += "/all"
 	}

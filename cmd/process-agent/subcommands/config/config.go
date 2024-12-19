@@ -194,7 +194,7 @@ func getClient(cfg model.Reader) (settings.Client, error) {
 		return nil, fmt.Errorf("invalid process_config.cmd_port -- %d", port)
 	}
 
-	ipcAddressWithPort := fmt.Sprintf("http://%s:%d/config", ipcAddress, port)
+	ipcAddressWithPort := fmt.Sprintf("https://%s:%d/config", ipcAddress, port)
 	if err != nil {
 		return nil, err
 	}

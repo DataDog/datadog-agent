@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-const taggerListURLTpl = "http://%s/agent/tagger-list"
+const taggerListURLTpl = "https://%s/agent/tagger-list"
 
 // Commands returns a slice of subcommands for the `tagger-list` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {

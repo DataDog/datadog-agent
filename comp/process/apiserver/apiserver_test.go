@@ -56,7 +56,7 @@ func TestLifecycle(t *testing.T) {
 	))
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		url := fmt.Sprintf("http://localhost:%d/agent/status", port)
+		url := fmt.Sprintf("https://localhost:%d/agent/status", port)
 		req, err := http.NewRequest("GET", url, nil)
 		require.NoError(c, err)
 		req.Header.Set("Authorization", "Bearer "+util.GetAuthToken())
@@ -94,7 +94,7 @@ func TestPostAuthentication(t *testing.T) {
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		// No authentication
-		url := fmt.Sprintf("http://localhost:%d/config/log_level?value=debug", port)
+		url := fmt.Sprintf("https://localhost:%d/config/log_level?value=debug", port)
 		req, err := http.NewRequest("POST", url, nil)
 		require.NoError(c, err)
 		res, err := util.GetClient(false).Do(req)
