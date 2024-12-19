@@ -32,7 +32,7 @@ import (
 	"github.com/golang/mock/gomock"
 	gorillamux "github.com/gorilla/mux"
 	"github.com/prometheus/procfs"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
@@ -288,13 +288,23 @@ func TestPorts(t *testing.T) {
 	startUDP("udp4")
 	startUDP("udp6")
 
+	expectedPortsMap := make(map[uint16]struct{}, len(expectedPorts))
+
 	serviceMap := getServicesMap(t, url)
 	pid := os.Getpid()
 	require.Contains(t, serviceMap, pid)
 	for _, port := range expectedPorts {
+		expectedPortsMap[port] = struct{}{}
 		assert.Contains(t, serviceMap[pid].Ports, port)
 	}
 	for _, port := range unexpectedPorts {
+		// An unexpected port number can also be expected since UDP and TCP and
+		// v4 and v6 are all in the same list. Just skip the extra check in that
+		// case since it should be rare.
+		if _, alsoExpected := expectedPortsMap[port]; alsoExpected {
+			continue
+		}
+
 		assert.NotContains(t, serviceMap[pid].Ports, port)
 	}
 }
@@ -847,9 +857,11 @@ func TestDocker(t *testing.T) {
 	require.Contains(t, portMap, pid1111)
 	require.Contains(t, portMap[pid1111].Ports, uint16(1234))
 	require.Contains(t, portMap[pid1111].ContainerID, "dummyCID")
-	require.Contains(t, portMap[pid1111].Name, "foo_from_app_tag")
-	require.Contains(t, portMap[pid1111].GeneratedName, "foo_from_app_tag")
-	require.Contains(t, portMap[pid1111].GeneratedNameSource, string(usm.Container))
+	require.Contains(t, portMap[pid1111].Name, "http.server")
+	require.Contains(t, portMap[pid1111].GeneratedName, "http.server")
+	require.Contains(t, portMap[pid1111].GeneratedNameSource, string(usm.CommandLine))
+	require.Contains(t, portMap[pid1111].ContainerServiceName, "foo_from_app_tag")
+	require.Contains(t, portMap[pid1111].ContainerServiceNameSource, "app")
 }
 
 // Check that the cache is cleaned when procceses die.
@@ -922,56 +934,67 @@ func TestTagsPriority(t *testing.T) {
 	cases := []struct {
 		name                string
 		tags                []string
+		expectedTagName     string
 		expectedServiceName string
 	}{
 		{
 			"nil tag list",
 			nil,
 			"",
+			"",
 		},
 		{
 			"empty tag list",
 			[]string{},
+			"",
 			"",
 		},
 		{
 			"no useful tags",
 			[]string{"foo:bar"},
 			"",
+			"",
 		},
 		{
 			"malformed tag",
 			[]string{"foobar"},
 			"",
+			"",
 		},
 		{
 			"service tag",
 			[]string{"service:foo"},
+			"service",
 			"foo",
 		},
 		{
 			"app tag",
 			[]string{"app:foo"},
+			"app",
 			"foo",
 		},
 		{
 			"short_image tag",
 			[]string{"short_image:foo"},
+			"short_image",
 			"foo",
 		},
 		{
 			"kube_container_name tag",
 			[]string{"kube_container_name:foo"},
+			"kube_container_name",
 			"foo",
 		},
 		{
 			"kube_deployment tag",
 			[]string{"kube_deployment:foo"},
+			"kube_deployment",
 			"foo",
 		},
 		{
 			"kube_service tag",
 			[]string{"kube_service:foo"},
+			"kube_service",
 			"foo",
 		},
 		{
@@ -982,6 +1005,7 @@ func TestTagsPriority(t *testing.T) {
 				"service:my_service",
 				"malformed",
 			},
+			"service",
 			"my_service",
 		},
 		{
@@ -990,6 +1014,7 @@ func TestTagsPriority(t *testing.T) {
 				"service:",
 				"app:foo",
 			},
+			"app",
 			"foo",
 		},
 		{
@@ -1001,6 +1026,7 @@ func TestTagsPriority(t *testing.T) {
 				"service:my_service",
 				"malformed",
 			},
+			"service",
 			"my_service",
 		},
 		{
@@ -1013,31 +1039,17 @@ func TestTagsPriority(t *testing.T) {
 				"app:my_app",
 				"service:my_service",
 			},
+			"service",
 			"my_service",
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			name := getServiceNameFromContainerTags(c.tags)
+			tagName, name := getServiceNameFromContainerTags(c.tags)
 			require.Equalf(t, c.expectedServiceName, name, "got wrong service name from container tags")
+			require.Equalf(t, c.expectedTagName, tagName, "got wrong tag name for service naming")
 		})
-	}
-}
-
-func BenchmarkOldProcess(b *testing.B) {
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		process.NewProcess(int32(os.Getpid()))
-	}
-}
-
-func BenchmarkNewProcess(b *testing.B) {
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		customNewProcess(int32(os.Getpid()))
 	}
 }
 

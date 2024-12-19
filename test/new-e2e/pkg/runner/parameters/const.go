@@ -5,6 +5,8 @@
 
 package parameters
 
+import "github.com/DataDog/test-infra-definitions/components"
+
 // StoreKey alias to string
 type StoreKey string
 
@@ -19,14 +21,28 @@ const (
 	ExtraResourcesTags StoreKey = "extra_resources_tags"
 	// KeyPairName aws keypairname, used to access EC2 instances
 	KeyPairName StoreKey = "key_pair_name"
-	// PrivateKeyPassword private ssh key password
-	PrivateKeyPassword StoreKey = "private_key_password"
-	// PrivateKeyPath private ssh key path
-	PrivateKeyPath StoreKey = "private_key_path"
+	// AWSPrivateKeyPassword private ssh key password
+	AWSPrivateKeyPassword StoreKey = StoreKey(components.CloudProviderAWS + PrivateKeyPasswordSuffix)
+	// AWSPrivateKeyPath private ssh key path
+	AWSPrivateKeyPath StoreKey = StoreKey(components.CloudProviderAWS + PrivateKeyPathSuffix)
 	// Profile aws profile name
 	Profile StoreKey = "profile"
-	// PublicKeyPath public ssh key path
-	PublicKeyPath StoreKey = "public_key_path"
+	// AWSPublicKeyPath public ssh key path
+	AWSPublicKeyPath StoreKey = StoreKey(components.CloudProviderAWS + PublicKeyPathSuffix)
+	//AzurePrivateKeyPassword private ssh key password
+	AzurePrivateKeyPassword StoreKey = StoreKey(components.CloudProviderAzure + PrivateKeyPasswordSuffix)
+	//AzurePrivateKeyPath private ssh key path
+	AzurePrivateKeyPath StoreKey = StoreKey(components.CloudProviderAzure + PrivateKeyPathSuffix)
+	//AzurePublicKeyPath public ssh key path
+	AzurePublicKeyPath StoreKey = StoreKey(components.CloudProviderAzure + PublicKeyPathSuffix)
+	//GCPPrivateKeyPassword private ssh key password
+	GCPPrivateKeyPassword StoreKey = StoreKey(components.CloudProviderGCP + PrivateKeyPasswordSuffix)
+	//GCPPrivateKeyPath private ssh key path
+	GCPPrivateKeyPath StoreKey = StoreKey(components.CloudProviderGCP + PrivateKeyPathSuffix)
+	//GCPPublicKeyPath public ssh key path
+	GCPPublicKeyPath StoreKey = StoreKey(components.CloudProviderGCP + PublicKeyPathSuffix)
+	// LocalPublicKeyPath public ssh key path
+	LocalPublicKeyPath StoreKey = "local_public_key_path"
 	// PulumiPassword config file parameter name
 	PulumiPassword StoreKey = "pulumi_password"
 	// SkipDeleteOnFailure keep the stack on test failure
@@ -55,4 +71,13 @@ const (
 	PreInitialized StoreKey = "pre_initialized"
 	// MajorVersion config flag parameter name
 	MajorVersion StoreKey = "major_version"
+)
+
+const (
+	// PrivateKeyPathSuffix private ssh key path suffix
+	PrivateKeyPathSuffix = "_private_key_path"
+	// PublicKeyPathSuffix public ssh key path suffix
+	PublicKeyPathSuffix = "_public_key_path"
+	// PrivateKeyPasswordSuffix private ssh key password suffix
+	PrivateKeyPasswordSuffix = "_private_key_password"
 )
