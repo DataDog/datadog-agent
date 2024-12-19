@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/api"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -58,6 +59,10 @@ func taggerList(deps dependencies) error {
 		return err
 	}
 
+	err = util.SetAuthToken(deps.Config)
+	if err != nil {
+		return err
+	}
 	return api.GetTaggerList(color.Output, taggerURL)
 }
 
