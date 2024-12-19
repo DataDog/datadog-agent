@@ -42,6 +42,7 @@ needs-rules:
     - tests_windows_sysprobe_x64
     - trigger_auto_staging_release
     - trigger_manual_prod_release
+    - generate_windows_gitlab_runner_bump_pr
 
 # Lists jobs that are allowed to not be within JOBOWNERS
 job-owners:
