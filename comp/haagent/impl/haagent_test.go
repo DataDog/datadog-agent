@@ -127,7 +127,8 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 			expectedAgentState: haagent.Active,
 		},
 		{
-			name: "successful update with leader NOT matching current agent",
+			name:         "successful update with leader NOT matching current agent",
+			initialState: haagent.Unknown,
 			updates: map[string]state.RawConfig{
 				testConfigID: {Config: []byte(`{"group":"testGroup01","leader":"another-agent-hostname"}`)},
 			},
@@ -138,7 +139,8 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 			expectedAgentState: haagent.Standby,
 		},
 		{
-			name: "invalid payload",
+			name:         "invalid payload",
+			initialState: haagent.Unknown,
 			updates: map[string]state.RawConfig{
 				testConfigID: {Config: []byte(`invalid-json`)},
 			},
@@ -150,7 +152,8 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 			expectedAgentState: haagent.Unknown,
 		},
 		{
-			name: "invalid group",
+			name:         "invalid group",
+			initialState: haagent.Unknown,
 			updates: map[string]state.RawConfig{
 				testConfigID: {Config: []byte(`{"group":"invalidGroup","leader":"another-agent-hostname"}`)},
 			},
@@ -163,6 +166,7 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 		},
 		{
 			name:                "empty update",
+			initialState:        haagent.Active,
 			updates:             map[string]state.RawConfig{},
 			expectedApplyID:     "",
 			expectedApplyStatus: state.ApplyStatus{},
