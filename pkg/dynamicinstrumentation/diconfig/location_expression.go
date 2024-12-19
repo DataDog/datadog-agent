@@ -12,9 +12,10 @@ import (
 	"reflect"
 	"strings"
 
+	"math/rand"
+
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/exp/rand"
 )
 
 // GenerateLocationExpression takes metadata about a parameter, including its type and location, and generates a list of
