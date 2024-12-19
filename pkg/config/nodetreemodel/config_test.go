@@ -343,6 +343,34 @@ func TestIsSet(t *testing.T) {
 	assert.False(t, cfg.IsKnown("unknown"))
 }
 
+func TestIsConfigured(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.SetKnown("c")
+	cfg.BindEnv("d")
+	cfg.SetDefault("e.a", 0)
+	cfg.SetDefault("e.b", 0)
+	cfg.SetDefault("f.a", 0)
+	cfg.SetDefault("f.b", 0)
+
+	t.Setenv("TEST_D", "123")
+
+	cfg.BuildSchema()
+
+	cfg.Set("b", 123, model.SourceAgentRuntime)
+	cfg.Set("f.b", 456, model.SourceAgentRuntime)
+
+	assert.False(t, cfg.IsConfigured("a"))
+	assert.True(t, cfg.IsConfigured("b"))
+	assert.False(t, cfg.IsConfigured("c"))
+	assert.True(t, cfg.IsConfigured("d"))
+	assert.False(t, cfg.IsConfigured("e"))
+	assert.True(t, cfg.IsConfigured("f"))
+
+	assert.False(t, cfg.IsConfigured("unknown"))
+}
+
 func TestAllKeysLowercased(t *testing.T) {
 	cfg := NewConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)

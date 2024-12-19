@@ -318,6 +318,13 @@ func (c *safeConfig) IsSet(key string) bool {
 	return c.Viper.IsSet(key)
 }
 
+// IsConfigured returns true if a settings was configured by the user (ie: the value doesn't come from defaults)
+func (c *safeConfig) IsConfigured(key string) bool {
+	c.RLock()
+	defer c.RUnlock()
+	return c.Viper.IsConfigured(key)
+}
+
 func (c *safeConfig) AllKeysLowercased() []string {
 	c.Lock()
 	defer c.Unlock()
