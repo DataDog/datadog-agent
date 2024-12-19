@@ -41,7 +41,8 @@ BPF_HASH_MAP(secprofs_syscalls, u64, struct security_profile_syscalls_t, 1) // m
 BPF_HASH_MAP(auid_approvers, u32, struct event_mask_filter_t, 128)
 BPF_HASH_MAP(auid_range_approvers, u32, struct u32_range_filter_t, EVENT_MAX)
 
-BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct activity_dump_rate_limiter_ctx, 1) // max entries will be overridden at runtime
+BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
+BPF_LRU_MAP(rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(mount_ref, u32, struct mount_ref_t, 64000)
 BPF_LRU_MAP(bpf_maps, u32, struct bpf_map_t, 4096)
 BPF_LRU_MAP(bpf_progs, u32, struct bpf_prog_t, 4096)
