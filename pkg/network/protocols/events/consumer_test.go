@@ -212,7 +212,7 @@ func newEBPFProgram(c *config.Config) (*ddebpf.Manager, error) {
 	ddEbpfManager := ddebpf.NewManager(m, "usm", &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	Configure(config.New(), "test", ddEbpfManager.Manager, &options)
-	err = m.InitWithOptions(bc, options)
+	err = ddEbpfManager.InitWithOptions(bc, &options)
 	if err != nil {
 		return nil, err
 	}
