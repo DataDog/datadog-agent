@@ -22,6 +22,11 @@ jobs:
           branches: ${{ steps.branches.outputs.value }}
           warning: ${{ steps.warning.outputs.value }}
         steps:
+            - name: Install python
+              uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+              with:
+                python-version: 3.11
+                cache: "pip"
             - name: Check if agent 6 rc PR already exists
               if: ${{ env.IS_AGENT6_RELEASE == 'true' }}
               run: |
@@ -43,13 +48,6 @@ jobs:
               with:
                 sparse-checkout: 'tasks'
                 persist-credentials: false
-
-            - name: Install python
-              if: ${{ env.IS_AGENT6_RELEASE == 'false' }}
-              uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
-              with:
-                python-version: 3.11
-                cache: "pip"
 
             - name: Install Python dependencies
               if: ${{ env.IS_AGENT6_RELEASE == 'false' }}
