@@ -394,6 +394,11 @@ func getProcessAgentTaggerList() ([]byte, error) {
 		return nil, fmt.Errorf("wrong configuration to connect to process-agent")
 	}
 
+	err = apiutil.SetAuthToken(pkgconfigsetup.Datadog())
+	if err != nil {
+		return nil, err
+	}
+
 	taggerListURL := fmt.Sprintf("http://%s/agent/tagger-list", addressPort)
 	return getTaggerList(taggerListURL)
 }
