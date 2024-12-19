@@ -11,12 +11,15 @@ package main
 import (
 	"os"
 
+	"github.com/DataDog/datadog-agent/cmd/internal/rssshrinker"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands"
 )
 
 func main() {
+	rssshrinker.Setup()
+
 	rootCmd := command.MakeCommand(subcommands.SysprobeSubcommands())
 	command.SetDefaultCommandIfNonePresent(rootCmd)
 	os.Exit(runcmd.Run(rootCmd))
