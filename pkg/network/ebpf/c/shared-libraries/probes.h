@@ -102,9 +102,24 @@ cleanup:
     return;
 }
 
+// This definition is the same for all architectures.
+#ifndef O_WRONLY
+#define O_WRONLY        00000001
+#endif
+
+static __always_inline int should_ignore_flags(int flags)
+{
+    return flags & O_WRONLY;
+}
+
 SEC("tracepoint/syscalls/sys_enter_open")
 int tracepoint__syscalls__sys_enter_open(enter_sys_open_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
+
+    if (should_ignore_flags(args->flags)) {
+        return 0;
+    }
+
     do_sys_open_helper_enter(args->filename);
     return 0;
 }
@@ -119,6 +134,11 @@ int tracepoint__syscalls__sys_exit_open(exit_sys_ctx *args) {
 SEC("tracepoint/syscalls/sys_enter_openat")
 int tracepoint__syscalls__sys_enter_openat(enter_sys_openat_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
+
+    if (should_ignore_flags(args->flags)) {
+        return 0;
+    }
+
     do_sys_open_helper_enter(args->filename);
     return 0;
 }
@@ -133,6 +153,8 @@ int tracepoint__syscalls__sys_exit_openat(exit_sys_ctx *args) {
 SEC("tracepoint/syscalls/sys_enter_openat2")
 int tracepoint__syscalls__sys_enter_openat2(enter_sys_openat2_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
+    // Unlike the other variants, openat2(2) has the flags embedded inside the
+    // how argument; we don't bother trying to accessing it for now.
     do_sys_open_helper_enter(args->filename);
     return 0;
 }
