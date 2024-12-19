@@ -89,7 +89,7 @@ func SetupEmr(s *common.Setup) error {
 		return fmt.Errorf("failed to set tags: %w", err)
 	}
 	if isMaster == "true" {
-		setupEmrDriver(s, hostname, clusterName)
+		setupEmrDriver(s, clusterName)
 	}
 	return nil
 }
@@ -136,17 +136,17 @@ func setupCommonEmrHostTags(s *common.Setup) (string, string, error) {
 	return info.IsMaster, response.Cluster.Name, nil
 }
 
-func setupEmrDriver(s *common.Setup, host string, clusterName string) {
+func setupEmrDriver(s *common.Setup, clusterName string) {
 
 	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigEmr
 
 	var sparkIntegration common.IntegrationConfig
 	var yarnIntegration common.IntegrationConfig
 
-	if host != "" {
+	if clusterName != "" {
 		sparkIntegration.Instances = []any{
 			common.IntegrationConfigInstanceSpark{
-				SparkURL:         "http://" + host + ":8088",
+				SparkURL:         "http://127.0.0.1:8088",
 				SparkClusterMode: "spark_yarn_mode",
 				ClusterName:      clusterName,
 				StreamingMetrics: false,
@@ -154,14 +154,14 @@ func setupEmrDriver(s *common.Setup, host string, clusterName string) {
 		}
 		yarnIntegration.Instances = []any{
 			common.IntegrationConfigInstanceYarn{
-				ResourceManagerURI: "http://" + host + ":8088",
+				ResourceManagerURI: "http://127.0.0.1:8088",
 				ClusterName:        clusterName,
 			},
 		}
 		s.Config.IntegrationConfigs["spark.d/conf.yaml"] = sparkIntegration
 		s.Config.IntegrationConfigs["yarn.d/conf.yaml"] = yarnIntegration
 	} else {
-		log.Warn("host is empty, Spark and yarn integrations are not set up")
+		log.Warn("clusterName is empty, Spark and yarn integrations are not set up")
 	}
 }
 
