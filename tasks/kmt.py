@@ -738,17 +738,18 @@ def prepare(
         )
 
     if ci:
-        domains = None
         stack = "ci"
         return _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only)
 
-    if alien_vms is not None:
-        err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
-    else:
-        err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
-    stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
-    domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
-    assert len(domains) > 0, err_msg
+    domains = None
+    if not compile_only:
+        if alien_vms is not None:
+            err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
+        else:
+            err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+        stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
+        domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
+        assert len(domains) > 0, err_msg
 
     _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only, domains=domains)
 

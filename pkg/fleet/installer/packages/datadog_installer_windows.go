@@ -11,15 +11,21 @@ package packages
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"os"
 	"path"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 )
 
 const (
 	datadogInstaller = "datadog-installer"
 )
+
+// PrepareInstaller prepares the installer
+func PrepareInstaller(_ context.Context) error {
+	return nil
+}
 
 // SetupInstaller installs and starts the installer
 func SetupInstaller(_ context.Context) error {
