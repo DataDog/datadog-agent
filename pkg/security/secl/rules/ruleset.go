@@ -312,7 +312,25 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 		tags = append(tags, k+":"+v)
 	}
 
-	evalRule, err := eval.NewRule(pRule.Def.ID, pRule.Def.Expression, parsingContext, rs.evalOpts, tags...)
+	expandedRules := expandFim(pRule.Def.ID, pRule.Def.Expression)
+
+	categories := make([]model.EventCategory, 0)
+	for _, er := range expandedRules {
+		category, err := rs.innerAddExpandedRule(parsingContext, pRule, er, tags)
+		if err != nil {
+			return "", err
+		}
+		categories = append(categories, category)
+	}
+	categories = slices.Compact(categories)
+	if len(categories) != 1 {
+		return "", &ErrRuleLoad{Rule: pRule, Err: ErrMultipleEventCategories}
+	}
+	return categories[0], nil
+}
+
+func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRule *PolicyRule, exRule expandedRule, tags []string) (model.EventCategory, error) {
+	evalRule, err := eval.NewRule(exRule.id, exRule.expr, parsingContext, rs.evalOpts, tags...)
 	if err != nil {
 		return "", &ErrRuleLoad{Rule: pRule, Err: &ErrRuleSyntax{Err: err}}
 	}
