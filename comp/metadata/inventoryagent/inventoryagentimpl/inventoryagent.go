@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
@@ -92,6 +93,7 @@ type inventoryagent struct {
 
 	log          log.Component
 	conf         config.Component
+	secrets      secrets.Component
 	sysprobeConf optional.Option[sysprobeconfig.Component]
 	m            sync.Mutex
 	data         agentMetadata
@@ -107,6 +109,7 @@ type dependencies struct {
 	SysProbeConfig optional.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
 	AuthToken      authtoken.Component
+	Secrets        secrets.Component
 }
 
 type provides struct {
@@ -125,6 +128,7 @@ func newInventoryAgentProvider(deps dependencies) provides {
 		conf:         deps.Config,
 		sysprobeConf: deps.SysProbeConfig,
 		log:          deps.Log,
+		secrets:      deps.Secrets,
 		hostname:     hname,
 		data:         make(agentMetadata),
 		authToken:    deps.AuthToken,
@@ -243,6 +247,8 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data["feature_csm_vm_hosts_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("sbom.host.enabled")
 
 	ia.data["fleet_policies_applied"] = ia.conf.GetStringSlice("fleet_layers")
+
+	ia.data["config_available_secrets"] = ia.secrets.ListSecrets()
 
 	// ECS Fargate
 	ia.fetchECSFargateAgentMetadata()
