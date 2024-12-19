@@ -221,14 +221,6 @@ func Test_linuxImpl(t *testing.T) {
 				{
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP5000,
-						portTCP8080,
-						portTCP8081,
-					}},
-					time: calcTime(1 * time.Minute),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP5000,
 						portTCP8080UpdatedRSS,
 						portTCP8081,
 					}},
@@ -259,7 +251,7 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                        "",
 						StartTime:                  calcTime(0).Unix(),
 						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(1 * time.Minute).Unix(),
+						LastSeen:                   calcTime(0).Unix(),
 						Ports:                      []uint16{8080},
 						PID:                        99,
 						CommandLine:                []string{"test-service-1"},
@@ -338,7 +330,7 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                        "",
 						StartTime:                  calcTime(0).Unix(),
 						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(1 * time.Minute).Unix(),
+						LastSeen:                   calcTime(0).Unix(),
 						Ports:                      []uint16{5000},
 						PID:                        500,
 						ServiceLanguage:            "python",
@@ -388,14 +380,6 @@ func Test_linuxImpl(t *testing.T) {
 						portTCP8081,
 						portTCP5432,
 					}},
-					time: calcTime(1 * time.Minute),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080,
-						portTCP8081,
-						portTCP5432,
-					}},
 					time: calcTime(20 * time.Minute),
 				},
 				{
@@ -421,7 +405,7 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                        "",
 						StartTime:                  calcTime(0).Unix(),
 						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(1 * time.Minute).Unix(),
+						LastSeen:                   calcTime(0).Unix(),
 						Ports:                      []uint16{5432},
 						PID:                        101,
 						CommandLine:                []string{"test-service-1"},
@@ -445,7 +429,7 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                        "",
 						StartTime:                  calcTime(0).Unix(),
 						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(1 * time.Minute).Unix(),
+						LastSeen:                   calcTime(0).Unix(),
 						Ports:                      []uint16{8080},
 						PID:                        99,
 						CommandLine:                []string{"test-service-1"},

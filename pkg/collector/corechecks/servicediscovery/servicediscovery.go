@@ -42,7 +42,6 @@ type serviceEvents struct {
 
 type discoveredServices struct {
 	ignoreProcs     map[int]bool
-	potentials      map[int]*model.Service
 	runningServices map[int]*model.Service
 
 	events serviceEvents
@@ -146,10 +145,9 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	log.Debugf("ignoreProcs: %d | runningServices: %d | potentials: %d",
+	log.Debugf("ignoreProcs: %d | runningServices: %d",
 		len(disc.ignoreProcs),
 		len(disc.runningServices),
-		len(disc.potentials),
 	)
 	metricDiscoveredServices.Set(float64(len(disc.runningServices)))
 
@@ -176,11 +174,6 @@ func (c *Check) Run() error {
 		}
 	}
 
-	potentialNames := map[string]bool{}
-	for _, service := range disc.potentials {
-		potentialNames[service.Name] = true
-	}
-
 	// group events by name in order to find repeated events for the same service name.
 	eventsByName := make(eventsByNameMap)
 	for _, p := range disc.events.start {
@@ -190,11 +183,6 @@ func (c *Check) Run() error {
 		eventsByName.addHeartbeat(p)
 	}
 	for _, p := range disc.events.stop {
-		if potentialNames[p.Name] {
-			// we consider this situation a restart, so we skip the stop event.
-			log.Debugf("there is a potential service with the same name as a stopped one, skipping end-service event (name: %q)", p.Name)
-			continue
-		}
 		eventsByName.addStop(p)
 		if c.sentRepeatedEventPIDs[p.PID] {
 			// delete this process from the map, so we track it if the PID gets reused

@@ -32,9 +32,8 @@ type linuxImpl struct {
 
 	ignoreCfg map[string]bool
 
-	ignoreProcs       map[int]bool
-	aliveServices     map[int]*model.Service
-	potentialServices map[int]*model.Service
+	ignoreProcs   map[int]bool
+	aliveServices map[int]*model.Service
 
 	sysProbeClient *http.Client
 }
@@ -46,7 +45,6 @@ func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
 		ignoreCfg:            ignoreCfg,
 		ignoreProcs:          make(map[int]bool),
 		aliveServices:        make(map[int]*model.Service),
-		potentialServices:    make(map[int]*model.Service),
 		sysProbeClient:       sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 	}, nil
 }
@@ -93,26 +91,26 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	events := serviceEvents{}
 	now := li.time.Now()
 
-	li.handlePotentialServices(&events, serviceMap)
-
 	// check open ports - these will be potential new services if they are still alive in the next iteration.
 	for _, service := range response.Services {
 		pid := service.PID
 		if li.ignoreProcs[pid] {
 			continue
 		}
-		if _, ok := li.aliveServices[pid]; !ok {
-			log.Debugf("[pid: %d] found new process with open ports", pid)
 
-			if li.ignoreCfg[service.Name] {
-				log.Debugf("[pid: %d] process ignored from config: %s", pid, service.Name)
-				li.ignoreProcs[pid] = true
-				continue
-			}
-
-			log.Debugf("[pid: %d] adding process to potential: %s", pid, service.Name)
-			li.potentialServices[pid] = &service
+		if _, ok := li.aliveServices[pid]; ok {
+			continue
 		}
+
+		log.Debugf("[pid: %d] found new process with open ports", pid)
+		if li.ignoreCfg[service.Name] {
+			log.Debugf("[pid: %d] process ignored from config: %s", pid, service.Name)
+			li.ignoreProcs[pid] = true
+			continue
+		}
+
+		li.aliveServices[pid] = &service
+		events.start = append(events.start, service)
 	}
 
 	// check if services previously marked as alive still are.
@@ -142,37 +140,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 
 	return &discoveredServices{
 		ignoreProcs:     li.ignoreProcs,
-		potentials:      li.potentialServices,
 		runningServices: li.aliveServices,
 		events:          events,
 	}, nil
-}
-
-// handlePotentialServices checks cached potential services we have seen in the
-// previous call of the check. If they are still alive, start events are sent
-// for these services.
-func (li *linuxImpl) handlePotentialServices(events *serviceEvents, serviceMap map[int]*model.Service) {
-	if len(li.potentialServices) == 0 {
-		return
-	}
-
-	// potentialServices contains processes that we scanned in the previous
-	// iteration and had open ports. We check if they are still alive in this
-	// iteration, and if so, we send a start-service telemetry event.
-	for pid, potential := range li.potentialServices {
-		if service, ok := serviceMap[pid]; ok {
-			potential.LastHeartbeat = service.LastHeartbeat
-			potential.RSS = service.RSS
-			potential.CPUCores = service.CPUCores
-			potential.ContainerID = service.ContainerID
-			potential.GeneratedName = service.GeneratedName
-			potential.ContainerServiceName = service.ContainerServiceName
-			potential.ContainerServiceNameSource = service.ContainerServiceNameSource
-			potential.Name = service.Name
-
-			li.aliveServices[pid] = potential
-			events.start = append(events.start, *potential)
-		}
-	}
-	clear(li.potentialServices)
 }

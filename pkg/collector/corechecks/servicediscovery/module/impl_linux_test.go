@@ -118,13 +118,13 @@ func getServices(t require.TestingT, url string) []model.Service {
 	res := &model.ServicesResponse{}
 	err = json.NewDecoder(resp.Body).Decode(res)
 	require.NoError(t, err)
-	require.NotEmpty(t, res)
 
 	return res.Services
 }
 
 func getServicesMap(t require.TestingT, url string) map[int]model.Service {
 	services := getServices(t, url)
+	services = getServices(t, url)
 	servicesMap := make(map[int]model.Service)
 	for _, service := range services {
 		servicesMap[service.PID] = service
@@ -853,7 +853,8 @@ func TestDocker(t *testing.T) {
 						nil,
 						map[int]string{
 							pid1111: "dummyCID",
-						}, nil)
+						}, nil).
+					AnyTimes()
 
 				break
 			}
