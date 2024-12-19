@@ -11,7 +11,9 @@ import (
 	"fmt"
 
 	"github.com/shirou/gopsutil/v4/cpu"
+	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -29,8 +31,13 @@ var getContextSwitches = GetContextSwitches
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	lastNbCycle float64
-	lastTimes   cpu.TimesStat
+	instanceConfig cpuInstanceConfig
+	lastNbCycle    float64
+	lastTimes      cpu.TimesStat
+}
+
+type cpuInstanceConfig struct {
+	ReportTotalPerCPU bool `yaml:"report_total_percpu"`
 }
 
 // Run executes the check
@@ -48,7 +55,7 @@ func (c *Check) Run() error {
 	if err != nil {
 		return err
 	}
-	err = c.reportCpuMetricsPerCpu(sender)
+	err = c.reportCpuMetricsTotal(sender)
 	if err != nil {
 		return err
 	}
@@ -128,13 +135,13 @@ func (c *Check) reportCpuMetricsPercent(sender sender.Sender, numCores int32) (e
 	return nil
 }
 
-func (c *Check) reportCpuMetricsPerCpu(sender sender.Sender) (err error) {
-	cpuTimes, err := getCpuTimes(true)
+func (c *Check) reportCpuMetricsTotal(sender sender.Sender) (err error) {
+	cpuTimes, err := getCpuTimes(c.instanceConfig.ReportTotalPerCPU)
 	if err != nil {
 		log.Errorf("could not retrieve cpu times: %s", err.Error())
 		return err
 	}
-	log.Debugf("getCpuTimes(true): %s", cpuTimes)
+	log.Debugf("getCpuTimes(%t): %s", c.instanceConfig.ReportTotalPerCPU, cpuTimes)
 	for _, t := range cpuTimes {
 		tags := []string{fmt.Sprintf("core:%s", t.CPU)}
 		sender.Gauge("system.cpu.user.total", t.User, "", tags)
@@ -147,6 +154,19 @@ func (c *Check) reportCpuMetricsPerCpu(sender sender.Sender) (err error) {
 		sender.Gauge("system.cpu.steal.total", t.Steal, "", tags)
 		sender.Gauge("system.cpu.guest.total", t.Guest, "", tags)
 		sender.Gauge("system.cpu.guestnice.total", t.GuestNice, "", tags)
+	}
+	return nil
+}
+
+// Configure configures the network checks
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
+	if err != nil {
+		return err
+	}
+	err = yaml.Unmarshal(rawInstance, &c.instanceConfig)
+	if err != nil {
+		return err
 	}
 	return nil
 }
