@@ -225,7 +225,7 @@ func TestAgentConfigCallback(t *testing.T) {
 }
 
 func TestAgentMRFConfigCallback(t *testing.T) {
-	pkglog.SetupLogger(seelog.Default, "info")
+	pkglog.SetupLogger(pkglog.Default(), "info")
 	cfg := configmock.New(t)
 
 	rc := fxutil.Test[rcclient.Component](t,
