@@ -51,7 +51,7 @@ func NewController(
 	validatingInformers admissionregistration.Interface,
 	mutatingInformers admissionregistration.Interface,
 	isLeaderFunc func() bool,
-	isLeaderNotif <-chan struct{},
+	leadershipStateNotif <-chan struct{},
 	config Config,
 	wmeta workloadmeta.Component,
 	pa workload.PodPatcher,
@@ -59,9 +59,9 @@ func NewController(
 	demultiplexer demultiplexer.Component,
 ) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa, datadogConfig, demultiplexer)
+		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
 	}
-	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa, datadogConfig, demultiplexer)
+	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
 }
 
 // Webhook represents an admission webhook
@@ -162,7 +162,7 @@ type controllerBase struct {
 	mutatingWebhooksSynced   cache.InformerSynced //nolint:structcheck
 	queue                    workqueue.TypedRateLimitingInterface[string]
 	isLeaderFunc             func() bool
-	isLeaderNotif            <-chan struct{}
+	leadershipStateNotif     <-chan struct{}
 	webhooks                 []Webhook
 }
 
@@ -186,9 +186,11 @@ func (c *controllerBase) EnabledWebhooks() []Webhook {
 func (c *controllerBase) enqueueOnLeaderNotif(stop <-chan struct{}) {
 	for {
 		select {
-		case <-c.isLeaderNotif:
-			log.Infof("Got a leader notification, enqueuing a reconciliation for %q", c.config.getWebhookName())
-			c.triggerReconciliation()
+		case <-c.leadershipStateNotif:
+			if c.isLeaderFunc() {
+				log.Infof("Got a leader notification, enqueuing a reconciliation for %q", c.config.getWebhookName())
+				c.triggerReconciliation()
+			}
 		case <-stop:
 			return
 		}
