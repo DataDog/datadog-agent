@@ -45,7 +45,7 @@ func TestWLANOK(t *testing.T) {
 
 	wlanCheck.Run()
 
-	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "security_type:wpa/wpa2_personal", "mac_address:hardware-address"}
+	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address"}
 
 	mockSender.AssertMetric(t, "Gauge", "wlan.rssi", 10.0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "wlan.noise", 20.0, "", expectedTags)
@@ -83,7 +83,7 @@ func TestWLANEmptySSIDandBSSID(t *testing.T) {
 
 	wlanCheck.Run()
 
-	expectedTags := []string{"ssid:unknown", "bssid:unknown", "security_type:wpa/wpa2_personal", "mac_address:hardware-address"}
+	expectedTags := []string{"ssid:unknown", "bssid:unknown", "mac_address:hardware-address"}
 
 	mockSender.AssertMetric(t, "Gauge", "wlan.rssi", 10.0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "wlan.noise", 20.0, "", expectedTags)
@@ -112,7 +112,7 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 		setupLocationAccess = SetupLocationAccess
 	}()
 
-	expectedTags := []string{"ssid:unknown", "bssid:unknown", "security_type:wpa/wpa2_personal", "mac_address:hardware-address"}
+	expectedTags := []string{"ssid:unknown", "bssid:unknown", "mac_address:hardware-address"}
 
 	wlanCheck := new(WLANCheck)
 

@@ -71,13 +71,11 @@ func (c *WLANCheck) Run() error {
 	if bssid == "" {
 		bssid = "unknown"
 	}
-	securityType := strings.ToLower(strings.Replace(wifiInfo.SecurityType, " ", "_", -1))
 	hardwareAddress := strings.ToLower(strings.Replace(wifiInfo.HardwareAddress, " ", "_", -1))
 
 	tags := []string{}
 	tags = append(tags, "ssid:"+ssid)
 	tags = append(tags, "bssid:"+bssid)
-	tags = append(tags, "security_type:"+securityType)
 	tags = append(tags, "mac_address:"+hardwareAddress)
 
 	sender.Gauge("wlan.rssi", float64(wifiInfo.Rssi), "", tags)
