@@ -7,16 +7,14 @@
 package validators
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // HasBareWildcardInField checks whether a rule has a bare wildcard
 func HasBareWildcardInField(rule *eval.Rule) (bool, error) {
-	parsingContext := ast.NewParsingContext(false)
 	localModel := &model.Model{}
-	if err := rule.GenEvaluator(localModel, parsingContext); err != nil {
+	if err := rule.GenEvaluator(localModel); err != nil {
 		return false, err
 	}
 
