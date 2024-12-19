@@ -96,6 +96,14 @@ type Component interface {
 	// to all entities with kind KindProcess.
 	ListProcesses() []*Process
 
+	// GetGPU returns metadata about a GPU device. It fetches the entity
+	// with kind KindGPU and the given ID.
+	GetGPU(id string) (*GPU, error)
+
+	// ListGPUs returns metadata about all known GPU devices, equivalent
+	// to all entities with kind KindGPU.
+	ListGPUs() []*GPU
+
 	// ListProcessesWithFilter returns all the processes for which the passed
 	// filter evaluates to true.
 	ListProcessesWithFilter(filterFunc EntityFilterFunc[*Process]) []*Process
