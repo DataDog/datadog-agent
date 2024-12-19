@@ -66,7 +66,7 @@ func TestShouldIgnorePid(t *testing.T) {
 				_ = cmd.Process.Kill()
 			})
 
-			discovery := newDiscovery(nil)
+			discovery := newDiscovery(nil, nil)
 			require.NotEmpty(t, discovery)
 
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
