@@ -6,23 +6,20 @@
 package snmpscanimpl
 
 import (
-	"encoding/json"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/gosnmp/gosnmp"
 )
 
-func (s snmpScannerImpl) RunDeviceScan(snmpConnection *gosnmp.GoSNMP, deviceNamespace string, deviceIPAddress string) error {
+func (s snmpScannerImpl) RunDeviceScan(snmpConnection *gosnmp.GoSNMP, deviceNamespace string, deviceID string) error {
+	// execute the scan
 	pdus, err := gatherPDUs(snmpConnection)
 	if err != nil {
 		return err
 	}
 
-	deviceID := deviceNamespace + ":" + deviceIPAddress
 	var deviceOids []*metadata.DeviceOID
 	for _, pdu := range pdus {
 		record, err := metadata.DeviceOIDFromPDU(deviceID, pdu)
@@ -35,15 +32,8 @@ func (s snmpScannerImpl) RunDeviceScan(snmpConnection *gosnmp.GoSNMP, deviceName
 
 	metadataPayloads := metadata.BatchDeviceScan(deviceNamespace, time.Now(), metadata.PayloadMetadataBatchSize, deviceOids)
 	for _, payload := range metadataPayloads {
-		payloadBytes, err := json.Marshal(payload)
+		err := s.SendPayload(payload)
 		if err != nil {
-			s.log.Errorf("Error marshalling device metadata: %v", err)
-			continue
-		}
-		m := message.NewMessage(payloadBytes, nil, "", 0)
-		s.log.Debugf("Device OID metadata payload is %d bytes", len(payloadBytes))
-		s.log.Tracef("Device OID metadata payload: %s", string(payloadBytes))
-		if err := s.epforwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata); err != nil {
 			return err
 		}
 	}
