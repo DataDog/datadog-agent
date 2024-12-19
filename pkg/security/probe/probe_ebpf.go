@@ -639,7 +639,7 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext, &event.CGroupContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext, event.CGroupContext)
 	if err != nil {
 		return 0, err
 	}
@@ -675,8 +675,8 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 	entry.Process.ContainerID = ev.ContainerContext.ContainerID
 	entry.ContainerID = ev.ContainerContext.ContainerID
 
-	entry.Process.CGroup.Merge(&ev.CGroupContext)
-	entry.CGroup.Merge(&ev.CGroupContext)
+	entry.Process.CGroup.Merge(ev.CGroupContext)
+	entry.CGroup.Merge(ev.CGroupContext)
 
 	entry.Source = model.ProcessCacheEntryFromEvent
 
@@ -705,7 +705,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	}
 
 	// do the same with cgroup context
-	event.CGroupContext = event.ProcessCacheEntry.CGroup
+	event.CGroupContext = &event.ProcessCacheEntry.CGroup
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
@@ -823,6 +823,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Debugf("Failed to resolve cgroup: %s", err)
 		} else {
 			event.CgroupTracing.CGroupContext = *cgroupContext
+			if cgroupContext.CGroupFlags.IsContainer() {
+				containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
+				event.CgroupTracing.ContainerContext.ContainerID = containerID
+			}
+
+			event.CGroupContext = cgroupContext
 			p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 		}
 
@@ -839,6 +845,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			if err != nil {
 				seclog.Debugf("Failed to resolve cgroup: %s", err)
 			} else {
+				event.CGroupContext = cgroupContext
 				pce.Process.CGroup = *cgroupContext
 				pce.CGroup = *cgroupContext
 
@@ -1260,6 +1267,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	// resolve the container context
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
+
+	// resolve the cgroup context
+	event.CGroupContext, _ = p.Resolvers.ResolveCGroupContext(event.CGroupContext.CGroupFile, event.CGroupContext.CGroupFlags)
 
 	// send related events
 	for _, relatedEvent := range relatedEvents {
