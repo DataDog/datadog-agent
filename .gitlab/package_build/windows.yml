@@ -36,6 +36,7 @@
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       -e API_KEY_ORG2=${API_KEY_ORG2}
+      -e OMNIBUS_GIT_CACHE_DIR=${Env:TEMP}/${CI_PIPELINE_ID}/omnibus-git-cache
       -e AGENT_FLAVOR=${AGENT_FLAVOR}
       registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
