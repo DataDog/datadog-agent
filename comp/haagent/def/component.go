@@ -25,4 +25,7 @@ type Component interface {
 
 	// ShouldRunIntegration returns true if the integration should be run
 	ShouldRunIntegration(integrationName string) bool
+
+	// ShouldRun returns true if HA Agent is enabled and the agent is active.
+	ShouldRun() bool
 }

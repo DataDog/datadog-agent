@@ -249,3 +249,52 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 		})
 	}
 }
+
+func Test_haAgentImpl_ShouldRun(t *testing.T) {
+	testAgentHostname := "my-agent-hostname"
+	tests := []struct {
+		name            string
+		leader          string
+		agentConfigs    map[string]interface{}
+		expectShouldRun bool
+	}{
+		{
+			name: "ha agent enabled and agent is leader",
+			agentConfigs: map[string]interface{}{
+				"hostname":         testAgentHostname,
+				"ha_agent.enabled": true,
+				"ha_agent.group":   testGroup,
+			},
+			leader:          testAgentHostname,
+			expectShouldRun: true,
+		},
+		{
+			name: "ha agent enabled and agent is not active",
+			agentConfigs: map[string]interface{}{
+				"hostname":         testAgentHostname,
+				"ha_agent.enabled": true,
+				"ha_agent.group":   testGroup,
+			},
+			leader:          "another-agent-is-active",
+			expectShouldRun: false,
+		},
+		{
+			name: "ha agent not enabled",
+			agentConfigs: map[string]interface{}{
+				"hostname":         testAgentHostname,
+				"ha_agent.enabled": false,
+				"ha_agent.group":   testGroup,
+			},
+			leader:          testAgentHostname,
+			expectShouldRun: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			haAgent := newTestHaAgentComponent(t, tt.agentConfigs)
+			haAgent.Comp.SetLeader(tt.leader)
+
+			assert.Equal(t, tt.expectShouldRun, haAgent.Comp.ShouldRun())
+		})
+	}
+}
