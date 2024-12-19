@@ -22,6 +22,7 @@ import (
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/test-infra-definitions/components/kubernetes/vpa"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
@@ -88,6 +89,12 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		return nil
 	}
 
+	vpaCrd, err := vpa.DeployCRD(&awsEnv, cluster.KubeProvider)
+	if err != nil {
+		return err
+	}
+	dependsOnVPA := utils.PulumiDependsOn(vpaCrd)
+
 	var fakeIntake *fakeintakeComp.Fakeintake
 	if params.fakeintakeOptions != nil {
 		fakeIntakeOptions := []fakeintake.Option{
@@ -108,7 +115,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		env.FakeIntake = nil
 	}
 
-	workloadWithCRDDeps := []pulumi.Resource{cluster}
+	var dependsOnDDAgent pulumi.ResourceOption
 	// Deploy the agent
 	if params.agentOptions != nil {
 		params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(cluster)), kubernetesagentparams.WithFakeintake(fakeIntake), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}))
@@ -129,31 +136,31 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		if err != nil {
 			return err
 		}
-		workloadWithCRDDeps = append(workloadWithCRDDeps, kubernetesAgent)
+		dependsOnDDAgent = utils.PulumiDependsOn(kubernetesAgent)
 	} else {
 		env.Agent = nil
 	}
 	// Deploy standalone dogstatsd
 	if params.deployDogstatsd {
-		if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "dogstatsd-standalone", fakeIntake, true, "", utils.PulumiDependsOn(cluster)); err != nil {
+		if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "dogstatsd-standalone", fakeIntake, true, ""); err != nil {
 			return err
 		}
 	}
 
 	if params.deployTestWorkload {
 
-		if _, err := cpustress.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-cpustress", utils.PulumiDependsOn(cluster)); err != nil {
+		if _, err := cpustress.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-cpustress"); err != nil {
 			return err
 		}
 
 		// dogstatsd clients that report to the Agent
-		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", utils.PulumiDependsOn(workloadWithCRDDeps...)); err != nil {
+		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
 			return err
 		}
 
 		if params.deployDogstatsd {
 			// dogstatsd clients that report to the dogstatsd standalone deployment
-			if _, err := dogstatsd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket, utils.PulumiDependsOn(cluster)); err != nil {
+			if _, err := dogstatsd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket, dependsOnDDAgent /* for admission */); err != nil {
 				return err
 			}
 		}
@@ -166,17 +173,17 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			return err
 		}
 
-		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-mutated", "workload-mutated-lib-injection", utils.PulumiDependsOn(workloadWithCRDDeps...)); err != nil {
+		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-mutated", "workload-mutated-lib-injection", dependsOnDDAgent /* for admission */); err != nil {
 			return err
 		}
 
 		// These resources cannot be deployed if the Agent is not installed, it requires some CRDs provided by the Helm chart
 		if params.agentOptions != nil {
-			if _, err := nginx.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-nginx", "", true, utils.PulumiDependsOn(workloadWithCRDDeps...)); err != nil {
+			if _, err := nginx.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 				return err
 			}
 
-			if _, err := redis.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-redis", true, utils.PulumiDependsOn(workloadWithCRDDeps...)); err != nil {
+			if _, err := redis.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-redis", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 				return err
 			}
 		}
