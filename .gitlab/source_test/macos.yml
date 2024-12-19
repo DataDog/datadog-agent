@@ -9,6 +9,7 @@ include:
   variables:
     TEST_OUTPUT_FILE: test_output.json
   script:
+    - source timestamp.sh
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
