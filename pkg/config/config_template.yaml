@@ -4463,7 +4463,7 @@ api_key:
     #
     # enabled: true
 
-## @param debug - custom object - optional
+  ## @param debug - custom object - optional
   ## Debug-specific configuration for OTLP ingest in the Datadog Agent.
   ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
   ## for a full list of available settings:
@@ -4476,6 +4476,7 @@ api_key:
     ## Valid values are basic, normal, detailed, none.
     #
     # verbosity: normal
+
 {{- if (eq .OS "windows")}}
 #####################################################
 ## Datadog Agent Manager System Tray Configuration ##
