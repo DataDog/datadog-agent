@@ -96,7 +96,7 @@ func (s *fipsAgentSuite) TestWithSystemFIPSEnabled() {
 
 func (s *fipsAgentSuite) TestFIPSProviderPresent() {
 	host := s.Env().RemoteHost
-	exists, _ := host.FileExists(path.Join(s.installPath, "embedded/lib/ossl-modules/fips.dll"))
+	exists, _ := host.FileExists(path.Join(s.installPath, "embedded3/lib/ossl-modules/fips.dll"))
 	require.True(s.T(), exists, "Agent install path should contain the FIPS provider but doesn't")
 }
 
