@@ -554,7 +554,15 @@ func sysOpenAt2Supported() bool {
 
 func isFexitSupported() bool {
 	kversion, err := kernel.HostVersion()
-	return err == nil && kversion >= kernel.VersionCode(5, 5, 0)
+	if err != nil {
+		return false
+	}
+
+	if strings.HasPrefix(runtime.GOARCH, "arm") {
+		return kversion >= kernel.VersionCode(6, 1, 0)
+	}
+
+	return kversion >= kernel.VersionCode(5, 5, 0)
 }
 
 // getSysOpenHooksIdentifiers returns the enter and exit tracepoints for supported open*
