@@ -54,7 +54,7 @@ func TestConsumer(t *testing.T) {
 		}
 	}
 
-	consumer, err := NewConsumer("test", program.Manager, callback)
+	consumer, err := NewConsumer("test", program, callback)
 	require.NoError(t, err)
 	consumer.Start()
 
@@ -62,7 +62,7 @@ func TestConsumer(t *testing.T) {
 	require.NoError(t, err)
 
 	// generate test events
-	generator := newEventGenerator(program.Manager, t)
+	generator := newEventGenerator(program, t)
 	for i := 0; i < numEvents; i++ {
 		generator.Generate(uint64(i))
 	}
@@ -93,7 +93,7 @@ func TestInvalidBatchCountMetric(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { program.Stop(manager.CleanAll) })
 
-	consumer, err := NewConsumer("test", program.Manager, func([]uint64) {})
+	consumer, err := NewConsumer("test", program, func([]uint64) {})
 	require.NoError(t, err)
 
 	// We are creating a raw sample with a data length of 4, which is smaller than sizeOfBatch
@@ -132,7 +132,7 @@ func recordSample(c *config.Config, consumer *Consumer[uint64], sampleData []byt
 	}
 }
 
-func newEventGenerator(program *manager.Manager, t *testing.T) *eventGenerator {
+func newEventGenerator(program *ddebpf.Manager, t *testing.T) *eventGenerator {
 	m, _, _ := program.GetMap("test")
 	require.NotNilf(t, m, "couldn't find test map")
 
@@ -211,7 +211,7 @@ func newEBPFProgram(c *config.Config) (*ddebpf.Manager, error) {
 
 	ddEbpfManager := ddebpf.NewManager(m, "usm", &ebpftelemetry.ErrorsTelemetryModifier{})
 
-	Configure(config.New(), "test", ddEbpfManager.Manager, &options)
+	Configure(config.New(), "test", ddEbpfManager, &options)
 	err = ddEbpfManager.InitWithOptions(bc, &options)
 	if err != nil {
 		return nil, err
