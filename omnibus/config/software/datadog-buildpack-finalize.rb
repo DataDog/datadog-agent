@@ -33,6 +33,7 @@ build do
 
             copy "#{cf_source_root}/agent/agent.exe", "#{cf_bin_root_bin}"
             copy "#{dsd_source_root}/agent/dogstatsd.exe", "#{cf_bin_root_bin}/agent"
+            copy "#{cf_source_root}/agent/checks-agent.exe", "#{cf_bin_root_bin}/agent"
             copy "#{cf_source_root}/agent/process-agent.exe", "#{cf_bin_root_bin}/agent"
             copy "#{cf_source_root}/agent/trace-agent.exe", "#{cf_bin_root_bin}/agent"
 
