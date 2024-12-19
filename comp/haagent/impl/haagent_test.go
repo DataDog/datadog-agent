@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 )
 
@@ -280,4 +281,18 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_haAgentImpl_resetAgentState(t *testing.T) {
+	// GIVEN
+	haAgent := newTestHaAgentComponent(t, nil)
+	haAgentComp := haAgent.Comp.(*haAgentImpl)
+	haAgentComp.state.Store(string(haagent.Active))
+	require.Equal(t, haagent.Active, haAgentComp.GetState())
+
+	// WHEN
+	haAgentComp.resetAgentState()
+
+	// THEN
+	assert.Equal(t, haagent.Unknown, haAgentComp.GetState())
 }
