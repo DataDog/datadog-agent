@@ -1235,28 +1235,28 @@ api_key:
   #     remove_stack_traces: false
   #
   #     sql_exec_plan:
-  ##        @param DD_APM_SQL_EXEC_PLAN_ENABLED - boolean - optional
+  ##        @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_ENABLED - boolean - optional
   ##        Enables obfuscation rules for JSON query execution plans. Disabled by default.
   #         enabled: false
-  ##        @param DD_APM_SQL_EXEC_PLAN_KEEP_VALUES - object - optional
+  ##        @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
   #         keep_values:
   #             - id1
-  ##        @param DD_APM_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES - boolean - optional
+  ##        @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES - boolean - optional
   ##        The set of keys for which their values will be passed through SQL obfuscation
   #         obfuscate_sql_values:
   #             - val1
   #
   #     sql_exec_plan_normalize:
-  ##        @param DD_APM_SQL_EXEC_PLAN_NORMALIZE_ENABLED - boolean - optional
+  ##        @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_ENABLED - boolean - optional
   ##        Enables obfuscation rules for JSON query execution plans, including cost and row estimates.
   ##        Produces a normalized execution plan. Disabled by default.
   #         enabled: false
-  ##        @param DD_APM_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES - object - optional
+  ##        @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
   #         keep_values:
   #             - id1
-  ##        @param DD_APM_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES - boolean - optional
+  ##        @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES - boolean - optional
   ##        The set of keys for which their values will be passed through SQL obfuscation
   #         obfuscate_sql_values:
   #             - val1
