@@ -57,6 +57,12 @@ func Configure(cfg *config.Config, proto string, m *manager.Manager, o *manager.
 	utils.AddBoolConst(o, useRingBuffer, "use_ring_buffer")
 
 	if useRingBuffer {
+		kernelVersion, err := kernel.HostVersion()
+		if err != nil {
+			log.Error("could not determine the current kernel version. disabling ring buffer with telemetry")
+		}
+		useRingBufferWithTelemetry := kernelVersion > kernel.VersionCode(4, 14, 0)
+		utils.AddBoolConst(o, useRingBufferWithTelemetry, "use_ring_buffer_with_telemetry")
 		setupPerfRing(proto, m, o, numCPUs)
 	} else {
 		setupPerfMap(proto, m)
