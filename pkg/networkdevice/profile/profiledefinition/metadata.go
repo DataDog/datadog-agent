@@ -23,22 +23,23 @@ type DeviceMetadata struct {
 type DeviceMetadataFields struct {
 	Name         MetadataField `yaml:"name,omitempty" json:"name,omitempty"`
 	Description  MetadataField `yaml:"description,omitempty" json:"description,omitempty"`
+	SysObjectId  MetadataField `yaml:"sys_object_id,omitempty" json:"sys_object_id,omitempty"`
 	Location     MetadataField `yaml:"location,omitempty" json:"location,omitempty"`
-	Vendor       MetadataField `yaml:"vendor,omitempty" json:"vendor,omitempty"`
 	SerialNumber MetadataField `yaml:"serial_number,omitempty" json:"serial_number,omitempty"`
+	Vendor       MetadataField `yaml:"vendor,omitempty" json:"vendor,omitempty"`
 	Version      MetadataField `yaml:"version,omitempty" json:"version,omitempty"`
 	ProductName  MetadataField `yaml:"product_name,omitempty" json:"product_name,omitempty"`
 	Model        MetadataField `yaml:"model,omitempty" json:"model,omitempty"`
 	OsName       MetadataField `yaml:"os_name,omitempty" json:"os_name,omitempty"`
 	OsVersion    MetadataField `yaml:"os_version,omitempty" json:"os_version,omitempty"`
 	OsHostname   MetadataField `yaml:"os_hostname,omitempty" json:"os_hostname,omitempty"`
-	DeviceType   MetadataField `yaml:"type,omitempty" json:"type,omitempty"`
+	Type         MetadataField `yaml:"type,omitempty" json:"type,omitempty"`
 }
 
 // InterfaceMetadata holds interface metadata
 type InterfaceMetadata struct {
-	Fields string              `yaml:"fields,omitempty" json:"fields,omitempty"`
-	IDTags MetricTagConfigList `yaml:"id_tags,omitempty" json:"id_tags,omitempty"`
+	Fields InterfaceMetadataFields `yaml:"fields,omitempty" json:"fields,omitempty"`
+	IDTags MetricTagConfigList     `yaml:"id_tags,omitempty" json:"id_tags,omitempty"`
 }
 
 // InterfaceMetadataFields holds interface metadata fields

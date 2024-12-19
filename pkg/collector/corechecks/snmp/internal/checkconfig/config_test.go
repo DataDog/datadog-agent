@@ -831,15 +831,9 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 			{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
 		},
 		Metadata: profiledefinition.MetadataConfig{
-			"device": {
-				Fields: map[string]profiledefinition.MetadataField{
-					"description": {
-						Symbol: profiledefinition.SymbolConfig{
-							OID:  "1.3.6.1.2.1.1.99.3.0",
-							Name: "sysDescr",
-						},
-					},
-					"name": {
+			Device: profiledefinition.DeviceMetadata{
+				Fields: profiledefinition.DeviceMetadataFields{
+					Name: profiledefinition.MetadataField{
 						Symbols: []profiledefinition.SymbolConfig{
 							{
 								OID:  "1.3.6.1.2.1.1.99.1.0",
@@ -851,11 +845,17 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 							},
 						},
 					},
+					Description: profiledefinition.MetadataField{
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.1.99.3.0",
+							Name: "sysDescr",
+						},
+					},
 				},
 			},
-			"interface": {
-				Fields: map[string]profiledefinition.MetadataField{
-					"oper_status": {
+			Interface: profiledefinition.InterfaceMetadata{
+				Fields: profiledefinition.InterfaceMetadataFields{
+					OperStatus: profiledefinition.MetadataField{
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.2.2.1.99",
 							Name: "someIfSymbol",
@@ -882,15 +882,9 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 			{Tag: "btag", Symbol: profiledefinition.SymbolConfigCompat{OID: "2.3.4.5.6.2", Name: "b-tag-name"}},
 		},
 		Metadata: profiledefinition.MetadataConfig{
-			"device": {
-				Fields: map[string]profiledefinition.MetadataField{
-					"b-description": {
-						Symbol: profiledefinition.SymbolConfig{
-							OID:  "2.3.4.5.6.3",
-							Name: "sysDescr",
-						},
-					},
-					"b-name": {
+			Device: profiledefinition.DeviceMetadata{
+				Fields: profiledefinition.DeviceMetadataFields{
+					Name: profiledefinition.MetadataField{
 						Symbols: []profiledefinition.SymbolConfig{
 							{
 								OID:  "2.3.4.5.6.4",
@@ -902,11 +896,17 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 							},
 						},
 					},
+					Description: profiledefinition.MetadataField{
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "2.3.4.5.6.3",
+							Name: "sysDescr",
+						},
+					},
 				},
 			},
-			"interface": {
-				Fields: map[string]profiledefinition.MetadataField{
-					"oper_status": {
+			Interface: profiledefinition.InterfaceMetadata{
+				Fields: profiledefinition.InterfaceMetadataFields{
+					OperStatus: profiledefinition.MetadataField{
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "2.3.4.5.6.6",
 							Name: "b-someIfSymbol",

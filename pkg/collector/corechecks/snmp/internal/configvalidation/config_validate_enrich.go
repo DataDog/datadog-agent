@@ -8,36 +8,11 @@ package configvalidation
 
 import (
 	"fmt"
+	"reflect"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
-
-var validMetadataResources = map[string]map[string]bool{
-	"device": {
-		"name":          true,
-		"description":   true,
-		"sys_object_id": true,
-		"location":      true,
-		"serial_number": true,
-		"vendor":        true,
-		"version":       true,
-		"product_name":  true,
-		"model":         true,
-		"os_name":       true,
-		"os_version":    true,
-		"os_hostname":   true,
-		"type":          true,
-	},
-	"interface": {
-		"name":         true,
-		"alias":        true,
-		"description":  true,
-		"mac_address":  true,
-		"admin_status": true,
-		"oper_status":  true,
-	},
-}
 
 // SymbolContext represent the context in which the symbol is used
 type SymbolContext int64
@@ -100,40 +75,60 @@ func ValidateEnrichMetrics(metrics []profiledefinition.MetricsConfig) []string {
 }
 
 // ValidateEnrichMetadata will validate MetadataConfig and enrich it.
+// no need to validate the metadata fields as the profile definition already does that
 func ValidateEnrichMetadata(metadata profiledefinition.MetadataConfig) []string {
 	var errors []string
-	for resName := range metadata {
-		_, isValidRes := validMetadataResources[resName]
-		if !isValidRes {
-			errors = append(errors, fmt.Sprintf("invalid resource: %s", resName))
-		} else {
-			res := metadata[resName]
-			for fieldName := range res.Fields {
-				_, isValidField := validMetadataResources[resName][fieldName]
-				if !isValidField {
-					errors = append(errors, fmt.Sprintf("invalid resource (%s) field: %s", resName, fieldName))
-					continue
+	// iterate over the fields of metadata to get Device & Interface
+	v := reflect.ValueOf(metadata)
+	for i := 0; i < v.NumField(); i++ {
+		resourceName := v.Type().Field(i).Name
+		if resourceName == "Device" {
+			resource := v.Field(i).Interface().(profiledefinition.DeviceMetadata)
+			// iterate over the fields of the DeviceMetadata struct
+			for j := 0; j < reflect.ValueOf(resource).NumField(); j++ {
+				field := reflect.ValueOf(resource).Field(j).Interface().(profiledefinition.MetadataField)
+				err, field := validateMetadataField(&field)
+				if err != nil {
+					errors = append(errors, err...)
 				}
-				field := res.Fields[fieldName]
-				for i := range field.Symbols {
-					errors = append(errors, validateEnrichSymbol(&field.Symbols[i], MetadataSymbol)...)
-				}
-				if field.Symbol.OID != "" {
-					errors = append(errors, validateEnrichSymbol(&field.Symbol, MetadataSymbol)...)
-				}
-				res.Fields[fieldName] = field
+				reflect.ValueOf(&resource).Elem().Field(j).Set(reflect.ValueOf(field))
 			}
-			metadata[resName] = res
-		}
-		if resName == "device" && len(metadata[resName].IDTags) > 0 {
-			errors = append(errors, "device resource does not support custom id_tags")
-		}
-		for i := range metadata[resName].IDTags {
-			metricTag := &metadata[resName].IDTags[i]
-			errors = append(errors, validateEnrichMetricTag(metricTag)...)
+			reflect.ValueOf(&metadata).Elem().Field(i).Set(reflect.ValueOf(resource))
+		} else if resourceName == "Interface" {
+			resource := v.Field(i).Interface().(profiledefinition.InterfaceMetadata)
+			// iterate over the fields of the InterfaceMetadata struct
+			for j := 0; j < reflect.ValueOf(resource).NumField(); j++ {
+				field := reflect.ValueOf(resource).Field(j).Interface().(profiledefinition.MetadataField)
+				err, field := validateMetadataField(&field)
+				if err != nil {
+					errors = append(errors, err...)
+				}
+				reflect.ValueOf(&resource).Elem().Field(j).Set(reflect.ValueOf(field))
+			}
+			for i := range resource.IDTags {
+				metricTag := &resource.IDTags[i]
+				errors = append(errors, validateEnrichMetricTag(metricTag)...)
+				resource.IDTags[i] = *metricTag
+			}
+			reflect.ValueOf(&metadata).Elem().Field(i).Set(reflect.ValueOf(resource))
+		} else {
+			// we only expect two types of resources: Device & Interface
+			// if this is not the case, log an error and return the metadataStore as is
+			return []string{fmt.Sprintf("unexpected resource type: %s", resourceName)}
 		}
 	}
 	return errors
+}
+
+func validateMetadataField(field *profiledefinition.MetadataField) ([]string, profiledefinition.MetadataField) {
+	var errors []string
+	if field.Symbol.OID != "" {
+		errors = append(errors, validateEnrichSymbol(&field.Symbol, MetadataSymbol)...)
+	}
+	for i := range field.Symbols {
+		errors = append(errors, validateEnrichSymbol(&field.Symbols[i], MetadataSymbol)...)
+	}
+	return errors, *field
 }
 
 func validateEnrichSymbol(symbol *profiledefinition.SymbolConfig, symbolContext SymbolContext) []string {
