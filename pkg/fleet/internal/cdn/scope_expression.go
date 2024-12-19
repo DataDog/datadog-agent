@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/expr-lang/expr"
 )
@@ -115,6 +117,8 @@ func getScopeExprVars(env *env.Env, hostTagsGetter hostTagsGetter) map[string]in
 	return map[string]interface{}{
 		"hostname":          env.Hostname,
 		"installer_version": version.AgentVersion, // AgentVersion evaluates to the installer version here
+		"os":                platform.CollectInfo().KernelName.ValueOrDefault(),
+		"os_version":        utils.GetOSVersion(),
 
 		"tags": hostTagsGetter.get(),
 	}

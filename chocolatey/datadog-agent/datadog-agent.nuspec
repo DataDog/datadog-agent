@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>datadog-agent</id>
@@ -26,6 +26,6 @@ For example, to set the API key you may run:
     <releaseNotes>$release_notes$</releaseNotes>
   </metadata>
   <files>
-    <file src="tools-online\**" target="tools" />
+    <file src="tools\**" target="tools" />
   </files>
 </package>

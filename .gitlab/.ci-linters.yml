@@ -37,6 +37,7 @@ needs-rules:
     - setup_agent_version
     - tests_ebpf_arm64
     - tests_ebpf_x64
+    - tests_macos_gitlab_amd64
     - tests_windows_secagent_x64
     - tests_windows_sysprobe_x64
     - trigger_auto_staging_release
@@ -83,7 +84,6 @@ job-owners:
     - new-e2e-unit-tests
     - ot_agent_deb-arm64-a7
     - ot_agent_deb-x64-a7
-    - publish_choco_7_x64
     - publish_fakeintake
     - publish_fakeintake_latest
     - rc_kubernetes_deploy
