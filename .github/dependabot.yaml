@@ -7,7 +7,6 @@ updates:
       - dependencies-go
       - team/triage
       - changelog/no-changelog
-    milestone: 22
     ignore:
       # These dependencies are replaced in the main go.mod file.
       # They are ignored since bumping them would have no effect on the build.
@@ -28,6 +27,11 @@ updates:
       - dependency-name: github.com/ugorji/go
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
+      # OpenTelemetry collector packages need to be updated with inv rather than dependabot
+      - dependency-name: go.opentelemetry.io/collector/*
+      - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -38,6 +42,9 @@ updates:
       bun:
         patterns:
           - "github.com/uptrace/bun*"
+      aws-sdk-go-v2:
+        patterns:
+          - "github.com/aws/aws-sdk-go-v2*"
   - package-ecosystem: gomod
     directory: /pkg/trace
     labels:
@@ -45,12 +52,16 @@ updates:
       - dependencies-go
       - team/agent-apm
       - changelog/no-changelog
-    milestone: 22
     ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
       # See https://github.com/DataDog/datadog-agent/pull/10112
       - dependency-name: github.com/mailru/easyjson
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
+      # OpenTelemetry collector packages need to be updated with inv rather than dependabot
+      - dependency-name: go.opentelemetry.io/collector/*
+      - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -61,12 +72,13 @@ updates:
       - dependencies-go
       - team/agent-shared-components
       - changelog/no-changelog
-    milestone: 22
     ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
       # See https://github.com/DataDog/datadog-agent/pull/10112
       - dependency-name: github.com/mailru/easyjson
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -77,12 +89,13 @@ updates:
       - dependencies-go
       - team/agent-apm
       - changelog/no-changelog
-    milestone: 22
     ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
       # See https://github.com/DataDog/datadog-agent/pull/10112
       - dependency-name: github.com/mailru/easyjson
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -93,10 +106,11 @@ updates:
       - dependencies-go
       - team/agent-security
       - changelog/no-changelog
-    milestone: 22
     ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -110,12 +124,14 @@ updates:
                               # publish a new version exploiting that it runs automatically after it
                               # is updated to write to our repo.
       - dev/tooling
-      - team/agent-build-and-releases
+      - team/agent-delivery
       - changelog/no-changelog
       - qa/no-code-change
-    milestone: 22
     schedule:
       interval: monthly
+    ignore:
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/networkdevice/profile
@@ -124,10 +140,11 @@ updates:
       - dependencies-go
       - team/network-device-monitoring
       - changelog/no-changelog
-    milestone: 22
     ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -140,12 +157,17 @@ updates:
       - changelog/no-changelog
       - qa/no-code-change
       - dev/testing
-    milestone: 22
     ignore:
       # Ignore test-infra-definitions because bumping the GO package inside `go.mod`
-      # requires to also bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` inside `.gitlab-ci.yml`
+      # requires to also bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` inside `.gitlab/common/test_infra_version.yml`
       # and dependabot isn’t able to keep those two synchronized.
       - dependency-name: github.com/DataDog/test-infra-definitions
+      # Do not bump dependencies that come from test-infra-definitions, they will be bumped when we'll bump the version
+      # https://datadoghq.atlassian.net/browse/ADXT-375
+      - dependency-name: github.com/pulumi*
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
+
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -158,23 +180,12 @@ updates:
       - changelog/no-changelog
       - qa/no-code-change
       - dev/testing
-    milestone: 22
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
-  - package-ecosystem: pip
-    directory: /test/e2e/cws-tests
-    labels:
-      - dependencies
-      - python
-      - team/agent-security
-      - changelog/no-changelog
-      - qa/no-code-change
-      - dev/tooling
-    milestone: 22
-    schedule:
-      interval: monthly
-    open-pull-requests-limit: 100
+    ignore:
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
   - package-ecosystem: docker
     directory: /test/fakeintake
     labels:
@@ -183,7 +194,6 @@ updates:
       - changelog/no-changelog
       - qa/no-code-change
       - dev/testing
-    milestone: 22
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -192,11 +202,18 @@ updates:
     labels:
       - dependencies
       - dependencies-github-actions
-      - team/agent-ci-experience
+      - team/agent-devx-infra
       - changelog/no-changelog
       - qa/no-code-change
       - dev/tooling
-    milestone: 22
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
+  - package-ecosystem: maven
+    directory: Dockerfiles/agent/bouncycastle-fips
+    labels:
+      - dependencies
+      - team/agent-metrics-logs
+      - changelog/no-changelog
+    schedule:
+      interval: weekly
