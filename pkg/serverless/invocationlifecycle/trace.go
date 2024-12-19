@@ -8,6 +8,7 @@ package invocationlifecycle
 import (
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/serverless/spanpointers"
 	"net/http"
 	"os"
 	"regexp"
@@ -159,6 +160,29 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 		if endDetails.IsTimeout {
 			executionSpan.Meta["error.type"] = "Impending Timeout"
 			executionSpan.Meta["error.msg"] = "Datadog detected an Impending Timeout"
+		}
+	}
+
+	if len(lp.requestHandler.spanPointers) > 0 {
+		var spanLinks []map[string]interface{}
+		for _, sp := range lp.requestHandler.spanPointers {
+			spanLink := map[string]interface{}{
+				"attributes": map[string]string{
+					"link.kind": spanpointers.SpanPointerLinkKind,
+					"ptr.dir":   spanpointers.SpanPointerUpDirection,
+					"ptr.hash":  sp.Hash,
+					"ptr.kind":  sp.Kind,
+				},
+				"span_id":  "0",
+				"trace_id": "0",
+			}
+			spanLinks = append(spanLinks, spanLink)
+		}
+		spanLinksJSON, err := json.Marshal(spanLinks)
+		if err != nil {
+			log.Debugf("Failed to marshal span links: %v\n", err)
+		} else {
+			executionSpan.Meta["_dd.span_links"] = string(spanLinksJSON)
 		}
 	}
 

@@ -7,6 +7,7 @@ package invocationlifecycle
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/serverless/spanpointers"
 	"strings"
 	"time"
 
@@ -126,8 +127,11 @@ func (lp *LifecycleProcessor) initFromKinesisStreamEvent(event events.KinesisEve
 }
 
 func (lp *LifecycleProcessor) initFromS3Event(event events.S3Event) {
-	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
-		lp.GetInferredSpan().EnrichInferredSpanWithS3Event(event)
+	if !lp.DetectLambdaLibrary() {
+		if lp.InferredSpansEnabled {
+			lp.GetInferredSpan().EnrichInferredSpanWithS3Event(event)
+		}
+		lp.requestHandler.spanPointers = spanpointers.GetSpanPointersFromS3Event(event)
 	}
 
 	lp.requestHandler.event = event

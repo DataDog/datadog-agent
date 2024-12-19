@@ -18,6 +18,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/spanpointers"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/propagation"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
@@ -42,7 +43,7 @@ type LifecycleProcessor struct {
 }
 
 // RequestHandler is the struct that stores information about the trace,
-// inferred span, and tags about the current invocation
+// inferred span, tags about the current invocation, and span pointers
 // inferred spans may contain a secondary inferred span in certain cases like SNS from SQS
 type RequestHandler struct {
 	executionInfo  *ExecutionStartInfo
@@ -50,6 +51,7 @@ type RequestHandler struct {
 	inferredSpans  [2]*inferredspan.InferredSpan
 	triggerTags    map[string]string
 	triggerMetrics map[string]float64
+	spanPointers   []spanpointers.SpanPointer
 }
 
 // SetMetaTag sets a meta span tag. A meta tag is a tag whose value type is string.
