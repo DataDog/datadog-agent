@@ -11,7 +11,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/link"
 	"math"
 	"os"
 	"runtime"
@@ -554,11 +556,44 @@ func sysOpenAt2Supported() bool {
 	return err == nil && len(missing) == 0
 }
 
+func commonFentryCheck(funcName string) bool {
+	if features.HaveProgramType(ebpf.Tracing) != nil {
+		return false
+	}
+
+	spec := &ebpf.ProgramSpec{
+		Type:       ebpf.Tracing,
+		AttachType: ebpf.AttachTraceFExit,
+		AttachTo:   funcName,
+		Instructions: asm.Instructions{
+			asm.LoadImm(asm.R0, 0, asm.DWord),
+			asm.Return(),
+		},
+	}
+	prog, err := ebpf.NewProgramWithOptions(spec, ebpf.ProgramOptions{
+		LogDisabled: true,
+	})
+	if err != nil {
+		return false
+	}
+	defer prog.Close()
+
+	l, err := link.AttachTracing(link.TracingOptions{
+		Program: prog,
+	})
+	if err != nil {
+		return false
+	}
+	defer l.Close()
+
+	return true
+}
+
 // getSysOpenHooksIdentifiers returns the enter and exit tracepoints for supported open*
 // system calls.
 func (e *EbpfProgram) initializedProbes() {
 	openat2Supported := sysOpenAt2Supported()
-	fexitSupported := features.HaveProgramType(ebpf.Tracing) == nil
+	fexitSupported := commonFentryCheck("do_sys_openat2")
 
 	advancedProbes := []manager.ProbeIdentificationPair{
 		{
