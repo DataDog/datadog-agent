@@ -65,7 +65,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -215,7 +215,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			_ expvars.Component,
 			_ apiserver.Component,
 			cfg config.Component,
-			_ optional.Option[configsync.Component],
+			_ option.Option[configsync.Component],
 			// TODO: This is needed by the container-provider which is not currently a component.
 			// We should ensure the tagger is a dependency when converting to a component.
 			_ tagger.Component,

@@ -31,7 +31,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../util/http
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log
-	github.com/DataDog/datadog-agent/pkg/util/optional => ../../util/optional
+	github.com/DataDog/datadog-agent/pkg/util/option => ../../util/option
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
@@ -79,7 +79,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0 // indirect

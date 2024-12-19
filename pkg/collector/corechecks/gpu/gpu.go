@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -50,8 +50,8 @@ type Check struct {
 }
 
 // Factory creates a new check factory
-func Factory(tagger tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory(tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return newCheck(tagger)
 	})
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -33,17 +34,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(
 	r *mux.Router,
 	wmeta workloadmeta.Component,
-	logsAgent optional.Option[logsAgent.Component],
+	logsAgent option.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	secretResolver secrets.Component,
-	collector optional.Option[collector.Component],
+	collector option.Option[collector.Component],
 	ac autodiscovery.Component,
 	providers []api.EndpointProvider,
 	tagger tagger.Component,
@@ -59,7 +59,7 @@ func SetupHandlers(
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) {
-		diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, optional.NewOption(wmeta), ac, tagger)
+		diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, option.New(wmeta), ac, tagger)
 		getDiagnose(w, r, diagnoseDeps)
 	}).Methods("POST")
 

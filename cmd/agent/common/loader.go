@@ -16,7 +16,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // GetWorkloadmetaInit provides the InitHelper for workloadmeta so it can be injected as a Param
@@ -25,7 +25,7 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 	return func(ctx context.Context, wm workloadmeta.Component, cfg config.Component) error {
 		// SBOM scanner needs to be called here as initialization is required prior to the
 		// catalog getting instantiated and initialized.
-		sbomScanner, err := scanner.CreateGlobalScanner(cfg, optional.NewOption(wm))
+		sbomScanner, err := scanner.CreateGlobalScanner(cfg, option.New(wm))
 		if err != nil {
 			return fmt.Errorf("failed to create SBOM scanner: %s", err)
 		} else if sbomScanner != nil {
