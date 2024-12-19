@@ -292,19 +292,19 @@ func (rs *RuleSet) isActionAvailable(eventType eval.EventType, action *Action) b
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
-func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule) (*eval.Rule, error) {
+func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule) (model.EventCategory, error) {
 	if pRule.Def.Disabled {
-		return nil, nil
+		return "", nil
 	}
 
 	for _, id := range rs.opts.ReservedRuleIDs {
 		if id == pRule.Def.ID {
-			return nil, &ErrRuleLoad{Rule: pRule, Err: ErrInternalIDConflict}
+			return "", &ErrRuleLoad{Rule: pRule, Err: ErrInternalIDConflict}
 		}
 	}
 
 	if _, exists := rs.rules[pRule.Def.ID]; exists {
-		return nil, &ErrRuleLoad{Rule: pRule, Err: ErrDefinitionIDConflict}
+		return "", &ErrRuleLoad{Rule: pRule, Err: ErrDefinitionIDConflict}
 	}
 
 	var tags []string
@@ -314,7 +314,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 
 	evalRule, err := eval.NewRule(pRule.Def.ID, pRule.Def.Expression, parsingContext, rs.evalOpts, tags...)
 	if err != nil {
-		return nil, &ErrRuleLoad{Rule: pRule, Err: &ErrRuleSyntax{Err: err}}
+		return "", &ErrRuleLoad{Rule: pRule, Err: &ErrRuleSyntax{Err: err}}
 	}
 
 	rule := &Rule{
@@ -323,38 +323,38 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 	}
 
 	if err := rule.GenEvaluator(rs.model); err != nil {
-		return nil, &ErrRuleLoad{Rule: pRule, Err: err}
+		return "", &ErrRuleLoad{Rule: pRule, Err: err}
 	}
 
 	eventType, err := GetRuleEventType(rule.Rule)
 	if err != nil {
-		return nil, &ErrRuleLoad{Rule: pRule, Err: err}
+		return "", &ErrRuleLoad{Rule: pRule, Err: err}
 	}
 
 	// validate event context against event type
 	for _, field := range rule.GetFields() {
 		restrictions := rs.model.GetFieldRestrictions(field)
 		if len(restrictions) > 0 && !slices.Contains(restrictions, eventType) {
-			return nil, &ErrRuleLoad{Rule: pRule, Err: &ErrFieldNotAvailable{Field: field, EventType: eventType, RestrictedTo: restrictions}}
+			return "", &ErrRuleLoad{Rule: pRule, Err: &ErrFieldNotAvailable{Field: field, EventType: eventType, RestrictedTo: restrictions}}
 		}
 	}
 
 	// ignore event types not supported
 	if _, exists := rs.opts.EventTypeEnabled["*"]; !exists {
 		if enabled, exists := rs.opts.EventTypeEnabled[eventType]; !exists || !enabled {
-			return nil, &ErrRuleLoad{Rule: pRule, Err: ErrEventTypeNotEnabled}
+			return "", &ErrRuleLoad{Rule: pRule, Err: ErrEventTypeNotEnabled}
 		}
 	}
 
 	for _, action := range rule.PolicyRule.Actions {
 		if !rs.isActionAvailable(eventType, action) {
-			return nil, &ErrRuleLoad{Rule: pRule, Err: &ErrActionNotAvailable{ActionName: action.Def.Name(), EventType: eventType}}
+			return "", &ErrRuleLoad{Rule: pRule, Err: &ErrActionNotAvailable{ActionName: action.Def.Name(), EventType: eventType}}
 		}
 
 		// compile action filter
 		if action.Def.Filter != nil {
 			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
-				return nil, &ErrRuleLoad{Rule: pRule, Err: err}
+				return "", &ErrRuleLoad{Rule: pRule, Err: err}
 			}
 		}
 
@@ -362,7 +362,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 			if _, found := rs.fieldEvaluators[action.Def.Set.Field]; !found {
 				evaluator, err := rs.model.GetEvaluator(action.Def.Set.Field, "")
 				if err != nil {
-					return nil, err
+					return "", err
 				}
 				rs.fieldEvaluators[action.Def.Set.Field] = evaluator
 			}
@@ -376,7 +376,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 	}
 
 	if err := bucket.AddRule(rule); err != nil {
-		return nil, err
+		return "", err
 	}
 
 	// Merge the fields of the new rule with the existing list of fields of the ruleset
@@ -384,7 +384,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 
 	rs.rules[pRule.Def.ID] = rule
 
-	return rule.Rule, nil
+	return model.GetEventTypeCategory(eventType), nil
 }
 
 // NotifyRuleMatch notifies all the ruleset listeners that an event matched a rule
