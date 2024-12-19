@@ -2,6 +2,27 @@
 Release Notes
 =============
 
+.. _Release Notes_7.60.1:
+
+7.60.1
+======
+
+.. _Release Notes_7.60.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-12-19
+
+
+.. _Release Notes_7.60.1_Security Notes:
+
+Security Notes
+--------------
+
+- Update ``golang.org/x/crypto`` to fix CVE-2024-45337.
+
+
 .. _Release Notes_7.60.0:
 
 7.60.0
