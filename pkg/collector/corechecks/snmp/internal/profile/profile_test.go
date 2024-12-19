@@ -6,6 +6,7 @@
 package profile
 
 import (
+	"github.com/stretchr/testify/require"
 	"path/filepath"
 	"sort"
 	"testing"
@@ -146,7 +147,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.5.*"},
 			},
 		},
-	}
+	}.withNames()
 	mockProfilesWithPatternError := ProfileConfigMap{
 		"profile1": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
@@ -156,7 +157,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.***.*"},
 			},
 		},
-	}
+	}.withNames()
 	mockProfilesWithInvalidPatternError := ProfileConfigMap{
 		"profile1": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
@@ -166,7 +167,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.[.*"},
 			},
 		},
-	}
+	}.withNames()
 	mockProfilesWithDefaultDuplicateSysobjectid := ProfileConfigMap{
 		"profile1": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
@@ -192,7 +193,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.4"},
 			},
 		},
-	}
+	}.withNames()
 	mockProfilesWithUserProfilePrecedenceWithUserProfileFirstInList := ProfileConfigMap{
 		"user-profile": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
@@ -211,7 +212,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 		},
-	}
+	}.withNames()
 	mockProfilesWithUserProfilePrecedenceWithDefaultProfileFirstInList := ProfileConfigMap{
 		"default-profile": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
@@ -230,7 +231,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			},
 			IsUserProfile: true,
 		},
-	}
+	}.withNames()
 	mockProfilesWithUserProfileMatchAllAndMorePreciseDefaultProfile := ProfileConfigMap{
 		"default-profile": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
@@ -249,7 +250,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			},
 			IsUserProfile: true,
 		},
-	}
+	}.withNames()
 	mockProfilesWithUserDuplicateSysobjectid := ProfileConfigMap{
 		"profile1": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
@@ -269,101 +270,106 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			},
 			IsUserProfile: true,
 		},
-	}
+	}.withNames()
 	tests := []struct {
-		name            string
-		profiles        ProfileConfigMap
-		sysObjectID     string
-		expectedProfile string
-		expectedError   string
+		name                string
+		profiles            ProfileConfigMap
+		sysObjectID         string
+		expectedProfileName string
+		expectedError       string
 	}{
 		{
-			name:            "found matching profile",
-			profiles:        mockProfiles,
-			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.1",
-			expectedProfile: "profile1",
-			expectedError:   "",
+			name:                "found matching profile",
+			profiles:            mockProfiles,
+			sysObjectID:         "1.3.6.1.4.1.3375.2.1.3.4.1",
+			expectedProfileName: "profile1",
+			expectedError:       "",
 		},
 		{
-			name:            "found more precise matching profile",
-			profiles:        mockProfiles,
-			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.10",
-			expectedProfile: "profile2",
-			expectedError:   "",
+			name:                "found more precise matching profile",
+			profiles:            mockProfiles,
+			sysObjectID:         "1.3.6.1.4.1.3375.2.1.3.4.10",
+			expectedProfileName: "profile2",
+			expectedError:       "",
 		},
 		{
-			name:            "found even more precise matching profile",
-			profiles:        mockProfiles,
-			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.5.11",
-			expectedProfile: "profile3",
-			expectedError:   "",
+			name:                "found even more precise matching profile",
+			profiles:            mockProfiles,
+			sysObjectID:         "1.3.6.1.4.1.3375.2.1.3.4.5.11",
+			expectedProfileName: "profile3",
+			expectedError:       "",
 		},
 		{
-			name:            "user profile have precedence with user first in list",
-			profiles:        mockProfilesWithUserProfilePrecedenceWithUserProfileFirstInList,
-			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3",
-			expectedProfile: "user-profile",
-			expectedError:   "",
+			name:                "user profile have precedence with user first in list",
+			profiles:            mockProfilesWithUserProfilePrecedenceWithUserProfileFirstInList,
+			sysObjectID:         "1.3.6.1.4.1.3375.2.1.3",
+			expectedProfileName: "user-profile",
+			expectedError:       "",
 		},
 		{
-			name:            "user profile have precedence with default first in list",
-			profiles:        mockProfilesWithUserProfilePrecedenceWithDefaultProfileFirstInList,
-			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3",
-			expectedProfile: "user-profile",
-			expectedError:   "",
+			name:                "user profile have precedence with default first in list",
+			profiles:            mockProfilesWithUserProfilePrecedenceWithDefaultProfileFirstInList,
+			sysObjectID:         "1.3.6.1.4.1.3375.2.1.3",
+			expectedProfileName: "user-profile",
+			expectedError:       "",
 		},
 		{
-			name:            "user profile with less specific sysobjectid does not have precedence over a default profiel with more precise sysobjectid",
-			profiles:        mockProfilesWithUserProfileMatchAllAndMorePreciseDefaultProfile,
-			sysObjectID:     "1.3.999",
-			expectedProfile: "default-profile",
-			expectedError:   "",
+			name:                "user profile with less specific sysobjectid does not have precedence over a default profiel with more precise sysobjectid",
+			profiles:            mockProfilesWithUserProfileMatchAllAndMorePreciseDefaultProfile,
+			sysObjectID:         "1.3.999",
+			expectedProfileName: "default-profile",
+			expectedError:       "",
 		},
 		{
-			name:            "failed to get most specific profile for sysObjectID",
-			profiles:        mockProfilesWithPatternError,
-			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.5.11",
-			expectedProfile: "",
-			expectedError:   "failed to get most specific profile for sysObjectID \"1.3.6.1.4.1.3375.2.1.3.4.5.11\", for matched oids [1.3.6.1.4.1.3375.2.1.3.***.*]: error parsing part `***` for pattern `1.3.6.1.4.1.3375.2.1.3.***.*`: strconv.Atoi: parsing \"***\": invalid syntax",
+			name:                "failed to get most specific profile for sysObjectID",
+			profiles:            mockProfilesWithPatternError,
+			sysObjectID:         "1.3.6.1.4.1.3375.2.1.3.4.5.11",
+			expectedProfileName: "",
+			expectedError:       "failed to get most specific profile for sysObjectID \"1.3.6.1.4.1.3375.2.1.3.4.5.11\", for matched oids [1.3.6.1.4.1.3375.2.1.3.***.*]: error parsing part `***` for pattern `1.3.6.1.4.1.3375.2.1.3.***.*`: strconv.Atoi: parsing \"***\": invalid syntax",
 		},
 		{
-			name:            "invalid pattern", // profiles with invalid patterns are skipped, leading to: cannot get most specific oid from empty list of oids
-			profiles:        mockProfilesWithInvalidPatternError,
-			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.5.11",
-			expectedProfile: "",
-			expectedError:   "no profiles found for sysObjectID \"1.3.6.1.4.1.3375.2.1.3.4.5.11\"",
+			name:                "invalid pattern", // profiles with invalid patterns are skipped, leading to: cannot get most specific oid from empty list of oids
+			profiles:            mockProfilesWithInvalidPatternError,
+			sysObjectID:         "1.3.6.1.4.1.3375.2.1.3.4.5.11",
+			expectedProfileName: "",
+			expectedError:       "no profiles found for sysObjectID \"1.3.6.1.4.1.3375.2.1.3.4.5.11\"",
 		},
 		{
-			name:            "duplicate sysobjectid",
-			profiles:        mockProfilesWithDefaultDuplicateSysobjectid,
-			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3",
-			expectedProfile: "",
-			expectedError:   "has the same sysObjectID (1.3.6.1.4.1.3375.2.1.3) as",
+			name:                "duplicate sysobjectid",
+			profiles:            mockProfilesWithDefaultDuplicateSysobjectid,
+			sysObjectID:         "1.3.6.1.4.1.3375.2.1.3",
+			expectedProfileName: "",
+			expectedError:       "has the same sysObjectID (1.3.6.1.4.1.3375.2.1.3) as",
 		},
 		{
-			name:            "unrelated duplicate sysobjectid should not raise error",
-			profiles:        mockProfilesWithDefaultDuplicateSysobjectid,
-			sysObjectID:     "1.3.6.1.4.1.3375.2.1.4",
-			expectedProfile: "profile3",
-			expectedError:   "",
+			name:                "unrelated duplicate sysobjectid should not raise error",
+			profiles:            mockProfilesWithDefaultDuplicateSysobjectid,
+			sysObjectID:         "1.3.6.1.4.1.3375.2.1.4",
+			expectedProfileName: "profile3",
+			expectedError:       "",
 		},
 		{
-			name:            "duplicate sysobjectid",
-			profiles:        mockProfilesWithUserDuplicateSysobjectid,
-			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3",
-			expectedProfile: "",
-			expectedError:   "has the same sysObjectID (1.3.6.1.4.1.3375.2.1.3) as",
+			name:                "duplicate sysobjectid",
+			profiles:            mockProfilesWithUserDuplicateSysobjectid,
+			sysObjectID:         "1.3.6.1.4.1.3375.2.1.3",
+			expectedProfileName: "",
+			expectedError:       "has the same sysObjectID (1.3.6.1.4.1.3375.2.1.3) as",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			profile, err := getProfileForSysObjectID(tt.profiles, tt.sysObjectID)
-			if tt.expectedError == "" {
-				assert.Nil(t, err)
-			} else {
+			if tt.expectedError != "" {
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				require.NoError(t, err)
 			}
-			assert.Equal(t, tt.expectedProfile, profile)
+			if tt.expectedProfileName == "" {
+				assert.Nil(t, profile)
+			} else {
+				assert.Equal(t, tt.expectedProfileName, profile.Definition.Name)
+			}
 		})
 	}
 }
