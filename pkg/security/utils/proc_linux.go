@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -457,7 +456,7 @@ func GetPidTasks(pid uint32) ([]string, error) {
 	taskPath := procPidPath(pid, "task")
 
 	// Read the contents of the task directory
-	tasks, err := ioutil.ReadDir(taskPath)
+	tasks, err := os.ReadDir(taskPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read task directory: %v", err)
 	}
