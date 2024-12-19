@@ -312,16 +312,17 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 		tags = append(tags, k+":"+v)
 	}
 
-	rule := &Rule{
-		PolicyRule: pRule,
-		Rule:       eval.NewRule(pRule.Def.ID, pRule.Def.Expression, rs.evalOpts, tags...),
-	}
-
-	if err := rule.Parse(parsingContext); err != nil {
+	evalRule, err := eval.NewRule(pRule.Def.ID, pRule.Def.Expression, parsingContext, rs.evalOpts, tags...)
+	if err != nil {
 		return nil, &ErrRuleLoad{Rule: pRule, Err: &ErrRuleSyntax{Err: err}}
 	}
 
-	if err := rule.GenEvaluator(rs.model, parsingContext); err != nil {
+	rule := &Rule{
+		PolicyRule: pRule,
+		Rule:       evalRule,
+	}
+
+	if err := rule.GenEvaluator(rs.model); err != nil {
 		return nil, &ErrRuleLoad{Rule: pRule, Err: err}
 	}
 

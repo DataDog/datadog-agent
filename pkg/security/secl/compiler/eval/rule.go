@@ -53,7 +53,7 @@ type RuleEvaluator struct {
 }
 
 // NewRule returns a new rule
-func NewRule(id string, expression string, opts *Opts, tags ...string) *Rule {
+func NewRule(id string, expression string, parsingContext *ast.ParsingContext, opts *Opts, tags ...string) (*Rule, error) {
 	if opts.MacroStore == nil {
 		opts.WithMacroStore(&MacroStore{})
 	}
@@ -66,13 +66,19 @@ func NewRule(id string, expression string, opts *Opts, tags ...string) *Rule {
 		panic(err)
 	}
 
+	astRule, err := parsingContext.ParseRule(expression)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Rule{
 		ID:          id,
 		Expression:  expression,
 		Opts:        opts,
 		Tags:        tags,
 		pprofLabels: labelSet,
-	}
+		ast:         astRule,
+	}, nil
 }
 
 // IsPartialAvailable checks if partial have been generated for the given Field
@@ -274,14 +280,8 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 }
 
 // GenEvaluator - Compile and generates the RuleEvaluator
-func (r *Rule) GenEvaluator(model Model, parsingCtx *ast.ParsingContext) error {
+func (r *Rule) GenEvaluator(model Model) error {
 	r.Model = model
-
-	if r.ast == nil {
-		if err := r.Parse(parsingCtx); err != nil {
-			return err
-		}
-	}
 
 	evaluator, err := NewRuleEvaluator(r.ast, model, r.Opts)
 	if err != nil {
