@@ -6,6 +6,7 @@
 package tcp
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"syscall"
@@ -110,6 +111,9 @@ func (tp *TCPParser) parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse
 	if header.Protocol != syscall.IPPROTO_TCP || header.Version != 4 ||
 		header.Src == nil || header.Dst == nil {
 		return nil, fmt.Errorf("invalid IP header for TCP packet: %+v", header)
+	}
+	if len(payload) <= 0 {
+		return nil, errors.New("received empty TCP payload")
 	}
 
 	if err := tp.decodingLayerParser.DecodeLayers(payload, &tp.decoded); err != nil {
