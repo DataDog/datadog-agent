@@ -2529,6 +2529,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	if kv.IsInRangeCloseOpen(kernel.Kernel6_7, kernel.Kernel6_11) {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeMtime, "struct inode", "__i_mtime", "linux/fs.h")
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeCtime, "struct inode", "__i_ctime", "linux/fs.h")
+	} else if kv.Code < kernel.Kernel6_7 {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeMtime, "struct inode", "i_mtime", "linux/fs.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeCtime, "struct inode", "i_ctime", "linux/fs.h")
 	}
 }
 
