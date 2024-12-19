@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.60.1:
+
+7.60.1
+======
+
+.. _Release Notes_7.60.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-12-18
+
+- Please refer to the `7.60.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7601>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.60.1_Security Notes:
+
+Security Notes
+--------------
+
+- Update ``golang.org/x/crypto`` to fix CVE-2024-45337.
+
+
 .. _Release Notes_7.60.0:
 
 7.60.0
