@@ -12,7 +12,7 @@ Release Notes
 Prelude
 -------
 
-Released on: 2024-12-18
+Released on: 2024-12-19
 Pinned to datadog-agent v7.60.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7601>`_.
 
 .. _Release Notes_7.60.0:
