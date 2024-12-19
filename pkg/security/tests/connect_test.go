@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"sync"
 	"testing"
 
 	"golang.org/x/net/nettest"
@@ -50,22 +49,18 @@ func TestConnectEvent(t *testing.T) {
 	}
 
 	t.Run("connect-af-inet-any-tcp-success", func(t *testing.T) {
-		var wg sync.WaitGroup
-		wg.Add(1)
-		defer wg.Wait()
-
-		done := make(chan struct{})
-		defer close(done)
+		done := make(chan error)
 		go func() {
-			defer wg.Done()
-			err := bindAndAcceptConnection("tcp", ":4242", done)
-			if err != nil {
-				t.Error(err)
-			}
+			bindAndAcceptConnection("tcp", ":4242", done)
 		}()
 
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "tcp")
+			if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "tcp"); err != nil {
+				return err
+			}
+			err := <-done
+			close(done)
+			return err
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "connect", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET), event.Connect.AddrFamily, "wrong address family")
@@ -78,22 +73,19 @@ func TestConnectEvent(t *testing.T) {
 	})
 
 	t.Run("connect-af-inet-any-udp-success", func(t *testing.T) {
-		var wg sync.WaitGroup
-		wg.Add(1)
-		defer wg.Wait()
 
-		done := make(chan struct{})
-		defer close(done)
+		done := make(chan error)
 		go func() {
-			defer wg.Done()
-			err := bindAndAcceptConnection("udp", ":4242", done)
-			if err != nil {
-				t.Error(err)
-			}
+			bindAndAcceptConnection("udp", ":4242", done)
 		}()
 
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "udp")
+			if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "udp"); err != nil {
+				return err
+			}
+			err := <-done
+			close(done)
+			return err
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "connect", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET), event.Connect.AddrFamily, "wrong address family")
@@ -110,22 +102,18 @@ func TestConnectEvent(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		var wg sync.WaitGroup
-		wg.Add(1)
-		defer wg.Wait()
-
-		done := make(chan struct{})
-		defer close(done)
+		done := make(chan error)
 		go func() {
-			defer wg.Done()
-			err := bindAndAcceptConnection("tcp", ":4242", done)
-			if err != nil {
-				t.Error(err)
-			}
+			bindAndAcceptConnection("tcp", ":4242", done)
 		}()
 
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "tcp")
+			if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "tcp"); err != nil {
+				return err
+			}
+			err := <-done
+			close(done)
+			return err
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "connect", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET6), event.Connect.AddrFamily, "wrong address family")
@@ -142,22 +130,18 @@ func TestConnectEvent(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		var wg sync.WaitGroup
-		wg.Add(1)
-		defer wg.Wait()
-
-		done := make(chan struct{})
-		defer close(done)
+		done := make(chan error)
 		go func() {
-			defer wg.Done()
-			err := bindAndAcceptConnection("udp", ":4242", done)
-			if err != nil {
-				t.Error(err)
-			}
+			bindAndAcceptConnection("udp", ":4242", done)
 		}()
 
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "udp")
+			if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "udp"); err != nil {
+				return err
+			}
+			err := <-done
+			close(done)
+			return err
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "connect", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET6), event.Connect.AddrFamily, "wrong address family")
@@ -171,40 +155,41 @@ func TestConnectEvent(t *testing.T) {
 
 }
 
-func bindAndAcceptConnection(proto, address string, done chan struct{}) error {
+func bindAndAcceptConnection(proto, address string, done chan error) {
 	switch proto {
 	case "tcp":
 		listener, err := net.Listen(proto, address)
 		if err != nil {
-			return fmt.Errorf("failed to bind to %s:%s: %w", proto, address, err)
+			done <- fmt.Errorf("failed to bind to %s:%s: %w", proto, address, err)
+			return
+		} else {
+			defer listener.Close()
 		}
-		defer listener.Close()
 
-		// Start a goroutine to accept connections continuously
-		go func() {
-			for {
-				c, err := listener.Accept()
-				if err != nil {
-					fmt.Printf("accept error: %v\n", err)
-					return
-				}
-				fmt.Println("Connection accepted")
-				defer c.Close()
-			}
-		}()
+		c, err := listener.Accept()
+		if err != nil {
+			fmt.Printf("accept error: %v\n", err)
+			done <- err
+			return
+		} else {
+			defer c.Close()
+		}
+
+		fmt.Println("Connection accepted")
 
 	case "udp", "unixgram":
 		conn, err := net.ListenPacket(proto, address)
 		if err != nil {
-			return fmt.Errorf("failed to bind to %s:%s: %w", proto, address, err)
+			done <- err
+			return
 		}
 		defer conn.Close()
 
 	default:
-		return fmt.Errorf("unsupported protocol: %s", proto)
+		done <- fmt.Errorf("unsupported protocol: %s", proto)
+		return
 	}
 
 	// Wait for the test to complete before returning
-	<-done
-	return nil
+	done <- nil
 }
