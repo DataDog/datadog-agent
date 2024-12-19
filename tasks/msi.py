@@ -71,7 +71,7 @@ def _get_vs_build_command(cmd, vstudio_root=None):
     return cmd
 
 
-def _get_env(ctx, major_version='7', release_version='nightly'):
+def _get_env(ctx, major_version='7', release_version='a7'):
     env = load_release_versions(ctx, release_version)
 
     env['PACKAGE_VERSION'] = get_version(
@@ -278,7 +278,7 @@ def _msi_output_name(env):
 
 
 @task
-def build(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
+def build(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='a7', debug=False):
     """
     Build the MSI installer for the agent
     """
@@ -368,7 +368,7 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
 
 
 @task
-def test(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
+def test(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='a7', debug=False):
     """
     Run the unit test for the MSI installer for the agent
     """
@@ -504,7 +504,7 @@ def get_msm_info(ctx, release_version):
     iterable=['drivers'],
     help={
         'drivers': 'List of drivers to fetch (default: DDNPM, DDPROCMON, APMINJECT)',
-        'release_version': 'Release version to fetch drivers from (default: nightly-a7)',
+        'release_version': 'Release version to fetch drivers from (default: a7)',
     },
 )
 def fetch_driver_msm(ctx, drivers=None, release_version=None):
@@ -515,7 +515,7 @@ def fetch_driver_msm(ctx, drivers=None, release_version=None):
     """
     ALLOWED_DRIVERS = ['DDNPM', 'DDPROCMON', 'APMINJECT']
     if not release_version:
-        release_version = 'nightly-a7'
+        release_version = 'a7'
 
     msm_info = get_msm_info(ctx, release_version)
     if not drivers:
