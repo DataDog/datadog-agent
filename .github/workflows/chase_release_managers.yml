@@ -22,12 +22,12 @@ jobs:
     - name: Install python
       uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
       with:
-        python-version: 3.11
+        python-version: 3.12
         cache: "pip"
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt -r tasks/libs/requirements-github.txt -r tasks/requirements_release_tasks.txt
+        pip install -r requirements.txt -r tasks/libs/requirements-github.txt -r tasks/requirements_release_tasks.txt --break-system-packages
     - name: Chase release managers
       env:
         ATLASSIAN_USERNAME : ${{ secrets.ATLASSIAN_USERNAME }}
