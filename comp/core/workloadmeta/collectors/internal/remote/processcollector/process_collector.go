@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -221,7 +221,7 @@ func (s *streamHandler) populateMissingContainerID(collectorEvents []workloadmet
 
 		if ctrID == "" {
 			pidAsInt, _ := strconv.Atoi(pid)
-			containerProvider := metrics.GetProvider(optional.NewOption(store))
+			containerProvider := metrics.GetProvider(option.New(store))
 			ctrIDFromProvider, err := containerProvider.GetMetaCollector().GetContainerIDForPID(pidAsInt, cacheValidityNoRT)
 			if err != nil {
 				log.Debugf("failed to get container id for process %s: %v", pid, err)

@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 
 	"go.uber.org/fx"
@@ -61,12 +61,12 @@ type Agent struct {
 }
 
 // NewLogsAgentComponent returns a new instance of Agent as a Component
-func NewLogsAgentComponent(deps Dependencies) optional.Option[logsagentpipeline.Component] {
+func NewLogsAgentComponent(deps Dependencies) option.Option[logsagentpipeline.Component] {
 	logsAgent := NewLogsAgent(deps)
 	if logsAgent == nil {
-		return optional.NewNoneOption[logsagentpipeline.Component]()
+		return option.None[logsagentpipeline.Component]()
 	}
-	return optional.NewOption[logsagentpipeline.Component](logsAgent)
+	return option.New[logsagentpipeline.Component](logsAgent)
 }
 
 // NewLogsAgent returns a new instance of Agent with the given dependencies

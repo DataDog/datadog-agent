@@ -22,7 +22,7 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Tagger is the entry class for entity tagging. It hold the tagger collector,
@@ -105,7 +105,7 @@ func (t *localTagger) Tag(entityID types.EntityID, cardinality types.TagCardinal
 
 // GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
 func (t *localTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
-	metaCollector := metrics.GetProvider(optional.NewOption(t.workloadStore)).GetMetaCollector()
+	metaCollector := metrics.GetProvider(option.New(t.workloadStore)).GetMetaCollector()
 	return metaCollector.ContainerIDForPodUIDAndContName(originInfo.ExternalData.PodUID, originInfo.ExternalData.ContainerName, originInfo.ExternalData.Init, time.Second)
 }
 

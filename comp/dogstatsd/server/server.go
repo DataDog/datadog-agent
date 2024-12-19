@@ -39,7 +39,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var (
@@ -76,7 +76,7 @@ type dependencies struct {
 	Replay    replay.Component
 	PidMap    pidmap.Component
 	Params    Params
-	WMeta     optional.Option[workloadmeta.Component]
+	WMeta     option.Option[workloadmeta.Component]
 	Telemetry telemetry.Component
 }
 
@@ -158,7 +158,7 @@ type server struct {
 
 	enrichConfig enrichConfig
 
-	wmeta optional.Option[workloadmeta.Component]
+	wmeta option.Option[workloadmeta.Component]
 
 	// telemetry
 	telemetry               telemetry.Component
@@ -198,7 +198,7 @@ func newServer(deps dependencies) provides {
 	}
 }
 
-func newServerCompat(cfg model.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
+func newServerCompat(cfg model.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *util.Stats

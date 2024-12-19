@@ -10,7 +10,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../def
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
-	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../pkg/util/optional
+	github.com/DataDog/datadog-agent/pkg/util/option => ../../../pkg/util/option
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
 
@@ -35,7 +35,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.55.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.59.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

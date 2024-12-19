@@ -44,7 +44,7 @@ import (
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type collectorImpl struct {
@@ -68,7 +68,7 @@ type Requires struct {
 	Config              config.Component
 	Serializer          serializer.MetricSerializer
 	TraceAgent          traceagent.Component
-	LogsAgent           optional.Option[logsagentpipeline.Component]
+	LogsAgent           option.Option[logsagentpipeline.Component]
 	SourceProvider      serializerexporter.SourceProviderFunc
 	Tagger              tagger.Component
 	StatsdClientWrapper *metricsclient.StatsdClientWrapper

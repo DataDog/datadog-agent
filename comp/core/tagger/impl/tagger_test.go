@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	collectormock "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type fakeCIDProvider struct {
@@ -47,7 +47,7 @@ func (f *fakeCIDProvider) ContainerIDForPodUIDAndContName(podUID, contName strin
 // Sets up the fake metrics provider and returns a function to reset the original metrics provider
 func setupFakeMetricsProvider(mockMetricsProvider metrics.Provider) func() {
 	originalMetricsProvider := metrics.GetProvider
-	metrics.GetProvider = func(_ optional.Option[workloadmeta.Component]) metrics.Provider {
+	metrics.GetProvider = func(_ option.Option[workloadmeta.Component]) metrics.Provider {
 		return mockMetricsProvider
 	}
 	return func() { metrics.GetProvider = originalMetricsProvider }

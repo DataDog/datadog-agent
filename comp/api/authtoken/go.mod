@@ -29,7 +29,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../pkg/util/hostname/validate/
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../pkg/util/log/setup
-	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../pkg/util/optional
+	github.com/DataDog/datadog-agent/pkg/util/option => ../../../pkg/util/option
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../../pkg/util/system
@@ -46,7 +46,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.58.0-devel
 	github.com/DataDog/datadog-agent/pkg/api v0.56.0
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.23.0
 )

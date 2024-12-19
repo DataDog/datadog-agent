@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -65,7 +65,7 @@ type systemprobe struct {
 
 	log          log.Component
 	conf         config.Component
-	sysprobeConf optional.Option[sysprobeconfig.Component]
+	sysprobeConf option.Option[sysprobeconfig.Component]
 	hostname     string
 }
 
@@ -76,7 +76,7 @@ type Requires struct {
 	Serializer serializer.MetricSerializer
 	// We need the authtoken to be created so we requires the comp. It will be used by configFetcher.
 	AuthToken      authtoken.Component
-	SysProbeConfig optional.Option[sysprobeconfig.Component]
+	SysProbeConfig option.Option[sysprobeconfig.Component]
 }
 
 // Provides defines the output of the systemprobe metadatacomponent

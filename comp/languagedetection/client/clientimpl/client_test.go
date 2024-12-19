@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 )
@@ -61,7 +61,7 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	optComponent := newClient(deps).(optional.Option[clientComp.Component])
+	optComponent := newClient(deps).(option.Option[clientComp.Component])
 	comp, _ := optComponent.Get()
 	client := comp.(*client)
 	client.langDetectionCl = mockDCAClient
@@ -107,7 +107,7 @@ func TestClientEnabled(t *testing.T) {
 					workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				))
 
-				optionalCl := newClient(deps).(optional.Option[clientComp.Component])
+				optionalCl := newClient(deps).(option.Option[clientComp.Component])
 				_, ok := optionalCl.Get()
 				assert.Equal(t, testCase.isSet, ok)
 			})
