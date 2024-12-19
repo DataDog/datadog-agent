@@ -16,6 +16,7 @@ import (
 	"time"
 	"unsafe"
 
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
@@ -131,7 +132,7 @@ func recordSample(c *config.Config, consumer *Consumer[uint64], sampleData []byt
 	}
 }
 
-func newEventGenerator(program *manager.Manager, t *testing.T) *eventGenerator {
+func newEventGenerator(program *ddebpf.Manager, t *testing.T) *eventGenerator {
 	m, _, _ := program.GetMap("test")
 	require.NotNilf(t, m, "couldn't find test map")
 
@@ -172,7 +173,7 @@ func (e *eventGenerator) Stop() {
 	e.testFile.Close()
 }
 
-func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
+func newEBPFProgram(c *config.Config) (*ddebpf.Manager, error) {
 	bc, err := bytecode.GetReader(c.BPFDir, "usm_events_test-debug.o")
 	if err != nil {
 		return nil, err
@@ -208,11 +209,13 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 		},
 	}
 
-	Configure(config.New(), "test", m, &options)
-	err = m.InitWithOptions(bc, options)
+	ddEbpfManager := ddebpf.NewManager(m, "usm", &ebpftelemetry.ErrorsTelemetryModifier{})
+
+	Configure(config.New(), "test", ddEbpfManager, &options)
+	err = ddEbpfManager.InitWithOptions(bc, &options)
 	if err != nil {
 		return nil, err
 	}
 
-	return m, nil
+	return ddEbpfManager, nil
 }

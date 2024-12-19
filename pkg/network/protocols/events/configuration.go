@@ -40,7 +40,7 @@ const defaultPerfHandlerSize = 100
 // This essentially instantiates the perf map/ring buffers and configure the
 // eBPF maps where events are enqueued.
 // Note this must be called *before* manager.InitWithOptions
-func Configure(cfg *config.Config, proto string, m *manager.Manager, o *manager.Options) {
+func Configure(cfg *config.Config, proto string, m *ddebpf.Manager, o *manager.Options) {
 	if alreadySetUp(proto, m) {
 		return
 	}
@@ -63,7 +63,7 @@ func Configure(cfg *config.Config, proto string, m *manager.Manager, o *manager.
 	}
 }
 
-func setupPerfMap(proto string, m *manager.Manager) {
+func setupPerfMap(proto string, m *ddebpf.Manager) {
 	handler := ddebpf.NewPerfHandler(defaultPerfHandlerSize)
 	mapName := eventMapName(proto)
 	pm := &manager.PerfMap{
@@ -90,7 +90,7 @@ func setupPerfMap(proto string, m *manager.Manager) {
 	setHandler(proto, handler)
 }
 
-func setupPerfRing(proto string, m *manager.Manager, o *manager.Options, numCPUs int) {
+func setupPerfRing(proto string, m *ddebpf.Manager, o *manager.Options, numCPUs int) {
 	handler := ddebpf.NewRingBufferHandler(defaultPerfHandlerSize)
 	mapName := eventMapName(proto)
 	ringBufferSize := toPowerOf2(numCPUs * defaultPerfEventBufferSize)
@@ -155,12 +155,12 @@ func eventMapName(proto string) string {
 // *However* in some instances this is not working on 4.14, so here we
 // essentially replace `bpf_ringbuf_output` helper calls by a noop operation so
 // they don't result in verifier errors even when deadcode elimination fails.
-func removeRingBufferHelperCalls(m *manager.Manager) {
+func removeRingBufferHelperCalls(m *ddebpf.Manager) {
 	// TODO: this is not the intended API usage of a `ebpf.Modifier`.
 	// Once we have access to the `ddebpf.Manager`, add this modifier to its list of
 	// `EnabledModifiers` and let it control the execution of the callbacks
 	patcher := ddebpf.NewHelperCallRemover(asm.FnRingbufOutput)
-	err := patcher.BeforeInit(m, names.NewModuleName("usm"), nil)
+	err := patcher.BeforeInit(m.Manager, names.NewModuleName("usm"), nil)
 
 	if err != nil {
 		// Our production code is actually loading on all Kernels we test on CI
@@ -178,7 +178,7 @@ func removeRingBufferHelperCalls(m *manager.Manager) {
 	}
 }
 
-func alreadySetUp(proto string, m *manager.Manager) bool {
+func alreadySetUp(proto string, m *ddebpf.Manager) bool {
 	// check if we already have configured this perf map this can happen in the
 	// context of a failed program load succeeded by another attempt
 	mapName := eventMapName(proto)
