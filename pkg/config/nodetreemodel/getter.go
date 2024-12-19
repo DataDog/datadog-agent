@@ -112,14 +112,48 @@ func (c *ntmConfig) inferTypeFromDefault(key string, value interface{}) (interfa
 	return deepcopy.Copy(value), nil
 }
 
+func (c *ntmConfig) nodeAtPath(key string) Node {
+	if !c.isReady() {
+		log.Errorf("attempt to read key before config is constructed: %s", key)
+		return missingLeaf
+	}
+
+	return c.nodeAtPathFromNode(key, c.root)
+}
+
+func (c *ntmConfig) getNodeValue(key string) interface{} {
+	node := c.nodeAtPath(key)
+
+	if leaf, ok := node.(LeafNode); ok {
+		return leaf.Get()
+	}
+
+	// When querying an InnerNode we convert it as a map[string]interface{} to mimic Viper's logic
+	var converter func(node InnerNode) map[string]interface{}
+	converter = func(node InnerNode) map[string]interface{} {
+		res := map[string]interface{}{}
+		for _, name := range node.ChildrenKeys() {
+			child, _ := node.GetChild(name)
+
+			if leaf, ok := child.(LeafNode); ok {
+				res[name] = leaf.Get()
+			} else {
+				res[name] = converter(child.(InnerNode))
+			}
+		}
+		return res
+	}
+
+	return converter(node.(InnerNode))
+}
+
 // Get returns a copy of the value for the given key
 func (c *ntmConfig) Get(key string) interface{} {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val := c.leafAtPath(key).Get()
 
-	val, err := c.inferTypeFromDefault(key, val)
+	val, err := c.inferTypeFromDefault(key, c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -149,7 +183,7 @@ func (c *ntmConfig) GetString(key string) string {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	str, err := cast.ToStringE(c.leafAtPath(key).Get())
+	str, err := cast.ToStringE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -161,7 +195,7 @@ func (c *ntmConfig) GetBool(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	b, err := cast.ToBoolE(c.leafAtPath(key).Get())
+	b, err := cast.ToBoolE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -173,7 +207,7 @@ func (c *ntmConfig) GetInt(key string) int {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToIntE(c.leafAtPath(key).Get())
+	val, err := cast.ToIntE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -185,7 +219,7 @@ func (c *ntmConfig) GetInt32(key string) int32 {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToInt32E(c.leafAtPath(key).Get())
+	val, err := cast.ToInt32E(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -197,7 +231,7 @@ func (c *ntmConfig) GetInt64(key string) int64 {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToInt64E(c.leafAtPath(key).Get())
+	val, err := cast.ToInt64E(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -209,7 +243,7 @@ func (c *ntmConfig) GetFloat64(key string) float64 {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToFloat64E(c.leafAtPath(key).Get())
+	val, err := cast.ToFloat64E(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -222,7 +256,7 @@ func (c *ntmConfig) GetFloat64Slice(key string) []float64 {
 	defer c.RUnlock()
 	c.checkKnownKey(key)
 
-	list, err := cast.ToStringSliceE(c.leafAtPath(key).Get())
+	list, err := cast.ToStringSliceE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -244,7 +278,7 @@ func (c *ntmConfig) GetDuration(key string) time.Duration {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToDurationE(c.leafAtPath(key).Get())
+	val, err := cast.ToDurationE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -256,7 +290,7 @@ func (c *ntmConfig) GetStringSlice(key string) []string {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToStringSliceE(c.leafAtPath(key).Get())
+	val, err := cast.ToStringSliceE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -268,7 +302,7 @@ func (c *ntmConfig) GetStringMap(key string) map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToStringMapE(c.leafAtPath(key).Get())
+	val, err := cast.ToStringMapE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -280,7 +314,7 @@ func (c *ntmConfig) GetStringMapString(key string) map[string]string {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToStringMapStringE(c.leafAtPath(key).Get())
+	val, err := cast.ToStringMapStringE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -292,7 +326,7 @@ func (c *ntmConfig) GetStringMapStringSlice(key string) map[string][]string {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToStringMapStringSliceE(c.leafAtPath(key).Get())
+	val, err := cast.ToStringMapStringSliceE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
