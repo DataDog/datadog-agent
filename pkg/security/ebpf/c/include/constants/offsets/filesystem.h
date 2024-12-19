@@ -8,15 +8,12 @@
 
 struct mount;
 
-int __attribute__((always_inline)) get_ino_offset() {
-    u64 ino_offset;
-    LOAD_CONSTANT("inode_ino_offset", ino_offset);
-    return ino_offset;
-}
-
 unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) {
+    u64 inode_ino_offset;
+    LOAD_CONSTANT("inode_ino_offset", inode_ino_offset);
+
     unsigned long ino;
-    bpf_probe_read(&ino, sizeof(inode), (void *)inode + get_ino_offset());
+    bpf_probe_read(&ino, sizeof(inode), (void *)inode + inode_ino_offset);
     return ino;
 }
 
