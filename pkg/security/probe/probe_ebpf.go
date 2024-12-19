@@ -818,15 +818,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		if cgroupContext, err := p.Resolvers.ResolveCGroupContext(event.CgroupTracing.CGroupContext.CGroupFile, containerutils.CGroupFlags(event.CgroupTracing.CGroupContext.CGroupFlags)); err != nil {
+		cgroupContext, err := p.Resolvers.ResolveCGroupContext(event.CgroupTracing.CGroupContext.CGroupFile, containerutils.CGroupFlags(event.CgroupTracing.CGroupContext.CGroupFlags))
+		if err != nil {
 			seclog.Debugf("Failed to resolve cgroup: %s", err)
 		} else {
 			event.CgroupTracing.CGroupContext = *cgroupContext
-			if cgroupContext.CGroupFlags.IsContainer() {
-				containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
-				event.CgroupTracing.ContainerContext.ContainerID = containerID
-			}
-
 			p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 		}
 
@@ -2525,6 +2521,13 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx", "")
 	}
+
+	// inode
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeIno, "struct inode", "i_ino", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeGid, "struct inode", "i_gid", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeNlink, "struct inode", "i_nlink", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeMtime, "struct inode", "__i_mtime", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeCtime, "struct inode", "__i_ctime", "linux/fs.h")
 }
 
 // HandleActions handles the rule actions
