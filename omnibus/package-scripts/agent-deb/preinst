@@ -13,18 +13,21 @@ if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/
     # Stop an already running agent
     # supports systemd, upstart and sysvinit
     if command -v systemctl >/dev/null 2>&1; then
+        systemctl stop $SERVICE_NAME-checks || true
         systemctl stop $SERVICE_NAME-process || true
         systemctl stop $SERVICE_NAME-sysprobe || true
         systemctl stop $SERVICE_NAME-trace || true
         systemctl stop $SERVICE_NAME-security || true
         systemctl stop $SERVICE_NAME || true
     elif command -v initctl >/dev/null 2>&1; then
+        initctl stop $SERVICE_NAME-checks || true
         initctl stop $SERVICE_NAME-process || true
         initctl stop $SERVICE_NAME-sysprobe || true
         initctl stop $SERVICE_NAME-trace || true
         initctl stop $SERVICE_NAME-security || true
         initctl stop $SERVICE_NAME || true
     elif command -v service >/dev/null 2>&1; then
+        service $SERVICE_NAME-checks stop || true
         service $SERVICE_NAME-process stop || true
         service $SERVICE_NAME-sysprobe stop || true
         service $SERVICE_NAME-trace stop || true

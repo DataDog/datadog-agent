@@ -69,7 +69,7 @@ if [ -x ${INSTALL_DIR}/embedded/bin/fipsinstall.sh ]; then
     ${INSTALL_DIR}/embedded/bin/fipsinstall.sh
 fi
 
-set +e 
+set +e
 generate_install_id()
 {
     # Try generating a UUID based on /proc/sys/kernel/random/uuid
@@ -151,6 +151,7 @@ echo "Enabling service $SERVICE_NAME"
 if command -v systemctl >/dev/null 2>&1; then
     # Force systemd to ignore the sysvinit scripts. Only cosmetic, remove some irrelevant warnings during upgrade
     SYSTEMCTL_SKIP_SYSV=true systemctl enable $SERVICE_NAME || echo "[ WARNING ]\tCannot enable $SERVICE_NAME with systemctl"
+    SYSTEMCTL_SKIP_SYSV=true systemctl enable $SERVICE_NAME-checks || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-checks with systemctl"
     SYSTEMCTL_SKIP_SYSV=true systemctl enable $SERVICE_NAME-process || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-process with systemctl"
     SYSTEMCTL_SKIP_SYSV=true systemctl enable $SERVICE_NAME-trace || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-trace with systemctl"
     SYSTEMCTL_SKIP_SYSV=true systemctl enable $SERVICE_NAME-security || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-security with systemctl"
@@ -159,6 +160,7 @@ elif command -v initctl >/dev/null 2>&1; then
     :
 elif command -v update-rc.d >/dev/null 2>&1; then
     update-rc.d $SERVICE_NAME defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME with update-rc.d"
+    update-rc.d $SERVICE_NAME-checks defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-checks with update-rc.d"
     update-rc.d $SERVICE_NAME-process defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-process with update-rc.d"
     update-rc.d $SERVICE_NAME-trace defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-trace with update-rc.d"
     update-rc.d $SERVICE_NAME-security defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-security with update-rc.d"

@@ -1,0 +1,16 @@
+[Unit]
+Description=Datadog Checks Agent
+After=network.target datadog-agent.service
+BindsTo=datadog-agent.service
+
+[Service]
+Type=simple
+User=dd-agent
+Restart=on-failure
+EnvironmentFile=<%= etc_dir %>/environment
+ExecStart=/opt/datadog-agent/bin/agent/checks-agent start --cfgpath=<%= etc_dir %>/datadog.yaml
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target
