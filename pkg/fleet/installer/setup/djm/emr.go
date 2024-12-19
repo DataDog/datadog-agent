@@ -54,12 +54,12 @@ type emrInstanceInfo struct {
 	InstanceGroupID string `json:"instanceGroupId"`
 }
 
-type Cluster struct {
+type cluster struct {
 	Name string `json:"Name"`
 }
 
-type EmrResponse struct {
-	Cluster Cluster `json:"Cluster"`
+type emrResponse struct {
+	Cluster cluster `json:"cluster"`
 }
 
 type extraEmrInstanceInfo struct {
@@ -119,10 +119,13 @@ func setupCommonEmrHostTags(s *common.Setup) (string, string, error) {
 	}
 	setHostTag(s, "job_flow_id", extraInfo.JobFlowID)
 	setHostTag(s, "cluster_id", extraInfo.JobFlowID)
-	setHostTag(s, "cluster_id", extraInfo.JobFlowID)
+	s.Span.SetTag("emr_version", extraInfo.ReleaseLabel)
 
 	emrResponseRaw, err := executeCommandWithTimeout("aws", "emr", "describe-cluster", "--cluster-id", extraInfo.JobFlowID)
-	var response EmrResponse
+	if err != nil {
+		return "", "", err
+	}
+	var response emrResponse
 	if err = json.Unmarshal(emrResponseRaw, &response); err != nil {
 		return info.IsMaster, "", fmt.Errorf("error unmarshalling AWS EMR response: %w", err)
 	}
