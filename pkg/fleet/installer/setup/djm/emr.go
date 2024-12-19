@@ -125,11 +125,11 @@ func setupCommonEmrHostTags(s *common.Setup) (string, string, error) {
 
 	emrResponseRaw, err := executeCommandWithTimeout("aws", "emr", "describe-cluster", "--cluster-id", extraInfo.JobFlowID)
 	if err != nil {
-		return "", "", err
+		return info.IsMaster, extraInfo.JobFlowID, fmt.Errorf("error describing emr cluster, using cluster id as name: %w", err)
 	}
 	var response emrResponse
 	if err = json.Unmarshal(emrResponseRaw, &response); err != nil {
-		return info.IsMaster, "", fmt.Errorf("error unmarshalling AWS EMR response: %w", err)
+		return info.IsMaster, extraInfo.JobFlowID, fmt.Errorf("error unmarshalling AWS EMR response,  using cluster id as name: %w", err)
 	}
 
 	setHostTag(s, "cluster_name", response.Cluster.Name)
