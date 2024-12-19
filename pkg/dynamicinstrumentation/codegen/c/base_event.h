@@ -4,7 +4,7 @@
 #include "ktypes.h"
 
 struct base_event {
-    char probe_id[304];
+    char probe_id[300];
     __u32 pid;
     __u32 uid;
     __u64 program_counters[10];
