@@ -29,11 +29,23 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
         bpf_ringbuf_discard(event, 0);
         return 0;
     }
-
-    bpf_probe_read(&event->base.probe_id, sizeof(event->base.probe_id), zero_string);
-    bpf_probe_read(&event->base.program_counters, sizeof(event->base.program_counters), zero_string);
-    bpf_probe_read(&event->output, sizeof(event->output), zero_string);
-    bpf_probe_read(&event->base.probe_id, {{ .ID | len }}, "{{.ID}}");
+    long err;
+    err = bpf_probe_read_kernel(&event->base.probe_id, sizeof(event->base.probe_id), zero_string);
+    if (err != 0) {
+        log_debug("could not zero out probe id buffer");
+    }
+    err = bpf_probe_read_kernel(&event->base.program_counters, sizeof(event->base.program_counters), zero_string);
+    if (err != 0) {
+        log_debug("could not zero out program counter buffer");
+    }
+    err = bpf_probe_read_kernel(&event->output, sizeof(event->output), zero_string);
+    if (err != 0) {
+        log_debug("could not zero out output buffer");
+    }
+    err = bpf_probe_read_kernel(&event->base.probe_id, {{ .ID | len }}, "{{.ID}}");
+    if (err != 0) {
+        log_debug("could not write probe id to output");
+    }
 
     // Get tid and tgid
     u64 pidtgid = bpf_get_current_pid_tgid();
@@ -46,10 +58,17 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
 
     // Collect stack trace
     __u64 currentPC = PT_REGS_IP(ctx);
-    bpf_probe_read(&event->base.program_counters[0], sizeof(__u64), &currentPC);
+    err = bpf_probe_read_kernel(&event->base.program_counters[0], sizeof(__u64), &currentPC);
+    if (err != 0) {
+        log_debug("could not collect first program counter");
+    }
 
     __u64 bp = PT_REGS_FP(ctx);
-    bpf_probe_read(&bp, sizeof(__u64), (void*)bp); // dereference bp to get current stack frame
+    err = bpf_probe_read_user(&bp, sizeof(__u64), (void*)bp); // dereference bp to get current stack frame
+    if (err != 0) {
+        log_debug("could not retrieve base pointer for current stack frame");
+    }
+
     __u64 ret_addr = PT_REGS_RET(ctx); // when bpf prog enters, the return address hasn't yet been written to the stack
 
     int i;
@@ -60,9 +79,18 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
         if (bp == 0) {
             break;
         }
-        bpf_probe_read(&event->base.program_counters[i], sizeof(__u64), &ret_addr);
-        bpf_probe_read(&ret_addr, sizeof(__u64), (void*)(bp-8));
-        bpf_probe_read(&bp, sizeof(__u64), (void*)bp);
+        err = bpf_probe_read_kernel(&event->base.program_counters[i], sizeof(__u64), &ret_addr);
+        if (err != 0) {
+            log_debug("error occurred while collecting program counter for stack trace (1)");
+        }
+        err = bpf_probe_read_user(&ret_addr, sizeof(__u64), (void*)(bp-8));
+        if (err != 0) {
+            log_debug("error occurred while collecting program counter for stack trace (2)");
+        }
+        err = bpf_probe_read_user(&bp, sizeof(__u64), (void*)bp);
+        if (err != 0) {
+            log_debug("error occurred while collecting program counter for stack trace (3)");
+        }
     }
 
     // Collect parameters

@@ -7,7 +7,7 @@ static __always_inline int read_register(struct expression_context context, __u6
 {
     long err;
     __u64 valueHolder = 0;
-    err = bpf_probe_read(&valueHolder,  element_size, &context.ctx->DWARF_REGISTER(reg));
+    err = bpf_probe_read_kernel(&valueHolder,  element_size, &context.ctx->DWARF_REGISTER(reg));
     if (err != 0) {
         log_debug("error when reading data from register: %ld", err);
     }
@@ -22,7 +22,7 @@ static __always_inline int read_stack(struct expression_context context, size_t 
 {
     long err;
     __u64 valueHolder = 0;
-    err = bpf_probe_read(&valueHolder, element_size, &context.ctx->DWARF_STACK_REGISTER+stack_offset);
+    err = bpf_probe_read_kernel(&valueHolder, element_size, &context.ctx->DWARF_STACK_REGISTER+stack_offset);
     if (err != 0) {
         log_debug("error when reading data from stack: %ld", err);
     }
@@ -36,7 +36,7 @@ static __always_inline int read_stack(struct expression_context context, size_t 
 static __always_inline int read_register_value_to_output(struct expression_context context, __u64 reg, __u32 element_size)
 {
     long err;
-    err = bpf_probe_read(&context.event->output[*(context.output_offset)], element_size, &context.ctx->DWARF_REGISTER(reg));
+    err = bpf_probe_read_kernel(&context.event->output[*(context.output_offset)], element_size, &context.ctx->DWARF_REGISTER(reg));
     if (err != 0) {
         log_debug("error when reading data while reading register value to output: %ld", err);
     }
@@ -49,7 +49,7 @@ static __always_inline int read_register_value_to_output(struct expression_conte
 static __always_inline int read_stack_value_to_output(struct expression_context context, __u64 stack_offset, __u32 element_size)
 {
     long err;
-    err = bpf_probe_read(&context.event->output[*(context.output_offset)], element_size, &context.ctx->DWARF_STACK_REGISTER+stack_offset);
+    err = bpf_probe_read_kernel(&context.event->output[*(context.output_offset)], element_size, &context.ctx->DWARF_STACK_REGISTER+stack_offset);
     if (err != 0) {
         log_debug("error when reading data while reading stack value to output: %ld", err);
     }
@@ -68,7 +68,7 @@ static __always_inline int pop(struct expression_context context, __u64 num_elem
         bpf_map_pop_elem(&param_stack, &valueHolder);
         *context.stack_counter -= 1;
         log_debug("Popping to output: %llu", valueHolder);
-        err = bpf_probe_read(&context.event->output[*(context.output_offset)+i], element_size, &valueHolder);
+        err = bpf_probe_read_kernel(&context.event->output[*(context.output_offset)+i], element_size, &valueHolder);
         if (err != 0) {
             log_debug("error when reading data while popping from bpf stack: %ld", err);
             return_err = err;
@@ -122,7 +122,7 @@ static __always_inline int dereference_to_output(struct expression_context conte
     __u64 valueHolder = 0;
 
     log_debug("Going to deref to output: 0x%llx", addressHolder);
-    err = bpf_probe_read(&valueHolder, element_size, (void*)addressHolder);
+    err = bpf_probe_read_user(&valueHolder, element_size, (void*)addressHolder);
     if (err != 0) {
         return_err = err;
         log_debug("error when reading data while dereferencing to output: %ld", err);
@@ -131,7 +131,7 @@ static __always_inline int dereference_to_output(struct expression_context conte
     __u64 encodedValueHolder = valueHolder & mask;
 
     log_debug("Writing %llu to output (dereferenced)", encodedValueHolder);
-    err = bpf_probe_read(&context.event->output[*(context.output_offset)], element_size, &encodedValueHolder);
+    err = bpf_probe_read_kernel(&context.event->output[*(context.output_offset)], element_size, &encodedValueHolder);
     if (err != 0) {
         return_err = err;
         log_debug("error when reading data while dereferencing into output: %ld", err);
@@ -156,7 +156,7 @@ static __always_inline int dereference_large(struct expression_context context, 
     __u32 chunk_size;
     for (i = 0; i < num_chunks; i++) {
         chunk_size = (i == num_chunks - 1 && element_size % 8 != 0) ? (element_size % 8) : 8;
-        err = bpf_probe_read(&context.temp_storage[i], element_size, (void*)(addressHolder + (i * 8)));
+        err = bpf_probe_read_user(&context.temp_storage[i], element_size, (void*)(addressHolder + (i * 8)));
         if (err != 0) {
             return_err = err;
             log_debug("error when reading data dereferencing large: %ld", err);
@@ -175,7 +175,7 @@ static __always_inline int dereference_large(struct expression_context context, 
     }
 
     // zero out shared array
-    err = bpf_probe_read(context.temp_storage, element_size*num_chunks, context.zero_string);
+    err = bpf_probe_read_kernel(context.temp_storage, element_size*num_chunks, context.zero_string);
     if (err != 0) {
         return_err = err;
         log_debug("error when reading data zeroing out shared memory while dereferencing large: %ld", err);
@@ -192,7 +192,7 @@ static __always_inline int dereference_large_to_output(struct expression_context
     __u64 addressHolder = 0;
     bpf_map_pop_elem(&param_stack, &addressHolder);
     *context.stack_counter -= 1;
-    err = bpf_probe_read(&context.event->output[*(context.output_offset)], element_size, (void*)(addressHolder));
+    err = bpf_probe_read_user(&context.event->output[*(context.output_offset)], element_size, (void*)(addressHolder));
     if (err != 0) {
         log_debug("error when reading data: %ld", err);
     }
@@ -232,7 +232,7 @@ static __always_inline int dereference_dynamic_to_output(struct expression_conte
     if (collection_size > bytes_limit) {
         collection_size = bytes_limit;
     }
-    err = bpf_probe_read(&context.event->output[*(context.output_offset)], collection_size, (void*)addressHolder);
+    err = bpf_probe_read_user(&context.event->output[*(context.output_offset)], collection_size, (void*)addressHolder);
     if (err != 0) {
         log_debug("error when doing dynamic dereference: %ld", err);
     }
@@ -296,11 +296,11 @@ static __always_inline int read_str_to_output(struct expression_context context,
     *context.stack_counter -= 1;
 
     char* characterPointer = 0;
-    err = bpf_probe_read(&characterPointer, sizeof(characterPointer), (void*)(stringStructAddressHolder));
+    err = bpf_probe_read_user(&characterPointer, sizeof(characterPointer), (void*)(stringStructAddressHolder));
     log_debug("Reading from 0x%p", characterPointer);
 
     __u32 length;
-    err = bpf_probe_read(&length, sizeof(length), (void*)(stringStructAddressHolder+8));
+    err = bpf_probe_read_user(&length, sizeof(length), (void*)(stringStructAddressHolder+8));
     if (err != 0) {
         log_debug("error reading string length: %ld", err);
         return err;
@@ -308,7 +308,7 @@ static __always_inline int read_str_to_output(struct expression_context context,
     if (length > limit) {
         length = limit;
     }
-    err = bpf_probe_read(&context.event->output[*(context.output_offset)], length, (char*)characterPointer);
+    err = bpf_probe_read_user(&context.event->output[*(context.output_offset)], length, (char*)characterPointer);
     if (err != 0) {
         log_debug("error reading string: %ld", err);
     }
