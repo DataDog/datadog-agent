@@ -129,9 +129,11 @@ func StartControllers(ctx *ControllerContext) k8serrors.Aggregate {
 // startMetadataController starts the informers needed for metadata collection.
 // The synchronization of the informers is handled by the controller.
 func startMetadataController(ctx *ControllerContext, _ chan error) {
+	useEndpointSlices := pkgconfigsetup.Datadog().GetBool("kubernetes_use_endpoint_slices")
 	metaController := newMetadataController(
-		ctx.InformerFactory.Core().V1().Endpoints(),
+		ctx.InformerFactory,
 		ctx.WorkloadMeta,
+		useEndpointSlices,
 	)
 	go metaController.run(ctx.StopCh)
 }
