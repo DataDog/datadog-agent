@@ -136,9 +136,6 @@ func setupCommonEmrHostTags(s *common.Setup) (string, string, error) {
 
 func setupEmrDriver(s *common.Setup, host string, clusterName string) {
 
-	s.Packages.Install(common.DatadogAPMInjectPackage, emrInjectorVersion)
-	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, emrJavaVersion)
-
 	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigEmr
 
 	var sparkIntegration common.IntegrationConfig
