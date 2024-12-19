@@ -57,8 +57,6 @@ job-owners:
     - build_otel_agent_binary_arm64
     - build_otel_agent_binary_x64
     - cancel-prev-pipelines
-    - check_pkg_size-amd64-a7
-    - check_pkg_size-arm64-a7
     - close_failing_tests_stale_issues
     - compute_gitlab_ci_config
     - deploy_cluster_agent_cloudfoundry
