@@ -162,9 +162,11 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 			expectedAgentState: haagent.Unknown,
 		},
 		{
-			name:               "empty update",
-			updates:            map[string]state.RawConfig{},
-			expectedAgentState: haagent.Unknown,
+			name:                "empty update",
+			updates:             map[string]state.RawConfig{},
+			expectedApplyID:     "",
+			expectedApplyStatus: state.ApplyStatus{},
+			expectedAgentState:  haagent.Unknown,
 		},
 	}
 	for _, tt := range tests {
