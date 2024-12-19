@@ -47,7 +47,7 @@ func TestOptionalModule(t *testing.T) {
 	csopt := fxutil.Test[optional.Option[configsync.Component]](t, fx.Options(
 		core.MockBundle(),
 		fetchonlyimpl.Module(),
-		OptionalModule(),
+		OptionalModule(Params{}),
 		fx.Populate(&cfg),
 		fx.Replace(config.MockParams{Overrides: overrides}),
 	))

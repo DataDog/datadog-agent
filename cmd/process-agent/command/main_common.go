@@ -156,7 +156,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		fetchonlyimpl.Module(),
 
 		// Provide configsync module
-		configsyncimpl.OptionalModule(),
+		configsyncimpl.OptionalModule(configsyncimpl.NewDefaultParams()),
 
 		// Provide autoexit module
 		autoexitimpl.Module(),

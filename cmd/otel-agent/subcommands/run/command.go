@@ -178,13 +178,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ optional.Option[logsagentpipeline.Component]) {
 		}),
 
-		// TODO: don't rely on this pattern; remove this `OptionalModuleWithParams` thing
-		//       and instead adapt OptionalModule to allow parameter passing naturally.
-		//       See: https://github.com/DataDog/datadog-agent/pull/28386
-		configsyncimpl.OptionalModuleWithParams(),
-		fx.Provide(func() configsyncimpl.Params {
-			return configsyncimpl.NewParams(params.SyncTimeout, params.SyncDelay, true)
-		}),
+		configsyncimpl.OptionalModule(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 
 		remoteTaggerFx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c coreconfig.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
