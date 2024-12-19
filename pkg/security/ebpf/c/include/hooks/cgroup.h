@@ -189,13 +189,13 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 #endif
 
     int length = bpf_probe_read_str(prefix, sizeof(cgroup_prefix_t), container_id) & 0xff;
-    if (cgroup_flags == 0 && (
-        (length >= 9 && (*prefix)[length-9] == '.'  && (*prefix)[length-8] == 's' && (*prefix)[length-7] == 'e' && (*prefix)[length-6] == 'r' && (*prefix)[length-5] == 'v' && (*prefix)[length-4] == 'i' && (*prefix)[length-3] == 'c' && (*prefix)[length-2] == 'e')
-        ||
-        (length >= 7 && (*prefix)[length-7] == '.'  && (*prefix)[length-6] == 's' && (*prefix)[length-5] == 'c' && (*prefix)[length-4] == 'o' && (*prefix)[length-3] == 'p' && (*prefix)[length-2] == 'e')
-    )) {
-        cgroup_flags = CGROUP_MANAGER_SYSTEMD;
-    } else if (cgroup_flags != 0) {
+    if (cgroup_flags == 0) {
+        if (length >= 9 && (*prefix)[length-9] == '.'  && (*prefix)[length-8] == 's' && (*prefix)[length-7] == 'e' && (*prefix)[length-6] == 'r' && (*prefix)[length-5] == 'v' && (*prefix)[length-4] == 'i' && (*prefix)[length-3] == 'c' && (*prefix)[length-2] == 'e') {
+            cgroup_flags = CGROUP_MANAGER_SYSTEMD | CGROUP_SYSTEMD_SERVICE;
+        } else if (length >= 7 && (*prefix)[length-7] == '.'  && (*prefix)[length-6] == 's' && (*prefix)[length-5] == 'c' && (*prefix)[length-4] == 'o' && (*prefix)[length-3] == 'p' && (*prefix)[length-2] == 'e') {
+            cgroup_flags = CGROUP_MANAGER_SYSTEMD | CGROUP_SYSTEMD_SCOPE;
+        }
+    } else {
         bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
     }
 
