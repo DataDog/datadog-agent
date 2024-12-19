@@ -8,13 +8,16 @@
 package model
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,6 +31,9 @@ const (
 
 	// statusRetainedActions is the number of horizontal actions kept in status
 	statusRetainedActions = 5
+
+	// AnnotationsConfigurationKey is the key used to store custom recommender configuration in annotations
+	AnnotationsConfigurationKey = "autoscaling.datadoghq.com/custom-recommender"
 )
 
 // PodAutoscalerInternal holds the necessary data to work with the `DatadogPodAutoscaler` CRD.
@@ -53,8 +59,14 @@ type PodAutoscalerInternal struct {
 	// (only if owner == remote)
 	settingsTimestamp time.Time
 
-	// scalingValues represents the current target scaling values (retrieved from RC)
+	// scalingValues represents the active scaling values that should be used
 	scalingValues ScalingValues
+
+	// mainScalingValues represents the scaling values retrieved from the main recommender (product, optionally a custom endpoint)
+	mainScalingValues ScalingValues
+
+	// fallbackScalingValues represents the scaling values retrieved from the fallback
+	fallbackScalingValues ScalingValues
 
 	// horizontalLastActions is the last horizontal action successfully taken
 	horizontalLastActions []datadoghq.DatadogPodAutoscalerHorizontalAction
@@ -95,6 +107,10 @@ type PodAutoscalerInternal struct {
 	// horizontalEventsRetention is the time to keep horizontal events in memory
 	// based on scale policies
 	horizontalEventsRetention time.Duration
+
+	// customRecommenderConfiguration holds the configuration for custom recommenders,
+	// Parsed from annotations on the autoscaler
+	customRecommenderConfiguration *RecommenderConfiguration
 }
 
 // NewPodAutoscalerInternal creates a new PodAutoscalerInternal from a Kubernetes CR
@@ -134,6 +150,8 @@ func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq
 	p.targetGVK = schema.GroupVersionKind{}
 	// Compute the horizontal events retention again in case .Spec.Policy has changed
 	p.horizontalEventsRetention = getHorizontalEventsRetention(podAutoscaler.Spec.Policy, longestScalingRulePeriodAllowed)
+	// Compute recommender configuration again in case .Annotations has changed
+	p.customRecommenderConfiguration = parseCustomConfigurationAnnotation(podAutoscaler.Annotations)
 }
 
 // UpdateFromSettings updates the PodAutoscalerInternal from a new settings
@@ -148,14 +166,34 @@ func (p *PodAutoscalerInternal) UpdateFromSettings(podAutoscalerSpec *datadoghq.
 	p.horizontalEventsRetention = getHorizontalEventsRetention(podAutoscalerSpec.Policy, longestScalingRulePeriodAllowed)
 }
 
-// UpdateFromValues updates the PodAutoscalerInternal from a new scaling values
+// UpdateFromValues updates the PodAutoscalerInternal scaling values
 func (p *PodAutoscalerInternal) UpdateFromValues(scalingValues ScalingValues) {
 	p.scalingValues = scalingValues
+}
+
+// UpdateFromMainValues updates the PodAutoscalerInternal from new main scaling values
+func (p *PodAutoscalerInternal) UpdateFromMainValues(mainScalingValues ScalingValues) {
+	p.mainScalingValues = mainScalingValues
+}
+
+// UpdateFromLocalValues updates the PodAutoscalerInternal from new local scaling values
+func (p *PodAutoscalerInternal) UpdateFromLocalValues(fallbackScalingValues ScalingValues) {
+	p.fallbackScalingValues = fallbackScalingValues
 }
 
 // RemoveValues clears autoscaling values data from the PodAutoscalerInternal as we stopped autoscaling
 func (p *PodAutoscalerInternal) RemoveValues() {
 	p.scalingValues = ScalingValues{}
+}
+
+// RemoveMainValues clears main autoscaling values data from the PodAutoscalerInternal as we stopped autoscaling
+func (p *PodAutoscalerInternal) RemoveMainValues() {
+	p.mainScalingValues = ScalingValues{}
+}
+
+// RemoveLocalValues clears local autoscaling values data from the PodAutoscalerInternal as we stopped autoscaling
+func (p *PodAutoscalerInternal) RemoveLocalValues() {
+	p.fallbackScalingValues = ScalingValues{}
 }
 
 // UpdateFromHorizontalAction updates the PodAutoscalerInternal from a new horizontal action
@@ -325,6 +363,16 @@ func (p *PodAutoscalerInternal) ScalingValues() ScalingValues {
 	return p.scalingValues
 }
 
+// MainScalingValues returns the main scaling values of the PodAutoscaler
+func (p *PodAutoscalerInternal) MainScalingValues() ScalingValues {
+	return p.mainScalingValues
+}
+
+// FallbackScalingValues returns the fallback scaling values of the PodAutoscaler
+func (p *PodAutoscalerInternal) FallbackScalingValues() ScalingValues {
+	return p.fallbackScalingValues
+}
+
 // HorizontalLastActions returns the last horizontal actions taken
 func (p *PodAutoscalerInternal) HorizontalLastActions() []datadoghq.DatadogPodAutoscalerHorizontalAction {
 	return p.horizontalLastActions
@@ -382,6 +430,11 @@ func (p *PodAutoscalerInternal) TargetGVK() (schema.GroupVersionKind, error) {
 		Kind:    p.spec.TargetRef.Kind,
 	}
 	return p.targetGVK, nil
+}
+
+// CustomRecommenderConfiguration returns the configuration set on the autoscaler for a customer recommender
+func (p *PodAutoscalerInternal) CustomRecommenderConfiguration() *RecommenderConfiguration {
+	return p.customRecommenderConfiguration
 }
 
 //
@@ -617,4 +670,14 @@ func getLongestScalingRulesPeriod(rules []datadoghq.DatadogPodAutoscalerScalingR
 	}
 
 	return longest
+}
+
+func parseCustomConfigurationAnnotation(annotations map[string]string) *RecommenderConfiguration {
+	customConfiguration := RecommenderConfiguration{}
+
+	if err := json.Unmarshal([]byte(annotations[AnnotationsConfigurationKey]), &customConfiguration); err != nil {
+		log.Debugf("Failed to parse annotations for custom recommender configuration: %v", err)
+	}
+
+	return &customConfiguration
 }
