@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -360,6 +361,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		oldAPIKey, ok1 := oldValue.(string)
 		newAPIKey, ok2 := newValue.(string)
 		if ok1 && ok2 {
+			log.Infof("Updating API key: %s -> %s", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
 			for _, dr := range f.domainResolvers {
 				dr.UpdateAPIKey(oldAPIKey, newAPIKey)
 			}

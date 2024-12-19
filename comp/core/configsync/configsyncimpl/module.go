@@ -69,9 +69,11 @@ func newOptionalConfigSync(deps dependencies) optional.Option[configsync.Compone
 	configRefreshIntervalSec := deps.Config.GetInt("agent_ipc.config_refresh_interval")
 
 	if agentIPCPort <= 0 || configRefreshIntervalSec <= 0 {
+		deps.Log.Infof("configsync disabled (agent_ipc.port: %d | agent_ipc.config_refresh_interval: %d)", agentIPCPort, configRefreshIntervalSec)
 		return optional.NewNoneOption[configsync.Component]()
 	}
 
+	deps.Log.Infof("configsync enabled (agent_ipc '%s:%d' | agent_ipc.config_refresh_interval: %d)", deps.Config.GetString("agent_ipc.host"), agentIPCPort, configRefreshIntervalSec)
 	configSync := newConfigSync(deps, agentIPCPort, configRefreshIntervalSec)
 	return optional.NewOption(configSync)
 }
@@ -102,6 +104,7 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 
 	if deps.SyncParams.OnInit {
 		if deps.SyncParams.Delay != 0 {
+			deps.Log.Infof("configsync on init with delay off %s", deps.SyncParams.Delay)
 			select {
 			case <-ctx.Done(): //context cancelled
 				// TODO: this component should return an error
@@ -110,6 +113,7 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 			case <-time.After(deps.SyncParams.Delay):
 			}
 		}
+		deps.Log.Infof("triggering configsync on init")
 		configSync.updater()
 	}
 
