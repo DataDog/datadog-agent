@@ -1,5 +1,5 @@
 # Each section from every release note are combined when the
-# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
 # it does not depend on any information only available in another
 # section. This may mean repeating some details, but each section
 # must be readable independently of the other.
@@ -9,4 +9,5 @@
 enhancements:
   - |
     The `kubernetes_state_core` check now collects only metadata for configmaps,
-    reducing memory usage in the DCA while preserving full metric functionality.
+    reducing memory, CPU, and network usage in the Cluster Agent while preserving
+    full metric functionality.
