@@ -50,9 +50,11 @@ func TestConnectEvent(t *testing.T) {
 
 	t.Run("connect-af-inet-any-tcp-success", func(t *testing.T) {
 		done := make(chan error)
-		go func() {
-			bindAndAcceptConnection("tcp", ":4242", done)
-		}()
+		started := make(chan struct{})
+		go bindAndAcceptConnection("tcp", ":4242", done, started)
+
+		// Wait until the server is listening before attempting to connect
+		<-started
 
 		test.WaitSignal(t, func() error {
 			if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "tcp"); err != nil {
@@ -73,11 +75,11 @@ func TestConnectEvent(t *testing.T) {
 	})
 
 	t.Run("connect-af-inet-any-udp-success", func(t *testing.T) {
-
 		done := make(chan error)
-		go func() {
-			bindAndAcceptConnection("udp", ":4242", done)
-		}()
+		started := make(chan struct{})
+		go bindAndAcceptConnection("udp", ":4242", done, started)
+
+		<-started
 
 		test.WaitSignal(t, func() error {
 			if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "udp"); err != nil {
@@ -103,9 +105,10 @@ func TestConnectEvent(t *testing.T) {
 		}
 
 		done := make(chan error)
-		go func() {
-			bindAndAcceptConnection("tcp", ":4242", done)
-		}()
+		started := make(chan struct{})
+		go bindAndAcceptConnection("tcp", ":4242", done, started)
+
+		<-started
 
 		test.WaitSignal(t, func() error {
 			if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "tcp"); err != nil {
@@ -131,9 +134,10 @@ func TestConnectEvent(t *testing.T) {
 		}
 
 		done := make(chan error)
-		go func() {
-			bindAndAcceptConnection("udp", ":4242", done)
-		}()
+		started := make(chan struct{})
+		go bindAndAcceptConnection("udp", ":4242", done, started)
+
+		<-started
 
 		test.WaitSignal(t, func() error {
 			if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "udp"); err != nil {
@@ -152,28 +156,28 @@ func TestConnectEvent(t *testing.T) {
 			test.validateConnectSchema(t, event)
 		})
 	})
-
 }
 
-func bindAndAcceptConnection(proto, address string, done chan error) {
+func bindAndAcceptConnection(proto, address string, done chan error, started chan struct{}) {
 	switch proto {
 	case "tcp":
 		listener, err := net.Listen(proto, address)
 		if err != nil {
 			done <- fmt.Errorf("failed to bind to %s:%s: %w", proto, address, err)
 			return
-		} else {
-			defer listener.Close()
 		}
+		defer listener.Close()
+
+		// Signal that the server is ready to accept connections
+		close(started)
 
 		c, err := listener.Accept()
 		if err != nil {
 			fmt.Printf("accept error: %v\n", err)
 			done <- err
 			return
-		} else {
-			defer c.Close()
 		}
+		defer c.Close()
 
 		fmt.Println("Connection accepted")
 
@@ -184,6 +188,9 @@ func bindAndAcceptConnection(proto, address string, done chan error) {
 			return
 		}
 		defer conn.Close()
+
+		// For packet-based connections, we can signal readiness immediately
+		close(started)
 
 	default:
 		done <- fmt.Errorf("unsupported protocol: %s", proto)
