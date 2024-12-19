@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
@@ -1218,18 +1218,18 @@ func TestConfigAssignAtPath(t *testing.T) {
 	assert.NoError(t, err)
 
 	expectedYaml := `additional_endpoints:
-  https://url1.com:
-  - first
-  - changed
-  https://url2.eu:
-  - third
-process_config:
-  additional_endpoints:
     https://url1.com:
-    - fourth
-    - fifth
+        - first
+        - changed
     https://url2.eu:
-    - modified
+        - third
+process_config:
+    additional_endpoints:
+        https://url1.com:
+            - fourth
+            - fifth
+        https://url2.eu:
+            - modified
 secret_backend_command: different
 use_proxy_for_cloud_metadata: true
 `
@@ -1304,7 +1304,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	assert.NoError(t, err)
 
 	expectedYaml := `secret_backend_arguments:
-- password1
+    - password1
 secret_backend_command: some command
 use_proxy_for_cloud_metadata: true
 `
@@ -1416,9 +1416,9 @@ additional_endpoints:
 	assert.NoError(t, err)
 
 	expectedYaml := `additional_endpoints:
-  "0": apple
-  "1": banana
-  "2": cherry
+    "0": apple
+    "1": banana
+    "2": cherry
 use_proxy_for_cloud_metadata: true
 `
 	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())

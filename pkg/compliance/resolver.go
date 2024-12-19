@@ -23,18 +23,18 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/v5/statsd"
 
 	docker "github.com/docker/docker/client"
 
 	"github.com/shirou/gopsutil/v4/process"
 
-	yamlv2 "gopkg.in/yaml.v2"
 	yamlv3 "gopkg.in/yaml.v3"
 
 	kubemetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -378,9 +378,6 @@ func (r *defaultResolver) resolveFilePath(_ context.Context, rootPath, path, par
 		switch parser {
 		case "yaml":
 			err = yamlv3.Unmarshal(file.data, &content)
-			if err != nil {
-				err = yamlv2.Unmarshal(file.data, &content)
-			}
 			if err == nil {
 				content = jsonquery.NormalizeYAMLForGoJQ(content)
 			}
