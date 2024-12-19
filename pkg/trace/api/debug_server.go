@@ -9,6 +9,7 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"expvar"
 	"fmt"
 	"net"
@@ -29,9 +30,10 @@ const (
 
 // DebugServer serves /debug/* endpoints
 type DebugServer struct {
-	conf   *config.AgentConfig
-	server *http.Server
-	mux    *http.ServeMux
+	conf      *config.AgentConfig
+	server    *http.Server
+	mux       *http.ServeMux
+	tlsConfig *tls.Config
 }
 
 // NewDebugServer returns a debug server
@@ -53,13 +55,14 @@ func (ds *DebugServer) Start() {
 		WriteTimeout: defaultTimeout,
 		Handler:      ds.setupMux(),
 	}
-	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", ds.conf.DebugServerPort))
+	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(ds.conf.DebugServerPort)))
 	if err != nil {
 		log.Errorf("Error creating debug server listener: %s", err)
 		return
 	}
+	tlsListener := tls.NewListener(listener, ds.tlsConfig)
 	go func() {
-		if err := ds.server.Serve(listener); err != nil && err != http.ErrServerClosed {
+		if err := ds.server.Serve(tlsListener); err != nil && err != http.ErrServerClosed {
 			log.Errorf("Could not start debug server: %s. Debug server disabled.", err)
 		}
 	}()
@@ -80,6 +83,11 @@ func (ds *DebugServer) Stop() {
 // AddRoute adds a route to the DebugServer
 func (ds *DebugServer) AddRoute(route string, handler http.Handler) {
 	ds.mux.Handle(route, handler)
+}
+
+// SetTLSConfig adds the provided tls.Config to the internal http.Server
+func (ds *DebugServer) SetTLSConfig(config *tls.Config) {
+	ds.tlsConfig = config
 }
 
 func (ds *DebugServer) setupMux() *http.ServeMux {
