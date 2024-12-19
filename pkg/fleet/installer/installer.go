@@ -631,6 +631,8 @@ func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error
 
 func (i *installerImpl) preparePackage(ctx context.Context, pkg string, _ []string) error {
 	switch pkg {
+	case packageDatadogInstaller:
+		return packages.PrepareInstaller(ctx)
 	case packageDatadogAgent:
 		return packages.PrepareAgent(ctx)
 	default:

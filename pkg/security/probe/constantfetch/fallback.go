@@ -147,6 +147,16 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getRenameStructOldDentryOffset(f.kernelVersion)
 	case OffsetNameRenameStructNewDentry:
 		value = getRenameStructNewDentryOffset(f.kernelVersion)
+	case OffsetInodeIno:
+		value = getInodeInoOffset(f.kernelVersion)
+	case OffsetInodeGid:
+		value = getInodeGIDOffset(f.kernelVersion)
+	case OffsetInodeNlink:
+		value = getInodeNlinkOffset(f.kernelVersion)
+	case OffsetInodeMtime:
+		value = getInodeMtimeOffset(f.kernelVersion)
+	case OffsetInodeCtime:
+		value = getInodeCtimeOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -234,6 +244,26 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	}
 
 	return sizeOf
+}
+
+func getInodeInoOffset(_ *kernel.Version) uint64 {
+	return uint64(64)
+}
+
+func getInodeGIDOffset(_ *kernel.Version) uint64 {
+	return uint64(8)
+}
+
+func getInodeNlinkOffset(_ *kernel.Version) uint64 {
+	return uint64(72)
+}
+
+func getInodeMtimeOffset(_ *kernel.Version) uint64 {
+	return uint64(104)
+}
+
+func getInodeCtimeOffset(_ *kernel.Version) uint64 {
+	return uint64(120)
 }
 
 func getSuperBlockFlagsOffset(_ *kernel.Version) uint64 {
