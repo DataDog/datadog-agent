@@ -47,11 +47,18 @@ func Test_parseICMP(t *testing.T) {
 			errMsg:      "invalid IP header for ICMP packet",
 		},
 		{
-			description: "missing ICMP layer should return an error",
+			description: "nil ICMP layer should return an error",
+			inHeader:    ipv4Header,
+			inPayload:   nil,
+			expected:    nil,
+			errMsg:      "received empty ICMP packet",
+		},
+		{
+			description: "empty ICMP layer should return an error",
 			inHeader:    ipv4Header,
 			inPayload:   []byte{},
 			expected:    nil,
-			errMsg:      "failed to decode ICMP packet",
+			errMsg:      "received empty ICMP packet",
 		},
 		{
 			description: "missing inner layers should return an error",
