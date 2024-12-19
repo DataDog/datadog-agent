@@ -82,9 +82,9 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 				if db.Engine != nil {
 					instance.Engine = *db.Engine
 				}
-        if db.DBName != nil {
-				  instance.DbName = *db.DBName
-			  }
+				if db.DBName != nil {
+					instance.DbName = *db.DBName
+				}
 				if _, ok := clusters[*db.DBClusterIdentifier]; !ok {
 					clusters[*db.DBClusterIdentifier] = &AuroraCluster{
 						Instances: make([]*Instance, 0),
