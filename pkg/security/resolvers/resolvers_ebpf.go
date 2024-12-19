@@ -217,35 +217,29 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 	return r.NamespaceResolver.Start(ctx)
 }
 
-// ResolveCGroup resolves the path of cgroup for a process cache entry
-func (r *EBPFResolvers) ResolveCGroup(pce *model.ProcessCacheEntry, pathKey model.PathKey, cgroupFlags containerutils.CGroupFlags) error {
-	path, err := r.DentryResolver.Resolve(pathKey, true)
-	if err == nil && path != "" {
-		cgroup := filepath.Dir(string(path))
-		if cgroup == "/" {
-			cgroup = path
-		}
-
-		cgroupFlags := containerutils.CGroupFlags(cgroupFlags)
-		cgroupContext := model.CGroupContext{
-			CGroupID:    containerutils.CGroupID(cgroup),
-			CGroupFlags: containerutils.CGroupFlags(cgroupFlags),
-			CGroupFile:  pathKey,
-		}
-
-		pce.Process.CGroup = cgroupContext
-		pce.CGroup = cgroupContext
-
-		if cgroupFlags.IsContainer() {
-			containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
-			pce.ContainerID = containerID
-			pce.Process.ContainerID = containerID
-		}
-	} else {
-		return fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
+// ResolveCGroupContext resolves the cgroup context from a cgroup path key
+func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags containerutils.CGroupFlags) (*model.CGroupContext, error) {
+	if cgroupContext, found := r.CGroupResolver.GetCGroupContext(pathKey); found {
+		return cgroupContext, nil
 	}
 
-	return nil
+	path, err := r.DentryResolver.Resolve(pathKey, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
+	}
+
+	cgroup := filepath.Dir(string(path))
+	if cgroup == "/" {
+		cgroup = path
+	}
+
+	cgroupContext := &model.CGroupContext{
+		CGroupID:    containerutils.CGroupID(cgroup),
+		CGroupFlags: containerutils.CGroupFlags(cgroupFlags),
+		CGroupFile:  pathKey,
+	}
+
+	return cgroupContext, nil
 }
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.

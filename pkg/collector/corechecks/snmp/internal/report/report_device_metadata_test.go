@@ -61,11 +61,15 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-		Profile:            "my-profile",
-		ProfileDef: &profiledefinition.ProfileDefinition{
-			Name:    "my-profile",
-			Version: 10,
-		},
+		ProfileName:        "my-profile",
+		ProfileProvider: profile.StaticProvider(profile.ProfileConfigMap{
+			"my-profile": profile.ProfileConfig{
+				Definition: profiledefinition.ProfileDefinition{
+					Name:    "my-profile",
+					Version: 10,
+				},
+			},
+		}),
 		Metadata: profiledefinition.MetadataConfig{
 			"device": {
 				Fields: map[string]profiledefinition.MetadataField{
@@ -970,10 +974,15 @@ func Test_getProfileVersion(t *testing.T) {
 		{
 			name: "profile definition is present",
 			config: checkconfig.CheckConfig{
-				ProfileDef: &profiledefinition.ProfileDefinition{
-					Name:    "my-profile",
-					Version: 42,
-				},
+				ProfileName: "my-profile",
+				ProfileProvider: profile.StaticProvider(profile.ProfileConfigMap{
+					"my-profile": profile.ProfileConfig{
+						Definition: profiledefinition.ProfileDefinition{
+							Name:    "my-profile",
+							Version: 42,
+						},
+					},
+				}),
 			},
 			expectedProfileVersion: 42,
 		},

@@ -818,7 +818,14 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
+		cgroupContext, err := p.Resolvers.ResolveCGroupContext(event.CgroupTracing.CGroupContext.CGroupFile, containerutils.CGroupFlags(event.CgroupTracing.CGroupContext.CGroupFlags))
+		if err != nil {
+			seclog.Debugf("Failed to resolve cgroup: %s", err)
+		} else {
+			event.CgroupTracing.CGroupContext = *cgroupContext
+			p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
+		}
+
 		return
 	case model.CgroupWriteEventType:
 		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
@@ -828,10 +835,21 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 		pce := p.Resolvers.ProcessResolver.Resolve(event.CgroupWrite.Pid, event.CgroupWrite.Pid, 0, false, newEntryCb)
 		if pce != nil {
-			if err := p.Resolvers.ResolveCGroup(pce, event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags)); err != nil {
+			cgroupContext, err := p.Resolvers.ResolveCGroupContext(event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags))
+			if err != nil {
 				seclog.Debugf("Failed to resolve cgroup: %s", err)
+			} else {
+				pce.Process.CGroup = *cgroupContext
+				pce.CGroup = *cgroupContext
+
+				if cgroupContext.CGroupFlags.IsContainer() {
+					containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
+					pce.ContainerID = containerID
+					pce.Process.ContainerID = containerID
+				}
 			}
 		}
+
 		return
 	case model.UnshareMountNsEventType:
 		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {

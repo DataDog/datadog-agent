@@ -14,9 +14,8 @@ import (
 	"io"
 	"sync"
 
-	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"golang.org/x/exp/slices"

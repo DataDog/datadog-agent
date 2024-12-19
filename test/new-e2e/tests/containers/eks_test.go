@@ -8,6 +8,7 @@ package containers
 import (
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	tifeks "github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -28,6 +29,7 @@ func TestEKSSuite(t *testing.T) {
 		),
 		awskubernetes.WithDeployDogstatsd(),
 		awskubernetes.WithDeployTestWorkload(),
+		awskubernetes.WithAgentOptions(kubernetesagentparams.WithDualShipping()),
 	)))
 }
 

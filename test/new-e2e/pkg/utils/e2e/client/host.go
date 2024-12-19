@@ -143,6 +143,30 @@ func (h *Host) executeAndReconnectOnError(command string) (string, error) {
 	return stdout, err
 }
 
+// Start a command and returns session, and an error if any.
+func (h *Host) Start(command string, options ...ExecuteOption) (*ssh.Session, io.WriteCloser, io.Reader, error) {
+	params, err := optional.MakeParams(options...)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	command = h.buildCommand(command, params.EnvVariables)
+	return h.startAndReconnectOnError(command)
+}
+
+func (h *Host) startAndReconnectOnError(command string) (*ssh.Session, io.WriteCloser, io.Reader, error) {
+	scrubbedCommand := h.scrubber.ScrubLine(command) // scrub the command in case it contains secrets
+	h.context.T().Logf("%s - %s - Executing command `%s`", time.Now().Format("02-01-2006 15:04:05"), h.context.T().Name(), scrubbedCommand)
+	session, stdin, stdout, err := start(h.client, command)
+	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
+		err = h.Reconnect()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		session, stdin, stdout, err = start(h.client, command)
+	}
+	return session, stdin, stdout, err
+}
+
 // MustExecute executes a command and requires no error.
 func (h *Host) MustExecute(command string, options ...ExecuteOption) string {
 	stdout, err := h.Execute(command, options...)

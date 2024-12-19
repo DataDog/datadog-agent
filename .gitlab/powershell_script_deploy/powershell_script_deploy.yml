@@ -5,7 +5,7 @@
 powershell_script_deploy:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  stage: choco_and_install_script_deploy
+  stage: install_script_deploy
   rules:
     !reference [.manual]
   needs: ["powershell_script_signing"]
@@ -19,7 +19,7 @@ powershell_script_deploy:
 windows_bootstrapper_deploy:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  stage: choco_and_install_script_deploy
+  stage: install_script_deploy
   rules:
     !reference [.manual]
   needs: ["windows-installer-amd64"]

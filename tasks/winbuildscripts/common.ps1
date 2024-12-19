@@ -44,6 +44,23 @@ function Exit-BuildRoot() {
 
 <#
 .SYNOPSIS
+Sets the current directory to the root of the repository.
+#>
+function Enter-RepoRoot() {
+    # Expected PSScriptRoot: datadog-agent\tasks\winbuildscripts\
+    Push-Location "$PSScriptRoot\..\.." -ErrorAction Stop -StackName AgentRepoRoot | Out-Null
+}
+
+<#
+.SYNOPSIS
+Leaves the repository root directory and returns to the original working directory.
+#>
+function Exit-RepoRoot() {
+    Pop-Location -StackName AgentRepoRoot
+}
+
+<#
+.SYNOPSIS
 Expands the Go module cache from an archive file.
 
 .DESCRIPTION
@@ -209,6 +226,8 @@ function Invoke-BuildScript {
 
         if ($BuildOutOfSource) {
             Enter-BuildRoot
+        } else {
+            Enter-RepoRoot
         }
 
         Expand-ModCache -modcache modcache
@@ -234,9 +253,11 @@ function Invoke-BuildScript {
         # This finally block is executed regardless of whether the try block completes successfully, throws an exception,
         # or uses `exit` to terminate the script.
 
+        # Restore the original working directory
         if ($BuildOutOfSource) {
-            # Restore the original working directory
             Exit-BuildRoot
+        } else {
+            Exit-RepoRoot
         }
     }
 }

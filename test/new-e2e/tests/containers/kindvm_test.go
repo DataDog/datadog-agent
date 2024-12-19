@@ -8,6 +8,7 @@ package containers
 import (
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
@@ -27,6 +28,7 @@ func TestKindSuite(t *testing.T) {
 		awskubernetes.WithFakeIntakeOptions(fakeintake.WithMemory(2048)),
 		awskubernetes.WithDeployDogstatsd(),
 		awskubernetes.WithDeployTestWorkload(),
+		awskubernetes.WithAgentOptions(kubernetesagentparams.WithDualShipping()),
 	)))
 }
 
