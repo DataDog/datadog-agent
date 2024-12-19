@@ -209,8 +209,11 @@ type Config struct {
 	// default is true
 	EnableConntrackAllNamespaces bool
 
-	// EnableEbpfConntracker enables the ebpf based network conntracker. Used only for testing at the moment
+	// EnableEbpfConntracker enables the ebpf based network conntracker
 	EnableEbpfConntracker bool
+
+	// EnableCiliumLBConntracker enables the cilium load balancer conntracker
+	EnableCiliumLBConntracker bool
 
 	// ClosedChannelSize specifies the size for closed channel for the tracer
 	ClosedChannelSize int
@@ -360,6 +363,7 @@ func New() *Config {
 		IgnoreConntrackInitFailure:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "ignore_conntrack_init_failure")),
 		ConntrackInitTimeout:         cfg.GetDuration(sysconfig.FullKeyPath(netNS, "conntrack_init_timeout")),
 		EnableEbpfConntracker:        cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpf_conntracker")),
+		EnableCiliumLBConntracker:    cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_cilium_lb_conntracker")),
 
 		EnableGatewayLookup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_gateway_lookup")),
 

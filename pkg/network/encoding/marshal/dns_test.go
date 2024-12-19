@@ -27,14 +27,14 @@ func TestFormatConnectionDNS(t *testing.T) {
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
 				{ConnectionTuple: network.ConnectionTuple{
-					Source: util.AddressFromString("10.1.1.1"),
-					Dest:   util.AddressFromString("8.8.8.8"),
-					SPort:  1000,
-					DPort:  53,
-					Type:   network.UDP,
-					Family: network.AFINET6,
-				},
+					Source:    util.AddressFromString("10.1.1.1"),
+					Dest:      util.AddressFromString("8.8.8.8"),
+					SPort:     1000,
+					DPort:     53,
+					Type:      network.UDP,
+					Family:    network.AFINET6,
 					Direction: network.LOCAL,
+				},
 					DNSStats: map[dns.Hostname]map[dns.QueryType]dns.Stats{
 						dns.ToHostname("foo.com"): {
 							dns.TypeA: {

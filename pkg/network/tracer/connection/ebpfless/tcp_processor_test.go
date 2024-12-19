@@ -109,16 +109,16 @@ func makeTCPStates(synPkt testCapture) *network.ConnectionStats {
 	}
 	return &network.ConnectionStats{
 		ConnectionTuple: network.ConnectionTuple{
-			Source: util.AddressFromNetIP(srcIP),
-			Dest:   util.AddressFromNetIP(dstIP),
-			Pid:    0, // packet capture does not have PID information.
-			NetNS:  defaultNsID,
-			SPort:  uint16(synPkt.tcp.SrcPort),
-			DPort:  uint16(synPkt.tcp.DstPort),
-			Type:   network.TCP,
-			Family: family,
+			Source:    util.AddressFromNetIP(srcIP),
+			Dest:      util.AddressFromNetIP(dstIP),
+			Pid:       0, // packet capture does not have PID information.
+			NetNS:     defaultNsID,
+			SPort:     uint16(synPkt.tcp.SrcPort),
+			DPort:     uint16(synPkt.tcp.DstPort),
+			Type:      network.TCP,
+			Family:    family,
+			Direction: direction,
 		},
-		Direction:   direction,
 		TCPFailures: make(map[uint16]uint32),
 	}
 }
