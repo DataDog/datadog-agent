@@ -2705,9 +2705,10 @@ func (s *TracerSuite) TestTLSClassification() {
 			if ebpftest.GetBuildMode() == ebpftest.Fentry {
 				t.Skip("protocol classification not supported for fentry tracer")
 			}
-			t.Cleanup(func() { tr.RemoveClient(clientID) })
-			t.Cleanup(func() { _ = tr.Pause() })
-
+			t.Cleanup(func() {
+				tr.RemoveClient(clientID)
+				_ = tr.Pause()
+			})
 			tr.RemoveClient(clientID)
 			require.NoError(t, tr.RegisterClient(clientID))
 			require.NoError(t, tr.Resume(), "enable probes - before post tracer")
@@ -2722,7 +2723,7 @@ func validateTLSTags(t *testing.T, tr *Tracer, port uint16, scenario uint16) boo
 	payload := getConnections(t, tr)
 	for _, c := range payload.Conns {
 		if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) && !c.TLSTags.IsEmpty() {
-			tlsTags := ddtls.GetTLSDynamicTags(&c.TLSTags)
+			tlsTags := c.TLSTags.GetDynamicTags()
 
 			// Check that the cipher suite ID tag is present
 			cipherSuiteTagFound := false

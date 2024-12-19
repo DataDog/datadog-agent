@@ -70,7 +70,7 @@ static __always_inline void init_routing_cache(usm_context_t *usm_ctx, protocol_
     if (stack->layer_api || !has_available_program(__PROG_API)) {
         usm_ctx->routing_skip_layers |= LAYER_API_BIT;
     }
-    if (stack->flags == FLAG_FULLY_CLASSIFIED || !has_available_program(__PROG_ENCRYPTION)) {
+    if (stack->layer_encryption || !has_available_program(__PROG_ENCRYPTION)) {
         usm_ctx->routing_skip_layers |= LAYER_ENCRYPTION_BIT;
     }
 }

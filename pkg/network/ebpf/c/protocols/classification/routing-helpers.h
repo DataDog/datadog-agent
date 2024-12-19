@@ -33,7 +33,21 @@ static __always_inline u16 get_current_program_layer(classification_prog_t curre
     return 0;
 }
 
-// next_layer_entrypoint returns the entrypoint of the next layer that should be executed
+// debug for if we don't reorder the programs
+// static __always_inline u16 get_current_program_layer(classification_prog_t current_program) {
+//     if (current_program > __PROG_APPLICATION && current_program < __PROG_API) {
+//         return LAYER_APPLICATION_BIT;
+//     }
+//     if (current_program > __PROG_API && current_program < __PROG_ENCRYPTION) {
+//         return LAYER_ENCRYPTION_BIT;
+//     }
+//     if (current_program > __PROG_ENCRYPTION && current_program < CLASSIFICATION_PROG_MAX) {
+//         return LAYER_API_BIT;
+//     }
+
+//     return 0;
+// }
+
 static __always_inline classification_prog_t next_layer_entrypoint(usm_context_t *usm_ctx) {
     u16 to_skip = usm_ctx->routing_skip_layers;
 

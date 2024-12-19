@@ -15,6 +15,7 @@ typedef struct {
     size_t size;
 } classification_buffer_t;
 
+// TODO: rename this struct to `classification_context_t`
 typedef struct {
     struct __sk_buff *owner;
     conn_tuple_t tuple;

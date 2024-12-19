@@ -168,7 +168,7 @@ static __always_inline tls_info_t* get_or_create_tls_enhanced_tags(conn_tuple_t 
         tls_info_wrapper_t empty_tags_wrapper = {};
         empty_tags_wrapper.updated = bpf_ktime_get_ns();
 
-        bpf_map_update_elem(&tls_enhanced_tags, &normalized_tup, &empty_tags_wrapper, BPF_ANY);
+        bpf_map_update_with_telemetry(tls_enhanced_tags, &normalized_tup, &empty_tags_wrapper, BPF_ANY);
         tls_info_wrapper_t *wrapper_ptr = bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
         if (!wrapper_ptr) {
             return NULL;

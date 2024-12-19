@@ -119,9 +119,9 @@ func TestGetTLSDynamicTags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := GetTLSDynamicTags(test.tlsTags)
+			result := test.tlsTags.GetDynamicTags()
 			if !reflect.DeepEqual(result, test.expected) {
-				t.Errorf("GetTLSDynamicTags(%v) = %v; want %v", test.tlsTags, result, test.expected)
+				t.Errorf("GetDynamicTags(%v) = %v; want %v", test.tlsTags, result, test.expected)
 			}
 		})
 	}

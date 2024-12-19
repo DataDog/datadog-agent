@@ -81,6 +81,9 @@ func (t *Tags) MergeWith(that Tags) {
 
 // IsEmpty returns true if all fields are zero
 func (t *Tags) IsEmpty() bool {
+	if t == nil {
+		return true
+	}
 	return t.ChosenVersion == 0 && t.CipherSuite == 0 && t.OfferedVersions == 0
 }
 
@@ -91,7 +94,7 @@ func (t *Tags) String() string {
 
 // parseOfferedVersions parses the Offered_versions bitmask into a slice of version strings
 func parseOfferedVersions(offeredVersions uint8) []string {
-	versions := make([]string, 0, 4)
+	versions := make([]string, 0, len(offeredVersionBitmask))
 	for _, ov := range offeredVersionBitmask {
 		if (offeredVersions & ov.bitMask) != 0 {
 			if name := ClientVersionTags[ov.version]; name != "" {
@@ -103,40 +106,29 @@ func parseOfferedVersions(offeredVersions uint8) []string {
 }
 
 func hexCipherSuiteTag(cipherSuite uint16) string {
-	// Preallocate a buffer for "0x" + 4 hex digits = 6 chars
-	var buf [6]byte
-	buf[0] = '0'
-	buf[1] = 'x'
-	hex := "0123456789ABCDEF"
-
-	buf[2] = hex[(cipherSuite>>12)&0xF]
-	buf[3] = hex[(cipherSuite>>8)&0xF]
-	buf[4] = hex[(cipherSuite>>4)&0xF]
-	buf[5] = hex[cipherSuite&0xF]
-
-	return TagTLSCipherSuiteID + string(buf[:])
+	return fmt.Sprintf("%s0x%04X", TagTLSCipherSuiteID, cipherSuite)
 }
 
-// GetTLSDynamicTags generates dynamic tags based on TLS information
-func GetTLSDynamicTags(tls *Tags) map[string]struct{} {
-	if tls == nil {
+// GetDynamicTags generates dynamic tags based on TLS information
+func (t *Tags) GetDynamicTags() map[string]struct{} {
+	if t.IsEmpty() {
 		return nil
 	}
 	tags := make(map[string]struct{})
 
 	// Server chosen version
-	if tag, ok := VersionTags[tls.ChosenVersion]; ok {
+	if tag, ok := VersionTags[t.ChosenVersion]; ok {
 		tags[tag] = struct{}{}
 	}
 
 	// Client offered versions
-	for _, versionName := range parseOfferedVersions(tls.OfferedVersions) {
+	for _, versionName := range parseOfferedVersions(t.OfferedVersions) {
 		tags[versionName] = struct{}{}
 	}
 
 	// Cipher suite ID as hex string
-	if tls.CipherSuite != 0 {
-		tags[hexCipherSuiteTag(tls.CipherSuite)] = struct{}{}
+	if t.CipherSuite != 0 {
+		tags[hexCipherSuiteTag(t.CipherSuite)] = struct{}{}
 	}
 
 	return tags

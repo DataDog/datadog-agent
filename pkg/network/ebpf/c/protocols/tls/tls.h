@@ -11,36 +11,48 @@
 #define TLS_VERSION12 0x0303
 #define TLS_VERSION13 0x0304
 
-// TLS Content Types (RFC 5246 Section 6.2.1)
+// TLS Content Types (https://www.rfc-editor.org/rfc/rfc5246#page-19 6.2. Record Layer)
 #define TLS_HANDSHAKE         0x16
 #define TLS_APPLICATION_DATA  0x17
+#define TLS_CHANGE_CIPHER_SPEC 0x14
+#define TLS_ALERT             0x15
 
 // TLS Handshake Types
 #define TLS_HANDSHAKE_CLIENT_HELLO 0x01
 #define TLS_HANDSHAKE_SERVER_HELLO 0x02
 
 // Bitmask constants for offered versions
-#define TLS_VERSION10_BIT 0x01
-#define TLS_VERSION11_BIT 0x02
-#define TLS_VERSION12_BIT 0x04
-#define TLS_VERSION13_BIT 0x08
+#define TLS_VERSION10_BIT 1 << 0
+#define TLS_VERSION11_BIT 1 << 1
+#define TLS_VERSION12_BIT 1 << 2
+#define TLS_VERSION13_BIT 1 << 3
 
 // Maximum number of extensions to parse when looking for SUPPORTED_VERSIONS_EXTENSION
 #define MAX_EXTENSIONS 16
+// The supported_versions extension for TLS 1.3 is described in RFC 8446 Section 4.2.1
 #define SUPPORTED_VERSIONS_EXTENSION 0x002B
 
 // Maximum TLS record payload size (16 KB)
 #define TLS_MAX_PAYLOAD_LENGTH (1 << 14)
 
-// Field Lengths
-#define TLS_HANDSHAKE_LENGTH         3  // Handshake length is 3 bytes
-#define RANDOM_LENGTH                32 // Random field length in Client/Server Hello
-#define PROTOCOL_VERSION_LENGTH      2  // Protocol version field is 2 bytes
-#define SESSION_ID_LENGTH            1  // Session ID length field is 1 byte
-#define CIPHER_SUITES_LENGTH         2  // Cipher Suites length field is 2 bytes
-#define COMPRESSION_METHODS_LENGTH   1  // Compression Methods length field is 1 byte
-#define EXTENSION_TYPE_LENGTH        2  // Extension Type field is 2 bytes
-#define EXTENSION_LENGTH_FIELD       2  // Extension Length field is 2 bytes
+// The following field lengths and message formats are defined by the TLS specifications
+// For TLS 1.2 (and earlier) see:
+// RFC 5246 - The Transport Layer Security (TLS) Protocol Version 1.2
+// https://tools.ietf.org/html/rfc5246
+// Particularly Section 7.4 details handshake messages and their fields, and Section 6.2.1
+// covers the TLS record layer.
+// For TLS 1.3, see:
+// RFC 8446 - The Transport Layer Security (TLS) Protocol Version 1.3
+// https://tools.ietf.org/html/rfc8446
+// Many handshake structures are similar, but some extensions (like supported_versions) are defined here
+#define TLS_HANDSHAKE_LENGTH         3  // Handshake length is 3 bytes (RFC 5246 Section 7.4)
+#define RANDOM_LENGTH                32 // Random field length in Client/Server Hello (RFC 5246 Section 7.4.1.2)
+#define PROTOCOL_VERSION_LENGTH      2  // Protocol version field is 2 bytes (RFC 5246 Section 6.2.1)
+#define SESSION_ID_LENGTH            1  // Session ID length field is 1 byte (RFC 5246 Section 7.4.1.2)
+#define CIPHER_SUITES_LENGTH         2  // Cipher Suites length field is 2 bytes (RFC 5246 Section 7.4.1.2)
+#define COMPRESSION_METHODS_LENGTH   1  // Compression Methods length field is 1 byte (RFC 5246 Section 7.4.1.2)
+#define EXTENSION_TYPE_LENGTH        2  // Extension Type field is 2 bytes (RFC 5246 Section 7.4.1.4)
+#define EXTENSION_LENGTH_FIELD       2  // Extension Length field is 2 bytes (RFC 5246 Section 7.4.1.4)
 
 // For single-byte fields (list lengths, etc.)
 #define SINGLE_BYTE_LENGTH           1
@@ -48,7 +60,7 @@
 // Minimum extension header length = Extension Type (2 bytes) + Extension Length (2 bytes) = 4 bytes
 #define MIN_EXTENSION_HEADER_LENGTH (EXTENSION_TYPE_LENGTH + EXTENSION_LENGTH_FIELD)
 
-// Maximum number of supported versions we unroll for
+// Maximum number of supported versions we unroll for (all TLS versions)
 #define MAX_SUPPORTED_VERSIONS 4
 
 // TLS record layer header structure (RFC 5246)
@@ -122,18 +134,21 @@ static __always_inline bool read_tls_record_header(struct __sk_buff *skb, __u64 
 }
 
 // is_tls checks if the packet is a TLS packet and reads the TLS record header
+// Uses RFC 5246 Section 6.2.1 (https://www.rfc-editor.org/rfc/rfc5246#page-19) for record structure and content types
 static __always_inline bool is_tls(struct __sk_buff *skb, __u64 header_offset, __u32 data_end, tls_record_header_t *tls_hdr) {
-    // Read and validate the TLS record header
     if (!read_tls_record_header(skb, header_offset, data_end, tls_hdr)) {
         return false;
     }
 
     // Validate content type
-    return tls_hdr->content_type == TLS_HANDSHAKE || tls_hdr->content_type == TLS_APPLICATION_DATA;
+    __u8 ct = tls_hdr->content_type;
+    return ct == TLS_HANDSHAKE || ct == TLS_APPLICATION_DATA || ct == TLS_CHANGE_CIPHER_SPEC || ct == TLS_ALERT;
 }
 
-// Parses the TLS handshake header to extract handshake_length and protocol_version
-static __always_inline bool parse_tls_handshake_header(struct __sk_buff *skb, __u64 *offset, __u32 data_end, __u32 *handshake_length, __u16 *protocol_version) {
+// parse_tls_handshake_header extracts handshake_length and protocol_version from the handshake message.
+// The handshake header (RFC 5246 Section 7.4, https://tools.ietf.org/html/rfc5246) starts with:
+// handshake_type (1 byte), length (3 bytes), then protocol_version in case of Client/Server Hello.
+static __always_inline bool parse_tls_handshake_header(struct __sk_buff *skb, __u32 *offset, __u32 data_end, __u32 *handshake_length, __u16 *protocol_version) {
     *offset += SINGLE_BYTE_LENGTH; // Move past handshake type (1 byte)
 
     // Read handshake length (3 bytes)
@@ -168,136 +183,11 @@ static __always_inline bool parse_tls_handshake_header(struct __sk_buff *skb, __
     return true;
 }
 
-// skip_random_and_session_id Skips the Random (32 bytes) and Session ID from the TLS hello messages by incrementing the offset pointer
-static __always_inline bool skip_random_and_session_id(struct __sk_buff *skb, __u64 *offset, __u32 data_end) {
-    // Skip Random (32 bytes)
-    *offset += RANDOM_LENGTH;
-
-    // Read Session ID Length (1 byte)
-    if (*offset + SESSION_ID_LENGTH > data_end) {
-        return false;
-    }
-    __u8 session_id_length;
-    if (bpf_skb_load_bytes(skb, *offset, &session_id_length, SESSION_ID_LENGTH) < 0) {
-        return false;
-    }
-    *offset += SESSION_ID_LENGTH;
-
-    // Skip Session ID
-    *offset += session_id_length;
-
-    // Ensure we don't read beyond the packet
-    return *offset <= data_end;
-}
-
-// parse_supported_versions_extension looks for the supported_versions extension in the ClientHello or ServerHello and populates tags
-static __always_inline bool parse_supported_versions_extension(struct __sk_buff *skb, __u64 *offset, __u32 data_end, __u64 extensions_end, tls_info_t *tags, bool is_client_hello) {
-    if (is_client_hello) {
-        // Read supported version list length (1 byte)
-        if (*offset + SINGLE_BYTE_LENGTH > data_end || *offset + SINGLE_BYTE_LENGTH > extensions_end) {
-            return false;
-        }
-        __u8 sv_list_length;
-        if (bpf_skb_load_bytes(skb, *offset, &sv_list_length, SINGLE_BYTE_LENGTH) < 0) {
-            return false;
-        }
-        *offset += SINGLE_BYTE_LENGTH;
-
-        if (*offset + sv_list_length > data_end || *offset + sv_list_length > extensions_end) {
-            return false;
-        }
-
-        // Parse the list of supported versions (2 bytes each)
-        __u8 sv_offset = 0;
-        __u16 sv_version;
-        #pragma unroll(MAX_SUPPORTED_VERSIONS)
-        for (int idx = 0; idx < MAX_SUPPORTED_VERSIONS; idx++) {
-            if (sv_offset + 1 >= sv_list_length) {
-                break;
-            }
-            // Each supported version is 2 bytes
-            if (*offset + PROTOCOL_VERSION_LENGTH > data_end) {
-                return false;
-            }
-
-            if (bpf_skb_load_bytes(skb, *offset, &sv_version, PROTOCOL_VERSION_LENGTH) < 0) {
-                return false;
-            }
-            sv_version = bpf_ntohs(sv_version);
-            *offset += PROTOCOL_VERSION_LENGTH;
-
-            set_tls_offered_version(tags, sv_version);
-            sv_offset += PROTOCOL_VERSION_LENGTH;
-        }
-    } else {
-        // ServerHello
-        // The selected_version field is 2 bytes
-        if (*offset + PROTOCOL_VERSION_LENGTH > data_end) {
-            return false;
-        }
-
-        // Read selected version (2 bytes)
-        __u16 selected_version;
-        if (bpf_skb_load_bytes(skb, *offset, &selected_version, PROTOCOL_VERSION_LENGTH) < 0) {
-            return false;
-        }
-        selected_version = bpf_ntohs(selected_version);
-        *offset += PROTOCOL_VERSION_LENGTH;
-
-        tags->chosen_version = selected_version;
-    }
-
-    return true;
-}
-
-// parse_tls_extensions parses TLS extensions and looks for the supported_versions extension
-static __always_inline bool parse_tls_extensions(struct __sk_buff *skb, __u64 *offset, __u32 data_end, __u64 extensions_end, tls_info_t *tags, bool is_client_hello) {
-    __u16 extension_type;
-    __u16 extension_length;
-
-    #pragma unroll(MAX_EXTENSIONS)
-    for (int i = 0; i < MAX_EXTENSIONS; i++) {
-        if (*offset + MIN_EXTENSION_HEADER_LENGTH > extensions_end) {
-            break;
-        }
-
-        // Read Extension Type (2 bytes)
-        if (bpf_skb_load_bytes(skb, *offset, &extension_type, EXTENSION_TYPE_LENGTH) < 0) {
-            return false;
-        }
-        extension_type = bpf_ntohs(extension_type);
-        *offset += EXTENSION_TYPE_LENGTH;
-
-        // Read Extension Length (2 bytes)
-        if (bpf_skb_load_bytes(skb, *offset, &extension_length, EXTENSION_LENGTH_FIELD) < 0) {
-            return false;
-        }
-        extension_length = bpf_ntohs(extension_length);
-        *offset += EXTENSION_LENGTH_FIELD;
-
-        if (*offset + extension_length > data_end || *offset + extension_length > extensions_end) {
-            return false;
-        }
-
-        if (extension_type == SUPPORTED_VERSIONS_EXTENSION) {
-            if (!parse_supported_versions_extension(skb, offset, data_end, extensions_end, tags, is_client_hello)) {
-                return false;
-            }
-        } else {
-            // Skip other extensions
-            *offset += extension_length;
-        }
-
-        if (*offset >= extensions_end) {
-            break;
-        }
-    }
-
-    return true;
-}
-
 // parse_client_hello parses the ClientHello message and populates tags
-static __always_inline bool parse_client_hello(struct __sk_buff *skb, __u64 offset, __u32 data_end, tls_info_t *tags) {
+// Reference: RFC 5246 Section 7.4.1.2 (Client Hello), https://tools.ietf.org/html/rfc5246
+// Structure (simplified):
+// handshake_type (1 byte), length (3 bytes), version (2 bytes), random(32 bytes), session_id_length(1 byte), session_id(variable), cipher_suites_length(2 bytes), cipher_suites(variable), compression_methods_length(1 byte), compression_methods(variable), extensions_length(2 bytes), extensions(variable)
+static __always_inline bool parse_client_hello(struct __sk_buff *skb, __u32 offset, __u32 data_end, tls_info_t *tags) {
     __u32 handshake_length;
     __u16 client_version;
 
@@ -307,17 +197,43 @@ static __always_inline bool parse_client_hello(struct __sk_buff *skb, __u64 offs
 
     set_tls_offered_version(tags, client_version);
 
-    // TLS 1.2 is the highest version we will see in the header. If the connection is actually a higher version (1.3),
-    // it must be extracted from the extensions. Lower versions (1.0, 1.1) will not have extensions.
+    // If client_version < TLS 1.2, no extensions to parse
     if (client_version != TLS_VERSION12) {
+        // Skip Random (32 bytes)
+        offset += RANDOM_LENGTH;
+
+        // Session ID Length (1 byte)
+        if (offset + SESSION_ID_LENGTH > data_end) {
+            return false;
+        }
+        __u8 session_id_length;
+        if (bpf_skb_load_bytes(skb, offset, &session_id_length, SESSION_ID_LENGTH) < 0) {
+            return false;
+        }
+        offset += SESSION_ID_LENGTH;
+
+        // Skip Session ID
+        offset += session_id_length;
         return true;
     }
 
-    if (!skip_random_and_session_id(skb, &offset, data_end)) {
+    // TLS 1.2 case:
+    // Skip Random (32 bytes)
+    offset += RANDOM_LENGTH;
+
+    // Session ID Length (1 byte)
+    if (offset + SESSION_ID_LENGTH > data_end) {
         return false;
     }
+    __u8 session_id_length;
+    if (bpf_skb_load_bytes(skb, offset, &session_id_length, SESSION_ID_LENGTH) < 0) {
+        return false;
+    }
+    offset += SESSION_ID_LENGTH;
 
-    // Read Cipher Suites Length (2 bytes)
+    // Skip Session ID
+    offset += session_id_length;
+
     if (offset + CIPHER_SUITES_LENGTH > data_end) {
         return false;
     }
@@ -331,7 +247,7 @@ static __always_inline bool parse_client_hello(struct __sk_buff *skb, __u64 offs
     // Skip Cipher Suites
     offset += cipher_suites_length;
 
-    // Read Compression Methods Length (1 byte)
+    // Compression Methods Length (1 byte)
     if (offset + COMPRESSION_METHODS_LENGTH > data_end) {
         return false;
     }
@@ -344,12 +260,10 @@ static __always_inline bool parse_client_hello(struct __sk_buff *skb, __u64 offs
     // Skip Compression Methods
     offset += compression_methods_length;
 
-    // Check if extensions are present
+    // Extensions Length (2 bytes)
     if (offset + EXTENSION_LENGTH_FIELD > data_end) {
         return false;
     }
-
-    // Read Extensions Length (2 bytes)
     __u16 extensions_length;
     if (bpf_skb_load_bytes(skb, offset, &extensions_length, EXTENSION_LENGTH_FIELD) < 0) {
         return false;
@@ -363,11 +277,85 @@ static __always_inline bool parse_client_hello(struct __sk_buff *skb, __u64 offs
 
     __u64 extensions_end = offset + extensions_length;
 
-    return parse_tls_extensions(skb, &offset, data_end, extensions_end, tags, true);
+    // Inline extension parsing:
+    __u16 extension_type;
+    __u16 extension_length;
+    #pragma unroll(MAX_EXTENSIONS)
+    for (int i = 0; i < MAX_EXTENSIONS; i++) {
+        if (offset + MIN_EXTENSION_HEADER_LENGTH > extensions_end) {
+            break;
+        }
+
+        // Read Extension Type (2 bytes)
+        if (bpf_skb_load_bytes(skb, offset, &extension_type, EXTENSION_TYPE_LENGTH) < 0) {
+            return false;
+        }
+        extension_type = bpf_ntohs(extension_type);
+        offset += EXTENSION_TYPE_LENGTH;
+
+        // Read Extension Length (2 bytes)
+        if (bpf_skb_load_bytes(skb, offset, &extension_length, EXTENSION_LENGTH_FIELD) < 0) {
+            return false;
+        }
+        extension_length = bpf_ntohs(extension_length);
+        offset += EXTENSION_LENGTH_FIELD;
+
+        if (offset + extension_length > data_end || offset + extension_length > extensions_end) {
+            return false;
+        }
+
+        if (extension_type == SUPPORTED_VERSIONS_EXTENSION) {
+            if (offset + SINGLE_BYTE_LENGTH > data_end || offset + SINGLE_BYTE_LENGTH > extensions_end) {
+                return false;
+            }
+            __u8 sv_list_length;
+            if (bpf_skb_load_bytes(skb, offset, &sv_list_length, SINGLE_BYTE_LENGTH) < 0) {
+                return false;
+            }
+            offset += SINGLE_BYTE_LENGTH;
+
+            if (offset + sv_list_length > data_end || offset + sv_list_length > extensions_end) {
+                return false;
+            }
+
+            __u8 sv_offset = 0;
+            __u16 sv_version;
+            #pragma unroll(MAX_SUPPORTED_VERSIONS)
+            for (int j = 0; j < MAX_SUPPORTED_VERSIONS; j++) {
+                if (sv_offset + 1 >= sv_list_length) {
+                    break;
+                }
+                if (offset + PROTOCOL_VERSION_LENGTH > data_end) {
+                    return false;
+                }
+
+                if (bpf_skb_load_bytes(skb, offset, &sv_version, PROTOCOL_VERSION_LENGTH) < 0) {
+                    return false;
+                }
+                sv_version = bpf_ntohs(sv_version);
+                offset += PROTOCOL_VERSION_LENGTH;
+
+                set_tls_offered_version(tags, sv_version);
+                sv_offset += PROTOCOL_VERSION_LENGTH;
+            }
+        } else {
+            // Skip other extensions
+            offset += extension_length;
+        }
+
+        if (offset >= extensions_end) {
+            break;
+        }
+    }
+
+    return true;
 }
 
 // parse_server_hello parses the ServerHello message and populates tags
-static __always_inline bool parse_server_hello(struct __sk_buff *skb, __u64 offset, __u32 data_end, tls_info_t *tags) {
+// Reference: RFC 5246 Section 7.4.1.2 (Server Hello), https://tools.ietf.org/html/rfc5246
+// Structure (simplified):
+// handshake_type(1), length(3), version(2), random(32), session_id_length(1), session_id(variable), cipher_suite(2), compression_method(1), extensions_length(2), extensions(variable)
+static __always_inline bool parse_server_hello(struct __sk_buff *skb, __u32 offset, __u32 data_end, tls_info_t *tags) {
     __u32 handshake_length;
     __u16 server_version;
 
@@ -380,9 +368,17 @@ static __always_inline bool parse_server_hello(struct __sk_buff *skb, __u64 offs
     // The actual version is embedded in the supported_versions extension
     tags->chosen_version = server_version;
 
-    if (!skip_random_and_session_id(skb, &offset, data_end)) {
+    offset += RANDOM_LENGTH; // Skip Random
+
+    if (offset + SESSION_ID_LENGTH > data_end) {
         return false;
     }
+    __u8 session_id_length;
+    if (bpf_skb_load_bytes(skb, offset, &session_id_length, SESSION_ID_LENGTH) < 0) {
+        return false;
+    }
+    offset += SESSION_ID_LENGTH;
+    offset += session_id_length; // Skip Session ID
 
     // Read Cipher Suite (2 bytes)
     if (offset + CIPHER_SUITES_LENGTH > data_end) {
@@ -395,8 +391,7 @@ static __always_inline bool parse_server_hello(struct __sk_buff *skb, __u64 offs
     cipher_suite = bpf_ntohs(cipher_suite);
     offset += CIPHER_SUITES_LENGTH;
 
-    // Skip Compression Method (1 byte)
-    offset += COMPRESSION_METHODS_LENGTH;
+    offset += COMPRESSION_METHODS_LENGTH; // Skip Compression Method
 
     tags->cipher_suite = cipher_suite;
 
@@ -425,11 +420,61 @@ static __always_inline bool parse_server_hello(struct __sk_buff *skb, __u64 offs
 
     __u64 extensions_end = offset + extensions_length;
 
-    return parse_tls_extensions(skb, &offset, data_end, extensions_end, tags, false);
+    __u16 extension_type;
+    __u16 extension_length;
+    #pragma unroll(MAX_EXTENSIONS)
+    for (int i = 0; i < MAX_EXTENSIONS; i++) {
+        if (offset + MIN_EXTENSION_HEADER_LENGTH > extensions_end) {
+            break;
+        }
+
+        // Read Extension Type (2 bytes)
+        if (bpf_skb_load_bytes(skb, offset, &extension_type, EXTENSION_TYPE_LENGTH) < 0) {
+            return false;
+        }
+        extension_type = bpf_ntohs(extension_type);
+        offset += EXTENSION_TYPE_LENGTH;
+
+        // Read Extension Length (2 bytes)
+        if (bpf_skb_load_bytes(skb, offset, &extension_length, EXTENSION_LENGTH_FIELD) < 0) {
+            return false;
+        }
+        extension_length = bpf_ntohs(extension_length);
+        offset += EXTENSION_LENGTH_FIELD;
+
+        if (offset + extension_length > data_end || offset + extension_length > extensions_end) {
+            return false;
+        }
+
+        if (extension_type == SUPPORTED_VERSIONS_EXTENSION) {
+            // Inline parse_supported_versions_extension for ServerHello
+            if (offset + PROTOCOL_VERSION_LENGTH > data_end) {
+                return false;
+            }
+
+            __u16 selected_version;
+            if (bpf_skb_load_bytes(skb, offset, &selected_version, PROTOCOL_VERSION_LENGTH) < 0) {
+                return false;
+            }
+            selected_version = bpf_ntohs(selected_version);
+            offset += PROTOCOL_VERSION_LENGTH;
+
+            tags->chosen_version = selected_version;
+        } else {
+            // Skip other extensions
+            offset += extension_length;
+        }
+
+        if (offset >= extensions_end) {
+            break;
+        }
+    }
+
+    return true;
 }
 
 // is_tls_handshake_type checks if the handshake type is the expected type (client or server hello)
-static __always_inline bool is_tls_handshake_type(struct __sk_buff *skb, __u8 content_type, __u64 offset, __u32 data_end, __u8 expected_handshake_type) {
+static __always_inline bool is_tls_handshake_type(struct __sk_buff *skb, __u8 content_type, __u32 offset, __u32 data_end, __u8 expected_handshake_type) {
     if (content_type != TLS_HANDSHAKE) {
         return false;
     }
@@ -447,12 +492,12 @@ static __always_inline bool is_tls_handshake_type(struct __sk_buff *skb, __u8 co
 }
 
 // is_tls_handshake_client_hello checks if the packet is a TLS ClientHello message
-static __always_inline bool is_tls_handshake_client_hello(struct __sk_buff *skb, __u8 content_type, __u64 offset, __u32 data_end) {
+static __always_inline bool is_tls_handshake_client_hello(struct __sk_buff *skb, __u8 content_type, __u32 offset, __u32 data_end) {
     return is_tls_handshake_type(skb, content_type, offset, data_end, TLS_HANDSHAKE_CLIENT_HELLO);
 }
 
 // is_tls_handshake_server_hello checks if the packet is a TLS ServerHello message
-static __always_inline bool is_tls_handshake_server_hello(struct __sk_buff *skb, __u8 content_type, __u64 offset, __u32 data_end) {
+static __always_inline bool is_tls_handshake_server_hello(struct __sk_buff *skb, __u8 content_type, __u32 offset, __u32 data_end) {
     return is_tls_handshake_type(skb, content_type, offset, data_end, TLS_HANDSHAKE_SERVER_HELLO);
 }
 
