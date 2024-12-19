@@ -177,8 +177,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         // Parse TLS handshake payload
         tls_info_t *tags = get_or_create_tls_enhanced_tags(&usm_ctx->tuple);
         if (tags) {
-            // The packet is a TLS handshake, so trigger some tail calls
-            // to extract metadata from the payload
+            // The packet is a TLS handshake, so trigger tail calls to extract metadata from the payload
             goto next_program;
         }
         return;
@@ -221,7 +220,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     if (!tls_info) {
         goto next_program;
     }
-    __u64 offset = usm_ctx->skb_info.data_off + sizeof(tls_record_header_t);
+    __u32 offset = usm_ctx->skb_info.data_off + sizeof(tls_record_header_t);
     __u32 data_end = usm_ctx->skb_info.data_end;
     if (!is_tls_handshake_client_hello(skb, offset, usm_ctx->skb_info.data_end)) {
         goto next_program;
@@ -243,7 +242,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     if (!tls_info) {
         goto next_program;
     }
-    __u64 offset = usm_ctx->skb_info.data_off + sizeof(tls_record_header_t);
+    __u32 offset = usm_ctx->skb_info.data_off + sizeof(tls_record_header_t);
     __u32 data_end = usm_ctx->skb_info.data_end;
     if (!is_tls_handshake_server_hello(skb, offset, data_end)) {
         goto next_program;

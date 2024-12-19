@@ -23,11 +23,13 @@ static __always_inline u16 get_current_program_layer(classification_prog_t curre
     if (current_program > __PROG_APPLICATION && current_program < __PROG_API) {
         return LAYER_APPLICATION_BIT;
     }
+
     if (current_program > __PROG_API && current_program < __PROG_ENCRYPTION) {
-        return LAYER_ENCRYPTION_BIT;
-    }
-    if (current_program > __PROG_ENCRYPTION && current_program < CLASSIFICATION_PROG_MAX) {
         return LAYER_API_BIT;
+    }
+
+    if (current_program > __PROG_ENCRYPTION && current_program < CLASSIFICATION_PROG_MAX) {
+        return LAYER_ENCRYPTION_BIT;
     }
 
     return 0;

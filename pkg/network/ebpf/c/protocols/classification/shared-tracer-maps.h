@@ -4,7 +4,6 @@
 #include "map-defs.h"
 #include "port_range.h"
 #include "protocols/classification/stack-helpers.h"
-#include "protocols/tls/tls.h"
 
 // Maps a connection tuple to its classified protocol. Used to reduce redundant
 // classification procedures on the same connection
@@ -145,7 +144,5 @@ __maybe_unused static __always_inline void delete_protocol_stack(conn_tuple_t* n
     }
     bpf_map_delete_elem(&connection_protocol, normalized_tuple);
 }
-
-
 
 #endif
