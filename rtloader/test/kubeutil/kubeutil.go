@@ -11,9 +11,10 @@ import (
 	"runtime"
 	"unsafe"
 
+	yaml "gopkg.in/yaml.v3"
+
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
-	yaml "gopkg.in/yaml.v2"
 )
 
 /*

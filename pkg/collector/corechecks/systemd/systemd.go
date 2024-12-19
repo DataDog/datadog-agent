@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-systemd/v22/dbus"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"

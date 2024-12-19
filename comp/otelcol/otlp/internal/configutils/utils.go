@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // NewMapFromYAMLString creates a confmap.Conf from a YAML-formatted configuration string.
