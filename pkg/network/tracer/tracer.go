@@ -462,9 +462,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 // ReleaseProtocolStats releases usm stats objects.
 func (t *Tracer) ReleaseProtocolStats(conn *network.Connections) {
-	t.bufferLock.Lock()
-	defer t.bufferLock.Unlock()
-
 	if t.usmMonitor != nil {
 		t.usmMonitor.ReleaseProtocolStats(conn)
 	}
