@@ -16,12 +16,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands"
+	"github.com/DataDog/datadog-agent/cmd/internal/rssshrinker"
 
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func main() {
+	rssshrinker.Setup()
+
 	// set the Agent flavor
 	flavor.SetFlavor(flavor.ClusterAgent)
 
