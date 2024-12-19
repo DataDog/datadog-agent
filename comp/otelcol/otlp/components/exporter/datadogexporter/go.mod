@@ -12,6 +12,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../../../core/log/mock
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../../core/secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../../../core/status
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection => ../../../../../core/tagger/origindetection
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../../core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../../../../def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../../forwarder/defaultforwarder
@@ -138,6 +139,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.0.0-20241217122454-175edb6c74f2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.56.0-rc.3 // indirect
@@ -319,7 +321,7 @@ require (
 	go.uber.org/fx v1.23.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20241210194714-1829a127f884 // indirect
-	golang.org/x/net v0.32.0 // indirect
+	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/term v0.27.0 // indirect

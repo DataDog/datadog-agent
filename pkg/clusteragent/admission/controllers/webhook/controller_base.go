@@ -35,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -125,7 +124,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 			configWebhook.NewWebhook(wmeta, injectionFilter, datadogConfig),
 			tagsfromlabels.NewWebhook(wmeta, datadogConfig, injectionFilter),
 			agentsidecar.NewWebhook(datadogConfig),
-			autoscaling.NewWebhook(pa),
+			autoscaling.NewWebhook(pa, datadogConfig),
 		}
 		webhooks = append(webhooks, mutatingWebhooks...)
 
@@ -137,7 +136,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 			log.Errorf("failed to register APM Instrumentation webhook: %v", err)
 		}
 
-		isCWSInstrumentationEnabled := pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled")
+		isCWSInstrumentationEnabled := datadogConfig.GetBool("admission_controller.cws_instrumentation.enabled")
 		if isCWSInstrumentationEnabled {
 			cws, err := cwsinstrumentation.NewCWSInstrumentation(wmeta, datadogConfig)
 			if err == nil {
