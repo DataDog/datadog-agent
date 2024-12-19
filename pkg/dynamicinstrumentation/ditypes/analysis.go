@@ -29,16 +29,16 @@ type TypeMap struct {
 
 // Parameter represents a function parameter as read from DWARF info
 type Parameter struct {
-	Name                string
-	ID                  string
-	Type                string
-	TotalSize           int64
-	Kind                uint
-	Location            *Location
-	LocationExpressions []LocationExpression
-	FieldOffset         uint64
-	NotCaptureReason    NotCaptureReason
-	ParameterPieces     []*Parameter
+	Name                string               // Name is populated by the local name of the parameter
+	ID                  string               // ID is randomly generated for each parameter to avoid
+	Type                string               // Type is a string representation of the type name
+	TotalSize           int64                // TotalSize is the size of the parameter type
+	Kind                uint                 // Kind is a constant representation of the type, see reflect.Kind
+	Location            *Location            // Location represents where the parameter will be in memory when passed to the target function
+	LocationExpressions []LocationExpression // LocationExpressions are the needed instructions for extracting the parameter value from memory
+	FieldOffset         uint64               // FieldOffset is the offset of Parameter field within a struct, if it is a struct field
+	NotCaptureReason    NotCaptureReason     // NotCaptureReason conveys to the user why the parameter was not captured
+	ParameterPieces     []*Parameter         // ParameterPieces are the sub-fields, such as struct fields or array elements
 }
 
 func (p Parameter) String() string {

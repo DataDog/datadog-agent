@@ -7,4 +7,7 @@
 
 package ditypes
 
+// StackRegister is the register containing the address of the
+// program stack. On ARM64 DWARF maps the register number 29 to
+// the stack pointer.
 const StackRegister = 29
