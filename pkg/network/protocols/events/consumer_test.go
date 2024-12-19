@@ -8,7 +8,6 @@
 package events
 
 import (
-	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -18,15 +17,9 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
-	"github.com/cilium/ebpf/perf"
-	"github.com/cilium/ebpf/ringbuf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -40,7 +33,7 @@ func TestConsumer(t *testing.T) {
 
 	const numEvents = 100
 	c := config.New()
-	program, err := newEBPFProgram(c)
+	program, err := NewEBPFProgram(c)
 	require.NoError(t, err)
 
 	var mux sync.Mutex
@@ -88,7 +81,7 @@ func TestInvalidBatchCountMetric(t *testing.T) {
 	}
 
 	c := config.New()
-	program, err := newEBPFProgram(c)
+	program, err := NewEBPFProgram(c)
 	require.NoError(t, err)
 	t.Cleanup(func() { program.Stop(manager.CleanAll) })
 
@@ -97,7 +90,7 @@ func TestInvalidBatchCountMetric(t *testing.T) {
 
 	// We are creating a raw sample with a data length of 4, which is smaller than sizeOfBatch
 	// and would be considered an invalid batch.
-	recordSample(c, consumer, []byte("test"))
+	RecordSample(c, consumer, []byte("test"))
 
 	consumer.Start()
 	t.Cleanup(func() { consumer.Stop() })
@@ -113,22 +106,6 @@ type eventGenerator struct {
 
 	// file used for triggering write(2) syscalls
 	testFile *os.File
-}
-
-// recordSample records a sample using the consumer handler.
-func recordSample(c *config.Config, consumer *Consumer[uint64], sampleData []byte) {
-	// Ring buffers require kernel version 5.8.0 or higher, therefore, the handler is chosen based on the kernel version.
-	if c.EnableUSMRingBuffers && features.HaveMapType(ebpf.RingBuf) == nil {
-		handler := consumer.handler.(*ddebpf.RingBufferHandler)
-		handler.RecordHandler(&ringbuf.Record{
-			RawSample: sampleData,
-		}, nil, nil)
-	} else {
-		handler := consumer.handler.(*ddebpf.PerfHandler)
-		handler.RecordHandler(&perf.Record{
-			RawSample: sampleData,
-		}, nil, nil)
-	}
 }
 
 func newEventGenerator(program *manager.Manager, t *testing.T) *eventGenerator {
@@ -170,49 +147,4 @@ func (e *eventGenerator) Generate(eventID uint64) error {
 
 func (e *eventGenerator) Stop() {
 	e.testFile.Close()
-}
-
-func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
-	bc, err := bytecode.GetReader(c.BPFDir, "usm_events_test-debug.o")
-	if err != nil {
-		return nil, err
-	}
-	defer bc.Close()
-
-	m := &manager.Manager{
-		Probes: []*manager.Probe{
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tracepoint__syscalls__sys_enter_write",
-				},
-			},
-		},
-	}
-	options := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		ActivatedProbes: []manager.ProbesSelector{
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tracepoint__syscalls__sys_enter_write",
-				},
-			},
-		},
-		ConstantEditors: []manager.ConstantEditor{
-			{
-				Name:  "test_monitoring_enabled",
-				Value: uint64(1),
-			},
-		},
-	}
-
-	Configure(config.New(), "test", m, &options)
-	err = m.InitWithOptions(bc, options)
-	if err != nil {
-		return nil, err
-	}
-
-	return m, nil
 }
