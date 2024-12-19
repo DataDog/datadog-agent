@@ -9,17 +9,23 @@ package cpu
 import (
 	"bufio"
 	"fmt"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
-func readCtxSwitches(procStatPath string) (ctxSwitches int64, err error) {
-	file, err := os.Open(procStatPath)
+// GetContextSwitches retrieves the number of context switches for the current process.
+// It returns an integer representing the count and an error if the retrieval fails.
+func GetContextSwitches() (ctxSwitches int64, err error) {
+	log.Debug("collecting ctx switches")
+	procfsPath := "/proc"
+	if pkgconfigsetup.Datadog().IsSet("procfs_path") {
+		procfsPath = pkgconfigsetup.Datadog().GetString("procfs_path")
+	}
+	filePath := procfsPath + "/stat"
+	file, err := os.Open(filePath)
 	if err != nil {
 		return 0, err
 	}
@@ -32,24 +38,10 @@ func readCtxSwitches(procStatPath string) (ctxSwitches int64, err error) {
 			elemts := strings.Split(txt, " ")
 			ctxSwitches, err = strconv.ParseInt(elemts[1], 10, 64)
 			if err != nil {
-				return 0, fmt.Errorf("%s in '%s' at line %d", err, procStatPath, i)
+				return 0, fmt.Errorf("%s in '%s' at line %d", err, filePath, i)
 			}
 			return ctxSwitches, nil
 		}
 	}
-
 	return 0, fmt.Errorf("could not find the context switches in stat file")
-}
-
-func collectCtxSwitches(sender sender.Sender) error {
-	procfsPath := "/proc"
-	if pkgconfigsetup.Datadog().IsSet("procfs_path") {
-		procfsPath = pkgconfigsetup.Datadog().GetString("procfs_path")
-	}
-	ctxSwitches, err := readCtxSwitches(filepath.Join(procfsPath, "/stat"))
-	if err != nil {
-		return err
-	}
-	sender.MonotonicCount("system.cpu.context_switches", float64(ctxSwitches), "", nil)
-	return nil
 }
