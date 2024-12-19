@@ -508,6 +508,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.cache.enabled") {
 			c.Obfuscation.Cache.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled")
 		}
+		log.Debugf("Obfuscation: %#v", c.Obfuscation)
 	}
 
 	if core.IsSet("apm_config.filter_tags.require") {

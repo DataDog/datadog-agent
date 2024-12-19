@@ -258,6 +258,7 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 			log.Errorf("Failed to unmarshal apm_config.obfuscation: %s", err.Error())
 			cfg = obfuscate.Config{}
 		}
+		log.Debugf("obfuscation: %v", cfg)
 		if !cfg.SQLExecPlan.Enabled {
 			cfg.SQLExecPlan = defaultSQLPlanObfuscateSettings
 		}
