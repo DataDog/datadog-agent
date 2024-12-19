@@ -61,8 +61,7 @@ static __always_inline void init_routing_cache(usm_context_t *usm_ctx, protocol_
     }
 
     // We skip a given layer in two cases:
-    // 1) If the protocol for that layer is known, 
-    //    except for encryption as it still needs to be traversed for metadata
+    // 1) If the protocol for that layer is known
     // 2) If there are no programs registered for that layer
     if (stack->layer_application || !has_available_program(__PROG_APPLICATION)) {
         usm_ctx->routing_skip_layers |= LAYER_APPLICATION_BIT;

@@ -145,9 +145,9 @@ const SizeofConn = 0x78
 type ClassificationProgram = uint32
 
 const (
-	ClassificationTLSClient ClassificationProgram = 0x2
-	ClassificationTLSServer ClassificationProgram = 0x3
-	ClassificationQueues    ClassificationProgram = 0x5
-	ClassificationDBs       ClassificationProgram = 0x6
-	ClassificationGRPC      ClassificationProgram = 0x8
+	ClassificationTLSClient ClassificationProgram = 0x7
+	ClassificationTLSServer ClassificationProgram = 0x8
+	ClassificationQueues    ClassificationProgram = 0x2
+	ClassificationDBs       ClassificationProgram = 0x3
+	ClassificationGRPC      ClassificationProgram = 0x5
 )

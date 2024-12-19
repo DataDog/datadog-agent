@@ -22,6 +22,35 @@ static __always_inline __u64 offset_rtt();
 static __always_inline __u64 offset_rtt_var();
 #endif
 
+static __always_inline tls_info_t* get_tls_enhanced_tags(conn_tuple_t* tuple) {
+    conn_tuple_t normalized_tup = *tuple;
+    normalize_tuple(&normalized_tup);
+    tls_info_wrapper_t *wrapper = bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
+    if (!wrapper) {
+        return NULL;
+    }
+    wrapper->updated = bpf_ktime_get_ns();
+    return &wrapper->info;
+}
+
+static __always_inline tls_info_t* get_or_create_tls_enhanced_tags(conn_tuple_t *tuple) {
+    tls_info_t *tags = get_tls_enhanced_tags(tuple);
+    if (!tags) {
+        conn_tuple_t normalized_tup = *tuple;
+        normalize_tuple(&normalized_tup);
+        tls_info_wrapper_t empty_tags_wrapper = {};
+        empty_tags_wrapper.updated = bpf_ktime_get_ns();
+
+        bpf_map_update_with_telemetry(tls_enhanced_tags, &normalized_tup, &empty_tags_wrapper, BPF_ANY);
+        tls_info_wrapper_t *wrapper_ptr = bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
+        if (!wrapper_ptr) {
+            return NULL;
+        }
+        tags = &wrapper_ptr->info;
+    }
+    return tags;
+}
+
 // merge_tls_info modifies `this` by merging it with `that`
 static __always_inline void merge_tls_info(tls_info_t *this, tls_info_t *that) {
     if (!this || !that) {

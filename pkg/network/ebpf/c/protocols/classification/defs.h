@@ -114,10 +114,6 @@ typedef struct {
 
 typedef enum {
     CLASSIFICATION_PROG_UNKNOWN = 0,
-    __PROG_ENCRYPTION,
-    // Encryption classification programs go here
-    CLASSIFICATION_TLS_CLIENT_PROG,
-    CLASSIFICATION_TLS_SERVER_PROG,
     __PROG_APPLICATION,
     // Application classification programs go here
     CLASSIFICATION_QUEUES_PROG,
@@ -125,6 +121,10 @@ typedef enum {
     __PROG_API,
     // API classification programs go here
     CLASSIFICATION_GRPC_PROG,
+    __PROG_ENCRYPTION,
+    // Encryption classification programs go here
+    CLASSIFICATION_TLS_CLIENT_PROG,
+    CLASSIFICATION_TLS_SERVER_PROG,
     CLASSIFICATION_PROG_MAX,
 } classification_prog_t;
 

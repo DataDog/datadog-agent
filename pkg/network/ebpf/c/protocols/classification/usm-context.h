@@ -15,7 +15,6 @@ typedef struct {
     size_t size;
 } classification_buffer_t;
 
-// TODO: rename this struct to `classification_context_t`
 typedef struct {
     struct __sk_buff *owner;
     conn_tuple_t tuple;
@@ -24,7 +23,6 @@ typedef struct {
     // bit mask with layers that should be skiped
     u16 routing_skip_layers;
     classification_prog_t routing_current_program;
-    __u8 tls_content_type;
 } usm_context_t;
 
 // Kernels before 4.7 do not know about per-cpu array maps.
