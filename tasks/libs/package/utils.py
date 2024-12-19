@@ -20,6 +20,7 @@ class PackageSize:
         self.size = 0
         self.ancestor_size = 0
         self.diff = 0
+        self.mb_diff = 0
         self.threshold = threshold
         self.emoji = "✅"
 
@@ -48,14 +49,15 @@ class PackageSize:
         self.size = size
         self.ancestor_size = ancestor_size
         self.diff = self.size - self.ancestor_size
+        self.mb_diff = float(f"{self.diff / pow(10, 6):.2f}")
         if self.ko():
             self.emoji = "❌"
-        elif self.diff > 0:
+        elif self.mb_diff > 0:
             self.emoji = "⚠️"
 
     @staticmethod
     def mb(value):
-        return f"{value / 1000000:.2f}MB"
+        return f"{value / 1e6:.2f}MB"
 
     def log(self):
         return f"{self.emoji} - {self.name} size {self.mb(self.size)}: {self.mb(self.diff)} diff[{self.diff}] with previous {self.mb(self.ancestor_size)} (max: {self.mb(self.threshold)})"
