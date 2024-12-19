@@ -159,7 +159,7 @@ func removeRingBufferHelperCalls(m *manager.Manager) {
 	// TODO: this is not the intended API usage of a `ebpf.Modifier`.
 	// Once we have access to the `ddebpf.Manager`, add this modifier to its list of
 	// `EnabledModifiers` and let it control the execution of the callbacks
-	patcher := ddebpf.NewHelperCallRemover(asm.FnRingbufOutput)
+	patcher := ddebpf.NewHelperCallRemover(asm.FnRingbufOutput, asm.FnRingbufQuery, asm.FnRingbufReserve, asm.FnRingbufSubmit, asm.FnRingbufDiscard)
 	err := patcher.BeforeInit(m, names.NewModuleName("usm"), nil)
 
 	if err != nil {
