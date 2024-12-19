@@ -8,7 +8,7 @@ Type=simple
 User=dd-agent
 Restart=on-failure
 EnvironmentFile=<%= etc_dir %>/environment
-ExecStart=/opt/datadog-agent/bin/agent/checks-agent run --cfgpath=<%= etc_dir %>/datadog.yaml
+ExecStart=/opt/datadog-agent/bin/agent/checks-agent start --cfgpath=<%= etc_dir %>/datadog.yaml
 StartLimitInterval=10
 StartLimitBurst=5
 
