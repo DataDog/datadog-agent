@@ -32,8 +32,8 @@ const (
 	// statusRetainedActions is the number of horizontal actions kept in status
 	statusRetainedActions = 5
 
-	// AnnotationsConfigurationKey is the key used to store custom recommender configuration in annotations
-	AnnotationsConfigurationKey = "autoscaling.datadoghq.com/custom-recommender"
+	// CustomRecommenderAnnotationKey is the key used to store custom recommender configuration in annotations
+	CustomRecommenderAnnotationKey = "autoscaling.datadoghq.com/custom-recommender"
 )
 
 // PodAutoscalerInternal holds the necessary data to work with the `DatadogPodAutoscaler` CRD.
@@ -675,7 +675,7 @@ func getLongestScalingRulesPeriod(rules []datadoghq.DatadogPodAutoscalerScalingR
 func parseCustomConfigurationAnnotation(annotations map[string]string) *RecommenderConfiguration {
 	customConfiguration := RecommenderConfiguration{}
 
-	if err := json.Unmarshal([]byte(annotations[AnnotationsConfigurationKey]), &customConfiguration); err != nil {
+	if err := json.Unmarshal([]byte(annotations[CustomRecommenderAnnotationKey]), &customConfiguration); err != nil {
 		log.Debugf("Failed to parse annotations for custom recommender configuration: %v", err)
 	}
 
