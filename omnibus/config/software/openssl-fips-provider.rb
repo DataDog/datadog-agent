@@ -22,13 +22,14 @@ source url: "https://www.openssl.org/source/#{OPENSSL_FIPS_MODULE_FILENAME}",
 relative_path "openssl-#{OPENSSL_FIPS_MODULE_VERSION}"
 
 build do
+    env = {"MAKEFLAGS" => "-j#{workers}"}
     # Exact build steps from security policy:
     # https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4282.pdf
     #
     # ---------------- DO NOT MODIFY LINES BELOW HERE ----------------
     command "./Configure enable-fips"
 
-    command "make"
+    command "make", env: env
     command "make install"
     # ---------------- DO NOT MODIFY LINES ABOVE HERE ----------------
 
