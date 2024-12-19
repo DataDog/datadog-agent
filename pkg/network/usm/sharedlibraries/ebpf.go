@@ -10,6 +10,8 @@ package sharedlibraries
 import (
 	"errors"
 	"fmt"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"math"
 	"os"
 	"runtime"
@@ -552,24 +554,11 @@ func sysOpenAt2Supported() bool {
 	return err == nil && len(missing) == 0
 }
 
-func isFexitSupported() bool {
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		return false
-	}
-
-	if strings.HasPrefix(runtime.GOARCH, "arm") {
-		return kversion >= kernel.VersionCode(6, 1, 0)
-	}
-
-	return kversion >= kernel.VersionCode(5, 5, 0)
-}
-
 // getSysOpenHooksIdentifiers returns the enter and exit tracepoints for supported open*
 // system calls.
 func (e *EbpfProgram) initializedProbes() {
 	openat2Supported := sysOpenAt2Supported()
-	fexitSupported := isFexitSupported()
+	fexitSupported := features.HaveProgramType(ebpf.Tracing) == nil
 
 	advancedProbes := []manager.ProbeIdentificationPair{
 		{
