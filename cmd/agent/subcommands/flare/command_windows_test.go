@@ -11,6 +11,7 @@ package flare
 import (
 	"net/http"
 	"net/http/httptest"
+	"os/user"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -32,7 +33,18 @@ func sysprobeSocketPath(_ *testing.T) string {
 func NewSystemProbeTestServer(handler http.Handler) (*httptest.Server, error) {
 	server := httptest.NewUnstartedServer(handler)
 
-	conn, err := sysprobeserver.NewListener(systemProbeTestPipeName)
+	// Prepare a security descriptor that allows the current user.
+	currentUser, err := user.Current()
+	if err != nil {
+		return nil, err
+	}
+
+	sd, err := sysprobeserver.FormatSecurityDescriptorWithSid(currentUser.Uid)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := sysprobeserver.NewListenerWithSecurityDescriptor(systemProbeTestPipeName, sd)
 	if err != nil {
 		return nil, err
 	}
