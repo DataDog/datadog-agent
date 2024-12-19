@@ -13,17 +13,53 @@ env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   GH_REPO: ${{ github.repository }}
 
+permissions: {}
+
 jobs:
   assign-team-label:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Install Python dependencies
-        run: pip install -r tasks/requirements.txt
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          persist-credentials: false
+      - name: Setup python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: 3.11
+          cache: 'pip'
+          cache-dependency-path: '**/requirements*.txt'
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r tasks/requirements.txt
       - name: Auto assign team label
-        run: inv -e github.assign-team-label --pr-id='${{ github.event.pull_request.number }}'
+        env:
+          PR_ID: ${{ github.event.pull_request.number }}
+        run: inv -e github.assign-team-label --pr-id="$PR_ID"
+  release-note-check:
+    if: github.triggering_actor != 'dd-devflow[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: 3.11
+          cache: 'pip'
+          cache-dependency-path: '**/requirements*.txt'
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r tasks/requirements.txt
+      - name: Check release note
+        env:
+          BRANCH_NAME: ${{ github.head_ref }}
+          PR_ID: ${{ github.event.pull_request.number }}
+        run: inv -e linter.releasenote
   fetch-labels:
     needs: assign-team-label
     if: github.triggering_actor != 'dd-devflow[bot]'
@@ -32,12 +68,15 @@ jobs:
       LABELS: ${{ steps.pr-labels.outputs.LABELS }}
     steps:
       - name: Get PR labels
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_NUMBER: ${{ github.event.number }}
         id: pr-labels
         run: |
-          labels="$(gh pr view '${{ github.event.pull_request.number }}' --json labels --jq '[.labels[].name] | (join(" "))')"
-          echo "Fetched labels for PR ${{github.event.number}}: $labels"
+          labels="$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name] | (join(" "))')"
+          echo "Fetched labels for PR $EVENT_NUMBER: $labels"
           echo "LABELS=$labels" >> "$GITHUB_OUTPUT"
-  team-label:
+  team-label-check:
     needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
@@ -58,27 +97,44 @@ jobs:
           exit 1
         env:
           LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
-  skip-qa:
+  skip-qa-check:
     needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          persist-credentials: false
+      - name: Setup Python3
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.12.6"
+          cache: "pip"
+          cache-dependency-path: '**/requirements*.txt'
+      - name: Install python dependencies
+        run: pip3 install -r requirements.txt
       - name: Check qa/[done|no-code-change] labels are not set together
-        run: |
-          is_qa_done=1
-          is_qa_no_code_change=1
-          for label in $LABELS; do
-            if [[ "$label" == "qa/done" ]]; then
-              is_qa_done=0
-            fi
-            if [[ "$label" == "qa/no-code-change" ]]; then
-              is_qa_no_code_change=0
-            fi
-          done
-          if [ $is_qa_done -eq 0 ] && [ $is_qa_no_code_change -eq 0 ]; then
-            echo "Both 'qa/done' and 'qa/no-code-change' labels are set -- only one of them should be set"
-            exit 1
-          fi
-          echo "No issue with 'qa/done' and 'qa/no-code-change' labels"
         env:
           LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
+        run: |
+          inv -e github.check-qa-labels --labels "${LABELS[@]}"
+
+  agenttelemetry-list-change-ack-check:
+    if: github.triggering_actor != 'dd-devflow[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Setup python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: 3.11
+          cache: 'pip'
+          cache-dependency-path: '**/requirements*.txt'
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r tasks/requirements.txt
+      - name: Check agent telemetry metric list
+        run: inv -e github.agenttelemetry-list-change-ack-check --pr-id=${{ github.event.pull_request.number }}

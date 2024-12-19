@@ -9,35 +9,37 @@ on:
         description: "PR number"
         required: true
         type: number
-permissions:
-  contents: write
+
 jobs:
   mod_tidy_and_generate_licenses:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.actor == 'dependabot[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go')) }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           ref: ${{ github.head_ref }}
       - name: Checkout PR
         # run only if triggered manually, otherwise we are already on the right branch and we won't have `pr_number`
         if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: gh pr checkout ${{ github.event.inputs.pr_number }}
+        run: gh pr checkout "$PR_NUMBER"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.inputs.pr_number }}
       - name: Install go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           go-version-file: ".go-version"
       - name: Install python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: "3.9.12"
+          python-version: 3.11
           cache: "pip"
       - name: Install python requirements.txt
         run: python3 -m pip install -r requirements.txt
       - name: Go mod tidy
-        run: inv -e tidy-all
+        run: inv -e tidy
       - name: Update LICENSE-3rdparty.csv
         if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
         run: |
@@ -46,10 +48,12 @@ jobs:
       - name: Update mocks
         if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
         run: inv -e security-agent.gen-mocks # generate both security agent and process mocks
-      - uses: stefanzweifel/git-auto-commit-action@v5
+      - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
         id: autocommit
         with:
           commit_message: Auto-generate go.sum and LICENSE-3rdparty.csv changes
       - name: changes
+        env:
+          CHANGES: ${{ steps.autocommit.outputs.changes_detected }}
         run: |
-          echo "Changes detected: ${{ steps.autocommit.outputs.changes_detected }}"
+          echo "Changes detected: $CHANGES"

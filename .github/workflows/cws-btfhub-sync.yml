@@ -2,54 +2,147 @@ name: "CWS BTFHub constants sync"
 
 on:
   workflow_dispatch:
+    inputs:
+      base_branch:
+        description: 'Base branch to target'
+        required: false
+        default: 'main'
+        type: string
+      force_refresh:
+        description: 'Force refresh of the constants'
+        required: false
+        default: 'false'
+        type: boolean
   schedule:
-    - cron: '30 4 * * 1-5' # at 4:30 UTC every week-day
+    - cron: '30 4 * * 5' # at 4:30 UTC on Friday
+
+permissions: {}
 
 jobs:
-  sync:
+  generate:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cone:
+          - amzn
+          - centos
+          - debian
+          - fedora
+          - ol/7/arm64
+          - ol/7/x86_64
+          - ol/8/arm64
+          - ol/8/x86_64
+          - opensuse-leap
+          - rhel
+          - sles
+          - ubuntu/16.04/x86_64
+          - ubuntu/18.04/arm64
+          - ubuntu/18.04/x86_64
+          - ubuntu/20.04/arm64
+          - ubuntu/20.04/x86_64
     steps:
       - name: Cleanup runner
         run: |
           sudo rm -rf /usr/local/lib/android >/dev/null 2>&1
           docker rmi $(docker image ls -aq) >/dev/null 2>&1
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          df -h
 
       - name: Checkout datadog-agent repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          ref: ${{ inputs.base_branch || 'main' }}
+          persist-credentials: false
 
       - name: Checkout btfhub-archive repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
-          ref: no-kmod
           repository: DataDog/btfhub-archive
           path: dev/dist/archive
+          sparse-checkout: ${{ matrix.cone }}
+          persist-credentials: false
 
       - name: Install python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: '3.9'
+          python-version: 3.11
           cache: 'pip'
       - run: pip install -r requirements.txt
 
       - name: Install go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           go-version-file: '.go-version'
 
-      - name: Install go deps
+      - name: Compute name
+        id: artifact-name
         run: |
-          inv -e deps
+          echo "ARTIFACT_NAME=constants-${{ matrix.cone }}" | tr '/' '-' >> $GITHUB_OUTPUT
+
+      - name: Sync constants
+        if: ${{ !inputs.force_refresh }}
+        env:
+          ARTIFACT_NAME: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
+        run: |
+          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json
+
+      - name: Force sync constants
+        if: ${{ inputs.force_refresh }}
+        env:
+          ARTIFACT_NAME: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
+        run: |
+          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json --force-refresh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
+          path: ./${{ steps.artifact-name.outputs.ARTIFACT_NAME }}.json
+
+  combine:
+    needs: generate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout datadog-agent repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          ref: ${{ inputs.base_branch || 'main' }}
+
+      - name: Install python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: 3.11
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+
+      - name: Install go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        with:
+          go-version-file: '.go-version'
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          path: ./dev/dist/constants
+          pattern: constants-*
+          merge-multiple: true
+
+      - name: Combine constants
+        run: |
+          inv -e security-agent.combine-btfhub-constants --archive-path=./dev/dist/constants
 
       - name: Compute branch name
         id: branch-name
         run: |
           echo "BRANCH_NAME=cws/constants-sync-$(date +%s)" >> $GITHUB_OUTPUT
 
-      - name: Sync constants
-        run: |
-          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive
-
-      - uses: stefanzweifel/git-auto-commit-action@v5
+      - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
         id: commit-creator
         with:
           commit_message: "CWS: sync BTFhub constants"
@@ -59,7 +152,10 @@ jobs:
           skip_checkout: true
 
       - name: Create Pull Request
-        uses: actions/github-script@v7
+        env:
+          BRANCH_NAME: ${{ steps.branch-name.outputs.BRANCH_NAME }}
+          BASE_BRANCH: ${{ inputs.base_branch || 'main' }}
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         if: steps.commit-creator.outputs.changes_detected == 'true'
         with:
           script: |
@@ -68,8 +164,8 @@ jobs:
               title: 'CWS: sync BTFHub constants',
               owner,
               repo,
-              head: '${{ steps.branch-name.outputs.BRANCH_NAME }}',
-              base: 'main',
+              head: process.env.BRANCH_NAME,
+              base: process.env.BASE_BRANCH,
               body: [
                 '### What does this PR do?',
                 'This PR syncs the BTFHub constants used by CWS',
