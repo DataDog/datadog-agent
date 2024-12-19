@@ -22,11 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
-func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
-	return loadFunctionDefinitions(dwarfData, targetFunctions)
+func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool, resolveInlinedProgramCounters bool) (*ditypes.TypeMap, error) {
+	return loadFunctionDefinitions(dwarfData, targetFunctions, resolveInlinedProgramCounters)
 }
-
-var dwarfMap = make(map[string]*dwarf.Data)
 
 type seenTypeCounter struct {
 	parameter *ditypes.Parameter
@@ -35,7 +33,7 @@ type seenTypeCounter struct {
 
 var seenTypes = make(map[string]*seenTypeCounter)
 
-func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
+func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]bool, resolveInlinedProgramCounters bool) (*ditypes.TypeMap, error) {
 	entryReader := dwarfData.Reader()
 	typeReader := dwarfData.Reader()
 	readingAFunction := false
@@ -48,6 +46,7 @@ func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]b
 
 	var (
 		name       string
+		isReturn   bool
 		typeFields *ditypes.Parameter
 	)
 
@@ -83,7 +82,7 @@ entryLoop:
 			}
 		}
 
-		if entry.Tag == dwarf.TagInlinedSubroutine {
+		if resolveInlinedProgramCounters && entry.Tag == dwarf.TagInlinedSubroutine {
 			// This is a inlined function
 			for i := range entry.Field {
 				// Find it's high program counter (where it exits in the parent routine)
@@ -144,6 +143,10 @@ entryLoop:
 				name = entry.Field[i].Val.(string)
 			}
 
+			if entry.Field[i].Attr == dwarf.AttrVarParam {
+				isReturn = entry.Field[i].Val.(bool)
+			}
+
 			// Collect information about the type of this ditypes.Parameter
 			if entry.Field[i].Attr == dwarf.AttrType {
 
@@ -161,7 +164,7 @@ entryLoop:
 			}
 		}
 
-		if typeFields != nil {
+		if typeFields != nil && !isReturn /* we ignore return values for now */ {
 			// We've collected information about this ditypes.Parameter, append it to the slice of ditypes.Parameters for this function
 			typeFields.Name = name
 			result.Functions[funcName] = append(result.Functions[funcName], *typeFields)
@@ -181,19 +184,15 @@ entryLoop:
 }
 
 func loadDWARF(binaryPath string) (*dwarf.Data, error) {
-	if dwarfData, ok := dwarfMap[binaryPath]; ok {
-		return dwarfData, nil
-	}
 	elfFile, err := safeelf.Open(binaryPath)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't open elf binary: %w", err)
 	}
-
+	defer elfFile.Close()
 	dwarfData, err := elfFile.DWARF()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't retrieve debug info from elf: %w", err)
 	}
-	dwarfMap[binaryPath] = dwarfData
 	return dwarfData, nil
 }
 
