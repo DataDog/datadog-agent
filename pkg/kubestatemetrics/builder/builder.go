@@ -381,6 +381,7 @@ func generateConfigMapStores(
 	stores := make([]cache.Store, 0)
 
 	if b.namespaces.IsAllNamespaces() {
+		log.Infof("Using NamespaceAll for ConfigMap collection.")
 		store := store.NewMetricsStore(composedMetricGenFuncs, "configmap")
 		listWatcher := createConfigMapListWatch(metadataClient, gvr, v1.NamespaceAll)
 		b.startReflector(&corev1.ConfigMap{}, store, listWatcher, useAPIServerCache)
@@ -409,9 +410,10 @@ func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.Grou
 			for _, item := range result.Items {
 				configMapList.Items = append(configMapList.Items, corev1.ConfigMap{
 					ObjectMeta: v1.ObjectMeta{
-						Name:      item.GetName(),
-						Namespace: item.GetNamespace(),
-						UID:       item.GetUID(),
+						Name:            item.GetName(),
+						Namespace:       item.GetNamespace(),
+						UID:             item.GetUID(),
+						ResourceVersion: item.GetResourceVersion(),
 					},
 				})
 			}
@@ -436,9 +438,10 @@ func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.Grou
 
 				configMap := &corev1.ConfigMap{
 					ObjectMeta: v1.ObjectMeta{
-						Name:      partialObject.GetName(),
-						Namespace: partialObject.GetNamespace(),
-						UID:       partialObject.GetUID(),
+						Name:            partialObject.GetName(),
+						Namespace:       partialObject.GetNamespace(),
+						UID:             partialObject.GetUID(),
+						ResourceVersion: partialObject.GetResourceVersion(),
 					},
 				}
 
