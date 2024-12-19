@@ -13,8 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 )
 
 var (
@@ -46,9 +44,9 @@ func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfig
 			continue
 		}
 		profiledefinition.NormalizeMetrics(newProfileConfig.Definition.Metrics)
-		errors := configvalidation.ValidateEnrichMetadata(newProfileConfig.Definition.Metadata)
-		errors = append(errors, configvalidation.ValidateEnrichMetrics(newProfileConfig.Definition.Metrics)...)
-		errors = append(errors, configvalidation.ValidateEnrichMetricTags(newProfileConfig.Definition.MetricTags)...)
+		errors := profiledefinition.ValidateEnrichMetadata(newProfileConfig.Definition.Metadata)
+		errors = append(errors, profiledefinition.ValidateEnrichMetrics(newProfileConfig.Definition.Metrics)...)
+		errors = append(errors, profiledefinition.ValidateEnrichMetricTags(newProfileConfig.Definition.MetricTags)...)
 		if len(errors) > 0 {
 			log.Warnf("validation errors in profile %q: %s", name, strings.Join(errors, "\n"))
 			profileExpVar.Set(name, expvar.Func(func() interface{} {
