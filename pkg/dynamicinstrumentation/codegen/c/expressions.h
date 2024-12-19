@@ -99,6 +99,7 @@ static __always_inline int dereference(struct expression_context context, __u32 
     if (err != 0) {
         log_debug("error when reading data while dereferencing: %ld", err);
     }
+    // a mask is used to zero out bytes not used by a smaller type encoded into a __u64
     __u64 mask = (element_size == 8) ? ~0ULL : (1ULL << (8 * element_size)) - 1;
     __u64 encodedValueHolder = valueHolder & mask;
 
@@ -127,6 +128,7 @@ static __always_inline int dereference_to_output(struct expression_context conte
         return_err = err;
         log_debug("error when reading data while dereferencing to output: %ld", err);
     }
+    // a mask is used to zero out bytes not used by a smaller type encoded into a __u64
     __u64 mask = (element_size == 8) ? ~0ULL : (1ULL << (8 * element_size)) - 1;
     __u64 encodedValueHolder = valueHolder & mask;
 
