@@ -7,7 +7,6 @@ package profile
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
-	"github.com/mohae/deepcopy"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -34,7 +33,7 @@ func Test_mergeProfiles(t *testing.T) {
 			},
 		},
 	}
-	profilesACopy := deepcopy.Copy(profilesA).(ProfileConfigMap)
+	profilesACopy := profilesA.Clone()
 	profilesB := ProfileConfigMap{
 		"profile-p1": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
@@ -56,7 +55,7 @@ func Test_mergeProfiles(t *testing.T) {
 			},
 		},
 	}
-	profilesBCopy := deepcopy.Copy(profilesB).(ProfileConfigMap)
+	profilesBCopy := profilesB.Clone()
 
 	actualMergedProfiles := mergeProfiles(profilesA, profilesB)
 
@@ -119,6 +118,6 @@ func Test_mergeProfiles(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expectedMergedProfiles, actualMergedProfiles)
-	assert.Equal(t, profilesACopy, profilesA)
-	assert.Equal(t, profilesBCopy, profilesB)
+	assert.Equal(t, profilesA, profilesACopy)
+	assert.Equal(t, profilesB, profilesBCopy)
 }

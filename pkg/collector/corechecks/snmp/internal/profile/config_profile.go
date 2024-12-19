@@ -75,10 +75,24 @@ func (pcm ProfileConfigMap) withNames() ProfileConfigMap {
 	return pcm
 }
 
+// Clone duplicates a ProfileConfigMap
+func (pcm ProfileConfigMap) Clone() ProfileConfigMap {
+	return profiledefinition.CloneMap(pcm)
+}
+
 // ProfileConfig represents a profile configuration.
 type ProfileConfig struct {
 	DefinitionFile string                              `yaml:"definition_file"`
 	Definition     profiledefinition.ProfileDefinition `yaml:"definition"`
 
 	IsUserProfile bool `yaml:"-"`
+}
+
+// Clone duplicates a ProfileConfig
+func (p ProfileConfig) Clone() ProfileConfig {
+	return ProfileConfig{
+		DefinitionFile: p.DefinitionFile,
+		Definition:     *p.Definition.Clone(),
+		IsUserProfile:  p.IsUserProfile,
+	}
 }
