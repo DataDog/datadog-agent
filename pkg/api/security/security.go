@@ -239,7 +239,7 @@ func validateAuthToken(authToken string) error {
 // writes auth token(s) to a file with the same permissions as datadog.yaml
 func saveAuthToken(token, tokenPath string) error {
 	log.Infof("Saving a new authentication token in %s", tokenPath)
-	if err := os.WriteFile(tokenPath, []byte(token), 0o600); err != nil {
+	if err := writeFileAndSync(tokenPath, []byte(token), 0o600); err != nil {
 		return err
 	}
 
@@ -255,4 +255,22 @@ func saveAuthToken(token, tokenPath string) error {
 
 	log.Infof("Wrote auth token in %s", tokenPath)
 	return nil
+}
+
+// call the file.Sync method to flush the file to disk and catch potential I/O errors
+func writeFileAndSync(name string, data []byte, perm os.FileMode) error {
+	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	// only sync data if the write was successful
+	if err == nil {
+		err = f.Sync()
+	}
+	// but always close the file and report the first error that occurred
+	if err1 := f.Close(); err1 != nil && err == nil {
+		err = err1
+	}
+	return err
 }

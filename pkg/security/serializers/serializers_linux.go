@@ -81,6 +81,15 @@ type FileSerializer struct {
 	MountOrigin string `json:"mount_origin,omitempty"`
 }
 
+// CGroupContextSerializer serializes a cgroup context to JSON
+// easyjson:json
+type CGroupContextSerializer struct {
+	// CGroup ID
+	ID string `json:"id,omitempty"`
+	// CGroup manager
+	Manager string `json:"manager,omitempty"`
+}
+
 // UserContextSerializer serializes a user context to JSON
 // easyjson:json
 type UserContextSerializer struct {
@@ -622,6 +631,7 @@ type EventSerializer struct {
 	*NetworkContextSerializer         `json:"network,omitempty"`
 	*DDContextSerializer              `json:"dd,omitempty"`
 	*SecurityProfileContextSerializer `json:"security_profile,omitempty"`
+	*CGroupContextSerializer          `json:"cgroup,omitempty"`
 
 	*SELinuxEventSerializer   `json:"selinux,omitempty"`
 	*BPFEventSerializer       `json:"bpf,omitempty"`
