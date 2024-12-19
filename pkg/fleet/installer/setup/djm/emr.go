@@ -144,26 +144,27 @@ func setupEmrDriver(s *common.Setup, clusterName string) {
 	var sparkIntegration common.IntegrationConfig
 	var yarnIntegration common.IntegrationConfig
 
-	if clusterName != "" {
-		sparkIntegration.Instances = []any{
-			common.IntegrationConfigInstanceSpark{
-				SparkURL:         "http://127.0.0.1:8088",
-				SparkClusterMode: "spark_yarn_mode",
-				ClusterName:      clusterName,
-				StreamingMetrics: false,
-			},
-		}
-		yarnIntegration.Instances = []any{
-			common.IntegrationConfigInstanceYarn{
-				ResourceManagerURI: "http://127.0.0.1:8088",
-				ClusterName:        clusterName,
-			},
-		}
-		s.Config.IntegrationConfigs["spark.d/conf.yaml"] = sparkIntegration
-		s.Config.IntegrationConfigs["yarn.d/conf.yaml"] = yarnIntegration
-	} else {
+	if clusterName == "" {
 		log.Warn("clusterName is empty, Spark and yarn integrations are not set up")
+		return
 	}
+	sparkIntegration.Instances = []any{
+		common.IntegrationConfigInstanceSpark{
+			SparkURL:         "http://127.0.0.1:8088",
+			SparkClusterMode: "spark_yarn_mode",
+			ClusterName:      clusterName,
+			StreamingMetrics: false,
+		},
+	}
+	yarnIntegration.Instances = []any{
+		common.IntegrationConfigInstanceYarn{
+			ResourceManagerURI: "http://127.0.0.1:8088",
+			ClusterName:        clusterName,
+		},
+	}
+	s.Config.IntegrationConfigs["spark.d/conf.yaml"] = sparkIntegration
+	s.Config.IntegrationConfigs["yarn.d/conf.yaml"] = yarnIntegration
+
 }
 
 var executeCommandWithTimeout = func(command string, args ...string) ([]byte, error) {
@@ -174,7 +175,7 @@ var executeCommandWithTimeout = func(command string, args ...string) ([]byte, er
 	output, err := cmd.Output()
 
 	if err != nil {
-		return []byte(""), fmt.Errorf("error executing command: %w", err)
+		return nil, err
 	}
 
 	return output, nil
