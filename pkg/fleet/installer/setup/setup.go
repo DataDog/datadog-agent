@@ -25,6 +25,7 @@ type flavor struct {
 
 var flavors = map[string]flavor{
 	"databricks": {path: "djm/databricks.go", run: djm.SetupDatabricks},
+	"emr":        {path: "djm/emr.go", run: djm.SetupEmr},
 }
 
 // Setup installs Datadog.
