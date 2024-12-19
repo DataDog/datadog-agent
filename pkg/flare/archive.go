@@ -214,7 +214,7 @@ func getExpVar(fb flaretypes.FlareBuilder) error {
 
 	apmDebugPort := pkgconfigsetup.Datadog().GetInt("apm_config.debug.port")
 	f := filepath.Join("expvar", "trace-agent")
-	resp, err := http.Get(fmt.Sprintf("https://127.0.0.1:%d/debug/vars", apmDebugPort))
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/debug/vars", apmDebugPort))
 	if err != nil {
 		return fb.AddFile(f, []byte(fmt.Sprintf("Error retrieving vars: %v", err)))
 	}
@@ -392,6 +392,11 @@ func getProcessAgentTaggerList() ([]byte, error) {
 	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("wrong configuration to connect to process-agent")
+	}
+
+	err = apiutil.SetAuthToken(pkgconfigsetup.Datadog())
+	if err != nil {
+		return nil, err
 	}
 
 	taggerListURL := fmt.Sprintf("http://%s/agent/tagger-list", addressPort)

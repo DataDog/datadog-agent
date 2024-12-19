@@ -334,13 +334,16 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	// Get the file fields of the process binary
 	info, err := p.retrieveExecFileFields(procExecPath)
 	if err != nil {
+		if !os.IsNotExist(err) {
+			seclog.Errorf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
+		}
 		return fmt.Errorf("snapshot failed for %d: couldn't retrieve inode info: %w", proc.Pid, err)
 	}
 
 	// Retrieve the container ID of the process from /proc
 	containerID, cgroup, err := p.containerResolver.GetContainerContext(pid)
 	if err != nil {
-		return fmt.Errorf("snapshot failed for %d: couldn't parse container ID: %w", proc.Pid, err)
+		return fmt.Errorf("snapshot failed for %d: couldn't parse container and cgroup context: %w", proc.Pid, err)
 	}
 
 	entry.ContainerID = containerID
@@ -465,11 +468,11 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 func (p *EBPFResolver) retrieveExecFileFields(procExecPath string) (*model.FileFields, error) {
 	fi, err := os.Stat(procExecPath)
 	if err != nil {
-		return nil, fmt.Errorf("snapshot failed for `%s`: couldn't stat binary: %w", procExecPath, err)
+		return nil, err
 	}
 	stat, ok := fi.Sys().(*syscall.Stat_t)
 	if !ok {
-		return nil, fmt.Errorf("snapshot failed for `%s`: couldn't stat binary", procExecPath)
+		return nil, errors.New("wrong type")
 	}
 	inode := stat.Ino
 
@@ -483,11 +486,11 @@ func (p *EBPFResolver) retrieveExecFileFields(procExecPath string) (*model.FileF
 
 	var fileFields model.FileFields
 	if _, err := fileFields.UnmarshalBinary(data); err != nil {
-		return nil, fmt.Errorf("unable to unmarshal entry for inode `%d`", inode)
+		return nil, fmt.Errorf("unable to unmarshal entry for inode `%d`: %v", inode, err)
 	}
 
 	if fileFields.Inode == 0 {
-		return nil, errors.New("not found")
+		return nil, fmt.Errorf("inode `%d` not found: %v", inode, err)
 	}
 
 	return &fileFields, nil
