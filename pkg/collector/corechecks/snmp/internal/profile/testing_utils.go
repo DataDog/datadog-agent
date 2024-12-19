@@ -83,56 +83,55 @@ func FixtureProfileDefinitionMap() ProfileConfigMap {
 					{Tag: "snmp_host", Index: 0x0, Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 				},
 				Metadata: profiledefinition.MetadataConfig{
-					"device": {
-						Fields: map[string]profiledefinition.MetadataField{
-							"vendor": {
-								Value: "f5",
-							},
-							"description": {
-								Symbol: profiledefinition.SymbolConfig{
-									OID:  "1.3.6.1.2.1.1.1.0",
-									Name: "sysDescr",
-								},
-							},
-							"name": {
+					Device: profiledefinition.DeviceMetadata{
+						Fields: profiledefinition.DeviceMetadataFields{
+							Name: profiledefinition.MetadataField{
 								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.5.0",
 									Name: "sysName",
 								},
 							},
-							"serial_number": {
+							Description: profiledefinition.MetadataField{
+								Symbol: profiledefinition.SymbolConfig{
+									OID:  "1.3.6.1.2.1.1.1.0",
+									Name: "sysDescr",
+								},
+							},
+							Vendor: profiledefinition.MetadataField{
+								Value: "f5",
+							},
+							SerialNumber: profiledefinition.MetadataField{
 								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.4.1.3375.2.1.3.3.3.0",
 									Name: "sysGeneralChassisSerialNum",
 								},
 							},
-							"sys_object_id": {
+							Type: profiledefinition.MetadataField{
+								Value: "load_balancer",
+							},
+							SysObjectId: profiledefinition.MetadataField{
 								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.2.0",
 									Name: "sysObjectID",
 								},
 							},
-							"type": {
-								Value: "load_balancer",
-							},
 						},
 					},
-					"interface": {
-						Fields: map[string]profiledefinition.MetadataField{
-							"admin_status": {
+					Interface: profiledefinition.InterfaceMetadata{
+						Fields: profiledefinition.InterfaceMetadataFields{
+							Name: profiledefinition.MetadataField{
 								Symbol: profiledefinition.SymbolConfig{
-
-									OID:  "1.3.6.1.2.1.2.2.1.7",
-									Name: "ifAdminStatus",
+									OID:  "1.3.6.1.2.1.31.1.1.1.1",
+									Name: "ifName",
 								},
 							},
-							"alias": {
+							Alias: profiledefinition.MetadataField{
 								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.18",
 									Name: "ifAlias",
 								},
 							},
-							"description": {
+							Description: profiledefinition.MetadataField{
 								Symbol: profiledefinition.SymbolConfig{
 									OID:                  "1.3.6.1.2.1.31.1.1.1.1",
 									Name:                 "ifName",
@@ -140,20 +139,20 @@ func FixtureProfileDefinitionMap() ProfileConfigMap {
 									ExtractValueCompiled: regexp.MustCompile(`(Row\d)`),
 								},
 							},
-							"mac_address": {
+							MacAddress: profiledefinition.MetadataField{
 								Symbol: profiledefinition.SymbolConfig{
 									OID:    "1.3.6.1.2.1.2.2.1.6",
 									Name:   "ifPhysAddress",
 									Format: "mac_address",
 								},
 							},
-							"name": {
+							AdminStatus: profiledefinition.MetadataField{
 								Symbol: profiledefinition.SymbolConfig{
-									OID:  "1.3.6.1.2.1.31.1.1.1.1",
-									Name: "ifName",
+									OID:  "1.3.6.1.2.1.2.2.1.7",
+									Name: "ifAdminStatus",
 								},
 							},
-							"oper_status": {
+							OperStatus: profiledefinition.MetadataField{
 								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.2.2.1.8",
 									Name: "ifOperStatus",

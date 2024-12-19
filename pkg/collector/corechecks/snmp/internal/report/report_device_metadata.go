@@ -8,6 +8,7 @@ package report
 import (
 	json "encoding/json"
 	"net"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -137,58 +138,85 @@ func buildMetadataStore(metadataConfigs profiledefinition.MetadataConfig, values
 		return metadataStore
 	}
 
-	for resourceName, metadataConfig := range metadataConfigs {
-		for fieldName, field := range metadataConfig.Fields {
-			fieldFullName := resourceName + "." + fieldName
-
-			var symbols []profiledefinition.SymbolConfig
-			if field.Symbol.OID != "" {
-				symbols = append(symbols, field.Symbol)
+	// iterates over the fields of metadataConfigs
+	v := reflect.ValueOf(metadataConfigs)
+	for i := 0; i < v.NumField(); i++ {
+		// resource here is either Device &/or Interface
+		resourceName := v.Type().Field(i).Name
+		if resourceName == "Device" {
+			resource := v.Field(i).Interface().(profiledefinition.DeviceMetadata)
+			// iterate over the fields of the DeviceMetadata struct
+			for j := 0; j < reflect.ValueOf(resource).NumField(); j++ {
+				field := reflect.ValueOf(resource).Field(j).Interface().(profiledefinition.MetadataField)
+				fieldName := reflect.TypeOf(resource).Field(j).Name
+				buildResourceMetadataStore(field, fieldName, values, resourceName, metadataStore)
 			}
-			symbols = append(symbols, field.Symbols...)
-
-			if profiledefinition.IsMetadataResourceWithScalarOids(resourceName) {
-				for _, symbol := range symbols {
-					if metadataStore.ScalarFieldHasValue(fieldFullName) {
-						break
-					}
-					value, err := getScalarValueFromSymbol(values, symbol)
-					if err != nil {
-						log.Debugf("error getting scalar value: %v", err)
-						continue
-					}
-					metadataStore.AddScalarValue(fieldFullName, value)
-
+		} else if resourceName == "Interface" {
+			resource := v.Field(i).Interface().(profiledefinition.InterfaceMetadata)
+			// iterate over the fields of the InterfaceMetadata struct
+			for j := 0; j < reflect.ValueOf(resource).NumField(); j++ {
+				field := reflect.ValueOf(resource).Field(j).Interface().(profiledefinition.MetadataField)
+				fieldName := reflect.TypeOf(resource).Field(j).Name
+				buildResourceMetadataStore(field, fieldName, values, resourceName, metadataStore)
+			}
+			// only Interface has an indexOid and IDTags set in the profile
+			indexOid := metadata.GetIndexOIDForResource(resourceName)
+			if indexOid != "" {
+				indexes, err := values.GetColumnIndexes(indexOid)
+				if err != nil {
+					continue
 				}
-				if field.Value != "" && !metadataStore.ScalarFieldHasValue(fieldFullName) {
-					metadataStore.AddScalarValue(fieldFullName, valuestore.ResultValue{Value: field.Value})
-				}
-			} else {
-				for _, symbol := range symbols {
-					metricValues, err := getColumnValueFromSymbol(values, symbol)
-					if err != nil {
-						continue
-					}
-					for fullIndex, value := range metricValues {
-						metadataStore.AddColumnValue(fieldFullName, fullIndex, value)
-					}
+				for _, fullIndex := range indexes {
+					// TODO: Support extract value see II-635
+					idTags := getTagsFromMetricTagConfigList(resource.IDTags, fullIndex, values)
+					metadataStore.AddIDTags(resourceName, fullIndex, idTags)
 				}
 			}
-		}
-		indexOid := metadata.GetIndexOIDForResource(resourceName)
-		if indexOid != "" {
-			indexes, err := values.GetColumnIndexes(indexOid)
-			if err != nil {
-				continue
-			}
-			for _, fullIndex := range indexes {
-				// TODO: Support extract value see II-635
-				idTags := getTagsFromMetricTagConfigList(metadataConfig.IDTags, fullIndex, values)
-				metadataStore.AddIDTags(resourceName, fullIndex, idTags)
-			}
+		} else {
+			// we only expect two types of resources: Device & Interface
+			// if this is not the case, log an error and return the metadataStore as is
+			log.Error("unexpected resource type: %s", resourceName)
+			return metadataStore
 		}
 	}
 	return metadataStore
+}
+
+func buildResourceMetadataStore(field profiledefinition.MetadataField, fieldName string, values *valuestore.ResultValueStore, resourceName string, metadataStore *metadata.Store) {
+	fieldFullName := resourceName + "." + fieldName
+	var symbols []profiledefinition.SymbolConfig
+	if field.Symbol.OID != "" {
+		symbols = append(symbols, field.Symbol)
+	}
+	symbols = append(symbols, field.Symbols...)
+
+	if profiledefinition.IsMetadataResourceWithScalarOids(resourceName) {
+		for _, symbol := range symbols {
+			if metadataStore.ScalarFieldHasValue(fieldFullName) {
+				break
+			}
+			value, err := getScalarValueFromSymbol(values, symbol)
+			if err != nil {
+				log.Debugf("error getting scalar value: %v", err)
+				continue
+			}
+			metadataStore.AddScalarValue(fieldFullName, value)
+
+		}
+		if field.Value != "" && !metadataStore.ScalarFieldHasValue(fieldFullName) {
+			metadataStore.AddScalarValue(fieldFullName, valuestore.ResultValue{Value: field.Value})
+		}
+	} else {
+		for _, symbol := range symbols {
+			metricValues, err := getColumnValueFromSymbol(values, symbol)
+			if err != nil {
+				continue
+			}
+			for fullIndex, value := range metricValues {
+				metadataStore.AddColumnValue(fieldFullName, fullIndex, value)
+			}
+		}
+	}
 }
 
 func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkconfig.CheckConfig, store *metadata.Store, tags []string, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus) devicemetadata.DeviceMetadata {

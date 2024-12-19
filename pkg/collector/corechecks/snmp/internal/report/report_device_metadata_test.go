@@ -71,9 +71,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 			},
 		}),
 		Metadata: profiledefinition.MetadataConfig{
-			"device": {
-				Fields: map[string]profiledefinition.MetadataField{
-					"name": {
+			Device: profiledefinition.DeviceMetadata{
+				Fields: profiledefinition.DeviceMetadataFields{
+					Name: profiledefinition.MetadataField{
 						// Should use value from Symbol `1.3.6.1.2.1.1.5.0`
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.1.5.0",
@@ -86,7 +86,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 							},
 						},
 					},
-					"description": {
+					Description: profiledefinition.MetadataField{
 						// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.9999",
@@ -99,7 +99,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 							},
 						},
 					},
-					"location": {
+					Location: profiledefinition.MetadataField{
 						// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.9999",
@@ -120,7 +120,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 							},
 						},
 					},
-					"type": {
+					Type: profiledefinition.MetadataField{
 						Value: "router",
 					},
 				},
@@ -297,34 +297,34 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
 		Metadata: profiledefinition.MetadataConfig{
-			"device": {
-				Fields: map[string]profiledefinition.MetadataField{
-					"type": {
+			Device: profiledefinition.DeviceMetadata{
+				Fields: profiledefinition.DeviceMetadataFields{
+					Type: profiledefinition.MetadataField{
 						Value: "switch",
 					},
 				},
 			},
-			"interface": {
-				Fields: map[string]profiledefinition.MetadataField{
-					"name": {
+			Interface: profiledefinition.InterfaceMetadata{
+				Fields: profiledefinition.InterfaceMetadataFields{
+					Name: profiledefinition.MetadataField{
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "ifName",
 						},
 					},
-					"alias": {
+					Alias: profiledefinition.MetadataField{
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.18",
 							Name: "ifAlias",
 						},
 					},
-					"admin_status": {
+					AdminStatus: profiledefinition.MetadataField{
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.2.2.1.7",
 							Name: "ifAdminStatus",
 						},
 					},
-					"oper_status": {
+					OperStatus: profiledefinition.MetadataField{
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.2.2.1.8",
 							Name: "ifOperStatus",
@@ -448,16 +448,16 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
 		Metadata: profiledefinition.MetadataConfig{
-			"device": {
-				Fields: map[string]profiledefinition.MetadataField{
-					"name": {
+			Device: profiledefinition.DeviceMetadata{
+				Fields: profiledefinition.DeviceMetadataFields{
+					Name: profiledefinition.MetadataField{
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.999",
 							Name: "doesNotExist",
 						},
 						Value: "my-fallback-value",
 					},
-					"type": {
+					Type: profiledefinition.MetadataField{
 						Value: "firewall",
 					},
 				},
@@ -523,9 +523,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
 		Metadata: profiledefinition.MetadataConfig{
-			"device": {
-				Fields: map[string]profiledefinition.MetadataField{
-					"name": {
+			Device: profiledefinition.DeviceMetadata{
+				Fields: profiledefinition.DeviceMetadataFields{
+					Name: profiledefinition.MetadataField{
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.999",
 							Name: "doesNotExist",
@@ -594,9 +594,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
 		Metadata: profiledefinition.MetadataConfig{
-			"device": {
-				Fields: map[string]profiledefinition.MetadataField{
-					"name": {
+			Device: profiledefinition.DeviceMetadata{
+				Fields: profiledefinition.DeviceMetadataFields{
+					Name: profiledefinition.MetadataField{
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.999",
 							Name: "doesNotExist",
@@ -666,9 +666,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
 		Metadata: profiledefinition.MetadataConfig{
-			"device": {
-				Fields: map[string]profiledefinition.MetadataField{
-					"name": {
+			Device: profiledefinition.DeviceMetadata{
+				Fields: profiledefinition.DeviceMetadataFields{
+					Name: profiledefinition.MetadataField{
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.999",
 							Name: "doesNotExist",
