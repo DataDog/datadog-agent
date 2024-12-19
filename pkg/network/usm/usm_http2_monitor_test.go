@@ -1242,6 +1242,61 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}: 1,
 			},
 		},
+		{
+			name: "interesting frame split into multiple packets",
+			// Testing a scenario where an interesting frame is split into multiple packets.
+			// First, headers is split to frame-header and then frame-payload.
+			// Second, data is split to frame-header, portion of the frame-payload, and the rest of the frame-payload.
+			messageBuilder: func() [][]byte {
+				data := []byte("123456789")
+				headersFrame := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})})
+				headersLength := headersFrame.buf.Len()
+				frame := headersFrame.writeData(t, 1, true, data).bytes()
+				return [][]byte{
+					frame[:9],
+					frame[9:headersLength],
+					frame[headersLength : headersLength+9],
+					frame[headersLength+9 : headersLength+12],
+					frame[headersLength+12:],
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "headers frame split into multiple packets unevenly",
+			// Testing a scenario where a headers frame is split into multiple packets in a way that the first packet
+			// contains the frame header and a couple of bytes from the frame payload, and the second packet contains
+			// the rest of the frame payload.
+			// This scenario is not supported, as we don't have the ability to reassemble the frame payload, and then
+			// to parse it.
+			// We check the unsupported scenario does not prevent us from capturing the next valid request.
+			messageBuilder: func() [][]byte {
+				data := []byte("123456789")
+				message := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})})
+				headersLength := message.buf.Len()
+				frame := message.writeData(t, 1, true, data).
+					writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/bbb")}).
+					writeData(t, 3, true, emptyBody).bytes()
+				return [][]byte{
+					frame[:10],
+					frame[10:headersLength],
+					frame[headersLength:],
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/bbb")},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1351,9 +1406,9 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 	}
 }
 
-// TestRemainderTable tests the remainder table map.
+// TestIncompleteFrameTable tests the http2_incomplete_frame table map.
 // We would like to make sure that the remainder table map is being updated correctly.
-func (s *usmHTTP2Suite) TestRemainderTable() {
+func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 	t := s.T()
 	cfg := s.getCfg()
 
@@ -1400,7 +1455,7 @@ func (s *usmHTTP2Suite) TestRemainderTable() {
 					a[10:],
 				}
 			},
-			mapSize: 1,
+			mapSize: 0,
 		},
 	}
 	for _, tt := range tests {
@@ -1416,7 +1471,7 @@ func (s *usmHTTP2Suite) TestRemainderTable() {
 			require.NoError(t, writeInput(c, 500*time.Millisecond, tt.messageBuilder()...))
 
 			assert.Eventually(t, func() bool {
-				require.Len(t, getRemainderTableMapKeys(t, usmMonitor.ebpfProgram), tt.mapSize)
+				require.Len(t, getIncompleteFrameTableMapKeys(t, usmMonitor.ebpfProgram), tt.mapSize)
 				return true
 			}, time.Second*5, time.Millisecond*100, "")
 			if t.Failed() {
@@ -1877,14 +1932,14 @@ func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDyn
 	require.EqualValues(t, expectedDynamicTablePathIndexes, resultIndexes)
 }
 
-// getRemainderTableMapKeys returns the keys of the remainder table map.
-func getRemainderTableMapKeys(t *testing.T, ebpfProgram *ebpfProgram) []usmhttp.ConnTuple {
-	remainderMap, _, err := ebpfProgram.GetMap("http2_remainder")
+// getIncompleteFrameTableMapKeys returns the keys of the incomplete frame table map.
+func getIncompleteFrameTableMapKeys(t *testing.T, ebpfProgram *ebpfProgram) []usmhttp.ConnTuple {
+	incompleteFrameMap, _, err := ebpfProgram.GetMap("http2_incomplete_frames")
 	require.NoError(t, err)
 	resultIndexes := make([]usmhttp.ConnTuple, 0)
 	var key usmhttp2.ConnTuple
-	var value usmhttp2.HTTP2RemainderEntry
-	iterator := remainderMap.Iterate()
+	var value usmhttp2.HTTP2IncompleteFrameEntry
+	iterator := incompleteFrameMap.Iterate()
 
 	for iterator.Next(&key, &value) {
 		resultIndexes = append(resultIndexes, key)
