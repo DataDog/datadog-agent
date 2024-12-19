@@ -6,6 +6,7 @@
 package apiserver
 
 import (
+	"crypto/tls"
 	"net/http"
 	"testing"
 	"time"
@@ -44,7 +45,15 @@ func TestLifecycle(t *testing.T) {
 	))
 
 	assert.Eventually(t, func() bool {
-		res, err := http.Get("http://localhost:6162/config")
+		client := &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		}
+
+		res, err := client.Get("https://localhost:6162/config")
 		if err != nil {
 			return false
 		}
