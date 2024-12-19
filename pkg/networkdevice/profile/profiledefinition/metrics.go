@@ -66,9 +66,8 @@ type SymbolConfig struct {
 	ExtractValue         string         `yaml:"extract_value,omitempty" json:"extract_value,omitempty"`
 	ExtractValueCompiled *regexp.Regexp `yaml:"-" json:"-"`
 
-	// MatchPattern/MatchValue are not exposed as json (UI) since ExtractValue can be used instead
-	MatchPattern         string         `yaml:"match_pattern,omitempty" json:"-"`
-	MatchValue           string         `yaml:"match_value,omitempty" json:"-"`
+	MatchPattern         string         `yaml:"match_pattern,omitempty" json:"match_pattern,omitempty"`
+	MatchValue           string         `yaml:"match_value,omitempty" json:"match_value,omitempty"`
 	MatchPatternCompiled *regexp.Regexp `yaml:"-" json:"-"`
 
 	ScaleFactor      float64 `yaml:"scale_factor,omitempty" json:"scale_factor,omitempty"`
@@ -97,12 +96,15 @@ type MetricTagConfig struct {
 	// Table config
 	Index uint `yaml:"index,omitempty" json:"index,omitempty"`
 
-	// DEPRECATED: Column field is deprecated in favour Symbol field
+	// DEPRECATED: Use .Symbol instead
 	Column SymbolConfig `yaml:"column,omitempty" json:"-"`
 
-	// Symbol config
-	OID string `yaml:"OID,omitempty" json:"-"  jsonschema:"-"` // DEPRECATED replaced by Symbol field
-	// Using Symbol field below as string is deprecated
+	// DEPRECATED: use .Symbol instead
+	OID string `yaml:"OID,omitempty" json:"-"  jsonschema:"-"`
+	// Symbol records the OID to be parsed. Note that .Symbol.Name is ignored:
+	// set .Tag to specify the tag name. If a serialized Symbol is a string
+	// instead of an object, it will be treated like {name: <value>}; this use
+	// pattern is deprecated
 	Symbol SymbolConfigCompat `yaml:"symbol,omitempty" json:"symbol,omitempty"`
 
 	IndexTransform []MetricIndexTransform `yaml:"index_transform,omitempty" json:"index_transform,omitempty"`
@@ -156,8 +158,9 @@ type MetricsConfig struct {
 	// Symbol configs
 	Symbol SymbolConfig `yaml:"symbol,omitempty" json:"symbol,omitempty"`
 
-	// Legacy Symbol configs syntax
-	OID  string `yaml:"OID,omitempty" json:"OID,omitempty" jsonschema:"-"`
+	// DEPRECATED: Use .Symbol instead
+	OID string `yaml:"OID,omitempty" json:"OID,omitempty" jsonschema:"-"`
+	// DEPRECATED: Use .Symbol instead
 	Name string `yaml:"name,omitempty" json:"name,omitempty" jsonschema:"-"`
 
 	// Table configs
@@ -167,11 +170,12 @@ type MetricsConfig struct {
 	StaticTags []string            `yaml:"static_tags,omitempty" json:"-"`
 	MetricTags MetricTagConfigList `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
 
-	ForcedType ProfileMetricType `yaml:"forced_type,omitempty" json:"forced_type,omitempty" jsonschema:"-"` // deprecated in favour of metric_type
-	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty"`
+	// DEPRECATED: use Symbol.MetricType instead.
+	ForcedType ProfileMetricType `yaml:"forced_type,omitempty" json:"forced_type,omitempty" jsonschema:"-"`
+	// DEPRECATED: use Symbol.MetricType instead.
+	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty" jsonschema:"-"`
 
-	// `options` is not exposed as json at the moment since we need to evaluate if we want to expose it via UI
-	Options MetricsConfigOption `yaml:"options,omitempty" json:"-"`
+	Options MetricsConfigOption `yaml:"options,omitempty" json:"options,omitempty"`
 }
 
 // Clone duplicates this MetricsConfig
