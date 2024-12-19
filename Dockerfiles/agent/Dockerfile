@@ -226,6 +226,7 @@ VOLUME ["/var/run/s6", "/var/log/datadog"]
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
 ENV LD_PRELOAD=/opt/lib/nosys.so
+ENV AGENT_LD_PRELOAD=/opt/lib/nosys.so
 
 # Single entrypoint
 COPY --chmod=755 entrypoint.sh /bin/entrypoint.sh

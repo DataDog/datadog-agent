@@ -1,4 +1,5 @@
 #!/usr/bin/execlineb -P
 
 foreground { /initlog.sh "starting agent" }
+env LD_PRELOAD=AGENT_LD_PRELOAD
 agent run
