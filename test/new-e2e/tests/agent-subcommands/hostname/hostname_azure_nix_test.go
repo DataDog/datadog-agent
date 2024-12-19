@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	azurehost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/azure/host/linux"
+	azurehost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/azure/host/linux"
 )
 
 type linuxAzureHostnameSuite struct {

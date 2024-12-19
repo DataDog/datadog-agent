@@ -22,8 +22,8 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 )
 
 // gpuEnabledAMI is an AMI that has GPU drivers pre-installed. In this case it's
@@ -89,8 +89,8 @@ func getDefaultProvisionerParams() *provisionerParams {
 	}
 }
 
-func gpuInstanceProvisioner(params *provisionerParams) e2e.Provisioner {
-	return e2e.NewTypedPulumiProvisioner[environments.Host]("gpu", func(ctx *pulumi.Context, env *environments.Host) error {
+func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner {
+	return provisioners.NewTypedPulumiProvisioner[environments.Host]("gpu", func(ctx *pulumi.Context, env *environments.Host) error {
 		name := "gpuvm"
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {

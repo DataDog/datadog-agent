@@ -8,8 +8,9 @@ package installscript
 import (
 	"fmt"
 
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
 const (

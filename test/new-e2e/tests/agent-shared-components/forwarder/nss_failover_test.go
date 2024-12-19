@@ -31,6 +31,7 @@ import (
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
@@ -82,7 +83,7 @@ var customLogsConfigTmplFile string
 //go:embed testfixtures/config.yaml.tmpl
 var configTmplFile string
 
-func multiFakeIntakeAWS(agentOptions ...agentparams.Option) e2e.Provisioner {
+func multiFakeIntakeAWS(agentOptions ...agentparams.Option) provisioners.Provisioner {
 	runFunc := func(ctx *pulumi.Context, env *multiFakeIntakeEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -116,7 +117,7 @@ func multiFakeIntakeAWS(agentOptions ...agentparams.Option) e2e.Provisioner {
 		return nil
 	}
 
-	return e2e.NewTypedPulumiProvisioner("aws-nssfailover", runFunc, nil)
+	return provisioners.NewTypedPulumiProvisioner("aws-nssfailover", runFunc, nil)
 }
 
 type multiFakeIntakeSuite struct {
