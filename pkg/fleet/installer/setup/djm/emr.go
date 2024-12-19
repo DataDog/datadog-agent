@@ -22,32 +22,34 @@ const (
 	emrInjectorVersion     = "0.26.0-1"
 	emrJavaVersion         = "1.42.2-1"
 	emrAgentVersion        = "7.58.2-1"
-	emrInfoPath            = "/mnt/var/lib/info"
 	commandTimeoutDuration = 10 * time.Second
 )
 
-var tracerEnvConfigEmr = []common.InjectTracerConfigEnvVar{
-	{
-		Key:   "DD_DATA_JOBS_ENABLED",
-		Value: "true",
-	},
-	{
-		Key:   "DD_INTEGRATIONS_ENABLED",
-		Value: "false",
-	},
-	{
-		Key:   "DD_DATA_JOBS_COMMAND_PATTERN",
-		Value: ".*org.apache.spark.deploy.*",
-	},
-	{
-		Key:   "DD_SPARK_APP_NAME_AS_SERVICE",
-		Value: "true",
-	},
-	{
-		Key:   "DD_INJECT_FORCE",
-		Value: "true",
-	},
-}
+var (
+	emrInfoPath        = "/mnt/var/lib/info"
+	tracerEnvConfigEmr = []common.InjectTracerConfigEnvVar{
+		{
+			Key:   "DD_DATA_JOBS_ENABLED",
+			Value: "true",
+		},
+		{
+			Key:   "DD_INTEGRATIONS_ENABLED",
+			Value: "false",
+		},
+		{
+			Key:   "DD_DATA_JOBS_COMMAND_PATTERN",
+			Value: ".*org.apache.spark.deploy.*",
+		},
+		{
+			Key:   "DD_SPARK_APP_NAME_AS_SERVICE",
+			Value: "true",
+		},
+		{
+			Key:   "DD_INJECT_FORCE",
+			Value: "true",
+		},
+	}
+)
 
 type emrInstanceInfo struct {
 	IsMaster        string `json:"isMaster"`
@@ -163,7 +165,7 @@ func setupEmrDriver(s *common.Setup, host string, clusterName string) {
 	}
 }
 
-func executeCommandWithTimeout(command string, args ...string) ([]byte, error) {
+var executeCommandWithTimeout = func(command string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), commandTimeoutDuration)
 	defer cancel()
 
