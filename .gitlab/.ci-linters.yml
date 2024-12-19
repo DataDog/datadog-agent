@@ -94,7 +94,7 @@ job-owners:
     - single-machine-performance-regression_detector
     - single-machine-performance-regression_detector_otel
     - single-machine-performance-regression_detector-otel-oss
-    - single-machine-performance-regression_detector_otel_vs_oos    
+    - single-machine-performance-regression_detector-otel-vs-oss
     - single-machine-performance-regression_detector-pr-comment
     - test_install_script
     - trace-agent-v04-2cpus-normal_load-fixed_sps

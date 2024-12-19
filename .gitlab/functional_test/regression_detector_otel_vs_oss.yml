@@ -1,4 +1,4 @@
-single-machine-performance-regression_detector_otel_vs_oos:
+single-machine-performance-regression_detector-otel-vs-oss:
   stage: functional_test
   timeout: 1h10m
   rules:
