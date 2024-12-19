@@ -155,7 +155,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "trace", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, logLevelDefaultOff.Value(), true)}),
 				core.Bundle(),
 				aggregator.Bundle(demultiplexerimpl.NewDefaultParams()),
 				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
@@ -306,7 +306,7 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 	deviceID := namespace + ":" + connParams.IPAddress
 	// Since the snmp connection can take a while, start by sending an in progress status for the start of the scan
 	// before connecting to the agent
-	InProgressStatusPayload := metadata.NetworkDevicesMetadata{
+	inProgressStatusPayload := metadata.NetworkDevicesMetadata{
 		DeviceScanStatus: &metadata.ScanStatusMetadata{
 			DeviceID:   deviceID,
 			ScanStatus: metadata.ScanStatusInProgress,
@@ -314,12 +314,12 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 		CollectTimestamp: time.Now().Unix(),
 		Namespace:        namespace,
 	}
-	if err = snmpScanner.SendPayload(InProgressStatusPayload); err != nil {
+	if err = snmpScanner.SendPayload(inProgressStatusPayload); err != nil {
 		return fmt.Errorf("unable to send in progress status: %v", err)
 	}
 	if err = snmp.Connect(); err != nil {
 		// Send an error status if we can't connect to the agent
-		ErrorStatusPayload := metadata.NetworkDevicesMetadata{
+		errorStatusPayload := metadata.NetworkDevicesMetadata{
 			DeviceScanStatus: &metadata.ScanStatusMetadata{
 				DeviceID:   deviceID,
 				ScanStatus: metadata.ScanStatusError,
@@ -327,7 +327,7 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 			CollectTimestamp: time.Now().Unix(),
 			Namespace:        namespace,
 		}
-		if err = snmpScanner.SendPayload(ErrorStatusPayload); err != nil {
+		if err = snmpScanner.SendPayload(errorStatusPayload); err != nil {
 			return fmt.Errorf("unable to send error status: %v", err)
 		}
 		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
@@ -335,7 +335,7 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 	err = snmpScanner.RunDeviceScan(snmp, namespace, deviceID)
 	if err != nil {
 		// Send an error status if we can't scan the device
-		ErrorStatusPayload := metadata.NetworkDevicesMetadata{
+		errorStatusPayload := metadata.NetworkDevicesMetadata{
 			DeviceScanStatus: &metadata.ScanStatusMetadata{
 				DeviceID:   deviceID,
 				ScanStatus: metadata.ScanStatusError,
@@ -343,13 +343,13 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 			CollectTimestamp: time.Now().Unix(),
 			Namespace:        namespace,
 		}
-		if err = snmpScanner.SendPayload(ErrorStatusPayload); err != nil {
+		if err = snmpScanner.SendPayload(errorStatusPayload); err != nil {
 			return fmt.Errorf("unable to send error status: %v", err)
 		}
 		return fmt.Errorf("unable to perform device scan: %v", err)
 	}
 	// Send a completed status if the scan was successful
-	CompletedStatusPayload := metadata.NetworkDevicesMetadata{
+	completedStatusPayload := metadata.NetworkDevicesMetadata{
 		DeviceScanStatus: &metadata.ScanStatusMetadata{
 			DeviceID:   deviceID,
 			ScanStatus: metadata.ScanStatusCompleted,
@@ -357,7 +357,7 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 		CollectTimestamp: time.Now().Unix(),
 		Namespace:        namespace,
 	}
-	if err = snmpScanner.SendPayload(CompletedStatusPayload); err != nil {
+	if err = snmpScanner.SendPayload(completedStatusPayload); err != nil {
 		return fmt.Errorf("unable to send completed status: %v", err)
 	}
 	return nil
