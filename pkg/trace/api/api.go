@@ -567,13 +567,15 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}
 	defer req.Body.Close()
 
+	decoderTimeout := time.NewTimer(time.Duration(r.conf.DecoderTimeout) * time.Millisecond)
 	select {
 	// Wait for the semaphore to become available, allowing the handler to
 	// decode its payload.
-	// Afer the configured timeout, respond without ingesting the payload,
+	// After the configured timeout, respond without ingesting the payload,
 	// and sending the configured status.
 	case r.recvsem <- struct{}{}:
-	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
+		decoderTimeout.Stop()
+	case <-decoderTimeout.C:
 		// this payload can not be accepted
 		io.Copy(io.Discard, req.Body) //nolint:errcheck
 		if h := req.Header.Get(header.SendRealHTTPStatus); h != "" {
