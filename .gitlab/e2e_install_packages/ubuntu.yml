@@ -99,6 +99,16 @@ new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a7-x86_64:
   variables:
     FLAVOR: datadog-heroku-agent
 
+new-e2e-agent-platform-install-script-ubuntu-fips-agent-a7-x86_64:
+  extends:
+    - .new_e2e_template
+    - .new-e2e_install_script
+    - .new-e2e_os_ubuntu
+    - .new-e2e_ubuntu_a7_x86_64
+    - .new-e2e_agent_a7
+  variables:
+    FLAVOR: datadog-fips-agent
+
 new-e2e-agent-platform-step-by-step-ubuntu-a7-x86_64:
   extends:
     - .new_e2e_template
