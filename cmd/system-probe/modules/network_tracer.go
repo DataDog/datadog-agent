@@ -110,6 +110,8 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		count := runCounter.Inc()
 		logRequests(id, count, len(cs.Conns), start)
+
+		nt.tracer.ReleaseProtocolStats(cs)
 	}))
 
 	httpMux.HandleFunc("/network_id", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {

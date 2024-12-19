@@ -151,6 +151,11 @@ func (p *protocol) Name() string {
 	return "postgres"
 }
 
+// Type returns the protocol type
+func (p *protocol) Type() protocols.ProtocolType {
+	return protocols.Postgres
+}
+
 // ConfigureOptions add the necessary options for the postgres monitoring to work, to be used by the manager.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	opts.MapSpecEditors[InFlightMap] = manager.MapSpecEditor{
