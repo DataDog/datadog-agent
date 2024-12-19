@@ -32,7 +32,7 @@ type ConnStats struct {
 	Protocol_stack ProtocolStack
 	Flags          uint8
 	Direction      uint8
-	Pad_cgo_0      [6]byte
+	Tls_tags       TLSTags
 }
 type Conn struct {
 	Tup        ConnTuple
@@ -103,6 +103,16 @@ type ProtocolStackWrapper struct {
 	Stack   ProtocolStack
 	Updated uint64
 }
+type TLSTags struct {
+	Chosen_version   uint16
+	Cipher_suite     uint16
+	Offered_versions uint8
+	Pad_cgo_0        [1]byte
+}
+type TLSTagsWrapper struct {
+	Info    TLSTags
+	Updated uint64
+}
 
 type _Ctype_struct_sock uint64
 type _Ctype_struct_msghdr uint64
@@ -135,7 +145,9 @@ const SizeofConn = 0x78
 type ClassificationProgram = uint32
 
 const (
-	ClassificationQueues ClassificationProgram = 0x2
-	ClassificationDBs    ClassificationProgram = 0x3
-	ClassificationGRPC   ClassificationProgram = 0x5
+	ClassificationTLSClient ClassificationProgram = 0x7
+	ClassificationTLSServer ClassificationProgram = 0x8
+	ClassificationQueues    ClassificationProgram = 0x2
+	ClassificationDBs       ClassificationProgram = 0x3
+	ClassificationGRPC      ClassificationProgram = 0x5
 )
