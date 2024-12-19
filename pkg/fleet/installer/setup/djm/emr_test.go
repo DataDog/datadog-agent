@@ -8,6 +8,7 @@ package djm
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,10 +21,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 )
 
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+//go:embed testdata/instance.json
+var instanceJSON string
+
+//go:embed testdata/extraInstanceData.json
+var extraInstanceJSON string
+
+//go:embed testdata/emrDescribeClusterResponse.json
+var emrDescribeClusterResponse string
 
 func TestSetupCommonEmrHostTags(t *testing.T) {
 
@@ -33,34 +38,24 @@ func TestSetupCommonEmrHostTags(t *testing.T) {
 
 	executeCommandWithTimeout = func(command string, args ...string) ([]byte, error) {
 		if command == "aws" && args[0] == "emr" && args[1] == "describe-cluster" {
-			return []byte(`{"Cluster": {"Name": "TestCluster"}}`), nil
+			return []byte(emrDescribeClusterResponse), nil
 		}
 		return nil, fmt.Errorf("unexpected command: %s", command)
 	}
 
 	// Write info files in temp dir
 	emrInfoPath = t.TempDir()
-	instanceJSON := `{"InstanceGroupID": "ig-123", "IsMaster": true}`
-	extraInstanceJSON := `{"JobFlowID": "j-456", "ReleaseLabel": "emr-7.2.0"}`
-	err := os.WriteFile(filepath.Join(emrInfoPath, "instance.json"), []byte(instanceJSON), 0644)
 
-	if err != nil {
-		t.Fatalf("failed to write instance.json: %v", err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(emrInfoPath, "instance.json"), []byte(instanceJSON), 0644))
 
-	err = os.WriteFile(filepath.Join(emrInfoPath, "extraInstanceData.json"), []byte(extraInstanceJSON), 0644)
-	if err != nil {
-		t.Fatalf("failed to write extraInstanceData.json: %v", err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(emrInfoPath, "extraInstanceData.json"), []byte(extraInstanceJSON), 0644))
 
 	tests := []struct {
 		name     string
-		env      map[string]string
 		wantTags []string
 	}{
 		{
 			name: "basic fields json",
-
 			wantTags: []string{
 				"instance_group_id:ig-123",
 				"is_master_node:true",
@@ -73,10 +68,6 @@ func TestSetupCommonEmrHostTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			os.Clearenv()
-			for k, v := range tt.env {
-				require.NoError(t, os.Setenv(k, v))
-			}
 			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
 			s := &common.Setup{Span: span}
 
