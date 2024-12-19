@@ -40,8 +40,9 @@
             return;                                                                                     \
         }                                                                                               \
                                                                                                         \
-        u64 use_ring_buffer;                                                                            \
+        u64 use_ring_buffer, use_ring_buffer_with_telemetry;                             \
         LOAD_CONSTANT("use_ring_buffer", use_ring_buffer);                                              \
+        LOAD_CONSTANT("use_ring_buffer_with_telemetry", use_ring_buffer_with_telemetry);                \
         long perf_ret;                                                                                  \
                                                                                                         \
         _Pragma(_STR(unroll(BATCH_PAGES_PER_CPU)))                                                      \
@@ -54,8 +55,14 @@
                     return;                                                                             \
                 }                                                                                       \
                                                                                                         \
-                if (use_ring_buffer) {                                                                  \
+                if (use_ring_buffer_with_telemetry) {                                                   \
                     perf_ret = bpf_ringbuf_output_with_telemetry(                                       \
+                    &name##_batch_events,                                                               \
+                    batch,                                                                              \
+                    sizeof(batch_data_t),                                                               \
+                    0);                                                                                 \
+                } else if (use_ring_buffer) {                                                           \
+                    perf_ret = bpf_ringbuf_output(                                                      \
                     &name##_batch_events,                                                               \
                     batch,                                                                              \
                     sizeof(batch_data_t),                                                               \
