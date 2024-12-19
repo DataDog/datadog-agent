@@ -107,7 +107,7 @@ cleanup:
 #define O_WRONLY        00000001
 #endif
 
-static int should_ignore_flags(int flags)
+static __always_inline int should_ignore_flags(int flags)
 {
     return flags & O_WRONLY;
 }
