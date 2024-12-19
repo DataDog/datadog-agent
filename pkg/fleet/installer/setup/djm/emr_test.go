@@ -40,7 +40,7 @@ func TestSetupCommonEmrHostTags(t *testing.T) {
 
 	// Write info files in temp dir
 	emrInfoPath = t.TempDir()
-	instanceJSON := `{"InstanceGroupID": "ig-123", "IsMaster": "true"}`
+	instanceJSON := `{"InstanceGroupID": "ig-123", "IsMaster": true}`
 	extraInstanceJSON := `{"JobFlowID": "j-456", "ReleaseLabel": "emr-7.2.0"}`
 	err := os.WriteFile(filepath.Join(emrInfoPath, "instance.json"), []byte(instanceJSON), 0644)
 

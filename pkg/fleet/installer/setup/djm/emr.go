@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -52,7 +53,7 @@ var (
 )
 
 type emrInstanceInfo struct {
-	IsMaster        string `json:"isMaster"`
+	IsMaster        bool   `json:"isMaster"`
 	InstanceGroupID string `json:"instanceGroupId"`
 }
 
@@ -88,26 +89,26 @@ func SetupEmr(s *common.Setup) error {
 	if err != nil {
 		return fmt.Errorf("failed to set tags: %w", err)
 	}
-	if isMaster == "true" {
+	if isMaster {
 		setupEmrDriver(s, clusterName)
 	}
 	return nil
 }
 
-func setupCommonEmrHostTags(s *common.Setup) (string, string, error) {
+func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 
 	instanceInfoRaw, err := os.ReadFile(filepath.Join(emrInfoPath, "instance.json"))
 	if err != nil {
-		return "", "", fmt.Errorf("error reading instance file: %w", err)
+		return false, "", fmt.Errorf("error reading instance file: %w", err)
 	}
 
 	var info emrInstanceInfo
 	if err = json.Unmarshal(instanceInfoRaw, &info); err != nil {
-		return "", "", fmt.Errorf("error umarshalling instance file: %w", err)
+		return false, "", fmt.Errorf("error umarshalling instance file: %w", err)
 	}
 
 	setHostTag(s, "instance_group_id", info.InstanceGroupID)
-	setHostTag(s, "is_master_node", info.IsMaster)
+	setHostTag(s, "is_master_node", strconv.FormatBool(info.IsMaster))
 	s.Span.SetTag("host_tag."+"is_master_node", info.IsMaster)
 
 	extraInstanceInfoRaw, err := os.ReadFile(filepath.Join(emrInfoPath, "extraInstanceData.json"))
