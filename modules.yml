@@ -147,6 +147,9 @@ modules:
     used_by_otel: true
   pkg/errors: default
   pkg/gohai: default
+  pkg/linters/components/compimpl:
+    independent: false
+    should_tag: false
   pkg/linters/components/pkgconfigusage:
     independent: false
     should_tag: false
