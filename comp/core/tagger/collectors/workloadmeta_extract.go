@@ -149,6 +149,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				// tagInfos = append(tagInfos, c.handleProcess(ev)...) No tags for now
 			case workloadmeta.KindKubernetesDeployment:
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
+			case workloadmeta.KindGPU:
+				// tagInfos = append(tagInfos, c.handleGPU(ev)...) No tags for now
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
