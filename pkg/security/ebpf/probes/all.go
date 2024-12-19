@@ -177,6 +177,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.Ma
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
+		"rate_limiters": {
+			MaxEntries: procPidCacheMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
 
 		"activity_dumps_config": {
 			MaxEntries: model.MaxTracedCgroupsCount,
