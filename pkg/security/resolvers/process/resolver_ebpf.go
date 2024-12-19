@@ -309,6 +309,9 @@ func (p *EBPFResolver) AddForkEntry(event *model.Event, newEntryCb func(*model.P
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFResolver) AddExecEntry(event *model.Event) error {
+	p.Lock()
+	defer p.Unlock()
+
 	var err error
 	if err := p.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, event.ContainerContext); err != nil {
 		var errResolution *spath.ErrPathResolution
@@ -319,9 +322,6 @@ func (p *EBPFResolver) AddExecEntry(event *model.Event) error {
 		if event.ProcessCacheEntry.Pid == 0 {
 			return errors.New("no pid context")
 		}
-
-		p.Lock()
-		defer p.Unlock()
 		p.insertExecEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode, model.ProcessCacheEntryFromEvent)
 	}
 
