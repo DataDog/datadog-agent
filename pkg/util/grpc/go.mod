@@ -40,7 +40,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/net v0.32.0
+	golang.org/x/net v0.33.0
 	google.golang.org/grpc v1.68.1
 )
 

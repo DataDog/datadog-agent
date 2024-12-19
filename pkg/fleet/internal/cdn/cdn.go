@@ -165,27 +165,16 @@ func (c *CDN) Close() error {
 }
 
 // writePolicyMetadata writes the policy metadata to the given directory
-// and makes it readable to dd-agent
+// and makes it world-readable
 func writePolicyMetadata(config Config, dir string) error {
-	ddAgentUID, ddAgentGID, err := getAgentIDs()
-	if err != nil {
-		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
-	}
-
 	state := config.State()
 	stateBytes, err := json.Marshal(state)
 	if err != nil {
 		return fmt.Errorf("could not marshal state: %w", err)
 	}
-	err = os.WriteFile(filepath.Join(dir, policyMetadataFilename), stateBytes, 0440)
+	err = os.WriteFile(filepath.Join(dir, policyMetadataFilename), stateBytes, 0444)
 	if err != nil {
 		return fmt.Errorf("could not write %s: %w", policyMetadataFilename, err)
-	}
-	if runtime.GOOS != "windows" {
-		err = os.Chown(filepath.Join(dir, policyMetadataFilename), ddAgentUID, ddAgentGID)
-		if err != nil {
-			return fmt.Errorf("could not chown %s: %w", policyMetadataFilename, err)
-		}
 	}
 	return nil
 }
