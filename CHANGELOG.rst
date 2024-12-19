@@ -2,6 +2,27 @@
 Release Notes
 =============
 
+.. _Release Notes_7.60.1:
+
+7.60.1
+======
+
+.. _Release Notes_7.60.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-12-19
+
+
+.. _Release Notes_7.60.1_Security Notes:
+
+Security Notes
+--------------
+
+- Update ``golang.org/x/crypto`` to fix CVE-2024-45337.
+
+
 .. _Release Notes_7.60.0:
 
 7.60.0
@@ -23,11 +44,11 @@ Upgrade Notes
 -------------
 
 - * Parameter ``peer_tags_aggregation`` (a.k.a. environment variable ``DD_APM_PEER_TAGS_AGGREGATION``) is now enabled by default. This means that aggregation of peer related tags (e.g., `peer.service`, `db.instance`, etc.) now happens in the Agent, which enables statistics for Inferred Entities. If you want to disable this feature, set `peer_tags_aggregation` to `false` in your Agent configuration.
-  
+
   * Parameter ``compute_stats_by_span_kind`` (a.k.a. environment variable ``DD_APM_COMPUTE_STATS_BY_SPAN_KIND``) is now enabled by default. This means spans with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed. If you want to disable this feature, set `compute_stats_by_span_kind` to `false` in your Agent configuration.
-  
+
     Note: When using ``peer_tags_aggregation`` and ``compute_stats_by_span_kind``, a high cardinality of peer tags or APM resources can contribute to higher CPU and memory consumption. If enabling both causes the Agent to consume too many resources, try disabling `compute_stats_by_span_kind` first.
-  
+
   It is recommended that you update your tracing libraries according to the instructions `here <https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/?tab=java#apm-tracing-library-configuration>`_ and set ``DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED`` (or ``dd.trace.remove.integration-service-names.enabled``) to ``true``.
 
 - Upgraded JMXFetch to `0.49.5 <https://github.com/DataDog/jmxfetch/releases/0.49.5>`_ which adds support for ``UnloadedClassCount`` metric
@@ -42,7 +63,7 @@ New Features
 - `Inferred Service dependencies <https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/>`_ are now Generally Available (exiting Beta) and enabled by default. Inferred Services of all kinds now have trace metrics and are available in dependency maps. `apm_config.peer_tags_aggregation` and `apm_config.compute_stats_by_span_kind` both now default to `true` unless explicitly set to `false`.
 
 - Add `check_tag_cardinality` parameter config check.
-  
+
   By default `check_tag_cardinality` is not set which doesn't change the behavior of the checks.
   Once it is set in pod annotaions, it overrides the cardinality value provided in the base agent configuration.
   Example of usage:
@@ -50,7 +71,7 @@ New Features
   ad.datadoghq.com/redis.checks: |
     {
       "redisdb": {
-        "check_tag_cardinality": "high", 
+        "check_tag_cardinality": "high",
         "instances": [
           {
             "host": "%%host%%",
@@ -79,7 +100,7 @@ Enhancement Notes
   based paths in Network Path.
   A cache of reverse DNS lookups is used to reduce the number of DNS
   queries. Additionally, reverse DNS lookups are now performed only
-  for private IPs and not for public IPs. 
+  for private IPs and not for public IPs.
 
 - Agent flare now includes system-probe telemetry data via ``system-probe/system_probe_telemetry.log``.
 
@@ -214,7 +235,7 @@ Enhancement Notes
   information about the Datadog Agent. This may include diagnostic
   logs and crash dumps of the Datadog Agent with obfuscated stack
   traces to support and further improve the Datadog Agent.
-  
+
   More details could be found in the
   `docs <https://docs.datadoghq.com/data_security/agent/#telemetry-collection>`_
 
@@ -226,10 +247,10 @@ Enhancement Notes
 
 - Agents are now built with Go ``1.22.8``.
 
-- While using the AWS Lambda Extension, when a Lambda Function is invoked by 
+- While using the AWS Lambda Extension, when a Lambda Function is invoked by
   a [properly instrumented][1] Step Function, the Lambda Function will create
-  its Trace and Parent IDs deterministically based on the Step Function's 
-  execution context. 
+  its Trace and Parent IDs deterministically based on the Step Function's
+  execution context.
   [1]: https://docs.datadoghq.com/serverless/step_functions/installation/?tab=custom "Install Serverless Monitoring for AWS Step Functions"
 
 - Updates default .NET library used for auto-instrumentation from v2 to v3
@@ -404,8 +425,8 @@ New Features
 - [oracle] Add the ``active_session_history`` configuration parameter to optionally ingest Oracle active session history samples instead of query sampling.
 
 - Added config option ``logs_config.tag_truncated_logs``.  When
-  enabled, file logs will come with a tag ``truncated:true`` if 
-  they were truncated by the Agent. 
+  enabled, file logs will come with a tag ``truncated:true`` if
+  they were truncated by the Agent.
 
 
 .. _Release Notes_7.58.0_Enhancement Notes:
@@ -459,7 +480,7 @@ Bug Fixes
 
 - Fixed issue with openSUSE 15 RC 6 where the eBPF tracer wouldn't start due to a failed validation of the ``tcp_sendpage`` probe.
 
-- Fixed a rare issue where short-lived containers could cause 
+- Fixed a rare issue where short-lived containers could cause
   logs to be sent with the wrong container ID.
 
 - Fix Windows Process Agent argument stripping to account for spaces in the executable path.
