@@ -17,19 +17,18 @@ import (
 	"time"
 )
 
-// HandleSelinuxSestatus reports the output of sestatus as an http result
-func HandleSelinuxSestatus(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "sestatus")
+// handleCommand runs commandName with the provided arguments and writes it to the HTTP response.
+// If the command exits with a failure or doesn't exist in the PATH, it will still 200 but report the failure.
+// Any other kind of error will 500.
+func handleCommand(ctx context.Context, w http.ResponseWriter, commandName string, args ...string) {
+	cmd := exec.CommandContext(ctx, commandName, args...)
 	output, err := cmd.CombinedOutput()
 
 	var execError *exec.Error
 	var exitErr *exec.ExitError
 
 	if err != nil {
-		// don't 500 for ExitErrors etc, to report "normal" failures to the selinux_sestatus.log file
+		// don't 500 for ExitErrors etc, to report "normal" failures to the flare log file
 		if !errors.As(err, &execError) && !errors.As(err, &exitErr) {
 			w.WriteHeader(500)
 		}
@@ -38,4 +37,20 @@ func HandleSelinuxSestatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(output)
+}
+
+// HandleSelinuxSestatus reports the output of sestatus as an http result
+func HandleSelinuxSestatus(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	handleCommand(ctx, w, "sestatus")
+}
+
+// HandleSelinuxSemoduleList reports the output of semodule -l as an http result
+func HandleSelinuxSemoduleList(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	handleCommand(ctx, w, "semodule", "-l")
 }

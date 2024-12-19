@@ -148,7 +148,6 @@
 /.gitlab/powershell_script_deploy                    @DataDog/agent-delivery @DataDog/windows-agent
 
 /.gitlab/choco_build/choco_build.yml                 @DataDog/agent-delivery @DataDog/windows-agent
-/.gitlab/choco_deploy/choco_deploy.yml               @DataDog/agent-delivery @DataDog/windows-agent
 
 /.gitlab/integration_test/windows.yml                @DataDog/agent-devx-infra @DataDog/windows-agent
 

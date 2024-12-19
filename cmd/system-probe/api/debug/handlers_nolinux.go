@@ -18,3 +18,9 @@ func HandleSelinuxSestatus(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(500)
 	io.WriteString(w, "HandleSelinuxSestatus is not supported on this platform")
 }
+
+// HandleSelinuxSemoduleList is not supported
+func HandleSelinuxSemoduleList(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(500)
+	io.WriteString(w, "HandleSelinuxSemoduleList is not supported on this platform")
+}
