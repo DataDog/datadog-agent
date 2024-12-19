@@ -62,7 +62,7 @@ func symDBErrorHandler(err error) http.Handler {
 
 // newSymDBProxy returns a new httputil.ReverseProxy proxying and augmenting requests with headers containing the tags.
 func newSymDBProxy(conf *config.AgentConfig, transport http.RoundTripper, hostTags string) *httputil.ReverseProxy {
-	cidProvider := NewIDProvider(conf.ContainerProcRoot)
+	cidProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
 		Director:  getSymDBDirector(hostTags, cidProvider, conf.ContainerTags),
