@@ -46,7 +46,11 @@ func newForwarder(dep dependencies) provides {
 
 func createOptions(params Params, config config.Component, log log.Component) *Options {
 	var options *Options
-	keysPerDomain := getMultipleEndpoints(config, log)
+	keysPerDomain, err := utils.GetMultipleEndpoints(config)
+	if err != nil {
+		log.Error("Misconfiguration of agent endpoints: ", err)
+	}
+
 	if !params.withResolver {
 		options = NewOptions(config, log, keysPerDomain)
 	} else {
@@ -59,15 +63,6 @@ func createOptions(params Params, config config.Component, log log.Component) *O
 	options.SetEnabledFeatures(params.features)
 
 	return options
-}
-
-func getMultipleEndpoints(config config.Component, log log.Component) map[string][]string {
-	// Inject the config to make sure we can call GetMultipleEndpoints.
-	keysPerDomain, err := utils.GetMultipleEndpoints(config)
-	if err != nil {
-		log.Error("Misconfiguration of agent endpoints: ", err)
-	}
-	return keysPerDomain
 }
 
 // NewForwarder returns a new forwarder component.

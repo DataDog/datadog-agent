@@ -166,7 +166,7 @@ func (s *service) Run(svcctx context.Context) error {
 		statusimpl.Module(),
 
 		fetchonlyimpl.Module(),
-		configsyncimpl.OptionalModule(),
+		configsyncimpl.OptionalModule(configsyncimpl.NewDefaultParams()),
 		// Force the instantiation of the component
 		fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
 		autoexitimpl.Module(),
