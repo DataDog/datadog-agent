@@ -399,6 +399,7 @@ static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_
     }
 
     u32 offset = pktbuf_data_offset(pkt) + sizeof(kafka_header_t);
+
     // Validate client ID
     // Client ID size can be equal to '-1' if the client id is null.
     if (kafka_header.client_id_size > 0) {
@@ -421,6 +422,11 @@ static __always_inline bool is_kafka(struct __sk_buff *skb, skb_info_t *skb_info
 static __always_inline __maybe_unused bool tls_is_kafka(struct pt_regs *ctx, tls_dispatcher_arguments_t *tls, const char* buf, __u32 buf_size)
 {
     return __is_kafka(pktbuf_from_tls(ctx, tls), buf, buf_size);
+}
+
+static __always_inline __maybe_unused bool kprobe_is_kafka(struct pt_regs *ctx, kprobe_dispatcher_arguments_t *kprobe, const char* buf, __u32 buf_size)
+{
+    return __is_kafka(pktbuf_from_kprobe(ctx, kprobe), buf, buf_size);
 }
 
 #endif

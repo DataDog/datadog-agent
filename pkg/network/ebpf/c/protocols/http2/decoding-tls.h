@@ -148,6 +148,7 @@ int uprobe__http2_tls_termination(struct pt_regs *ctx) {
     }
 
     bpf_map_delete_elem(&tls_http2_iterations, &args->tup);
+    bpf_map_delete_elem(&kprobe_http2_iterations, &args->tup);
 
     terminated_http2_batch_enqueue(&args->tup);
     // Deleting the entry for the original tuple.

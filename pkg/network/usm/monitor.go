@@ -79,15 +79,20 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, 
 		return nil, fmt.Errorf("error initializing ebpf program: %w", err)
 	}
 
-	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFFuncName: protocolDispatcherSocketFilterFunction, UID: probeUID})
-	if filter == nil {
-		return nil, fmt.Errorf("error retrieving socket filter")
-	}
 	ddebpf.AddNameMappings(mgr.Manager.Manager, "usm_monitor")
 
-	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c, filter)
-	if err != nil {
-		return nil, fmt.Errorf("error enabling traffic inspection: %s", err)
+	closeFilterFn := func() {}
+
+	if !useKprobeDataHooks {
+		filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFFuncName: protocolDispatcherSocketFilterFunction, UID: probeUID})
+		if filter == nil {
+			return nil, fmt.Errorf("error retrieving socket filter")
+		}
+
+		closeFilterFn, err = filterpkg.HeadlessSocketFilter(c, filter)
+		if err != nil {
+			return nil, fmt.Errorf("error enabling traffic inspection: %s", err)
+		}
 	}
 
 	processMonitor := monitor.GetProcessMonitor()

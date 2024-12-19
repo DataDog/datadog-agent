@@ -4,6 +4,7 @@
 #include "ktypes.h"
 
 #include "ip.h"
+#include "sock.h"
 
 #include "protocols/classification/defs.h"
 #include "protocols/classification/maps.h"
