@@ -82,7 +82,6 @@ new-e2e-agent-platform-install-script-debian-fips-agent-a7-x86_64:
     - .new-e2e_os_debian
     - .new-e2e_debian_a7_x86_64
     - .new-e2e_agent_a7
-  rules: !reference [.on_default_new_e2e_tests]
   variables:
     FLAVOR: datadog-fips-agent
 
