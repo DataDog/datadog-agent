@@ -8,7 +8,6 @@ package flare
 import (
 	"maps"
 	"net"
-	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"runtime"
@@ -16,12 +15,20 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	profiler "github.com/DataDog/datadog-agent/comp/core/profiler/def"
+	profilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
+	profilerimpl "github.com/DataDog/datadog-agent/comp/core/profiler/impl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -60,33 +67,11 @@ func (c *commandTestSuite) startTestServers() {
 	})
 }
 
-func newMockHandler() http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/debug/pprof/heap":
-			w.Write([]byte("heap_profile"))
-		case "/debug/pprof/profile":
-			time := r.URL.Query()["seconds"][0]
-			w.Write([]byte(time + "_sec_cpu_pprof"))
-		case "/debug/pprof/mutex":
-			w.Write([]byte("mutex"))
-		case "/debug/pprof/block":
-			w.Write([]byte("block"))
-		case "/debug/stats": // only for system-probe
-			w.WriteHeader(200)
-		case "/debug/pprof/trace":
-			w.Write([]byte("trace"))
-		default:
-			w.WriteHeader(500)
-		}
-	})
-}
-
 func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, unixServer *httptest.Server, sysProbeServer *httptest.Server) {
 	var err error
 	t := c.T()
 
-	handler := newMockHandler()
+	handler := profilerimpl.NewMockHandler()
 	tcpServer = httptest.NewServer(handler)
 	if runtime.GOOS == "linux" {
 		unixServer = httptest.NewUnstartedServer(handler)
@@ -104,8 +89,31 @@ func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, uni
 	return tcpServer, unixServer, sysProbeServer
 }
 
+type deps struct {
+	fx.In
+
+	Profiler profiler.Component
+}
+
 func TestCommandTestSuite(t *testing.T) {
 	suite.Run(t, &commandTestSuite{})
+}
+
+func getProfiler(t testing.TB, mockConfig model.Config, mockSysProbeConfig model.Config) profiler.Component {
+	deps := fxutil.Test[deps](
+		t,
+		core.MockBundle(),
+		fx.Replace(configComponent.MockParams{
+			Overrides: mockConfig.AllSettings(),
+		}),
+		fx.Replace(sysprobeconfigimpl.MockParams{
+			Overrides: mockSysProbeConfig.AllSettings(),
+		}),
+		settingsimpl.MockModule(),
+		profilerfx.Module(),
+	)
+
+	return deps.Profiler
 }
 
 func (c *commandTestSuite) TestReadProfileData() {
@@ -124,13 +132,14 @@ func (c *commandTestSuite) TestReadProfileData() {
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
 
+	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	if runtime.GOOS != "darwin" {
-		mockSysProbeConfig := configmock.NewSystemProbe(t)
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 	}
 
-	data, err := readProfileData(10)
+	profiler := getProfiler(t, mockConfig, mockSysProbeConfig)
+	data, err := profiler.ReadProfileData(10, func(string, ...interface{}) error { return nil })
 	require.NoError(t, err)
 
 	expected := flare.ProfileData{
@@ -196,7 +205,8 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 
-	data, err := readProfileData(10)
+	profiler := getProfiler(t, mockConfig, mockSysProbeConfig)
+	data, err := profiler.ReadProfileData(10, func(string, ...interface{}) error { return nil })
 	require.Error(t, err)
 	require.Regexp(t, "^* error collecting trace agent profile: ", err.Error())
 
@@ -245,6 +255,7 @@ func (c *commandTestSuite) TestReadProfileDataErrors() {
 	// setting Core Agent Expvar port to 0 to ensure failing on fetch (using the default value can lead to
 	// successful request when running next to an Agent)
 	mockConfig.SetWithoutSource("expvar_port", 0)
+	mockConfig.SetWithoutSource("security_agent.expvar_port", 0)
 	mockConfig.SetWithoutSource("apm_config.enabled", true)
 	mockConfig.SetWithoutSource("apm_config.debug.port", 0)
 	mockConfig.SetWithoutSource("process_config.enabled", true)
@@ -253,7 +264,8 @@ func (c *commandTestSuite) TestReadProfileDataErrors() {
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	InjectConnectionFailures(mockSysProbeConfig, mockConfig)
 
-	data, err := readProfileData(10)
+	profiler := getProfiler(t, mockConfig, mockSysProbeConfig)
+	data, err := profiler.ReadProfileData(10, func(string, ...interface{}) error { return nil })
 
 	require.Error(t, err)
 	CheckExpectedConnectionFailures(c, err)
