@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+// #include <datadog_agent_rtloader.h>
 import "C"
 
 func testSubmitMetric(t *testing.T) {
