@@ -11,7 +11,7 @@ target:
     DD_API_KEY: 123456789
     DD_HOSTNAME: smp-regression
     DD_OTEL_ENABLED: true
-    DD_SITE: datadoghq.com
+    DD_SITE: 127.0.0.1:9092
 
   profiling_environment:
     DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000

@@ -10,10 +10,10 @@ exporters:
     traces:
       span_name_as_resource_name: true
       endpoint: "http://127.0.0.1:9091"
-    hostname: "otelcol-test-olivierg"
+    hostname: "smp-regression"    
     api:
-      key: "00000001"
-      site: "127.0.0.1:9092"
+      key: "123456789"
+      site: 127.0.0.1:9092
     metrics:
       resource_attributes_as_tags: true
       endpoint: http://127.0.0.1:9091
