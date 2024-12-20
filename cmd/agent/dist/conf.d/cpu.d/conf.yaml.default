@@ -7,7 +7,9 @@ init_config:
 ## The Cpu check only supports one configured instance.
 
 instances:
+  - 
+
     ## @param report_total_percpu - boolean - required
     ## Set to true to report cpu total metrics for each cpu.
     #
-  - report_total_percpu: false
+    # report_total_percpu: false
