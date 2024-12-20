@@ -160,16 +160,15 @@ func (r *RequestStats) isValid(status uint16) bool {
 // newStats is kept as it is, while the method receiver gets mutated
 func (r *RequestStats) CombineWith(newStats *RequestStats) {
 	for statusCode, newRequests := range newStats.Data {
+		newRequests.CanRelease = true
 		if newRequests.Count == 0 {
 			// Nothing to do in this case
-			newRequests.CanRelease = true
 			continue
 		}
 
 		if newRequests.Count == 1 {
 			// The other bucket has a single latency sample, so we "manually" add it
 			r.AddRequest(statusCode, newRequests.FirstLatencySample, newRequests.StaticTags, newRequests.DynamicTags)
-			newRequests.CanRelease = true
 			continue
 		}
 
@@ -196,7 +195,6 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 			if err != nil {
 				log.Debugf("error merging http transactions: %v", err)
 			}
-			newRequests.CanRelease = true
 		}
 		stats.Count += newRequests.Count
 	}
