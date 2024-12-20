@@ -5,18 +5,11 @@
 
 package e2e
 
-import (
-	"testing"
-)
-
-// Context defines an interface that allows to get information about current test context
-type Context interface {
-	T() *testing.T
-}
+import "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 
 // Initializable defines the interface for an object that needs to be initialized
 type Initializable interface {
-	Init(Context) error
+	Init(common.Context) error
 }
 
 // RawResources is the common types returned by provisioners

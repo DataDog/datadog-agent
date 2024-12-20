@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 )
 
 type testTypeOutput struct {
@@ -32,7 +33,7 @@ type testTypeWrapper struct {
 
 var _ Initializable = &testTypeWrapper{}
 
-func (t *testTypeWrapper) Init(Context) error {
+func (t *testTypeWrapper) Init(common.Context) error {
 	return nil
 }
 

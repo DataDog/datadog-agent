@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 
 	"github.com/DataDog/test-infra-definitions/components/kubernetes"
@@ -29,7 +30,7 @@ type KubernetesCluster struct {
 var _ e2e.Initializable = &KubernetesCluster{}
 
 // Init is called by e2e test Suite after the component is provisioned.
-func (kc *KubernetesCluster) Init(e2e.Context) error {
+func (kc *KubernetesCluster) Init(common.Context) error {
 	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kc.KubeConfig))
 	if err != nil {
 		return err

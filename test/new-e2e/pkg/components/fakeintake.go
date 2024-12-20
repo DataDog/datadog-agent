@@ -8,6 +8,7 @@ package components
 import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 )
@@ -22,7 +23,7 @@ type FakeIntake struct {
 var _ e2e.Initializable = &FakeIntake{}
 
 // Init is called by e2e test Suite after the component is provisioned.
-func (fi *FakeIntake) Init(e2e.Context) error {
+func (fi *FakeIntake) Init(common.Context) error {
 	fi.client = client.NewClient(fi.URL)
 	return nil
 }
