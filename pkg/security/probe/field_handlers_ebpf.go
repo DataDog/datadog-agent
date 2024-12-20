@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -231,7 +231,7 @@ func (fh *EBPFFieldHandlers) ResolveRights(_ *model.Event, e *model.FileFields) 
 	return int(e.Mode) & (syscall.S_ISUID | syscall.S_ISGID | syscall.S_ISVTX | syscall.S_IRWXU | syscall.S_IRWXG | syscall.S_IRWXO)
 }
 
-// ResolveChownUID resolves the ResolveProcessCacheEntry id of a chown event to a username
+// ResolveChownUID resolves the user id of a chown event to a username
 func (fh *EBPFFieldHandlers) ResolveChownUID(ev *model.Event, e *model.ChownEvent) string {
 	if len(e.User) == 0 {
 		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ContainerContext.ContainerID)
@@ -516,11 +516,9 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupCon
 				return string(entry.CGroup.CGroupID)
 			}
 
-			if err := fh.resolvers.ResolveCGroup(entry, e.CGroupFile, e.CGroupFlags); err != nil {
-				seclog.Debugf("Failed to resolve cgroup: %s", err)
+			if cgroupContext, err := fh.resolvers.ResolveCGroupContext(e.CGroupFile, e.CGroupFlags); err == nil {
+				*e = *cgroupContext
 			}
-
-			e.CGroupID = entry.CGroup.CGroupID
 		}
 	}
 
@@ -733,4 +731,18 @@ func (fh *EBPFFieldHandlers) ResolveOnDemandArg4Str(_ *model.Event, e *model.OnD
 // ResolveOnDemandArg4Uint resolves the uint value of the fourth argument of hooked function
 func (fh *EBPFFieldHandlers) ResolveOnDemandArg4Uint(_ *model.Event, e *model.OnDemandEvent) int {
 	return int(binary.NativeEndian.Uint64(e.Data[192 : 192+8]))
+}
+
+// ResolveProcessNSID resolves the process namespace ID
+func (fh *EBPFFieldHandlers) ResolveProcessNSID(e *model.Event) (uint64, error) {
+	if e.ProcessCacheEntry.Process.NSID != 0 {
+		return e.ProcessCacheEntry.Process.NSID, nil
+	}
+
+	nsid, err := utils.GetProcessPidNamespace(e.ProcessCacheEntry.Process.Pid)
+	if err != nil {
+		return 0, err
+	}
+	e.ProcessCacheEntry.Process.NSID = nsid
+	return nsid, nil
 }
