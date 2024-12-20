@@ -12,11 +12,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 )
 
 // Struct that is used within the config
@@ -978,7 +979,7 @@ feature:
 // alters the decoding behavior, eg. struct { Foo string `json:"field1,omitempty"` }
 //
 // List of common package flags we take into consideration:
-// * yaml.v2 flags:  omitempty, flow, inline
+// * yaml.v3 flags:  omitempty, flow, inline
 // * json flags: omitempty
 // * mapstructure flags: squash, remain, omitempty
 func TestUnmarshalKeyStructTagFlags(t *testing.T) {
