@@ -8,23 +8,22 @@ package linuxfiletailing
 import (
 	_ "embed"
 	"fmt"
-	"os"
-	"strconv"
 	"testing"
 	"time"
+
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/stretchr/testify/assert"
 
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/stretchr/testify/assert"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
-//go:embed log-config/utf-16-le.yaml
+//go:embed config/utf-16-le.yaml
 var utfLittleEndianLogConfig []byte
 
-//go:embed log-config/utf-16-be.yaml
+//go:embed config/utf-16-be.yaml
 var utfBigEndianLogConfig []byte
 
 const utfservice = "utfservice"
@@ -37,14 +36,10 @@ type UtfSuite struct {
 // TestUtfSuite runs the E2E test suite for tailing UTF encoded logs
 func TestUtfSuite(t *testing.T) {
 	s := &UtfSuite{}
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithLogs(), agentparams.WithIntegration("custom_logs.d", logConfig)))),
 	}
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
-	}
-
+	t.Parallel()
 	e2e.Run(t, s, options...)
 }
 

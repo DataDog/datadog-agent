@@ -8,8 +8,10 @@ package e2e
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 )
 
 // Params implements [BaseSuite] options
@@ -22,7 +24,7 @@ type suiteParams struct {
 
 	skipDeleteOnFailure bool
 
-	provisioners ProvisionerMap
+	provisioners provisioners.ProvisionerMap
 }
 
 // SuiteOption is an optional function parameter type for e2e options
@@ -53,14 +55,14 @@ func WithSkipDeleteOnFailure() SuiteOption {
 }
 
 // WithProvisioner adds a provisioner to the suite
-func WithProvisioner(provisioner Provisioner) SuiteOption {
+func WithProvisioner(provisioner provisioners.Provisioner) SuiteOption {
 	return func(options *suiteParams) {
 		if _, found := options.provisioners[provisioner.ID()]; found {
 			panic(fmt.Sprintf("Duplicate provider in test Suite: %s", provisioner.ID()))
 		}
 
 		if options.provisioners == nil {
-			options.provisioners = make(ProvisionerMap)
+			options.provisioners = make(provisioners.ProvisionerMap)
 		}
 
 		options.provisioners[provisioner.ID()] = provisioner
@@ -69,10 +71,10 @@ func WithProvisioner(provisioner Provisioner) SuiteOption {
 
 // WithUntypedPulumiProvisioner adds an untyped Pulumi provisioner to the suite
 func WithUntypedPulumiProvisioner(runFunc pulumi.RunFunc, configMap runner.ConfigMap) SuiteOption {
-	return WithProvisioner(NewUntypedPulumiProvisioner("", runFunc, configMap))
+	return WithProvisioner(provisioners.NewUntypedPulumiProvisioner("", runFunc, configMap))
 }
 
 // WithPulumiProvisioner adds a typed Pulumi provisioner to the suite
-func WithPulumiProvisioner[Env any](runFunc PulumiEnvRunFunc[Env], configMap runner.ConfigMap) SuiteOption {
-	return WithProvisioner(NewTypedPulumiProvisioner("", runFunc, configMap))
+func WithPulumiProvisioner[Env any](runFunc provisioners.PulumiEnvRunFunc[Env], configMap runner.ConfigMap) SuiteOption {
+	return WithProvisioner(provisioners.NewTypedPulumiProvisioner("", runFunc, configMap))
 }

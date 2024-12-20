@@ -7,21 +7,24 @@ package domain
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
-	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/DataDog/test-infra-definitions/components/activedirectory"
+
+	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	platformCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test"
-	"github.com/stretchr/testify/assert"
+	installtest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test"
 )
 
 const (
@@ -32,16 +35,17 @@ const (
 
 func TestInstallsOnDomainController(t *testing.T) {
 	suites := []e2e.Suite[environments.WindowsHost]{
-		&testInstallSuite{},
+		&testBasicInstallSuite{},
 		&testUpgradeSuite{},
+		&testInstallUserSyntaxSuite{},
 	}
 
 	for _, suite := range suites {
 		suite := suite
 		t.Run(reflect.TypeOf(suite).Elem().Name(), func(t *testing.T) {
 			t.Parallel()
-			e2e.Run(t, suite, e2e.WithProvisioner(winawshost.ProvisionerNoAgent(
-				winawshost.WithActiveDirectoryOptions(
+			e2e.Run(t, suite, e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgent(
+				awsHostWindows.WithActiveDirectoryOptions(
 					activedirectory.WithDomainController(TestDomain, TestPassword),
 					activedirectory.WithDomainUser(TestUser, TestPassword),
 				))))
@@ -53,12 +57,12 @@ type testInstallSuite struct {
 	windows.BaseAgentInstallerSuite[environments.WindowsHost]
 }
 
-func (suite *testInstallSuite) TestGivenDomainUserCanInstallAgent() {
+func (suite *testInstallSuite) testGivenDomainUserCanInstallAgent(username string) {
 	host := suite.Env().RemoteHost
 
 	_, err := suite.InstallAgent(host,
 		windowsAgent.WithPackage(suite.AgentPackage),
-		windowsAgent.WithAgentUser(fmt.Sprintf("%s\\%s", TestDomain, TestUser)),
+		windowsAgent.WithAgentUser(username),
 		windowsAgent.WithAgentUserPassword(fmt.Sprintf("\"%s\"", TestPassword)),
 		windowsAgent.WithValidAPIKey(),
 		windowsAgent.WithFakeIntake(suite.Env().FakeIntake),
@@ -79,6 +83,22 @@ func (suite *testInstallSuite) TestGivenDomainUserCanInstallAgent() {
 		assert.NoError(c, err)
 		assert.NotEmpty(c, stats)
 	}, 5*time.Minute, 10*time.Second)
+}
+
+type testBasicInstallSuite struct {
+	testInstallSuite
+}
+
+func (suite *testBasicInstallSuite) TestGivenDomainUserCanInstallAgent() {
+	suite.testGivenDomainUserCanInstallAgent(fmt.Sprintf("%s\\%s", TestDomain, TestUser))
+}
+
+type testInstallUserSyntaxSuite struct {
+	testInstallSuite
+}
+
+func (suite *testInstallUserSyntaxSuite) TestGivenDomainUserCanInstallAgent() {
+	suite.testGivenDomainUserCanInstallAgent(fmt.Sprintf("%s@%s", TestUser, TestDomain))
 }
 
 type testUpgradeSuite struct {

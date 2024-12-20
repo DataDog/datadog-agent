@@ -241,6 +241,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.62.3
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.15
+	github.com/aws/aws-sdk-go v1.50.36
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.66.2
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.19.0

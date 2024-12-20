@@ -13,7 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
@@ -30,7 +31,7 @@ type ec2VMSuite struct {
 	e2e.BaseSuite[hostHttpbinEnv]
 }
 
-func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.PulumiEnvRunFunc[hostHttpbinEnv] {
+func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) provisioners.PulumiEnvRunFunc[hostHttpbinEnv] {
 	return func(ctx *pulumi.Context, env *hostHttpbinEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -77,7 +78,7 @@ func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.Pulum
 func TestEC2VMSuite(t *testing.T) {
 	s := &ec2VMSuite{}
 
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(), nil))}
 
 	// Source of our kitchen CI images test/kitchen/platforms.json
 	// Other VM image can be used, our kitchen CI images test/kitchen/platforms.json

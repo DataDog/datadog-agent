@@ -8,17 +8,16 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"os"
 	"regexp"
+
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/stretchr/testify/assert"
 
 	"testing"
 
@@ -86,10 +85,8 @@ func TestPackageSigningComponent(t *testing.T) {
 			&packageSigningTestSuite{osName: platform},
 			e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 				awshost.WithEC2InstanceOptions(ec2.WithAMI(ami, osDesc, osDesc.Architecture)),
-				awshost.WithAgentOptions(agentparams.WithPipeline(os.Getenv("CI_PIPELINE_ID"))),
 			)),
-			//e2e.WithAgentParams(agentparams.WithPipeline(os.Getenv("CI_PIPELINE_ID"), "x86_64")), e2e.WithVMParams(ec2params.WithOS(testedOS))),
-			e2e.WithStackName(fmt.Sprintf("pkgSigning-%s-%s", platform, os.Getenv("CI_PIPELINE_ID"))),
+			e2e.WithStackName(fmt.Sprintf("pkgSigning-%s", platform)),
 		)
 	})
 }
