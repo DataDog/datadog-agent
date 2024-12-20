@@ -172,9 +172,6 @@ func setHostTag(s *common.Setup, tagKey, value string) {
 func setupDatabricksDriver(s *common.Setup) {
 	s.Span.SetTag("spark_node", "driver")
 
-	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
-	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaVersion)
-
 	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "node_type:driver")
 
 	var sparkIntegration common.IntegrationConfig
@@ -199,8 +196,6 @@ func setupDatabricksDriver(s *common.Setup) {
 
 func setupDatabricksWorker(s *common.Setup) {
 	s.Span.SetTag("spark_node", "worker")
-
-	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
 
 	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "node_type:worker")
 
