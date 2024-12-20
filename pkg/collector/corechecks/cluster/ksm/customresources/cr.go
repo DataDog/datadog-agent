@@ -17,6 +17,7 @@ import (
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 )
 
+// NewCustomResourceFactory returns a new custom resource factory that uses the provided client for all CRDs
 func NewCustomResourceFactory(factory customresource.RegistryFactory, client dynamic.Interface) customresource.RegistryFactory {
 	return &crFactory{
 		factory: factory,
@@ -42,9 +43,8 @@ func (f *crFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
 			Resource: f.factory.Name(),
 		}
 		return f.client.Resource(gvr), nil
-	} else {
-		return f.factory.CreateClient(cfg)
 	}
+	return f.factory.CreateClient(cfg)
 }
 
 func (f *crFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
