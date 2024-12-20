@@ -92,3 +92,7 @@ func (h *helperCallRemover) String() string {
 func (h *helperCallRemover) BeforeStop(*manager.Manager, names.ModuleName) error {
 	return nil
 }
+
+func (h *helperCallRemover) AfterStop(*manager.Manager, names.ModuleName) error {
+	return nil
+}

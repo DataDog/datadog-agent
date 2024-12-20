@@ -232,3 +232,8 @@ func (t *PrintkPatcherModifier) AfterInit(_ *manager.Manager, _ names.ModuleName
 func (t *PrintkPatcherModifier) BeforeStop(_ *manager.Manager, _ names.ModuleName) error {
 	return nil
 }
+
+// AfterStop is a no-op for this modifier
+func (t *PrintkPatcherModifier) AfterStop(_ *manager.Manager, _ names.ModuleName) error {
+	return nil
+}

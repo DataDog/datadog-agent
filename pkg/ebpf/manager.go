@@ -75,6 +75,10 @@ type Modifier interface {
 	// BeforeStop is called after the ebpf.Manager.Stop call. Errors on these modifiers
 	// will not prevent the manager from stopping, but they will be reported.
 	BeforeStop(*manager.Manager, names.ModuleName) error
+
+	// AfterStop is called after the ebpf.Manager.Stop call. If the manager returns
+	// an error on stop, this function will still be called.
+	AfterStop(*manager.Manager, names.ModuleName) error
 }
 
 // InitWithOptions is a wrapper around ebpf-manager.Manager.InitWithOptions
@@ -111,7 +115,7 @@ func (m *Manager) Stop(clean manager.MapCleanupType) error {
 	var errs error
 
 	for _, mod := range m.EnabledModifiers {
-		log.Warnf("Running %s manager modifier BeforeStop", mod)
+		log.Tracef("Running %s manager modifier BeforeStop", mod)
 		if err := mod.BeforeStop(m.Manager, m.Name); err != nil {
 			errs = errors.Join(errs, fmt.Errorf("error running %s manager modifier BeforeStop(): %s", mod, err))
 		}
@@ -119,6 +123,13 @@ func (m *Manager) Stop(clean manager.MapCleanupType) error {
 
 	if err := m.Manager.Stop(clean); err != nil {
 		errs = errors.Join(errs, fmt.Errorf("failed to stop manager %w", err))
+	}
+
+	for _, mod := range m.EnabledModifiers {
+		log.Tracef("Running %s manager modifier AfterStop", mod)
+		if err := mod.AfterStop(m.Manager, m.Name); err != nil {
+			errs = errors.Join(errs, fmt.Errorf("error running %s manager modifier AfterStop(): %s", mod, err))
+		}
 	}
 
 	return errs

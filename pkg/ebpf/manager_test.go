@@ -40,6 +40,10 @@ func (t *dummyModifier) BeforeStop(_ *manager.Manager, _ names.ModuleName) error
 	return nil
 }
 
+func (t *dummyModifier) AfterStop(_ *manager.Manager, _ names.ModuleName) error {
+	return nil
+}
+
 func TestNewManagerWithDefault(t *testing.T) {
 	type args struct {
 		mgr       *manager.Manager
