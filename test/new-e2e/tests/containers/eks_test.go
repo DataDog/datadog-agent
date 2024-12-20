@@ -12,7 +12,7 @@ import (
 	tifeks "github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 )
 
 type eksSuite struct {

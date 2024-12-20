@@ -882,14 +882,10 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		if process.IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
+		if err := p.Resolvers.ProcessResolver.AddForkEntry(event, newEntryCb); err != nil {
+			seclog.Errorf("failed to insert fork event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
 			return
 		}
-
-		p.Resolvers.ProcessResolver.ApplyBootTime(event.ProcessCacheEntry)
-		event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
-
-		p.Resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode, newEntryCb)
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
 		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
@@ -897,18 +893,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		if err = p.Resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, event.ContainerContext); err != nil {
-			seclog.Debugf("failed to resolve new process cache entry context for pid %d: %s", event.PIDContext.Pid, err)
-
-			var errResolution *path.ErrPathResolution
-			if errors.As(err, &errResolution) {
-				event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
-			}
-		} else {
-			p.Resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode)
+		err = p.Resolvers.ProcessResolver.AddExecEntry(event)
+		if err != nil {
+			seclog.Errorf("failed to insert exec event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
+			return
 		}
 
-		event.Exec.Process = &event.ProcessCacheEntry.Process
 	}
 
 	if !p.setProcessContext(eventType, event, newEntryCb) {
@@ -1019,26 +1009,13 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode exit event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-
-		var exists bool
-		event.ProcessCacheEntry, exists = p.fieldHandlers.GetProcessCacheEntry(event, newEntryCb)
-		if !exists {
-			// no need to dispatch an exit event that don't have the corresponding cache entry
-			return
+		exists := p.Resolvers.ProcessResolver.ApplyExitEntry(event, newEntryCb)
+		if exists {
+			p.Resolvers.MountResolver.DelPid(event.Exit.Pid)
+			// update action reports
+			p.processKiller.HandleProcessExited(event)
+			p.fileHasher.HandleProcessExited(event)
 		}
-
-		// Use the event timestamp as exit time
-		// The local process cache hasn't been updated yet with the exit time when the exit event is first seen
-		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
-		event.ProcessCacheEntry.Process.ExitTime = p.fieldHandlers.ResolveEventTime(event, &event.BaseEvent)
-		event.Exit.Process = &event.ProcessCacheEntry.Process
-
-		// update mount pid mapping
-		p.Resolvers.MountResolver.DelPid(event.Exit.Pid)
-
-		// update action reports
-		p.processKiller.HandleProcessExited(event)
-		p.fileHasher.HandleProcessExited(event)
 	case model.SetuidEventType:
 		// the process context may be incorrect, do not modify it
 		if event.Error != nil {
@@ -2520,6 +2497,18 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	// iouring
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx", "")
+	}
+
+	// inode
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeIno, "struct inode", "i_ino", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeGid, "struct inode", "i_gid", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeNlink, "struct inode", "i_nlink", "linux/fs.h")
+	if kv.IsInRangeCloseOpen(kernel.Kernel6_7, kernel.Kernel6_11) {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeMtime, "struct inode", "__i_mtime", "linux/fs.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeCtime, "struct inode", "__i_ctime", "linux/fs.h")
+	} else if kv.Code < kernel.Kernel6_7 {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeMtime, "struct inode", "i_mtime", "linux/fs.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeCtime, "struct inode", "i_ctime", "linux/fs.h")
 	}
 }
 
