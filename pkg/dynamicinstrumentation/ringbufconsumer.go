@@ -49,7 +49,7 @@ func (goDI *GoDI) startRingbufferConsumer(rate float64) (func(), error) {
 				continue
 			}
 
-			event, err := eventparser.ParseEvent(goDI.ConfigManager.GetProcInfos(), record.RawSample, rateLimiters)
+			event, err := eventparser.ParseEvent(record.RawSample, rateLimiters)
 			if err != nil {
 				log.Trace(err)
 				continue

@@ -175,7 +175,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 			continue
 		}
 
-		configEvent, err := eventparser.ParseEvent(cm.diProcs, record.RawSample, configRateLimiter)
+		configEvent, err := eventparser.ParseEvent(record.RawSample, configRateLimiter)
 		if err != nil {
 			log.Errorf("error parsing configuration for PID %d: %v", procInfo.PID, err)
 			continue

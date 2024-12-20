@@ -112,16 +112,10 @@ func TestParseParamValue(t *testing.T) {
 			},
 		},
 	}
-	probe := &ditypes.Probe{
-		InstrumentationInfo: &ditypes.InstrumentationInfo{
-			InstrumentationOptions: &ditypes.InstrumentationOptions{
-				ArgumentsMaxSize: 300,
-			},
-		},
-	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			val, _ := parseParamValueForProbe(probe, tt.inputDefinition, tt.inputBuffer)
+			val, _ := parseParamValue(tt.inputDefinition, tt.inputBuffer)
 			if !reflect.DeepEqual(val, tt.expectedValue) {
 				t.Errorf("Parsed incorrectly! Got %+v, expected %+v", val, tt.expectedValue)
 			}
@@ -172,16 +166,9 @@ func TestReadParams(t *testing.T) {
 		},
 	}
 
-	probe := &ditypes.Probe{
-		InstrumentationInfo: &ditypes.InstrumentationInfo{
-			InstrumentationOptions: &ditypes.InstrumentationOptions{
-				ArgumentsMaxSize: 300,
-			},
-		},
-	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output := readParamsForProbe(probe, tt.inputBuffer)
+			output := readParams(tt.inputBuffer)
 			if !reflect.DeepEqual(output, tt.expectedResult) {
 				fmt.Printf("Got: %v\n", output)
 				fmt.Printf("Expected: %v\n", tt.expectedResult)
@@ -448,17 +435,9 @@ func TestParseParams(t *testing.T) {
 		},
 	}
 
-	probe := &ditypes.Probe{
-		InstrumentationInfo: &ditypes.InstrumentationInfo{
-			InstrumentationOptions: &ditypes.InstrumentationOptions{
-				ArgumentsMaxSize: 1000,
-			},
-		},
-	}
-
 	for i := range testCases {
 		t.Run(testCases[i].Name, func(t *testing.T) {
-			result := readParamsForProbe(probe, testCases[i].Buffer)
+			result := readParams(testCases[i].Buffer)
 			assert.Equal(t, testCases[i].ExpectedOutput, result)
 		})
 	}
