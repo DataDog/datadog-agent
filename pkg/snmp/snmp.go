@@ -95,6 +95,8 @@ type intOrBoolPtr interface {
 	*int | *bool
 }
 
+var NoConfigGivenError = errors.New("no config given for snmp_listener")
+
 // NewListenerConfig parses configuration and returns a built ListenerConfig
 func NewListenerConfig() (ListenerConfig, error) {
 	var snmpConfig ListenerConfig
@@ -114,7 +116,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 			return snmpConfig, err
 		}
 	} else {
-		return snmpConfig, errors.New("no config given for snmp_listener")
+		return snmpConfig, NoConfigGivenError
 	}
 
 	if snmpConfig.AllowedFailures == 0 && snmpConfig.AllowedFailuresLegacy != 0 {
