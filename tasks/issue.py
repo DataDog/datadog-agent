@@ -45,7 +45,6 @@ def generate_model(_):
 WAVES = [
     "wave",
     "waveboi",
-    "capy-wave",
     "wastelands-wave",
     "wave_hello",
     "wave-hokusai",
@@ -68,6 +67,7 @@ WAVES = [
     "cyr-wave",
     "cozy-wave",
     "cat-wave",
+    "capy-wave",
     "bufo-wave",
     "bongo-wave",
     "blobwave",
@@ -92,5 +92,5 @@ def ask_reviews(_, pr_id):
                 (chan for team, chan in GITHUB_SLACK_REVIEW_MAP.items() if team.casefold() == reviewer.casefold()),
                 '#agent-devx-help',
             )
-            message = f'Hello :{random.choice(WAVES)}:! Can you please review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance {channel}!'
+            message = f'Hello :{random.choice(WAVES)}:! Can you please review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
             client.chat_postMessage(channel=channel, text=message)
