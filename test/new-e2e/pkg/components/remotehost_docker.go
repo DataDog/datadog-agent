@@ -8,7 +8,6 @@ package components
 import (
 	"github.com/DataDog/test-infra-definitions/components/docker"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
@@ -20,7 +19,7 @@ type RemoteHostDocker struct {
 	Client *client.Docker
 }
 
-var _ e2e.Initializable = (*RemoteHostDocker)(nil)
+var _ common.Initializable = (*RemoteHostDocker)(nil)
 
 // Init is called by e2e test Suite after the component is provisioned.
 func (d *RemoteHostDocker) Init(ctx common.Context) (err error) {

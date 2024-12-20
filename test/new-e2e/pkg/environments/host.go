@@ -7,7 +7,6 @@ package environments
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 )
 
@@ -19,7 +18,7 @@ type Host struct {
 	Updater    *components.RemoteHostUpdater
 }
 
-var _ e2e.Initializable = (*Host)(nil)
+var _ common.Initializable = (*Host)(nil)
 
 // Init initializes the environment
 func (e *Host) Init(_ common.Context) error {

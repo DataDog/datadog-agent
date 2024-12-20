@@ -5,13 +5,6 @@
 
 package e2e
 
-import "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
-
-// Initializable defines the interface for an object that needs to be initialized
-type Initializable interface {
-	Init(common.Context) error
-}
-
 // RawResources is the common types returned by provisioners
 type RawResources map[string][]byte
 

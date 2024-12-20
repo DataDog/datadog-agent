@@ -31,7 +31,7 @@ type testTypeWrapper struct {
 	unrelatedField string //nolint:unused // mimic actual struct to validate reflection code
 }
 
-var _ Initializable = &testTypeWrapper{}
+var _ common.Initializable = &testTypeWrapper{}
 
 func (t *testTypeWrapper) Init(common.Context) error {
 	return nil

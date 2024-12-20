@@ -11,3 +11,8 @@ import "testing"
 type Context interface {
 	T() *testing.T
 }
+
+// Initializable defines the interface for an object that needs to be initialized
+type Initializable interface {
+	Init(Context) error
+}

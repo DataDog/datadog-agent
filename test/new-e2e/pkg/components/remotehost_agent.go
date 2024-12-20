@@ -6,7 +6,6 @@
 package components
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
@@ -23,7 +22,7 @@ type RemoteHostAgent struct {
 	ClientOptions []agentclientparams.Option
 }
 
-var _ e2e.Initializable = (*RemoteHostAgent)(nil)
+var _ common.Initializable = (*RemoteHostAgent)(nil)
 
 // Init is called by e2e test Suite after the component is provisioned.
 func (a *RemoteHostAgent) Init(ctx common.Context) (err error) {

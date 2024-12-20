@@ -7,7 +7,6 @@ package environments
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 )
 
@@ -20,7 +19,7 @@ type DockerHost struct {
 	Docker     *components.RemoteHostDocker
 }
 
-var _ e2e.Initializable = &DockerHost{}
+var _ common.Initializable = &DockerHost{}
 
 // Init initializes the environment
 func (e *DockerHost) Init(_ common.Context) error {

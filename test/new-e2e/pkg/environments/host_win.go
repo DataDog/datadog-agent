@@ -9,7 +9,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/common/config"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 )
 
@@ -24,7 +23,7 @@ type WindowsHost struct {
 	Installer       *components.RemoteDatadogInstaller
 }
 
-var _ e2e.Initializable = &WindowsHost{}
+var _ common.Initializable = &WindowsHost{}
 
 // Init initializes the environment
 func (e *WindowsHost) Init(_ common.Context) error {
