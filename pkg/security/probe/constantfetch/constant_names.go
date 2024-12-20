@@ -30,6 +30,13 @@ const (
 	OffsetNameFileFpath                 = "file_f_path_offset"
 	OffsetNameMountMntID                = "mount_id_offset"
 
+	// inode
+	OffsetInodeIno   = "inode_ino_offset"
+	OffsetInodeNlink = "inode_nlink_offset"
+	OffsetInodeGid   = "inode_gid_offset"
+	OffsetInodeMtime = "inode_mtime_offset"
+	OffsetInodeCtime = "inode_ctime_offset"
+
 	// inode times
 	OffsetNameInodeCtimeSec  = "inode_ctime_sec_offset"
 	OffsetNameInodeCtimeNsec = "inode_ctime_nsec_offset"

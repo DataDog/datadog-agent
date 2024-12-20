@@ -2491,6 +2491,18 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx", "")
 	}
+
+	// inode
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeIno, "struct inode", "i_ino", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeGid, "struct inode", "i_gid", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeNlink, "struct inode", "i_nlink", "linux/fs.h")
+	if kv.IsInRangeCloseOpen(kernel.Kernel6_7, kernel.Kernel6_11) {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeMtime, "struct inode", "__i_mtime", "linux/fs.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeCtime, "struct inode", "__i_ctime", "linux/fs.h")
+	} else if kv.Code < kernel.Kernel6_7 {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeMtime, "struct inode", "i_mtime", "linux/fs.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeCtime, "struct inode", "i_ctime", "linux/fs.h")
+	}
 }
 
 // HandleActions handles the rule actions
