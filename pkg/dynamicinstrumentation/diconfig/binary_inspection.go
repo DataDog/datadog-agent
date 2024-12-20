@@ -127,6 +127,9 @@ func collectFieldIDs(param *ditypes.Parameter) []bininspect.FieldIdentifier {
 	return fieldIDs
 }
 
+// populateLocationExpressions traverses through parameters for each function being
+// instrumented and generates the location expressions for collecting the specific
+// values.
 func populateLocationExpressions(
 	metadata map[string]bininspect.FunctionMetadata,
 	procInfo *ditypes.ProcessInfo) error {
@@ -157,6 +160,8 @@ func populateLocationExpressions(
 	return nil
 }
 
+// putLocationsInParams collects parameter locations from metadata which is retrieved
+// from the bininspect package, and assigns it in the Parameter representation.
 func putLocationsInParams(
 	paramMetadatas []bininspect.ParameterMetadata,
 	fieldLocations map[bininspect.FieldIdentifier]uint64,
@@ -184,6 +189,11 @@ func putLocationsInParams(
 	funcMap[funcName] = params
 }
 
+// assignLocationsInOrder takes a slice of locations and a slice of parameters and assigns
+// the locations  in the intended order according to how they were retrieved from DWARF.
+// The locations convey where in memory the parameter will be at function entry, such
+// as specific registers or stack offsets. Logic such as assigning locations to individual
+// array elements or types that are pointed to is handled.
 func assignLocationsInOrder(params []*ditypes.Parameter, locations []ditypes.Location) {
 	stack := []*ditypes.Parameter{}
 	locationCounter := 0
@@ -220,7 +230,9 @@ func assignLocationsInOrder(params []*ditypes.Parameter, locations []ditypes.Loc
 	}
 }
 
-// correctStructLocations field offsets for structs
+// correctStructLocations finds structs in the passed parameter tree (`structParam`) and sets the FieldOffset
+// field in individual fields which convey the offset of the field within the struct when the struct is stored
+// on the stack or heap.
 func correctStructLocations(structParam *ditypes.Parameter, fieldLocations map[bininspect.FieldIdentifier]uint64) {
 	for i := range structParam.ParameterPieces {
 		if structParam.ParameterPieces[i] == nil {
@@ -235,8 +247,4 @@ func correctStructLocations(structParam *ditypes.Parameter, fieldLocations map[b
 		structParam.ParameterPieces[i].FieldOffset = offset
 		correctStructLocations(structParam.ParameterPieces[i], fieldLocations)
 	}
-}
-
-func isLocationSet(l ditypes.Location) bool {
-	return reflect.DeepEqual(l, ditypes.Location{})
 }
