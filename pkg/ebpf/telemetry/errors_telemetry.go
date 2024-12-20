@@ -60,6 +60,7 @@ func (k *telemetryKey) String() string {
 type ebpfErrorsTelemetry interface {
 	sync.Locker
 	fill([]names.MapName, names.ModuleName, *maps.GenericMap[uint64, mapErrTelemetry], *maps.GenericMap[uint64, helperErrTelemetry]) error
+	cleanup([]names.MapName, names.ModuleName, *maps.GenericMap[uint64, mapErrTelemetry], *maps.GenericMap[uint64, helperErrTelemetry]) error
 	setProbe(name telemetryKey, hash uint64)
 	isInitialized() bool
 	forEachMapErrorEntryInMaps(yield func(telemetryKey, uint64, mapErrTelemetry) bool)
@@ -113,6 +114,33 @@ func (e *ebpfTelemetry) fill(maps []names.MapName, mn names.ModuleName, mapErrMa
 	}
 
 	e.initialized = true
+
+	return nil
+}
+
+func (e *ebpfTelemetry) cleanup(maps []names.MapName, mn names.ModuleName, mapErrMap *maps.GenericMap[uint64, mapErrTelemetry], helperErrMap *maps.GenericMap[uint64, helperErrTelemetry]) error {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	// Cleanup mapKeys (initialized in initializeMapErrTelemetryMap)
+	h := keyHash()
+	for _, mapName := range maps {
+		delete(e.mapKeys, mapTelemetryKey(mapName, mn))
+		key := eBPFMapErrorKey(h, mapTelemetryKey(mapName, mn))
+		mapErrMap.Delete(&key)
+	}
+
+	// Cleanup helper keys
+	for p, key := range e.probeKeys {
+		if p.moduleName != mn {
+			continue
+		}
+		helperErrMap.Delete(&key)
+		delete(e.probeKeys, p)
+	}
+
+	delete(e.mapErrMapsByModule, mn)
+	delete(e.helperErrMapsByModule, mn)
 
 	return nil
 }
