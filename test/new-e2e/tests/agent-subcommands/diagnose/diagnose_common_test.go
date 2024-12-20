@@ -46,6 +46,7 @@ var commonSuites = []string{
 	"connectivity-datadog-autodiscovery",
 	"connectivity-datadog-core-endpoints",
 	"connectivity-datadog-event-platform",
+	"port-conflict",
 }
 
 func getDiagnoseOutput(v *baseDiagnoseSuite, commandArgs ...agentclient.AgentArgsOption) string {
