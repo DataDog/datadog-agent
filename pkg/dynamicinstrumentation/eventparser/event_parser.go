@@ -28,7 +28,7 @@ var (
 
 // ParseEvent takes the raw buffer from bpf and parses it into an event. It also potentially
 // applies a rate limit
-func ParseEvent(procs ditypes.DIProcs, record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) (*ditypes.DIEvent, error) {
+func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) (*ditypes.DIEvent, error) {
 	event := ditypes.DIEvent{}
 
 	if len(record) < ditypes.SizeofBaseEvent {
@@ -46,30 +46,21 @@ func ParseEvent(procs ditypes.DIProcs, record []byte, ratelimiters *ratelimiter.
 	event.PID = baseEvent.Pid
 	event.UID = baseEvent.Uid
 	event.StackPCs = baseEvent.Program_counters[:]
-
-	probe := procs.GetProbe(event.PID, event.ProbeID)
-	if probe == nil {
-		return nil, fmt.Errorf("received event unassociated with probe. Probe ID: %s PID: %d", event.ProbeID, event.PID)
-	}
-
-	event.Argdata = readParamsForProbe(probe, record[ditypes.SizeofBaseEvent:])
+	event.Argdata = readParams(record[ditypes.SizeofBaseEvent:])
 	return &event, nil
 }
 
-func readParamsForProbe(probe *ditypes.Probe, values []byte) []*ditypes.Param {
+func readParams(values []byte) []*ditypes.Param {
 	log.Tracef("DI event bytes (0:100): %v", values[0:100])
 	outputParams := []*ditypes.Param{}
-	for i := 0; i < probe.InstrumentationInfo.InstrumentationOptions.ArgumentsMaxSize; {
-		if i+3 >= len(values) {
-			break
-		}
+	for i := 0; i+3 < len(values); {
 		paramTypeDefinition := parseTypeDefinition(values[i:])
 		if paramTypeDefinition == nil {
 			break
 		}
 		sizeOfTypeDefinition := countBufferUsedByTypeDefinition(paramTypeDefinition)
 		i += sizeOfTypeDefinition
-		val, numBytesRead := parseParamValueForProbe(probe, paramTypeDefinition, values[i:])
+		val, numBytesRead := parseParamValue(paramTypeDefinition, values[i:])
 		if val == nil {
 			return outputParams
 		}
@@ -79,11 +70,11 @@ func readParamsForProbe(probe *ditypes.Probe, values []byte) []*ditypes.Param {
 	return outputParams
 }
 
-// parseParamValueForProbe takes the representation of the param type's definition and the
+// parseParamValue takes the representation of the param type's definition and the
 // actual values in the buffer and populates the definition with the value parsed
 // from the byte buffer. It returns the resulting parameter and an indication of
 // how many bytes were read from the buffer
-func parseParamValueForProbe(probe *ditypes.Probe, definition *ditypes.Param, buffer []byte) (*ditypes.Param, int) {
+func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, int) {
 	var bufferIndex int = 0
 	// Start by creating a stack with each layer of the definition
 	// which will correspond with the layers of the values read from buffer.
