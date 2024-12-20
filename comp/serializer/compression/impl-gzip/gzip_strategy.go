@@ -118,16 +118,21 @@ func (s *GzipStrategy) NewStreamCompressor(output *bytes.Buffer) compression.Str
 	// Ensure level is within a range that doesn't cause NewWriterLevel to error.
 	level := s.level
 	if level < gzip.HuffmanOnly {
-		log.Warnf("Gzip streaming log level set to %d, minimum is %d.", level, gzip.HuffmanOnly)
+		log.Warnf("Gzip streaming log level set to %d, minimum is %d. Setting to minumum.", level, gzip.HuffmanOnly)
 		level = gzip.HuffmanOnly
 	}
 
 	if level > gzip.BestCompression {
-		log.Warnf("Gzip streaming log level set to %d, maximum is %d.", level, gzip.BestCompression)
+		log.Warnf("Gzip streaming log level set to %d, maximum is %d. Setting to maximum.", level, gzip.BestCompression)
 		level = gzip.BestCompression
 	}
 
-	writer, _ := gzip.NewWriterLevel(output, level)
+	writer, err := gzip.NewWriterLevel(output, level)
+	if err != nil {
+		log.Warnf("Error creating gzip writer with level %d. Using default.", level)
+		writer = gzip.NewWriter(output)
+	}
+
 	return writer
 }
 
