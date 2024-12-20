@@ -124,7 +124,7 @@ func validateValueTypeForMapType[V any](t ebpf.MapType) error {
 	return nil
 }
 
-func validateKeyValueTypes[K, V any](keySize, valueSize uint32) error {
+func validateKeyValueSizes[K, V any](keySize, valueSize uint32) error {
 	var k K
 	tk := reflect.TypeOf(k)
 	if tk.Size() != uintptr(keySize) {
@@ -145,7 +145,7 @@ func Map[K any, V any](m *ebpf.Map) (*GenericMap[K, V], error) {
 		return nil, err
 	}
 
-	if err := validateKeyValueTypes[K, V](m.KeySize(), m.ValueSize()); err != nil {
+	if err := validateKeyValueSizes[K, V](m.KeySize(), m.ValueSize()); err != nil {
 		return nil, err
 	}
 
