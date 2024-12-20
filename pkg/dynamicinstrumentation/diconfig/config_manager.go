@@ -165,6 +165,9 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 
 func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.ProcessInfo) {
 	log.Tracef("Waiting for configs for service: %s", procInfo.ServiceName)
+	configRateLimiter := ratelimiter.NewMultiProbeRateLimiter(0.0)
+	configRateLimiter.SetRate(ditypes.ConfigBPFProbeID, 0)
+
 	for {
 		record, err := r.Read()
 		if err != nil {
@@ -172,10 +175,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 			continue
 		}
 
-		rateLimiters := ratelimiter.NewMultiProbeRateLimiter(0.0)
-		rateLimiters.SetRate(ditypes.ConfigBPFProbeID, 0)
-
-		configEvent, err := eventparser.ParseEvent(cm.diProcs, record.RawSample, rateLimiters)
+		configEvent, err := eventparser.ParseEvent(cm.diProcs, record.RawSample, configRateLimiter)
 		if err != nil {
 			log.Errorf("error parsing configuration for PID %d: %v", procInfo.PID, err)
 			continue
