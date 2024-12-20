@@ -65,7 +65,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -179,9 +178,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				statusimpl.Module(),
 				fetchonlyimpl.Module(),
-				configsyncimpl.OptionalModule(),
+				configsyncimpl.Module(),
 				// Force the instantiation of the component
-				fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
+				fx.Invoke(func(_ configsync.Component) {}),
 				autoexitimpl.Module(),
 				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 				fx.Provide(func(c config.Component) settings.Params {
