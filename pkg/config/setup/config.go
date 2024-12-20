@@ -78,16 +78,16 @@ const (
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
-	// DefaultGzipCompressionLevel is the default gzip compression level for logs.
-	DefaultGzipCompressionLevel = 6
-
-	// DefaultCompressorKind is the default compressor for metrics. Options available are 'zlib' and 'zstd'
-	DefaultCompressorKind = "zlib"
+	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
+	DefaultCompressorKind = "zstd"
 
 	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
 	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
 	// in situations where we have a high value for `GOMAXPROCS`.
 	DefaultZstdCompressionLevel = 1
+
+	// DefaultGzipCompressionLevel is the default gzip compression level for logs.
+	DefaultGzipCompressionLevel = 6
 
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
@@ -871,8 +871,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
 	config.BindEnv("process_config.orchestrator_dd_url", "DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL", "DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL")
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints` setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints` will take precedence.
-	config.SetKnown("process_config.orchestrator_additional_endpoints.*")
-	config.SetKnown("orchestrator_explorer.orchestrator_additional_endpoints.*")
+	config.SetKnown("process_config.orchestrator_additional_endpoints")
 	config.BindEnvAndSetDefault("orchestrator_explorer.extra_tags", []string{})
 
 	// Network
@@ -1286,7 +1285,6 @@ func telemetry(config pkgconfigmodel.Setup) {
 
 	// Agent Telemetry
 	config.BindEnvAndSetDefault("agent_telemetry.enabled", true)
-	config.SetKnown("agent_telemetry.additional_endpoints.*")
 	bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
 }
 
@@ -1822,19 +1820,18 @@ func findUnknownKeys(config pkgconfigmodel.Config) []string {
 	var unknownKeys []string
 	knownKeys := config.GetKnownKeysLowercased()
 	loadedKeys := config.AllKeysLowercased()
-	for _, key := range loadedKeys {
-		if _, found := knownKeys[key]; !found {
-			// Check if any subkey terminated with a '.*' wildcard is marked as known
-			// e.g.: apm_config.* would match all sub-keys of apm_config
-			splitPath := strings.Split(key, ".")
-			for j := range splitPath {
-				subKey := strings.Join(splitPath[:j+1], ".") + ".*"
-				if _, found = knownKeys[subKey]; found {
+	for _, loadedKey := range loadedKeys {
+		if _, found := knownKeys[loadedKey]; !found {
+			nestedValue := false
+			// If a value is within a known key it is considered known.
+			for knownKey := range knownKeys {
+				if strings.HasPrefix(loadedKey, knownKey+".") {
+					nestedValue = true
 					break
 				}
 			}
-			if !found {
-				unknownKeys = append(unknownKeys, key)
+			if !nestedValue {
+				unknownKeys = append(unknownKeys, loadedKey)
 			}
 		}
 	}

@@ -9,6 +9,7 @@ package tagger
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
@@ -37,6 +38,7 @@ type Component interface {
 	// integrations using the tagger
 	LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error)
 	Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error)
+	GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error)
 	AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error
 	Standard(entityID types.EntityID) ([]string, error)
 	List() types.TaggerListResponse

@@ -211,13 +211,15 @@ func validateConfigs(t *testing.T, expectedCfg string, actualCfg string) {
 	// Traces, metrics and logs endpoints are set dynamically to the fake intake address in the config
 	// These endpoints vary from test to test and should be ignored in the comparison
 	exps, _ := actualConfRaw["exporters"].(map[string]any)
-	ddExp, _ := exps["datadog"].(map[string]any)
-	tcfg := ddExp["traces"].(map[string]any)
-	delete(tcfg, "endpoint")
-	mcfg := ddExp["metrics"].(map[string]any)
-	delete(mcfg, "endpoint")
-	lcfg := ddExp["logs"].(map[string]any)
-	delete(lcfg, "endpoint")
+	if ddExp, ok := exps["datadog"]; ok {
+		ddExpCfg := ddExp.(map[string]any)
+		tcfg := ddExpCfg["traces"].(map[string]any)
+		delete(tcfg, "endpoint")
+		mcfg := ddExpCfg["metrics"].(map[string]any)
+		delete(mcfg, "endpoint")
+		lcfg := ddExpCfg["logs"].(map[string]any)
+		delete(lcfg, "endpoint")
+	}
 
 	actualCfgBytes, err := yaml.Marshal(actualConfRaw)
 	require.NoError(t, err)
