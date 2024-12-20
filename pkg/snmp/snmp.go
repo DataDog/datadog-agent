@@ -95,8 +95,8 @@ type intOrBoolPtr interface {
 	*int | *bool
 }
 
-// NoConfigGivenError is returned when the SNMP listener config was not found
-var NoConfigGivenError = errors.New("no config given for snmp_listener")
+// ErrNoConfigGivenError is returned when the SNMP listener config was not found
+var ErrNoConfigGivenError = errors.New("no config given for snmp_listener")
 
 // NewListenerConfig parses configuration and returns a built ListenerConfig
 func NewListenerConfig() (ListenerConfig, error) {
@@ -117,7 +117,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 			return snmpConfig, err
 		}
 	} else {
-		return snmpConfig, NoConfigGivenError
+		return snmpConfig, ErrNoConfigGivenError
 	}
 
 	if snmpConfig.AllowedFailures == 0 && snmpConfig.AllowedFailuresLegacy != 0 {
