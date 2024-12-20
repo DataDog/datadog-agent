@@ -7,6 +7,7 @@ package defaultforwarder
 
 import (
 	"context"
+	"strings"
 
 	"go.uber.org/fx"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 type dependencies struct {
@@ -47,9 +49,12 @@ func newForwarder(dep dependencies) provides {
 func createOptions(params Params, config config.Component, log log.Component) *Options {
 	var options *Options
 	keysPerDomain := getMultipleEndpoints(config, log)
+
 	if !params.withResolver {
+		log.Debugf("Creating option without resolver")
 		options = NewOptions(config, log, keysPerDomain)
 	} else {
+		log.Debugf("Creating option with resolver")
 		options = NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))
 	}
 	// Override the DisableAPIKeyChecking only if WithFeatures was called
@@ -58,6 +63,14 @@ func createOptions(params Params, config config.Component, log log.Component) *O
 	}
 	options.SetEnabledFeatures(params.features)
 
+	log.Infof("starting forwarder with %d endpoints", len(options.DomainResolvers))
+	for _, resolver := range options.DomainResolvers {
+		scrubbedKeys := []string{}
+		for _, k := range resolver.GetAPIKeys() {
+			scrubbedKeys = append(scrubbedKeys, scrubber.HideKeyExceptLastFiveChars(k))
+		}
+		log.Infof("domain '%s' has %d keys: %s", resolver.GetBaseDomain(), len(scrubbedKeys), strings.Join(scrubbedKeys, ", "))
+	}
 	return options
 }
 

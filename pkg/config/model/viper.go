@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -150,6 +151,12 @@ func (c *safeConfig) OnUpdate(callback NotificationReceiver) {
 	c.notificationReceivers = append(c.notificationReceivers, callback)
 }
 
+func getCallerLocation(nbStack int) string {
+	_, file, line, _ := runtime.Caller(nbStack + 1)
+	fileParts := strings.Split(file, "DataDog/datadog-agent/")
+	return fmt.Sprintf("%s:%d", fileParts[len(fileParts)-1], line)
+}
+
 // Set wraps Viper for concurrent access
 func (c *safeConfig) Set(key string, newValue interface{}, source Source) {
 	if source == SourceDefault {
@@ -160,18 +167,37 @@ func (c *safeConfig) Set(key string, newValue interface{}, source Source) {
 	// modify the config then release the lock to avoid deadlocks while notifying
 	var receivers []NotificationReceiver
 	c.Lock()
-	previousValue := c.Viper.Get(key)
-	c.configSources[source].Set(key, newValue)
-	c.mergeViperInstances(key)
-	if !reflect.DeepEqual(previousValue, newValue) {
+
+	oldValue := c.Viper.Get(key)
+
+	// First we check if the layer changed
+	previousValueFromLayer := c.configSources[source].Get(key)
+	if !reflect.DeepEqual(previousValueFromLayer, newValue) {
+		c.configSources[source].Set(key, newValue)
+		c.mergeViperInstances(key)
+	} else {
+		// nothing changed:w
+		log.Debugf("Updating setting '%s' for source '%s' with the same value, skipping notification", key, source)
+		c.Unlock()
+		return
+	}
+
+	// We might have updated a layer that is itself overridden by another (ex: updating a setting a the 'file' level
+	// already overridden at the 'cli' level. If it the case we do nothing.
+	latestValue := c.Viper.Get(key)
+	if !reflect.DeepEqual(oldValue, latestValue) {
+		log.Infof("Updating setting '%s' for source '%s' with new value. notifying %d listeners", key, source, len(c.notificationReceivers))
 		// if the value has not changed, do not duplicate the slice so that no callback is called
 		receivers = slices.Clone(c.notificationReceivers)
+	} else {
+		log.Debugf("Updating setting '%s' for source '%s' with the same value, skipping notification", key, source)
 	}
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, previousValue, newValue)
+		log.Debugf("notifying %s about configuration change for '%s'", getCallerLocation(1), key)
+		receiver(key, oldValue, latestValue)
 	}
 }
 

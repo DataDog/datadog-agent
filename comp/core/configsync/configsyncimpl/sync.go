@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"reflect"
 	"strconv"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 )
 
 func (cs *configSync) updater() {
+	cs.Log.Debugf("Pulling new configuration")
 	cfg, err := fetchConfig(cs.ctx, cs.client, cs.Authtoken.Get(), cs.url.String())
 	if err != nil {
 		if cs.connected {
@@ -42,7 +42,7 @@ func (cs *configSync) updater() {
 			valueMap, ok := value.(map[string]string)
 			if !ok {
 				// this would be unexpected - but deal with it
-				updateConfig(cs.Config, key, value)
+				cs.Config.Set(key, value, pkgconfigmodel.SourceLocalConfigProcess)
 				continue
 			}
 
@@ -55,11 +55,10 @@ func (cs *configSync) updater() {
 						typedValues[cfgkey] = cfgval
 					}
 				}
-				updateConfig(cs.Config, key, typedValues)
+				cs.Config.Set(key, typedValues, pkgconfigmodel.SourceLocalConfigProcess)
 			}
-
 		} else {
-			updateConfig(cs.Config, key, value)
+			cs.Config.Set(key, value, pkgconfigmodel.SourceLocalConfigProcess)
 		}
 	}
 }
@@ -72,7 +71,6 @@ func (cs *configSync) runWithInterval(refreshInterval time.Duration) {
 }
 
 func (cs *configSync) runWithChan(ch <-chan time.Time) {
-
 	cs.Log.Infof("Starting to sync config with core agent at %s", cs.url)
 
 	for {
@@ -103,12 +101,4 @@ func fetchConfig(ctx context.Context, client *http.Client, authtoken, url string
 	}
 
 	return config, nil
-}
-
-func updateConfig(cfg pkgconfigmodel.ReaderWriter, key string, value interface{}) bool {
-	// check if the value changed to only log if it effectively changed the value
-	oldvalue := cfg.Get(key)
-	cfg.Set(key, value, pkgconfigmodel.SourceLocalConfigProcess)
-
-	return !reflect.DeepEqual(oldvalue, cfg.Get(key))
 }
