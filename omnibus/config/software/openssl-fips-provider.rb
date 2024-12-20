@@ -23,6 +23,7 @@ relative_path "openssl-#{OPENSSL_FIPS_MODULE_VERSION}"
 
 build do
     env = with_standard_compiler_flags()
+    env["MAKEFLAGS"] = "-j#{workers}"
     # Exact build steps from security policy:
     # https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4282.pdf
     #

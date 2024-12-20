@@ -162,12 +162,12 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 }
 
 // AppendSizeofRequest appends a sizeof request
-func (f *FallbackConstantFetcher) AppendSizeofRequest(id, _, _ string) {
+func (f *FallbackConstantFetcher) AppendSizeofRequest(id, _ string) {
 	f.appendRequest(id)
 }
 
 // AppendOffsetofRequest appends an offset request
-func (f *FallbackConstantFetcher) AppendOffsetofRequest(id, _, _, _ string) {
+func (f *FallbackConstantFetcher) AppendOffsetofRequest(id, _, _ string) {
 	f.appendRequest(id)
 }
 
