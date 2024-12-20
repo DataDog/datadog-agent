@@ -592,3 +592,19 @@ func TestValidateMapKeyValueSize(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, gm2)
 }
+
+func TestGenericHashMapCanUseBatchAPI(t *testing.T) {
+	hash, err := ebpf.NewMap(&ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		KeySize:    4,
+		ValueSize:  4,
+		MaxEntries: 10,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { hash.Close() })
+
+	gm, err := Map[int32, int32](hash)
+	require.NoError(t, err)
+
+	require.Equal(t, BatchAPISupported(), gm.CanUseBatchAPI())
+}
