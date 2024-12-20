@@ -128,12 +128,12 @@ func validateKeyValueSizes[K, V any](keySize, valueSize uint32) error {
 	var k K
 	tk := reflect.TypeOf(k)
 	if tk.Size() != uintptr(keySize) {
-		return fmt.Errorf("map key size (%d) does not match key type (%T) size (%d)", keySize, tk, tk.Size())
+		return fmt.Errorf("map key size (%d) does not match key type (%T) size (%d)", keySize, k, tk.Size())
 	}
 	var v V
 	tv := reflect.TypeOf(v)
 	if tv.Size() != uintptr(valueSize) {
-		return fmt.Errorf("map value size (%d) does not match value type (%T) size (%d)", valueSize, tv, tv.Size())
+		return fmt.Errorf("map value size (%d) does not match value type (%T) size (%d)", valueSize, v, tv.Size())
 	}
 
 	return nil
