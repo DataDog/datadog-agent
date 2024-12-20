@@ -93,4 +93,6 @@ def ask_reviews(_, pr_id):
                 '#agent-devx-help',
             )
             message = f'Hello :{random.choice(WAVES)}:! Can you please review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
+            if channel == '#agent-devx-help':
+                message = f'Hello :{random.choice(WAVES)}:!\nA review channel is missing for {reviewer}, can you please ask them to update `github_slack_review_map.yaml` and transfer them this review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
             client.chat_postMessage(channel=channel, text=message)
