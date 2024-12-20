@@ -1420,6 +1420,7 @@ func (ac *aggregateConnection) merge(c *ConnectionStats) {
 	}
 
 	ac.ProtocolStack.MergeWith(c.ProtocolStack)
+	ac.TLSTags.MergeWith(c.TLSTags)
 
 	if ac.DNSStats == nil {
 		ac.DNSStats = c.DNSStats
@@ -1483,6 +1484,7 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 	}
 
 	a.ProtocolStack.MergeWith(b.ProtocolStack)
+	a.TLSTags.MergeWith(b.TLSTags)
 
 	return false
 }
