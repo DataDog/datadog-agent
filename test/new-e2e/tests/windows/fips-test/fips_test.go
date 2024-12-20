@@ -100,6 +100,14 @@ func (s *fipsAgentSuite) TestFIPSProviderPresent() {
 	require.True(s.T(), exists, "Agent install path should contain the FIPS provider but doesn't")
 }
 
+func (s *fipsAgentSuite) TestFIPSInstall() {
+	host := s.Env().RemoteHost
+	openssl := path.Join(s.installPath, "embedded3/bin/openssl.exe")
+	cmd := fmt.Sprintf("%s fipsinstall", openssl)
+	_, err := host.Execute(cmd)
+	require.NoError(s.T(), err)
+}
+
 func (s *fipsAgentSuite) execAgentCommand(command string, options ...client.ExecuteOption) (string, error) {
 	host := s.Env().RemoteHost
 
