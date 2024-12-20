@@ -30,13 +30,13 @@ var extraInstanceJSON string
 //go:embed testdata/emrDescribeClusterResponse.json
 var emrDescribeClusterResponse string
 
-func TestSetupCommonEmrHostTags(t *testing.T) {
+func TestSetupEmr(t *testing.T) {
 
 	// Mock AWS emr describe command
 	originalExecuteCommand := executeCommandWithTimeout
 	defer func() { executeCommandWithTimeout = originalExecuteCommand }() // Restore original after test
 
-	executeCommandWithTimeout = func(command string, args ...string) ([]byte, error) {
+	executeCommandWithTimeout = func(s *common.Setup, command string, args ...string) ([]byte, error) {
 		if command == "aws" && args[0] == "emr" && args[1] == "describe-cluster" {
 			return []byte(emrDescribeClusterResponse), nil
 		}
@@ -70,7 +70,10 @@ func TestSetupCommonEmrHostTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
-			s := &common.Setup{Span: span}
+			s := &common.Setup{
+				Span: span,
+				Ctx:  context.Background(),
+			}
 
 			_, _, err := setupCommonEmrHostTags(s)
 			assert.Nil(t, err)

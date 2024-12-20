@@ -92,7 +92,6 @@ func SetupEmr(s *common.Setup) error {
 	// Ensure tags are always attached with the metrics
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
 	isMaster, clusterName, err := setupCommonEmrHostTags(s)
-	setHostTag(s, "cluster_name", clusterName)
 	if err != nil {
 		return fmt.Errorf("failed to set tags: %w", err)
 	}
@@ -133,6 +132,8 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 	s.Span.SetTag("emr_version", extraInfo.ReleaseLabel)
 
 	clusterName := resolveClusterName(s, extraInfo.JobFlowID)
+	setHostTag(s, "cluster_name", clusterName)
+
 	return info.IsMaster, clusterName, nil
 }
 
