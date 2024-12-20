@@ -19,16 +19,14 @@ var (
 	profileExpVar = expvar.NewMap("snmpProfileErrors")
 )
 
-func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileConfigMap, error) {
+func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) ProfileConfigMap {
 	rawProfiles := mergeProfiles(defaultProfiles, userProfiles)
-	userExpandedProfiles, err := loadResolveProfiles(rawProfiles, defaultProfiles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load profiles: %w", err)
-	}
-	return userExpandedProfiles, nil
+	userExpandedProfiles := normalizeProfiles(rawProfiles, defaultProfiles)
+	return userExpandedProfiles
 }
 
-func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMap) (ProfileConfigMap, error) {
+// normalizeProfiles returns a copy of pConfig with all profiles normalized, validated, and fully expanded (i.e. values from their .extend attributes will be baked into the profile itself).
+func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMap) ProfileConfigMap {
 	profiles := make(ProfileConfigMap, len(pConfig))
 
 	for name := range pConfig {
@@ -57,7 +55,7 @@ func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfig
 		profiles[name] = newProfileConfig
 	}
 
-	return profiles, nil
+	return profiles
 }
 
 func recursivelyExpandBaseProfiles(parentExtend string, definition *profiledefinition.ProfileDefinition, extends []string, extendsHistory []string, profiles ProfileConfigMap, defaultProfiles ProfileConfigMap) error {

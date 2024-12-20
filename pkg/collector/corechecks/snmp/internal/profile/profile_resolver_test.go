@@ -66,7 +66,6 @@ func Test_resolveProfiles(t *testing.T) {
 		expectedProfileDefMap   ProfileConfigMap
 		expectedProfileMetrics  []string
 		expectedInterfaceIDTags []string
-		expectedIncludeErrors   []string
 		expectedLogs            []logCount
 	}{
 		{
@@ -74,7 +73,6 @@ func Test_resolveProfiles(t *testing.T) {
 			userProfiles:          userTestConfdProfiles,
 			defaultProfiles:       defaultTestConfdProfiles,
 			expectedProfileDefMap: FixtureProfileDefinitionMap(),
-			expectedIncludeErrors: []string{},
 		},
 		{
 			name:            "ok user profiles case",
@@ -97,7 +95,6 @@ func Test_resolveProfiles(t *testing.T) {
 				"p5:interface",
 				"p6:interface",
 			},
-			expectedIncludeErrors: []string{},
 		},
 		{
 			name: "invalid extends",
@@ -109,7 +106,7 @@ func Test_resolveProfiles(t *testing.T) {
 			},
 			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
-				{"[WARN] loadResolveProfiles: failed to expand profile \"f5-big-ip\": extend does not exist: `does_not_exist`", 1},
+				{"failed to expand profile \"f5-big-ip\": extend does not exist: `does_not_exist`", 1},
 			},
 		},
 		{
@@ -117,7 +114,7 @@ func Test_resolveProfiles(t *testing.T) {
 			userProfiles:          profilesWithInvalidExtendProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
-				{"loadResolveProfiles: failed to expand profile \"generic-if\": extend does not exist: `invalid`", 1},
+				{"failed to expand profile \"generic-if\": extend does not exist: `invalid`", 1},
 			},
 		},
 		{
@@ -125,7 +122,7 @@ func Test_resolveProfiles(t *testing.T) {
 			userProfiles:          invalidCyclicProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
-				{"[WARN] loadResolveProfiles: failed to expand profile \"f5-big-ip\": cyclic profile extend detected", 1},
+				{": failed to expand profile \"f5-big-ip\": cyclic profile extend detected", 1},
 			},
 		},
 		{
@@ -150,16 +147,17 @@ func Test_resolveProfiles(t *testing.T) {
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
-			profiles, err := resolveProfiles(tt.userProfiles, tt.defaultProfiles)
-			for _, errorMsg := range tt.expectedIncludeErrors {
-				assert.Contains(t, err.Error(), errorMsg)
-			}
+			profiles := resolveProfiles(tt.userProfiles, tt.defaultProfiles)
 
 			assert.NoError(t, w.Flush())
 			logs := b.String()
 
+			ok := true
 			for _, aLogCount := range tt.expectedLogs {
-				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
+				ok = assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), "missing log line: %q", aLogCount.log) && ok
+			}
+			if !ok {
+				t.Log("actual logs:\n", logs)
 			}
 
 			for i, profile := range profiles {

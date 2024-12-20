@@ -136,7 +136,7 @@ func Test_loadYamlProfiles_invalidExtendProfile(t *testing.T) {
 	logs := b.String()
 	assert.Nil(t, err)
 
-	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadResolveProfiles: failed to expand profile \"f5-big-ip\""), logs)
+	assert.Equal(t, 1, strings.Count(logs, "failed to expand profile \"f5-big-ip\""), logs)
 	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
 }
 
