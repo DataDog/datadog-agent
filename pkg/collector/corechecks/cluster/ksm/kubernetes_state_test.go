@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
 	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
+	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -138,7 +139,7 @@ func TestProcessMetrics(t *testing.T) {
 											},
 										},
 										Each: customresourcestate.Metric{
-											Type: customresourcestate.MetricTypeGauge,
+											Type: metric.Gauge,
 											Gauge: &customresourcestate.MetricGauge{
 												MetricMeta: customresourcestate.MetricMeta{
 													Path: []string{"status", "agent"},
