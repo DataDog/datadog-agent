@@ -124,16 +124,20 @@ func validateValueTypeForMapType[V any](t ebpf.MapType) error {
 	return nil
 }
 
-func validateKeyValueSizes[K, V any](keySize, valueSize uint32) error {
+func validateKeyValueSizes[K, V any](m *ebpf.Map) error {
 	var k K
 	tk := reflect.TypeOf(k)
-	if tk.Size() != uintptr(keySize) {
-		return fmt.Errorf("map key size (%d) does not match key type (%T) size (%d)", keySize, k, tk.Size())
+	if tk.Size() != uintptr(m.KeySize()) {
+		return fmt.Errorf("map key size (%d) does not match key type (%T) size (%d)", m.KeySize(), k, tk.Size())
 	}
 	var v V
 	tv := reflect.TypeOf(v)
-	if tv.Size() != uintptr(valueSize) {
-		return fmt.Errorf("map value size (%d) does not match value type (%T) size (%d)", valueSize, v, tv.Size())
+	tvSize := tv.Size()
+	if isPerCPU(m.Type()) {
+		tvSize = tv.Elem().Size()
+	}
+	if tvSize != uintptr(m.ValueSize()) {
+		return fmt.Errorf("map value size (%d) does not match value type (%T) size (%d)", m.ValueSize(), v, tvSize)
 	}
 
 	return nil
@@ -145,7 +149,7 @@ func Map[K any, V any](m *ebpf.Map) (*GenericMap[K, V], error) {
 		return nil, err
 	}
 
-	if err := validateKeyValueSizes[K, V](m.KeySize(), m.ValueSize()); err != nil {
+	if err := validateKeyValueSizes[K, V](m); err != nil {
 		return nil, err
 	}
 
