@@ -44,17 +44,11 @@ func Fetch(sess session.Session, config *checkconfig.CheckConfig) (*valuestore.R
 		return nil, fmt.Errorf("failed to fetch scalar oids with batching: %v", err)
 	}
 
-	// fetch column values
-	oids := make(map[string]string, len(config.OidConfig.ColumnOids))
-	for _, value := range config.OidConfig.ColumnOids {
-		oids[value] = value
-	}
-
-	columnResults, err := fetchColumnOidsWithBatching(sess, oids, config.OidBatchSize, config.BulkMaxRepetitions, useGetBulk)
+	columnResults, err := fetchColumnOidsWithBatching(sess, config.OidConfig.ColumnOids, config.OidBatchSize, config.BulkMaxRepetitions, useGetBulk)
 	if err != nil {
 		log.Debugf("failed to fetch oids with GetBulk batching: %v", err)
 
-		columnResults, err = fetchColumnOidsWithBatching(sess, oids, config.OidBatchSize, config.BulkMaxRepetitions, useGetNext)
+		columnResults, err = fetchColumnOidsWithBatching(sess, config.OidConfig.ColumnOids, config.OidBatchSize, config.BulkMaxRepetitions, useGetNext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
 		}
