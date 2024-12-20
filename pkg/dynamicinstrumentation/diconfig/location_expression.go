@@ -22,7 +22,6 @@ import (
 // LocationExpressions that can be used to read the parameter from the target process.
 //
 // It walks the tree of the parameter and its pieces, generating LocationExpressions for each piece.
-// The following logic is applied:
 func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *ditypes.Parameter) {
 	triePaths, expressionTargets := generateLocationVisitsMap(param)
 

@@ -512,9 +512,10 @@ func copyTree(dst, src *[]*ditypes.Parameter) {
 	*dst = make([]*ditypes.Parameter, len(*src))
 	copy(*dst, *src)
 	for i := range *src {
-
+		// elements can be nil if there was a nil element originally in src
+		// that was copied to dst
 		if (*dst)[i] == nil || (*src)[i] == nil {
-			return
+			continue
 		}
 		copyTree(&((*dst)[i].ParameterPieces), &((*src)[i].ParameterPieces))
 	}
