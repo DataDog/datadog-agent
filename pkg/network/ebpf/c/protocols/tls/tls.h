@@ -45,14 +45,15 @@
 // RFC 8446 - The Transport Layer Security (TLS) Protocol Version 1.3
 // https://tools.ietf.org/html/rfc8446
 // Many handshake structures are similar, but some extensions (like supported_versions) are defined here
-#define TLS_HANDSHAKE_LENGTH         3  // Handshake length is 3 bytes (RFC 5246 Section 7.4)
-#define RANDOM_LENGTH                32 // Random field length in Client/Server Hello (RFC 5246 Section 7.4.1.2)
-#define PROTOCOL_VERSION_LENGTH      2  // Protocol version field is 2 bytes (RFC 5246 Section 6.2.1)
-#define SESSION_ID_LENGTH            1  // Session ID length field is 1 byte (RFC 5246 Section 7.4.1.2)
-#define CIPHER_SUITES_LENGTH         2  // Cipher Suites length field is 2 bytes (RFC 5246 Section 7.4.1.2)
-#define COMPRESSION_METHODS_LENGTH   1  // Compression Methods length field is 1 byte (RFC 5246 Section 7.4.1.2)
-#define EXTENSION_TYPE_LENGTH        2  // Extension Type field is 2 bytes (RFC 5246 Section 7.4.1.4)
-#define EXTENSION_LENGTH_FIELD       2  // Extension Length field is 2 bytes (RFC 5246 Section 7.4.1.4)
+#define TLS_HANDSHAKE_LENGTH          3  // Handshake length is 3 bytes (RFC 5246 Section 7.4)
+#define TLS_HELLO_MESSAGE_HEADER_SIZE 4  // handshake_type(1) + length(3)
+#define RANDOM_LENGTH                 32 // Random field length in Client/Server Hello (RFC 5246 Section 7.4.1.2)
+#define PROTOCOL_VERSION_LENGTH       2  // Protocol version field is 2 bytes (RFC 5246 Section 6.2.1)
+#define SESSION_ID_LENGTH             1  // Session ID length field is 1 byte (RFC 5246 Section 7.4.1.2)
+#define CIPHER_SUITES_LENGTH          2  // Cipher Suites length field is 2 bytes (RFC 5246 Section 7.4.1.2)
+#define COMPRESSION_METHODS_LENGTH    1  // Compression Methods length field is 1 byte (RFC 5246 Section 7.4.1.2)
+#define EXTENSION_TYPE_LENGTH         2  // Extension Type field is 2 bytes (RFC 5246 Section 7.4.1.4)
+#define EXTENSION_LENGTH_FIELD        2  // Extension Length field is 2 bytes (RFC 5246 Section 7.4.1.4)
 
 // For single-byte fields (list lengths, etc.)
 #define SINGLE_BYTE_LENGTH           1
@@ -105,6 +106,15 @@ static __always_inline void set_tls_offered_version(tls_info_t *tls_info, __u16 
     }
 }
 
+// TLS Record Header (RFC 5246 Section 6.2.1)
+//
+//  +---------+---------+---------+-----------+
+//  | type(1) |     version(2)    | length(2) |
+//  +---------+---------+---------+-----------+
+//  type:    1 byte (TLS_CONTENT_TYPE)
+//  version: 2 bytes (e.g., 0x03 0x03 for TLS 1.2)
+//  length:  2 bytes (total number of payload bytes following this header)
+
 // read_tls_record_header reads the TLS record header from the packet
 // Reference: RFC 5246 Section 6.2.1 (Record Layer), https://tools.ietf.org/html/rfc5246#section-6.2.1
 // Validates the record header fields (content_type, version, length) and checks for correctness within packet bounds.
@@ -135,6 +145,68 @@ static __always_inline bool read_tls_record_header(struct __sk_buff *skb, __u64 
     return header_offset + sizeof(tls_record_header_t) + tls_hdr->length <= data_end;
 }
 
+// TLS Handshake Message Header (RFC 5246 Section 7.4)
+//  +---------+---------+---------+---------+
+//  | handshake_type(1) |   length(3 bytes) |
+//  +---------+---------+---------+---------+
+//
+// The handshake_type identifies the handshake message (e.g., ClientHello, ServerHello).
+// length indicates the size of the handshake message that follows (not including these 4 bytes).
+
+// is_valid_tls_handshake checks if the TLS handshake message is valid
+// The function expects the record to have already been validated. It further checks that the
+// handshake_type and handshake_length are consistent.
+static __always_inline bool is_valid_tls_handshake(struct __sk_buff *skb, __u64 header_offset, __u32 data_end, const tls_record_header_t *hdr) {
+    // At this point, we know from read_tls_record_header() that:
+    // - hdr->version is a valid TLS version
+    // - hdr->length fits entirely within the packet (header_offset + hdr->length <= data_end)
+
+    __u64 handshake_offset = header_offset + sizeof(tls_record_header_t);
+
+    // Ensure we don't read beyond the packet
+    if (handshake_offset + SINGLE_BYTE_LENGTH > data_end) {
+        return false;
+    }
+    // Read handshake_type (1 byte)
+    __u8 handshake_type;
+    if (bpf_skb_load_bytes(skb, handshake_offset, &handshake_type, SINGLE_BYTE_LENGTH) < 0) {
+        return false;
+    }
+
+    // Read handshake_length (3 bytes)
+    __u64 length_offset = handshake_offset + SINGLE_BYTE_LENGTH;
+    if (length_offset + TLS_HANDSHAKE_LENGTH > data_end) {
+        return false;
+    }
+    __u8 handshake_length_bytes[TLS_HANDSHAKE_LENGTH];
+    if (bpf_skb_load_bytes(skb, length_offset, handshake_length_bytes, TLS_HANDSHAKE_LENGTH) < 0) {
+        return false;
+    }
+
+    __u32 handshake_length = (handshake_length_bytes[0] << 16) |
+                             (handshake_length_bytes[1] << 8) |
+                              handshake_length_bytes[2];
+
+    // Verify that the handshake message length plus the 4-byte handshake header (1 byte type + 3 bytes length)
+    // matches the total length defined in the record header.
+    // If handshake_length + TLS_HELLO_MESSAGE_HEADER_SIZE != hdr->length, the handshake message structure is inconsistent.
+    if (handshake_length + TLS_HELLO_MESSAGE_HEADER_SIZE != hdr->length) {
+        return false;
+    }
+
+    // Check that the handshake_type is one of the expected values (ClientHello or ServerHello).
+    // This ensures we are dealing with a known handshake message type.
+    if (handshake_type != TLS_HANDSHAKE_CLIENT_HELLO && handshake_type != TLS_HANDSHAKE_SERVER_HELLO) {
+        return false;
+    }
+
+    // At this point, we've confirmed:
+    // - The handshake message fits within the record.
+    // - The handshake_type is a known TLS Hello message.
+    // - The handshake_length matches the record header's length.
+    return true;
+}
+
 // is_tls checks if the packet is a TLS packet by reading and validating the TLS record header
 // Reference: RFC 5246 Section 6.2.1 (Record Layer), https://tools.ietf.org/html/rfc5246#section-6.2.1
 // Validates that content_type matches known TLS types (Handshake, Application Data, etc.).
@@ -144,9 +216,16 @@ static __always_inline bool is_tls(struct __sk_buff *skb, __u64 header_offset, _
         return false;
     }
 
-    // Validate content type
-    __u8 ct = tls_hdr->content_type;
-    return ct == TLS_HANDSHAKE || ct == TLS_APPLICATION_DATA || ct == TLS_CHANGE_CIPHER_SPEC || ct == TLS_ALERT;
+    switch (tls_hdr->content_type) {
+    case TLS_HANDSHAKE:
+        return is_valid_tls_handshake(skb, header_offset, data_end, tls_hdr);
+    case TLS_APPLICATION_DATA:
+    case TLS_CHANGE_CIPHER_SPEC:
+    case TLS_ALERT:
+        return true;
+    default:
+        return false;
+    }
 }
 
 // parse_tls_handshake_header extracts handshake_length and protocol_version from a TLS handshake message
@@ -217,8 +296,15 @@ static __always_inline bool skip_random_and_session_id(struct __sk_buff *skb, __
 // parse_supported_versions_extension looks for the supported_versions extension in the ClientHello or ServerHello and populates tags
 // References:
 // - For TLS 1.3 supported_versions extension: RFC 8446 Section 4.2.1: https://tools.ietf.org/html/rfc8446#section-4.2.1
-// In the ClientHello, this extension contains a list of supported versions (2 bytes each) preceded by a 1-byte length.
-// In the ServerHello (TLS 1.3), it contains a single selected_version (2 bytes).
+// For ClientHello this extension contains a list of supported versions (2 bytes each) preceded by a 1-byte length.
+//  supported_versions extension structure:
+//   +-----+--------------------+
+//   | len(1) | versions(2 * N) |
+//   +-----+--------------------+
+// For ServerHello (TLS 1.3), it contains a single selected_version (2 bytes).
+//   +---------------------+
+//   | selected_version(2) |
+//   +---------------------+
 static __always_inline bool parse_supported_versions_extension(struct __sk_buff *skb, __u32 *offset, __u32 data_end, __u64 extensions_end, tls_info_t *tags, bool is_client_hello) {
     if (is_client_hello) {
         // Read supported version list length (1 byte)
@@ -284,6 +370,11 @@ static __always_inline bool parse_supported_versions_extension(struct __sk_buff 
 // - For TLS 1.3 supported_versions extension: RFC 8446 Section 4.2.1: https://tools.ietf.org/html/rfc8446#section-4.2.1
 // This function iterates over extensions, reading the extension_type and extension_length, and if it encounters 
 // the supported_versions extension, it calls parse_supported_versions_extension to handle it.
+// ASCII snippet for a single extension:
+//   +---------+---------+--------------------------------+
+//   | ext_type(2) | ext_length(2) | ext_data(ext_length) |
+//   +---------+---------+--------------------------------+
+// For multiple extensions, they are just concatenated one after another.
 static __always_inline bool parse_tls_extensions(struct __sk_buff *skb, __u32 *offset, __u32 data_end, __u64 extensions_end, tls_info_t *tags, bool is_client_hello) {
     __u16 extension_type;
     __u16 extension_length;
@@ -333,6 +424,24 @@ static __always_inline bool parse_tls_extensions(struct __sk_buff *skb, __u32 *o
 // Reference: RFC 5246 Section 7.4.1.2 (Client Hello), https://tools.ietf.org/html/rfc5246
 // Structure (simplified):
 // handshake_type (1 byte), length (3 bytes), version (2 bytes), random(32 bytes), session_id_length(1 byte), session_id(variable), cipher_suites_length(2 bytes), cipher_suites(variable), compression_methods_length(1 byte), compression_methods(variable), extensions_length(2 bytes), extensions(variable)
+// After the handshake header (handshake_type + length), the ClientHello fields are:
+// +----------------------------+
+// | client_version (2)         |
+// +----------------------------+
+// | random (32)                |
+// +----------------------------+
+// | session_id_length (1)      |
+// | session_id (...)           |
+// +----------------------------+
+// | cipher_suites_length(2)    |
+// | cipher_suites(...)         |
+// +----------------------------+
+// | compression_methods_len(1) |
+// | compression_methods(...)   |
+// +----------------------------+
+// | extensions_length (2)      |
+// | extensions(...)            |
+// +----------------------------+
 static __always_inline bool parse_client_hello(struct __sk_buff *skb, __u32 offset, __u32 data_end, tls_info_t *tags) {
     __u32 handshake_length;
     __u16 client_version;
@@ -406,6 +515,22 @@ static __always_inline bool parse_client_hello(struct __sk_buff *skb, __u32 offs
 // Reference: RFC 5246 Section 7.4.1.2 (Server Hello), https://tools.ietf.org/html/rfc5246
 // Structure (simplified):
 // handshake_type(1), length(3), version(2), random(32), session_id_length(1), session_id(variable), cipher_suite(2), compression_method(1), extensions_length(2), extensions(variable)
+// After the handshake header (handshake_type + length), the ServerHello fields are:
+// +------------------------+
+// | server_version (2)     |
+// +------------------------+
+// | random (32)            |
+// +------------------------+
+// | session_id_length (1)  |
+// | session_id (...)       |
+// +------------------------+
+// | cipher_suite (2)       |
+// +------------------------+
+// | compression_method (1) |
+// +------------------------+
+// | extensions_length(2)   |
+// | extensions(...)        |
+// +------------------------+
 static __always_inline bool parse_server_hello(struct __sk_buff *skb, __u32 offset, __u32 data_end, tls_info_t *tags) {
     __u32 handshake_length;
     __u16 server_version;
