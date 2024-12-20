@@ -60,6 +60,7 @@ func WithWindowsSecretSetupScript(wrapperPath string, allowGroupExec bool) []fun
 	}
 }
 
+// WithWindowsSecretSetupScriptNoPerms returns a list of agent params that setups a secret resolver script with no permissions.
 func WithWindowsSecretSetupScriptNoPerms(wrapperPath string) []func(*agentparams.Params) error {
 	wrapperPath = strings.ReplaceAll(wrapperPath, `\`, `/`)
 
