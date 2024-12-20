@@ -8,6 +8,7 @@
 package model
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -81,28 +82,31 @@ func TestParseCustomConfigurationAnnotation(t *testing.T) {
 	tests := []struct {
 		name        string
 		annotations map[string]string
-		expected    RecommenderConfiguration
+		expected    *RecommenderConfiguration
+		err         error
 	}{
 		{
 			name:        "Empty annotations",
 			annotations: map[string]string{},
-			expected:    RecommenderConfiguration{},
+			expected:    nil,
+			err:         nil,
 		},
 		{
 			name: "URL annotation",
 			annotations: map[string]string{
 				CustomRecommenderAnnotationKey: "{\"endpoint\": \"localhost:8080/test\"}",
 			},
-			expected: RecommenderConfiguration{
+			expected: &RecommenderConfiguration{
 				Endpoint: "localhost:8080/test",
 			},
+			err: nil,
 		},
 		{
 			name: "Settings annotation",
 			annotations: map[string]string{
 				CustomRecommenderAnnotationKey: "{\"endpoint\": \"localhost:8080/test\", \"settings\": {\"key\": \"value\", \"number\": 1, \"bool\": true, \"array\": [1, 2, 3], \"object\": {\"key\": \"value\"}}}",
 			},
-			expected: RecommenderConfiguration{
+			expected: &RecommenderConfiguration{
 				Endpoint: "localhost:8080/test",
 				Settings: map[string]any{
 					"key":    "value",
@@ -112,13 +116,27 @@ func TestParseCustomConfigurationAnnotation(t *testing.T) {
 					"object": map[string]interface{}{"key": "value"},
 				},
 			},
+			err: nil,
+		},
+		{
+			name: "Unmarshalable annotations",
+			annotations: map[string]string{
+				CustomRecommenderAnnotationKey: "{\"endpoint: \"localhost:8080/test\",}",
+			},
+			expected: nil,
+			err:      fmt.Errorf("Failed to parse annotations for custom recommender configuration: invalid character 'l' after object key"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			customConfiguration := *parseCustomConfigurationAnnotation(tt.annotations)
-			assert.Equal(t, tt.expected, customConfiguration)
+			customConfiguration, err := parseCustomConfigurationAnnotation(tt.annotations)
+			if tt.err == nil {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, customConfiguration)
+			} else {
+				assert.EqualError(t, err, tt.err.Error())
+			}
 		})
 	}
 }

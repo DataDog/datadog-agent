@@ -16,7 +16,6 @@ import (
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	corev1 "k8s.io/api/core/v1"
@@ -151,7 +150,7 @@ func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq
 	// Compute the horizontal events retention again in case .Spec.Policy has changed
 	p.horizontalEventsRetention = getHorizontalEventsRetention(podAutoscaler.Spec.Policy, longestScalingRulePeriodAllowed)
 	// Compute recommender configuration again in case .Annotations has changed
-	p.customRecommenderConfiguration = parseCustomConfigurationAnnotation(podAutoscaler.Annotations)
+	p.updateCustomRecommenderConfiguration(podAutoscaler.Annotations)
 }
 
 // UpdateFromSettings updates the PodAutoscalerInternal from a new settings
@@ -571,6 +570,15 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 }
 
 // Private helpers
+func (p *PodAutoscalerInternal) updateCustomRecommenderConfiguration(annotations map[string]string) {
+	annotation, err := parseCustomConfigurationAnnotation(annotations)
+	if err != nil {
+		p.error = err
+		return
+	}
+	p.customRecommenderConfiguration = annotation
+}
+
 func addHorizontalAction(currentTime time.Time, retention time.Duration, actions []datadoghq.DatadogPodAutoscalerHorizontalAction, action *datadoghq.DatadogPodAutoscalerHorizontalAction) []datadoghq.DatadogPodAutoscalerHorizontalAction {
 	if retention == 0 {
 		actions = actions[:0]
@@ -672,12 +680,18 @@ func getLongestScalingRulesPeriod(rules []datadoghq.DatadogPodAutoscalerScalingR
 	return longest
 }
 
-func parseCustomConfigurationAnnotation(annotations map[string]string) *RecommenderConfiguration {
-	customConfiguration := RecommenderConfiguration{}
+func parseCustomConfigurationAnnotation(annotations map[string]string) (*RecommenderConfiguration, error) {
+	annotation, ok := annotations[CustomRecommenderAnnotationKey]
 
-	if err := json.Unmarshal([]byte(annotations[CustomRecommenderAnnotationKey]), &customConfiguration); err != nil {
-		log.Debugf("Failed to parse annotations for custom recommender configuration: %v", err)
+	if !ok { // No annotation set
+		return nil, nil
 	}
 
-	return &customConfiguration
+	customConfiguration := RecommenderConfiguration{}
+
+	if err := json.Unmarshal([]byte(annotation), &customConfiguration); err != nil {
+		return nil, fmt.Errorf("Failed to parse annotations for custom recommender configuration: %v", err)
+	}
+
+	return &customConfiguration, nil
 }
