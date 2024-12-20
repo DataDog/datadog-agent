@@ -8,6 +8,7 @@
 package ebpf
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -70,6 +71,10 @@ type Modifier interface {
 
 	// AfterInit is called after the ebpf.Manager.InitWithOptions call
 	AfterInit(*manager.Manager, names.ModuleName, *manager.Options) error
+
+	// BeforeStop is called after the ebpf.Manager.Stop call. Errors on these modifiers
+	// will not prevent the manager from stopping, but they will be reported.
+	BeforeStop(*manager.Manager, names.ModuleName) error
 }
 
 // InitWithOptions is a wrapper around ebpf-manager.Manager.InitWithOptions
@@ -99,4 +104,22 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) e
 		}
 	}
 	return nil
+}
+
+// Stop is a wrapper around ebpf-manager.Manager.Stop
+func (m *Manager) Stop(clean manager.MapCleanupType) error {
+	var errs error
+
+	for _, mod := range m.EnabledModifiers {
+		log.Warnf("Running %s manager modifier BeforeStop", mod)
+		if err := mod.BeforeStop(m.Manager, m.Name); err != nil {
+			errs = errors.Join(errs, fmt.Errorf("error running %s manager modifier BeforeStop(): %s", mod, err))
+		}
+	}
+
+	if err := m.Manager.Stop(clean); err != nil {
+		errs = errors.Join(errs, fmt.Errorf("failed to stop manager %w", err))
+	}
+
+	return errs
 }
