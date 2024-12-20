@@ -88,3 +88,11 @@ func (h *helperCallRemover) AfterInit(*manager.Manager, names.ModuleName, *manag
 func (h *helperCallRemover) String() string {
 	return fmt.Sprintf("HelperCallRemover[%+v]", h.helpers)
 }
+
+func (h *helperCallRemover) BeforeStop(*manager.Manager, names.ModuleName) error {
+	return nil
+}
+
+func (h *helperCallRemover) AfterStop(*manager.Manager, names.ModuleName) error {
+	return nil
+}

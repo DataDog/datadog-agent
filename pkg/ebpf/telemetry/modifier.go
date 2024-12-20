@@ -135,3 +135,13 @@ func (t *ErrorsTelemetryModifier) AfterInit(m *manager.Manager, module names.Mod
 
 	return nil
 }
+
+// BeforeStop is a no-op for now
+func (t *ErrorsTelemetryModifier) BeforeStop(_ *manager.Manager, _ names.ModuleName) error {
+	return nil
+}
+
+// AfterStop is a no-op
+func (t *ErrorsTelemetryModifier) AfterStop(_ *manager.Manager, _ names.ModuleName) error {
+	return nil
+}
