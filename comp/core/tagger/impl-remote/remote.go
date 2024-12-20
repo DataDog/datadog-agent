@@ -285,7 +285,7 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 
 	cachedContainerID, err := cache.GetWithExpiration(key, func() (containerID string, err error) {
 		expBackoff := backoff.NewExponentialBackOff()
-		expBackoff.InitialInterval = 500 * time.Millisecond
+		expBackoff.InitialInterval = 200 * time.Millisecond
 		expBackoff.MaxInterval = 1 * time.Second
 		expBackoff.MaxElapsedTime = 15 * time.Second
 
