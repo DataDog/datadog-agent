@@ -63,7 +63,7 @@ func TestFindContainerID(t *testing.T) {
 		{ // Some random path which could match garden format
 			input:  "/user.slice/user-1000.slice/user@1000.service/apps.slice/apps-org.gnome.Terminal.slice/vte-spawn-f9176c6a-2a34-4ce2-86af-60d16888ed8e.scope",
 			output: "",
-			flags:  CGroupManagerSystemd,
+			flags:  CGroupManagerSystemd | CGroupManager(SystemdScope),
 		},
 		{ // GARDEN with prefix / suffix
 			input:  "prefix01234567-0123-4567-890a-bcdesuffix",
@@ -92,8 +92,8 @@ func TestFindContainerID(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		containerID, containerFlags := FindContainerID(test.input)
-		assert.Equal(t, test.output, containerID)
+		containerID, containerFlags := FindContainerID(CGroupID(test.input))
+		assert.Equal(t, test.output, string(containerID))
 		assert.Equal(t, uint64(test.flags), containerFlags, "wrong flags for container %s", containerID)
 	}
 }

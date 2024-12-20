@@ -1,3 +1,11 @@
+# KMT: EC2 Locations
+.kmt_ec2_location_us_east_1:
+  variables:
+    KITCHEN_EC2_REGION: us-east-1
+    KITCHEN_EC2_SUBNET: subnet-05d7c6b1b5cfea811
+    KITCHEN_EC2_SG_IDS: sg-019917348cb0eb7e7
+
+
 # --- Common scripts
 .shared_filters_and_queries:
   - FILTER_TEAM="Name=tag:team,Values=ebpf-platform"
@@ -122,9 +130,9 @@
 # -- Environment setup
 .kmt_setup_env:
   extends:
-    - .kitchen_ec2_location_us_east_1
+    - .kmt_ec2_location_us_east_1
   stage: kernel_matrix_testing_prepare
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
   variables:
@@ -197,7 +205,7 @@
 
 .kmt_cleanup:
   stage: kernel_matrix_testing_cleanup
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   before_script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN

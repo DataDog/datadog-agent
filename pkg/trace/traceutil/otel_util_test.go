@@ -244,12 +244,11 @@ func TestGetOTelService(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			span := ptrace.NewSpan()
 			res := pcommon.NewResource()
 			for k, v := range tt.rattrs {
 				res.Attributes().PutStr(k, v)
 			}
-			actual := GetOTelService(span, res, tt.normalize)
+			actual := GetOTelService(res, tt.normalize)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
@@ -293,6 +292,27 @@ func TestGetOTelResource(t *testing.T) {
 			normalize:  true,
 			expectedV1: strings.Repeat("a", MaxResourceLen),
 			expectedV2: strings.Repeat("a", MaxResourceLen),
+		},
+		{
+			name:       "GraphQL with no type",
+			sattrs:     map[string]string{"graphql.operation.name": "myQuery"},
+			normalize:  false,
+			expectedV1: "span_name",
+			expectedV2: "span_name",
+		},
+		{
+			name:       "GraphQL with only type",
+			sattrs:     map[string]string{"graphql.operation.type": "query"},
+			normalize:  false,
+			expectedV1: "query",
+			expectedV2: "query",
+		},
+		{
+			name:       "GraphQL with only type",
+			sattrs:     map[string]string{"graphql.operation.type": "query", "graphql.operation.name": "myQuery"},
+			normalize:  false,
+			expectedV1: "query myQuery",
+			expectedV2: "query myQuery",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

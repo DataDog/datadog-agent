@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"path"
 	"runtime"
 	"testing"
 
@@ -30,25 +29,30 @@ type commandTestSuite struct {
 	suite.Suite
 	sysprobeSocketPath string
 	tcpServer          *httptest.Server
+	tcpTLSServer       *httptest.Server
 	unixServer         *httptest.Server
 	systemProbeServer  *httptest.Server
 }
 
 func (c *commandTestSuite) SetupSuite() {
 	t := c.T()
-	c.sysprobeSocketPath = path.Join(t.TempDir(), "sysprobe.sock")
+	c.sysprobeSocketPath = sysprobeSocketPath(t)
 }
 
 // startTestServers starts test servers from a clean state to ensure no cache responses are used.
 // This should be called by each test that requires them.
 func (c *commandTestSuite) startTestServers() {
 	t := c.T()
-	c.tcpServer, c.unixServer, c.systemProbeServer = c.getPprofTestServer()
+	c.tcpServer, c.tcpTLSServer, c.unixServer, c.systemProbeServer = c.getPprofTestServer()
 
 	t.Cleanup(func() {
 		if c.tcpServer != nil {
 			c.tcpServer.Close()
 			c.tcpServer = nil
+		}
+		if c.tcpTLSServer != nil {
+			c.tcpTLSServer.Close()
+			c.tcpTLSServer = nil
 		}
 		if c.unixServer != nil {
 			c.unixServer.Close()
@@ -83,12 +87,13 @@ func newMockHandler() http.HandlerFunc {
 	})
 }
 
-func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, unixServer *httptest.Server, sysProbeServer *httptest.Server) {
+func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, tcpTLSServer *httptest.Server, unixServer *httptest.Server, sysProbeServer *httptest.Server) {
 	var err error
 	t := c.T()
 
 	handler := newMockHandler()
 	tcpServer = httptest.NewServer(handler)
+	tcpTLSServer = httptest.NewTLSServer(handler)
 	if runtime.GOOS == "linux" {
 		unixServer = httptest.NewUnstartedServer(handler)
 		unixServer.Listener, err = net.Listen("unix", c.sysprobeSocketPath)
@@ -102,7 +107,7 @@ func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, uni
 		sysProbeServer.Start()
 	}
 
-	return tcpServer, unixServer, sysProbeServer
+	return tcpServer, tcpTLSServer, unixServer, sysProbeServer
 }
 
 func TestCommandTestSuite(t *testing.T) {
@@ -117,19 +122,21 @@ func (c *commandTestSuite) TestReadProfileData() {
 	require.NoError(t, err)
 	port := u.Port()
 
+	u, err = url.Parse(c.tcpTLSServer.URL)
+	require.NoError(t, err)
+	httpsPort := u.Port()
+
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("expvar_port", port)
 	mockConfig.SetWithoutSource("apm_config.enabled", true)
-	mockConfig.SetWithoutSource("apm_config.debug.port", port)
+	mockConfig.SetWithoutSource("apm_config.debug.port", httpsPort)
 	mockConfig.SetWithoutSource("apm_config.receiver_timeout", "10")
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
 
-	mockSysProbeConfig := configmock.NewSystemProbe(t)
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-	if runtime.GOOS == "windows" {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
-	} else {
+	if runtime.GOOS != "darwin" {
+		mockSysProbeConfig := configmock.NewSystemProbe(t)
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 	}
 
@@ -197,11 +204,7 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-	if runtime.GOOS == "windows" {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
-	} else {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
-	}
+	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 
 	data, err := readProfileData(10)
 	require.Error(t, err)

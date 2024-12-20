@@ -174,12 +174,16 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "addr": {
                     "$ref": "#/$defs/IPPortFamily",
                     "description": "Bound address (if any)"
+                },
+                "protocol": {
+                    "type": "string"
                 }
             },
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "addr"
+                "addr",
+                "protocol"
             ],
             "description": "BindEventSerializer serializes a bind event to JSON"
         },
@@ -202,12 +206,16 @@ CSM Threats event for Linux systems have the following JSON schema:
             "properties": {
                 "addr": {
                     "$ref": "#/$defs/IPPortFamily"
+                },
+                "protocol": {
+                    "type": "string"
                 }
             },
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "addr"
+                "addr",
+                "protocol"
             ],
             "description": "ConnectEventSerializer serializes a connect event to JSON"
         },
@@ -1710,9 +1718,6 @@ CSM Threats event for Linux systems have the following JSON schema:
         "container": {
             "$ref": "#/$defs/ContainerContext"
         },
-        "cgroup": {
-            "$ref": "#/$defs/CGroupContext"
-        },
         "network": {
             "$ref": "#/$defs/NetworkContext"
         },
@@ -1721,6 +1726,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         },
         "security_profile": {
             "$ref": "#/$defs/SecurityProfileContext"
+        },
+        "cgroup": {
+            "$ref": "#/$defs/CGroupContext"
         },
         "selinux": {
             "$ref": "#/$defs/SELinuxEvent"
@@ -1794,10 +1802,10 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `exit` | $ref | Please see [ExitEvent](#exitevent) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
-| `cgroup` | $ref | Please see [CGroupContext](#cgroupcontext) |
 | `network` | $ref | Please see [NetworkContext](#networkcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
 | `security_profile` | $ref | Please see [SecurityProfileContext](#securityprofilecontext) |
+| `cgroup` | $ref | Please see [CGroupContext](#cgroupcontext) |
 | `selinux` | $ref | Please see [SELinuxEvent](#selinuxevent) |
 | `bpf` | $ref | Please see [BPFEvent](#bpfevent) |
 | `mmap` | $ref | Please see [MMapEvent](#mmapevent) |
@@ -2069,12 +2077,16 @@ CSM Threats event for Linux systems have the following JSON schema:
         "addr": {
             "$ref": "#/$defs/IPPortFamily",
             "description": "Bound address (if any)"
+        },
+        "protocol": {
+            "type": "string"
         }
     },
     "additionalProperties": false,
     "type": "object",
     "required": [
-        "addr"
+        "addr",
+        "protocol"
     ],
     "description": "BindEventSerializer serializes a bind event to JSON"
 }
@@ -2125,12 +2137,16 @@ CSM Threats event for Linux systems have the following JSON schema:
     "properties": {
         "addr": {
             "$ref": "#/$defs/IPPortFamily"
+        },
+        "protocol": {
+            "type": "string"
         }
     },
     "additionalProperties": false,
     "type": "object",
     "required": [
-        "addr"
+        "addr",
+        "protocol"
     ],
     "description": "ConnectEventSerializer serializes a connect event to JSON"
 }

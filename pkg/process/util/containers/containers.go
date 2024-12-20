@@ -12,7 +12,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -120,7 +120,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 			annotations = pod.Annotations
 		}
 
-		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
+		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.RawName, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
 			continue
 		}
 
@@ -209,7 +209,7 @@ func (p *containerProvider) GetPidToCid(cacheValidity time.Duration) map[int]str
 			annotations = pod.Annotations
 		}
 
-		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
+		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.RawName, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
 			continue
 		}
 

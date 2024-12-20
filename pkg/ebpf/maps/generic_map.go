@@ -25,7 +25,7 @@ import (
 
 const defaultBatchSize = 100
 
-var ErrBatchAPINotSupported = errors.New("batch API not supported for this map: check whether key is fixed-size, kernel supports batch API and if this map is not per-cpu")
+var ErrBatchAPINotSupported = errors.New("batch API not supported for this map: check whether key is fixed-size, kernel supports batch API and if this map is not per-cpu") //nolint:revive // TODO
 
 // BatchAPISupported returns true if the kernel supports the batch API for maps
 var BatchAPISupported = funcs.MemoizeNoError(func() bool {
@@ -130,8 +130,17 @@ func Map[K any, V any](m *ebpf.Map) (*GenericMap[K, V], error) {
 		return nil, err
 	}
 
+	// See if we can perform binary.Read on the key type. If we can't we can't use the batch API
+	// for this map
+	var kval K
+	keySupportsBatchAPI := canBinaryReadKey[K]()
+	if !keySupportsBatchAPI {
+		log.Warnf("Key type %T does not support binary.Read, batch API will not be used for this map", kval)
+	}
+
 	return &GenericMap[K, V]{
-		m: m,
+		m:                   m,
+		keySupportsBatchAPI: keySupportsBatchAPI,
 	}, nil
 }
 

@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 	"go4.org/intern"
@@ -346,7 +345,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		return
 	}
 
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("got process cache entry for pid %d: %+v", c.Pid, p)
 	}
 
@@ -413,7 +412,7 @@ func (t *Tracer) Stop() {
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
 	t.bufferLock.Lock()
 	defer t.bufferLock.Unlock()
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("GetActiveConnections clientID=%s", clientID)
 	}
 	t.ebpfTracer.FlushPending()
@@ -611,7 +610,7 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 
 	t.state.RemoveConnections(toRemove)
 
-	if log.ShouldLog(seelog.DebugLvl) {
+	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Since(now))
 	}
 }
@@ -822,7 +821,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (*DebugConntrackTable, 
 	}
 
 	// some clients have tens of thousands of connections and we need to stop early
-	// if netlink takes too long. we indicate this behavior occured early with IsTruncated
+	// if netlink takes too long. we indicate this behavior occurred early with IsTruncated
 	isTruncated := errors.Is(ctx.Err(), context.DeadlineExceeded)
 
 	return &DebugConntrackTable{
@@ -883,7 +882,7 @@ func (t *Tracer) GetNetworkID(context context.Context) (string, error) {
 }
 
 const connProtoTTL = 3 * time.Minute
-const connProtoCleaningInterval = 5 * time.Minute
+const connProtoCleaningInterval = 65 * time.Second // slight jitter to avoid all maps cleaning at the same time
 
 // setupConnectionProtocolMapCleaner sets up a map cleaner for the connectionProtocolMap.
 // It will run every connProtoCleaningInterval and delete entries older than connProtoTTL.

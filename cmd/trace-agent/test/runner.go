@@ -48,7 +48,22 @@ func (s *Runner) Start() error {
 		// respect whatever the testing framework says
 		s.Verbose = testing.Verbose()
 	}
-	agent, err := newAgentRunner(s.backend.srv.Addr, s.Verbose)
+	agent, err := newAgentRunner(s.backend.srv.Addr, s.Verbose, false)
+	if err != nil {
+		return err
+	}
+	s.agent = agent
+	return s.backend.Start()
+}
+
+// StartAndBuildSecretBackend initializes the runner, creates the secret binary and starts the fake backend.
+func (s *Runner) StartAndBuildSecretBackend() error {
+	s.backend = newFakeBackend(s.ChannelSize)
+	if !s.Verbose {
+		// respect whatever the testing framework says
+		s.Verbose = testing.Verbose()
+	}
+	agent, err := newAgentRunner(s.backend.srv.Addr, s.Verbose, true)
 	if err != nil {
 		return err
 	}
@@ -103,6 +118,11 @@ func (s *Runner) Out() <-chan interface{} {
 		return closedCh
 	}
 	return s.backend.Out()
+}
+
+// BinDir return the binary directory where the binary, configuration and secret backend binary are stored.
+func (s *Runner) BinDir() string {
+	return s.agent.bindir
 }
 
 // PostMsgpack encodes data using msgpack and posts it to the given path. The agent

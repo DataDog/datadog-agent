@@ -12,7 +12,7 @@ generator:
             # Agent is not expected to keep up.
             initial_bytes_per_second: 10MB
             rate: 0.5MB
-        concurrent_logs: 8
+        concurrent_logs: 1
         maximum_bytes_per_log: 500MB
         total_rotations: 5
         max_depth: 0

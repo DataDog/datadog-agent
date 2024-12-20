@@ -7,8 +7,6 @@ package apiimpl
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net/http"
 	"time"
@@ -23,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
+	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -35,8 +33,6 @@ const cmdServerShortName string = "CMD"
 
 func (server *apiServer) startCMDServer(
 	cmdAddr string,
-	tlsConfig *tls.Config,
-	tlsCertPool *x509.CertPool,
 	tmf observability.TelemetryMiddlewareFactory,
 	cfg config.Component,
 ) (err error) {
@@ -54,7 +50,7 @@ func (server *apiServer) startCMDServer(
 	maxMessageSize := cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
 	opts := []grpc.ServerOption{
-		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, cmdAddr)),
+		grpc.Creds(credentials.NewTLS(server.authToken.GetTLSServerConfig())),
 		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
 		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
 		grpc.MaxRecvMsgSize(maxMessageSize),
@@ -71,17 +67,15 @@ func (server *apiServer) startCMDServer(
 		taggerServer:     taggerserver.NewServer(server.taggerComp, maxEventSize),
 		taggerComp:       server.taggerComp,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
-		workloadmetaServer: workloadmetaServer.NewServer(server.wmeta),
-		dogstatsdServer:    server.dogstatsdServer,
-		capture:            server.capture,
-		pidMap:             server.pidMap,
+		workloadmetaServer:  workloadmetaServer.NewServer(server.wmeta),
+		dogstatsdServer:     server.dogstatsdServer,
+		capture:             server.capture,
+		pidMap:              server.pidMap,
+		remoteAgentRegistry: server.remoteAgentRegistry,
+		autodiscovery:       server.autoConfig,
 	})
 
-	dcreds := credentials.NewTLS(&tls.Config{
-		ServerName: cmdAddr,
-		RootCAs:    tlsCertPool,
-	})
-	dopts := []grpc.DialOption{grpc.WithTransportCredentials(dcreds)}
+	dopts := []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewTLS(server.authToken.GetTLSClientConfig()))}
 
 	// starting grpc gateway
 	ctx := context.Background()
@@ -131,7 +125,7 @@ func (server *apiServer) startCMDServer(
 
 	srv := grpcutil.NewMuxedGRPCServer(
 		cmdAddr,
-		tlsConfig,
+		server.authToken.GetTLSServerConfig(),
 		s,
 		grpcutil.TimeoutHandlerFunc(cmdMuxHandler, time.Duration(pkgconfigsetup.Datadog().GetInt64("server_timeout"))*time.Second),
 	)

@@ -18,8 +18,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	winio "github.com/Microsoft/go-winio"
+
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 )
 
 var (
@@ -59,7 +60,7 @@ func main() {
 	flag.Parse()
 
 	// This should match SystemProbePipeName in
-	// "github.com/DataDog/datadog-agent/pkg/process/net"
+	// "github.com/DataDog/datadog-agent/cmd/system-probe/client"
 	pipePath := `\\.\pipe\dd_system_probe`
 	fprintf("Connecting to named pipe %s ... ", pipePath)
 

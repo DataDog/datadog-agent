@@ -1,8 +1,13 @@
 import os
+import sys
 import tempfile
 from datetime import datetime
 
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
+from tasks.libs.common.git import get_default_branch
+from tasks.libs.common.utils import get_metric_origin
+from tasks.libs.package.utils import find_package
 
 DEBIAN_OS = "debian"
 CENTOS_OS = "centos"
@@ -27,6 +32,27 @@ SCANNED_BINARIES = {
         "process-agent": "opt/datadog-agent/embedded/bin/process-agent",
         "trace-agent": "opt/datadog-agent/embedded/bin/trace-agent",
     },
+}
+
+# The below template contains the relative increase threshold for each package type
+PACKAGE_SIZE_TEMPLATE = {
+    'amd64': {
+        'datadog-agent': {'deb': int(140e6)},
+        'datadog-iot-agent': {'deb': int(10e6)},
+        'datadog-dogstatsd': {'deb': int(10e6)},
+        'datadog-heroku-agent': {'deb': int(70e6)},
+    },
+    'x86_64': {
+        'datadog-agent': {'rpm': int(140e6), 'suse': int(140e6)},
+        'datadog-iot-agent': {'rpm': int(10e6), 'suse': int(10e6)},
+        'datadog-dogstatsd': {'rpm': int(10e6), 'suse': int(10e6)},
+    },
+    'arm64': {
+        'datadog-agent': {'deb': int(140e6)},
+        'datadog-iot-agent': {'deb': int(10e6)},
+        'datadog-dogstatsd': {'deb': int(10e6)},
+    },
+    'aarch64': {'datadog-agent': {'rpm': int(140e6)}, 'datadog-iot-agent': {'rpm': int(10e6)}},
 }
 
 
@@ -104,7 +130,8 @@ def compute_package_size_metrics(
                 timestamp,
                 package_compressed_size,
                 tags=common_tags,
-            )
+                metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
+            ),
         )
         series.append(
             create_gauge(
@@ -112,7 +139,8 @@ def compute_package_size_metrics(
                 timestamp,
                 package_uncompressed_size,
                 tags=common_tags,
-            )
+                metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
+            ),
         )
 
         for binary_name, binary_path in SCANNED_BINARIES[flavor].items():
@@ -123,7 +151,37 @@ def compute_package_size_metrics(
                     timestamp,
                     binary_size,
                     tags=common_tags + [f"bin:{binary_name}"],
-                )
+                    metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
+                ),
             )
 
     return series
+
+
+def compare(ctx, package_sizes, ancestor, pkg_size):
+    """
+    Compare (or update, when on main branch) a package size with the ancestor package size.
+    """
+    current_size = _get_uncompressed_size(ctx, find_package(pkg_size.path()), pkg_size.os)
+    if os.environ['CI_COMMIT_REF_NAME'] == get_default_branch():
+        # On main, ancestor is the current commit, so we set the current value
+        package_sizes[ancestor][pkg_size.arch][pkg_size.flavor][pkg_size.os] = current_size
+        return
+    previous_size = package_sizes[ancestor][pkg_size.arch][pkg_size.flavor][pkg_size.os]
+    pkg_size.compare(current_size, previous_size)
+
+    if pkg_size.ko():
+        print(color_message(pkg_size.log(), Color.RED), file=sys.stderr)
+    else:
+        print(pkg_size.log())
+    return pkg_size
+
+
+def _get_uncompressed_size(ctx, package, os_name):
+    if os_name == 'deb':
+        return (
+            int(ctx.run(f'dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs', hide=True).stdout)
+            * 1024
+        )
+    else:
+        return int(ctx.run(f'rpm -qip {package} | grep Size | cut -d : -f 2 | xargs', hide=True).stdout)

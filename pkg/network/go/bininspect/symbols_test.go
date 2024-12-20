@@ -85,32 +85,32 @@ func TestSomeMissing(t *testing.T) {
 	assert.NotContains(t, msg, "SSL_set_bio")
 }
 
-func TestPrefix(t *testing.T) {
+func TestInfix(t *testing.T) {
 	elfFile := openTestElf(t)
 
-	symbol, err := GetAnySymbolWithPrefix(elfFile, "SSL_read_e", len("SSL_read_ex"))
+	symbol, err := GetAnySymbolWithInfix(elfFile, "_read_", len("SSL_read_e"), len("SSL_read_ex"))
 	require.NoError(t, err)
 	require.NotNil(t, symbol)
 	require.Equal(t, "SSL_read_ex", symbol.Name)
 
-	symbol, err = GetAnySymbolWithPrefix(elfFile, "SSL_read_ex", len("SSL_read_ex"))
+	symbol, err = GetAnySymbolWithInfix(elfFile, "SSL_read_ex", len("SSL_read_ex"), len("SSL_read_ex"))
 	require.NoError(t, err)
 	require.NotNil(t, symbol)
 	require.Equal(t, "SSL_read_ex", symbol.Name)
 
-	symbol, err = GetAnySymbolWithPrefix(elfFile, "SSL_read_e", len("SSL_read_ex")-1)
+	symbol, err = GetAnySymbolWithInfix(elfFile, "read_e", len("SSL_read_e"), len("SSL_read_ex")-1)
 	require.Error(t, err)
 	require.Nil(t, symbol)
 	msg := err.Error()
-	assert.Contains(t, msg, "SSL_read_e")
+	assert.Contains(t, msg, "read_e")
 
-	symbol, err = GetAnySymbolWithPrefix(elfFile, "foo", 5)
+	symbol, err = GetAnySymbolWithInfix(elfFile, "^foo", 3, 5)
 	require.Error(t, err)
 	require.Nil(t, symbol)
 	msg = err.Error()
 	assert.Contains(t, msg, "foo")
 
-	symbol, err = GetAnySymbolWithPrefix(elfFile, "S", len("SSL_connect"))
+	symbol, err = GetAnySymbolWithInfix(elfFile, "S", 1, len("SSL_connect"))
 	require.NoError(t, err)
 	require.NotNil(t, symbol)
 	require.Equal(t, "SSL_connect", symbol.Name)

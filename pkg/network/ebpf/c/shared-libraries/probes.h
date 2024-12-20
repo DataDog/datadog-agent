@@ -4,6 +4,7 @@
 #include "bpf_telemetry.h"
 #include "bpf_bypass.h"
 
+#include "pid_tgid.h"
 #include "shared-libraries/types.h"
 
 static __always_inline void fill_path_safe(lib_path_t *path, const char *path_argument) {
@@ -23,10 +24,9 @@ static __always_inline void do_sys_open_helper_enter(const char *filename) {
 // Find the null character and clean up the garbage following it
 #pragma unroll
         for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
-            if (path.len) {
-                path.buf[i] = 0;
-            } else if (path.buf[i] == 0) {
+            if (path.buf[i] == 0) {
                 path.len = i;
+                break;
             }
         }
     } else {
@@ -39,7 +39,7 @@ static __always_inline void do_sys_open_helper_enter(const char *filename) {
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    path.pid = pid_tgid >> 32;
+    path.pid = GET_USER_MODE_PID(pid_tgid);
     bpf_map_update_with_telemetry(open_at_args, &pid_tgid, &path, BPF_ANY);
     return;
 }
@@ -82,12 +82,21 @@ static __always_inline void do_sys_open_helper_exit(exit_sys_ctx *args) {
         goto cleanup;
     }
 
-    if (!match6chars(0, 'l', 'i', 'b', 's', 's', 'l') && !match6chars(0, 'c', 'r', 'y', 'p', 't', 'o') && !match6chars(0, 'g', 'n', 'u', 't', 'l', 's') && !match6chars(0, 'c', 'u', 'd', 'a', 'r', 't')) {
+    u64 crypto_libset_enabled = 0;
+    LOAD_CONSTANT("crypto_libset_enabled", crypto_libset_enabled);
+
+    if (crypto_libset_enabled && (match6chars(0, 'l', 'i', 'b', 's', 's', 'l') || match6chars(0, 'c', 'r', 'y', 'p', 't', 'o') || match6chars(0, 'g', 'n', 'u', 't', 'l', 's'))) {
+        bpf_perf_event_output((void *)args, &crypto_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
         goto cleanup;
     }
 
-    u32 cpu = bpf_get_smp_processor_id();
-    bpf_perf_event_output((void *)args, &shared_libraries, cpu, path, sizeof(lib_path_t));
+    u64 gpu_libset_enabled = 0;
+    LOAD_CONSTANT("gpu_libset_enabled", gpu_libset_enabled);
+
+    if (gpu_libset_enabled && (match6chars(0, 'c', 'u', 'd', 'a', 'r', 't'))) {
+        bpf_perf_event_output((void *)args, &gpu_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
+    }
+
 cleanup:
     bpf_map_delete_elem(&open_at_args, &pid_tgid);
     return;

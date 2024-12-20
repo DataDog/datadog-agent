@@ -210,8 +210,9 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 	}
 
 	// fallback to Device.Vendor for backward compatibility
-	if config.ProfileDef != nil && vendor == "" {
-		vendor = config.ProfileDef.Device.Vendor
+	profileDef := config.GetProfileDef()
+	if profileDef != nil && vendor == "" {
+		vendor = profileDef.Device.Vendor
 	}
 
 	return devicemetadata.DeviceMetadata{
@@ -222,7 +223,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		IPAddress:      config.IPAddress,
 		SysObjectID:    sysObjectID,
 		Location:       location,
-		Profile:        config.Profile,
+		Profile:        config.ProfileName,
 		ProfileVersion: getProfileVersion(config),
 		Vendor:         vendor,
 		Tags:           tags,
@@ -243,8 +244,9 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 
 func getProfileVersion(config *checkconfig.CheckConfig) uint64 {
 	var profileVersion uint64
-	if config.ProfileDef != nil {
-		profileVersion = config.ProfileDef.Version
+	profileDef := config.GetProfileDef()
+	if profileDef != nil {
+		profileVersion = profileDef.Version
 	}
 	return profileVersion
 }
@@ -383,8 +385,9 @@ func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store
 		remEntryUniqueID := localPortNum + "." + lldpRemIndex
 
 		newLink := devicemetadata.TopologyLinkMetadata{
-			ID:         deviceID + ":" + remEntryUniqueID,
-			SourceType: topologyLinkSourceTypeLLDP,
+			ID:          deviceID + ":" + remEntryUniqueID,
+			SourceType:  topologyLinkSourceTypeLLDP,
+			Integration: common.SnmpIntegrationName,
 			Remote: &devicemetadata.TopologyLinkSide{
 				Device: &devicemetadata.TopologyLinkDevice{
 					Name:        store.GetColumnAsString("lldp_remote.device_name", strIndex),
@@ -444,8 +447,9 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 		remEntryUniqueID := cdpCacheIfIndex + "." + cdpCacheDeviceIndex
 
 		newLink := devicemetadata.TopologyLinkMetadata{
-			ID:         deviceID + ":" + remEntryUniqueID,
-			SourceType: topologyLinkSourceTypeCDP,
+			ID:          deviceID + ":" + remEntryUniqueID,
+			SourceType:  topologyLinkSourceTypeCDP,
+			Integration: common.SnmpIntegrationName,
 			Remote: &devicemetadata.TopologyLinkSide{
 				Device: &devicemetadata.TopologyLinkDevice{
 					Name:        store.GetColumnAsString("cdp_remote.device_name", strIndex),

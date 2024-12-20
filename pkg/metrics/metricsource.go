@@ -37,7 +37,7 @@ const (
 	MetricSourceContainerd
 	MetricSourceCri
 	MetricSourceDocker
-	MetricSourceNtp
+	MetricSourceNTP
 	MetricSourceSystemd
 	MetricSourceHelm
 	MetricSourceKubernetesAPIServer
@@ -60,6 +60,8 @@ const (
 	MetricSourceDisk
 	MetricSourceNetwork
 	MetricSourceSnmp
+	MetricSourceCloudFoundry
+	MetricSourceJenkins
 
 	// Python Checks
 	MetricSourceZenohRouter
@@ -80,6 +82,7 @@ const (
 	MetricSourceSonarr
 	MetricSourceSnmpwalk
 	MetricSourceSendmail
+	MetricSourceScaphandre
 	MetricSourceScalr
 	MetricSourceRiakRepl
 	MetricSourceRedpanda
@@ -96,6 +99,7 @@ const (
 	MetricSourcePhpOpcache
 	MetricSourcePhpApcu
 	MetricSourceOpenPolicyAgent
+	MetricSourceOctopusDeploy
 	MetricSourceOctoprint
 	MetricSourceNvml
 	MetricSourceNs1
@@ -107,6 +111,7 @@ const (
 	MetricSourceLogstash
 	MetricSourceLighthouse
 	MetricSourceKernelcare
+	MetricSourceKepler
 	MetricSourceJfrogPlatformSelfHosted
 	MetricSourceHikaricp
 	MetricSourceGrpcCheck
@@ -115,6 +120,7 @@ const (
 	MetricSourceGnatsd
 	MetricSourceGitea
 	MetricSourceGatekeeper
+	MetricSourceFlyIo
 	MetricSourceFluentbit
 	MetricSourceFilemage
 	MetricSourceFilebeat
@@ -131,6 +137,9 @@ const (
 	MetricSourceAwsPricing
 	MetricSourceAqua
 	MetricSourceKubernetesClusterAutoscaler
+	MetricSourceKubeVirtAPI
+	MetricSourceKubeVirtController
+	MetricSourceKubeVirtHandler
 	MetricSourceTraefikMesh
 	MetricSourceWeaviate
 	MetricSourceTorchserve
@@ -297,6 +306,9 @@ const (
 	MetricSourceKubeflow
 	MetricSourceAppgateSDP
 	MetricSourceAnyscale
+	MetricSourceMilvus
+	MetricSourceNvidiaNim
+	MetricSourceQuarkus
 )
 
 // String returns a string representation of MetricSource
@@ -344,7 +356,7 @@ func (ms MetricSource) String() string {
 		return "cri"
 	case MetricSourceDocker:
 		return "docker"
-	case MetricSourceNtp:
+	case MetricSourceNTP:
 		return "ntp"
 	case MetricSourceSystemd:
 		return "systemd"
@@ -436,6 +448,8 @@ func (ms MetricSource) String() string {
 		return "citrix_hypervisor"
 	case MetricSourceClickhouse:
 		return "clickhouse"
+	case MetricSourceCloudFoundry:
+		return "cloudfoundry"
 	case MetricSourceCloudFoundryAPI:
 		return "cloud_foundry_api"
 	case MetricSourceCockroachdb:
@@ -474,6 +488,8 @@ func (ms MetricSource) String() string {
 		return "external_dns"
 	case MetricSourceFluentd:
 		return "fluentd"
+	case MetricSourceFlyIo:
+		return "fly_io"
 	case MetricSourceFoundationdb:
 		return "foundationdb"
 	case MetricSourceGearmand:
@@ -516,8 +532,12 @@ func (ms MetricSource) String() string {
 		return "impala"
 	case MetricSourceIstio:
 		return "istio"
+	case MetricSourceJenkins:
+		return "jenkins"
 	case MetricSourceKafkaConsumer:
 		return "kafka_consumer"
+	case MetricSourceKepler:
+		return "kepler"
 	case MetricSourceKong:
 		return "kong"
 	case MetricSourceKubeAPIserverMetrics:
@@ -696,6 +716,8 @@ func (ms MetricSource) String() string {
 		return "karpenter"
 	case MetricSourceNvidiaTriton:
 		return "nvidia_triton"
+	case MetricSourceNvidiaNim:
+		return "nvidia_nim"
 	case MetricSourceRay:
 		return "ray"
 	case MetricSourceStrimzi:
@@ -782,6 +804,8 @@ func (ms MetricSource) String() string {
 		return "nvml"
 	case MetricSourceOctoprint:
 		return "octoprint"
+	case MetricSourceOctopusDeploy:
+		return "octopus_deploy"
 	case MetricSourceOpenPolicyAgent:
 		return "open_policy_agent"
 	case MetricSourcePhpApcu:
@@ -814,6 +838,8 @@ func (ms MetricSource) String() string {
 		return "riak_repl"
 	case MetricSourceScalr:
 		return "scalr"
+	case MetricSourceScaphandre:
+		return "scaphandre"
 	case MetricSourceSendmail:
 		return "sendmail"
 	case MetricSourceSnmpwalk:
@@ -852,6 +878,10 @@ func (ms MetricSource) String() string {
 		return "zenoh_router"
 	case MetricSourceAwsNeuron:
 		return "aws_neuron"
+	case MetricSourceMilvus:
+		return "milvus"
+	case MetricSourceQuarkus:
+		return "quarkus"
 	default:
 		return "<unknown>"
 	}
@@ -869,7 +899,7 @@ func CheckNameToMetricSource(name string) MetricSource {
 	case "docker":
 		return MetricSourceDocker
 	case "ntp":
-		return MetricSourceNtp
+		return MetricSourceNTP
 	case "systemd":
 		return MetricSourceSystemd
 	case "helm":
@@ -1056,6 +1086,12 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceKubeProxy
 	case "kube_scheduler":
 		return MetricSourceKubeScheduler
+	case "kubevirt_api":
+		return MetricSourceKubeVirtAPI
+	case "kubevirt_controller":
+		return MetricSourceKubeVirtController
+	case "kubevirt_handler":
+		return MetricSourceKubeVirtHandler
 	case "kubelet":
 		return MetricSourceKubelet
 	case "kubernetes_state":
@@ -1218,6 +1254,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceKarpenter
 	case "nvidia_triton":
 		return MetricSourceNvidiaTriton
+	case "nvidia_nim":
+		return MetricSourceNvidiaNim
 	case "ray":
 		return MetricSourceRay
 	case "strimzi":
@@ -1384,6 +1422,10 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceSlurm
 	case "tibco_ems":
 		return MetricSourceTibcoEMS
+	case "milvus":
+		return MetricSourceMilvus
+	case "quarkus":
+		return MetricSourceQuarkus
 	default:
 		return MetricSourceUnknown
 	}

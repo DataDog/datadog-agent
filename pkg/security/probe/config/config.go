@@ -82,9 +82,6 @@ type Config struct {
 	// DentryCacheSize is the size of the user space dentry cache
 	DentryCacheSize int
 
-	// RemoteTaggerEnabled defines whether the remote tagger is enabled
-	RemoteTaggerEnabled bool
-
 	// NOTE(safchain) need to revisit this one as it can impact multiple event consumers
 	// EnvsWithValue lists environnement variables that will be fully exported
 	EnvsWithValue []string
@@ -171,7 +168,6 @@ func NewConfig() (*Config, error) {
 		ERPCDentryResolutionEnabled:  getBool("erpc_dentry_resolution_enabled"),
 		MapDentryResolutionEnabled:   getBool("map_dentry_resolution_enabled"),
 		DentryCacheSize:              getInt("dentry_cache_size"),
-		RemoteTaggerEnabled:          getBool("remote_tagger"),
 		RuntimeMonitor:               getBool("runtime_monitor.enabled"),
 		NetworkLazyInterfacePrefixes: getStringSlice("network.lazy_interface_prefixes"),
 		NetworkClassifierPriority:    uint16(getInt("network.classifier_priority")),

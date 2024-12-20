@@ -113,7 +113,7 @@ type Check struct {
 	openMode                                string
 	legacyIntegrationCompatibilityMode      bool
 	clock                                   clock.Clock
-	lastSampleId                            uint64
+	lastSampleID                            uint64
 }
 
 type vDatabase struct {
@@ -137,7 +137,7 @@ func handleServiceCheck(c *Check, err error) {
 		status = servicecheck.ServiceCheckCritical
 		log.Errorf("%s failed to connect: %s", c.logPrompt, err)
 	}
-	sender.ServiceCheck("oracle.can_connect", status, "", c.tags, message)
+	sendServiceCheck(c, "oracle.can_connect", status, message)
 	sender.Commit()
 }
 

@@ -213,6 +213,7 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 				CreatedAt:  container.State.StartedTime, // CreatedAt not available
 				FinishedAt: container.State.FinishedTime,
 			},
+			RestartCount: int(container.State.RestartCount),
 		},
 	}
 }

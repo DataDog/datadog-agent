@@ -61,12 +61,14 @@ enum DENTRY_ERPC_RESOLUTION_CODE
 
 enum TC_TAIL_CALL_KEYS
 {
-    UNKNOWN,
-    DNS_REQUEST,
+    DNS_REQUEST = 1,
     DNS_REQUEST_PARSER,
     IMDS_REQUEST,
-    RAW_PACKET,
+};
+
+enum TC_RAWPACKET_KEYS {
     RAW_PACKET_FILTER,
+    // reserved keys for raw packet filter tail calls
 };
 
 #define DNS_MAX_LENGTH 256
@@ -193,5 +195,9 @@ static __attribute__((always_inline)) u64 get_imds_ip() {
 #define CGROUP_MANAGER_PODMAN 3
 #define CGROUP_MANAGER_CRI 4
 #define CGROUP_MANAGER_SYSTEMD 5
+
+#define CGROUP_MANAGER_MASK 0b111
+#define CGROUP_SYSTEMD_SERVICE (0 << 8)
+#define CGROUP_SYSTEMD_SCOPE   (1 << 8)
 
 #endif

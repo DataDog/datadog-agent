@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -44,15 +45,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgCompliance "github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -61,7 +64,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -102,21 +105,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				dogstatsd.ClientBundle,
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
-				workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
-					catalog := workloadmeta.NodeAgent
-					if config.GetBool("security_agent.remote_workloadmeta") {
-						catalog = workloadmeta.Remote
-					}
-					return workloadmeta.Params{
-						AgentType: catalog,
-					}
+				workloadmetafx.Module(workloadmeta.Params{
+					AgentType: workloadmeta.Remote,
 				}),
-				taggerimpl.Module(),
-				fx.Provide(func(config config.Component) tagger.Params {
-					if config.GetBool("security_agent.remote_tagger") {
-						return tagger.NewNodeRemoteTaggerParams()
-					}
-					return tagger.NewTaggerParams()
+				remoteTaggerfx.Module(tagger.RemoteParams{
+					RemoteTarget: func(c config.Component) (string, error) {
+						return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+					},
+					RemoteTokenFetcher: func(c config.Component) func() (string, error) {
+						return func() (string, error) {
+							return security.FetchAuthToken(c)
+						}
+					},
+					RemoteFilter: taggerTypes.NewMatchAllFilter(),
 				}),
 				fx.Provide(func() startstop.Stopper {
 					return startstop.NewSerialStopper()
@@ -201,11 +202,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // TODO(components): note how workloadmeta is passed anonymously, it is still required as it is used
 // as a global. This should eventually be fixed and all workloadmeta interactions should be via the
 // injected instance.
-func start(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ pid.Component, _ autoexit.Component, settings settings.Component, wmeta workloadmeta.Component) error {
+func start(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ pid.Component, _ autoexit.Component, settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component) error {
 	defer StopAgent(log)
 
-	err := RunAgent(log, config, telemetry, statusComponent, settings, wmeta)
-	if errors.Is(err, errAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
+	err := RunAgent(log, config, telemetry, statusComponent, settings, wmeta, at)
+	if errors.Is(err, ErrAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
 	}
 	if err != nil {
@@ -251,12 +252,13 @@ var (
 	expvarServer *http.Server
 )
 
-var errAllComponentsDisabled = errors.New("all security-agent component are disabled")
+// ErrAllComponentsDisabled is returned when all components are disabled
+var ErrAllComponentsDisabled = errors.New("all security-agent component are disabled")
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(log log.Component, config config.Component, telemetry telemetry.Component, statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component) (err error) {
-	if err := util.SetupCoreDump(config); err != nil {
+func RunAgent(log log.Component, config config.Component, telemetry telemetry.Component, statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component) (err error) {
+	if err := coredump.Setup(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
@@ -268,7 +270,7 @@ func RunAgent(log log.Component, config config.Component, telemetry telemetry.Co
 		// to startup because of an error. Only applies on Debian 7.
 		time.Sleep(5 * time.Second)
 
-		return errAllComponentsDisabled
+		return ErrAllComponentsDisabled
 	}
 
 	if !config.IsSet("api_key") {
@@ -298,7 +300,7 @@ func RunAgent(log log.Component, config config.Component, telemetry telemetry.Co
 		}
 	}()
 
-	srv, err = api.NewServer(statusComponent, settings, wmeta)
+	srv, err = api.NewServer(statusComponent, settings, wmeta, at)
 	if err != nil {
 		return log.Errorf("Error while creating api server, exiting: %v", err)
 	}

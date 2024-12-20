@@ -163,12 +163,16 @@
         "addr": {
           "$ref": "#/$defs/IPPortFamily",
           "description": "Bound address (if any)"
+        },
+        "protocol": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "addr"
+        "addr",
+        "protocol"
       ],
       "description": "BindEventSerializer serializes a bind event to JSON"
     },
@@ -191,12 +195,16 @@
       "properties": {
         "addr": {
           "$ref": "#/$defs/IPPortFamily"
+        },
+        "protocol": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "addr"
+        "addr",
+        "protocol"
       ],
       "description": "ConnectEventSerializer serializes a connect event to JSON"
     },
@@ -1699,9 +1707,6 @@
     "container": {
       "$ref": "#/$defs/ContainerContext"
     },
-    "cgroup": {
-      "$ref": "#/$defs/CGroupContext"
-    },
     "network": {
       "$ref": "#/$defs/NetworkContext"
     },
@@ -1710,6 +1715,9 @@
     },
     "security_profile": {
       "$ref": "#/$defs/SecurityProfileContext"
+    },
+    "cgroup": {
+      "$ref": "#/$defs/CGroupContext"
     },
     "selinux": {
       "$ref": "#/$defs/SELinuxEvent"

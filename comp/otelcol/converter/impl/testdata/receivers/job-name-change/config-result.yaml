@@ -11,7 +11,7 @@ receivers:
 exporters:
   datadog:
     api:
-      key: 12345
+      key: abcde12345
 
 extensions:
   pprof/user-defined:
