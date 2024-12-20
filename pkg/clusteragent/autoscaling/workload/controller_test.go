@@ -125,7 +125,7 @@ func TestLeaderCreateDeleteLocal(t *testing.T) {
 		Name:                           "dpa-0",
 		Generation:                     1,
 		Spec:                           &dpaSpec,
-		CustomRecommenderConfiguration: &model.RecommenderConfiguration{},
+		CustomRecommenderConfiguration: nil,
 	}
 	dpaInternal, found := f.store.Get("default/dpa-0")
 	assert.True(t, found)
