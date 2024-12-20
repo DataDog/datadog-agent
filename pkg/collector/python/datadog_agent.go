@@ -264,8 +264,11 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 		if !cfg.SQLExecPlanNormalize.Enabled {
 			cfg.SQLExecPlanNormalize = defaultSQLPlanNormalizeSettings
 		}
-		if !cfg.Mongo.Enabled {
-			cfg.Mongo = defaultMongoObfuscateSettings
+		if len(cfg.Mongo.KeepValues) == 0 {
+			cfg.Mongo.KeepValues = defaultMongoObfuscateSettings.KeepValues
+		}
+		if len(cfg.Mongo.ObfuscateSQLValues) == 0 {
+			cfg.Mongo.ObfuscateSQLValues = defaultMongoObfuscateSettings.ObfuscateSQLValues
 		}
 		obfuscator = obfuscate.NewObfuscator(cfg)
 	})
