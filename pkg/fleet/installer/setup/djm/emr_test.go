@@ -36,7 +36,10 @@ func TestSetupEmr(t *testing.T) {
 	originalExecuteCommand := executeCommandWithTimeout
 	defer func() { executeCommandWithTimeout = originalExecuteCommand }() // Restore original after test
 
-	executeCommandWithTimeout = func(s *common.Setup, command string, args ...string) ([]byte, error) {
+	executeCommandWithTimeout = func(s *common.Setup, command string, args ...string) (output []byte, err error) {
+		span, _ := telemetry.StartSpanFromContext(s.Ctx, "setup.command")
+		span.SetResourceName(command)
+		defer func() { span.Finish(err) }()
 		if command == "aws" && args[0] == "emr" && args[1] == "describe-cluster" {
 			return []byte(emrDescribeClusterResponse), nil
 		}

@@ -162,7 +162,7 @@ func setupEmrResourceManager(s *common.Setup, clusterName string) {
 }
 
 var executeCommandWithTimeout = func(s *common.Setup, command string, args ...string) (output []byte, err error) {
-	span, ctx := telemetry.StartSpanFromContext(s.Ctx, "setup.command")
+	span, _ := telemetry.StartSpanFromContext(s.Ctx, "setup.command")
 	span.SetResourceName(command)
 	defer func() { span.Finish(err) }()
 
