@@ -60,6 +60,19 @@ func WithWindowsSecretSetupScript(wrapperPath string, allowGroupExec bool) []fun
 	}
 }
 
+func WithWindowsSecretSetupScriptNoPerms(wrapperPath string) []func(*agentparams.Params) error {
+	wrapperPath = strings.ReplaceAll(wrapperPath, `\`, `/`)
+
+	dir, _ := filepath.Split(wrapperPath)
+	pythonScriptPath := filepath.Join(dir, "secret.py")
+	secretWrapperContent := fillSecretWrapperTemplate(strings.ReplaceAll(pythonScriptPath, "/", "\\"))
+
+	return []func(*agentparams.Params) error{
+		agentparams.WithFile(wrapperPath, secretWrapperContent, true),
+		agentparams.WithFile(pythonScriptPath, secretResolverScript, true),
+	}
+}
+
 // WithWindowsSecretPermissions returns a WindowsPermissions object containing correct permissions for a secret backend script.
 func WithWindowsSecretPermissions(allowGroupExec bool) optional.Option[perms.FilePermissions] {
 	icaclsCmd := `/grant "ddagentuser:(RX)"`
