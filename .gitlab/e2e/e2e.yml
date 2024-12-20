@@ -196,6 +196,19 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)CheckSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
 
+new-e2e-fips-compliance-test:
+  extends: .new_e2e_template_needs_deb_x64
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_fips
+    - deploy_deb_testing-a7_x64
+  rules:
+    - !reference [.on_asc_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/fips-compliance
+    TEAM: agent-shared-components
+
 new-e2e-windows-service-test:
   extends: .new_e2e_template
   needs:
