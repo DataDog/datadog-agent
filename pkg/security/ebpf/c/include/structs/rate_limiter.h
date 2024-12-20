@@ -4,6 +4,7 @@
 struct rate_limiter_ctx {
     u64 current_period;
     u32 counter;
+    u32 padding;
 };
 
 
