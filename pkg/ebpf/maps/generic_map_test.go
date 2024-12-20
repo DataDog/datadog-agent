@@ -588,9 +588,13 @@ func TestValidateMapKeyValueSize(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, gm)
 
-	gm2, err := Map[uint64, uint64](m)
+	gm2, err := Map[uint64, uint32](m)
+	assert.Error(t, err)
+	assert.Nil(t, gm2)
+
+	gm3, err := Map[uint64, uint64](m)
 	assert.NoError(t, err)
-	assert.NotNil(t, gm2)
+	assert.NotNil(t, gm3)
 }
 
 func TestGenericHashMapCanUseBatchAPI(t *testing.T) {
