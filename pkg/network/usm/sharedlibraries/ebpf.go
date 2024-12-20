@@ -10,14 +10,12 @@ package sharedlibraries
 import (
 	"errors"
 	"fmt"
-	"math"
 	"os"
 	"runtime"
 	"strings"
 	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"

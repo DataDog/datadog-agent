@@ -9,11 +9,8 @@ package offsetguess
 
 import (
 	"fmt"
-	"math"
 	"sync"
 	"time"
-
-	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
 

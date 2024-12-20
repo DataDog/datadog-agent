@@ -10,12 +10,10 @@ package constantfetch
 
 import (
 	"errors"
-	"math"
 	"os"
 	"os/exec"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"

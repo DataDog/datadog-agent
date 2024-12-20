@@ -13,8 +13,6 @@ package oomkill
 
 import (
 	"fmt"
-	"math"
-
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
