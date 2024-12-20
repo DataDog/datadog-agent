@@ -3718,9 +3718,11 @@ core,k8s.io/kube-state-metrics/v2/pkg/builder/types,Apache-2.0,Copyright 2014 Th
 core,k8s.io/kube-state-metrics/v2/pkg/constant,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/customresource,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/customresourcestate,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-state-metrics/v2/pkg/discovery,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/metric,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/metric_generator,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/metrics_store,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-state-metrics/v2/pkg/metricshandler,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/options,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/sharding,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.
