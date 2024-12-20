@@ -109,6 +109,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "accept.addr.ip":
 		return &eval.CIDREvaluator{
@@ -1257,6 +1258,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "connect.addr.ip":
 		return &eval.CIDREvaluator{
@@ -21736,6 +21738,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "sysctl.file_position":
 		return &eval.IntEvaluator{
@@ -21746,6 +21749,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "sysctl.name":
 		return &eval.StringEvaluator{
@@ -21756,6 +21760,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "sysctl.name_truncated":
 		return &eval.BoolEvaluator{
@@ -21766,6 +21771,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "sysctl.old_value":
 		return &eval.StringEvaluator{
@@ -21776,6 +21782,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "sysctl.old_value_truncated":
 		return &eval.BoolEvaluator{
@@ -21786,6 +21793,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "sysctl.value":
 		return &eval.StringEvaluator{
@@ -21796,6 +21804,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "sysctl.value_truncated":
 		return &eval.BoolEvaluator{
@@ -21806,6 +21815,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.change_time":
 		return &eval.IntEvaluator{
