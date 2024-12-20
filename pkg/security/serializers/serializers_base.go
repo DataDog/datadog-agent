@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -66,6 +67,8 @@ type EventContextSerializer struct {
 	MatchedRules []MatchedRuleSerializer `json:"matched_rules,omitempty"`
 	// Variables values
 	Variables Variables `json:"variables,omitempty"`
+	// RuleContext rule context
+	RuleContext RuleContext `json:"rule_context,omitempty"`
 }
 
 // ProcessContextSerializer serializes a process context to JSON
@@ -197,6 +200,19 @@ type ExitEventSerializer struct {
 	Cause string `json:"cause"`
 	// Exit code of the process or number of the signal that caused the process to terminate
 	Code uint32 `json:"code"`
+}
+
+// MatchingSubExprs serializes matching sub expression to JSON
+// easyjson:json
+type MatchingSubExpr struct {
+	Offset int `json:"offset"`
+	Length int `json:"length"`
+}
+
+// RuleContext serializes rule context to JSON
+// easyjson:json
+type RuleContext struct {
+	MatchingSubExprs []MatchingSubExpr `json:"matching_subexprs,omitempty""`
 }
 
 // BaseEventSerializer serializes an event to JSON
@@ -373,21 +389,22 @@ func newExitEventSerializer(e *model.Event) *ExitEventSerializer {
 }
 
 // NewBaseEventSerializer creates a new event serializer based on the event type
-func NewBaseEventSerializer(event *model.Event, opts *eval.Opts) *BaseEventSerializer {
+func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSerializer {
 	pc := event.ProcessContext
 
 	eventType := model.EventType(event.Type)
 
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
-			Name:      eventType.String(),
-			Variables: newVariablesContext(event, opts, ""),
+			Name:        eventType.String(),
+			Variables:   newVariablesContext(event, rule, ""),
+			RuleContext: newRuleContext(event, rule),
 		},
 		ProcessContextSerializer: newProcessContextSerializer(pc, event),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
 	}
 	if s.ProcessContextSerializer != nil {
-		s.ProcessContextSerializer.Variables = newVariablesContext(event, opts, "process.")
+		s.ProcessContextSerializer.Variables = newVariablesContext(event, rule, "process.")
 	}
 
 	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {
@@ -411,9 +428,25 @@ func NewBaseEventSerializer(event *model.Event, opts *eval.Opts) *BaseEventSeria
 	return s
 }
 
-func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variables Variables) {
-	if opts != nil && opts.VariableStore != nil {
-		store := opts.VariableStore
+func newRuleContext(e *model.Event, rule *rules.Rule) RuleContext {
+	if rule == nil {
+		return RuleContext{}
+	}
+
+	var ruleContext RuleContext
+	for _, valuePos := range e.RuleContext.MatchingSubExprs.GetMatchingValuePos(rule.Expression) {
+		subExpr := MatchingSubExpr{
+			Offset: valuePos.Offset,
+			Length: valuePos.Length,
+		}
+		ruleContext.MatchingSubExprs = append(ruleContext.MatchingSubExprs, subExpr)
+	}
+	return ruleContext
+}
+
+func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (variables Variables) {
+	if rule != nil && rule.Opts.VariableStore != nil {
+		store := rule.Opts.VariableStore
 		for name, variable := range store.Variables {
 			if _, found := model.SECLVariables[name]; found {
 				continue
@@ -471,7 +504,7 @@ func (e EventStringerWrapper) String() string {
 	)
 	switch evt := e.Event.(type) {
 	case *model.Event:
-		data, err = MarshalEvent(evt)
+		data, err = MarshalEvent(evt, nil)
 	case *events.CustomEvent:
 		data, err = MarshalCustomEvent(evt)
 	default:

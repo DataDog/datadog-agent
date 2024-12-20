@@ -24,8 +24,8 @@ type RegisterCacheEntry struct {
 
 // MatchingSubExpr defines a boolean expression that matched
 type MatchingSubExpr struct {
-	Offset int
-	ValueA MatchingValue
+	Offset int           `json:"offset"`
+	ValueA MatchingValue `json:"code"`
 	ValueB MatchingValue
 }
 
@@ -61,8 +61,8 @@ type Context struct {
 	IteratorCountCache map[string]int
 
 	// internal
-	now            time.Time
-	resolvedFields []string
+	now              time.Time
+	resolvedFields   []string
 	matchingSubExprs []MatchingSubExpr
 }
 
@@ -93,6 +93,14 @@ func (c *Context) Reset() {
 	clear(c.IteratorCountCache)
 	c.resolvedFields = nil
 	clear(c.matchingSubExprs)
+
+	// per eval
+	c.PerEvalReset()
+}
+
+// PerEvalReset the context
+func (c *Context) PerEvalReset() {
+	c.matchingSubExprs = c.matchingSubExprs[0:0]
 }
 
 // GetResolvedFields returns the resolved fields, always empty outside of functional tests
@@ -124,6 +132,11 @@ type MatchingSubExprs []MatchingSubExpr
 // GetMatchingSubExpr add an expression that matched a rule
 func (c *Context) GetMatchingSubExprs() MatchingSubExprs {
 	return c.matchingSubExprs
+}
+
+// IsZero returns if the pos is empty of not
+func (m MatchingValuePos) IsZero() bool {
+	return m.Length == 0
 }
 
 func (m *MatchingValue) getPosWithinRuleExpr(expr string, offset int) MatchingValuePos {
@@ -190,10 +203,11 @@ func (m *MatchingValue) getPosWithinRuleExpr(expr string, offset int) MatchingVa
 					offset += idx + length
 				}
 			}
-			return MatchingValuePos{
-				Offset: startOffset,
-				Length: offset - startOffset,
-			}
+
+			pos.Offset = startOffset
+			pos.Length = offset - startOffset
+
+			return pos
 		case fmt.Stringer:
 			str = value.String()
 		default:
@@ -206,11 +220,6 @@ func (m *MatchingValue) getPosWithinRuleExpr(expr string, offset int) MatchingVa
 	}
 
 	return pos
-}
-
-// GetPosWithinRule returns the rule position of the matched sub expression within the rule
-func (m *MatchingSubExpr) GetPosWithinRuleExpr(expr string) (MatchingValuePos, MatchingValuePos) {
-	return m.ValueA.getPosWithinRuleExpr(expr, m.Offset), m.ValueB.getPosWithinRuleExpr(expr, m.Offset)
 }
 
 // DecorateRuleExpr decorate the rule
@@ -238,6 +247,23 @@ func (m *MatchingSubExpr) DecorateRuleExpr(expr string, before, after string) (s
 	return expr[0:a.Offset] + before + expr[a.Offset:a.Offset+a.Length] + after +
 		expr[a.Offset+a.Length:b.Offset] + before + expr[b.Offset:b.Offset+b.Length] + after +
 		expr[b.Offset+b.Length:], nil
+}
+
+// GetMatchingValuePos return all the matching value position
+func (m *MatchingSubExprs) GetMatchingValuePos(expr string) []MatchingValuePos {
+	var pos []MatchingValuePos
+
+	for _, mse := range *m {
+		a, b := mse.ValueA.getPosWithinRuleExpr(expr, mse.Offset), mse.ValueB.getPosWithinRuleExpr(expr, mse.Offset)
+		if !a.IsZero() {
+			pos = append(pos, a)
+		}
+		if !b.IsZero() {
+			pos = append(pos, b)
+		}
+	}
+
+	return pos
 }
 
 // DecorateRuleExpr decorate the rule

@@ -713,6 +713,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 				rs.NotifyRuleMatch(ctx, rule, event)
 				result = true
 			}
+			ctx.PerEvalReset()
 		})
 	}
 

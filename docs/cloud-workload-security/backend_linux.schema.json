@@ -358,6 +358,10 @@
         "variables": {
           "$ref": "#/$defs/Variables",
           "description": "Variables values"
+        },
+        "rule_context": {
+          "$ref": "#/$defs/RuleContext",
+          "description": "RuleContext rule context"
         }
       },
       "additionalProperties": false,
@@ -850,6 +854,23 @@
       "additionalProperties": false,
       "type": "object",
       "description": "MatchedRuleSerializer serializes a rule"
+    },
+    "MatchingSubExpr": {
+      "properties": {
+        "offset": {
+          "type": "integer"
+        },
+        "length": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "offset",
+        "length"
+      ],
+      "description": "MatchingSubExprs serializes matching sub expression to JSON"
     },
     "ModuleEvent": {
       "properties": {
@@ -1487,6 +1508,19 @@
         "network_direction"
       ],
       "description": "RawPacketSerializer defines a raw packet serializer"
+    },
+    "RuleContext": {
+      "properties": {
+        "matching_subexprs": {
+          "items": {
+            "$ref": "#/$defs/MatchingSubExpr"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "RuleContext serializes rule context to JSON"
     },
     "SELinuxBoolChange": {
       "properties": {

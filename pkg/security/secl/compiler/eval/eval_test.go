@@ -1497,6 +1497,7 @@ func TestMatchingSubExprs(t *testing.T) {
 			uid:    22,
 			isRoot: true,
 			pid:    os.Getpid(),
+			gid:    3,
 		},
 		network: testNetwork{
 			ip:  parseCIDR(t, "192.168.0.1"),
@@ -1551,6 +1552,9 @@ func TestMatchingSubExprs(t *testing.T) {
 
 		// need to add varname in the evaluators
 		//{Expr: `true && process.pid == ${pid}`, Expected: `true && <b>process.pid</b> == ${pid}`},
+
+		// need to handle bitmask
+		//{Expr: `process.gid & 1 > 0`, Expected: `<b>process.gid</b> & 1 > 0`},
 	}
 
 	for _, test := range tests {
