@@ -124,9 +124,28 @@ func validateValueTypeForMapType[V any](t ebpf.MapType) error {
 	return nil
 }
 
+func validateKeyValueTypes[K, V any](keySize, valueSize uint32) error {
+	var k K
+	tk := reflect.TypeOf(k)
+	if tk.Size() != uintptr(keySize) {
+		return fmt.Errorf("map key size (%d) does not match key type (%T) size (%d)", keySize, tk, tk.Size())
+	}
+	var v V
+	tv := reflect.TypeOf(v)
+	if tv.Size() != uintptr(valueSize) {
+		return fmt.Errorf("map value size (%d) does not match value type (%T) size (%d)", valueSize, tv, tv.Size())
+	}
+
+	return nil
+}
+
 // Map creates a new GenericMap from an existing ebpf.Map
 func Map[K any, V any](m *ebpf.Map) (*GenericMap[K, V], error) {
 	if err := validateValueTypeForMapType[V](m.Type()); err != nil {
+		return nil, err
+	}
+
+	if err := validateKeyValueTypes[K, V](m.KeySize(), m.ValueSize()); err != nil {
 		return nil, err
 	}
 
