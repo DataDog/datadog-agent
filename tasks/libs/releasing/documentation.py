@@ -21,14 +21,8 @@ def _stringify_config(config_dict):
     return {key: str(value) for key, value in config_dict.items()}
 
 
-def nightly_entry_for(agent_major_version):
-    if agent_major_version == 6:
-        return "nightly"
-    return f"nightly-a{agent_major_version}"
-
-
 def release_entry_for(agent_major_version):
-    return f"release-a{agent_major_version}"
+    return f"a{agent_major_version}"
 
 
 def create_release_page(version, cutoff_date):
