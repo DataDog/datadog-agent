@@ -11,11 +11,7 @@ from tasks.libs.common.utils import get_metric_origin
 from tasks.release import _get_release_json_value
 
 
-def _get_omnibus_commits(field):
-    if 'RELEASE_VERSION' in os.environ:
-        release_version = os.environ['RELEASE_VERSION']
-    else:
-        release_version = os.environ['RELEASE_VERSION_7']
+def _get_omnibus_commits(release_version, field):
     return _get_release_json_value(f'{release_version}::{field}')
 
 
@@ -203,14 +199,14 @@ def _last_omnibus_changes(ctx):
     return result
 
 
-def omnibus_compute_cache_key(ctx):
+def omnibus_compute_cache_key(ctx, release_version):
     print('Computing cache key')
     h = hashlib.sha1()
     omnibus_last_changes = _last_omnibus_changes(ctx)
     h.update(str.encode(omnibus_last_changes))
     h.update(str.encode(os.getenv('CI_JOB_IMAGE', 'local_build')))
-    omnibus_ruby_commit = _get_omnibus_commits('OMNIBUS_RUBY_VERSION')
-    omnibus_software_commit = _get_omnibus_commits('OMNIBUS_SOFTWARE_VERSION')
+    omnibus_ruby_commit = _get_omnibus_commits(release_version, 'OMNIBUS_RUBY_VERSION')
+    omnibus_software_commit = _get_omnibus_commits(release_version, 'OMNIBUS_SOFTWARE_VERSION')
     print(f'Omnibus ruby commit: {omnibus_ruby_commit}')
     print(f'Omnibus software commit: {omnibus_software_commit}')
     h.update(str.encode(omnibus_ruby_commit))
