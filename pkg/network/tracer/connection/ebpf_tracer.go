@@ -24,7 +24,6 @@ import (
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -341,7 +340,6 @@ func (t *ebpfTracer) Stop() {
 	t.stopOnce.Do(func() {
 		close(t.exitTelemetry)
 		ddebpf.RemoveNameMappings(t.m)
-		ebpftelemetry.UnregisterTelemetry(t.m)
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
 		t.ongoingConnectCleaner.Stop()
