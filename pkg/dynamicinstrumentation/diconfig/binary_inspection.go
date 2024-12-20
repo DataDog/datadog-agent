@@ -8,7 +8,6 @@
 package diconfig
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 
@@ -132,7 +131,7 @@ func collectFieldIDs(param *ditypes.Parameter) []bininspect.FieldIdentifier {
 // values.
 func populateLocationExpressions(
 	metadata map[string]bininspect.FunctionMetadata,
-	procInfo *ditypes.ProcessInfo) error {
+	procInfo *ditypes.ProcessInfo) {
 
 	functions := procInfo.TypeMap.Functions
 	probes := procInfo.GetProbes()
@@ -144,20 +143,22 @@ func populateLocationExpressions(
 	for funcName, parameters := range functions {
 		funcMetadata, ok := metadata[funcName]
 		if !ok {
-			return fmt.Errorf("no function metadata for function %s", funcName)
+			log.Warnf("no function metadata for function %s", funcName)
+			continue
 		}
 		limitInfo, ok := funcNamesToLimits[funcName]
 		if !ok || limitInfo == nil {
+			log.Warnf("no limit info available for function %s", funcName)
 			continue
 		}
 		for i := range parameters {
 			if i >= len(funcMetadata.Parameters) {
-				return errors.New("parameter metadata does not line up with parameter itself")
+				log.Warnf("parameter metadata does not line up with parameter itself (not found in metadata: %v)", parameters[i])
+				break
 			}
 			GenerateLocationExpression(limitInfo, parameters[i])
 		}
 	}
-	return nil
 }
 
 // putLocationsInParams collects parameter locations from metadata which is retrieved
