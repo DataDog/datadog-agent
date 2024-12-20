@@ -10,17 +10,26 @@ import "time"
 
 // Params defines the parameters for the configsync component.
 type Params struct {
+	// Timeout is the timeout use for each call to the core-agent
 	Timeout time.Duration
-	Delay   time.Duration
-	OnInit  bool
+	// OnInitSync makes configsync synchronize the configuration at initialization and fails init if we can get the
+	// configuration from the core agent
+	OnInitSync bool
+	// OnInitSyncTimeout represents how long configsync should retry to synchronize configuration at init
+	OnInitSyncTimeout time.Duration
 }
 
 // NewParams creates a new instance of Params
-func NewParams(to time.Duration, delay time.Duration, sync bool) Params {
+func NewParams(syncTimeout time.Duration, syncOnInit bool, syncOnInitTimeout time.Duration) Params {
 	params := Params{
-		Timeout: to,
-		Delay:   delay,
-		OnInit:  sync,
+		Timeout:           syncTimeout,
+		OnInitSync:        syncOnInit,
+		OnInitSyncTimeout: syncOnInitTimeout,
 	}
 	return params
+}
+
+// NewDefaultParams returns the default params for configsync
+func NewDefaultParams() Params {
+	return Params{}
 }

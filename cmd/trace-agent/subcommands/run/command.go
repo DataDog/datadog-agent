@@ -113,7 +113,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		zstdfx.Module(),
 		trace.Bundle(),
 		fetchonlyimpl.Module(),
-		configsyncimpl.Module(),
+		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ traceagent.Component, _ configsync.Component, _ autoexit.Component) {}),
 	)

@@ -10,6 +10,7 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewConfigSync(t *testing.T) {
@@ -17,21 +18,24 @@ func TestNewConfigSync(t *testing.T) {
 		deps := makeDeps(t)
 		deps.Config.Set("agent_ipc.port", 1234, pkgconfigmodel.SourceFile)
 		deps.Config.Set("agent_ipc.config_refresh_interval", 30, pkgconfigmodel.SourceFile)
-		comp := newComponent(deps)
+		comp, err := newComponent(deps)
+		require.NoError(t, err)
 		assert.True(t, comp.(configSync).enabled)
 	})
 
 	t.Run("disabled ipc port zero", func(t *testing.T) {
 		deps := makeDeps(t)
 		deps.Config.Set("agent_ipc.port", 0, pkgconfigmodel.SourceFile)
-		comp := newComponent(deps)
+		comp, err := newComponent(deps)
+		require.NoError(t, err)
 		assert.False(t, comp.(configSync).enabled)
 	})
 
 	t.Run("disabled config refresh interval zero", func(t *testing.T) {
 		deps := makeDeps(t)
 		deps.Config.Set("agent_ipc.config_refresh_interval", 0, pkgconfigmodel.SourceFile)
-		comp := newComponent(deps)
+		comp, err := newComponent(deps)
+		require.NoError(t, err)
 		assert.False(t, comp.(configSync).enabled)
 	})
 }
