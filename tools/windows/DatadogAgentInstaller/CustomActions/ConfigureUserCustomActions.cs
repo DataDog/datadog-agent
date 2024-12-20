@@ -688,6 +688,7 @@ namespace Datadog.CustomActions
                 Path.Combine(configRoot, "system-probe.yaml"),
                 Path.Combine(configRoot, "auth_token"),
                 Path.Combine(configRoot, "install_info"),
+                Path.Combine(configRoot, "python-cache"),
             }; ;
         }
 
