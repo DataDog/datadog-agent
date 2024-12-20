@@ -290,27 +290,61 @@ func (p *EBPFResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 }
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
-func (p *EBPFResolver) AddForkEntry(entry *model.ProcessCacheEntry, inode uint64, newEntryCb func(*model.ProcessCacheEntry, error)) {
-	if entry.Pid == 0 {
-		return
+func (p *EBPFResolver) AddForkEntry(event *model.Event, newEntryCb func(*model.ProcessCacheEntry, error)) error {
+	p.ApplyBootTime(event.ProcessCacheEntry)
+	event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
+
+	if event.ProcessCacheEntry.Pid == 0 {
+		return errors.New("no pid")
+	}
+	if IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
+		return errors.New("process is kthread")
 	}
 
 	p.Lock()
 	defer p.Unlock()
-
-	p.insertForkEntry(entry, inode, model.ProcessCacheEntryFromEvent, newEntryCb)
+	p.insertForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode, model.ProcessCacheEntryFromEvent, newEntryCb)
+	return nil
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
-func (p *EBPFResolver) AddExecEntry(entry *model.ProcessCacheEntry, inode uint64) {
-	if entry.Pid == 0 {
-		return
-	}
-
+func (p *EBPFResolver) AddExecEntry(event *model.Event) error {
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertExecEntry(entry, inode, model.ProcessCacheEntryFromEvent)
+	var err error
+	if err := p.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, event.ContainerContext); err != nil {
+		var errResolution *spath.ErrPathResolution
+		if errors.As(err, &errResolution) {
+			event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
+		}
+	} else {
+		if event.ProcessCacheEntry.Pid == 0 {
+			return errors.New("no pid context")
+		}
+		p.insertExecEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode, model.ProcessCacheEntryFromEvent)
+	}
+
+	event.Exec.Process = &event.ProcessCacheEntry.Process
+
+	return err
+}
+
+// ApplyExitEntry delete entry from the local cache if present
+func (p *EBPFResolver) ApplyExitEntry(event *model.Event, newEntryCb func(*model.ProcessCacheEntry, error)) bool {
+	event.ProcessCacheEntry = p.resolve(event.PIDContext.Pid, event.PIDContext.Tid, event.PIDContext.ExecInode, false, newEntryCb)
+	if event.ProcessCacheEntry == nil {
+		// no need to dispatch an exit event that don't have the corresponding cache entry
+		return false
+	}
+
+	// Use the event timestamp as exit time
+	// The local process cache hasn't been updated yet with the exit time when the exit event is first seen
+	// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
+	event.ProcessCacheEntry.ExitTime = event.FieldHandlers.ResolveEventTime(event, &event.BaseEvent)
+	event.Exit.Process = &event.ProcessCacheEntry.Process
+	return true
+
 }
 
 // enrichEventFromProc uses /proc to enrich a ProcessCacheEntry with additional metadata
@@ -523,6 +557,7 @@ func (p *EBPFResolver) insertEntry(entry, prev *model.ProcessCacheEntry, source 
 }
 
 func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64, newEntryCb func(*model.ProcessCacheEntry, error)) {
+
 	if entry.Pid == 0 {
 		return
 	}
@@ -532,7 +567,6 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
 		prev.Exit(entry.ForkTime)
 	}
-
 	if entry.Pid != 1 {
 		parent := p.entryCache[entry.PPid]
 		if entry.PPid >= 1 && inode != 0 && (parent == nil || parent.FileEvent.Inode != inode) {
@@ -571,7 +605,6 @@ func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uin
 			prev.ApplyExecTimeOf(entry)
 			return
 		}
-
 		prev.Exec(entry)
 	} else {
 		entry.IsParentMissing = true
@@ -657,7 +690,6 @@ func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.Pro
 		err                    error
 		maxDepthRetry          = 3
 	)
-
 	for maxDepthRetry > 0 {
 		pathnameStr, mountPath, source, origin, err = p.pathResolver.ResolveFileFieldsPath(e, &pce.PIDContext, ctrCtx)
 		if err == nil {
@@ -689,7 +721,6 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	if fileEvent.Inode == 0 {
 		return onError("", &model.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID})
 	}
-
 	pathnameStr, mountPath, source, origin, err := p.resolveFileFieldsPath(&fileEvent.FileFields, pce, ctrCtx)
 	if err != nil {
 		return onError(pathnameStr, err)
