@@ -156,4 +156,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt -r tasks/requirements.txt
       - name: Ask for code reviews
+        env:
+          SLACK_API_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         run: inv -e issue.ask-reviews -p ${{ github.event.pull_request.number }}
