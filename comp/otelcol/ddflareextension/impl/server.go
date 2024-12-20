@@ -116,7 +116,7 @@ func newServer(endpoint string, handler http.Handler, auth bool) (*server, error
 	// no easy way currently to pass required bearer auth token to OSS collector;
 	// skip the validation if running inside a separate collector
 	// TODO: determine way to allow OSS collector to authenticate with agent, OTEL-2226
-	if auth {
+	if auth && util.GetAuthToken() != "" {
 		r.Use(validateToken)
 	}
 

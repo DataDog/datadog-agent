@@ -11,7 +11,8 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.libs.common.utils import REPO_PATH, TestsNotSupportedError, bin_name, get_build_flags, get_root
+from tasks.gointegrationtest import DOGSTATSD_IT_CONF, containerized_integration_tests
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_root
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
@@ -174,29 +175,14 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", t
     """
     Run integration tests for dogstatsd
     """
-    if sys.platform == 'win32':
-        raise TestsNotSupportedError('DogStatsD integration tests are not supported on Windows')
-
-    go_build_tags = " ".join(get_default_build_tags(build="test"))
-    race_opt = "-race" if race else ""
-    exec_opts = ""
-    timeout_opt = f"-timeout {timeout}" if timeout else ""
-
-    # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
-    # to the call, we don't want them because while calling invoke below, invoke
-    # thinks that the parameters are for it to interpret.
-    # we're calling an intermediate script which only pass the binary name to the invoke task.
-    if remote_docker:
-        exec_opts = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
-
-    go_cmd = f'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
-
-    prefixes = [
-        "./test/integration/dogstatsd/...",
-    ]
-
-    for prefix in prefixes:
-        ctx.run(f"{go_cmd} {prefix}")
+    containerized_integration_tests(
+        ctx,
+        DOGSTATSD_IT_CONF,
+        race=race,
+        remote_docker=remote_docker,
+        go_mod=go_mod,
+        timeout=timeout,
+    )
 
 
 @task

@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
@@ -996,10 +997,10 @@ community_string: public
 
 func TestCheckID(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
-	check1 := newCheck()
-	check2 := newCheck()
-	check3 := newCheck()
-	checkSubnet := newCheck()
+	check1 := newCheck(agentconfig.NewMock(t))
+	check2 := newCheck(agentconfig.NewMock(t))
+	check3 := newCheck(agentconfig.NewMock(t))
+	checkSubnet := newCheck(agentconfig.NewMock(t))
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
@@ -2165,7 +2166,7 @@ func TestDeviceIDAsHostname(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{sessionFactory: sessionFactory, agentConfig: agentconfig.NewMock(t)}
 	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "test-hostname")
 	pkgconfigsetup.Datadog().SetWithoutSource("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
 	senderManager := deps.Demultiplexer
@@ -2358,7 +2359,7 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{sessionFactory: sessionFactory, agentConfig: agentconfig.NewMock(t)}
 
 	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "my-hostname")
 	senderManager := deps.Demultiplexer

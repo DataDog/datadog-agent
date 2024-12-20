@@ -26,8 +26,8 @@ const ErrorSentinel uint64 = ^uint64(0)
 // eBPF relocations
 type ConstantFetcher interface {
 	fmt.Stringer
-	AppendSizeofRequest(id, typeName, headerName string)
-	AppendOffsetofRequest(id, typeName, fieldName, headerName string)
+	AppendSizeofRequest(id, typeName string)
+	AppendOffsetofRequest(id, typeName, fieldName string)
 	FinishAndGetResults() (map[string]uint64, error)
 }
 
@@ -57,30 +57,27 @@ func (f *ComposeConstantFetcher) appendRequest(req *composeRequest) {
 	_, _ = io.WriteString(f.hasher, req.id)
 	_, _ = io.WriteString(f.hasher, req.typeName)
 	_, _ = io.WriteString(f.hasher, req.fieldName)
-	_, _ = io.WriteString(f.hasher, req.headerName)
 }
 
 // AppendSizeofRequest appends a sizeof request
-func (f *ComposeConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
+func (f *ComposeConstantFetcher) AppendSizeofRequest(id, typeName string) {
 	f.appendRequest(&composeRequest{
-		id:         id,
-		sizeof:     true,
-		typeName:   typeName,
-		fieldName:  "",
-		headerName: headerName,
-		value:      ErrorSentinel,
+		id:        id,
+		sizeof:    true,
+		typeName:  typeName,
+		fieldName: "",
+		value:     ErrorSentinel,
 	})
 }
 
 // AppendOffsetofRequest appends an offset request
-func (f *ComposeConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
+func (f *ComposeConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName string) {
 	f.appendRequest(&composeRequest{
-		id:         id,
-		sizeof:     false,
-		typeName:   typeName,
-		fieldName:  fieldName,
-		headerName: headerName,
-		value:      ErrorSentinel,
+		id:        id,
+		sizeof:    false,
+		typeName:  typeName,
+		fieldName: fieldName,
+		value:     ErrorSentinel,
 	})
 }
 
@@ -98,9 +95,9 @@ func (f *ComposeConstantFetcher) fillConstantCacheIfNeeded() {
 		for _, req := range f.requests {
 			if req.value == ErrorSentinel {
 				if req.sizeof {
-					fetcher.AppendSizeofRequest(req.id, req.typeName, req.headerName)
+					fetcher.AppendSizeofRequest(req.id, req.typeName)
 				} else {
-					fetcher.AppendOffsetofRequest(req.id, req.typeName, req.fieldName, req.headerName)
+					fetcher.AppendOffsetofRequest(req.id, req.typeName, req.fieldName)
 				}
 			}
 		}
@@ -166,7 +163,6 @@ type composeRequest struct {
 	id                  string
 	sizeof              bool
 	typeName, fieldName string
-	headerName          string
 	value               uint64
 	fetcherName         string
 }

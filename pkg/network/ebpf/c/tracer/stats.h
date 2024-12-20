@@ -16,6 +16,7 @@
 #include "protocols/tls/tags-types.h"
 #include "ip.h"
 #include "skb.h"
+#include "pid_tgid.h"
 
 #ifdef COMPILE_PREBUILT
 static __always_inline __u64 offset_rtt();
@@ -341,7 +342,7 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
     flip_tuple(&t);
 
     log_debug("skb_consume_udp: bytes=%d", data_len);
-    t.pid = pid_tgid >> 32;
+    t.pid = GET_USER_MODE_PID(pid_tgid);
     t.netns = get_netns_from_sock(sk);
     return handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, sk);
 }

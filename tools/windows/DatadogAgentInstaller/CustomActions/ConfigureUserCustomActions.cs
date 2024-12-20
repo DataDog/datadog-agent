@@ -586,9 +586,6 @@ namespace Datadog.CustomActions
                 // agent needs to be able to write to run/
                 // agent needs to be able to create auth_token
                 _session.Property("APPLICATIONDATADIRECTORY"),
-                // allow agent to write __pycache__
-                Path.Combine(_session.Property("PROJECTLOCATION"), "embedded2"),
-                Path.Combine(_session.Property("PROJECTLOCATION"), "embedded3"),
             };
         }
 

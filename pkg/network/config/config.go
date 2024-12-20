@@ -414,8 +414,8 @@ func New() *Config {
 		log.Info("network tracer DNS inspection disabled by configuration")
 	}
 
-	if c.EnableProcessEventMonitoring {
-		log.Info("network process event monitoring enabled")
+	if !c.EnableProcessEventMonitoring {
+		log.Info("network process event monitoring disabled")
 	}
 	return c
 }

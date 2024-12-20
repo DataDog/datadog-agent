@@ -536,31 +536,6 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 		})
 	}
 
-	// expect to have standard inherited permissions, plus an explciit ACE for ddagentuser
-	embeddedPaths := []string{
-		filepath.Join(t.expectedInstallPath, "embedded3"),
-	}
-	if t.ExpectPython2Installed() {
-		embeddedPaths = append(embeddedPaths,
-			filepath.Join(t.expectedInstallPath, "embedded2"),
-		)
-	}
-	agentUserFullAccessDirRule := windows.NewExplicitAccessRuleWithFlags(
-		ddAgentUserIdentity,
-		windows.FileFullControl,
-		windows.AccessControlTypeAllow,
-		windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
-		windows.PropagationFlagsNone,
-	)
-	for _, path := range embeddedPaths {
-		out, err := windows.GetSecurityInfoForPath(t.host, path)
-		require.NoError(tt, err)
-		if !windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
-			windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddAgentUserIdentity)
-		}
-		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
-	}
-
 	// ensure the agent user does not have an ACE on the install dir
 	out, err := windows.GetSecurityInfoForPath(t.host, t.expectedInstallPath)
 	require.NoError(tt, err)

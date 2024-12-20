@@ -114,7 +114,7 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 	defer c2.Close()
 
 	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
-		conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), getConnections(t, tr))
+		conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), getConnections(ct, tr))
 		if !assert.True(ct, ok) {
 			return
 		}
@@ -128,9 +128,9 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 	}, 3*time.Second, 100*time.Millisecond)
 
 	// Make sure the first connection got cleaned up
-	assert.Eventually(t, func() bool {
-		_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
-		return !ok
+	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(ct, tr))
+		require.False(ct, ok)
 	}, 5*time.Second, 100*time.Millisecond)
 
 }
@@ -740,10 +740,10 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 	dnsServerAddr := &net.UDPAddr{IP: dnsAddr, Port: 53}
 
 	var conn *network.ConnectionStats
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		var ok bool
-		conn, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
-		return ok
+		conn, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(ct, tr))
+		require.True(ct, ok, "connection not found")
 	}, 3*time.Second, 100*time.Millisecond)
 
 	require.NotNil(t, conn.Via, "connection is missing via: %s", conn)
@@ -796,10 +796,10 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	dnsClientAddr := &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
 	dnsServerAddr := &net.UDPAddr{IP: destAddr, Port: 53}
 	var c *network.ConnectionStats
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		var ok bool
-		c, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
-		return ok
+		c, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(ct, tr))
+		require.True(ct, ok, "connection not found")
 	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 	require.Nil(t, c.Via)
 
@@ -809,10 +809,10 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
 
 	dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		var ok bool
-		c, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
-		return ok
+		c, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(ct, tr))
+		require.True(ct, ok, "connection not found")
 	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 	require.Nil(t, c.Via)
 
@@ -1534,25 +1534,25 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 
 	assert.EventuallyWithT(t, func(ct *assert.CollectT) { //nolint:revive // TODO
 		// use t instead of ct because getConnections uses require (not assert), and we get a better error message that way
-		connections := getConnections(t, tr)
+		connections := getConnections(ct, tr)
 
 		incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-		if assert.True(t, ok, "unable to find incoming connection") {
-			assert.Equal(t, network.INCOMING, incoming.Direction)
+		if assert.True(ct, ok, "unable to find incoming connection") {
+			assert.Equal(ct, network.INCOMING, incoming.Direction)
 
 			// make sure the inverse values are seen for the other message
-			assert.Equal(t, serverMessageSize, int(incoming.Monotonic.SentBytes), "incoming sent")
-			assert.Equal(t, clientMessageSize, int(incoming.Monotonic.RecvBytes), "incoming recv")
-			assert.True(t, incoming.IntraHost, "incoming intrahost")
+			assert.Equal(ct, serverMessageSize, int(incoming.Monotonic.SentBytes), "incoming sent")
+			assert.Equal(ct, clientMessageSize, int(incoming.Monotonic.RecvBytes), "incoming recv")
+			assert.True(ct, incoming.IntraHost, "incoming intrahost")
 		}
 
 		outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		if assert.True(t, ok, "unable to find outgoing connection") {
-			assert.Equal(t, network.OUTGOING, outgoing.Direction)
+		if assert.True(ct, ok, "unable to find outgoing connection") {
+			assert.Equal(ct, network.OUTGOING, outgoing.Direction)
 
-			assert.Equal(t, clientMessageSize, int(outgoing.Monotonic.SentBytes), "outgoing sent")
-			assert.Equal(t, serverMessageSize, int(outgoing.Monotonic.RecvBytes), "outgoing recv")
-			assert.True(t, outgoing.IntraHost, "outgoing intrahost")
+			assert.Equal(ct, clientMessageSize, int(outgoing.Monotonic.SentBytes), "outgoing sent")
+			assert.Equal(ct, serverMessageSize, int(outgoing.Monotonic.RecvBytes), "outgoing recv")
+			assert.True(ct, outgoing.IntraHost, "outgoing intrahost")
 		}
 	}, 3*time.Second, 100*time.Millisecond)
 
@@ -1665,8 +1665,8 @@ func (s *TracerSuite) TestSendfileRegression() {
 
 		t.Logf("looking for connections %+v <-> %+v", c.LocalAddr(), c.RemoteAddr())
 		var outConn, inConn *network.ConnectionStats
-		assert.Eventually(t, func() bool {
-			conns := getConnections(t, tr)
+		assert.EventuallyWithT(t, func(ct *assert.CollectT) {
+			conns := getConnections(ct, tr)
 			t.Log(conns)
 			if outConn == nil {
 				outConn = network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.LocalAddr(), c.RemoteAddr()))
@@ -1674,7 +1674,8 @@ func (s *TracerSuite) TestSendfileRegression() {
 			if inConn == nil {
 				inConn = network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.RemoteAddr(), c.LocalAddr()))
 			}
-			return outConn != nil && inConn != nil
+			require.NotNil(ct, outConn)
+			require.NotNil(ct, inConn)
 		}, 3*time.Second, 100*time.Millisecond, "couldn't find connections used by sendfile(2)")
 
 		if assert.NotNil(t, outConn, "couldn't find outgoing connection used by sendfile(2)") {
@@ -1984,16 +1985,16 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	t := s.T()
 	// Start the client and server before we enable the system probe to test that the tracer picks
 	// up the pre-existing connection
-
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		for {
 			if _, err := r.ReadBytes(byte('\n')); err != nil {
 				assert.ErrorIs(t, err, io.EOF, "exited server loop with error that is not EOF")
-				return
+				break
 			}
 			_, _ = c.Write(genPayload(serverMessageSize))
 		}
+		c.Close()
 	})
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
@@ -2028,37 +2029,55 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 		}
 		require.NotNil(collect, outgoing)
 		require.NotNil(collect, incoming)
+		if !assert.True(collect, incoming != nil && outgoing != nil) {
+			return
+		}
+
+		m := outgoing.Monotonic
+		assert.Equal(collect, clientMessageSize, int(m.SentBytes))
+		// ebpfless RecvBytes is based off acknowledgements, so it can miss the first
+		// packet in a pre-existing connection
+		if !tr.config.EnableEbpfless {
+			assert.Equal(collect, serverMessageSize, int(m.RecvBytes))
+		}
+		if !tr.config.EnableEbpfless {
+			assert.Equal(collect, os.Getpid(), int(outgoing.Pid))
+		}
+		assert.Equal(collect, addrPort(server.Address()), int(outgoing.DPort))
+		assert.Equal(collect, c.LocalAddr().(*net.TCPAddr).Port, int(outgoing.SPort))
+		assert.Equal(collect, network.OUTGOING, outgoing.Direction)
+
+		m = incoming.Monotonic
+		// ebpfless RecvBytes is based off acknowledgements, so it can miss the first
+		// packet in a pre-existing connection
+		if !tr.config.EnableEbpfless {
+			assert.Equal(collect, clientMessageSize, int(m.RecvBytes))
+		}
+		assert.Equal(collect, serverMessageSize, int(m.SentBytes))
+		if !tr.config.EnableEbpfless {
+			assert.Equal(collect, os.Getpid(), int(incoming.Pid))
+		}
+		assert.Equal(collect, addrPort(server.Address()), int(incoming.SPort))
+		assert.Equal(collect, c.LocalAddr().(*net.TCPAddr).Port, int(incoming.DPort))
+		assert.Equal(collect, network.INCOMING, incoming.Direction)
 	}, 3*time.Second, 100*time.Millisecond, "could not find connection incoming and outgoing connections")
 
-	m := outgoing.Monotonic
-	assert.Equal(t, clientMessageSize, int(m.SentBytes))
-	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
-	if !tr.config.EnableEbpfless {
-		assert.Equal(t, os.Getpid(), int(outgoing.Pid))
-	}
-	assert.Equal(t, addrPort(server.Address()), int(outgoing.DPort))
-	assert.Equal(t, c.LocalAddr().(*net.TCPAddr).Port, int(outgoing.SPort))
-	assert.Equal(t, network.OUTGOING, outgoing.Direction)
-
-	m = incoming.Monotonic
-	assert.Equal(t, clientMessageSize, int(m.RecvBytes))
-	assert.Equal(t, serverMessageSize, int(m.SentBytes))
-	if !tr.config.EnableEbpfless {
-		assert.Equal(t, os.Getpid(), int(incoming.Pid))
-	}
-	assert.Equal(t, addrPort(server.Address()), int(incoming.SPort))
-	assert.Equal(t, c.LocalAddr().(*net.TCPAddr).Port, int(incoming.DPort))
-	assert.Equal(t, network.INCOMING, incoming.Direction)
 }
 
 func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 	t := s.T()
+
+	// The ebpf tracer uses this to ensure it drops pre-existing connections
+	// that close empty (with no data), because they are difficult to track.
+	// However, in ebpfless they are easy to track, so disable this test.
+	// For more context, see PR #31100
+	skipOnEbpflessNotSupported(t, testConfig())
+
 	t.Run("ringbuf_enabled", func(t *testing.T) {
 		if features.HaveMapType(ebpf.RingBuf) != nil {
 			t.Skip("skipping test as ringbuffers are not supported on this kernel")
 		}
 		c := testConfig()
-		skipOnEbpflessNotSupported(t, c)
 		c.NPMRingbuffersEnabled = true
 		testPreexistingEmptyIncomingConnectionDirection(t, c)
 	})
@@ -2420,7 +2439,7 @@ LOOP:
 
 	require.NoError(t, c.Close(), "error closing client connection")
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		conn, found := findConnection(c.LocalAddr(), srv.Addr(), getConnections(t, tr))
+		conn, found := findConnection(c.LocalAddr(), srv.Addr(), getConnections(collect, tr))
 		require.True(collect, found, "could not find connection")
 		require.True(collect, conn.IsClosed, "connection should be closed")
 		// after closing the client connection, the duration should be
