@@ -1987,8 +1987,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 
 	p.supportsBPFSendSignal = p.kernelVersion.SupportBPFSendSignal()
 
-	p.ensureConfigDefaults()
-
 	p.monitors = NewEBPFMonitors(p)
 
 	p.numCPU, err = utils.NumCPU()
@@ -2245,13 +2243,6 @@ func (p *EBPFProbe) GetProfileManagers() *SecurityProfileManagers {
 	return p.profileManagers
 }
 
-func (p *EBPFProbe) ensureConfigDefaults() {
-	// enable runtime compiled constants on COS by default
-	if !p.config.Probe.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
-		p.config.Probe.RuntimeCompiledConstantsEnabled = true
-	}
-}
-
 const (
 	netStructHasProcINum uint64 = 0
 	netStructHasNS       uint64 = 1
@@ -2380,14 +2371,14 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 
 // GetOffsetConstants returns the offsets and struct sizes constants
 func (p *EBPFProbe) GetOffsetConstants() (map[string]uint64, error) {
-	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config.Probe, p.kernelVersion, p.statsdClient))
+	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config.Probe, p.kernelVersion))
 	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetResults()
 }
 
 // GetConstantFetcherStatus returns the status of the constant fetcher associated with this probe
 func (p *EBPFProbe) GetConstantFetcherStatus() (*constantfetch.ConstantFetcherStatus, error) {
-	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config.Probe, p.kernelVersion, p.statsdClient))
+	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config.Probe, p.kernelVersion))
 	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetStatus()
 }
