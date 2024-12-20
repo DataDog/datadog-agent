@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -173,7 +174,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.timeout,
 		"timeout",
-		"1m",
+		"",
 		"timeout for the activity dump",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
@@ -185,7 +186,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.localStorageDirectory,
 		"output",
-		"/tmp/activity_dumps/",
+		"",
 		"local storage output directory",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
@@ -470,6 +471,12 @@ func generateActivityDump(_ log.Component, _ config.Component, _ secrets.Compone
 	storage, err := parseStorageRequest(activityDumpArgs)
 	if err != nil {
 		return err
+	}
+
+	if activityDumpArgs.timeout != "" {
+		if _, err = time.ParseDuration(activityDumpArgs.timeout); err != nil {
+			return err
+		}
 	}
 
 	output, err := client.GenerateActivityDump(&api.ActivityDumpParams{

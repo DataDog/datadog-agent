@@ -342,6 +342,37 @@ func (c *Client) TargetFile(path string) ([]byte, error) {
 	return c.unsafeTargetFile(path)
 }
 
+// TargetFiles returns the content of various multiple target files if the repository is in a
+// verified state.
+func (c *Client) TargetFiles(targetFiles []string) (map[string][]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	err := c.verify()
+	if err != nil {
+		return nil, err
+	}
+
+	// Build the storage space
+	destinations := make(map[string]client.Destination)
+	for _, path := range targetFiles {
+		destinations[path] = &bufferDestination{}
+	}
+
+	err = c.directorTUFClient.DownloadBatch(destinations)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build the return type
+	files := make(map[string][]byte)
+	for path, contents := range destinations {
+		files[path] = contents.(*bufferDestination).Bytes()
+	}
+
+	return files, nil
+}
+
 // TargetsMeta returns the current raw targets.json meta of this uptane client
 func (c *Client) TargetsMeta() ([]byte, error) {
 	c.Lock()

@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -576,7 +577,9 @@ func TestDecodeV05(t *testing.T) {
 	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
 	assert.NoError(err)
 	req.Header.Set(header.ContainerID, "abcdef123789456")
-	tp, err := decodeTracerPayload(v05, req, NewIDProvider(""), "python", "3.8.1", "1.2.3")
+	tp, err := decodeTracerPayload(v05, req, NewIDProvider("", func(_ origindetection.OriginInfo) (string, error) {
+		return "abcdef123789456", nil
+	}), "python", "3.8.1", "1.2.3")
 	assert.NoError(err)
 	assert.EqualValues(tp, &pb.TracerPayload{
 		ContainerID:     "abcdef123789456",
@@ -1039,14 +1042,26 @@ func TestExpvar(t *testing.T) {
 	}
 
 	c := newTestReceiverConfig()
-	c.DebugServerPort = 5012
+	c.DebugServerPort = 6789
 	info.InitInfo(c)
+
+	// Starting a TLS httptest server to retrieve tlsCert
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
+	tlsConfig := ts.TLS.Clone()
+	// Setting a client with the proper TLS configuration
+	client := ts.Client()
+	ts.Close()
+
+	// Starting Debug Server
 	s := NewDebugServer(c)
+	s.SetTLSConfig(tlsConfig)
+
+	// Starting the Debug server
 	s.Start()
 	defer s.Stop()
 
-	resp, err := http.Get("http://127.0.0.1:5012/debug/vars")
-	assert.NoError(t, err)
+	resp, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d/debug/vars", c.DebugServerPort))
+	require.NoError(t, err)
 	defer resp.Body.Close()
 
 	t.Run("read-expvars", func(t *testing.T) {
