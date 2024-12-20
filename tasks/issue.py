@@ -5,7 +5,7 @@ from invoke import task
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.issue.assign import assign_with_model, assign_with_rules
 from tasks.libs.issue.model.actions import fetch_data_and_train_model
-from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
+from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP, GITHUB_SLACK_REVIEW_MAP
 
 
 @task
@@ -40,3 +40,57 @@ def assign_owner(_, issue_id, dry_run=False):
 @task
 def generate_model(_):
     fetch_data_and_train_model()
+
+
+WAVES = [
+    "wave",
+    "waveboi",
+    "capy-wave",
+    "wastelands-wave",
+    "wave_hello",
+    "wave-hokusai",
+    "wave_moomin",
+    "wave2",
+    "wave3",
+    "wallee-wave",
+    "vaporeon_wave",
+    "turtle-wave",
+    "softwave",
+    "shiba-wave",
+    "minion-wave",
+    "meow_wave_comfy",
+    "mario-wave",
+    "link-wave",
+    "kirby_wave",
+    "frog-wave",
+    "fox_wave",
+    "duckwave",
+    "cyr-wave",
+    "cozy-wave",
+    "cat-wave",
+    "bufo-wave",
+    "bongo-wave",
+    "blobwave",
+    "birb-wave",
+    "arnaud-wave",
+]
+
+
+@task
+def ask_reviews(_, pr_id):
+    gh = GithubAPI()
+    pr = gh.repo.get_pull(int(pr_id))
+    if any(label.name == 'ask-review' for label in pr.get_labels()):
+        reviewers = [f"@datadog/{team.slug}" for team in pr.requested_teams]
+        import random
+
+        from slack_sdk import WebClient
+
+        client = WebClient(os.environ['SLACK_API_TOKEN'])
+        for reviewer in reviewers:
+            channel = next(
+                (chan for team, chan in GITHUB_SLACK_REVIEW_MAP.items() if team.casefold() == reviewer.casefold()),
+                '#agent-devx-help',
+            )
+            message = f'Hello :{random.choice(WAVES)}:! Can you please review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance {channel}!'
+            client.chat_postMessage(channel=channel, text=message)
