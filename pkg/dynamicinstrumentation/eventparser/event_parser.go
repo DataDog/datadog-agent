@@ -92,19 +92,20 @@ func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, 
 	}
 
 	valueStack := newParamStack()
-	for bufferIndex+8 < len(buffer) {
+	for bufferIndex <= len(buffer) {
 		paramDefinition := definitionStack.pop()
 		if paramDefinition == nil {
 			break
 		}
 		if reflect.Kind(paramDefinition.Kind) == reflect.String {
-			if len(buffer) > bufferIndex+int(paramDefinition.Size) {
-				paramDefinition.ValueStr = string(buffer[bufferIndex : bufferIndex+int(paramDefinition.Size)])
-				bufferIndex += int(paramDefinition.Size)
+			if bufferIndex+int(paramDefinition.Size) > len(buffer) {
+				break
 			}
+			paramDefinition.ValueStr = string(buffer[bufferIndex : bufferIndex+int(paramDefinition.Size)])
+			bufferIndex += int(paramDefinition.Size)
 			valueStack.push(paramDefinition)
 		} else if !isTypeWithHeader(paramDefinition.Kind) {
-			if bufferIndex+int(paramDefinition.Size) >= len(buffer) {
+			if bufferIndex+int(paramDefinition.Size) > len(buffer) {
 				break
 			}
 			// This is a regular value (no sub-fields).
@@ -113,7 +114,7 @@ func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, 
 			bufferIndex += int(paramDefinition.Size)
 			valueStack.push(paramDefinition)
 		} else if reflect.Kind(paramDefinition.Kind) == reflect.Pointer {
-			if bufferIndex+int(paramDefinition.Size) >= len(buffer) {
+			if bufferIndex+int(paramDefinition.Size) > len(buffer) {
 				break
 			}
 			paramDefinition.Fields = append(paramDefinition.Fields, valueStack.pop())
