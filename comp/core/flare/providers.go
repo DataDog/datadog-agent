@@ -44,9 +44,9 @@ func (f *flare) collectLogsFiles(fb types.FlareBuilder) error {
 	}
 
 	f.log.Flush()
-	fb.CopyDirToWithoutScrubbing(filepath.Dir(logFile), "logs", shouldIncludeFunc)          //nolint:errcheck
-	fb.CopyDirToWithoutScrubbing(filepath.Dir(jmxLogFile), "logs", shouldIncludeFunc)       //nolint:errcheck
-	fb.CopyDirToWithoutScrubbing(filepath.Dir(dogstatsdLogFile), "logs", shouldIncludeFunc) //nolint:errcheck
+	fb.CopyDirToWithoutScrubbing(filepath.Dir(logFile), "logs", shouldIncludeFunc)                         //nolint:errcheck
+	fb.CopyDirToWithoutScrubbing(filepath.Dir(jmxLogFile), "logs", shouldIncludeFunc)                      //nolint:errcheck
+	fb.CopyDirToWithoutScrubbing(filepath.Dir(dogstatsdLogFile), "logs/dogstatsd_info", shouldIncludeFunc) //nolint:errcheck
 	return nil
 }
 
