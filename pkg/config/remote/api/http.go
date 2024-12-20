@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -61,7 +62,9 @@ type Auth struct {
 type HTTPClient struct {
 	baseURL string
 	client  *http.Client
-	header  http.Header
+
+	headerLock sync.RWMutex
+	header     http.Header
 }
 
 // NewHTTPClient returns a new HTTP configuration client
@@ -112,7 +115,10 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 	if err != nil {
 		return nil, fmt.Errorf("failed to create org data request: %w", err)
 	}
+
+	c.headerLock.RLock()
 	req.Header = c.header
+	c.headerLock.Unlock()
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -158,7 +164,10 @@ func (c *HTTPClient) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to create org data request: %w", err)
 	}
+
+	c.headerLock.RLock()
 	req.Header = c.header
+	c.headerLock.Unlock()
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -195,7 +204,10 @@ func (c *HTTPClient) FetchOrgStatus(ctx context.Context) (*pbgo.OrgStatusRespons
 	if err != nil {
 		return nil, fmt.Errorf("failed to create org data request: %w", err)
 	}
+
+	c.headerLock.RLock()
 	req.Header = c.header
+	c.headerLock.Unlock()
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -225,7 +237,9 @@ func (c *HTTPClient) FetchOrgStatus(ctx context.Context) (*pbgo.OrgStatusRespons
 }
 
 func (c *HTTPClient) UpdatePARJWT(jwt string) {
+	c.headerLock.Lock()
 	c.header.Set("DD-PAR-JWT", jwt)
+	c.headerLock.Unlock()
 }
 
 func checkStatusCode(resp *http.Response) error {
