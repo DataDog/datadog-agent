@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type grpcServer struct {
@@ -45,8 +45,8 @@ type serverSecure struct {
 	taggerServer        *taggerserver.Server
 	taggerComp          tagger.Component
 	workloadmetaServer  *workloadmetaServer.Server
-	configService       optional.Option[rcservice.Component]
-	configServiceMRF    optional.Option[rcservicemrf.Component]
+	configService       option.Option[rcservice.Component]
+	configServiceMRF    option.Option[rcservicemrf.Component]
 	dogstatsdServer     dogstatsdServer.Component
 	capture             dsdReplay.Component
 	pidMap              pidmap.Component
