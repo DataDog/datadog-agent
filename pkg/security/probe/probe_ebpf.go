@@ -34,7 +34,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -1663,7 +1662,6 @@ func (p *EBPFProbe) Close() error {
 	}
 
 	ddebpf.RemoveNameMappings(p.Manager)
-	ebpftelemetry.UnregisterTelemetry(p.Manager)
 	// Stopping the manager will stop the perf map reader and unload eBPF programs
 	if err := p.Manager.Stop(manager.CleanAll); err != nil {
 		return err
