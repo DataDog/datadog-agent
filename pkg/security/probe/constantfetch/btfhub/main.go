@@ -21,7 +21,6 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"reflect"
 	"runtime/pprof"
@@ -31,10 +30,8 @@ import (
 
 	"github.com/smira/go-xz"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
-	utilKernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func main() {
@@ -324,7 +321,7 @@ func (c *treeWalkCollector) extractor() error {
 	for query := range c.queryChan {
 		fmt.Println(query.counter, query.path)
 
-		constants, err := c.extractConstantsFromBTF(query.path, query.distribution, query.distribVersion)
+		constants, err := c.extractConstantsFromBTF(query.path)
 		if err != nil {
 			return fmt.Errorf("failed to extract constants from `%s`: %v", query.path, err)
 		}
@@ -370,7 +367,7 @@ func (c *treeWalkCollector) getCacheEntry(cacheKey string) (map[string]uint64, b
 	return val, ok
 }
 
-func (c *treeWalkCollector) extractConstantsFromBTF(archivePath, distribution, distribVersion string) (map[string]uint64, error) {
+func (c *treeWalkCollector) extractConstantsFromBTF(archivePath string) (map[string]uint64, error) {
 	btfContent, err := createBTFReaderFromTarball(archivePath)
 	if err != nil {
 		return nil, err
@@ -381,31 +378,13 @@ func (c *treeWalkCollector) extractConstantsFromBTF(archivePath, distribution, d
 		return constants, nil
 	}
 
-	archiveFileName := path.Base(archivePath)
-	btfFileName := strings.TrimSuffix(archiveFileName, ".tar.xz")
-
-	releasePart := strings.Split(btfFileName, "-")[0]
-	kvCode, err := utilKernel.ParseReleaseString(releasePart)
-	if err != nil {
-		return nil, err
-	}
-
-	osRelease := map[string]string{
-		"ID":         distribution,
-		"VERSION_ID": distribVersion,
-	}
-	kv := &kernel.Version{
-		Code:      kvCode,
-		OsRelease: osRelease,
-	}
-
 	btfReader := bytes.NewReader(btfContent)
 	fetcher, err := constantfetch.NewBTFConstantFetcherFromReader(btfReader)
 	if err != nil {
 		return nil, err
 	}
 
-	probe.AppendProbeRequestsToFetcher(fetcher, kv)
+	probe.AppendProbeRequestsToFetcher(fetcher)
 	constants, err := fetcher.FinishAndGetResults()
 	if err != nil {
 		return nil, err
