@@ -42,7 +42,9 @@ use (
 	comp/otelcol/otlp/components/processor/infraattributesprocessor
 	comp/otelcol/otlp/components/statsprocessor
 	comp/otelcol/otlp/testutil
-	comp/serializer/compression
+	comp/serializer/compression/logs
+	comp/serializer/compression/metrics
+	comp/serializer/compression/factory
 	comp/trace/agent/def
 	comp/trace/compression/def
 	comp/trace/compression/impl-gzip

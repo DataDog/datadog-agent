@@ -14,7 +14,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/compression/logs/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -22,7 +22,8 @@ import (
 )
 
 // NewServerlessLogsAgent creates a new instance of the logs agent for serverless
-func NewServerlessLogsAgent(tagger tagger.Component, compression compression.Component) agent.ServerlessLogsAgent {
+func NewServerlessLogsAgent(tagger tagger.Component, compression logscompression.Component) agent.ServerlessLogsAgent {
+
 	logsAgent := &logAgent{
 		log:     logComponent.NewTemporaryLoggerWithoutInit(),
 		config:  pkgconfigsetup.Datadog(),

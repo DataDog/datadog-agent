@@ -6,8 +6,8 @@
 package sender
 
 import (
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -17,12 +17,12 @@ import (
 type streamStrategy struct {
 	inputChan   chan *message.Message
 	outputChan  chan *message.Payload
-	compression compression.Component
+	compression compression.Compressor
 	done        chan struct{}
 }
 
 // NewStreamStrategy creates a new stream strategy
-func NewStreamStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, compression compression.Component) Strategy {
+func NewStreamStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, compression compression.Compressor) Strategy {
 	return &streamStrategy{
 		inputChan:   inputChan,
 		outputChan:  outputChan,

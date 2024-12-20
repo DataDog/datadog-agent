@@ -65,7 +65,7 @@ import (
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/compression/logs/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
@@ -226,7 +226,7 @@ func start(log log.Component,
 	logReceiver optional.Option[integrations.Component],
 	_ healthprobe.Component,
 	settings settings.Component,
-	compression compression.Component,
+	compression logscompression.Component,
 	datadogConfig config.Component,
 ) error {
 	stopCh := make(chan struct{})

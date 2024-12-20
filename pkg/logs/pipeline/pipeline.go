@@ -13,8 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	compressioncommon "github.com/DataDog/datadog-agent/comp/serializer/compression/common"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/compression/logs/def"
+	compressioncommon "github.com/DataDog/datadog-agent/pkg/compression"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -51,7 +51,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	status statusinterface.Status,
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader,
-	compression compression.Component,
+	compression logscompression.Component,
 ) *Pipeline {
 
 	var senderDoneChan chan *sync.WaitGroup
@@ -168,16 +168,16 @@ func getStrategy(
 	serverless bool,
 	flushWg *sync.WaitGroup,
 	pipelineMonitor metrics.PipelineMonitor,
-	compressor compression.Component,
+	compressor logscompression.Component,
 ) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
-		var encoder compression.Component
-		encoder = compressor.WithKindAndLevel(compressioncommon.NoneKind, 0)
+		var encoder compressioncommon.Compressor
+		encoder = compressor.NewCompressor(compressioncommon.NoneKind, 0)
 		if endpoints.Main.UseCompression {
-			encoder = compressor.WithKindAndLevel(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
+			encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
 		}
 
 		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor)
 	}
-	return sender.NewStreamStrategy(inputChan, outputChan, compressor.WithKindAndLevel(compressioncommon.NoneKind, 0))
+	return sender.NewStreamStrategy(inputChan, outputChan, compressor.NewCompressor(compressioncommon.NoneKind, 0))
 }

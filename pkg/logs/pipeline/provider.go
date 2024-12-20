@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/compression/logs/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -58,7 +58,7 @@ type provider struct {
 	status      statusinterface.Status
 	hostname    hostnameinterface.Component
 	cfg         pkgconfigmodel.Reader
-	compression compression.Component
+	compression logscompression.Component
 }
 
 // NewProvider returns a new Provider
@@ -71,7 +71,7 @@ func NewProvider(numberOfPipelines int,
 	status statusinterface.Status,
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader,
-	compression compression.Component,
+	compression logscompression.Component,
 ) Provider {
 	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false, status, hostname, cfg, compression)
 }
@@ -86,7 +86,7 @@ func NewServerlessProvider(numberOfPipelines int,
 	status statusinterface.Status,
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader,
-	compression compression.Component,
+	compression logscompression.Component,
 ) Provider {
 
 	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, true, status, hostname, cfg, compression)
@@ -107,7 +107,7 @@ func newProvider(numberOfPipelines int,
 	status statusinterface.Status,
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader,
-	compression compression.Component,
+	compression logscompression.Component,
 ) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,

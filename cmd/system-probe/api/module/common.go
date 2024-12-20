@@ -12,7 +12,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/compression/metrics/def"
 	"go.uber.org/fx"
 )
 
@@ -34,5 +34,5 @@ type FactoryDependencies struct {
 	WMeta       workloadmeta.Component
 	Tagger      tagger.Component
 	Telemetry   telemetry.Component
-	Compression compression.Component
+	Compression metricscompression.Component
 }

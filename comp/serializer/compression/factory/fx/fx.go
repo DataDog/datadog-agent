@@ -7,7 +7,7 @@
 package fx
 
 import (
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/factory/selector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

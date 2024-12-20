@@ -62,7 +62,9 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor => ./comp/otelcol/otlp/components/processor/infraattributesprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ./comp/otelcol/otlp/components/statsprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./comp/otelcol/otlp/testutil
-	github.com/DataDog/datadog-agent/comp/serializer/compression => ./comp/serializer/compression
+	github.com/DataDog/datadog-agent/comp/serializer/compression/factory => ./comp/serializer/compression/factory
+	github.com/DataDog/datadog-agent/comp/serializer/compression/logs => ./comp/serializer/compression/logs
+	github.com/DataDog/datadog-agent/comp/serializer/compression/metrics => ./comp/serializer/compression/metrics
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ./comp/trace/agent/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/def => ./comp/trace/compression/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ./comp/trace/compression/impl-gzip
@@ -675,7 +677,9 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.59.0
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor v0.59.0
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.57.0-devel.0.20240718200853-81bf3b2e412d
-	github.com/DataDog/datadog-agent/comp/serializer/compression v0.60.1
+	github.com/DataDog/datadog-agent/comp/serializer/compression/factory v0.59.0-rc.6
+	github.com/DataDog/datadog-agent/comp/serializer/compression/logs v0.59.0-rc.6
+	github.com/DataDog/datadog-agent/comp/serializer/compression/metrics v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.59.0
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.59.0

@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/compression/logs/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -38,7 +38,7 @@ type dependencies struct {
 	Log        log.Component
 	Config     config.Component
 	Hostname   hostname.Component
-	Compressor compression.Component
+	Compressor logscompression.Component
 	Tagger     tagger.Component
 	HaAgent    haagent.Component
 }
