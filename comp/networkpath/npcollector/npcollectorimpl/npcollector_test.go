@@ -19,7 +19,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/cihub/seelog"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
@@ -46,7 +45,7 @@ func Test_NpCollector_StartAndStop(t *testing.T) {
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 
@@ -510,7 +509,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
 			utillog.SetupLogger(l, "debug")
 
@@ -564,7 +563,7 @@ func Test_npCollectorImpl_stopWorker(t *testing.T) {
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 
@@ -759,7 +758,7 @@ func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	assert.Nil(b, err)
 	defer file.Close()
 	w := bufio.NewWriter(file)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg\n")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg\n")
 	assert.Nil(b, err)
 	utillog.SetupLogger(l, "debug")
 	defer w.Flush()

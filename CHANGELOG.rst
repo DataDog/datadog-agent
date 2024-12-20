@@ -2,6 +2,159 @@
 Release Notes
 =============
 
+.. _Release Notes_7.60.1:
+
+7.60.1
+======
+
+.. _Release Notes_7.60.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-12-19
+
+
+.. _Release Notes_7.60.1_Security Notes:
+
+Security Notes
+--------------
+
+- Update ``golang.org/x/crypto`` to fix CVE-2024-45337.
+
+
+.. _Release Notes_7.60.0:
+
+7.60.0
+======
+
+.. _Release Notes_7.60.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-12-16
+
+- Please refer to the `7.60.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7600>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.60.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- * Parameter ``peer_tags_aggregation`` (a.k.a. environment variable ``DD_APM_PEER_TAGS_AGGREGATION``) is now enabled by default. This means that aggregation of peer related tags (e.g., `peer.service`, `db.instance`, etc.) now happens in the Agent, which enables statistics for Inferred Entities. If you want to disable this feature, set `peer_tags_aggregation` to `false` in your Agent configuration.
+  
+  * Parameter ``compute_stats_by_span_kind`` (a.k.a. environment variable ``DD_APM_COMPUTE_STATS_BY_SPAN_KIND``) is now enabled by default. This means spans with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed. If you want to disable this feature, set `compute_stats_by_span_kind` to `false` in your Agent configuration.
+  
+    Note: When using ``peer_tags_aggregation`` and ``compute_stats_by_span_kind``, a high cardinality of peer tags or APM resources can contribute to higher CPU and memory consumption. If enabling both causes the Agent to consume too many resources, try disabling `compute_stats_by_span_kind` first.
+  
+  It is recommended that you update your tracing libraries according to the instructions `here <https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/?tab=java#apm-tracing-library-configuration>`_ and set ``DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED`` (or ``dd.trace.remove.integration-service-names.enabled``) to ``true``.
+
+- Upgraded JMXFetch to `0.49.5 <https://github.com/DataDog/jmxfetch/releases/0.49.5>`_ which adds support for ``UnloadedClassCount`` metric
+  and IBM J9 gc metrics. See `0.49.5  <https://github.com/DataDog/jmxfetch/releases/tag/0.49.5>`_ for more details.
+
+
+.. _Release Notes_7.60.0_New Features:
+
+New Features
+------------
+
+- `Inferred Service dependencies <https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/>`_ are now Generally Available (exiting Beta) and enabled by default. Inferred Services of all kinds now have trace metrics and are available in dependency maps. `apm_config.peer_tags_aggregation` and `apm_config.compute_stats_by_span_kind` both now default to `true` unless explicitly set to `false`.
+
+- Add `check_tag_cardinality` parameter config check.
+  
+  By default `check_tag_cardinality` is not set which doesn't change the behavior of the checks.
+  Once it is set in pod annotaions, it overrides the cardinality value provided in the base agent configuration.
+  Example of usage:
+  ```yaml
+  ad.datadoghq.com/redis.checks: |
+    {
+      "redisdb": {
+        "check_tag_cardinality": "high", 
+        "instances": [
+          {
+            "host": "%%host%%",
+            "port": "6379"
+          }
+        ]
+      }
+    }
+  ```
+
+- Added a new feature flag `enable_receive_resource_spans_v2` in DD_APM_FEATURES that gates a refactored implementation of ReceiveResourceSpans for OTLP.
+
+
+.. _Release Notes_7.60.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added information about where the Agent sourced BTF data for eBPF to the Agent flare. When applicable, this will appear in ``system-probe/ebpf_btf_loader.log``.
+
+- The Agent flare now returns NAT debug information from conntrack in the ``system-probe`` directory.
+
+- The ``flare`` subcommand includes a ``--provider-timeout`` option to set a timeout for each file collection (default is 10s), useful for unblocking slow flare creation.
+
+- This change reduces the number of DNS queries made by Network Traffic
+  based paths in Network Path.
+  A cache of reverse DNS lookups is used to reduce the number of DNS
+  queries. Additionally, reverse DNS lookups are now performed only
+  for private IPs and not for public IPs. 
+
+- Agent flare now includes system-probe telemetry data via ``system-probe/system_probe_telemetry.log``.
+
+- The MSI installer uses 7zr.exe to decompress the embedded Python.
+
+- On Windows, the endpoint /windows_crash_detection/check has been modified to report crashes in
+  an asynchronous manner, to allow processing of large crash dumps without blocking or timing out.
+  The first check will return a busy status and continue to do so until the processing is completed.
+
+
+.. _Release Notes_7.60.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Prebuilt eBPF for the network tracer system-probe module has been
+  deprecated in favor of CO-RE and runtime compilation variants on Linux
+  kernel versions 6+ and RHEL kernel versions 5.14+. To continue to use
+  the prebuilt eBPF network tracer, set
+  `system_probe_config.allow_prebuilt_fallback` in the
+  system-probe config file, or set the environment variable
+  `DD_ALLOW_PREBUILT_FALLBACK`, to `true` on these platforms.
+
+- The feature flag `service_monitoring_config.enable_http_stats_by_status_code` was deprecated and removed.
+  No impact on USM's behavior.
+
+
+.. _Release Notes_7.60.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes an issue added in 7.50 that causes the Windows event log tailer to drop
+  events if it cannot open their publisher metadata.
+
+- Fix a bug in the config parser that broke ignored_ip_addresses from working in NDM Autodiscovery.
+
+- Fixes host tags with a configurable duration so the metric's context hash doesn't change, preventing the aggregator from mistaking it as a new metric.
+
+- Fix `could not parse voltage fields` error in Nvidia Jetson integration when tegrastats output contains mW units.
+
+- Fix building of Python extension containing native code.
+
+- [oracle] Fix broken activity sampling with an external Oracle client.
+
+- Fix nil pointer error on Oracle DBM query when the check's connection is lost before SELECT statement executes.
+
+- Fix a regression that caused the Agent to not be able to run if its
+  capabilities had been modified with the `setcap` command.
+
+- Fix bug wherein single line truncated logs ended with whitespace characters were not being tagged as truncated.
+  Fix issue with the truncation message occasionally causing subsequent logs to think they were truncated when they were not (single line logs only).
+
+
 .. _Release Notes_7.59.1:
 
 7.59.1

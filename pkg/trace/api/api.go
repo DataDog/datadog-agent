@@ -141,7 +141,7 @@ func NewHTTPReceiver(
 		}
 	}
 	log.Infof("Receiver configured with %d decoders and a timeout of %dms", semcount, conf.DecoderTimeout)
-	containerIDProvider := NewIDProvider(conf.ContainerProcRoot)
+	containerIDProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
 	telemetryForwarder := NewTelemetryForwarder(conf, containerIDProvider, statsd)
 	return &HTTPReceiver{
 		Stats: info.NewReceiverStats(),
@@ -235,6 +235,8 @@ func getConfiguredEVPRequestTimeoutDuration(conf *config.AgentConfig) time.Durat
 
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
+	r.telemetryForwarder.start()
+
 	if !r.conf.ReceiverEnabled {
 		log.Debug("HTTP Server is off: HTTPReceiver is disabled.")
 		return

@@ -6,7 +6,6 @@ include:
   - .gitlab/check_deploy/check_deploy.yml
   - .gitlab/check_merge/do_not_merge.yml
   - .gitlab/choco_build/choco_build.yml
-  - .gitlab/choco_deploy/choco_deploy.yml
   - .gitlab/powershell_script_signing/powershell_script_signing.yml
   - .gitlab/powershell_script_deploy/powershell_script_deploy.yml
   - .gitlab/common/shared.yml
@@ -86,7 +85,7 @@ stages:
   - deploy_dca
   - choco_and_install_script_build
   - trigger_release
-  - choco_and_install_script_deploy
+  - install_script_deploy
   - internal_image_deploy
   - e2e_deploy
   - install_script_testing
@@ -134,6 +133,7 @@ variables:
   BUCKET_BRANCH: dev # path inside the staging s3 buckets to release to: 'dev', 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
+  INSTALLER_TESTING_S3_BUCKET: installtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
   WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
@@ -150,6 +150,7 @@ variables:
   ## comment out both lines below (S3_OMNIBUS_CACHE_BUCKET and USE_S3_CACHING) to allow
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
+  S3_OMNIBUS_GIT_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-git-cache-build-stable
   USE_S3_CACHING: --omnibus-s3-cache
   # This value is not used on windows, a specific value is provided to
   # our build containers in the windows build jobs
@@ -274,12 +275,16 @@ variables:
   # Feature flags
   FF_SCRIPT_SECTIONS: 1 # Prevent multiline scripts log collapsing, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/3392
   FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
+  FF_TIMESTAMPS: true
 
 #
 # Condition mixins for simplification of rules
 #
 .if_main_branch: &if_main_branch
   if: $CI_COMMIT_BRANCH == "main"
+
+.if_not_main_branch: &if_not_main_branch
+  if: $CI_COMMIT_BRANCH != "main"
 
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
@@ -579,8 +584,10 @@ workflow:
     when: always
 
 .on_deploy_stable_or_beta_repo_branch:
+  - !reference [.except_mergequeue]
   - <<: *if_not_stable_or_beta_repo_branch
-    when: never
+    when: manual
+    allow_failure: true
   - <<: *if_deploy
 
 .on_deploy_stable_or_beta_repo_branch_manual:
@@ -609,23 +616,16 @@ workflow:
 
 .except_no_tests_no_deploy:
   - if: $DEPLOY_AGENT == "false" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS == "off"
-    when: never
+    when: manual
+    allow_failure: true
 
 .on_main_or_release_branch:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
-.on_main_or_release_branch_or_all_builds_or_pkg_installer_changes:
-  - <<: *if_main_branch
-  - <<: *if_release_branch
-  - <<: *if_run_all_builds
-  - <<: *if_run_all_unit_tests
-  - changes:
-      paths:
-        - pkg/fleet/**/*
-      compare_to: main
-    variables:
-      FAST_TESTS: "true"
+.only_main:
+  - <<: *if_not_main_branch
+    when: never
 
 .except_main_or_release_branch:
   - <<: *if_main_branch
@@ -829,7 +829,9 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        # TODO: Add paths that should trigger tests for ASC
+        - cmd/**/*
+        - pkg/**/*
+        - comp/**/*
         - test/new-e2e/tests/agent-shared-components/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
@@ -976,6 +978,16 @@ workflow:
         - comp/haagent/**/*
         - pkg/aggregator/**/*
         - test/new-e2e/tests/ha-agent/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+
+.on_netpath_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/collector/corechecks/networkpath/**/*
+        - test/new-e2e/tests/netpath/**/*
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success

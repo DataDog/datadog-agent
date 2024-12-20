@@ -15,6 +15,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
@@ -25,14 +26,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
 )
 
 type ECSFargateSuite struct {
 	e2e.BaseSuite[environments.ECS]
 }
 
-func getFargateProvisioner(configMap runner.ConfigMap) e2e.TypedProvisioner[environments.ECS] {
+func getFargateProvisioner(configMap runner.ConfigMap) provisioners.TypedProvisioner[environments.ECS] {
 	return ecs.Provisioner(
 		ecs.WithECSOptions(tifEcs.WithFargateCapacityProvider()),
 		ecs.WithFargateWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake) (*ecsComp.Workload, error) {
@@ -73,14 +74,27 @@ func (s *ECSFargateSuite) TestProcessCheck() {
 	assertContainersCollected(t, payloads, []string{"stress-ng"})
 }
 
-func (s *ECSFargateSuite) TestProcessCheckInCoreAgent() {
-	t := s.T()
+type ECSFargateCoreAgentSuite struct {
+	e2e.BaseSuite[environments.ECS]
+}
+
+func TestECSFargateCoreAgentTestSuite(t *testing.T) {
+	t.Parallel()
+	s := ECSFargateCoreAgentSuite{}
 
 	extraConfig := runner.ConfigMap{
 		"ddagent:extraEnvVars": auto.ConfigValue{Value: "DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED=true"},
 	}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
+		getFargateProvisioner(extraConfig),
+	),
+	}
 
-	s.UpdateEnv(getFargateProvisioner(extraConfig))
+	e2e.Run(t, &s, e2eParams...)
+}
+
+func (s *ECSFargateCoreAgentSuite) TestProcessCheckInCoreAgent() {
+	t := s.T()
 
 	// Flush fake intake to remove any payloads which may have
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
