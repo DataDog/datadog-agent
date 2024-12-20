@@ -328,38 +328,38 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		},
 	}
 
-	for i, tt := range tests {
-		t.Logf("Running step %d %s", i, tt.desc)
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			store := informerFactory.
+				Core().
+				V1().
+				Endpoints().
+				Informer().
+				GetStore()
 
-		store := informerFactory.
-			Core().
-			V1().
-			Endpoints().
-			Informer().
-			GetStore()
+			var err error
+			if tt.delete {
+				err = store.Delete(tt.endpoints)
+			} else {
+				err = store.Add(tt.endpoints)
+			}
+			require.NoError(t, err)
 
-		var err error
-		if tt.delete {
-			err = store.Delete(tt.endpoints)
-		} else {
-			err = store.Add(tt.endpoints)
-		}
-		require.NoError(t, err)
+			key, err := cache.MetaNamespaceKeyFunc(tt.endpoints)
+			require.NoError(t, err)
 
-		key, err := cache.MetaNamespaceKeyFunc(tt.endpoints)
-		require.NoError(t, err)
+			err = metaController.syncEndpoints(key)
+			require.NoError(t, err)
 
-		err = metaController.syncEndpoints(key)
-		require.NoError(t, err)
+			nonNilKeys := metaController.countNonNilKeys()
+			assert.Equal(t, len(tt.expectedBundles), nonNilKeys, "Unexpected metaBundles found")
 
-		nonNilKeys := metaController.countNonNilKeys()
-		assert.Equal(t, len(tt.expectedBundles), nonNilKeys, "Unexpected metaBundles found")
-
-		for nodeName, expectedMapper := range tt.expectedBundles {
-			metaBundle, ok := metaController.store.get(nodeName)
-			require.True(t, ok, "No meta bundle for %s", nodeName)
-			assert.Equal(t, expectedMapper, metaBundle.Services, nodeName)
-		}
+			for nodeName, expectedMapper := range tt.expectedBundles {
+				metaBundle, ok := metaController.store.get(nodeName)
+				require.True(t, ok, "No meta bundle for %s", nodeName)
+				assert.Equal(t, expectedMapper, metaBundle.Services, nodeName)
+			}
+		})
 	}
 }
 
@@ -613,51 +613,49 @@ func TestMetadataControllerSyncEndpointSlices(t *testing.T) {
 		},
 	}
 
-	for i, tt := range tests {
-		t.Logf("Running step %d %s", i, tt.desc)
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			store := informerFactory.
+				Discovery().
+				V1().
+				EndpointSlices().
+				Informer().
+				GetStore()
 
-		store := informerFactory.
-			Discovery().
-			V1().
-			EndpointSlices().
-			Informer().
-			GetStore()
+			var err error
+			if tt.delete {
+				for _, slice := range tt.endpointSlices {
+					err = store.Delete(slice)
+					require.NoError(t, err)
+				}
+			} else {
+				for _, slice := range tt.endpointSlices {
+					err = store.Add(slice)
+					require.NoError(t, err)
+				}
+			}
 
-		var err error
-		if tt.delete {
 			for _, slice := range tt.endpointSlices {
-				err = store.Delete(slice)
+				key, err := cache.MetaNamespaceKeyFunc(slice)
+				require.NoError(t, err)
+
+				err = metaController.syncEndpointSlices(key)
 				require.NoError(t, err)
 			}
-		} else {
-			for _, slice := range tt.endpointSlices {
-				err = store.Add(slice)
-				require.NoError(t, err)
+
+			nonNilKeys := metaController.countNonNilKeys()
+			assert.Equal(t, len(tt.expectedBundles), nonNilKeys, "Unexpected metaBundles found")
+
+			for nodeName, expectedMapper := range tt.expectedBundles {
+				metaBundle, ok := metaController.store.get(nodeName)
+				require.True(t, ok, "No meta bundle for %s", nodeName)
+				assert.Equal(t, expectedMapper, metaBundle.Services, nodeName)
 			}
-		}
 
-		for _, slice := range tt.endpointSlices {
-			key, err := cache.MetaNamespaceKeyFunc(slice)
-			require.NoError(t, err)
+			cacheLen := len(metaController.sliceServiceCache["default"])
 
-			err = metaController.syncEndpointSlices(key)
-			require.NoError(t, err)
-		}
-
-		nonNilKeys := metaController.countNonNilKeys()
-		assert.Equal(t, len(tt.expectedBundles), nonNilKeys, "Unexpected metaBundles found")
-
-		for nodeName, expectedMapper := range tt.expectedBundles {
-			metaBundle, ok := metaController.store.get(nodeName)
-			require.True(t, ok, "No meta bundle for %s", nodeName)
-			assert.Equal(t, expectedMapper, metaBundle.Services, nodeName)
-		}
-
-		metaController.sliceCacheLock.RLock()
-		cacheLen := len(metaController.sliceServiceCache["default"])
-		metaController.sliceCacheLock.RUnlock()
-
-		assert.Equal(t, tt.expectedCacheLen, cacheLen, "Cache length mismatch for test %d", i)
+			assert.Equal(t, tt.expectedCacheLen, cacheLen, "Cache length mismatch")
+		})
 	}
 }
 
