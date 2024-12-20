@@ -55,12 +55,6 @@ func NewComponent(req Requires) Provides {
 func (s *GzipStrategy) Compress(src []byte) (result []byte, err error) {
 	var compressedPayload bytes.Buffer
 	gzipWriter, err := gzip.NewWriterLevel(&compressedPayload, s.level)
-	defer func() {
-		err = gzipWriter.Close()
-		if err != nil {
-			result = nil
-		}
-	}()
 
 	if err != nil {
 		return nil, err
@@ -70,6 +64,10 @@ func (s *GzipStrategy) Compress(src []byte) (result []byte, err error) {
 		return nil, err
 	}
 	err = gzipWriter.Flush()
+	if err != nil {
+		return nil, err
+	}
+	err = gzipWriter.Close()
 	if err != nil {
 		return nil, err
 	}

@@ -128,7 +128,6 @@ func runAgent(tagger tagger.Component, compression compression.Component) {
 	wg.Add(3)
 
 	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon, tagger, rcService)
-
 	go startOtlpAgent(&wg, metricAgent, serverlessDaemon, tagger)
 	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger, compression)
 
