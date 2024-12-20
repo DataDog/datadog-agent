@@ -111,6 +111,28 @@ func TestParseParamValue(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "same sized string",
+			inputBuffer: []byte{
+				65, 65, 65,
+			},
+			inputDefinition: &ditypes.Param{
+				Type: "string", Size: 0x3, Kind: 0x18,
+			},
+			expectedValue: &ditypes.Param{
+				ValueStr: "AAA", Type: "string", Size: 0x3, Kind: 0x18,
+			},
+		},
+		{
+			name:        "empty string",
+			inputBuffer: []byte{},
+			inputDefinition: &ditypes.Param{
+				Type: "string", Size: 0x0, Kind: 0x18,
+			},
+			expectedValue: &ditypes.Param{
+				ValueStr: "", Type: "string", Size: 0x0, Kind: 0x18,
+			},
+		},
 	}
 
 	for _, tt := range tests {
