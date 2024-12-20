@@ -230,6 +230,11 @@ func (p *Protocol) Name() string {
 	return "HTTP2"
 }
 
+// Type returns the protocol type
+func (p *Protocol) Type() protocols.ProtocolType {
+	return protocols.HTTP2
+}
+
 const (
 	mapSizeValue = 1024
 )
