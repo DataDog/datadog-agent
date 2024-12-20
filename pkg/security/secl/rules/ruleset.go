@@ -317,7 +317,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 		tags = append(tags, k+":"+v)
 	}
 
-	expandedRules := expandFim(pRule.Def.ID, pRule.Def.Expression)
+	expandedRules := expandFim(pRule.Def.ID, pRule.Def.GroupID, pRule.Def.Expression)
 
 	categories := make([]model.EventCategory, 0)
 	for _, er := range expandedRules {

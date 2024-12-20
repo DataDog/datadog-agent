@@ -13,7 +13,7 @@ type expandedRule struct {
 	expr string
 }
 
-func expandFim(baseID, baseExpr string) []expandedRule {
+func expandFim(baseID, groupID, baseExpr string) []expandedRule {
 	return []expandedRule{
 		{
 			id:   baseID,

@@ -100,7 +100,7 @@ func TestExpandFIM(t *testing.T) {
 
 	for _, entry := range entries {
 		t.Run(entry.id, func(t *testing.T) {
-			actual := expandFim(entry.id, entry.expr)
+			actual := expandFim(entry.id, "", entry.expr)
 			assert.Equal(t, entry.expected, actual)
 		})
 	}
