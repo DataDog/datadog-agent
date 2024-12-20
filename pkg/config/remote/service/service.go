@@ -539,7 +539,8 @@ func (s *CoreAgentService) Start() {
 	}()
 }
 
-// UpdatePARJWT updates the stored JWT for HTTP API calls
+// UpdatePARJWT updates the stored JWT for Private Action Runners
+// for authentication to the remote config backend.
 func (s *CoreAgentService) UpdatePARJWT(jwt string) {
 	s.api.UpdatePARJWT(jwt)
 }

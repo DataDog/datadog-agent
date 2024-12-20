@@ -236,6 +236,8 @@ func (c *HTTPClient) FetchOrgStatus(ctx context.Context) (*pbgo.OrgStatusRespons
 	return response, err
 }
 
+// UpdatePARJWT allows for dynamic setting of a Private Action Runners JWT
+// Token for authentication to the RC backend.
 func (c *HTTPClient) UpdatePARJWT(jwt string) {
 	c.headerLock.Lock()
 	c.header.Set("DD-PAR-JWT", jwt)
