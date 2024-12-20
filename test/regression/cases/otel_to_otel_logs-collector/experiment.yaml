@@ -12,7 +12,8 @@ target:
     DD_HOSTNAME: smp-regression
     DD_OTEL_ENABLED: true
     DD_SITE: 127.0.0.1:9092
-
+    DD_AUTH_TOKEN_FILE_PATH: /tmp/agent-auth-token
+    
   profiling_environment:
     DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
     DD_INTERNAL_PROFILING_CPU_DURATION: 1m

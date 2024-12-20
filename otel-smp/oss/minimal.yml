@@ -16,7 +16,7 @@ exporters:
       site: "127.0.0.1:9092"
     metrics:
       resource_attributes_as_tags: true
-      endpoint: https://127.0.0.1:9091
+      endpoint: http://127.0.0.1:9091
       
 
 processors:
