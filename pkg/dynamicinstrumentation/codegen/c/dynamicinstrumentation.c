@@ -14,8 +14,8 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     log_debug("{{.GetBPFFuncName}} probe in {{.ServiceName}} has triggered");
 
     // reserve space on ringbuffer
-    struct event *event;
-    event = bpf_ringbuf_reserve(&events, sizeof(struct event), 0);
+    event_t *event;
+    event = bpf_ringbuf_reserve(&events, sizeof(event_t), 0);
     if (!event) {
         log_debug("No space available on ringbuffer, dropping event");
         return 0;
