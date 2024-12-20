@@ -118,6 +118,7 @@ def get_releasing_teams():
         'agent-platform',
         'agent-release-management',
         'container-ecosystems',
+        'apm-trace-storage',
     }
     owners = set(list_owners())
     return sorted(owners - non_releasing_teams)
