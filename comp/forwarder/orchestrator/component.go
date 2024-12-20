@@ -8,7 +8,7 @@ package orchestrator
 
 import "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 
-// team: agent-metrics-logs
+// team: agent-processing-and-routing
 
 // Component is the alias of orchestratorinterface.Component.
 type Component = orchestratorinterface.Component

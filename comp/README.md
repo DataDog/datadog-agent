@@ -6,15 +6,19 @@ Click the links for more documentation.
 
 ## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator) (Component Bundle)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-metrics-logs
 
 Package aggregator implements the "aggregator" bundle,
 
 ### [comp/aggregator/demultiplexer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer)
 
+*Datadog Team*: agent-shared-components
+
 Package demultiplexer defines the aggregator demultiplexer
 
 ### [comp/aggregator/diagnosesendermanager](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager)
+
+*Datadog Team*: agent-shared-components
 
 Package diagnosesendermanager defines the sender manager for the local diagnose check
 
@@ -36,7 +40,7 @@ auth_token file but can fetch it it's available.
 
 ## [comp/checks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks) (Component Bundle)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-metrics-logs
 
 Package checks implements the "checks" bundle, for all of the component based agent checks
 
@@ -71,7 +75,7 @@ agent flavors and binaries.
 
 ### [comp/core/autodiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/autodiscovery)
 
-*Datadog Team*: container-integrations
+*Datadog Team*: container-platform
 
 Package autodiscovery provides the autodiscovery component for the Datadog Agent
 
@@ -117,7 +121,7 @@ component temporarily wraps pkg/config.
 
 ### [comp/core/tagger](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/tagger)
 
-*Datadog Team*: container-integrations
+*Datadog Team*: container-platform
 
 Package tagger provides the tagger component for the Datadog Agent
 
@@ -127,7 +131,7 @@ Package telemetry implements a component for all agent telemetry.
 
 ### [comp/core/workloadmeta](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/workloadmeta)
 
-*Datadog Team*: container-integrations
+*Datadog Team*: container-platform
 
 Package workloadmeta provides the workloadmeta component for the Datadog Agent
 
@@ -159,7 +163,7 @@ Package status implements the core status component information provider interfa
 
 ## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder) (Component Bundle)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-processing-and-routing
 
 Package forwarder implements the "forwarder" bundle
 
@@ -169,25 +173,17 @@ Package defaultforwarder implements a component to send payloads to the backend
 
 ### [comp/forwarder/eventplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatform)
 
-*Datadog Team*: agent-metrics-logs
-
 Package eventplatform contains the logic for forwarding events to the event platform
 
 ### [comp/forwarder/eventplatformreceiver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver)
-
-*Datadog Team*: agent-metrics-logs
 
 Package eventplatformreceiver implements the receiver for the event platform package
 
 ### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
 
-*Datadog Team*: agent-metrics-logs
-
 Package orchestrator implements the orchestrator forwarder component.
 
 ### [comp/forwarder/orchestrator/orchestratorinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface)
-
-*Datadog Team*: agent-metrics-logs
 
 Package orchestratorinterface defines the interface for the orchestrator forwarder component.
 
@@ -236,7 +232,7 @@ Package inventoryhost exposes the interface for the component to generate the 'h
 
 ### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
 
-*Datadog Team*: agent-build-and-releases
+*Datadog Team*: agent-delivery
 
 Package packagesigning implements a component to generate the 'signing' metadata payload for DD inventory (REDAPL).
 
@@ -250,7 +246,7 @@ Package runner implements a component to generate metadata payload at the right 
 
 ## [comp/ndmtmp](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ndmtmp) (Component Bundle)
 
-*Datadog Team*: network-device-monitoring
+*Datadog Team*: ndm-core
 
 Package ndmtmp implements the "ndmtmp" bundle, which exposes the default
 sender.Sender and the event platform forwarder. This is a temporary module
@@ -262,7 +258,7 @@ Package forwarder exposes the event platform forwarder for netflow.
 
 ## [comp/netflow](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/netflow) (Component Bundle)
 
-*Datadog Team*: network-device-monitoring
+*Datadog Team*: ndm-integrations
 
 Package netflow implements the "netflow" bundle, which listens for netflow
 packets, processes them, and forwards relevant data to the backend.
@@ -291,7 +287,7 @@ Package collector implements the OpenTelemetry Collector component.
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 
-*Datadog Team*: processes
+*Datadog Team*: container-intake
 
 Package process implements the "process" bundle, providing components for the Process Agent
 
@@ -384,7 +380,7 @@ Package rctelemetryreporter provides a component that sends RC-specific metrics 
 
 ## [comp/snmptraps](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps) (Component Bundle)
 
-*Datadog Team*: network-device-monitoring
+*Datadog Team*: ndm-core
 
 Package snmptraps implements the a server that listens for SNMP trap data
 and sends it to the backend.

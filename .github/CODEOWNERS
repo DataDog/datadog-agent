@@ -287,7 +287,6 @@
 # The following is managed by `inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS
 /comp @DataDog/agent-shared-components
-/comp/agent @DataDog/agent-shared-components
 /comp/aggregator @DataDog/agent-metrics-logs
 /comp/api @DataDog/agent-shared-components
 /comp/checks @DataDog/agent-metrics-logs
@@ -295,23 +294,21 @@
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
 /comp/forwarder @DataDog/agent-processing-and-routing
+/comp/languagedetection @DataDog/container-integrations
 /comp/logs @DataDog/agent-metrics-logs
 /comp/metadata @DataDog/agent-shared-components
 /comp/ndmtmp @DataDog/ndm-core
 /comp/netflow @DataDog/ndm-integrations
-/comp/networkpath @DataDog/Networks @DataDog/network-device-monitoring
 /comp/otelcol @DataDog/opentelemetry
 /comp/process @DataDog/container-intake
 /comp/remote-config @DataDog/remote-config
 /comp/snmptraps @DataDog/ndm-core
 /comp/systray @DataDog/windows-agent
 /comp/trace @DataDog/agent-apm
-/comp/updater @DataDog/fleet @DataDog/windows-agent
-/comp/agent/cloudfoundrycontainer @DataDog/platform-integrations
-/comp/agent/jmxlogger @DataDog/agent-metrics-logs
+/comp/updater @DataDog/fleet
+/comp/aggregator/demultiplexer @DataDog/agent-shared-components
 /comp/aggregator/diagnosesendermanager @DataDog/agent-shared-components
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
-/comp/checks/windowseventlog @DataDog/windows-agent
 /comp/checks/winregistry @DataDog/windows-agent
 /comp/core/autodiscovery @DataDog/container-platform
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
@@ -319,13 +316,7 @@
 /comp/core/workloadmeta @DataDog/container-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/trace/etwtracer @DataDog/windows-agent
-/comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/etw @DataDog/windows-agent
-/comp/haagent @DataDog/ndm-core
-/comp/languagedetection/client @DataDog/container-platform
-/comp/rdnsquerier @DataDog/ndm-integrations
-/comp/serializer/compression @DataDog/agent-metrics-logs
-/comp/snmpscan @DataDog/ndm-core
 # END COMPONENTS
 
 # Additional notification to  @iglendd about Agent Telemetry changes for optional approval and governance acknowledgement
@@ -347,6 +338,7 @@
 /pkg/gohai                              @DataDog/agent-shared-components
 /pkg/gpu/                               @DataDog/ebpf-platform
 /pkg/jmxfetch/                          @DataDog/agent-metrics-logs
+/pkg/metadata/                          @DataDog/agent-shared-components
 /pkg/metrics/                           @DataDog/agent-metrics-logs
 /pkg/metrics/metricsource.go            @DataDog/agent-metrics-logs @DataDog/agent-integrations
 /pkg/serializer/                        @DataDog/agent-processing-and-routing
@@ -445,6 +437,7 @@
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
+/pkg/updater/                           @DataDog/fleet
 /pkg/tagset/                            @DataDog/agent-shared-components
 /pkg/util/                              @DataDog/agent-shared-components
 /pkg/util/aggregatingqueue              @DataDog/container-integrations @DataDog/container-platform

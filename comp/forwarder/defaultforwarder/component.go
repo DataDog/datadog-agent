@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-shared-components
+// team: agent-processing-and-routing
 
 // Component is the component type.
 type Component interface {
