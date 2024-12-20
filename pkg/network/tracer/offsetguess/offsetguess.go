@@ -156,10 +156,7 @@ func setupOffsetGuesser(guesser OffsetGuesser, config *config.Config, buf byteco
 	// Enable kernel probes used for offset guessing.
 	offsetMgr := guesser.Manager()
 	offsetOptions := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
+		RemoveRlimit: true,
 	}
 	enabledProbes, err := guesser.Probes(config)
 	if err != nil {

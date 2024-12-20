@@ -186,10 +186,7 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 				Value: uint64(utils.Getpid()),
 			},
 		},
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
+		RemoveRlimit: true,
 	}
 
 	for _, probe := range probes.AllProbes(true) {

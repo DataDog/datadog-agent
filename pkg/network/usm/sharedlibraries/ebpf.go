@@ -480,10 +480,7 @@ func (e *EbpfProgram) stopImpl() {
 }
 
 func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
-	options.RLimit = &unix.Rlimit{
-		Cur: math.MaxUint64,
-		Max: math.MaxUint64,
-	}
+	options.RemoveRlimit = true
 
 	for _, probe := range e.Probes {
 		options.ActivatedProbes = append(options.ActivatedProbes,
