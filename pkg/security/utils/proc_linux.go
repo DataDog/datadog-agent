@@ -567,22 +567,14 @@ var isNsPidAvailable = sync.OnceValue(func() bool {
 })
 
 // TryToResolveTraceePid tries to resolve and returnt the HOST tracee PID, given the HOST tracer PID and the namespaced tracee PID.
-func TryToResolveTraceePid(hostTracerPID, NsTraceePid uint32) (uint32, error) {
+func TryToResolveTraceePid(hostTracerPID uint32, tracerNSID uint64, NsTraceePid uint32) (uint32, error) {
 	// Look if the NSpid status field is available or not (it should be, except for Centos7).
 	if isNsPidAvailable() {
 		/*
 		   If it's available, we will search for an host pid having the same PID namespace as the
 		   tracer, and having the corresponding NS PID in its status field
 		*/
-
-		// 1. get the pid namespace of the tracer
-		ns, err := GetProcessPidNamespace(hostTracerPID)
-		if err != nil {
-			return 0, fmt.Errorf("Failed to resolve PID namespace: %v", err)
-		}
-
-		// 2. find the host pid matching the arg pid with he tracer namespace
-		pid, err := FindPidNamespace(NsTraceePid, ns)
+		pid, err := FindPidNamespace(NsTraceePid, tracerNSID)
 		if err != nil {
 			return 0, fmt.Errorf("Failed to resolve tracee PID namespace: %v", err)
 		}

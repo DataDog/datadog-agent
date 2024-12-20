@@ -1090,7 +1090,14 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 				if containerID == "" && event.PTrace.Request != unix.PTRACE_ATTACH {
 					pidToResolve = event.PTrace.NSPID
 				} else {
-					pid, err := utils.TryToResolveTraceePid(event.ProcessContext.Process.Pid, event.PTrace.NSPID)
+					nsid, err := p.fieldHandlers.ResolveProcessNSID(event)
+					if err != nil {
+						seclog.Debugf("PTrace NSID resolution error for process %s in container %s: %v",
+							event.ProcessContext.Process.FileEvent.PathnameStr, containerID, err)
+						return
+					}
+
+					pid, err := utils.TryToResolveTraceePid(event.ProcessContext.Process.Pid, nsid, event.PTrace.NSPID)
 					if err != nil {
 						seclog.Debugf("PTrace tracee resolution error for process %s in container %s: %v",
 							event.ProcessContext.Process.FileEvent.PathnameStr, containerID, err)
