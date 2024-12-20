@@ -43,6 +43,13 @@ func TestAuthKeys(t *testing.T) {
 		{rcKey: generateKey(t, 2, "datadoghq.com", ""), err: true},
 		{rcKey: generateKey(t, 2, "", "app_Key"), err: true},
 		{rcKey: generateKey(t, 0, "datadoghq.com", "app_Key"), err: true},
+		{parJWT: "myJWT", err: false, output: remoteConfigAuthKeys{
+			parJWT: "myJWT",
+		}},
+		{parJWT: "myJWT", apiKey: "myAPIKey", err: false, output: remoteConfigAuthKeys{
+			parJWT: "myJWT",
+			apiKey: "myAPIKey",
+		}},
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%s|%s", test.apiKey, test.rcKey), func(tt *testing.T) {
