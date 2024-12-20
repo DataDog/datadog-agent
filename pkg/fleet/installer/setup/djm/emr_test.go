@@ -61,6 +61,7 @@ func TestSetupCommonEmrHostTags(t *testing.T) {
 				"is_master_node:true",
 				"job_flow_id:j-456",
 				"cluster_id:j-456",
+				"emr_version:emr-7.2.0",
 				"cluster_name:TestCluster",
 			},
 		},
@@ -71,8 +72,7 @@ func TestSetupCommonEmrHostTags(t *testing.T) {
 			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
 			s := &common.Setup{Span: span}
 
-			isMaster, clusterName, err := setupCommonEmrHostTags(s)
-			fmt.Println(isMaster, clusterName, err)
+			_, _, err := setupCommonEmrHostTags(s)
 			assert.Nil(t, err)
 			assert.ElementsMatch(t, tt.wantTags, s.Config.DatadogYAML.Tags)
 		})

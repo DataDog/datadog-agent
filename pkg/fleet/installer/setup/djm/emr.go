@@ -21,7 +21,7 @@ import (
 
 const (
 	emrInjectorVersion     = "0.26.0-1"
-	emrJavaVersion         = "1.42.2-1"
+	emrJavaTracerVersion   = "1.42.2-1"
 	emrAgentVersion        = "7.58.2-1"
 	commandTimeoutDuration = 10 * time.Second
 )
@@ -75,7 +75,7 @@ func SetupEmr(s *common.Setup) error {
 
 	s.Packages.Install(common.DatadogAgentPackage, emrAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, emrInjectorVersion)
-	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, emrJavaVersion)
+	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, emrJavaTracerVersion)
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -83,14 +83,16 @@ func SetupEmr(s *common.Setup) error {
 	}
 	s.Config.DatadogYAML.Hostname = hostname
 	s.Config.DatadogYAML.DJM.Enabled = true
+	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigEmr
 
+	// Ensure tags are always attached with the metrics
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
 	isMaster, clusterName, err := setupCommonEmrHostTags(s)
 	if err != nil {
 		return fmt.Errorf("failed to set tags: %w", err)
 	}
 	if isMaster {
-		setupEmrDriver(s, clusterName)
+		setupEmrResourceManager(s, clusterName)
 	}
 	return nil
 }
@@ -122,32 +124,32 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 	}
 	setHostTag(s, "job_flow_id", extraInfo.JobFlowID)
 	setHostTag(s, "cluster_id", extraInfo.JobFlowID)
+	setHostTag(s, "emr_version", extraInfo.ReleaseLabel)
 	s.Span.SetTag("emr_version", extraInfo.ReleaseLabel)
 
 	emrResponseRaw, err := executeCommandWithTimeout("aws", "emr", "describe-cluster", "--cluster-id", extraInfo.JobFlowID)
 	if err != nil {
-		return info.IsMaster, extraInfo.JobFlowID, fmt.Errorf("error describing emr cluster, using cluster id as name: %w", err)
+		log.Warn("error describing emr cluster, using cluster id as name")
+		return info.IsMaster, extraInfo.JobFlowID, nil
 	}
 	var response emrResponse
 	if err = json.Unmarshal(emrResponseRaw, &response); err != nil {
 		return info.IsMaster, extraInfo.JobFlowID, fmt.Errorf("error unmarshalling AWS EMR response,  using cluster id as name: %w", err)
 	}
-
-	setHostTag(s, "cluster_name", response.Cluster.Name)
-	return info.IsMaster, response.Cluster.Name, nil
+	clusterName := response.Cluster.Name
+	if clusterName == "" {
+		log.Warn("clusterName is empty, using cluster id as name")
+		clusterName = extraInfo.JobFlowID
+	}
+	setHostTag(s, "cluster_name", clusterName)
+	return info.IsMaster, clusterName, nil
 }
 
-func setupEmrDriver(s *common.Setup, clusterName string) {
-
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigEmr
+func setupEmrResourceManager(s *common.Setup, clusterName string) {
 
 	var sparkIntegration common.IntegrationConfig
 	var yarnIntegration common.IntegrationConfig
 
-	if clusterName == "" {
-		log.Warn("clusterName is empty, Spark and yarn integrations are not set up")
-		return
-	}
 	sparkIntegration.Instances = []any{
 		common.IntegrationConfigInstanceSpark{
 			SparkURL:         "http://127.0.0.1:8088",
