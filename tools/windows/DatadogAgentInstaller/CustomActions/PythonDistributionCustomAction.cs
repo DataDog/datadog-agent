@@ -190,8 +190,10 @@ namespace Datadog.CustomActions
                 session.Log($"install script not found at {postInstScript}");
                 return ActionResult.Failure;
             }
-            session.Log($"Running python {pythonPath} with args {postInstScript}");
-            session.Log($"\"{postInstScript}\" \"{projectLocation}\" \"{dataDirectory}\"");
+            // remove trailing backslash 
+            projectLocation = projectLocation.TrimEnd('\\');
+            dataDirectory = dataDirectory.TrimEnd('\\');
+
             var psi = new ProcessStartInfo
             {
                 CreateNoWindow = true,
@@ -199,7 +201,7 @@ namespace Datadog.CustomActions
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 FileName = pythonPath,
-                Arguments = $"\"{postInstScript}\" \"{projectLocation}\\\" \"{dataDirectory}\\\""
+                Arguments = $"\"{postInstScript}\" \"{projectLocation}\" \"{dataDirectory}\""
             };
             var proc = new Process();
             proc.StartInfo = psi;
