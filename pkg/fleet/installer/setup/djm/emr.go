@@ -77,6 +77,8 @@ func SetupEmr(s *common.Setup) error {
 	s.Packages.Install(common.DatadogAPMInjectPackage, emrInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, emrJavaTracerVersion)
 
+	os.Setenv("DD_APM_INSTRUMENTATION_ENABLED", "host")
+
 	hostname, err := os.Hostname()
 	if err != nil {
 		return fmt.Errorf("failed to get hostname: %w", err)
