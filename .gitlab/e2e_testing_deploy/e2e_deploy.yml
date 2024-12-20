@@ -143,6 +143,7 @@ deploy_suse_rpm_testing_x64-a7:
       "agent_suse-x64-a7",
       "iot_agent_suse-x64",
       "dogstatsd_suse-x64",
+      "agent_suse-x64-a7-fips",
       "lint_linux-x64",
     ]
   variables:
@@ -162,7 +163,7 @@ deploy_suse_rpm_testing_arm64-a7:
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["installer_suse_rpm-arm64", "agent_suse-arm64-a7", "lint_linux-arm64"]
+  needs: ["installer_suse_rpm-arm64", "agent_suse-arm64-a7", "agent_suse-x64-a7-fips", "lint_linux-arm64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
