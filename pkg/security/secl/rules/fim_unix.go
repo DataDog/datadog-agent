@@ -18,7 +18,7 @@ type expandedRule struct {
 	expr string
 }
 
-func expandFim(baseID, baseExpr string) []expandedRule {
+func expandFim(baseID, groupID, baseExpr string) []expandedRule {
 	if !strings.Contains(baseExpr, "fim.write.file.") {
 		return []expandedRule{
 			{
@@ -35,7 +35,7 @@ func expandFim(baseID, baseExpr string) []expandedRule {
 			expr = fmt.Sprintf("(%s) && open.flags & (O_CREAT|O_TRUNC|O_APPEND|O_RDWR|O_WRONLY) > 0", expr)
 		}
 
-		id := fmt.Sprintf("__fim_expanded_%s_%s", eventType, baseID)
+		id := fmt.Sprintf("__fim_expanded_%s_%s_%s", eventType, groupID, baseID)
 		expandedRules = append(expandedRules, expandedRule{
 			id:   id,
 			expr: expr,
@@ -43,7 +43,7 @@ func expandFim(baseID, baseExpr string) []expandedRule {
 
 		if eventType == "rename" {
 			expr := strings.Replace(baseExpr, "fim.write.file.", "rename.file.destination.", -1)
-			id := fmt.Sprintf("__fim_expanded_%s_%s", "rename_destination", baseID)
+			id := fmt.Sprintf("__fim_expanded_%s_%s_%s", "rename_destination", groupID, baseID)
 			expandedRules = append(expandedRules, expandedRule{
 				id:   id,
 				expr: expr,

@@ -25,35 +25,35 @@ func TestExpandFIM(t *testing.T) {
 			expr: "fim.write.file.path == \"/tmp/test\"",
 			expected: []expandedRule{
 				{
-					id:   "__fim_expanded_open_test",
+					id:   "__fim_expanded_open__test",
 					expr: "(open.file.path == \"/tmp/test\") && open.flags & (O_CREAT|O_TRUNC|O_APPEND|O_RDWR|O_WRONLY) > 0",
 				},
 				{
-					id:   "__fim_expanded_chmod_test",
+					id:   "__fim_expanded_chmod__test",
 					expr: "chmod.file.path == \"/tmp/test\"",
 				},
 				{
-					id:   "__fim_expanded_chown_test",
+					id:   "__fim_expanded_chown__test",
 					expr: "chown.file.path == \"/tmp/test\"",
 				},
 				{
-					id:   "__fim_expanded_link_test",
+					id:   "__fim_expanded_link__test",
 					expr: "link.file.path == \"/tmp/test\"",
 				},
 				{
-					id:   "__fim_expanded_rename_test",
+					id:   "__fim_expanded_rename__test",
 					expr: "rename.file.path == \"/tmp/test\"",
 				},
 				{
-					id:   "__fim_expanded_rename_destination_test",
+					id:   "__fim_expanded_rename_destination__test",
 					expr: "rename.file.destination.path == \"/tmp/test\"",
 				},
 				{
-					id:   "__fim_expanded_unlink_test",
+					id:   "__fim_expanded_unlink__test",
 					expr: "unlink.file.path == \"/tmp/test\"",
 				},
 				{
-					id:   "__fim_expanded_utimes_test",
+					id:   "__fim_expanded_utimes__test",
 					expr: "utimes.file.path == \"/tmp/test\"",
 				},
 			},
@@ -63,35 +63,35 @@ func TestExpandFIM(t *testing.T) {
 			expr: "(fim.write.file.path == \"/tmp/test\" || fim.write.file.name == \"abc\") && process.file.name == \"def\" && container.id != \"\"",
 			expected: []expandedRule{
 				{
-					id:   "__fim_expanded_open_complex",
+					id:   "__fim_expanded_open__complex",
 					expr: "((open.file.path == \"/tmp/test\" || open.file.name == \"abc\") && process.file.name == \"def\" && container.id != \"\") && open.flags & (O_CREAT|O_TRUNC|O_APPEND|O_RDWR|O_WRONLY) > 0",
 				},
 				{
-					id:   "__fim_expanded_chmod_complex",
+					id:   "__fim_expanded_chmod__complex",
 					expr: "(chmod.file.path == \"/tmp/test\" || chmod.file.name == \"abc\") && process.file.name == \"def\" && container.id != \"\"",
 				},
 				{
-					id:   "__fim_expanded_chown_complex",
+					id:   "__fim_expanded_chown__complex",
 					expr: "(chown.file.path == \"/tmp/test\" || chown.file.name == \"abc\") && process.file.name == \"def\" && container.id != \"\"",
 				},
 				{
-					id:   "__fim_expanded_link_complex",
+					id:   "__fim_expanded_link__complex",
 					expr: "(link.file.path == \"/tmp/test\" || link.file.name == \"abc\") && process.file.name == \"def\" && container.id != \"\"",
 				},
 				{
-					id:   "__fim_expanded_rename_complex",
+					id:   "__fim_expanded_rename__complex",
 					expr: "(rename.file.path == \"/tmp/test\" || rename.file.name == \"abc\") && process.file.name == \"def\" && container.id != \"\"",
 				},
 				{
-					id:   "__fim_expanded_rename_destination_complex",
+					id:   "__fim_expanded_rename_destination__complex",
 					expr: "(rename.file.destination.path == \"/tmp/test\" || rename.file.destination.name == \"abc\") && process.file.name == \"def\" && container.id != \"\"",
 				},
 				{
-					id:   "__fim_expanded_unlink_complex",
+					id:   "__fim_expanded_unlink__complex",
 					expr: "(unlink.file.path == \"/tmp/test\" || unlink.file.name == \"abc\") && process.file.name == \"def\" && container.id != \"\"",
 				},
 				{
-					id:   "__fim_expanded_utimes_complex",
+					id:   "__fim_expanded_utimes__complex",
 					expr: "(utimes.file.path == \"/tmp/test\" || utimes.file.name == \"abc\") && process.file.name == \"def\" && container.id != \"\"",
 				},
 			},
@@ -100,7 +100,7 @@ func TestExpandFIM(t *testing.T) {
 
 	for _, entry := range entries {
 		t.Run(entry.id, func(t *testing.T) {
-			actual := expandFim(entry.id, entry.expr)
+			actual := expandFim(entry.id, "", entry.expr)
 			assert.Equal(t, entry.expected, actual)
 		})
 	}
