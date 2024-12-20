@@ -95,6 +95,7 @@ type intOrBoolPtr interface {
 	*int | *bool
 }
 
+// NoConfigGivenError is returned when the SNMP listener config was not found
 var NoConfigGivenError = errors.New("no config given for snmp_listener")
 
 // NewListenerConfig parses configuration and returns a built ListenerConfig
