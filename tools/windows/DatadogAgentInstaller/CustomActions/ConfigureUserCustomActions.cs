@@ -446,6 +446,103 @@ namespace Datadog.CustomActions
             }
         }
 
+        private void AddDatadogUserToDataFolder()
+        {
+            var dataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
+
+            FileSystemSecurity fileSystemSecurity;
+            try
+            {
+                fileSystemSecurity = _fileSystemServices.GetAccessControl(dataDirectory, AccessControlSections.All);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to get ACLs on {dataDirectory}: {e}");
+                throw;
+            }
+            // ddagentuser Read and execute permissions, enable child inheritance of this ACE
+            fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                _ddAgentUserSID,
+                FileSystemRights.ReadAndExecute | FileSystemRights.Synchronize,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+
+            // datadog write on this folder
+            fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                _ddAgentUserSID,
+                FileSystemRights.WriteData | FileSystemRights.AppendData | FileSystemRights.WriteAttributes | FileSystemRights.WriteExtendedAttributes | FileSystemRights.Synchronize,
+                InheritanceFlags.None,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+
+            // add full control to CREATOR OWNER
+            fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.CreatorOwnerSid, null),
+                FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.InheritOnly,
+                AccessControlType.Allow));
+            try
+            {
+                UpdateAndLogAccessControl(dataDirectory, fileSystemSecurity);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to set ACLs on {dataDirectory}: {e}");
+                throw;
+            }
+
+        }
+
+        private void RemoveDatadogUserFromDataFolder(SecurityIdentifier sid)
+        {
+            var dataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
+
+            FileSystemSecurity fileSystemSecurity;
+            try
+            {
+                fileSystemSecurity = _fileSystemServices.GetAccessControl(dataDirectory, AccessControlSections.All);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to get ACLs on {dataDirectory}: {e}");
+                throw;
+            }
+
+            // Remove ddagentuser from data folder
+            fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
+                sid,
+                FileSystemRights.ReadAndExecute | FileSystemRights.Synchronize,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+            fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
+                sid,
+                FileSystemRights.Write,
+                InheritanceFlags.None,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+
+            // remove full control to CREATOR OWNER
+            fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.CreatorOwnerSid, null),
+                FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.InheritOnly,
+                AccessControlType.Allow));
+
+            try
+            {
+                UpdateAndLogAccessControl(dataDirectory, fileSystemSecurity);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to set ACLs on {dataDirectory}: {e}");
+                throw;
+            }
+        }
+
         private void ConfigureFilePermissions()
         {
             try
@@ -471,6 +568,7 @@ namespace Datadog.CustomActions
 
                 if (_ddAgentUserSID != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
                 {
+                    AddDatadogUserToDataFolder();
                     GrantAgentAccessPermissions();
                 }
             }
@@ -579,14 +677,19 @@ namespace Datadog.CustomActions
 
         private List<string> PathsWithAgentAccess()
         {
-            return new List<string>
-            {
-                // agent needs to be able to write logs/
-                // agent GUI needs to be able to edit config
-                // agent needs to be able to write to run/
-                // agent needs to be able to create auth_token
-                _session.Property("APPLICATIONDATADIRECTORY"),
-            };
+            var configRoot = _session.Property("APPLICATIONDATADIRECTORY");
+
+            return new List<string> {
+                Path.Combine(configRoot, "conf.d"),
+                Path.Combine(configRoot, "checks.d"),
+                Path.Combine(configRoot, "run"),
+                Path.Combine(configRoot, "logs"),
+                Path.Combine(configRoot, "datadog.yaml"),
+                Path.Combine(configRoot, "system-probe.yaml"),
+                Path.Combine(configRoot, "auth_token"),
+                Path.Combine(configRoot, "install_info"),
+                Path.Combine(configRoot, "python-cache"),
+            }; ;
         }
 
         /// <summary>
@@ -679,6 +782,8 @@ namespace Datadog.CustomActions
                             _session.Log($"Failed to remove {ddAgentUserName} from {filePath}: {e}");
                         }
                     }
+                    //remove access to root folder
+                    RemoveDatadogUserFromDataFolder(securityIdentifier);
                 }
 
                 // We intentionally do NOT delete the ddagentuser account.
