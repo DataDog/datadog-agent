@@ -164,7 +164,7 @@ func (og *OffsetGuesser) AppendSizeofRequest(_, _ string) {
 }
 
 // AppendOffsetofRequest appends an offset request
-func (og *OffsetGuesser) AppendOffsetofRequest(id, _, _ string) {
+func (og *OffsetGuesser) AppendOffsetofRequest(id, _ string, _ ...string) {
 	og.res[id] = ErrorSentinel
 }
 
