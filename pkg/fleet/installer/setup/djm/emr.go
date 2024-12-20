@@ -10,13 +10,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -90,6 +92,7 @@ func SetupEmr(s *common.Setup) error {
 	// Ensure tags are always attached with the metrics
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
 	isMaster, clusterName, err := setupCommonEmrHostTags(s)
+	setHostTag(s, "cluster_name", clusterName)
 	if err != nil {
 		return fmt.Errorf("failed to set tags: %w", err)
 	}
@@ -129,21 +132,7 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 	setHostTag(s, "emr_version", extraInfo.ReleaseLabel)
 	s.Span.SetTag("emr_version", extraInfo.ReleaseLabel)
 
-	emrResponseRaw, err := executeCommandWithTimeout("aws", "emr", "describe-cluster", "--cluster-id", extraInfo.JobFlowID)
-	if err != nil {
-		log.Warn("error describing emr cluster, using cluster id as name")
-		return info.IsMaster, extraInfo.JobFlowID, nil
-	}
-	var response emrResponse
-	if err = json.Unmarshal(emrResponseRaw, &response); err != nil {
-		return info.IsMaster, extraInfo.JobFlowID, fmt.Errorf("error unmarshalling AWS EMR response,  using cluster id as name: %w", err)
-	}
-	clusterName := response.Cluster.Name
-	if clusterName == "" {
-		log.Warn("clusterName is empty, using cluster id as name")
-		clusterName = extraInfo.JobFlowID
-	}
-	setHostTag(s, "cluster_name", clusterName)
+	clusterName := resolveClusterName(s, extraInfo.JobFlowID)
 	return info.IsMaster, clusterName, nil
 }
 
@@ -171,16 +160,42 @@ func setupEmrResourceManager(s *common.Setup, clusterName string) {
 
 }
 
-var executeCommandWithTimeout = func(command string, args ...string) ([]byte, error) {
+var executeCommandWithTimeout = func(s *common.Setup, command string, args ...string) (output []byte, err error) {
+	span, ctx := telemetry.StartSpanFromContext(s.Ctx, "setup.command")
+	span.SetResourceName(command)
+	defer func() { span.Finish(err) }()
+
 	ctx, cancel := context.WithTimeout(context.Background(), commandTimeoutDuration)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, command, args...)
-	output, err := cmd.Output()
+	output, err = cmd.Output()
 
 	if err != nil {
+		span.Finish(err)
 		return nil, err
 	}
-
 	return output, nil
+}
+
+func resolveClusterName(s *common.Setup, jobFlowID string) string {
+	var err error
+	span, _ := telemetry.StartSpanFromContext(s.Ctx, "resolve.cluster_name")
+	defer func() { span.Finish(err) }()
+	emrResponseRaw, err := executeCommandWithTimeout(s, "aws", "emr", "describe-cluster", "--cluster-id", jobFlowID)
+	if err != nil {
+		log.Warnf("error describing emr cluster, using cluster id as name: %v", err)
+		return jobFlowID
+	}
+	var response emrResponse
+	if err = json.Unmarshal(emrResponseRaw, &response); err != nil {
+		log.Warnf("error unmarshalling AWS EMR response,  using cluster id as name: %v", err)
+		return jobFlowID
+	}
+	clusterName := response.Cluster.Name
+	if clusterName == "" {
+		log.Warn("clusterName is empty, using cluster id as name")
+		return jobFlowID
+	}
+	return clusterName
 }
