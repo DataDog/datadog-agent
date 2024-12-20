@@ -63,7 +63,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.61.0-rc.7
 	github.com/DataDog/datadog-agent/pkg/version v0.61.0-rc.7
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/net v0.31.0
+	golang.org/x/net v0.33.0
 )
 
 require (
