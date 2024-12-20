@@ -9,9 +9,10 @@ package ebpf
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 )
 
 // PrintkPatcherModifier adds an InstructionPatcher to the manager that removes the newline character from log_debug calls if needed
@@ -31,6 +32,11 @@ func (t *dummyModifier) BeforeInit(_ *manager.Manager, _ names.ModuleName, _ *ma
 
 // AfterInit is a no-op for this modifier
 func (t *dummyModifier) AfterInit(_ *manager.Manager, _ names.ModuleName, _ *manager.Options) error {
+	return nil
+}
+
+// BeforeStop is a no-op for this modifier
+func (t *dummyModifier) BeforeStop(_ *manager.Manager, _ names.ModuleName) error {
 	return nil
 }
 
