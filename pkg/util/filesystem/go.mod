@@ -12,7 +12,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.59.1
-	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
+	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb
 	github.com/shirou/gopsutil/v4 v4.24.11
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/sys v0.28.0
@@ -29,7 +29,6 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

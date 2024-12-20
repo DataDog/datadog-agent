@@ -15,8 +15,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var _ Component = (*apiserver)(nil)
@@ -30,7 +33,9 @@ type dependencies struct {
 
 	Lc fx.Lifecycle
 
-	Log log.Component
+	Log logComp.Component
+
+	At authtoken.Component
 
 	APIServerDeps api.APIServerDeps
 }
@@ -38,6 +43,7 @@ type dependencies struct {
 //nolint:revive // TODO(PROC) Fix revive linter
 func newApiServer(deps dependencies) Component {
 	r := mux.NewRouter()
+	r.Use(validateToken)
 	api.SetupAPIServerHandlers(deps.APIServerDeps, r) // Set up routes
 
 	addr, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
@@ -54,6 +60,7 @@ func newApiServer(deps dependencies) Component {
 			ReadTimeout:  timeout,
 			WriteTimeout: timeout,
 			IdleTimeout:  timeout,
+			TLSConfig:    deps.At.GetTLSServerConfig(),
 		},
 	}
 
@@ -79,4 +86,14 @@ func newApiServer(deps dependencies) Component {
 	})
 
 	return apiserver
+}
+
+func validateToken(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := util.Validate(w, r); err != nil {
+			log.Warnf("invalid auth token for %s request to %s: %s", r.Method, r.RequestURI, err)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
