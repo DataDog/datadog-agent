@@ -126,6 +126,9 @@ type RequestStat struct {
 
 	// Dynamic tags (if attached)
 	DynamicTags []string
+
+	// CanRelease is true when the struct is no longer referenced
+	CanRelease bool
 }
 
 func (r *RequestStat) initSketch() (err error) {
@@ -242,6 +245,15 @@ func (r *RequestStats) HalfAllCounts() {
 	for _, stats := range r.Data {
 		if stats != nil {
 			stats.Count = stats.Count / 2
+		}
+	}
+}
+
+// ReleaseStats deletes requests which are not referenced.
+func (r *RequestStats) ReleaseStats() {
+	for statusCode, requests := range r.Data {
+		if requests.CanRelease {
+			delete(r.Data, statusCode)
 		}
 	}
 }

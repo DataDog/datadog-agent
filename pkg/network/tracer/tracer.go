@@ -469,6 +469,14 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	return conns, nil
 }
 
+// ReleaseProtocolStats releases usm stats objects.
+func (t *Tracer) ReleaseProtocolStats(conns *network.Connections) {
+	t.bufferLock.Lock()
+	defer t.bufferLock.Unlock()
+
+	t.usmMonitor.ReleaseStats(conns)
+}
+
 // RegisterClient registers a clientID with the tracer
 func (t *Tracer) RegisterClient(clientID string) error {
 	t.state.RegisterClient(clientID)
