@@ -110,6 +110,11 @@ type EbpfProgram struct {
 	// otherwise used to check if the program needs to be stopped and re-started
 	// when adding new libsets
 	isInitialized bool
+
+	// enabledProbes is a list of the probes that are enabled for the current system.
+	enabledProbes []manager.ProbeIdentificationPair
+	// disabledProbes is a list of the probes that are disabled for the current system.
+	disabledProbes []manager.ProbeIdentificationPair
 }
 
 // IsSupported returns true if the shared libraries monitoring is supported on the current system.
@@ -201,8 +206,8 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() {
 		handler.perfHandler = perfHandler
 	}
 
-	probeIDs := getSysOpenHooksIdentifiers()
-	for _, identifier := range probeIDs {
+	e.initializeProbes()
+	for _, identifier := range e.enabledProbes {
 		mgr.Probes = append(mgr.Probes,
 			&manager.Probe{
 				ProbeIdentificationPair: identifier,
@@ -485,12 +490,15 @@ func (e *EbpfProgram) stopImpl() {
 func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
 	options.RemoveRlimit = true
 
-	for _, probe := range e.Probes {
+	for _, probe := range e.enabledProbes {
 		options.ActivatedProbes = append(options.ActivatedProbes,
 			&manager.ProbeSelector{
-				ProbeIdentificationPair: probe.ProbeIdentificationPair,
+				ProbeIdentificationPair: probe,
 			},
 		)
+	}
+	for _, probe := range e.disabledProbes {
+		options.ExcludedFunctions = append(options.ExcludedFunctions, probe.EBPFFuncName)
 	}
 
 	var enabledMsgs []string
@@ -581,9 +589,8 @@ func fexitSupported(funcName string) bool {
 	return true
 }
 
-// getSysOpenHooksIdentifiers returns the enter and exit tracepoints for supported open*
-// system calls.
-func getSysOpenHooksIdentifiers() []manager.ProbeIdentificationPair {
+// initializedProbes initializes the probes that are enabled for the current system
+func (e *EbpfProgram) initializeProbes() {
 	openatProbes := []string{openatSysCall}
 	// amd64 has open(2), arm64 doesn't
 	if runtime.GOARCH == "amd64" {
@@ -606,7 +613,8 @@ func getSysOpenHooksIdentifiers() []manager.ProbeIdentificationPair {
 			UID:          probeUID,
 		})
 	}
-	return res
+
+	e.enabledProbes = res
 }
 
 func getAssetName(module string, debug bool) string {
