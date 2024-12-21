@@ -2,6 +2,7 @@
 #define __USM_EVENTS_H
 
 #include "protocols/events-types.h"
+#include "bpf_telemetry.h"
 #define _STR(x) #x
 
 /* USM_EVENTS_INIT defines two functions used for the purposes of buffering and sending
@@ -39,8 +40,9 @@
             return;                                                                                     \
         }                                                                                               \
                                                                                                         \
-        u64 use_ring_buffer;                                                                            \
+        u64 use_ring_buffer, use_ring_buffer_with_telemetry;                             \
         LOAD_CONSTANT("use_ring_buffer", use_ring_buffer);                                              \
+        LOAD_CONSTANT("use_ring_buffer_with_telemetry", use_ring_buffer_with_telemetry);                \
         long perf_ret;                                                                                  \
                                                                                                         \
         _Pragma(_STR(unroll(BATCH_PAGES_PER_CPU)))                                                      \
@@ -53,8 +55,18 @@
                     return;                                                                             \
                 }                                                                                       \
                                                                                                         \
-                if (use_ring_buffer) {                                                                  \
-                    perf_ret = bpf_ringbuf_output(&name##_batch_events, batch, sizeof(batch_data_t), 0);\
+                if (use_ring_buffer_with_telemetry) {                                                   \
+                    perf_ret = bpf_ringbuf_output_with_telemetry(                                       \
+                    &name##_batch_events,                                                               \
+                    batch,                                                                              \
+                    sizeof(batch_data_t),                                                               \
+                    0);                                                                                 \
+                } else if (use_ring_buffer) {                                                           \
+                    perf_ret = bpf_ringbuf_output(                                                      \
+                    &name##_batch_events,                                                               \
+                    batch,                                                                              \
+                    sizeof(batch_data_t),                                                               \
+                    0);                                                                                 \
                 } else {                                                                                \
                     perf_ret = bpf_perf_event_output(ctx,                                               \
                                                      &name##_batch_events,                              \
