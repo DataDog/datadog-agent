@@ -7,6 +7,8 @@ package servicediscovery
 
 import (
 	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 )
 
 type errCode string
@@ -21,7 +23,7 @@ const (
 type errWithCode struct {
 	err  error
 	code errCode
-	svc  *ServiceMetadata
+	svc  *model.Service
 }
 
 func (e errWithCode) Error() string {
