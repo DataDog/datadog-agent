@@ -6,6 +6,8 @@
 package agenttelemetryimpl
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	"sort"
 
@@ -122,4 +124,26 @@ func cloneLabelsSorted(labels []*dto.LabelPair) []*dto.LabelPair {
 // Make string key from LabelPair
 func makeLabelPairKey(l *dto.LabelPair) string {
 	return fmt.Sprintf("%s:%s:", l.GetName(), l.GetValue())
+}
+
+// Compresses payload via gzip
+func gzipCompress(payload []byte, compressionLevel int) ([]byte, error) {
+	var payloadCompressed bytes.Buffer
+	gzipWriter, err := gzip.NewWriterLevel(&payloadCompressed, compressionLevel)
+	if err != nil {
+		return nil, err
+	}
+	_, err = gzipWriter.Write(payload)
+	if err != nil {
+		return nil, err
+	}
+	err = gzipWriter.Flush()
+	if err != nil {
+		return nil, err
+	}
+	err = gzipWriter.Close()
+	if err != nil {
+		return nil, err
+	}
+	return payloadCompressed.Bytes(), nil
 }

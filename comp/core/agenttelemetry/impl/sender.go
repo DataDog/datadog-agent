@@ -57,7 +57,9 @@ type senderImpl struct {
 	cfgComp config.Reader
 	logComp log.Component
 
-	client client
+	compress         bool
+	compressionLevel int
+	client           client
 
 	endpoints *logconfig.Endpoints
 
@@ -207,9 +209,12 @@ func newSenderImpl(
 		cfgComp: cfgComp,
 		logComp: logComp,
 
-		client:       client,
-		endpoints:    endpoints,
-		agentVersion: agentVersion.GetNumberAndPre(),
+		compress:         cfgComp.GetBool("agent_telemetry.use_compression"),
+		compressionLevel: cfgComp.GetInt("agent_telemetry.compression_level"),
+		client:           client,
+		endpoints:        endpoints,
+		agentVersion:     agentVersion.GetNumberAndPre(),
+
 		// pre-fill parts of payload which are not changing during run-time
 		payloadTemplate: Payload{
 			APIVersion: "v2",
@@ -321,9 +326,22 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 		return fmt.Errorf("failed to marshal agent telemetry payload: %w", err)
 	}
 
-	reqBody, err := scrubber.ScrubJSON(payloadJSON)
+	reqBodyRaw, err := scrubber.ScrubJSON(payloadJSON)
 	if err != nil {
 		return fmt.Errorf("failed to scrubl agent telemetry payload: %w", err)
+	}
+
+	// Try to compress the payload if needed
+	reqBody := reqBodyRaw
+	gzipCompressed := false
+	if s.compress {
+		reqBodyCompressed, err2 := gzipCompress(reqBodyRaw, s.compressionLevel)
+		if err2 == nil {
+			gzipCompressed = true
+			reqBody = reqBodyCompressed
+		} else {
+			s.logComp.Errorf("Failed to compress agent telemetry payload: %v", err)
+		}
 	}
 
 	// Send the payload to all endpoints
@@ -337,7 +355,7 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 			errs = errors.Join(errs, err)
 			continue
 		}
-		s.addHeaders(req, reqType, ep.GetAPIKey(), bodyLen)
+		s.addHeaders(req, reqType, ep.GetAPIKey(), bodyLen, gzipCompressed)
 		resp, err := s.client.Do(req.WithContext(ss.cancelCtx))
 		if err != nil {
 			errs = errors.Join(errs, err)
@@ -387,7 +405,7 @@ func (s *senderImpl) sendAgentMetricPayloads(ss *senderSession, metrics []*agent
 	}
 }
 
-func (s *senderImpl) addHeaders(req *http.Request, requesttype, apikey, bodylen string) {
+func (s *senderImpl) addHeaders(req *http.Request, requesttype, apikey, bodylen string, gzipCompressed bool) {
 	req.Header.Add("DD-Api-Key", apikey)
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Content-Length", bodylen)
@@ -397,4 +415,8 @@ func (s *senderImpl) addHeaders(req *http.Request, requesttype, apikey, bodylen 
 	req.Header.Add("DD-Telemetry-Product-Version", s.agentVersion)
 	// Not clear how to acquire that. Appears that EVP adds it automatically
 	req.Header.Add("datadog-container-id", "")
+
+	if gzipCompressed {
+		req.Header.Set("Content-Encoding", "gzip")
+	}
 }

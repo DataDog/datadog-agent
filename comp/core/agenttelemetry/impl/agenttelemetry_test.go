@@ -6,6 +6,8 @@
 package agenttelemetryimpl
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -138,12 +140,14 @@ func makeLogMock(t *testing.T) log.Component {
 	return logmock.New(t)
 }
 
-func makeSenderImpl(t *testing.T, c string) sender {
+func makeSenderImpl(t *testing.T, cl client, c string) sender {
 	o := convertYamlStrToMap(t, c)
 	cfg := makeCfgMock(t, o)
 	log := makeLogMock(t)
-	client := newClientMock()
-	sndr, err := newSenderImpl(cfg, log, client)
+	if cl == nil {
+		cl = newClientMock()
+	}
+	sndr, err := newSenderImpl(cfg, log, cl)
 	assert.NoError(t, err)
 	return sndr
 }
@@ -474,10 +478,10 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
 	// setup and initiate atel
 	tel := makeTelMock(t)
 	buckets := []float64{10, 100, 1000, 10000}
-	gauge := tel.NewHistogram("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "", buckets)
-	gauge.WithTags(map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"}).Observe(1001)
-	gauge.WithTags(map[string]string{"tag1": "a2", "tag2": "b2", "tag3": "c2"}).Observe(1002)
-	gauge.WithTags(map[string]string{"tag1": "a3", "tag2": "b3", "tag3": "c3"}).Observe(1003)
+	hist := tel.NewHistogram("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "", buckets)
+	hist.WithTags(map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"}).Observe(1001)
+	hist.WithTags(map[string]string{"tag1": "a2", "tag2": "b2", "tag3": "c2"}).Observe(1002)
+	hist.WithTags(map[string]string{"tag1": "a3", "tag2": "b3", "tag3": "c3"}).Observe(1003)
 
 	o := convertYamlStrToMap(t, c)
 	s := &senderMock{}
@@ -636,7 +640,7 @@ func TestTwoProfilesOnTheSameScheduleGenerateSinglePayload(t *testing.T) {
 	counter2.AddWithTags(20, map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"})
 
 	o := convertYamlStrToMap(t, c)
-	s := makeSenderImpl(t, c)
+	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
 	a := getTestAtel(t, tel, o, s, nil, r)
 	require.True(t, a.enabled)
@@ -673,7 +677,7 @@ func TestOneProfileWithOneMetricMultipleContextsGenerateTwoPayloads(t *testing.T
 	counter1.AddWithTags(20, map[string]string{"tag1": "a2", "tag2": "b2", "tag3": "c2"})
 
 	o := convertYamlStrToMap(t, c)
-	s := makeSenderImpl(t, c)
+	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
 	a := getTestAtel(t, tel, o, s, nil, r)
 	require.True(t, a.enabled)
@@ -749,7 +753,7 @@ func TestOneProfileWithTwoMetricGenerateSinglePayloads(t *testing.T) {
 	counter2.AddWithTags(20, map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"})
 
 	o := convertYamlStrToMap(t, c)
-	s := makeSenderImpl(t, c)
+	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
 	a := getTestAtel(t, tel, o, s, nil, r)
 	require.True(t, a.enabled)
@@ -771,7 +775,7 @@ func TestSenderConfigNoConfig(t *testing.T) {
     agent_telemetry:
       enabled: true
     `
-	sndr := makeSenderImpl(t, c)
+	sndr := makeSenderImpl(t, nil, c)
 
 	url := buildURL(sndr.(*senderImpl).endpoints.Main)
 	assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com/api/v2/apmtelemetry", url)
@@ -799,7 +803,7 @@ func TestSenderConfigOnlySites(t *testing.T) {
 
 	for _, tt := range tests {
 		c := fmt.Sprintf(ctemp, tt.site)
-		sndr := makeSenderImpl(t, c)
+		sndr := makeSenderImpl(t, nil, c)
 		url := buildURL(sndr.(*senderImpl).endpoints.Main)
 		assert.Equal(t, tt.testURL, url)
 	}
@@ -816,7 +820,7 @@ func TestSenderConfigAdditionalEndpoint(t *testing.T) {
         - api_key: bar
           host: instrumentation-telemetry-intake.us5.datadoghq.com
     `
-	sndr := makeSenderImpl(t, c)
+	sndr := makeSenderImpl(t, nil, c)
 	assert.NotNil(t, sndr)
 
 	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 2)
@@ -835,7 +839,7 @@ func TestSenderConfigPartialDDUrl(t *testing.T) {
       enabled: true
       dd_url: instrumentation-telemetry-intake.us5.datadoghq.com.
     `
-	sndr := makeSenderImpl(t, c)
+	sndr := makeSenderImpl(t, nil, c)
 	assert.NotNil(t, sndr)
 
 	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 1)
@@ -852,7 +856,7 @@ func TestSenderConfigFullDDUrl(t *testing.T) {
       enabled: true
       dd_url: https://instrumentation-telemetry-intake.us5.datadoghq.com.
     `
-	sndr := makeSenderImpl(t, c)
+	sndr := makeSenderImpl(t, nil, c)
 	assert.NotNil(t, sndr)
 
 	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 1)
@@ -872,7 +876,7 @@ func TestSenderConfigDDUrlWithAdditionalEndpoints(t *testing.T) {
         - api_key: bar
           host: instrumentation-telemetry-intake.us3.datadoghq.com.
     `
-	sndr := makeSenderImpl(t, c)
+	sndr := makeSenderImpl(t, nil, c)
 	assert.NotNil(t, sndr)
 
 	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 2)
@@ -892,7 +896,7 @@ func TestSenderConfigDDUrlWithEmptyAdditionalPoint(t *testing.T) {
       dd_url: instrumentation-telemetry-intake.us5.datadoghq.com.
       additional_endpoints:
     `
-	sndr := makeSenderImpl(t, c)
+	sndr := makeSenderImpl(t, nil, c)
 	assert.NotNil(t, sndr)
 
 	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 1)
@@ -932,7 +936,7 @@ func TestGetAsJSONScrub(t *testing.T) {
 	counter3.AddWithTags(11, map[string]string{"text": "test"})
 
 	o := convertYamlStrToMap(t, c)
-	s := makeSenderImpl(t, c)
+	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
 	a := getTestAtel(t, tel, o, s, nil, r)
 	require.True(t, a.enabled)
@@ -980,7 +984,7 @@ func TestAdjustPrometheusCounterValue(t *testing.T) {
 	// setup and initiate atel
 	tel := makeTelMock(t)
 	o := convertYamlStrToMap(t, c)
-	s := makeSenderImpl(t, c)
+	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
 	a := getTestAtel(t, tel, o, s, nil, r)
 	require.True(t, a.enabled)
@@ -1087,7 +1091,7 @@ func TestHistogramFloatUpperBoundNormalization(t *testing.T) {
 	// setup and initiate atel
 	tel := makeTelMock(t)
 	o := convertYamlStrToMap(t, c)
-	s := makeSenderImpl(t, c)
+	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
 	a := getTestAtel(t, tel, o, s, nil, r)
 	require.True(t, a.enabled)
@@ -1202,7 +1206,7 @@ func TestHistogramFloatUpperBoundNormalizationWithTags(t *testing.T) {
 	// setup and initiate atel
 	tel := makeTelMock(t)
 	o := convertYamlStrToMap(t, c)
-	s := makeSenderImpl(t, c)
+	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
 	a := getTestAtel(t, tel, o, s, nil, r)
 	require.True(t, a.enabled)
@@ -1298,4 +1302,79 @@ func TestHistogramFloatUpperBoundNormalizationWithTags(t *testing.T) {
 	for i, b := range rawHist.Get().Buckets {
 		assert.Equal(t, expecVals4[i], b.Count)
 	}
+}
+
+func TestUsingGZipCompressionInAgentTelemetrySender(t *testing.T) {
+	// Run with gzip (default)
+	var cfg1 = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: xxx
+          metric:
+            metrics:
+              - name: foo.bar
+    `
+
+	tel := makeTelMock(t)
+	hist := tel.NewHistogram("foo", "bar", nil, "", []float64{1, 2, 5, 100})
+	hist.Observe(1)
+	hist.Observe(5)
+	hist.Observe(6)
+	hist.Observe(100)
+
+	// setup and initiate atel
+	o1 := convertYamlStrToMap(t, cfg1)
+	cl1 := newClientMock()
+	s1 := makeSenderImpl(t, cl1, cfg1)
+	r1 := newRunnerMock()
+	a1 := getTestAtel(t, tel, o1, s1, cl1, r1)
+	require.True(t, a1.enabled)
+
+	// run the runner to trigger the telemetry report
+	a1.start()
+	r1.(*runnerMock).run()
+	assert.True(t, len(cl1.(*clientMock).body) > 0)
+
+	// Run without gzip
+	var cfg2 = `
+    agent_telemetry:
+      use_compression: false
+      enabled: true
+      profiles:
+        - name: xxx
+          metric:
+            metrics:
+              - name: foo.bar
+                aggregate_tags:
+    `
+
+	// setup and initiate atel
+	o2 := convertYamlStrToMap(t, cfg2)
+	cl2 := newClientMock()
+	s2 := makeSenderImpl(t, cl2, cfg2)
+	r2 := newRunnerMock()
+	a2 := getTestAtel(t, tel, o2, s2, cl2, r2)
+	require.True(t, a2.enabled)
+
+	// run the runner to trigger the telemetry report
+	a2.start()
+	r2.(*runnerMock).run()
+	assert.True(t, len(cl2.(*clientMock).body) > 0)
+
+	// Check gzip vs. no-gzip body
+	compressReader := bytes.NewReader(cl1.(*clientMock).body)
+	gziper, err := gzip.NewReader(compressReader)
+	require.NoError(t, err)
+	defer gziper.Close()
+	var decompress bytes.Buffer
+	_, err = io.Copy(&decompress, gziper)
+	require.NoError(t, err)
+
+	// we cannot compare body (time stamp different and internal
+	// bucket serialization, but success above and significant size differences
+	// should be suffient
+	compressBodyLen := len(cl1.(*clientMock).body)
+	nonCompressBodyLen := len(cl2.(*clientMock).body)
+	assert.True(t, float64(nonCompressBodyLen)/float64(compressBodyLen) > 1.5)
 }
