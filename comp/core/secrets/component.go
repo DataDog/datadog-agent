@@ -37,4 +37,6 @@ type Component interface {
 	SubscribeToChanges(callback SecretChangeCallback)
 	// Refresh will resolve secret handles again, notifying any subscribers of changed values
 	Refresh() (string, error)
+	// ListSecrets returns the list of secret keys that are available
+	ListSecrets() []string
 }
