@@ -16,6 +16,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/samber/lo"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/kubetags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
@@ -43,6 +48,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	ksmdiscovery "k8s.io/kube-state-metrics/v2/pkg/discovery"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
 
@@ -116,6 +122,25 @@ type KSMConfig struct {
 	//   - nodes
 	//   - pods
 	Collectors []string `yaml:"collectors"`
+
+	// CustomResourceStateMetrics defines the custom resource states metrics
+	// https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/extend/customresourcestate-metrics.md
+	// Example: Enable custom resource state metrics for CRD mycrd.
+	// custom_resource:
+	//    spec:
+	//      resources:
+	//      - groupVersionKind:
+	//          group: "datadoghq.com"
+	//          kind: "DatadogAgent"
+	//          version: "v2alpha1"
+	//        metrics:
+	//          - name: "custom_metric"
+	//            help: "custom_metric"
+	//            each:
+	//              type: Gauge
+	//              gauge:
+	//                path: [status, agent, available]
+	CustomResource customresourcestate.Metrics `yaml:"custom_resource"`
 
 	// LabelJoins allows adding the tags to join from other KSM metrics.
 	// Example: Joining for deployment metrics. Based on:
@@ -199,19 +224,22 @@ type KSMConfig struct {
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	agentConfig          model.Config
-	instance             *KSMConfig
-	allStores            [][]cache.Store
-	telemetry            *telemetryCache
-	cancel               context.CancelFunc
-	isCLCRunner          bool
-	isRunningOnNodeAgent bool
-	clusterNameTagValue  string
-	clusterNameRFC1123   string
-	metricNamesMapper    map[string]string
-	metricAggregators    map[string]metricAggregator
-	metricTransformers   map[string]metricTransformerFunc
-	metadataMetricsRegex *regexp.Regexp
+	agentConfig             model.Config
+	instance                *KSMConfig
+	allStores               [][]cache.Store
+	telemetry               *telemetryCache
+	cancel                  context.CancelFunc
+	isCLCRunner             bool
+	isRunningOnNodeAgent    bool
+	clusterNameTagValue     string
+	clusterNameRFC1123      string
+	metricNamesMapper       map[string]string
+	metricAggregators       map[string]metricAggregator
+	metricTransformers      map[string]metricTransformerFunc
+	metadataMetricsRegex    *regexp.Regexp
+	crdsAddEventsCounter    prometheus.Counter
+	crdsDeleteEventsCounter prometheus.Counter
+	crdsCacheCountGauge     prometheus.Gauge
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -260,6 +288,21 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	if err != nil {
 		return err
 	}
+
+	k.crdsAddEventsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "kube_state_metrics_custom_resource_state_add_events_total",
+		Help: "Number of times that the CRD informer triggered the add event.",
+	})
+	k.crdsDeleteEventsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "kube_state_metrics_custom_resource_state_delete_events_total",
+		Help: "Number of times that the CRD informer triggered the remove event.",
+	})
+	k.crdsCacheCountGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "kube_state_metrics_custom_resource_state_cache",
+		Help: "Net amount of CRDs affecting the cache currently.",
+	})
+
+	k.metricNamesMapper = k.defaultMetricNamesMapper()
 
 	// Retrieve cluster name
 	k.getClusterName()
@@ -483,8 +526,48 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		clients[f.Name()] = client
 	}
 
+	discovererInstance := &ksmdiscovery.CRDiscoverer{
+		CRDsAddEventsCounter:    k.crdsAddEventsCounter,
+		CRDsDeleteEventsCounter: k.crdsDeleteEventsCounter,
+		CRDsCacheCountGauge:     k.crdsCacheCountGauge,
+	}
+	clientConfig, err := apiserver.GetClientConfig(time.Duration(pkgconfigsetup.Datadog().GetInt64("kubernetes_apiserver_client_timeout"))*time.Second, 10, 20)
+	if err != nil {
+		panic(err)
+	}
+	if err := discovererInstance.StartDiscovery(context.Background(), clientConfig); err != nil {
+		log.Errorf("failed to start custom resource discovery: %v", err)
+	}
+	customResourceStateMetricFactoriesFunc, err := customresourcestate.FromConfig(customResourceDecoder{k.instance.CustomResource}, discovererInstance)
+
+	if err != nil {
+		log.Errorf("failed to create custom resource state metrics: %v", err)
+	} else {
+		customResourceStateMetricFactories, err := customResourceStateMetricFactoriesFunc()
+		if err != nil {
+			log.Errorf("failed to create custom resource state metrics: %v", err)
+		} else {
+			for _, factory := range customResourceStateMetricFactories {
+				factories = append(factories, customresources.NewCustomResourceFactory(factory, c.DynamicCl))
+			}
+		}
+	}
+
+	coll := collectors
+	for _, cr := range k.instance.CustomResource.Spec.Resources {
+		gvr := schema.GroupVersionResource{
+			Group:    cr.GroupVersionKind.Group,
+			Version:  cr.GroupVersionKind.Version,
+			Resource: cr.GetResourceName(),
+		}
+
+		cl := c.DynamicCl.Resource(gvr)
+		clients[cr.GetResourceName()] = cl
+		coll = append(coll, gvr.String())
+	}
+
 	return customResources{
-		collectors: collectors,
+		collectors: lo.Uniq(coll),
 		clients:    clients,
 		factories:  factories,
 	}
@@ -980,20 +1063,22 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 }
 
 func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
-	return &KSMCheck{
+	res := &KSMCheck{
 		CheckBase:            base,
 		instance:             instance,
 		telemetry:            newTelemetryCache(),
 		isCLCRunner:          pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
 		isRunningOnNodeAgent: flavor.GetFlavor() != flavor.ClusterAgent && !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
-		metricNamesMapper:    defaultMetricNamesMapper(),
-		metricAggregators:    defaultMetricAggregators(),
-		metricTransformers:   defaultMetricTransformers(),
+		// metricNamesMapper:    defaultMetricNamesMapper(),
+		metricAggregators:  defaultMetricAggregators(),
+		metricTransformers: defaultMetricTransformers(),
 
 		// metadata metrics are useful for label joins
 		// but shouldn't be submitted to Datadog
 		metadataMetricsRegex: regexp.MustCompile(".*_(info|labels|status_reason)"),
 	}
+	res.metricNamesMapper = res.defaultMetricNamesMapper()
+	return res
 }
 
 // resourceNameFromMetric returns the resource name based on the metric name
