@@ -20,7 +20,7 @@ from tasks.libs.common.datadog_api import send_metrics
 from tasks.libs.common.utils import gitlab_section
 from tasks.libs.notify import alerts, failure_summary, pipeline_status
 from tasks.libs.notify.jira_failing_tests import close_issue, get_failing_tests_names, get_jira
-from tasks.libs.notify.utils import PROJECT_NAME
+from tasks.libs.notify.utils import PROJECT_NAME, should_notify
 from tasks.libs.pipeline.notifications import (
     check_for_missing_owners_slack_and_jira,
 )
@@ -41,13 +41,16 @@ def check_teams(_):
 
 
 @task
-def send_message(ctx: Context, notification_type: str = "merge", dry_run: bool = False):
+def send_message(ctx: Context, pipeline_id: str, dry_run: bool = False):
     """
     Send notifications for the current pipeline. CI-only task.
     Use the --dry-run option to test this locally, without sending
     real slack messages.
     """
-    pipeline_status.send_message(ctx, notification_type, dry_run)
+    if should_notify(pipeline_id):
+        pipeline_status.send_message(ctx, pipeline_id, dry_run)
+    else:
+        print("This pipeline is a non-conductor downstream pipeline, skipping notifications")
 
 
 @task
@@ -72,7 +75,7 @@ def send_stats(_, dry_run=False):
 
 
 @task
-def check_consistent_failures(ctx, job_failures_file="job_executions.v2.json"):
+def check_consistent_failures(ctx, pipeline_id, job_failures_file="job_executions.v2.json"):
     # Retrieve the stored document in aws s3. It has the following format:
     # {
     #     "pipeline_id": 123,
@@ -87,13 +90,16 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.v2.json"):
     # The jobs dictionary contains the consecutive and cumulative failures for each job
     # The consecutive failures are reset to 0 when the job is not failing, and are raising an alert when reaching the CONSECUTIVE_THRESHOLD (3)
     # The cumulative failures list contains 1 for failures, 0 for succes. They contain only then CUMULATIVE_LENGTH(10) last executions and raise alert when 50% failure rate is reached
+    if not should_notify(pipeline_id) or os.environ['CI_COMMIT_BRANCH'] != os.environ['CI_DEFAULT_BRANCH']:
+        print("Consistent failures check is only run on the not-downstream default branch")
+        return
 
     job_executions = alerts.retrieve_job_executions(ctx, job_failures_file)
 
     # By-pass if the pipeline chronological order is not respected
-    if job_executions.pipeline_id > int(os.environ["CI_PIPELINE_ID"]):
+    if job_executions.pipeline_id > int(pipeline_id):
         return
-    job_executions.pipeline_id = int(os.environ["CI_PIPELINE_ID"])
+    job_executions.pipeline_id = int(pipeline_id)
 
     alert_jobs, job_executions = alerts.update_statistics(job_executions)
 
