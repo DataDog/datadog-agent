@@ -50,40 +50,51 @@ func (cg ControlGroup) GetContainerID() containerutils.ContainerID {
 	return containerutils.ContainerID(id)
 }
 
-// GetLastProcControlGroups returns the first cgroup membership of the specified task.
-func GetLastProcControlGroups(tgid, pid uint32) (ControlGroup, error) {
+// GetProcControlGroup0 returns the cgroup membership with index 0 of the specified task.
+func GetProcControlGroup0(tgid, pid uint32) (ControlGroup, error) {
 	data, err := os.ReadFile(CgroupTaskPath(tgid, pid))
 	if err != nil {
 		return ControlGroup{}, err
 	}
-
 	data = bytes.TrimSpace(data)
 
-	index := bytes.LastIndexByte(data, '\n')
-	if index < 0 {
-		index = 0
-	} else {
-		index++ // to skip the \n
-	}
-	if index >= len(data) {
-		return ControlGroup{}, fmt.Errorf("invalid cgroup data: %s", data)
+	var line []byte
+
+	for len(data) != 0 {
+		eol := bytes.IndexByte(data, '\n')
+		if eol < 0 {
+			eol = len(data)
+		}
+		line := data[:eol]
+		if bytes.HasPrefix(line, []byte("0:")) {
+			break
+		}
+
+		nextStart := eol + 1
+		if nextStart >= len(data) {
+			break
+		}
+		data = data[nextStart:]
 	}
 
-	lastLine := string(data[index:])
+	cgroupLine := string(line)
 
-	idstr, rest, ok := strings.Cut(lastLine, ":")
+	idstr, rest, ok := strings.Cut(cgroupLine, ":")
 	if !ok {
-		return ControlGroup{}, fmt.Errorf("invalid cgroup line: %s", lastLine)
+		return ControlGroup{}, fmt.Errorf("invalid cgroup line: %s", cgroupLine)
 	}
 
 	id, err := strconv.Atoi(idstr)
 	if err != nil {
 		return ControlGroup{}, err
 	}
+	if id != 0 {
+		return ControlGroup{}, fmt.Errorf("found cgroup, but with wrong ID (%d): %s", id, cgroupLine)
+	}
 
 	controllers, path, ok := strings.Cut(rest, ":")
 	if !ok {
-		return ControlGroup{}, fmt.Errorf("invalid cgroup line: %s", lastLine)
+		return ControlGroup{}, fmt.Errorf("invalid cgroup line: %s", cgroupLine)
 	}
 
 	return ControlGroup{
@@ -129,7 +140,7 @@ func GetProcContainerID(tgid, pid uint32) (containerutils.ContainerID, error) {
 // GetProcContainerContext returns the container ID which the process belongs to along with its manager. Returns "" if the process does not belong
 // to a container.
 func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, model.CGroupContext, error) {
-	cgroup, err := GetLastProcControlGroups(tgid, pid)
+	cgroup, err := GetProcControlGroup0(tgid, pid)
 	if err != nil {
 		return "", model.CGroupContext{}, err
 	}
