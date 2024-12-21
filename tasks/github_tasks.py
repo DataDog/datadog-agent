@@ -16,6 +16,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
     follow_workflow_run,
     print_failed_jobs_logs,
     print_workflow_conclusion,
+    trigger_buildenv_workflow,
     trigger_macos_workflow,
 )
 from tasks.libs.common.color import Color, color_message
@@ -26,6 +27,7 @@ from tasks.libs.common.utils import get_git_pretty_ref
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
+from tasks.libs.releasing.version import current_version
 from tasks.release import _get_release_json_value
 
 ALL_TEAMS = '@datadog/agent-all'
@@ -106,6 +108,41 @@ def trigger_macos(
         )
     else:
         raise Exit(f"Unsupported workflow type: {workflow_type}", code=1)
+    if conclusion != "success":
+        raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
+
+
+def _trigger_buildenv_workflow(new_version=None, datadog_agent_ref="master"):
+    if new_version is None:
+        raise Exit(message="Buildenv workflow need the 'new_version' field value to be not None")
+
+    run = trigger_buildenv_workflow(
+        github_action_ref=datadog_agent_ref,
+        new_version=new_version,
+    )
+
+    workflow_conclusion, workflow_url = follow_workflow_run(run, "DataDog/buildenv")
+
+    if workflow_conclusion == "failure":
+        print_failed_jobs_logs(run)
+
+    print_workflow_conclusion(workflow_conclusion, workflow_url)
+
+    return workflow_conclusion
+
+
+@task
+def trigger_buildenv(
+    ctx,
+    release_branch,
+    workflow_type="build",
+    datadog_agent_ref="master",
+    new_version=None,
+):
+    if new_version is None:
+        new_version = current_version(ctx, "7")
+
+    conclusion = _trigger_buildenv_workflow(new_version, datadog_agent_ref)
     if conclusion != "success":
         raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
 
