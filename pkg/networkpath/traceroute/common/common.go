@@ -106,6 +106,10 @@ func ParseICMP(header *ipv4.Header, payload []byte) (*ICMPResponse, error) {
 	icmpResponse.SrcIP = header.Src
 	icmpResponse.DstIP = header.Dst
 
+	if len(payload) <= 0 {
+		return nil, fmt.Errorf("received empty ICMP packet")
+	}
+
 	var icmpv4Layer layers.ICMPv4
 	decoded := []gopacket.LayerType{}
 	icmpParser := gopacket.NewDecodingLayerParser(layers.LayerTypeICMPv4, &icmpv4Layer)
