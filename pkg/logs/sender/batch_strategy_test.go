@@ -12,6 +12,7 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
@@ -21,7 +22,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	output := make(chan *message.Payload)
 	flushChan := make(chan struct{})
 
-	s := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{}, metrics.NewNoopPipelineMonitor(""))
+	s := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", compressionfx.NewMockCompressor(), metrics.NewNoopPipelineMonitor(""))
 	s.Start()
 
 	message1 := message.NewMessage([]byte("a"), nil, "", 0)
@@ -33,7 +34,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	expectedPayload := &message.Payload{
 		Messages:      []*message.Message{message1, message2},
 		Encoded:       []byte("a\nb"),
-		Encoding:      "identity",
+		Encoding:      "",
 		UnencodedSize: 3,
 	}
 
@@ -53,7 +54,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 	timerInterval := 100 * time.Millisecond
 
 	clk := clock.NewMock()
-	s := newBatchStrategyWithClock(input, output, flushChan, false, nil, LineSerializer, timerInterval, 100, 100, "test", clk, &identityContentType{}, metrics.NewNoopPipelineMonitor(""))
+	s := newBatchStrategyWithClock(input, output, flushChan, false, nil, LineSerializer, timerInterval, 100, 100, "test", clk, compressionfx.NewMockCompressor(), metrics.NewNoopPipelineMonitor(""))
 	s.Start()
 
 	for round := 0; round < 3; round++ {
@@ -78,7 +79,7 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	flushChan := make(chan struct{})
 
 	clk := clock.NewMock()
-	s := newBatchStrategyWithClock(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", clk, &identityContentType{}, metrics.NewNoopPipelineMonitor(""))
+	s := newBatchStrategyWithClock(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", clk, compressionfx.NewMockCompressor(), metrics.NewNoopPipelineMonitor(""))
 	s.Start()
 
 	message := message.NewMessage([]byte("a"), nil, "", 0)
@@ -103,7 +104,7 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	output := make(chan *message.Payload)
 	flushChan := make(chan struct{})
 
-	s := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{}, metrics.NewNoopPipelineMonitor(""))
+	s := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", compressionfx.NewMockCompressor(), metrics.NewNoopPipelineMonitor(""))
 	s.Start()
 	message := message.NewMessage([]byte{}, nil, "", 0)
 
@@ -127,7 +128,7 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
-	strategy := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, time.Hour, 100, 100, "test", &identityContentType{}, metrics.NewNoopPipelineMonitor(""))
+	strategy := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, time.Hour, 100, 100, "test", compressionfx.NewMockCompressor(), metrics.NewNoopPipelineMonitor(""))
 	strategy.Start()
 
 	// all of these messages will get buffered
@@ -172,7 +173,7 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
-	strategy := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, time.Hour, 100, 100, "test", &identityContentType{}, metrics.NewNoopPipelineMonitor(""))
+	strategy := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, time.Hour, 100, 100, "test", compressionfx.NewMockCompressor(), metrics.NewNoopPipelineMonitor(""))
 	strategy.Start()
 
 	// all of these messages will get buffered
