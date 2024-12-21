@@ -66,9 +66,10 @@ type ReaderWriterOptions struct { //nolint:revive // TODO
 
 // DIOptions is used to configure the running Dynamic Instrumentation process
 type DIOptions struct {
-	OfflineOptions             OfflineOptions
-	ReaderWriterOptions        ReaderWriterOptions
-	RateLimitPerProbePerSecond float64
+	OfflineOptions                OfflineOptions
+	ReaderWriterOptions           ReaderWriterOptions
+	RateLimitPerProbePerSecond    float64
+	ResolveInlinedProgramCounters bool
 	ditypes.EventCallback
 }
 
@@ -80,11 +81,10 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 	if err != nil {
 		return nil, err
 	}
-	stopFunctions := []func(){
-		diagnostics.StopGlobalDiagnostics,
-	}
+	stopFunctions := []func(){}
+	runtimeOpts := &ditypes.RuntimeOptions{ResolveInlinedProgramCounters: opts.ResolveInlinedProgramCounters}
 	if opts.ReaderWriterOptions.CustomReaderWriters {
-		cm, err := diconfig.NewReaderConfigManager()
+		cm, err := diconfig.NewReaderConfigManager(runtimeOpts)
 		if err != nil {
 			return nil, fmt.Errorf("could not create new reader config manager: %w", err)
 		}
@@ -103,7 +103,7 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 			stats:         newGoDIStats(),
 		}
 	} else if opts.OfflineOptions.Offline {
-		cm, stopFileConfigManager, err := diconfig.NewFileConfigManager(opts.OfflineOptions.ProbesFilePath)
+		cm, stopFileConfigManager, err := diconfig.NewFileConfigManager(runtimeOpts, opts.OfflineOptions.ProbesFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("could not create new file config manager: %w", err)
 		}
@@ -123,7 +123,7 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 		}
 		stopFunctions = append(stopFunctions, stopFileConfigManager)
 	} else {
-		cm, err := diconfig.NewRCConfigManager()
+		cm, err := diconfig.NewRCConfigManager(runtimeOpts)
 		if err != nil {
 			return nil, fmt.Errorf("could not create new RC config manager: %w", err)
 		}
