@@ -10,6 +10,7 @@ package python
 import (
 	"context"
 	"math/rand/v2"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -19,6 +20,8 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -121,4 +124,31 @@ func testEmitAgentTelemetry(t *testing.T) {
 	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_histogram"), 1.0, C.CString("gauge"))
 
 	assert.True(t, true)
+}
+
+func testObfuscateConfig(t *testing.T) {
+	pkgconfigmodel.CleanOverride(t)
+	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	pkgconfigsetup.InitConfig(conf)
+	o := lazyInitObfuscator()
+	defer o.Stop()
+	assert.True(t, obfuscateConfig.ES.Enabled)
+	assert.Len(t, obfuscateConfig.ES.KeepValues, 0)
+	assert.Len(t, obfuscateConfig.ES.ObfuscateSQLValues, 0)
+	assert.True(t, obfuscateConfig.OpenSearch.Enabled)
+	assert.Len(t, obfuscateConfig.OpenSearch.KeepValues, 0)
+	assert.Len(t, obfuscateConfig.OpenSearch.ObfuscateSQLValues, 0)
+	assert.True(t, obfuscateConfig.Mongo.Enabled)
+	assert.Equal(t, obfuscateConfig.Mongo, defaultMongoObfuscateSettings)
+	assert.Equal(t, obfuscateConfig.SQLExecPlan, defaultSQLPlanObfuscateSettings)
+	assert.Equal(t, obfuscateConfig.SQLExecPlanNormalize, defaultSQLPlanNormalizeSettings)
+	assert.False(t, obfuscateConfig.HTTP.RemoveQueryString)
+	assert.False(t, obfuscateConfig.HTTP.RemovePathDigits)
+	assert.True(t, obfuscateConfig.Redis.Enabled)
+	assert.False(t, obfuscateConfig.Redis.RemoveAllArgs)
+	assert.True(t, obfuscateConfig.Memcached.Enabled)
+	assert.False(t, obfuscateConfig.Memcached.KeepCommand)
+	assert.True(t, obfuscateConfig.CreditCard.Enabled)
+	assert.False(t, obfuscateConfig.CreditCard.Luhn)
+	assert.True(t, obfuscateConfig.Cache.Enabled)
 }
