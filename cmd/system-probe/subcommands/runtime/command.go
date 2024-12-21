@@ -533,8 +533,13 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 		return nil, errors.New("unknown event type")
 	}
 
-	m := &model.Model{}
-	event := m.NewDefaultEventWithType(kind)
+	event := &model.Event{
+		BaseEvent: model.BaseEvent{
+			Type:             uint32(kind),
+			FieldHandlers:    &model.FakeFieldHandlers{},
+			ContainerContext: &model.ContainerContext{},
+		},
+	}
 	event.Init()
 
 	for k, v := range eventData.Values {

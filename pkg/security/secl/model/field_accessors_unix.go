@@ -152,27 +152,42 @@ func (ev *Event) GetCapsetCapPermitted() uint64 {
 
 // GetCgroupFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetCgroupFileInode() uint64 {
+	if ev.CGroupContext == nil {
+		return uint64(0)
+	}
 	return ev.CGroupContext.CGroupFile.Inode
 }
 
 // GetCgroupFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetCgroupFileMountId() uint32 {
+	if ev.CGroupContext == nil {
+		return uint32(0)
+	}
 	return ev.CGroupContext.CGroupFile.MountID
 }
 
 // GetCgroupId returns the value of the field, resolving if necessary
 func (ev *Event) GetCgroupId() string {
-	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.CGroupContext)
+	if ev.CGroupContext == nil {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveCGroupID(ev, ev.CGroupContext)
 }
 
 // GetCgroupManager returns the value of the field, resolving if necessary
 func (ev *Event) GetCgroupManager() string {
-	return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.CGroupContext)
+	if ev.CGroupContext == nil {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveCGroupManager(ev, ev.CGroupContext)
 }
 
 // GetCgroupVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetCgroupVersion() int {
-	return ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.CGroupContext)
+	if ev.CGroupContext == nil {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveCGroupVersion(ev, ev.CGroupContext)
 }
 
 // GetChdirFileChangeTime returns the value of the field, resolving if necessary
