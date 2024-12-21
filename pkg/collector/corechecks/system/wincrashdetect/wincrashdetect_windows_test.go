@@ -49,7 +49,8 @@ func TestWinCrashReporting(t *testing.T) {
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", systemProbeTestPipeName)
 
-	listener, err := server.NewListener(systemProbeTestPipeName)
+	// The test named pipe allows the current user.
+	listener, err := server.NewListenerForCurrentUser(systemProbeTestPipeName)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 
@@ -182,7 +183,8 @@ func TestCrashReportingStates(t *testing.T) {
 
 	var crashStatus *probe.WinCrashStatus
 
-	listener, err := server.NewListener(systemProbeTestPipeName)
+	// The test named pipe allows the current user.
+	listener, err := server.NewListenerForCurrentUser(systemProbeTestPipeName)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 

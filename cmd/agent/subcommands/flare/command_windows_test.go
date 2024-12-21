@@ -32,7 +32,8 @@ func sysprobeSocketPath(_ *testing.T) string {
 func NewSystemProbeTestServer(handler http.Handler) (*httptest.Server, error) {
 	server := httptest.NewUnstartedServer(handler)
 
-	conn, err := sysprobeserver.NewListener(systemProbeTestPipeName)
+	// The test named pipe allows the current user.
+	conn, err := sysprobeserver.NewListenerForCurrentUser(systemProbeTestPipeName)
 	if err != nil {
 		return nil, err
 	}
