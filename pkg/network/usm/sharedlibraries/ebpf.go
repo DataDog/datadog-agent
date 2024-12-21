@@ -591,30 +591,42 @@ func fexitSupported(funcName string) bool {
 
 // initializedProbes initializes the probes that are enabled for the current system
 func (e *EbpfProgram) initializeProbes() {
+	openat2Supported := sysOpenAt2Supported()
+	isFexitSupported := fexitSupported("do_sys_openat2")
+
+	advancedProbes := []manager.ProbeIdentificationPair{
+		{
+			EBPFFuncName: fmt.Sprintf("do_sys_%s_exit", openat2SysCall),
+			UID:          probeUID,
+		},
+	}
+
 	openatProbes := []string{openatSysCall}
+	if openat2Supported {
+		openatProbes = append(openatProbes, openat2SysCall)
+	}
 	// amd64 has open(2), arm64 doesn't
 	if runtime.GOARCH == "amd64" {
 		openatProbes = append(openatProbes, openSysCall)
 	}
 
-	res := make([]manager.ProbeIdentificationPair, 0, len(traceTypes)*len(openatProbes))
+	oldProbes := make([]manager.ProbeIdentificationPair, 0, len(traceTypes)*len(openatProbes))
 	for _, probe := range openatProbes {
 		for _, traceType := range traceTypes {
-			res = append(res, manager.ProbeIdentificationPair{
+			oldProbes = append(oldProbes, manager.ProbeIdentificationPair{
 				EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", traceType, probe),
 				UID:          probeUID,
 			})
 		}
 	}
 
-	if sysOpenAt2Supported() {
-		res = append(res, manager.ProbeIdentificationPair{
-			EBPFFuncName: fmt.Sprintf("do_sys_%s_exit", openat2SysCall),
-			UID:          probeUID,
-		})
+	if isFexitSupported && openat2Supported {
+		e.enabledProbes = advancedProbes
+		e.disabledProbes = oldProbes
+	} else {
+		e.enabledProbes = oldProbes
+		e.disabledProbes = advancedProbes
 	}
-
-	e.enabledProbes = res
 }
 
 func getAssetName(module string, debug bool) string {
