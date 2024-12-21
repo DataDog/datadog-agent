@@ -27,6 +27,12 @@
         "origin": {
             "type": "string"
         },
+        "kernel_version": {
+            "type": "string"
+        },
+        "distribution": {
+            "type": "string"
+        },
         "rule_actions": {
             "type": "array",
             "items": {

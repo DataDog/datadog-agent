@@ -94,6 +94,12 @@ CSM Threats event for Linux systems have the following JSON schema:
                 },
                 "origin": {
                     "type": "string"
+                },
+                "kernel_version": {
+                    "type": "string"
+                },
+                "distribution": {
+                    "type": "string"
                 }
             },
             "additionalProperties": false,
@@ -1940,6 +1946,12 @@ CSM Threats event for Linux systems have the following JSON schema:
             "type": "string"
         },
         "origin": {
+            "type": "string"
+        },
+        "kernel_version": {
+            "type": "string"
+        },
+        "distribution": {
             "type": "string"
         }
     },
