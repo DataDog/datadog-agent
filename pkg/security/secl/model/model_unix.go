@@ -63,6 +63,7 @@ type Event struct {
 	// network syscalls
 	Bind    BindEvent    `field:"bind" event:"bind"`       // [7.37] [Network] A bind was executed
 	Connect ConnectEvent `field:"connect" event:"connect"` // [7.60] [Network] A connect was executed
+	Accept  AcceptEvent  `field:"accept" event:"accept"`   // [7.60] [Network] An accept was executed
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -668,6 +669,14 @@ type ConnectEvent struct {
 	Addr       IPPortContext `field:"addr"`        // Connection address
 	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
 	Protocol   uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
+}
+
+// AcceptEvent represents an accept event
+type AcceptEvent struct {
+	SyscallEvent
+
+	Addr       IPPortContext `field:"addr"`        // Connection address
+	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
 }
 
 // NetDevice represents a network device

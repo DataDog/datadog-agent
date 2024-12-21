@@ -1214,6 +1214,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.AcceptEventType:
+		if _, err = event.Accept.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode accept event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	case model.BindEventType:
 		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))

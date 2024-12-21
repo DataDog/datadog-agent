@@ -12,6 +12,15 @@ __attribute__((always_inline)) u16 get_family_from_sock_common(struct sock_commo
     return family;
 }
 
+__attribute__((always_inline)) struct sock* get_sock_from_socket(struct socket *socket) {
+    u64 socket_sock_offset;
+    LOAD_CONSTANT("socket_sock_offset", socket_sock_offset);
+
+    struct sock *sk = NULL;
+    bpf_probe_read(&sk, sizeof(sk), (void *)socket + socket_sock_offset);
+    return sk;
+}
+
 __attribute__((always_inline)) u64 get_flowi4_saddr_offset() {
     u64 flowi4_saddr_offset;
     LOAD_CONSTANT("flowi4_saddr_offset", flowi4_saddr_offset);
