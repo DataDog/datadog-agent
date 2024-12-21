@@ -208,12 +208,15 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 
 			// create a key from the tags (and drop not specified in the configuration tags)
 			var specTags = make([]*dto.LabelPair, 0, len(origTags))
+			var sb strings.Builder
 			for _, t := range tags {
 				if _, ok := mCfg.aggregateTagsMap[t.GetName()]; ok {
 					specTags = append(specTags, t)
-					tagsKey += makeLabelPairKey(t)
+					sb.WriteString(makeLabelPairKey(t))
 				}
 			}
+			tagsKey = sb.String()
+
 			if mCfg.AggregateTotal {
 				aggregateMetric(mt, totalm, m)
 			}
@@ -255,6 +258,8 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 	return maps.Values(amMap)
 }
 
+// Using Prometheus  terminology. Metrics name or in "Prom" MetricFamily is technically a Datadog metrics.
+// dto.Metric are a metric values for each timeseries (tag/value combination).
 func buildKeysForMetricsPreviousValues(mt dto.MetricType, metricName string, metrics []*dto.Metric) []string {
 	keyNames := make([]string, 0, len(metrics))
 	for _, m := range metrics {
@@ -264,56 +269,55 @@ func buildKeysForMetricsPreviousValues(mt dto.MetricType, metricName string, met
 			// start with the metric name
 			keyName = metricName
 		} else {
-			// Sort tags to stability of the key
-			sortedTags := cloneLabelsSorted(tags)
-			var builder strings.Builder
-
-			// start with the metric name plus the tags
-			builder.WriteString(metricName)
-			for _, tag := range sortedTags {
-				builder.WriteString(makeLabelPairKey(tag))
-			}
-			keyName = builder.String()
+			keyName = fmt.Sprintf("%s%s:", metricName, convertLabelsToKey(tags))
 		}
 
+		// Add bucket names to the key
 		if mt == dto.MetricType_HISTOGRAM {
 			// add bucket names to the key
 			for _, bucket := range m.Histogram.GetBucket() {
 				keyNames = append(keyNames, fmt.Sprintf("%v:%v", keyName, bucket.GetUpperBound()))
 			}
-		} else {
-			keyNames = append(keyNames, keyName)
 		}
+
+		// For regular metric (and for HISTOGRAM +Inf bucket which follows the last bucket)
+		keyNames = append(keyNames, keyName)
 	}
 
 	return keyNames
 }
 
+// Swap current value with the previous value and deduct the previous value from the current value
+func deductAndUpdatePrevValue(key string, prevPromMetricValues map[string]uint64, curValue *uint64) {
+	origCurValue := *curValue
+	if prevValue, ok := prevPromMetricValues[key]; ok {
+		*curValue -= prevValue
+	}
+	prevPromMetricValues[key] = origCurValue
+}
+
 func convertPromHistogramsToDatadogHistogramsValues(metrics []*dto.Metric, prevPromMetricValues map[string]uint64, keyNames []string) {
 	if len(metrics) > 0 {
 		bucketCount := len(metrics[0].Histogram.GetBucket())
+		var prevValue uint64
+
 		for i, m := range metrics {
-			// First, deduct the previous cumulative count from the current one
+			// 1. deduct the previous cumulative count from each explicit  buckets
 			for j, b := range m.Histogram.GetBucket() {
-				key := keyNames[(i*bucketCount)+j]
-				curValue := b.GetCumulativeCount()
-
-				// Adjust the counter value if found
-				if prevValue, ok := prevPromMetricValues[key]; ok {
-					*b.CumulativeCount -= prevValue
-				}
-
-				// Upsert the cache of previous counter values
-				prevPromMetricValues[key] = curValue
+				deductAndUpdatePrevValue(keyNames[(i*(bucketCount+1))+j], prevPromMetricValues, b.CumulativeCount)
 			}
+			// 2. deduct the previous cumulative count from the implicit  "+Inf" bucket
+			deductAndUpdatePrevValue(keyNames[((i+1)*(bucketCount+1))-1], prevPromMetricValues, m.Histogram.SampleCount)
 
-			// Then, de-cumulate next bucket value from the previous bucket values
-			var prevValue uint64
+			// 3. "De-cumulate" next explicit bucket value from the preceding bucket value
+			prevValue = 0
 			for _, b := range m.Histogram.GetBucket() {
 				curValue := b.GetCumulativeCount()
 				*b.CumulativeCount -= prevValue
 				prevValue = curValue
 			}
+			// 4. "De-cumulate" implicit "+Inf" bucket value from the preceding bucket value
+			*m.Histogram.SampleCount -= prevValue
 		}
 	}
 }
