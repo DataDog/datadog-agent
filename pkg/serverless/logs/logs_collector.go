@@ -36,6 +36,13 @@ type Tags struct {
 	Tags []string
 }
 
+func (t *Tags) FlatTags() string {
+	if t == nil {
+		return ""
+	}
+	return strings.Join(t.Tags, ",")
+}
+
 //nolint:revive // TODO(SERV) Fix revive linter
 type LambdaInitMetric struct {
 	InitDurationTelemetry float64
