@@ -559,6 +559,12 @@ component temporarily wraps pkg/trace/config.
 
 Package etwtracer provides ETW events to the .Net tracer
 
+### [comp/trace/ssi](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/ssi)
+
+*Datadog Team*: /* TODO
+
+Package ssi ... /* TODO: detailed doc comment for the component */
+
 ### [comp/trace/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/status)
 
 Package status implements the core status component information provider interface
