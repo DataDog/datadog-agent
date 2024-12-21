@@ -9,6 +9,6 @@
 enhancements:
   - |
     Extended Agent telemetry histogram details, specifically:
-      - Added to a histogram's payload previously omitted and implicit `+Inf` bucket value
+      - Added previously omitted and implicit `+Inf` bucket value to histogram payload 
       - Added histogram's p75, p95 and p99 values (expressed as the upper-bound for the
         matching bucket).
