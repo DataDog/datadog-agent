@@ -15,6 +15,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/link"
+
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -538,6 +543,42 @@ func sysOpenAt2Supported() bool {
 	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
 
 	return err == nil && len(missing) == 0
+}
+
+// fexitSupported checks if fexit type of probe is supported on the current host.
+// It does this by creating a dummy program that attaches to the given function name, and returns true if it succeeds.
+// Method was adapted from the CWS code.
+func fexitSupported(funcName string) bool {
+	if features.HaveProgramType(ebpf.Tracing) != nil {
+		return false
+	}
+
+	spec := &ebpf.ProgramSpec{
+		Type:       ebpf.Tracing,
+		AttachType: ebpf.AttachTraceFExit,
+		AttachTo:   funcName,
+		Instructions: asm.Instructions{
+			asm.LoadImm(asm.R0, 0, asm.DWord),
+			asm.Return(),
+		},
+	}
+	prog, err := ebpf.NewProgramWithOptions(spec, ebpf.ProgramOptions{
+		LogDisabled: true,
+	})
+	if err != nil {
+		return false
+	}
+	defer prog.Close()
+
+	l, err := link.AttachTracing(link.TracingOptions{
+		Program: prog,
+	})
+	if err != nil {
+		return false
+	}
+	defer l.Close()
+
+	return true
 }
 
 // getSysOpenHooksIdentifiers returns the enter and exit tracepoints for supported open*
