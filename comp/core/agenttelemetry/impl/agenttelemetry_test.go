@@ -1033,7 +1033,7 @@ func TestGetAsJSONScrub(t *testing.T) {
 	assert.Equal(t, "test", metric.(MetricPayload).Tags["text"])
 }
 
-func TestAdjustPrometheusCounterValue(t *testing.T) {
+func TestAdjustPrometheusCounterValueMultipleTags(t *testing.T) {
 	var c = `
     agent_telemetry:
       enabled: true
@@ -1118,6 +1118,189 @@ func TestAdjustPrometheusCounterValue(t *testing.T) {
 	counter1.AddWithTags(1000, map[string]string{"tag1": "tag1val", "tag2": "tag2val"})
 	counter2.AddWithTags(2000, map[string]string{"tag": "tagval"})
 	counter3.AddWithTags(3000, map[string]string{"tag1": "tag1val", "tag2": "tag2val"})
+	counter4.Add(4000)
+	payload34, err34 := getPayload(a)
+	require.NoError(t, err34)
+	metrics34 := payload34.Payload.(AgentMetricsPayload).Metrics
+	expecVals34 := map[string]float64{
+		"foo.bar": 1100.0,
+		"foo.cat": 2200.0,
+		"zoo.bar": 3300.0,
+		"zoo.cat": 4400.0,
+	}
+	for ek, ev := range expecVals34 {
+		v, ok := metrics34[ek]
+		require.True(t, ok)
+		assert.Equal(t, ev, v.(MetricPayload).Value)
+	}
+
+	// No addition (expected values should be zero)
+	payload5, err5 := getPayload(a)
+	require.NoError(t, err5)
+	metrics5 := payload5.Payload.(AgentMetricsPayload).Metrics
+	expecVals5 := map[string]float64{
+		"foo.bar": 0.0,
+		"foo.cat": 0.0,
+		"zoo.bar": 0.0,
+		"zoo.cat": 0.0,
+	}
+	for ek, ev := range expecVals5 {
+		v, ok := metrics5[ek]
+		require.True(t, ok)
+		assert.Equal(t, ev, v.(MetricPayload).Value)
+	}
+}
+
+func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: xxx
+          metric:
+            metrics:
+              - name: foo.bar
+                aggregate_tags:
+                  - tag
+    `
+
+	// setup and initiate atel
+	tel := makeTelMock(t)
+	o := convertYamlStrToMap(t, c)
+	s := makeSenderImpl(t, c)
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, o, s, nil, r)
+	require.True(t, a.enabled)
+
+	// setup metrics using few family names, metric names and tag- and tag-less counters
+	// to test various scenarios
+	counter := tel.NewCounter("foo", "bar", []string{"tag"}, "")
+
+	// First addition (expected values should be the same as the added values)
+	counter.AddWithTags(1, map[string]string{"tag": "val1"})
+	counter.AddWithTags(2, map[string]string{"tag": "val2"})
+
+	ms, ok := getPayloadMetrics(a, "foo.bar")
+	require.True(t, ok)
+	m1, ok1 := getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val1"})
+	require.True(t, ok1)
+	assert.Equal(t, m1.Value, 1.0)
+	m2, ok2 := getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val2"})
+	require.True(t, ok2)
+	assert.Equal(t, m2.Value, 2.0)
+
+	// Second addition (expected values should be the same as the added values)
+	counter.AddWithTags(10, map[string]string{"tag": "val1"})
+	counter.AddWithTags(20, map[string]string{"tag": "val2"})
+	ms, ok = getPayloadMetrics(a, "foo.bar")
+	require.True(t, ok1)
+	m1, ok1 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val1"})
+	require.True(t, ok1)
+	assert.Equal(t, m1.Value, 10.0)
+	m2, ok2 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val2"})
+	require.True(t, ok2)
+	assert.Equal(t, m2.Value, 20.0)
+
+	// Third and fourth addition (expected values should be the sum of 3rd and 4th values)
+	counter.AddWithTags(100, map[string]string{"tag": "val1"})
+	counter.AddWithTags(200, map[string]string{"tag": "val2"})
+	ms, ok = getPayloadMetrics(a, "foo.bar")
+	require.True(t, ok1)
+	m1, ok1 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val1"})
+	require.True(t, ok1)
+	assert.Equal(t, m1.Value, 100.0)
+	m2, ok2 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val2"})
+	require.True(t, ok2)
+	assert.Equal(t, m2.Value, 200.0)
+
+	// No addition (expected values should be zero)
+	ms, ok = getPayloadMetrics(a, "foo.bar")
+	require.True(t, ok1)
+	m1, ok1 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val1"})
+	require.True(t, ok1)
+	assert.Equal(t, m1.Value, 0.0)
+	m2, ok2 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val2"})
+	require.True(t, ok2)
+	assert.Equal(t, m2.Value, 0.0)
+}
+
+func TestAdjustPrometheusCounterValueTagless(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: xxx
+          metric:
+            metrics:
+              - name: foo.bar
+              - name: foo.cat
+              - name: zoo.bar
+              - name: zoo.cat
+    `
+
+	// setup and initiate atel
+	tel := makeTelMock(t)
+	o := convertYamlStrToMap(t, c)
+	s := makeSenderImpl(t, c)
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, o, s, nil, r)
+	require.True(t, a.enabled)
+
+	// setup metrics using few family names, metric names and tag- and tag-less counters
+	// to test various scenarios
+	counter1 := tel.NewCounter("foo", "bar", nil, "")
+	counter2 := tel.NewCounter("foo", "cat", nil, "")
+	counter3 := tel.NewCounter("zoo", "bar", nil, "")
+	counter4 := tel.NewCounter("zoo", "cat", nil, "")
+
+	// First addition (expected values should be the same as the added values)
+	counter1.Add(1)
+	counter2.Add(2)
+	counter3.Add(3)
+	counter4.Add(4)
+	payload1, err1 := getPayload(a)
+	require.NoError(t, err1)
+	metrics1 := payload1.Payload.(AgentMetricsPayload).Metrics
+	expecVals1 := map[string]float64{
+		"foo.bar": 1.0,
+		"foo.cat": 2.0,
+		"zoo.bar": 3.0,
+		"zoo.cat": 4.0,
+	}
+	for ek, ev := range expecVals1 {
+		v, ok := metrics1[ek]
+		require.True(t, ok)
+		assert.Equal(t, ev, v.(MetricPayload).Value)
+	}
+
+	// Second addition (expected values should be the same as the added values)
+	counter1.Add(10)
+	counter2.Add(20)
+	counter3.Add(30)
+	counter4.Add(40)
+	payload2, err2 := getPayload(a)
+	require.NoError(t, err2)
+	metrics2 := payload2.Payload.(AgentMetricsPayload).Metrics
+	expecVals2 := map[string]float64{
+		"foo.bar": 10.0,
+		"foo.cat": 20.0,
+		"zoo.bar": 30.0,
+		"zoo.cat": 40.0,
+	}
+	for ek, ev := range expecVals2 {
+		v, ok := metrics2[ek]
+		require.True(t, ok)
+		assert.Equal(t, ev, v.(MetricPayload).Value)
+	}
+
+	// Third and fourth addition (expected values should be the sum of 3rd and 4th values)
+	counter1.Add(100)
+	counter2.Add(200)
+	counter3.Add(300)
+	counter4.Add(400)
+	counter1.Add(1000)
+	counter2.Add(2000)
+	counter3.Add(3000)
 	counter4.Add(4000)
 	payload34, err34 := getPayload(a)
 	require.NoError(t, err34)

@@ -208,12 +208,15 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 
 			// create a key from the tags (and drop not specified in the configuration tags)
 			var specTags = make([]*dto.LabelPair, 0, len(origTags))
+			var sb strings.Builder
 			for _, t := range tags {
 				if _, ok := mCfg.aggregateTagsMap[t.GetName()]; ok {
 					specTags = append(specTags, t)
-					tagsKey += makeLabelPairKey(t)
+					sb.WriteString(makeLabelPairKey(t))
 				}
 			}
+			tagsKey = sb.String()
+
 			if mCfg.AggregateTotal {
 				aggregateMetric(mt, totalm, m)
 			}
@@ -255,6 +258,8 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 	return maps.Values(amMap)
 }
 
+// Using Prometheus  terminology. Metrics name or in "Prom" MetricFamily is technically a Datadog metrics.
+// dto.Metric are a metric values for each timeseries (tag/value combination).
 func buildKeysForMetricsPreviousValues(mt dto.MetricType, metricName string, metrics []*dto.Metric) []string {
 	keyNames := make([]string, 0, len(metrics))
 	for _, m := range metrics {
@@ -264,16 +269,7 @@ func buildKeysForMetricsPreviousValues(mt dto.MetricType, metricName string, met
 			// start with the metric name
 			keyName = metricName
 		} else {
-			// Sort tags to stability of the key
-			sortedTags := cloneLabelsSorted(tags)
-			var builder strings.Builder
-
-			// start with the metric name plus the tags
-			builder.WriteString(metricName)
-			for _, tag := range sortedTags {
-				builder.WriteString(makeLabelPairKey(tag))
-			}
-			keyName = builder.String()
+			keyName = fmt.Sprintf("%s%s:", metricName, convertLabelsToKey(tags))
 		}
 
 		// Add bucket names to the key

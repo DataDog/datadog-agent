@@ -8,6 +8,7 @@ package agenttelemetryimpl
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -127,4 +128,14 @@ func cloneLabelsSorted(labels []*dto.LabelPair) []*dto.LabelPair {
 // Make string key from LabelPair
 func makeLabelPairKey(l *dto.LabelPair) string {
 	return fmt.Sprintf("%s:%s:", l.GetName(), l.GetValue())
+}
+
+// Sort and serialize labels into a string
+func convertLabelsToKey(labels []*dto.LabelPair) string {
+	sortedLabels := cloneLabelsSorted(labels)
+	var sb strings.Builder
+	for _, tag := range sortedLabels {
+		sb.WriteString(makeLabelPairKey(tag))
+	}
+	return sb.String()
 }
