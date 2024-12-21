@@ -757,7 +757,7 @@ require (
 	// todo: update datadog connector with breaking changes from https://github.com/DataDog/datadog-agent/pull/26347.
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.115.0
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
-	github.com/prometheus-community/pro-bing v0.4.1
+	github.com/prometheus-community/pro-bing v0.5.0
 	github.com/rickar/props v1.0.0
 	github.com/sijms/go-ora/v2 v2.8.19
 	github.com/swaggest/jsonschema-go v0.3.70
