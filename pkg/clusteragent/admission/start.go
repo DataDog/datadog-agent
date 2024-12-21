@@ -28,15 +28,14 @@ import (
 
 // ControllerContext holds necessary context for the admission controllers
 type ControllerContext struct {
-	IsLeaderFunc        func() bool
-	LeaderSubscribeFunc func() <-chan struct{}
-	SecretInformers     informers.SharedInformerFactory
-	ValidatingInformers informers.SharedInformerFactory
-	MutatingInformers   informers.SharedInformerFactory
-	Client              kubernetes.Interface
-	StopCh              chan struct{}
-	ValidatingStopCh    chan struct{}
-	Demultiplexer       demultiplexer.Component
+	LeadershipStateSubscribeFunc func() (notifChan <-chan struct{}, isLeaderFunc func() bool)
+	SecretInformers              informers.SharedInformerFactory
+	ValidatingInformers          informers.SharedInformerFactory
+	MutatingInformers            informers.SharedInformerFactory
+	Client                       kubernetes.Interface
+	StopCh                       chan struct{}
+	ValidatingStopCh             chan struct{}
+	Demultiplexer                demultiplexer.Component
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -47,6 +46,8 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		log.Info("Admission controller is disabled")
 		return webhooks, nil
 	}
+
+	notifChan, isLeaderFunc := ctx.LeadershipStateSubscribeFunc()
 
 	certConfig := secret.NewCertConfig(
 		datadogConfig.GetDuration("admission_controller.certificate.expiration_threshold")*time.Hour,
@@ -59,8 +60,8 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 	secretController := secret.NewController(
 		ctx.Client,
 		ctx.SecretInformers.Core().V1().Secrets(),
-		ctx.IsLeaderFunc,
-		ctx.LeaderSubscribeFunc(),
+		isLeaderFunc,
+		notifChan,
 		secretConfig,
 	)
 
@@ -85,8 +86,8 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		ctx.SecretInformers.Core().V1().Secrets(),
 		ctx.ValidatingInformers.Admissionregistration(),
 		ctx.MutatingInformers.Admissionregistration(),
-		ctx.IsLeaderFunc,
-		ctx.LeaderSubscribeFunc(),
+		isLeaderFunc,
+		notifChan,
 		webhookConfig,
 		wmeta,
 		pa,
