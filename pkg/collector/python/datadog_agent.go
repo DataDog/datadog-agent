@@ -245,6 +245,7 @@ var (
 	// the GIL is always locked when calling c code from python which means that the exported functions in this file
 	// will only ever be called by one goroutine at a time
 	obfuscator       *obfuscate.Obfuscator
+	obfuscaterConfig obfuscate.Config // For testing purposes
 	obfuscatorLoader sync.Once
 )
 
@@ -253,24 +254,23 @@ var (
 // will definitely be initialized by the time one of the python checks runs
 func lazyInitObfuscator() *obfuscate.Obfuscator {
 	obfuscatorLoader.Do(func() {
-		var cfg obfuscate.Config
-		if err := structure.UnmarshalKey(pkgconfigsetup.Datadog(), "apm_config.obfuscation", &cfg); err != nil {
+		if err := structure.UnmarshalKey(pkgconfigsetup.Datadog(), "apm_config.obfuscation", &obfuscaterConfig); err != nil {
 			log.Errorf("Failed to unmarshal apm_config.obfuscation: %s", err.Error())
-			cfg = obfuscate.Config{}
+			obfuscaterConfig = obfuscate.Config{}
 		}
-		if !cfg.SQLExecPlan.Enabled {
-			cfg.SQLExecPlan = defaultSQLPlanObfuscateSettings
+		if !obfuscaterConfig.SQLExecPlan.Enabled {
+			obfuscaterConfig.SQLExecPlan = defaultSQLPlanObfuscateSettings
 		}
-		if !cfg.SQLExecPlanNormalize.Enabled {
-			cfg.SQLExecPlanNormalize = defaultSQLPlanNormalizeSettings
+		if !obfuscaterConfig.SQLExecPlanNormalize.Enabled {
+			obfuscaterConfig.SQLExecPlanNormalize = defaultSQLPlanNormalizeSettings
 		}
-		if len(cfg.Mongo.KeepValues) == 0 {
-			cfg.Mongo.KeepValues = defaultMongoObfuscateSettings.KeepValues
+		if len(obfuscaterConfig.Mongo.KeepValues) == 0 {
+			obfuscaterConfig.Mongo.KeepValues = defaultMongoObfuscateSettings.KeepValues
 		}
-		if len(cfg.Mongo.ObfuscateSQLValues) == 0 {
-			cfg.Mongo.ObfuscateSQLValues = defaultMongoObfuscateSettings.ObfuscateSQLValues
+		if len(obfuscaterConfig.Mongo.ObfuscateSQLValues) == 0 {
+			obfuscaterConfig.Mongo.ObfuscateSQLValues = defaultMongoObfuscateSettings.ObfuscateSQLValues
 		}
-		obfuscator = obfuscate.NewObfuscator(cfg)
+		obfuscator = obfuscate.NewObfuscator(obfuscaterConfig)
 	})
 	return obfuscator
 }
