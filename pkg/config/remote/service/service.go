@@ -220,6 +220,7 @@ type options struct {
 	site                           string
 	rcKey                          string
 	apiKey                         string
+	parJWT                         string
 	traceAgentEnv                  string
 	databaseFileName               string
 	databaseFilePath               string
@@ -236,6 +237,7 @@ type options struct {
 var defaultOptions = options{
 	rcKey:                          "",
 	apiKey:                         "",
+	parJWT:                         "",
 	traceAgentEnv:                  "",
 	databaseFileName:               "remote-config.db",
 	databaseFilePath:               "",
@@ -327,6 +329,11 @@ func WithAPIKey(apiKey string) func(s *options) {
 	return func(s *options) { s.apiKey = apiKey }
 }
 
+// WithPARJWT sets the JWT for the private action runner
+func WithPARJWT(jwt string) func(s *options) {
+	return func(s *options) { s.parJWT = jwt }
+}
+
 // WithClientCacheBypassLimit validates and sets the service client cache bypass limit
 func WithClientCacheBypassLimit(limit int, cfgPath string) func(s *options) {
 	if limit < minCacheBypassLimit || limit > maxCacheBypassLimit {
@@ -387,7 +394,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	backoffPolicy := backoff.NewExpBackoffPolicy(minBackoffFactor, baseBackoffTime,
 		options.maxBackoff.Seconds(), recoveryInterval, recoveryReset)
 
-	authKeys, err := getRemoteConfigAuthKeys(options.apiKey, options.rcKey)
+	authKeys, err := getRemoteConfigAuthKeys(options.apiKey, options.rcKey, options.parJWT)
 	if err != nil {
 		return nil, err
 	}
@@ -502,6 +509,12 @@ func (s *CoreAgentService) Start() {
 		}
 
 	}()
+}
+
+// UpdatePARJWT updates the stored JWT for Private Action Runners
+// for authentication to the remote config backend.
+func (s *CoreAgentService) UpdatePARJWT(jwt string) {
+	s.api.UpdatePARJWT(jwt)
 }
 
 func startWithAgentPollLoop(s *CoreAgentService) {
