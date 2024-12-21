@@ -275,7 +275,7 @@ func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEve
 	var closeFn func()
 	var err error
 	err = ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
-		o.RLimit = mgrOpts.RLimit
+		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod

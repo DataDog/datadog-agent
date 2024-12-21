@@ -10,12 +10,10 @@ package constantfetch
 
 import (
 	"errors"
-	"math"
 	"os"
 	"os/exec"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -186,10 +184,7 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 				Value: uint64(utils.Getpid()),
 			},
 		},
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
+		RemoveRlimit: true,
 	}
 
 	for _, probe := range probes.AllProbes(true) {

@@ -64,11 +64,8 @@ func TestPatchPrintkNewline(t *testing.T) {
 	}
 
 	opts := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		MapEditors: make(map[string]*ebpf.Map),
+		RemoveRlimit: true,
+		MapEditors:   make(map[string]*ebpf.Map),
 	}
 	mgr.InstructionPatchers = append(mgr.InstructionPatchers, patchPrintkNewline)
 
