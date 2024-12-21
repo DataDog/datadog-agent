@@ -537,18 +537,7 @@ func (e *EbpfProgram) initPrebuilt() error {
 func sysOpenAt2Supported() bool {
 	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
 
-	if err == nil && len(missing) == 0 {
-		return true
-	}
-
-	kversion, err := kernel.HostVersion()
-
-	if err != nil {
-		log.Error("could not determine the current kernel version. fallback to do_sys_open")
-		return false
-	}
-
-	return kversion >= kernel.VersionCode(5, 6, 0)
+	return err == nil && len(missing) == 0
 }
 
 // getSysOpenHooksIdentifiers returns the enter and exit tracepoints for supported open*
