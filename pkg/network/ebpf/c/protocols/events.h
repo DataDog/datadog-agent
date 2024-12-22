@@ -55,7 +55,7 @@
                 }                                                                                       \
                                                                                                         \
                 if (use_ring_buffer) {                                                                  \
-                    perf_ret = bpf_ringbuf_output_with_telemetry(                                       \
+                    perf_ret = bpf_ringbuf_output(                                       \
                     &name##_batch_events,                                                               \
                     batch,                                                                              \
                     sizeof(batch_data_t),                                                               \
