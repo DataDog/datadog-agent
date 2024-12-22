@@ -70,7 +70,7 @@ int tracepoint__net__netif_receive_skb(void *ctx) {
     log_debug("tracepoint/net/netif_receive_skb");
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs
-    http_batch_flush(ctx);
+    http_batch_flush_with_telemetry(ctx);
     http2_batch_flush(ctx);
     terminated_http2_batch_flush(ctx);
     kafka_batch_flush(ctx);
