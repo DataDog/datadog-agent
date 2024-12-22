@@ -46,8 +46,10 @@ func TestFIMOpen(t *testing.T) {
 			return err
 		}
 		return f.Close()
-	}, func(event *model.Event, _ *rules.Rule) {
+	}, func(event *model.Event, rule *rules.Rule) {
 		assert.Equal(t, "open", event.GetType(), "wrong event type")
+		assertTriggeredRule(t, rule, "__fim_expanded_open__test_fim_rule")
+		assert.Equal(t, rule.Def.ID, "test_fim_rule")
 		assertInode(t, event.Open.File.Inode, getInode(t, testFile))
 	})
 }
