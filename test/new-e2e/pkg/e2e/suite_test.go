@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/test-infra-definitions/components"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 )
 
 type testTypeOutput struct {
@@ -47,8 +49,8 @@ type testSuite struct {
 	BaseSuite[testEnv]
 }
 
-func testRawResources(key, value string) RawResources {
-	return RawResources{key: []byte(fmt.Sprintf(`{"myField":"%s"}`, value))}
+func testRawResources(key, value string) provisioners.RawResources {
+	return provisioners.RawResources{key: []byte(fmt.Sprintf(`{"myField":"%s"}`, value))}
 }
 
 func TestCreateEnv(t *testing.T) {
@@ -69,16 +71,16 @@ type testProvisioner struct {
 	mock.Mock
 }
 
-var _ UntypedProvisioner = &testProvisioner{}
+var _ provisioners.UntypedProvisioner = &testProvisioner{}
 
 func (m *testProvisioner) ID() string {
 	args := m.Called()
 	return args.Get(0).(string)
 }
 
-func (m *testProvisioner) Provision(arg0 context.Context, arg1 string, arg2 io.Writer) (RawResources, error) {
+func (m *testProvisioner) Provision(arg0 context.Context, arg1 string, arg2 io.Writer) (provisioners.RawResources, error) {
 	args := m.Called(arg0, arg1, arg2)
-	return args.Get(0).(RawResources), args.Error(1)
+	return args.Get(0).(provisioners.RawResources), args.Error(1)
 }
 
 func (m *testProvisioner) Destroy(arg0 context.Context, arg1 string, arg2 io.Writer) error {
