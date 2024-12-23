@@ -10,7 +10,6 @@ package trivy
 import (
 	"context"
 	"fmt"
-	"os"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 
@@ -42,18 +41,8 @@ func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMe
 		return nil, cleanup, fmt.Errorf("unable to get history (%s): %w", imageID, err)
 	}
 
-	f, err := os.CreateTemp("", "fanal-docker-*")
-	if err != nil {
-		return nil, cleanup, fmt.Errorf("failed to create a temporary file")
-	}
-
-	cleanup = func() {
-		_ = f.Close()
-		_ = os.Remove(f.Name())
-	}
-
 	return &image{
-		opener:  imageOpener(ctx, DockerCollector, imageID, f, client.ImageSave),
+		opener:  imageOpener(ctx, DockerCollector, imageID, client.ImageSave),
 		inspect: inspect,
 		history: configHistory(history),
 	}, cleanup, nil
