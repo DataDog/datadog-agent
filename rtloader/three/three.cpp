@@ -93,12 +93,14 @@ void Three::initPythonExe(const char *python_exe)
 bool Three::init()
 {
     // we want the checks to be runned with the standard encoding utf-8
-    // setting this var to 1 forces the UTF8 mode for CPython >= 3.7
-    // See:
-    //	- PEP UTF8 mode https://www.python.org/dev/peps/pep-0540/
-    //	- about this var https://github.com/python/cpython/pull/12589
-    // This has to be set before the Py_Initialize() call.
-    Py_UTF8Mode = 1;
+    PyPreConfig preConfig;
+    PyPreConfig_InitPythonConfig(&preConfig);
+    preConfig.utf8_mode = 1;
+    auto status = Py_PreInitialize(&preConfig);
+    if (PyStatus_Exception(status)) {
+        setError("Failed to pre-initialize python");
+        return false;
+    }
 
     // add custom builtins init funcs to Python inittab, one by one
     // Unlinke its py2 counterpart, these need to be called before Py_Initialize
