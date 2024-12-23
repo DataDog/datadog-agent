@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build trivy
 
 // Package trivy implement a simple overlayfs like filesystem to be able to
 // scan through layered filesystems.
@@ -17,6 +17,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
 	local "github.com/aquasecurity/trivy/pkg/fanal/artifact/container"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
