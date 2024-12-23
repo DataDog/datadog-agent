@@ -42,7 +42,6 @@ public:
       thread id>,) in <module 'threading'".
       Even if Python ignores it, the exception ends up in the log files for
       upstart/syslog/...
-      Since we don't call Py_Finalize, we don't free _pythonHome here either.
 
       More info here:
       https://stackoverflow.com/questions/8774958/keyerror-in-module-threading-after-a-successful-py-test-run/12639040#12639040
@@ -183,7 +182,6 @@ private:
     typedef std::vector<std::string> PyPaths;
 
     PyConfig _config;
-    wchar_t *_pythonHome; /*!< unicode string with the PYTHONHOME for the underlying interpreter */
     wchar_t *_pythonExe; /*!< unicode string with the path to the executable of the underlying interpreter */
     PyObject *_baseClass; /*!< PyObject * pointer to the base Agent check class */
     PyPaths _pythonPaths; /*!< string vector containing paths in the PYTHONPATH */

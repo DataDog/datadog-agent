@@ -34,7 +34,6 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
 
 Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb)
     : RtLoader(memtrack_cb)
-    , _pythonHome(NULL)
     , _pythonExe(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
@@ -65,16 +64,11 @@ Three::~Three()
 
 void Three::initPythonHome(const char *pythonHome)
 {
-    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
-    wchar_t *oldPythonHome = _pythonHome;
-    if (pythonHome == NULL || strlen(pythonHome) == 0) {
-        _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
-    } else {
-        _pythonHome = Py_DecodeLocale(pythonHome, NULL);
+    const auto home = pythonHome != nullptr && strlen(pythonHome) > 0 ? pythonHome : _defaultPythonHome;
+    const auto status = PyConfig_SetBytesString(&_config, &_config.home, home);
+    if (PyStatus_Exception(status)) {
+        setError("Failed to set python home");
     }
-
-    Py_SetPythonHome(_pythonHome);
-    PyMem_RawFree((void *)oldPythonHome);
 }
 
 void Three::initPythonExe(const char *python_exe)
