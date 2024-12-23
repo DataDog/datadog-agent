@@ -496,6 +496,7 @@ func start(log log.Component,
 			// Webhook and secret controllers are started successfully
 			// Set up the k8s admission webhook server
 			server := admissioncmd.NewServer()
+			log.Debug("setting  up admission webhook server")
 
 			for _, webhookConf := range webhooks {
 				server.Register(webhookConf.Endpoint(), webhookConf.Name(), webhookConf.WebhookType(), webhookConf.WebhookFunc(), apiCl.DynamicCl, apiCl.Cl)

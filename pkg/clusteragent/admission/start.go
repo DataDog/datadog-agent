@@ -79,6 +79,7 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		return webhooks, err
 	}
 
+	log.Debug("init webhook controller")
 	webhookConfig := webhook.NewConfig(v1Enabled, nsSelectorEnabled, matchConditionsSupported)
 	webhookController := webhook.NewController(
 		ctx.Client,

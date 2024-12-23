@@ -91,6 +91,7 @@ func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, fi
 	webhook.securityClientLibraryPodMutators = securityClientLibraryConfigMutators(&webhook.config)
 	webhook.profilingClientLibraryPodMutators = profilingClientLibraryConfigMutators(&webhook.config)
 
+	log.Debug("autoinstrumentation webhook initialized")
 	return webhook, nil
 }
 
@@ -151,9 +152,12 @@ func (w *Webhook) isPodEligible(pod *corev1.Pod) bool {
 }
 
 func (w *Webhook) inject(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
+	log.Trace("inject called")
+
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
 	}
+
 	if pod.Namespace == "" {
 		pod.Namespace = ns
 	}
@@ -176,6 +180,8 @@ func (w *Webhook) inject(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool,
 		return false, nil
 	}
 
+	log.Trace("extractedLibInfo %v", extractedLibInfo)
+
 	for _, mutator := range w.securityClientLibraryPodMutators {
 		if err := mutator.mutatePod(pod); err != nil {
 			return false, fmt.Errorf("error mutating pod for security client: %w", err)
@@ -192,6 +198,8 @@ func (w *Webhook) inject(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool,
 		log.Errorf("failed to inject auto instrumentation configurations: %v", err)
 		return false, errors.New(metrics.ConfigInjectionError)
 	}
+
+	log.Trace("inject completed")
 
 	return true, nil
 }

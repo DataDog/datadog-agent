@@ -104,6 +104,7 @@ func (s *Server) initDecoder() {
 // Register adds an admission webhook handler.
 // Register must be called to register the desired webhook handlers before calling Run.
 func (s *Server) Register(uri string, webhookName string, webhookType admicommon.WebhookType, f WebhookFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
+	log.Debugf("register admission webhook name=%s at %s", webhookName, uri)
 	s.mux.HandleFunc(uri, func(w http.ResponseWriter, r *http.Request) {
 		s.handle(w, r, webhookName, webhookType, f, dc, apiClient)
 	})

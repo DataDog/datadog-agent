@@ -60,8 +60,10 @@ func NewController(
 	demultiplexer demultiplexer.Component,
 ) Controller {
 	if config.useAdmissionV1() {
+		log.Trace("using admissionV1")
 		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa, datadogConfig, demultiplexer)
 	}
+	log.Trace("using admissionV1beta1")
 	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa, datadogConfig, demultiplexer)
 }
 
@@ -121,6 +123,9 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 
 	// Add Mutating webhooks.
 	if c.config.isMutationEnabled() {
+
+		log.Debug("mutation enabled adding initializing webhooks")
+
 		mutatingWebhooks = []Webhook{
 			configWebhook.NewWebhook(wmeta, injectionFilter, datadogConfig),
 			tagsfromlabels.NewWebhook(wmeta, datadogConfig, injectionFilter),
@@ -146,6 +151,8 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 				log.Errorf("failed to register CWS Instrumentation webhook: %v", err)
 			}
 		}
+	} else {
+		log.Debug("mutation disabled")
 	}
 
 	return webhooks
