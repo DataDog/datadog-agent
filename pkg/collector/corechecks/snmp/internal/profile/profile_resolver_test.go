@@ -6,19 +6,15 @@
 package profile
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
@@ -55,10 +51,6 @@ func Test_resolveProfiles(t *testing.T) {
 	userProfilesCaseDefaultProfiles, err := getProfileDefinitions(defaultProfilesFolder, true)
 	require.NoError(t, err)
 
-	type logCount struct {
-		log   string
-		count int
-	}
 	tests := []struct {
 		name                    string
 		userProfiles            ProfileConfigMap
@@ -66,7 +58,7 @@ func Test_resolveProfiles(t *testing.T) {
 		expectedProfileDefMap   ProfileConfigMap
 		expectedProfileMetrics  []string
 		expectedInterfaceIDTags []string
-		expectedLogs            []logCount
+		expectedLogs            []LogCount
 	}{
 		{
 			name:                  "ok case",
@@ -105,7 +97,7 @@ func Test_resolveProfiles(t *testing.T) {
 				},
 			},
 			expectedProfileDefMap: ProfileConfigMap{},
-			expectedLogs: []logCount{
+			expectedLogs: []LogCount{
 				{"failed to expand profile \"f5-big-ip\": extend does not exist: `does_not_exist`", 1},
 			},
 		},
@@ -113,7 +105,7 @@ func Test_resolveProfiles(t *testing.T) {
 			name:                  "invalid recursive extends",
 			userProfiles:          profilesWithInvalidExtendProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
-			expectedLogs: []logCount{
+			expectedLogs: []LogCount{
 				{"failed to expand profile \"generic-if\": extend does not exist: `invalid`", 1},
 			},
 		},
@@ -121,7 +113,7 @@ func Test_resolveProfiles(t *testing.T) {
 			name:                  "invalid cyclic extends",
 			userProfiles:          invalidCyclicProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
-			expectedLogs: []logCount{
+			expectedLogs: []LogCount{
 				{": failed to expand profile \"f5-big-ip\": cyclic profile extend detected", 1},
 			},
 		},
@@ -133,7 +125,7 @@ func Test_resolveProfiles(t *testing.T) {
 				},
 			},
 			expectedProfileDefMap: ProfileConfigMap{},
-			expectedLogs: []logCount{
+			expectedLogs: []LogCount{
 				{"cannot compile `match` (`global_metric_tags[\\w)(\\w+)`)", 1},
 				{"cannot compile `match` (`table_match[\\w)`)", 1},
 			},
@@ -141,24 +133,11 @@ func Test_resolveProfiles(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var b bytes.Buffer
-			w := bufio.NewWriter(&b)
-			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-			assert.Nil(t, err)
-			log.SetupLogger(l, "debug")
+			trap := TrapLogs(t, log.DebugLvl)
 
 			profiles := resolveProfiles(tt.userProfiles, tt.defaultProfiles)
 
-			assert.NoError(t, w.Flush())
-			logs := b.String()
-
-			ok := true
-			for _, aLogCount := range tt.expectedLogs {
-				ok = assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), "missing log line: %q", aLogCount.log) && ok
-			}
-			if !ok {
-				t.Log("actual logs:\n", logs)
-			}
+			trap.AssertContains(t, tt.expectedLogs)
 
 			for i, profile := range profiles {
 				profiledefinition.NormalizeMetrics(profile.Definition.Metrics)
