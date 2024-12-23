@@ -265,7 +265,7 @@ type driver struct {
 	applier applier.Applier
 }
 
-func (d *driver) Scan(_ context.Context, target, artifactKey string, blobKeys []string, options types.ScanOptions) (
+func (d *driver) Scan(_ context.Context, target, artifactKey string, blobKeys []string, _ types.ScanOptions) (
 	results types.Results, osFound ftypes.OS, err error) {
 
 	detail, err := d.applier.ApplyLayers(artifactKey, blobKeys)
