@@ -116,6 +116,7 @@ def _get_environment_for_cache() -> dict:
             "GET_SOURCES_ATTEMPTS",
             "GO_TEST_SKIP_FLAKE",
             "GONOSUMDB",
+            "GOPROXY",
             "HELM_HOOKS_CI_IMAGE",
             "HELM_HOOKS_PERIODICAL_REBUILD_CONDUCTOR_ENV",
             "HOME",

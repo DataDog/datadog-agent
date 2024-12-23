@@ -79,7 +79,7 @@ const (
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
 	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
-	DefaultCompressorKind = "zlib"
+	DefaultCompressorKind = "zstd"
 
 	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
 	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
@@ -868,8 +868,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
 	config.BindEnv("process_config.orchestrator_dd_url", "DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL", "DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL")
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints` setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints` will take precedence.
-	config.SetKnown("process_config.orchestrator_additional_endpoints.*")
-	config.SetKnown("orchestrator_explorer.orchestrator_additional_endpoints.*")
+	config.SetKnown("process_config.orchestrator_additional_endpoints")
 	config.BindEnvAndSetDefault("orchestrator_explorer.extra_tags", []string{})
 
 	// Network
@@ -1283,7 +1282,6 @@ func telemetry(config pkgconfigmodel.Setup) {
 
 	// Agent Telemetry
 	config.BindEnvAndSetDefault("agent_telemetry.enabled", true)
-	config.SetKnown("agent_telemetry.additional_endpoints.*")
 	bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
 }
 
@@ -1675,6 +1673,7 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 5)       // Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
 	config.BindEnvAndSetDefault("kubelet_listener_polling_interval", 5) // Polling frequency in seconds of the pod watcher to detect new pods/containers (affected by kubelet_cache_pods_duration setting)
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
+	config.BindEnvAndSetDefault("kubernetes_use_endpoint_slices", false)
 	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
 	config.BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
 	config.BindEnvAndSetDefault("kubernetes_apiserver_informer_client_timeout", 0)
@@ -1819,19 +1818,18 @@ func findUnknownKeys(config pkgconfigmodel.Config) []string {
 	var unknownKeys []string
 	knownKeys := config.GetKnownKeysLowercased()
 	loadedKeys := config.AllKeysLowercased()
-	for _, key := range loadedKeys {
-		if _, found := knownKeys[key]; !found {
-			// Check if any subkey terminated with a '.*' wildcard is marked as known
-			// e.g.: apm_config.* would match all sub-keys of apm_config
-			splitPath := strings.Split(key, ".")
-			for j := range splitPath {
-				subKey := strings.Join(splitPath[:j+1], ".") + ".*"
-				if _, found = knownKeys[subKey]; found {
+	for _, loadedKey := range loadedKeys {
+		if _, found := knownKeys[loadedKey]; !found {
+			nestedValue := false
+			// If a value is within a known key it is considered known.
+			for knownKey := range knownKeys {
+				if strings.HasPrefix(loadedKey, knownKey+".") {
+					nestedValue = true
 					break
 				}
 			}
-			if !found {
-				unknownKeys = append(unknownKeys, key)
+			if !nestedValue {
+				unknownKeys = append(unknownKeys, loadedKey)
 			}
 		}
 	}

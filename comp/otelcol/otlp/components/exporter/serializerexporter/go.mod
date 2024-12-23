@@ -69,9 +69,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/serializer v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/tagset v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.21.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.21.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.21.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.22.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.22.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.22.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.115.0
 	github.com/stretchr/testify v1.10.0
@@ -161,7 +161,7 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
-	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95 // indirect
+	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
@@ -215,7 +215,7 @@ require (
 	go.uber.org/fx v1.23.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20241210194714-1829a127f884 // indirect
-	golang.org/x/net v0.32.0 // indirect
+	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241104194629-dd2ea8efbc28 // indirect
@@ -241,8 +241,8 @@ require (
 	github.com/knadh/koanf/maps v0.1.1 // indirect
 	github.com/knadh/koanf/providers/confmap v0.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.115.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
+	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/shirou/gopsutil/v4 v4.24.11 // indirect
 	go.opentelemetry.io/collector/client v1.21.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v0.115.0 // indirect

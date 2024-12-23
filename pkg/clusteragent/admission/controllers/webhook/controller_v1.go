@@ -53,7 +53,7 @@ func NewControllerV1(
 	validatingWebhookInformer admissioninformers.ValidatingWebhookConfigurationInformer,
 	mutatingWebhookInformer admissioninformers.MutatingWebhookConfigurationInformer,
 	isLeaderFunc func() bool,
-	isLeaderNotif <-chan struct{},
+	leadershipStateNotif <-chan struct{},
 	config Config,
 	wmeta workloadmeta.Component,
 	pa workload.PodPatcher,
@@ -75,7 +75,7 @@ func NewControllerV1(
 		workqueue.TypedRateLimitingQueueConfig[string]{Name: "webhooks"},
 	)
 	controller.isLeaderFunc = isLeaderFunc
-	controller.isLeaderNotif = isLeaderNotif
+	controller.leadershipStateNotif = leadershipStateNotif
 	controller.webhooks = controller.generateWebhooks(wmeta, pa, datadogConfig, demultiplexer)
 	controller.generateTemplates()
 
