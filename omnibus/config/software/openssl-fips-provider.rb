@@ -28,22 +28,42 @@ build do
     # https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4282.pdf
     #
     # ---------------- DO NOT MODIFY LINES BELOW HERE ----------------
-    command "./Configure enable-fips", env: env
+    unless windows_target?
+      # Exact build steps from security policy:
+      # https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4282.pdf
+      #
+      # ---------------- DO NOT MODIFY LINES BELOW HERE ----------------
+      command "./Configure enable-fips", env: env
 
-    command "make", env: env
-    command "make install", env: env
+      command "make", env: env
+      command "make install", env: env
     # ---------------- DO NOT MODIFY LINES ABOVE HERE ----------------
+    else
+      # ---------------- DO NOT MODIFY LINES BELOW HERE ----------------
+      command "perl.exe ./Configure enable-fips", env: env
 
-    mkdir "#{install_dir}/embedded/ssl"
-    mkdir "#{install_dir}/embedded/lib/ossl-modules"
-    copy "/usr/local/lib*/ossl-modules/fips.so", "#{install_dir}/embedded/lib/ossl-modules/fips.so"
+      command "make", env: env
+      command "make install_fips", env: env
+      # ---------------- DO NOT MODIFY LINES ABOVE HERE ----------------
+    end
+
+
+    dest = if !windows_target? then "#{install_dir}/embedded" else "#{windows_safe_path(python_3_embedded)}" end
+    mkdir "#{dest}/ssl"
+    mkdir "#{dest}/lib/ossl-modules"
+    mkdir "#{dest}/bin"
+    if linux_target?
+      copy "/usr/local/lib*/ossl-modules/fips.so", "#{dest}/lib/ossl-modules/fips.so"
+    elsif windows_target?
+      copy "providers/fips.dll", "#{dest}/lib/ossl-modules/fips.dll"
+    end
 
     erb source: "openssl.cnf.erb",
-        dest: "#{install_dir}/embedded/ssl/openssl.cnf.tmp",
+        dest: "#{dest}/ssl/openssl.cnf.tmp",
         mode: 0644,
         vars: { install_dir: install_dir }
     erb source: "fipsinstall.sh.erb",
-        dest: "#{install_dir}/embedded/bin/fipsinstall.sh",
+        dest: "#{dest}/bin/fipsinstall.sh",
         mode: 0755,
         vars: { install_dir: install_dir }
 end

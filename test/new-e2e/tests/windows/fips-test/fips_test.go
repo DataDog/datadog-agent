@@ -9,6 +9,7 @@ package fipstest
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -91,6 +92,21 @@ func (s *fipsAgentSuite) TestWithSystemFIPSEnabled() {
 			require.NoError(s.T(), err)
 		})
 	})
+}
+
+func (s *fipsAgentSuite) TestFIPSProviderPresent() {
+	host := s.Env().RemoteHost
+	exists, _ := host.FileExists(path.Join(s.installPath, "embedded3/lib/ossl-modules/fips.dll"))
+	require.True(s.T(), exists, "Agent install path should contain the FIPS provider but doesn't")
+}
+
+func (s *fipsAgentSuite) TestFIPSInstall() {
+	host := s.Env().RemoteHost
+	openssl := path.Join(s.installPath, "embedded3/bin/openssl.exe")
+	fipsModule := path.Join(s.installPath, "embedded3/lib/ossl-modules/fips.dll")
+	cmd := fmt.Sprintf(`& "%s" fipsinstall -module "%s"`, openssl, fipsModule)
+	_, err := host.Execute(cmd)
+	require.NoError(s.T(), err)
 }
 
 func (s *fipsAgentSuite) execAgentCommand(command string, options ...client.ExecuteOption) (string, error) {
