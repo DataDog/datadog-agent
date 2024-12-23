@@ -36,11 +36,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
+	statutil "github.com/DataDog/datadog-agent/pkg/util/stat"
 )
 
 var (
@@ -120,7 +120,7 @@ type server struct {
 	sharedPacketPool        *packets.Pool
 	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
 	sharedFloat64List       *float64ListPool
-	Statistics              *util.Stats
+	Statistics              *statutil.Stats
 	Started                 bool
 	stopChan                chan bool
 	health                  *health.Handle
@@ -202,10 +202,10 @@ func newServer(deps dependencies) provides {
 func newServerCompat(cfg model.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
-	var stats *util.Stats
+	var stats *statutil.Stats
 	if cfg.GetBool("dogstatsd_stats_enable") {
 		buff := cfg.GetInt("dogstatsd_stats_buffer")
-		s, err := util.NewStats(uint32(buff))
+		s, err := statutil.NewStats(uint32(buff))
 		if err != nil {
 			log.Errorf("Dogstatsd: unable to start statistics facilities")
 		}
