@@ -1085,16 +1085,10 @@ replace (
 	// Maps to Trivy fork https://github.com/DataDog/trivy/commits/use-fs-main-dd/
 	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20241220173447-f7eb37266f2f
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
-// testcontainers-go has a bug with versions v0.25.0 and v0.26.0
-// ref: https://github.com/testcontainers/testcontainers-go/issues/1782
-// github.com/testcontainers/testcontainers-go => github.com/testcontainers/testcontainers-go v0.23.0
 )
 
 // Fixes CVE-2023-1732, imported by nikos
 replace github.com/cloudflare/circl => github.com/cloudflare/circl v1.3.7
-
-// Fixes CVE-2023-26054, imported by trivy
-// replace github.com/moby/buildkit => github.com/moby/buildkit v0.13.0
 
 // Exclude specific versions of knadh/koanf to fix building with a `go.work`, following
 // https://github.com/open-telemetry/opentelemetry-collector/issues/8127

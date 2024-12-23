@@ -8,6 +8,7 @@ package host
 import (
 	"os"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/sbom/types"
 )
 
@@ -25,8 +26,7 @@ func NewScanRequest(path string) types.ScanRequest {
 // NewHostScanRequest creates a new scan request for the root filesystem
 func NewHostScanRequest() types.ScanRequest {
 	scanPath := "/"
-	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
-		// if hostRoot := os.Getenv("HOST_ROOT"); env.IsContainerized() && hostRoot != "" {
+	if hostRoot := os.Getenv("HOST_ROOT"); env.IsContainerized() && hostRoot != "" {
 		scanPath = hostRoot
 	}
 	return NewScanRequest(scanPath)
