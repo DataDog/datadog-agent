@@ -152,6 +152,12 @@ type IntegrationConfigInstanceSpark struct {
 	StreamingMetrics bool   `yaml:"streaming_metrics"`
 }
 
+// IntegrationConfigInstanceYarn represents the configuration for the Yarn integration
+type IntegrationConfigInstanceYarn struct {
+	ResourceManagerURI string `yaml:"resourcemanager_uri"`
+	ClusterName        string `yaml:"cluster_name"`
+}
+
 // InjectTracerConfig represents the configuration to write in /etc/datadog-agent/inject/tracer.yaml
 type InjectTracerConfig struct {
 	Version                        int                        `yaml:"version,omitempty"`
