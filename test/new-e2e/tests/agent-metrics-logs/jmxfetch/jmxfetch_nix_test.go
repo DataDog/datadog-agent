@@ -150,6 +150,16 @@ func (j *jmxfetchNixTest) TestJMXListCollectedWithRateMetrics() {
 	}
 }
 
+func (j *jmxfetchNixTest) TestJMXFIPSMode() {
+	env, err := j.Env().Docker.Client.ExecuteCommandWithErr(j.Env().Agent.ContainerName, "env")
+	require.NoError(j.T(), err)
+	if j.fips {
+		assert.Contains(j.T(), env, "JAVA_TOOL_OPTIONS=--module-path")
+	} else {
+		assert.Contains(j.T(), env, "JAVA_TOOL_OPTIONS=\n")
+	}
+}
+
 func none[T any](_ T) error { return nil }
 
 func choice[T any](cond bool, then, otherwise T) T {
