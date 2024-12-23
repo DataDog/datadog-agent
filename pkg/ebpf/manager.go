@@ -115,7 +115,7 @@ func runModifiersOfType[K Modifier](modifiers []Modifier, funcName string, runne
 	for _, mod := range modifiers {
 		if as, ok := mod.(K); ok {
 			if err := runner(as); err != nil {
-				errs = errors.Join(errs, fmt.Errorf("error running %s manager modifier: %w", mod, err))
+				errs = errors.Join(errs, fmt.Errorf("error running %s manager modifier %s: %w", mod, funcName, err))
 			}
 		}
 	}
