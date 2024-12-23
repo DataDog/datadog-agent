@@ -147,7 +147,7 @@ func BenchmarkHTTPEventConsumer(b *testing.B) {
 			{Method: uint8(MethodGet), StatusCode: http.StatusOK, RequestFragment: []byte("GET / HTTP/1.1")},
 			{Method: uint8(MethodPost), StatusCode: http.StatusCreated, RequestFragment: []byte("POST /create HTTP/1.1")},
 		})},
-		{"DifferentEvents", 42000, 14, createHTTPEvents([]HTTPEventData{
+		{"MaxEventsCount", 3150000, 14, createHTTPEvents([]HTTPEventData{
 			{Method: uint8(MethodGet), StatusCode: http.StatusOK, RequestFragment: []byte("GET / HTTP/1.1")},
 			{Method: uint8(MethodDelete), StatusCode: http.StatusAccepted, RequestFragment: []byte("DELETE /delete HTTP/1.1")},
 		})},
