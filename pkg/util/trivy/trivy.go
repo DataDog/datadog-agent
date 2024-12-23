@@ -12,10 +12,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"runtime"
 	"sort"
-	"strings"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -25,13 +23,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
-	local "github.com/aquasecurity/trivy/pkg/fanal/artifact/container"
 	image2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/image"
 	local2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/local"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
@@ -227,107 +223,8 @@ func (c *Collector) getCache() (CacheWithCleaner, error) {
 	return c.persistentCache, nil
 }
 
-type fakeContainer struct {
-	imgMeta *workloadmeta.ContainerImageMetadata
-	layers  []string
-}
-
-func (c *fakeContainer) LayerByDiffID(hash string) (ftypes.LayerPath, error) {
-	imageLayers := c.layers
-	for i, layer := range imageLayers {
-		diffID, _ := v1.NewHash(layer)
-		if diffID.String() == hash {
-			return ftypes.LayerPath{
-				DiffID: diffID.String(),
-				Path:   c.layers[i],
-				Digest: c.imgMeta.Layers[i].Digest,
-			}, nil
-		}
-	}
-	return ftypes.LayerPath{}, errors.New("not found")
-}
-
-func (c *fakeContainer) LayerByDigest(hash string) (ftypes.LayerPath, error) {
-	imageLayers := c.layers
-	for i, layer := range imageLayers {
-		diffID, _ := v1.NewHash(layer)
-		if hash == c.imgMeta.Layers[i].Digest {
-			return ftypes.LayerPath{
-				DiffID: diffID.String(),
-				Path:   c.layers[i],
-				Digest: c.imgMeta.Layers[i].Digest,
-			}, nil
-		}
-	}
-	return ftypes.LayerPath{}, errors.New("not found")
-}
-
-func (c *fakeContainer) Layers() (layers []ftypes.LayerPath) {
-	imageLayers := c.layers
-	for i, layer := range imageLayers {
-		diffID, _ := v1.NewHash(layer)
-		layers = append(layers, ftypes.LayerPath{
-			DiffID: diffID.String(),
-			Path:   c.layers[i],
-			Digest: c.imgMeta.Layers[i].Digest,
-		})
-	}
-
-	return layers
-}
-
-type dirFS struct {
-	fs.StatFS
-}
-
-func (d *dirFS) Open(name string) (fs.File, error) {
-	return d.StatFS.Open(name)
-}
-
-func (d *dirFS) Stat(name string) (fs.FileInfo, error) {
-	if !strings.HasPrefix(name, "/") {
-		name = "/" + name
-	}
-	return d.StatFS.Stat(name)
-}
-
-func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftypes.Container, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	cache, err := c.getCache()
-	if err != nil {
-		return nil, err
-	}
-
-	containerArtifact, err := local.NewArtifact(ctr, cache, NewFSWalker(), getDefaultArtifactOption(scanOptions))
-	if err != nil {
-		return nil, err
-	}
-
-	log.Debugf("Generating SBOM for image %s using overlayfs %+v", imgMeta.ID, layers)
-
-	trivyReport, err := c.scan(ctx, containerArtifact, applier.NewApplier(cache), imgMeta, cache, false)
-	if err != nil {
-		if imgMeta != nil {
-			return nil, fmt.Errorf("unable to marshal report to sbom format for image %s, err: %w", imgMeta.ID, err)
-		}
-		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
-	}
-
-	log.Debugf("Found OS: %+v", trivyReport.Metadata.OS)
-	pkgCount := 0
-	for _, results := range trivyReport.Results {
-		pkgCount += len(results.Packages)
-	}
-	log.Debugf("Found %d packages", pkgCount)
-
-	return &Report{
-		Report:    trivyReport,
-		id:        imgMeta.ID,
-		marshaler: c.marshaler,
-	}, nil
-}
-
 // scanFilesystem scans the specified directory and logs detailed scan steps.
-func (c *Collector) scanFilesystem(ctx context.Context, fsys fs.FS, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	// For filesystem scans, it is required to walk the filesystem to get the persistentCache key so caching does not add any value.
 	// TODO: Cache directly the trivy report for container images
 	cache := newMemoryCache()
@@ -360,15 +257,15 @@ func (c *Collector) scanFilesystem(ctx context.Context, fsys fs.FS, path string,
 }
 
 // ScanFilesystem scans file-system
-func (c *Collector) ScanFilesystem(ctx context.Context, fsys fs.FS, path string, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	return c.scanFilesystem(ctx, fsys, path, nil, scanOptions)
+func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	return c.scanFilesystem(ctx, path, nil, scanOptions)
 }
 
 type driver struct {
 	applier applier.Applier
 }
 
-func (d *driver) Scan(ctx context.Context, target, artifactKey string, blobKeys []string, options types.ScanOptions) (
+func (d *driver) Scan(_ context.Context, target, artifactKey string, blobKeys []string, options types.ScanOptions) (
 	results types.Results, osFound ftypes.OS, err error) {
 
 	detail, err := d.applier.ApplyLayers(artifactKey, blobKeys)
@@ -405,7 +302,7 @@ func (d *driver) Scan(ctx context.Context, target, artifactKey string, blobKeys 
 	}
 
 	result := types.Result{
-		Target: fmt.Sprintf("%s (%s %s)", target, detail.OS, detail.OS.Name),
+		Target: fmt.Sprintf("%s (%s %s)", target, detail.OS.Family, detail.OS.Name),
 		Class:  types.ClassOSPkg,
 		Type:   scanTarget.OS.Family,
 	}
