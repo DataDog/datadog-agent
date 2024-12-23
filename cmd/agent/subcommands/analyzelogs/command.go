@@ -73,6 +73,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	// Add flag for core config (optional)
 	cmd.Flags().StringVarP(&cliParams.CoreConfigPath, "core-config", "C", defaultCoreConfigPath, "Path to the core configuration file (optional)")
+	// Add flag for inactivity timeout (optional)
+	cmd.Flags().IntVarP(&cliParams.inactivityTimeout, "inactivity-timeout", "t", 1, "Time (seconds) that the program will wait for new logs before exiting (optional)")
 
 	return []*cobra.Command{cmd}
 }
@@ -81,7 +83,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 	outputChan, launchers, pipelineProvider := runAnalyzeLogsHelper(cliParams, config)
 	// Set up an inactivity timeout
-	inactivityTimeout := 1 * time.Second
+	inactivityTimeout := time.Duration(cliParams.inactivityTimeout) * time.Second
 	idleTimer := time.NewTimer(inactivityTimeout)
 
 	for {
