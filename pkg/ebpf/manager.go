@@ -110,6 +110,18 @@ type ModifierAfterStop interface {
 	AfterStop(*manager.Manager, names.ModuleName, manager.MapCleanupType) error
 }
 
+func runModifiersOfType[K Modifier](modifiers []Modifier, funcName string, runner func(K) error) error {
+	var errs error
+	for _, mod := range modifiers {
+		if as, ok := mod.(K); ok {
+			if err := runner(as); err != nil {
+				errs = errors.Join(errs, fmt.Errorf("error running %s manager modifier: %w", mod, err))
+			}
+		}
+	}
+	return errs
+}
+
 // InitWithOptions is a wrapper around ebpf-manager.Manager.InitWithOptions
 func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) error {
 	// we must load the ELF file before initialization,
@@ -119,28 +131,20 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) e
 		return fmt.Errorf("failed to load elf from reader: %w", err)
 	}
 
-	for _, mod := range m.EnabledModifiers {
-		log.Tracef("Running %s manager modifier BeforeInit", mod)
-		if as, ok := mod.(ModifierBeforeInit); ok {
-			if err := as.BeforeInit(m.Manager, m.Name, opts); err != nil {
-				return fmt.Errorf("error running %s manager modifier: %w", mod, err)
-			}
-		}
+	err := runModifiersOfType(m.EnabledModifiers, "BeforeInit", func(mod ModifierBeforeInit) error {
+		return mod.BeforeInit(m.Manager, m.Name, opts)
+	})
+	if err != nil {
+		return err
 	}
 
 	if err := m.Manager.InitWithOptions(nil, *opts); err != nil {
 		return err
 	}
 
-	var errs error
-	for _, mod := range m.EnabledModifiers {
-		log.Tracef("Running %s manager modifier AfterInit", mod)
-		if as, ok := mod.(ModifierAfterInit); ok {
-			if err := as.AfterInit(m.Manager, m.Name, opts); err != nil {
-				errs = errors.Join(errs, fmt.Errorf("error running %s manager modifier: %w", mod, err))
-			}
-		}
-	}
+	err = runModifiersOfType(m.EnabledModifiers, "AfterInit", func(mod ModifierAfterInit) error {
+		return mod.AfterInit(m.Manager, m.Name, opts)
+	})
 
 	return errs
 }

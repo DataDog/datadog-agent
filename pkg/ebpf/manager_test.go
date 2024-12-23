@@ -24,8 +24,8 @@ type dummyModifier struct {
 const dummyModifierName = "DummyModifier"
 
 func (t *dummyModifier) String() string {
-	args := t.Called()
-	return args.String(0)
+	// Do not mock this method for simplicity, to avoid having to define it always
+	return dummyModifierName
 }
 
 func (t *dummyModifier) BeforeInit(m *manager.Manager, name names.ModuleName, opts *manager.Options) error {
