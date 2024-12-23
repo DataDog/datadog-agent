@@ -116,9 +116,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 		return nil, fmt.Errorf("failed to create org data request: %w", err)
 	}
 
-	c.headerLock.RLock()
-	req.Header = c.header
-	c.headerLock.Unlock()
+	c.addHeaders(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -165,9 +163,7 @@ func (c *HTTPClient) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, e
 		return nil, fmt.Errorf("failed to create org data request: %w", err)
 	}
 
-	c.headerLock.RLock()
-	req.Header = c.header
-	c.headerLock.Unlock()
+	c.addHeaders(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -205,9 +201,7 @@ func (c *HTTPClient) FetchOrgStatus(ctx context.Context) (*pbgo.OrgStatusRespons
 		return nil, fmt.Errorf("failed to create org data request: %w", err)
 	}
 
-	c.headerLock.RLock()
-	req.Header = c.header
-	c.headerLock.Unlock()
+	c.addHeaders(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -242,6 +236,14 @@ func (c *HTTPClient) UpdatePARJWT(jwt string) {
 	c.headerLock.Lock()
 	c.header.Set("DD-PAR-JWT", jwt)
 	c.headerLock.Unlock()
+}
+
+func (c *HTTPClient) addHeaders(req *http.Request) {
+	c.headerLock.RLock()
+	for k, v := range c.header {
+		req.Header[k] = v
+	}
+	c.headerLock.RUnlock()
 }
 
 func checkStatusCode(resp *http.Response) error {
