@@ -2654,8 +2654,8 @@ func (s *TracerSuite) TestTLSClassification() {
 				return port, scenario
 			},
 			validation: func(t *testing.T, tr *Tracer, port uint16, scenario uint16) {
-				require.Eventuallyf(t, func() bool {
-					return validateTLSTags(t, tr, port, scenario)
+				require.EventuallyWithT(t, func(ct *assert.CollectT) {
+					require.True(ct, validateTLSTags(ct, tr, port, scenario), "TLS tags not set")
 				}, 3*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", port)
 			},
 		})
@@ -2706,15 +2706,14 @@ func (s *TracerSuite) TestTLSClassification() {
 		},
 		validation: func(t *testing.T, tr *Tracer, port uint16, _ uint16) {
 			// Verify that no TLS tags are set for this connection
-			require.Eventually(t, func() bool {
-				payload := getConnections(t, tr)
+			require.EventuallyWithT(t, func(ct *assert.CollectT) {
+				payload := getConnections(ct, tr)
 				for _, c := range payload.Conns {
 					if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) {
 						t.Log("Unexpected TLS protocol detected for invalid handshake")
-						return false
+						require.Fail(ct, "unexpected TLS tags")
 					}
 				}
-				return true
 			}, 3*time.Second, 100*time.Millisecond)
 		},
 	})
@@ -2738,7 +2737,7 @@ func (s *TracerSuite) TestTLSClassification() {
 	}
 }
 
-func validateTLSTags(t *testing.T, tr *Tracer, port uint16, scenario uint16) bool {
+func validateTLSTags(t *assert.CollectT, tr *Tracer, port uint16, scenario uint16) bool {
 	payload := getConnections(t, tr)
 	for _, c := range payload.Conns {
 		if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) && !c.TLSTags.IsEmpty() {
@@ -2753,22 +2752,18 @@ func validateTLSTags(t *testing.T, tr *Tracer, port uint16, scenario uint16) boo
 				}
 			}
 			if !cipherSuiteTagFound {
-				t.Log("Cipher suite ID tag missing")
 				return false
 			}
 
 			// Check that the negotiated version tag is present
 			negotiatedVersionTag := ddtls.VersionTags[scenario]
 			if _, ok := tlsTags[negotiatedVersionTag]; !ok {
-				t.Logf("Negotiated version tag '%s' not found", negotiatedVersionTag)
 				return false
 			}
 
 			// Check that the client offered version tag is present
 			clientVersionTag := ddtls.ClientVersionTags[scenario]
 			if _, ok := tlsTags[clientVersionTag]; !ok {
-				t.Log(tlsTags)
-				t.Logf("Client offered version tag '%s' not found", clientVersionTag)
 				return false
 			}
 
@@ -2779,7 +2774,6 @@ func validateTLSTags(t *testing.T, tr *Tracer, port uint16, scenario uint16) boo
 				}
 				for _, tag := range expectedClientVersions {
 					if _, ok := tlsTags[tag]; !ok {
-						t.Logf("Expected client offered version tag '%s' not found", tag)
 						return false
 					}
 				}

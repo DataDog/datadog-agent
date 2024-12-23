@@ -118,7 +118,7 @@ static __always_inline void set_tls_offered_version(tls_info_t *tls_info, __u16 
 // read_tls_record_header reads the TLS record header from the packet
 // Reference: RFC 5246 Section 6.2.1 (Record Layer), https://tools.ietf.org/html/rfc5246#section-6.2.1
 // Validates the record header fields (content_type, version, length) and checks for correctness within packet bounds.
-static __always_inline bool read_tls_record_header(struct __sk_buff *skb, __u64 header_offset, __u32 data_end, tls_record_header_t *tls_hdr) {
+static __always_inline bool read_tls_record_header(struct __sk_buff *skb, __u32 header_offset, __u32 data_end, tls_record_header_t *tls_hdr) {
     // Ensure there's enough space for TLS record header
     if (header_offset + sizeof(tls_record_header_t) > data_end) {
         return false;
@@ -156,12 +156,12 @@ static __always_inline bool read_tls_record_header(struct __sk_buff *skb, __u64 
 // is_valid_tls_handshake checks if the TLS handshake message is valid
 // The function expects the record to have already been validated. It further checks that the
 // handshake_type and handshake_length are consistent.
-static __always_inline bool is_valid_tls_handshake(struct __sk_buff *skb, __u64 header_offset, __u32 data_end, const tls_record_header_t *hdr) {
+static __always_inline bool is_valid_tls_handshake(struct __sk_buff *skb, __u32 header_offset, __u32 data_end, const tls_record_header_t *hdr) {
     // At this point, we know from read_tls_record_header() that:
     // - hdr->version is a valid TLS version
     // - hdr->length fits entirely within the packet (header_offset + hdr->length <= data_end)
 
-    __u64 handshake_offset = header_offset + sizeof(tls_record_header_t);
+    __u32 handshake_offset = header_offset + sizeof(tls_record_header_t);
 
     // Ensure we don't read beyond the packet
     if (handshake_offset + SINGLE_BYTE_LENGTH > data_end) {
@@ -174,7 +174,7 @@ static __always_inline bool is_valid_tls_handshake(struct __sk_buff *skb, __u64 
     }
 
     // Read handshake_length (3 bytes)
-    __u64 length_offset = handshake_offset + SINGLE_BYTE_LENGTH;
+    __u32 length_offset = handshake_offset + SINGLE_BYTE_LENGTH;
     if (length_offset + TLS_HANDSHAKE_LENGTH > data_end) {
         return false;
     }
@@ -210,7 +210,7 @@ static __always_inline bool is_valid_tls_handshake(struct __sk_buff *skb, __u64 
 // is_tls checks if the packet is a TLS packet by reading and validating the TLS record header
 // Reference: RFC 5246 Section 6.2.1 (Record Layer), https://tools.ietf.org/html/rfc5246#section-6.2.1
 // Validates that content_type matches known TLS types (Handshake, Application Data, etc.).
-static __always_inline bool is_tls(struct __sk_buff *skb, __u64 header_offset, __u32 data_end, tls_record_header_t *tls_hdr) {
+static __always_inline bool is_tls(struct __sk_buff *skb, __u32 header_offset, __u32 data_end, tls_record_header_t *tls_hdr) {
     // Read and validate the TLS record header
     if (!read_tls_record_header(skb, header_offset, data_end, tls_hdr)) {
         return false;
@@ -305,7 +305,7 @@ static __always_inline bool skip_random_and_session_id(struct __sk_buff *skb, __
 //   +---------------------+
 //   | selected_version(2) |
 //   +---------------------+
-static __always_inline bool parse_supported_versions_extension(struct __sk_buff *skb, __u32 *offset, __u32 data_end, __u64 extensions_end, tls_info_t *tags, bool is_client_hello) {
+static __always_inline bool parse_supported_versions_extension(struct __sk_buff *skb, __u32 *offset, __u32 data_end, __u32 extensions_end, tls_info_t *tags, bool is_client_hello) {
     if (is_client_hello) {
         // Read supported version list length (1 byte)
         if (*offset + SINGLE_BYTE_LENGTH > data_end || *offset + SINGLE_BYTE_LENGTH > extensions_end) {
@@ -375,7 +375,7 @@ static __always_inline bool parse_supported_versions_extension(struct __sk_buff 
 //   | ext_type(2) | ext_length(2) | ext_data(ext_length) |
 //   +---------+---------+--------------------------------+
 // For multiple extensions, they are just concatenated one after another.
-static __always_inline bool parse_tls_extensions(struct __sk_buff *skb, __u32 *offset, __u32 data_end, __u64 extensions_end, tls_info_t *tags, bool is_client_hello) {
+static __always_inline bool parse_tls_extensions(struct __sk_buff *skb, __u32 *offset, __u32 data_end, __u32 extensions_end, tls_info_t *tags, bool is_client_hello) {
     __u16 extension_type;
     __u16 extension_length;
 
@@ -506,7 +506,7 @@ static __always_inline bool parse_client_hello(struct __sk_buff *skb, __u32 offs
         return false;
     }
 
-    __u64 extensions_end = offset + extensions_length;
+    __u32 extensions_end = offset + extensions_length;
 
     return parse_tls_extensions(skb, &offset, data_end, extensions_end, tags, true);
 }
@@ -582,12 +582,12 @@ static __always_inline bool parse_server_hello(struct __sk_buff *skb, __u32 offs
     extensions_length = bpf_ntohs(extensions_length);
     offset += EXTENSION_LENGTH_FIELD;
 
-    __u64 handshake_end = offset + handshake_length;
+    __u32 handshake_end = offset + handshake_length;
     if (offset + extensions_length > data_end || offset + extensions_length > handshake_end) {
         return false;
     }
 
-    __u64 extensions_end = offset + extensions_length;
+    __u32 extensions_end = offset + extensions_length;
 
     return parse_tls_extensions(skb, &offset, data_end, extensions_end, tags, false);
 }
