@@ -266,21 +266,28 @@ func buildKeysForMetricsPreviousValues(mt dto.MetricType, metricName string, met
 		var keyName string
 		tags := m.GetLabel()
 		if len(tags) == 0 {
-			// start with the metric name
+			// For "tagless" MetricFamily, len(metrics) will be 1, with single iteration and m.GetLabel()
+			// will be nil. Accordingly, to form a key for that metric its name alone is sufficient.
 			keyName = metricName
 		} else {
+			//If the metric has tags, len(metrics) will be equal to the number of metric's timeseries.
+			// Each timeseries or "m" on each iteration in this code, will contain a set of unique
+			// tagset (as m.GetLabel()). Accordingly, each timeseries should be represented by a unique
+			// and stable (reproducible) key formed by tagset key names and values.
 			keyName = fmt.Sprintf("%s%s:", metricName, convertLabelsToKey(tags))
 		}
 
-		// Add bucket names to the key
 		if mt == dto.MetricType_HISTOGRAM {
-			// add bucket names to the key
+			// On each iteration for metrics without tags (only 1 iteration) or with tags (iteration per
+			// timeseries). If the metric is a HISTOGRAM, each timeseries bucket individually plus
+			// implicit "+Inf" bucket. For example, for 3 timeseries with 4-bucket histogram, we will
+			// track 15 values using 15 keys (3x(4+1)).
 			for _, bucket := range m.Histogram.GetBucket() {
 				keyNames = append(keyNames, fmt.Sprintf("%v:%v", keyName, bucket.GetUpperBound()))
 			}
 		}
 
-		// For regular metric (and for HISTOGRAM +Inf bucket which follows the last bucket)
+		// Add the key for Counter, Gauge metric and HISTOGRAM's +Inf bucket
 		keyNames = append(keyNames, keyName)
 	}
 
