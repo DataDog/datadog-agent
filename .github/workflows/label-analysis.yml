@@ -154,7 +154,7 @@ jobs:
           cache: 'pip'
           cache-dependency-path: '**/requirements*.txt'
       - name: Install dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt
+        run: pip install -r requirements.txt -r tasks/requirements.txt --break-system-packages
       - name: Ask for code reviews
         env:
           SLACK_API_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}

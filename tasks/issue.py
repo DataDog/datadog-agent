@@ -1,4 +1,5 @@
 import os
+import random
 
 from invoke import task
 
@@ -82,7 +83,6 @@ def ask_reviews(_, pr_id):
     pr = gh.repo.get_pull(int(pr_id))
     if any(label.name == 'ask-review' for label in pr.get_labels()):
         reviewers = [f"@datadog/{team.slug}" for team in pr.requested_teams]
-        import random
 
         from slack_sdk import WebClient
 
@@ -95,4 +95,8 @@ def ask_reviews(_, pr_id):
             message = f'Hello :{random.choice(WAVES)}:! Can you please review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
             if channel == '#agent-devx-help':
                 message = f'Hello :{random.choice(WAVES)}:!\nA review channel is missing for {reviewer}, can you please ask them to update `github_slack_review_map.yaml` and transfer them this review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
-            client.chat_postMessage(channel=channel, text=message)
+            try:
+                client.chat_postMessage(channel=channel, text=message)
+            except Exception as e:
+                message = f"An error occurred while sending a review message for PR <{pr.html_url}/s|{pr.title}> to channel {channel}. Error: {e}"
+                client.chat_postMessage(channel='#agent-devx-ops', text=message)

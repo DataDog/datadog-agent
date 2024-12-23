@@ -1,4 +1,5 @@
 # This file contains a mapping of DataDog Github teams to slack channels for reviews.
+# It was created until we find a good solution to get information directly from https://github.com/DataDog/web-ui/blob/preprod/packages/lib/teams/teams-config.ts
 # The DEFAULT_SLACK_CHANNEL value is interpreted as '#agent-devx-ops'.
 # Note that the values must be quoted if they contain a '#' symbol, because
 # YAML interprets that as the beginning of a comment. Keys must also be quoted
@@ -45,4 +46,3 @@
 '@datadog/agent-devx-loops': '#agent-devx-loops-reviews'
 '@datadog/apm-onboarding': '#apm-onboarding'
 '@datadog/apm-ecosystems-performance': '#apm-benchmarking-platform'
-'@DataDog/container-ecosystems': '#container-ecosystems'
