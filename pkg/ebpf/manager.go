@@ -73,8 +73,8 @@ type Modifier interface {
 	fmt.Stringer
 }
 
-// modifierBeforeInit is a sub-interface of Modifier that exposes a BeforeInit method
-type modifierBeforeInit interface {
+// ModifierBeforeInit is a sub-interface of Modifier that exposes a BeforeInit method
+type ModifierBeforeInit interface {
 	Modifier
 
 	// BeforeInit is called before the ebpf.Manager.InitWithOptions call
@@ -83,16 +83,16 @@ type modifierBeforeInit interface {
 	BeforeInit(*manager.Manager, names.ModuleName, *manager.Options) error
 }
 
-// modifierAfterInit is a sub-interface of Modifier that exposes an AfterInit method
-type modifierAfterInit interface {
+// ModifierAfterInit is a sub-interface of Modifier that exposes an AfterInit method
+type ModifierAfterInit interface {
 	Modifier
 
 	// AfterInit is called after the ebpf.Manager.InitWithOptions call
 	AfterInit(*manager.Manager, names.ModuleName, *manager.Options) error
 }
 
-// modifierBeforeStop is a sub-interface of Modifier that exposes a BeforeStop method
-type modifierBeforeStop interface {
+// ModifierBeforeStop is a sub-interface of Modifier that exposes a BeforeStop method
+type ModifierBeforeStop interface {
 	Modifier
 
 	// BeforeStop is called before the ebpf.Manager.Stop call. An error returned
@@ -101,8 +101,8 @@ type modifierBeforeStop interface {
 	BeforeStop(*manager.Manager, names.ModuleName, manager.MapCleanupType) error
 }
 
-// modifierAfterStop is a sub-interface of Modifier that exposes an AfterStop method
-type modifierAfterStop interface {
+// ModifierAfterStop is a sub-interface of Modifier that exposes an AfterStop method
+type ModifierAfterStop interface {
 	Modifier
 
 	// AfterStop is called after the ebpf.Manager.Stop call. An error returned
@@ -121,7 +121,7 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) e
 
 	for _, mod := range m.EnabledModifiers {
 		log.Tracef("Running %s manager modifier BeforeInit", mod)
-		if as, ok := mod.(modifierBeforeInit); ok {
+		if as, ok := mod.(ModifierBeforeInit); ok {
 			if err := as.BeforeInit(m.Manager, m.Name, opts); err != nil {
 				return fmt.Errorf("error running %s manager modifier: %w", mod, err)
 			}
@@ -135,7 +135,7 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) e
 	var errs error
 	for _, mod := range m.EnabledModifiers {
 		log.Tracef("Running %s manager modifier AfterInit", mod)
-		if as, ok := mod.(modifierAfterInit); ok {
+		if as, ok := mod.(ModifierAfterInit); ok {
 			if err := as.AfterInit(m.Manager, m.Name, opts); err != nil {
 				errs = errors.Join(errs, fmt.Errorf("error running %s manager modifier: %w", mod, err))
 			}
@@ -151,7 +151,7 @@ func (m *Manager) Stop(cleanupType manager.MapCleanupType) error {
 
 	for _, mod := range m.EnabledModifiers {
 		log.Tracef("Running %s manager modifier BeforeStop", mod)
-		if as, ok := mod.(modifierBeforeStop); ok {
+		if as, ok := mod.(ModifierBeforeStop); ok {
 			if err := as.BeforeStop(m.Manager, m.Name, cleanupType); err != nil {
 				errs = errors.Join(errs, fmt.Errorf("error running %s manager modifier BeforeStop(): %s", mod, err))
 			}
@@ -164,7 +164,7 @@ func (m *Manager) Stop(cleanupType manager.MapCleanupType) error {
 
 	for _, mod := range m.EnabledModifiers {
 		log.Tracef("Running %s manager modifier AfterStop", mod)
-		if as, ok := mod.(modifierAfterStop); ok {
+		if as, ok := mod.(ModifierAfterStop); ok {
 			if err := as.AfterStop(m.Manager, m.Name, cleanupType); err != nil {
 				errs = errors.Join(errs, fmt.Errorf("error running %s manager modifier AfterStop(): %s", mod, err))
 			}

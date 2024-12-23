@@ -9,29 +9,43 @@ package ebpf
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 )
 
-// PrintkPatcherModifier adds an InstructionPatcher to the manager that removes the newline character from log_debug calls if needed
 type dummyModifier struct {
+	mock.Mock
 }
 
 const dummyModifierName = "DummyModifier"
 
 func (t *dummyModifier) String() string {
-	return dummyModifierName
+	args := t.Called()
+	return args.String(0)
 }
 
-// BeforeInit adds the patchPrintkNewline function to the manager
-func (t *dummyModifier) BeforeInit(_ *manager.Manager, _ names.ModuleName, _ *manager.Options) error {
-	return nil
+func (t *dummyModifier) BeforeInit(m *manager.Manager, name names.ModuleName, opts *manager.Options) error {
+	args := t.Called(m, name, opts)
+	return args.Error(0)
 }
 
-// AfterInit is a no-op for this modifier
-func (t *dummyModifier) AfterInit(_ *manager.Manager, _ names.ModuleName, _ *manager.Options) error {
-	return nil
+func (t *dummyModifier) AfterInit(m *manager.Manager, name names.ModuleName, opts *manager.Options) error {
+	args := t.Called(m, name, opts)
+	return args.Error(0)
+}
+
+func (t *dummyModifier) BeforeStop(m *manager.Manager, name names.ModuleName, opts *manager.Options) error {
+	args := t.Called(m, name, opts)
+	return args.Error(0)
+}
+
+func (t *dummyModifier) AfterStop(m *manager.Manager, name names.ModuleName, opts *manager.Options) error {
+	args := t.Called(m, name, opts)
+	return args.Error(0)
 }
 
 func TestNewManagerWithDefault(t *testing.T) {
@@ -68,4 +82,32 @@ func TestNewManagerWithDefault(t *testing.T) {
 			assert.Equalf(t, tt.expectedModifierCount, len(target.EnabledModifiers), "Expected to have %v enabled modifiers ", tt.expectedModifierCount)
 		})
 	}
+}
+
+func TestManagerInitWithOptions(t *testing.T) {
+	modifier := &dummyModifier{}
+	modifier.On("BeforeInit").Return(nil)
+	modifier.On("AfterInit").Return(nil)
+
+	mgr := NewManager(&manager.Manager{}, "test", modifier)
+	require.NotNil(t, mgr)
+
+	err := mgr.InitWithOptions(nil, nil)
+	require.NoError(t, err)
+
+	modifier.AssertExpectations(t)
+}
+
+func TestManagerStop(t *testing.T) {
+	modifier := &dummyModifier{}
+	modifier.On("BeforeStop").Return(nil)
+	modifier.On("AfterStop").Return(nil)
+
+	mgr := NewManager(&manager.Manager{}, "test", modifier)
+	require.NotNil(t, mgr)
+
+	// The Stop call will fail because the manager is not initialized, but the modifiers should still be called
+	_ = mgr.Stop(manager.CleanAll)
+
+	modifier.AssertExpectations(t)
 }
