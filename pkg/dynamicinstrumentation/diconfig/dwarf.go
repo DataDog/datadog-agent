@@ -207,7 +207,7 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[st
 	if typeParsedAlready {
 		v.count++
 		if v.count > ditypes.MaxReferenceDepth {
-			return nil, nil
+			return &ditypes.Parameter{}, nil
 		}
 	} else {
 		seenTypes[typeHeader.Type] = &seenTypeCounter{
@@ -369,7 +369,7 @@ func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[s
 				newStructField.Type, newStructField.TotalSize, newStructField.Kind = getTypeEntryBasicInfo(typeEntry)
 				if typeEntry.Tag != dwarf.TagBaseType {
 					field, err := expandTypeData(typeEntry.Offset, dwarfData, seenTypes)
-					if err != nil {
+					if err != nil || field == nil {
 						return []*ditypes.Parameter{}, err
 					}
 					field.Name = newStructField.Name
