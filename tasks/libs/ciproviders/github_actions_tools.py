@@ -22,14 +22,15 @@ def trigger_buildenv_workflow(workflow_name="runner-bump.yml", github_action_ref
     if new_version is not None:
         inputs["new-version"] = new_version
 
-    workflow_id = str(uuid.uuid1())
-    inputs["id"] = workflow_id
+    #workflow_id = str(uuid.uuid1())
+    #inputs["id"] = workflow_id
 
     print(
-        "Creating workflow on datadog-agent-macos-build on commit {} with args:\n{}".format(  # noqa: FS002
+        "Creating workflow on buildenv on commit {} with args:\n{}".format(  # noqa: FS002
             github_action_ref, "\n".join([f"  - {k}: {inputs[k]}" for k in inputs])
         )
     )
+
     # Hack: get current time to only fetch workflows that started after now
     now = datetime.utcnow()
 
@@ -37,35 +38,22 @@ def trigger_buildenv_workflow(workflow_name="runner-bump.yml", github_action_ref
     result = gh.trigger_workflow(workflow_name, github_action_ref, inputs)
 
     if not result:
-        print("Couldn't trigger workflow run.")
+        print(f"Couldn't trigger workfglow run. result={result}")
         raise Exit(code=1)
 
-    might_be_waiting = set()
-
-    MAX_RETRIES = 30  # Retry for up to 5 minutes
-    for j in range(MAX_RETRIES):
-        print(f"Fetching triggered workflow (try {j + 1}/{MAX_RETRIES})")
+    recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
+    MAX_RETRY = 10
+    while not recent_runs and MAX_RETRY > 0:
+        MAX_RETRY -= 1
+        sleep(3)
         recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
-        for recent_run in recent_runs:
-            jobs = recent_run.jobs()
-            if jobs.totalCount >= 2:
-                if recent_run.id in might_be_waiting:
-                    might_be_waiting.remove(recent_run.id)
-                for job in jobs:
-                    if any(step.name == workflow_id for step in job.steps):
-                        return recent_run
-            else:
-                might_be_waiting.add(recent_run.id)
-                print(f"{might_be_waiting} workflows are waiting for jobs to popup...")
-                sleep(5)
-        sleep(10)
-    if len(might_be_waiting) != 0:
-        print(f"Couldn't find a workflow with expected jobs, and {might_be_waiting} are workflows with no jobs")
-        sleep(1800)
 
-    # Something went wrong :(
-    print("Couldn't fetch workflow run that was triggered.")
-    raise Exit(code=1)
+    if not recent_runs:
+        print("Couldn't get the run workflow")
+        raise Exit(code=1)
+
+    return recent_runs[0]
+
 
 
 def trigger_macos_workflow(
@@ -184,7 +172,7 @@ def trigger_macos_workflow(
     raise Exit(code=1)
 
 
-def follow_workflow_run(run, repository="DataDog/datadog-agent-macos-build"):
+def follow_workflow_run(run, repository="DataDog/datadog-agent-macos-build", inbetween_query_sleeptime=5):
     """
     Follow the workflow run until completion and return its conclusion.
     """
@@ -196,7 +184,7 @@ def follow_workflow_run(run, repository="DataDog/datadog-agent-macos-build"):
     minutes = 0
     failures = 0
     # Wait time (in minutes) between two queries of the workflow status
-    interval = 5
+    interval = inbetween_query_sleeptime
     MAX_FAILURES = 5
     while True:
         # Do not fail outright for temporary failures
@@ -295,7 +283,7 @@ def parse_log_file(log_file):
                 return lines[line_number:]
 
 
-def download_artifacts(run, destination="."):
+def download_artifacts(run, destination=".", repository="DataDog/datadog-agent-macos-build"):
     """
     Download all artifacts for a given job in the specified location.
     """
@@ -309,7 +297,7 @@ def download_artifacts(run, destination="."):
 
     # Create temp directory to store the artifact zips
     with tempfile.TemporaryDirectory() as tmpdir:
-        workflow = GithubAPI('DataDog/datadog-agent-macos-build')
+        workflow = GithubAPI(repository)
         for artifact in run_artifacts:
             # Download artifact
             print("Downloading artifact: ", artifact)
@@ -335,14 +323,14 @@ def download_logs(run, destination="."):
             zip_ref.extractall(destination)
 
 
-def download_with_retry(download_function, run, destination=".", retry_count=3, retry_interval=10):
+def download_with_retry(download_function, run, destination=".", retry_count=3, retry_interval=10, repository="DataDog/datadog-agent-macos-build"):
     import requests
 
     retry = retry_count
 
     while retry > 0:
         try:
-            download_function(run, destination)
+            download_function(run, destination, repository)
             print(color_message(f"Download successful for run {run.id} to {destination}", "blue"))
             return
         except (requests.exceptions.RequestException, ConnectionError):

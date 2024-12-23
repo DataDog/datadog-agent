@@ -56,9 +56,17 @@ trigger_manual_prod_release:
       when: never
     - !reference [.on_deploy_stable_or_beta_manual_auto_on_stable]
 
+.setup_macos_github_app_for_runner_bump:
+  # GitHub App rate-limits are per-app. Since we are rarely calling the job, we are only using the instance 2
+  - |
+    GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_2 key_b64) || exit $?; export GITHUB_KEY_B64
+    GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_2 app_id) || exit $?; export GITHUB_APP_ID
+    GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_2 installation_id) || exit $?; export GITHUB_INSTALLATION_ID
+    echo "Using GitHub App instance 2"
+
 generate_windows_gitlab_runner_bump_pr:
   stage: trigger_release
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  extends: .slack-notifier
   needs: ["trigger_auto_staging_release"]
   tags: ["arch:amd64"]
   rules:
@@ -68,6 +76,7 @@ generate_windows_gitlab_runner_bump_pr:
       when: never
     - !reference [.on_deploy_always]
   script:
-    - !reference [.setup_macos_github_app]
+    - !reference [.setup_macos_github_app_for_runner_bump]
+    - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
     - inv -e github.trigger-buildenv "$CI_COMMIT_REF_NAME"
