@@ -7,6 +7,7 @@ package tcp
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -28,5 +29,22 @@ func TestDestinationHA(t *testing.T) {
 		isDestMRF := dest.IsMRF()
 
 		assert.Equal(t, isEndpointMRF, isDestMRF)
+	}
+}
+
+// TestConnecitivityDiagnoseNoBlock ensures the connectivity diagnose doesn't block
+func TestConnecitivityDiagnoseNoBlock(t *testing.T) {
+	endpoint := config.NewEndpoint("00000000", "host", 0, true)
+	done := make(chan struct{})
+
+	go func() {
+		CheckConnectivityDiagnose(endpoint)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Error("TCP diagnosis check blocked for too long.")
 	}
 }

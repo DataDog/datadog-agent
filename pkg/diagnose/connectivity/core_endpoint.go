@@ -33,9 +33,6 @@ func getLogsEndpoints(useTCP bool) (*logsConfig.Endpoints, error) {
 	datadogConfig := pkgconfigsetup.Datadog()
 	logsConfigKey := logsConfig.NewLogsConfigKeys("logs_config.", datadogConfig)
 	if useTCP {
-		// if NOT USING US1 OR EU1 {
-		// 	return error
-		// }
 		return logsConfig.BuildEndpointsWithConfig(datadogConfig, logsConfigKey, "agent-http-intake.logs.", false, "logs", logsConfig.AgentJSONIntakeProtocol, logsConfig.DefaultIntakeOrigin)
 	}
 	return logsConfig.BuildHTTPEndpointsWithConfig(datadogConfig, logsConfigKey, "agent-http-intake.logs.", "logs", logsConfig.AgentJSONIntakeProtocol, logsConfig.DefaultIntakeOrigin)
