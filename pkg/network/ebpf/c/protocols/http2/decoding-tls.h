@@ -151,13 +151,13 @@ int uprobe__http2_tls_termination(struct pt_regs *ctx) {
 
     terminated_http2_batch_enqueue(&args->tup);
     // Deleting the entry for the original tuple.
-    bpf_map_delete_elem(&http2_remainder, &args->tup);
+    bpf_map_delete_elem(&http2_incomplete_frames, &args->tup);
     bpf_map_delete_elem(&http2_dynamic_counter_table, &args->tup);
     // In case of local host, the protocol will be deleted for both (client->server) and (server->client),
     // so we won't reach for that path again in the code, so we're deleting the opposite side as well.
     flip_tuple(&args->tup);
     bpf_map_delete_elem(&http2_dynamic_counter_table, &args->tup);
-    bpf_map_delete_elem(&http2_remainder, &args->tup);
+    bpf_map_delete_elem(&http2_incomplete_frames, &args->tup);
 
     return 0;
 }
