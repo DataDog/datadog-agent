@@ -20,7 +20,7 @@ permissions: {}
 
 jobs:
   generate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
@@ -73,7 +73,7 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Install go
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
         with:
           go-version-file: '.go-version'
 
@@ -104,7 +104,7 @@ jobs:
 
   combine:
     needs: generate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
       pull-requests: write
@@ -122,7 +122,7 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Install go
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
         with:
           go-version-file: '.go-version'
 
