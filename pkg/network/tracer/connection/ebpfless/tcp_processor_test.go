@@ -8,9 +8,11 @@
 package ebpfless
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"net"
 	"syscall"
 	"testing"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -107,16 +109,16 @@ func makeTCPStates(synPkt testCapture) *network.ConnectionStats {
 	}
 	return &network.ConnectionStats{
 		ConnectionTuple: network.ConnectionTuple{
-			Source: util.AddressFromNetIP(srcIP),
-			Dest:   util.AddressFromNetIP(dstIP),
-			Pid:    0, // packet capture does not have PID information.
-			NetNS:  defaultNsID,
-			SPort:  uint16(synPkt.tcp.SrcPort),
-			DPort:  uint16(synPkt.tcp.DstPort),
-			Type:   network.TCP,
-			Family: family,
+			Source:    util.AddressFromNetIP(srcIP),
+			Dest:      util.AddressFromNetIP(dstIP),
+			Pid:       0, // packet capture does not have PID information.
+			NetNS:     defaultNsID,
+			SPort:     uint16(synPkt.tcp.SrcPort),
+			DPort:     uint16(synPkt.tcp.DstPort),
+			Type:      network.TCP,
+			Family:    family,
+			Direction: direction,
 		},
-		Direction:   direction,
 		TCPFailures: make(map[uint16]uint32),
 	}
 }
@@ -166,19 +168,21 @@ func (pb packetBuilder) outgoing(payloadLen uint16, relSeq, relAck uint32, flags
 }
 
 func newTCPTestFixture(t *testing.T) *tcpTestFixture {
+	cfg := config.New()
 	return &tcpTestFixture{
 		t:    t,
-		tcp:  NewTCPProcessor(),
+		tcp:  NewTCPProcessor(cfg),
 		conn: nil,
 	}
 }
 
-func (fixture *tcpTestFixture) runPkt(pkt testCapture) {
+func (fixture *tcpTestFixture) runPkt(pkt testCapture) ProcessResult {
 	if fixture.conn == nil {
 		fixture.conn = makeTCPStates(pkt)
 	}
-	err := fixture.tcp.Process(fixture.conn, pkt.timestampNs, pkt.pktType, pkt.ipv4, pkt.ipv6, pkt.tcp)
+	result, err := fixture.tcp.Process(fixture.conn, pkt.timestampNs, pkt.pktType, pkt.ipv4, pkt.ipv6, pkt.tcp)
 	require.NoError(fixture.t, err)
+	return result
 }
 
 func (fixture *tcpTestFixture) runPkts(packets []testCapture) {
@@ -197,7 +201,7 @@ func (fixture *tcpTestFixture) runAgainstState(packets []testCapture, expected [
 
 		fixture.runPkt(pkt)
 		connTuple := fixture.conn.ConnectionTuple
-		actual := fixture.tcp.conns[connTuple].tcpState
+		actual := fixture.tcp.getConn(connTuple).tcpState
 		actualStrs = append(actualStrs, labelForState(actual))
 	}
 	require.Equal(fixture.t, expectedStrs, actualStrs)
@@ -255,6 +259,9 @@ func testBasicHandshake(t *testing.T, pb packetBuilder) {
 	}
 
 	require.Equal(t, expectedStats, f.conn.Monotonic)
+
+	require.Empty(t, f.tcp.pendingConns)
+	require.Empty(t, f.tcp.establishedConns)
 }
 
 var lowerSeq uint32 = 2134452051
@@ -322,6 +329,9 @@ func testReversedBasicHandshake(t *testing.T, pb packetBuilder) {
 		TCPClosed:      1,
 	}
 	require.Equal(t, expectedStats, f.conn.Monotonic)
+
+	require.Empty(t, f.tcp.pendingConns)
+	require.Empty(t, f.tcp.establishedConns)
 }
 
 func TestReversedBasicHandshake(t *testing.T) {
@@ -614,9 +624,8 @@ func TestConnReset(t *testing.T) {
 	require.Equal(t, expectedStats, f.conn.Monotonic)
 }
 
-func TestConnectTwice(t *testing.T) {
-	// same as TestImmediateFin but everything happens twice
-
+func TestProcessResult(t *testing.T) {
+	// same as TestImmediateFin but checks ProcessResult
 	pb := newPacketBuilder(lowerSeq, higherSeq)
 	basicHandshake := []testCapture{
 		pb.incoming(0, 0, 0, SYN),
@@ -628,40 +637,20 @@ func TestConnectTwice(t *testing.T) {
 		pb.outgoing(0, 2, 2, ACK),
 	}
 
-	expectedClientStates := []connStatus{
-		connStatAttempted,
-		connStatAttempted,
-		connStatEstablished,
-		// active close begins here
-		connStatEstablished,
-		connStatEstablished,
-		connStatClosed,
+	processResults := []ProcessResult{
+		ProcessResultNone,
+		ProcessResultNone,
+		ProcessResultStoreConn,
+		ProcessResultStoreConn,
+		ProcessResultStoreConn,
+		ProcessResultCloseConn,
 	}
 
 	f := newTCPTestFixture(t)
-	f.runAgainstState(basicHandshake, expectedClientStates)
 
-	state := f.tcp.conns[f.conn.ConnectionTuple]
-	// make sure the TCP state was erased after the connection was closed
-	require.Equal(t, connectionState{
-		tcpState: connStatClosed,
-	}, state)
-
-	// second connection here
-	f.runAgainstState(basicHandshake, expectedClientStates)
-
-	require.Empty(t, f.conn.TCPFailures)
-
-	expectedStats := network.StatCounters{
-		SentBytes:      0,
-		RecvBytes:      0,
-		SentPackets:    3 * 2,
-		RecvPackets:    3 * 2,
-		Retransmits:    0,
-		TCPEstablished: 1 * 2,
-		TCPClosed:      1 * 2,
+	for i, pkt := range basicHandshake {
+		require.Equal(t, processResults[i], f.runPkt(pkt), "packet #%d has the wrong ProcessResult", i)
 	}
-	require.Equal(t, expectedStats, f.conn.Monotonic)
 }
 
 func TestSimultaneousClose(t *testing.T) {
@@ -803,4 +792,26 @@ func TestPreexistingConn(t *testing.T) {
 		TCPClosed:      1,
 	}
 	require.Equal(t, expectedStats, f.conn.Monotonic)
+}
+
+func TestPendingConnExpiry(t *testing.T) {
+	now := uint64(time.Now().UnixNano())
+
+	pb := newPacketBuilder(lowerSeq, higherSeq)
+	pkt := pb.outgoing(0, 0, 0, SYN)
+	pkt.timestampNs = now
+
+	f := newTCPTestFixture(t)
+
+	f.runPkt(pkt)
+	require.Len(t, f.tcp.pendingConns, 1)
+
+	// if no time has passed, should not remove the connection
+	f.tcp.CleanupExpiredPendingConns(now)
+	require.Len(t, f.tcp.pendingConns, 1)
+
+	// if too much time has passed, should remove the connection
+	tenSecNs := uint64((10 * time.Second).Nanoseconds())
+	f.tcp.CleanupExpiredPendingConns(now + tenSecNs)
+	require.Empty(t, f.tcp.pendingConns)
 }
