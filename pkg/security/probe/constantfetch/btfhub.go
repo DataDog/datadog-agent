@@ -84,7 +84,7 @@ func (f *BTFHubConstantFetcher) AppendSizeofRequest(id, _ string) {
 }
 
 // AppendOffsetofRequest appends an offset request
-func (f *BTFHubConstantFetcher) AppendOffsetofRequest(id, _, _ string) {
+func (f *BTFHubConstantFetcher) AppendOffsetofRequest(id, _ string, _ ...string) {
 	f.appendRequest(id)
 }
 
