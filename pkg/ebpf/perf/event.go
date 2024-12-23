@@ -437,12 +437,18 @@ func UpgradePerfBuffer(mgr *manager.Manager, mgrOpts *manager.Options, mapName s
 	})
 }
 
+// implement the CAS algorithm to atomically update a max value
 func updateMaxTelemetry(a *atomic.Uint64, val uint64) {
 	for {
 		oldVal := a.Load()
 		if val <= oldVal {
 			return
 		}
+		// if the value at a is not `oldVal`, then `CompareAndSwap` returns
+		// false indicating that the value of the atomic has changed between
+		// the above check and this invocation.
+		// In this case we retry the above test, to see if the value still needs
+		// to be updated.
 		if a.CompareAndSwap(oldVal, val) {
 			return
 		}
