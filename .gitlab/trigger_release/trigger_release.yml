@@ -56,6 +56,9 @@ trigger_manual_prod_release:
       when: never
     - !reference [.on_deploy_stable_or_beta_manual_auto_on_stable]
 
+include:
+  - https://gitlab-templates.ddbuild.io/slack-notifier/v3-sdm/template.yml
+
 .setup_macos_github_app_for_runner_bump:
   # GitHub App rate-limits are per-app. Since we are rarely calling the job, we are only using the instance 2
   - |
