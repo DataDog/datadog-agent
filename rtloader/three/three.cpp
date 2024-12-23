@@ -34,7 +34,6 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
 
 Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb)
     : RtLoader(memtrack_cb)
-    , _pythonExe(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
     , _pymallocPrev{ 0 }
@@ -73,20 +72,10 @@ void Three::initPythonHome(const char *pythonHome)
 
 void Three::initPythonExe(const char *python_exe)
 {
-    // Py_SetProgramName stores a pointer to the string we pass to it, so we must keep it in memory
-    wchar_t *oldPythonExe = _pythonExe;
-    _pythonExe = Py_DecodeLocale(python_exe, NULL);
-
-    Py_SetProgramName(_pythonExe);
-
-    // HACK: This extra internal API invocation is due to the workaround for an upstream bug on
-    // Windows (https://bugs.python.org/issue34725) where just using `Py_SetProgramName` is
-    // ineffective. The workaround API call will be removed at some point in the future (Python
-    // 3.12+) so we should convert this initialization to the new`PyConfig API`
-    // (https://docs.python.org/3.11/c-api/init_config.html#c.PyConfig) before then.
-    _Py_SetProgramFullPath(_pythonExe);
-
-    PyMem_RawFree((void *)oldPythonExe);
+    const auto status = PyConfig_SetBytesString(&_config, &_config.executable, python_exe);
+    if (PyStatus_Exception(status)) {
+        setError("Failed to set python executable");
+    }
 }
 
 bool Three::init()
