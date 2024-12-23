@@ -29,7 +29,7 @@
         return val > 0;                                                                                 \
     }                                                                                                   \
                                                                                                         \
-    static __always_inline void name##_batch_flush(struct pt_regs *ctx) {                               \
+    static __always_inline void name##_batch_flush_common(struct pt_regs *ctx, bool with_telemetry) {   \
         if (!is_##name##_monitoring_enabled()) {                                                        \
             return;                                                                                     \
         }                                                                                               \
@@ -55,11 +55,11 @@
                 }                                                                                       \
                                                                                                         \
                 if (use_ring_buffer) {                                                                  \
-                    perf_ret = bpf_ringbuf_output(                                       \
-                    &name##_batch_events,                                                               \
-                    batch,                                                                              \
-                    sizeof(batch_data_t),                                                               \
-                    0);                                                                                 \
+                    if (with_telemetry) {                                                               \
+                        perf_ret = bpf_ringbuf_output_with_telemetry(&name##_batch_events, batch, sizeof(batch_data_t), 0);\
+                    } else {                                                                            \
+                        perf_ret = bpf_ringbuf_output(&name##_batch_events, batch, sizeof(batch_data_t), 0);\
+                    }                                                                                   \
                 } else {                                                                                \
                     perf_ret = bpf_perf_event_output(ctx,                                               \
                                                      &name##_batch_events,                              \
@@ -82,53 +82,12 @@
             }                                                                                           \
     }                                                                                                   \
                                                                                                         \
+    static __always_inline void name##_batch_flush(struct pt_regs *ctx) {                               \
+        name##_batch_flush_common(ctx, false);                                                          \
+    }                                                                                                   \
+                                                                                                        \
     static __always_inline void name##_batch_flush_with_telemetry(struct pt_regs *ctx) {                \
-        if (!is_##name##_monitoring_enabled()) {                                                        \
-            return;                                                                                     \
-        }                                                                                               \
-        u32 zero = 0;                                                                                   \
-        batch_state_t *batch_state = bpf_map_lookup_elem(&name##_batch_state, &zero);                   \
-        if (!batch_state) {                                                                             \
-            /* batch is not ready to be flushed */                                                      \
-            return;                                                                                     \
-        }                                                                                               \
-                                                                                                        \
-        u64 use_ring_buffer;                                                                            \
-        LOAD_CONSTANT("use_ring_buffer", use_ring_buffer);                                              \
-        long perf_ret;                                                                                  \
-                                                                                                        \
-        _Pragma(_STR(unroll(BATCH_PAGES_PER_CPU)))                                                      \
-            for (int i = 0; i < BATCH_PAGES_PER_CPU; i++) {                                             \
-                if (batch_state->idx_to_flush == batch_state->idx) return;                              \
-                                                                                                        \
-                batch_key_t key = get_batch_key(batch_state->idx_to_flush);                             \
-                batch_data_t *batch = bpf_map_lookup_elem(&name##_batches, &key);                       \
-                if (!batch) {                                                                           \
-                    return;                                                                             \
-                }                                                                                       \
-                                                                                                        \
-                if (use_ring_buffer) {                                                                  \
-                    perf_ret = bpf_ringbuf_output_with_telemetry(&name##_batch_events, batch, sizeof(batch_data_t), 0);\
-                } else {                                                                                \
-                    perf_ret = bpf_perf_event_output(ctx,                                               \
-                                                     &name##_batch_events,                              \
-                                                     key.cpu,                                           \
-                                                     batch,                                             \
-                                                     sizeof(batch_data_t));                             \
-                }                                                                                       \
-                if (perf_ret < 0) {                                                                     \
-                    _LOG(name, "batch flush error: cpu: %d idx: %llu err: %ld",                         \
-                         key.cpu, batch->idx, perf_ret);                                                \
-                    batch->failed_flushes++;                                                            \
-                    return;                                                                             \
-                }                                                                                       \
-                                                                                                        \
-                _LOG(name, "batch flushed: cpu: %d idx: %llu", key.cpu, batch->idx);                    \
-                batch->dropped_events = 0;                                                              \
-                batch->failed_flushes = 0;                                                              \
-                batch->len = 0;                                                                         \
-                batch_state->idx_to_flush++;                                                            \
-            }                                                                                           \
+        name##_batch_flush_common(ctx, true);                                                           \
     }                                                                                                   \
                                                                                                         \
     static __always_inline void name##_batch_enqueue(value *event) {                                    \
