@@ -403,7 +403,7 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
 // The function is trying to read the remaining of a split frame header. We have the first part in
 // `frame_state->buf` (from the previous packet), and now we're trying to read the remaining (`frame_state->remainder`
 // bytes from the current packet).
-static __always_inline void pktbuf_fix_header_frame(pktbuf_t pkt, char *out, frame_header_remainder_t *frame_state) {
+static __always_inline void pktbuf_fix_header_frame(pktbuf_t pkt, char *out, incomplete_frame_t *frame_state) {
     bpf_memcpy(out, frame_state->buf, HTTP2_FRAME_HEADER_SIZE);
     // Verifier is unhappy with a single call to `bpf_skb_load_bytes` with a variable length (although checking boundaries)
     switch (frame_state->remainder) {
@@ -435,7 +435,7 @@ static __always_inline void pktbuf_fix_header_frame(pktbuf_t pkt, char *out, fra
     return;
 }
 
-static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, frame_header_remainder_t *frame_state, http2_frame_t *current_frame) {
+static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, incomplete_frame_t *frame_state, http2_frame_t *current_frame) {
     // Attempting to read the initial frame in the packet, or handling a state where there is no remainder and finishing reading the current frame.
     if (frame_state == NULL) {
         // Checking we have enough bytes in the packet to read a frame header.
@@ -625,7 +625,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
         return;
     }
 
-    frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_incomplete_frames, tup);
+    incomplete_frame_t *frame_state = bpf_map_lookup_elem(&http2_incomplete_frames, tup);
     bool has_valid_first_frame = pktbuf_get_first_frame(pkt, frame_state, &current_frame);
     // If we have a state and we consumed it, then delete it.
     if (frame_state != NULL && frame_state->remainder == 0) {
@@ -635,7 +635,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
     if (!has_valid_first_frame) {
         // Handling the case where we have a frame header remainder, and we couldn't read the frame header.
         if (pktbuf_data_offset(pkt) < pktbuf_data_end(pkt) && pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
-            frame_header_remainder_t new_frame_state = { 0 };
+            incomplete_frame_t new_frame_state = { 0 };
             new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (pktbuf_data_end(pkt) - pktbuf_data_offset(pkt));
             bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
         #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
@@ -659,7 +659,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
     pktbuf_advance(pkt, current_frame.length);
     // We're exceeding the packet boundaries, so we have a remainder.
     if (pktbuf_data_offset(pkt) > pktbuf_data_end(pkt)) {
-        frame_header_remainder_t new_frame_state = { 0 };
+        incomplete_frame_t new_frame_state = { 0 };
 
         // Saving the remainder.
         new_frame_state.remainder = pktbuf_data_offset(pkt) - pktbuf_data_end(pkt);
@@ -773,7 +773,7 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
         __sync_fetch_and_add(&http2_tel->exceeding_max_frames_to_filter, 1);
     }
 
-    frame_header_remainder_t new_frame_state = { 0 };
+    incomplete_frame_t new_frame_state = { 0 };
     if (pktbuf_data_offset(pkt) > pktbuf_data_end(pkt)) {
         // We have a remainder
         new_frame_state.remainder = pktbuf_data_offset(pkt) - pktbuf_data_end(pkt);
