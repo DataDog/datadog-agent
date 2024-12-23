@@ -121,11 +121,10 @@ func attributeAnyValFromString(s string) *pb.AttributeAnyValue {
 			Type:        pb.AttributeAnyValue_DOUBLE_VALUE,
 			DoubleValue: rfFloat,
 		}
-	} else {
-		return &pb.AttributeAnyValue{
-			Type:        pb.AttributeAnyValue_STRING_VALUE,
-			StringValue: s,
-		}
+	}
+	return &pb.AttributeAnyValue{
+		Type:        pb.AttributeAnyValue_STRING_VALUE,
+		StringValue: s,
 	}
 }
 

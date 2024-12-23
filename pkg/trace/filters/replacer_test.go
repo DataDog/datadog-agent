@@ -16,10 +16,8 @@ import (
 )
 
 func TestReplacer(t *testing.T) {
-	assert := assert.New(t)
-
-	t.Run("traces", func(_ *testing.T) {
-		for _, tt := range []struct {
+	t.Run("traces", func(tt *testing.T) {
+		for _, testCase := range []struct {
 			rules     [][3]string
 			got, want map[string]string
 		}{
@@ -63,28 +61,28 @@ func TestReplacer(t *testing.T) {
 				},
 			},
 		} {
-			rules := parseRulesFromString(tt.rules)
+			rules := parseRulesFromString(testCase.rules)
 			tr := NewReplacer(rules)
-			root := replaceFilterTestSpan(tt.got)
-			childSpan := replaceFilterTestSpan(tt.got)
+			root := replaceFilterTestSpan(testCase.got)
+			childSpan := replaceFilterTestSpan(testCase.got)
 			trace := pb.Trace{root, childSpan}
 			tr.Replace(trace)
-			for k, v := range tt.want {
+			for k, v := range testCase.want {
 				switch k {
 				case "resource.name":
 					// test that the filter applies to all spans, not only the root
-					assert.Equal(v, root.Resource)
-					assert.Equal(v, childSpan.Resource)
+					assert.Equal(tt, v, root.Resource)
+					assert.Equal(tt, v, childSpan.Resource)
 				default:
-					assert.Equal(v, root.Meta[k])
-					assert.Equal(v, childSpan.Meta[k])
+					assert.Equal(tt, v, root.Meta[k])
+					assert.Equal(tt, v, childSpan.Meta[k])
 				}
 			}
 		}
 	})
 
-	t.Run("stats", func(_ *testing.T) {
-		for _, tt := range []struct {
+	t.Run("stats", func(tt *testing.T) {
+		for _, testCase := range []struct {
 			rules     [][3]string
 			got, want *pb.ClientGroupedStats
 		}{
@@ -117,13 +115,13 @@ func TestReplacer(t *testing.T) {
 				},
 			},
 		} {
-			tr := NewReplacer(parseRulesFromString(tt.rules))
-			tr.ReplaceStatsGroup(tt.got)
-			assert.Equal(tt.got, tt.want)
+			tr := NewReplacer(parseRulesFromString(testCase.rules))
+			tr.ReplaceStatsGroup(testCase.got)
+			assert.Equal(tt, testCase.got, testCase.want)
 		}
 	})
 	t.Run("span events", func(tt *testing.T) {
-		for _, tt := range []struct {
+		for _, testCase := range []struct {
 			rules     [][3]string
 			got, want map[string]*pb.AttributeAnyValue
 		}{
@@ -174,13 +172,13 @@ func TestReplacer(t *testing.T) {
 				},
 			},
 		} {
-			rules := parseRulesFromString(tt.rules)
+			rules := parseRulesFromString(testCase.rules)
 			tr := NewReplacer(rules)
-			root := replaceFilterTestSpanEvent(tt.got)
+			root := replaceFilterTestSpanEvent(testCase.got)
 			trace := pb.Trace{root}
 			tr.Replace(trace)
-			for k, v := range tt.want {
-				assert.Equal(v, root.SpanEvents[0].Attributes[k])
+			for k, v := range testCase.want {
+				assert.Equal(tt, v, root.SpanEvents[0].Attributes[k])
 			}
 		}
 	})
