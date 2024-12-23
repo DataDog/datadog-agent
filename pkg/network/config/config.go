@@ -218,6 +218,9 @@ type Config struct {
 	// ClosedChannelSize specifies the size for closed channel for the tracer
 	ClosedChannelSize int
 
+	// ClosedBufferWakeupCount specifies the number of events that will buffer in a perf buffer before userspace is woken up.
+	ClosedBufferWakeupCount int
+
 	// ExcludedSourceConnections is a map of source connections to blacklist
 	ExcludedSourceConnections map[string][]string
 
@@ -288,6 +291,9 @@ type Config struct {
 	// EnableUSMEventStream enables USM to use the event stream instead
 	// of netlink for receiving process events.
 	EnableUSMEventStream bool
+
+	// CustomBatchingEnabled enables the use of custom batching for eBPF perf events with perf buffers
+	CustomBatchingEnabled bool
 }
 
 // New creates a config for the network tracer
@@ -318,8 +324,9 @@ func New() *Config {
 		MaxTrackedConnections:          uint32(cfg.GetInt64(sysconfig.FullKeyPath(spNS, "max_tracked_connections"))),
 		MaxClosedConnectionsBuffered:   uint32(cfg.GetInt64(sysconfig.FullKeyPath(spNS, "max_closed_connections_buffered"))),
 		MaxFailedConnectionsBuffered:   uint32(cfg.GetInt64(sysconfig.FullKeyPath(netNS, "max_failed_connections_buffered"))),
-		ClosedConnectionFlushThreshold: cfg.GetInt(sysconfig.FullKeyPath(spNS, "closed_connection_flush_threshold")),
-		ClosedChannelSize:              cfg.GetInt(sysconfig.FullKeyPath(spNS, "closed_channel_size")),
+		ClosedConnectionFlushThreshold: cfg.GetInt(sysconfig.FullKeyPath(netNS, "closed_connection_flush_threshold")),
+		ClosedChannelSize:              cfg.GetInt(sysconfig.FullKeyPath(netNS, "closed_channel_size")),
+		ClosedBufferWakeupCount:        cfg.GetInt(sysconfig.FullKeyPath(netNS, "closed_buffer_wakeup_count")),
 		MaxConnectionsStateBuffered:    cfg.GetInt(sysconfig.FullKeyPath(spNS, "max_connection_state_buffered")),
 		ClientStateExpiry:              2 * time.Minute,
 
@@ -334,6 +341,7 @@ func New() *Config {
 		ProtocolClassificationEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_protocol_classification")),
 
 		NPMRingbuffersEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ringbuffers")),
+		CustomBatchingEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_custom_batching")),
 
 		EnableHTTPMonitoring:       cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http_monitoring")),
 		EnableHTTP2Monitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http2_monitoring")),
