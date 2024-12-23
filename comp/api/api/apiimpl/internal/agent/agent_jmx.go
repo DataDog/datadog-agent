@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
-	"github.com/DataDog/datadog-agent/pkg/util"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -55,7 +54,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 		}
 
 		c := map[string]interface{}{}
-		c["init_config"] = util.GetJSONSerializableMap(rawInitConfig)
+		c["init_config"] = getJSONSerializableMap(rawInitConfig)
 		instances := []integration.JSONMap{}
 		for _, instance := range config.Instances {
 			var rawInstanceConfig integration.JSONMap
@@ -65,7 +64,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			instances = append(instances, util.GetJSONSerializableMap(rawInstanceConfig).(integration.JSONMap))
+			instances = append(instances, getJSONSerializableMap(rawInstanceConfig).(integration.JSONMap))
 		}
 
 		c["instances"] = instances
@@ -75,7 +74,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 	}
 	j["configs"] = configs
 	j["timestamp"] = time.Now().Unix()
-	jsonPayload, err := json.Marshal(util.GetJSONSerializableMap(j))
+	jsonPayload, err := json.Marshal(getJSONSerializableMap(j))
 	if err != nil {
 		log.Errorf("unable to parse JMX configuration: %s", err)
 		http.Error(w, err.Error(), 500)
@@ -97,4 +96,38 @@ func setJMXStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jmxStatus.SetStatus(status)
+}
+
+// getJSONSerializableMap returns a JSON serializable map from a raw map
+func getJSONSerializableMap(m interface{}) interface{} {
+	switch x := m.(type) {
+	// unbelievably I cannot collapse this into the next (identical) case
+	case map[interface{}]interface{}:
+		j := integration.JSONMap{}
+		for k, v := range x {
+			j[k.(string)] = getJSONSerializableMap(v)
+		}
+		return j
+	case integration.RawMap:
+		j := integration.JSONMap{}
+		for k, v := range x {
+			j[k.(string)] = getJSONSerializableMap(v)
+		}
+		return j
+	case integration.JSONMap:
+		j := integration.JSONMap{}
+		for k, v := range x {
+			j[k] = getJSONSerializableMap(v)
+		}
+		return j
+	case []interface{}:
+		j := make([]interface{}, len(x))
+
+		for i, v := range x {
+			j[i] = getJSONSerializableMap(v)
+		}
+		return j
+	}
+	return m
+
 }

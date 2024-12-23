@@ -17,7 +17,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -138,40 +137,6 @@ func HTTPHeaders() map[string]string {
 		"Content-Type": "application/x-www-form-urlencoded",
 		"Accept":       "text/html, */*",
 	}
-}
-
-// GetJSONSerializableMap returns a JSON serializable map from a raw map
-func GetJSONSerializableMap(m interface{}) interface{} {
-	switch x := m.(type) {
-	// unbelievably I cannot collapse this into the next (identical) case
-	case map[interface{}]interface{}:
-		j := integration.JSONMap{}
-		for k, v := range x {
-			j[k.(string)] = GetJSONSerializableMap(v)
-		}
-		return j
-	case integration.RawMap:
-		j := integration.JSONMap{}
-		for k, v := range x {
-			j[k.(string)] = GetJSONSerializableMap(v)
-		}
-		return j
-	case integration.JSONMap:
-		j := integration.JSONMap{}
-		for k, v := range x {
-			j[k] = GetJSONSerializableMap(v)
-		}
-		return j
-	case []interface{}:
-		j := make([]interface{}, len(x))
-
-		for i, v := range x {
-			j[i] = GetJSONSerializableMap(v)
-		}
-		return j
-	}
-	return m
-
 }
 
 // GetGoRoutinesDump returns the stack trace of every Go routine of a running Agent.
