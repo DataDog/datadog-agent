@@ -37,22 +37,22 @@ SCANNED_BINARIES = {
 # The below template contains the relative increase threshold for each package type
 PACKAGE_SIZE_TEMPLATE = {
     'amd64': {
-        'datadog-agent': {'deb': 140 * pow(10, 6)},
-        'datadog-iot-agent': {'deb': 10 * pow(10, 6)},
-        'datadog-dogstatsd': {'deb': 10 * pow(10, 6)},
-        'datadog-heroku-agent': {'deb': 70 * pow(10, 6)},
+        'datadog-agent': {'deb': int(140e6)},
+        'datadog-iot-agent': {'deb': int(10e6)},
+        'datadog-dogstatsd': {'deb': int(10e6)},
+        'datadog-heroku-agent': {'deb': int(70e6)},
     },
     'x86_64': {
-        'datadog-agent': {'rpm': 140 * pow(10, 6), 'suse': 140 * pow(10, 6)},
-        'datadog-iot-agent': {'rpm': 10 * pow(10, 6), 'suse': 10 * pow(10, 6)},
-        'datadog-dogstatsd': {'rpm': 10 * pow(10, 6), 'suse': 10 * pow(10, 6)},
+        'datadog-agent': {'rpm': int(140e6), 'suse': int(140e6)},
+        'datadog-iot-agent': {'rpm': int(10e6), 'suse': int(10e6)},
+        'datadog-dogstatsd': {'rpm': int(10e6), 'suse': int(10e6)},
     },
     'arm64': {
-        'datadog-agent': {'deb': 140 * pow(10, 6)},
-        'datadog-iot-agent': {'deb': 10 * pow(10, 6)},
-        'datadog-dogstatsd': {'deb': 10 * pow(10, 6)},
+        'datadog-agent': {'deb': int(140e6)},
+        'datadog-iot-agent': {'deb': int(10e6)},
+        'datadog-dogstatsd': {'deb': int(10e6)},
     },
-    'aarch64': {'datadog-agent': {'rpm': 140 * pow(10, 6)}, 'datadog-iot-agent': {'rpm': 10 * pow(10, 6)}},
+    'aarch64': {'datadog-agent': {'rpm': int(140e6)}, 'datadog-iot-agent': {'rpm': int(10e6)}},
 }
 
 
@@ -177,25 +177,11 @@ def compare(ctx, package_sizes, ancestor, pkg_size):
     return pkg_size
 
 
-def mb(value):
-    return f"{value / 1000000:.2f}MB"
-
-
 def _get_uncompressed_size(ctx, package, os_name):
     if os_name == 'deb':
-        return _get_deb_uncompressed_size(ctx, package)
+        return (
+            int(ctx.run(f'dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs', hide=True).stdout)
+            * 1024
+        )
     else:
-        return _get_rpm_uncompressed_size(ctx, package)
-
-
-def _get_deb_uncompressed_size(ctx, package):
-    # the size returned by dpkg is a number of bytes divided by 1024
-    # so we multiply it back to get the same unit as RPM or stat
-    return (
-        int(ctx.run(f'dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs', hide=True).stdout)
-        * 1024
-    )
-
-
-def _get_rpm_uncompressed_size(ctx, package):
-    return int(ctx.run(f'rpm -qip {package} | grep Size | cut -d : -f 2 | xargs', hide=True).stdout)
+        return int(ctx.run(f'rpm -qip {package} | grep Size | cut -d : -f 2 | xargs', hide=True).stdout)
