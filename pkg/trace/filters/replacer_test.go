@@ -122,6 +122,68 @@ func TestReplacer(t *testing.T) {
 			assert.Equal(tt.got, tt.want)
 		}
 	})
+	t.Run("span events", func(tt *testing.T) {
+		for _, tt := range []struct {
+			rules     [][3]string
+			got, want map[string]*pb.AttributeAnyValue
+		}{
+			{
+				rules: [][3]string{
+					{"http.url", "(token/)([^/]*)", "${1}?"},
+					{"http.url", "guid", "[REDACTED]"},
+					{"custom.tag", "(/foo/bar/).*", "${1}extra"},
+					{"a", "b", "c"},
+					{"some.num", "1", "one!"},
+					{"some.dbl", "42.1", "42.5"},
+				},
+				got: map[string]*pb.AttributeAnyValue{
+					"http.url": {
+						Type:        pb.AttributeAnyValue_STRING_VALUE,
+						StringValue: "some/guid/token/abcdef/abc",
+					},
+					"custom.tag": {
+						Type:        pb.AttributeAnyValue_STRING_VALUE,
+						StringValue: "/foo/bar/foo",
+					},
+					"some.num": {
+						Type:     pb.AttributeAnyValue_INT_VALUE,
+						IntValue: 1,
+					},
+					"some.dbl": {
+						Type:        pb.AttributeAnyValue_DOUBLE_VALUE,
+						DoubleValue: 42.1,
+					},
+				},
+				want: map[string]*pb.AttributeAnyValue{
+					"http.url": {
+						Type:        pb.AttributeAnyValue_STRING_VALUE,
+						StringValue: "some/[REDACTED]/token/?/abc",
+					},
+					"custom.tag": {
+						Type:        pb.AttributeAnyValue_STRING_VALUE,
+						StringValue: "/foo/bar/extra",
+					},
+					"some.num": {
+						Type:        pb.AttributeAnyValue_STRING_VALUE,
+						StringValue: "one!",
+					},
+					"some.dbl": {
+						Type:        pb.AttributeAnyValue_DOUBLE_VALUE,
+						DoubleValue: 42.5,
+					},
+				},
+			},
+		} {
+			rules := parseRulesFromString(tt.rules)
+			tr := NewReplacer(rules)
+			root := replaceFilterTestSpanEvent(tt.got)
+			trace := pb.Trace{root}
+			tr.Replace(trace)
+			for k, v := range tt.want {
+				assert.Equal(v, root.SpanEvents[0].Attributes[k])
+			}
+		}
+	})
 }
 
 func parseRulesFromString(rules [][3]string) []*config.ReplaceRule {
@@ -150,6 +212,18 @@ func replaceFilterTestSpan(tags map[string]string) *pb.Span {
 			span.Meta[k] = v
 		}
 	}
+	return span
+}
+
+// replaceFilterTestSpan creates a span with a span event with the provided attributes
+func replaceFilterTestSpanEvent(attributes map[string]*pb.AttributeAnyValue) *pb.Span {
+	span := &pb.Span{SpanEvents: []*pb.SpanEvent{
+		{
+			TimeUnixNano: 0,
+			Name:         "foo",
+			Attributes:   attributes,
+		},
+	}}
 	return span
 }
 
