@@ -159,10 +159,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.1
 	github.com/DataDog/datadog-go/v5 v5.6.0
-	github.com/DataDog/datadog-operator v1.11.0-rc.2
-	github.com/DataDog/ebpf-manager v0.7.4
+	github.com/DataDog/datadog-operator v0.7.1-0.20241219210556-f517775059d1
+	github.com/DataDog/ebpf-manager v0.7.6
 	github.com/DataDog/gopsutil v1.2.2
-	github.com/DataDog/nikos v1.12.8
+	github.com/DataDog/nikos v1.12.9
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.22.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.22.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.22.0
@@ -363,7 +363,7 @@ require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
-	github.com/ProtonMail/go-crypto v1.1.0-alpha.0
+	github.com/ProtonMail/go-crypto v1.1.3
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/agnivade/levenshtein v1.2.0 // indirect
 	github.com/aquasecurity/go-gem-version v0.0.0-20201115065557-8eed6fe000ce // indirect
@@ -508,7 +508,7 @@ require (
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/safchain/baloum v0.0.0-20241120122234-f22c9bd19f3b
 	github.com/saracen/walker v0.1.3 // indirect
-	github.com/sassoftware/go-rpmutils v0.3.0 // indirect
+	github.com/sassoftware/go-rpmutils v0.4.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.8.0 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
@@ -529,7 +529,7 @@ require (
 	github.com/twmb/franz-go/pkg/kadm v1.12.0
 	github.com/twmb/franz-go/pkg/kmsg v1.8.0
 	github.com/ugorji/go/codec v1.2.11 // indirect
-	github.com/ulikunitz/xz v0.5.11 // indirect
+	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/vbatts/tar-split v0.11.5 // indirect
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1
@@ -829,7 +829,7 @@ require (
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cheggaaa/pb/v3 v3.1.4 // indirect
 	github.com/chrusty/protoc-gen-jsonschema v0.0.0-20240212064413-73d5723042b8 // indirect
-	github.com/cloudflare/circl v1.3.7 // indirect
+	github.com/cloudflare/circl v1.3.8 // indirect
 	github.com/cncf/xds/go v0.0.0-20240905190251-b4127c9b8d78 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
