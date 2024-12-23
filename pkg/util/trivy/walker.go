@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -42,16 +43,23 @@ func NewFSWalker() *FSWalker {
 
 // Walk walks the filesystem rooted at root, calling fn for each unfiltered file.
 func (w *FSWalker) Walk(root string, opt walker.Option, fn walker.WalkFunc) error {
-	opt.SkipFiles = w.walker.BuildSkipPaths(root, opt.SkipFiles)
-	opt.SkipDirs = w.walker.BuildSkipPaths(root, opt.SkipDirs)
+	buildPaths := func(paths []string) []string {
+		buildPaths := make([]string, len(paths))
+		for i, path := range paths {
+			buildPaths[i] = root + path
+		}
+		return buildPaths
+	}
+	opt.SkipFiles = w.walker.BuildSkipPaths(root, buildPaths(opt.SkipFiles))
+	opt.SkipDirs = w.walker.BuildSkipPaths(root, buildPaths(opt.SkipDirs))
 	opt.SkipDirs = append(opt.SkipDirs, defaultSkipDirs...)
-	opt.OnlyDirs = w.walker.BuildSkipPaths(root, opt.OnlyDirs)
+	opt.OnlyDirs = w.walker.BuildSkipPaths(root, buildPaths(opt.OnlyDirs))
 
 	walkDirFunc := w.WalkDirFunc(root, fn, opt)
 	walkDirFunc = w.onError(walkDirFunc)
 
 	// Walk the filesystem
-	if err := filepath.WalkDir(root, walkDirFunc); err != nil {
+	if err := fs.WalkDir(os.DirFS(root), ".", walkDirFunc); err != nil {
 		return xerrors.Errorf("walk dir error: %w", err)
 	}
 
@@ -69,7 +77,10 @@ func (w *FSWalker) WalkDirFunc(root string, fn walker.WalkFunc, opt walker.Optio
 			return err
 		}
 
-		// For exported rootfs (e.g. images/alpine/etc/alpine-release)
+		if !strings.HasPrefix(filePath, "/") {
+			filePath = root + "/" + filePath
+		}
+
 		relPath, err := filepath.Rel(root, filePath)
 		if err != nil {
 			return xerrors.Errorf("filepath rel (%s): %w", relPath, err)
