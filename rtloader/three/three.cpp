@@ -106,6 +106,7 @@ bool Three::init()
         setError("Python not initialized");
         return false;
     }
+    PyConfig_Clear(&_config);
 
     // Set PYTHONPATH
     if (!_pythonPaths.empty()) {
