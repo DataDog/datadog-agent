@@ -22,8 +22,8 @@ def trigger_buildenv_workflow(workflow_name="runner-bump.yml", github_action_ref
     if new_version is not None:
         inputs["new-version"] = new_version
 
-    #workflow_id = str(uuid.uuid1())
-    #inputs["id"] = workflow_id
+    # workflow_id = str(uuid.uuid1())
+    # inputs["id"] = workflow_id
 
     print(
         "Creating workflow on buildenv on commit {} with args:\n{}".format(  # noqa: FS002
@@ -53,7 +53,6 @@ def trigger_buildenv_workflow(workflow_name="runner-bump.yml", github_action_ref
         raise Exit(code=1)
 
     return recent_runs[0]
-
 
 
 def trigger_macos_workflow(
@@ -323,7 +322,14 @@ def download_logs(run, destination="."):
             zip_ref.extractall(destination)
 
 
-def download_with_retry(download_function, run, destination=".", retry_count=3, retry_interval=10, repository="DataDog/datadog-agent-macos-build"):
+def download_with_retry(
+    download_function,
+    run,
+    destination=".",
+    retry_count=3,
+    retry_interval=10,
+    repository="DataDog/datadog-agent-macos-build",
+):
     import requests
 
     retry = retry_count
