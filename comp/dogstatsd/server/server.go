@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/sort"
 )
 
 var (
@@ -239,7 +240,7 @@ func newServerCompat(cfg model.Reader, log log.Component, capture replay.Compone
 	if staticTags := util.GetStaticTagsSlice(context.TODO(), cfg); staticTags != nil {
 		extraTags = append(extraTags, staticTags...)
 	}
-	util.SortUniqInPlace(extraTags)
+	sort.UniqInPlace(extraTags)
 
 	entityIDPrecedenceEnabled := cfg.GetBool("dogstatsd_entity_id_precedence")
 
