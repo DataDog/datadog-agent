@@ -62,7 +62,6 @@ func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMe
 		inspect: inspect,
 		history: configHistory(history),
 	}
-	img.Image = img
 
 	return img, cleanup, nil
 }

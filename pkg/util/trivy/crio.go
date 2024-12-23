@@ -74,7 +74,7 @@ func (c *Collector) ScanCRIOImageFromOverlayFS(ctx context.Context, imgMeta *wor
 		return nil, fmt.Errorf("failed to retrieve layer directories: %w", err)
 	}
 
-	var diffIDs []string
+	diffIDs := make([]string, 0, len(lowerDirs))
 	for _, dir := range lowerDirs {
 		diffIDs = append(diffIDs, "sha256:"+filepath.Base(filepath.Dir(dir)))
 	}
