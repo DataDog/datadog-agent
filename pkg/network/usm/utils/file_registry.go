@@ -13,7 +13,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
@@ -263,7 +262,7 @@ func (r *FileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
 
 // Log state of `FileRegistry`
 func (r *FileRegistry) Log() {
-	if log.ShouldLog(seelog.DebugLvl) {
+	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("file_registry summary: program=%s %s", r.telemetry.programName, r.telemetry.metricGroup.Summary())
 	}
 }

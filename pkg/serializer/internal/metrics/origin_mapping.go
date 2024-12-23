@@ -40,7 +40,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceContainerd,
 		metrics.MetricSourceCri,
 		metrics.MetricSourceDocker,
-		metrics.MetricSourceNtp,
+		metrics.MetricSourceNTP,
 		metrics.MetricSourceSystemd,
 		metrics.MetricSourceHelm,
 		metrics.MetricSourceKubeflow,
@@ -64,6 +64,9 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceDisk,
 		metrics.MetricSourceNetwork,
 		metrics.MetricSourceSnmp,
+		// Plugins and non-checks
+		metrics.MetricSourceCloudFoundry,
+		metrics.MetricSourceJenkins,
 		// Python Checks
 		metrics.MetricSourceZenohRouter,
 		metrics.MetricSourceZabbix,
@@ -148,6 +151,9 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceRay,
 		metrics.MetricSourceNvidiaTriton,
 		metrics.MetricSourceKarpenter,
+		metrics.MetricSourceKubeVirtAPI,
+		metrics.MetricSourceKubeVirtController,
+		metrics.MetricSourceKubeVirtHandler,
 		metrics.MetricSourceFluxcd,
 		metrics.MetricSourceEsxi,
 		metrics.MetricSourceDcgm,
@@ -301,6 +307,8 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceYarn,
 		metrics.MetricSourceZk,
 		metrics.MetricSourceAwsNeuron,
+		metrics.MetricSourceNvidiaNim,
+		metrics.MetricSourceQuarkus,
 		metrics.MetricSourceMilvus:
 		return 11 // integrationMetrics
 	default:
@@ -365,6 +373,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 36
 	case metrics.MetricSourceClickhouse:
 		return 37
+	case metrics.MetricSourceCloudFoundry:
+		return 440
 	case metrics.MetricSourceCloudFoundryAPI:
 		return 38
 	case metrics.MetricSourceCockroachdb:
@@ -463,6 +473,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 86
 	case metrics.MetricSourceJbossWildfly:
 		return 87
+	case metrics.MetricSourceJenkins:
+		return 436
 	case metrics.MetricSourceKafkaConsumer:
 		return 89
 	case metrics.MetricSourceKafka:
@@ -487,6 +499,12 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 98
 	case metrics.MetricSourceKubernetesState:
 		return 99
+	case metrics.MetricSourceKubeVirtAPI:
+		return 437
+	case metrics.MetricSourceKubeVirtController:
+		return 438
+	case metrics.MetricSourceKubeVirtHandler:
+		return 439
 	case metrics.MetricSourceKyototycoon:
 		return 100
 	case metrics.MetricSourceLighttpd:
@@ -651,7 +669,7 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 182
 	case metrics.MetricSourceDocker:
 		return 183
-	case metrics.MetricSourceNtp:
+	case metrics.MetricSourceNTP:
 		return 184
 	case metrics.MetricSourceSystemd:
 		return 185
@@ -883,6 +901,10 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 419
 	case metrics.MetricSourceMilvus:
 		return 425
+	case metrics.MetricSourceNvidiaNim:
+		return 426
+	case metrics.MetricSourceQuarkus:
+		return 427
 	default:
 		return 0
 	}

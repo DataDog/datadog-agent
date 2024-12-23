@@ -214,7 +214,7 @@ func getExpVar(fb flaretypes.FlareBuilder) error {
 
 	apmDebugPort := pkgconfigsetup.Datadog().GetInt("apm_config.debug.port")
 	f := filepath.Join("expvar", "trace-agent")
-	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/debug/vars", apmDebugPort))
+	resp, err := http.Get(fmt.Sprintf("https://127.0.0.1:%d/debug/vars", apmDebugPort))
 	if err != nil {
 		return fb.AddFile(f, []byte(fmt.Sprintf("Error retrieving vars: %v", err)))
 	}
@@ -266,7 +266,7 @@ func getProcessAgentFullConfig() ([]byte, error) {
 		return nil, fmt.Errorf("wrong configuration to connect to process-agent")
 	}
 
-	procStatusURL := fmt.Sprintf("http://%s/config/all", addressPort)
+	procStatusURL := fmt.Sprintf("https://%s/config/all", addressPort)
 
 	bytes, err := getHTTPCallContent(procStatusURL)
 	if err != nil {
@@ -314,7 +314,7 @@ func getChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func()
 		log.Errorf("Could not zip process agent checks: wrong configuration to connect to process-agent: %s", err.Error())
 		return
 	}
-	checkURL := fmt.Sprintf("http://%s/check/", addressPort)
+	checkURL := fmt.Sprintf("https://%s/check/", addressPort)
 
 	getCheck := func(checkName, setting string) {
 		filename := fmt.Sprintf("%s_check_output.json", checkName)
@@ -394,7 +394,12 @@ func getProcessAgentTaggerList() ([]byte, error) {
 		return nil, fmt.Errorf("wrong configuration to connect to process-agent")
 	}
 
-	taggerListURL := fmt.Sprintf("http://%s/agent/tagger-list", addressPort)
+	err = apiutil.SetAuthToken(pkgconfigsetup.Datadog())
+	if err != nil {
+		return nil, err
+	}
+
+	taggerListURL := fmt.Sprintf("https://%s/agent/tagger-list", addressPort)
 	return getTaggerList(taggerListURL)
 }
 
@@ -480,7 +485,8 @@ func getHTTPCallContent(url string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
-	client := http.Client{}
+	client := apiutil.GetClient(false) // FIX: get certificates right then make this true
+
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err

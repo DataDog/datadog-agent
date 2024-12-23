@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package compressionimpl provides a set of functions for compressing with zlib / zstd
-package compressionimpl
+// Package noopimpl provides a set of functions for compressing with zlib / zstd
+package noopimpl
 
 import (
 	"bytes"

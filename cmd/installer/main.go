@@ -29,9 +29,9 @@ func runCmd(cmd *cobra.Command) int {
 	err := cmd.Execute()
 	if err != nil {
 		if rootCauseErr := dig.RootCause(err); rootCauseErr != err {
-			fmt.Fprintln(cmd.ErrOrStderr(), installerErrors.FromErr(rootCauseErr).ToJSON())
+			fmt.Fprintln(cmd.ErrOrStderr(), installerErrors.ToJSON(rootCauseErr))
 		} else {
-			fmt.Fprintln(cmd.ErrOrStderr(), installerErrors.FromErr(err).ToJSON())
+			fmt.Fprintln(cmd.ErrOrStderr(), installerErrors.ToJSON(err))
 		}
 		return -1
 	}
