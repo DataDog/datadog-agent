@@ -76,7 +76,7 @@ func (c *Collector) ScanCRIOImageFromOverlayFS(ctx context.Context, imgMeta *wor
 
 	var diffIDs []string
 	for _, dir := range lowerDirs {
-		diffIDs = append(diffIDs, filepath.Base(filepath.Dir(dir)))
+		diffIDs = append(diffIDs, "sha256:"+filepath.Base(filepath.Dir(dir)))
 	}
 
 	report, err := c.scanOverlayFS(ctx, lowerDirs, &fakeCRIOContainer{
