@@ -449,6 +449,18 @@ static __always_inline bool read_frame(pktbuf_t pkt, http2_frame_t *current_fram
     return format_http2_frame_header(current_frame);
 }
 
+// Fixes an incomplete frame header. The function is trying to read the remaining of a split frame header.
+static __always_inline bool fix_incomplete_frame_header(pktbuf_t pkt, incomplete_frame_t *incomplete_frame, http2_frame_t *current_frame) {
+    pktbuf_fix_header_frame(pkt, (char*)current_frame, incomplete_frame);
+    bool res = false;
+    if (format_http2_frame_header(current_frame)) {
+        pktbuf_advance(pkt, incomplete_frame->remainder);
+        res = true;
+    }
+    incomplete_frame->remainder = 0;
+    return res;
+}
+
 static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, incomplete_frame_t *incomplete_frame, http2_frame_t *current_frame) {
     // Attempting to read the initial frame in the packet, or handling a state where there is no remainder and finishing reading the current frame.
     if (incomplete_frame == NULL) {
@@ -478,15 +490,7 @@ static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, incomplete_fram
         return true;
     }
     if (incomplete_frame->header_length > 0) {
-        pktbuf_fix_header_frame(pkt, (char*)current_frame, incomplete_frame);
-        if (format_http2_frame_header(current_frame)) {
-            pktbuf_advance(pkt, incomplete_frame->remainder);
-            incomplete_frame->remainder = 0;
-            return true;
-        }
-        incomplete_frame->remainder = 0;
-        // We couldn't read frame header using the remainder.
-        return false;
+        return fix_incomplete_frame_header(pkt, incomplete_frame, current_frame);
     }
 
     // We failed to read a frame, if we have a remainder trying to consume it and read the following frame.
