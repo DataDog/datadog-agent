@@ -103,7 +103,8 @@ func (s *fipsAgentSuite) TestFIPSProviderPresent() {
 func (s *fipsAgentSuite) TestFIPSInstall() {
 	host := s.Env().RemoteHost
 	openssl := path.Join(s.installPath, "embedded3/bin/openssl.exe")
-	cmd := fmt.Sprintf(`& "%s" fipsinstall`, openssl)
+	fipsModule := path.Join(s.installPath, "embedded3/lib/ossl-modules/fips.dll")
+	cmd := fmt.Sprintf(`& "%s" fipsinstall -module "%s"`, openssl, fipsModule)
 	_, err := host.Execute(cmd)
 	require.NoError(s.T(), err)
 }
