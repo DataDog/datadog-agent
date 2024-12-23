@@ -75,7 +75,6 @@ func newAgentConfig(orderedLayers ...[]byte) (*agentConfig, error) {
 	for _, rawLayer := range orderedLayers {
 		layer := &agentConfigLayer{}
 		if err := json.Unmarshal(rawLayer, layer); err != nil {
-			fmt.Printf("Failed to unmarshal layer: %v\n", err)
 			log.Warnf("Failed to unmarshal layer: %v", err)
 			continue
 		}
