@@ -21,7 +21,7 @@ require (
 	golang.org/x/text v0.21.0
 	golang.org/x/tools v0.28.0
 	gopkg.in/yaml.v3 v3.0.1
-	modernc.org/mathutil v1.6.0
+	modernc.org/mathutil v1.7.0
 	sigs.k8s.io/yaml v1.4.0
 )
 
