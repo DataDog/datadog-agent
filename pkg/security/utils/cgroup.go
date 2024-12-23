@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -49,6 +50,67 @@ func (cg ControlGroup) GetContainerID() containerutils.ContainerID {
 	return containerutils.ContainerID(id)
 }
 
+func parseCgroupLine(line string, expectedID int) (ControlGroup, error) {
+	idstr, rest, ok := strings.Cut(line, ":")
+	if !ok {
+		return ControlGroup{}, fmt.Errorf("invalid cgroup line: %s", line)
+	}
+
+	id, err := strconv.Atoi(idstr)
+	if err != nil {
+		return ControlGroup{}, err
+	}
+
+	if expectedID >= 0 && expectedID != id {
+		return ControlGroup{}, fmt.Errorf("found cgroup, but with wrong ID (%d, but expected %d): %s", id, expectedID, line)
+	}
+
+	controllers, path, ok := strings.Cut(rest, ":")
+	if !ok {
+		return ControlGroup{}, fmt.Errorf("invalid cgroup line: %s", line)
+	}
+
+	return ControlGroup{
+		ID:          id,
+		Controllers: strings.Split(controllers, ","),
+		Path:        path,
+	}, nil
+}
+
+// GetProcControlGroup0 returns the cgroup membership with index 0 of the specified task.
+func GetProcControlGroup0(tgid, pid uint32) (ControlGroup, error) {
+	data, err := os.ReadFile(CgroupTaskPath(tgid, pid))
+	if err != nil {
+		return ControlGroup{}, err
+	}
+	data = bytes.TrimSpace(data)
+
+	var lastLine []byte
+
+	for len(data) != 0 {
+		eol := bytes.IndexByte(data, '\n')
+		if eol < 0 {
+			eol = len(data)
+		}
+		line := data[:eol]
+		if bytes.HasPrefix(line, []byte("0:")) {
+			return parseCgroupLine(string(line), 0)
+		}
+
+		if bytes.ContainsRune(line, ':') {
+			lastLine = line
+		}
+
+		nextStart := eol + 1
+		if nextStart >= len(data) {
+			break
+		}
+		data = data[nextStart:]
+	}
+
+	return parseCgroupLine(string(lastLine), -1)
+}
+
 // GetProcControlGroups returns the cgroup membership of the specified task.
 func GetProcControlGroups(tgid, pid uint32) ([]ControlGroup, error) {
 	data, err := os.ReadFile(CgroupTaskPath(tgid, pid))
@@ -59,16 +121,9 @@ func GetProcControlGroups(tgid, pid uint32) ([]ControlGroup, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
 		t := scanner.Text()
-		parts := strings.Split(t, ":")
-		var ID int
-		ID, err = strconv.Atoi(parts[0])
+		c, err := parseCgroupLine(t, -1)
 		if err != nil {
-			continue
-		}
-		c := ControlGroup{
-			ID:          ID,
-			Controllers: strings.Split(parts[1], ","),
-			Path:        parts[2],
+			return nil, err
 		}
 		cgroups = append(cgroups, c)
 	}
@@ -85,14 +140,14 @@ func GetProcContainerID(tgid, pid uint32) (containerutils.ContainerID, error) {
 // GetProcContainerContext returns the container ID which the process belongs to along with its manager. Returns "" if the process does not belong
 // to a container.
 func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, model.CGroupContext, error) {
-	cgroups, err := GetProcControlGroups(tgid, pid)
-	if err != nil || len(cgroups) == 0 {
+	cgroup, err := GetProcControlGroup0(tgid, pid)
+	if err != nil {
 		return "", model.CGroupContext{}, err
 	}
 
-	containerID, runtime := cgroups[0].GetContainerContext()
+	containerID, runtime := cgroup.GetContainerContext()
 	cgroupContext := model.CGroupContext{
-		CGroupID:    containerutils.CGroupID(cgroups[0].Path),
+		CGroupID:    containerutils.CGroupID(cgroup.Path),
 		CGroupFlags: runtime,
 	}
 

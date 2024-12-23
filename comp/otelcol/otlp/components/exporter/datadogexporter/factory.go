@@ -119,7 +119,6 @@ func NewFactory(
 func CreateDefaultConfig() component.Config {
 	ddcfg := datadogconfig.CreateDefaultConfig().(*datadogconfig.Config)
 	ddcfg.Traces.TracesConfig.ComputeTopLevelBySpanKind = true
-	ddcfg.Traces.TracesConfig.SpanNameAsResourceName = true
 	ddcfg.Logs.Endpoint = "https://agent-http-intake.logs.datadoghq.com"
 	ddcfg.HostMetadata.Enabled = false
 	return ddcfg

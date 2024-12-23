@@ -12,6 +12,7 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -116,7 +117,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	logWriter, _ := pkglogsetup.NewTLSHandshakeErrorWriter(4, log.WarnLvl)
 
 	authInterceptor := grpcutil.AuthInterceptor(func(token string) (interface{}, error) {
-		if token != util.GetDCAAuthToken() {
+		if subtle.ConstantTimeCompare([]byte(token), []byte(util.GetDCAAuthToken())) == 0 {
 			return struct{}{}, errors.New("Invalid session token")
 		}
 

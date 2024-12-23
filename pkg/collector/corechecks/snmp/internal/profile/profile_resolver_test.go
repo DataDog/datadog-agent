@@ -155,7 +155,7 @@ func Test_resolveProfiles(t *testing.T) {
 				assert.Contains(t, err.Error(), errorMsg)
 			}
 
-			w.Flush()
+			assert.NoError(t, w.Flush())
 			logs := b.String()
 
 			for _, aLogCount := range tt.expectedLogs {

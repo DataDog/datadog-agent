@@ -9,9 +9,6 @@ import (
 	"os"
 	"path/filepath"
 
-	//nolint:depguard // creating a logger from a seelog config
-	"github.com/cihub/seelog"
-
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,18 +24,6 @@ func init() {
 	if err != nil {
 		winutil.LogEventViewer(ServiceName, messagestrings.MSG_WARNING_PROGRAMDATA_ERROR, defaultpaths.ConfPath)
 	}
-}
-
-// EnableLoggingToFile -- set up logging to file
-func EnableLoggingToFile() {
-	seeConfig := `
-<seelog>
-	<outputs>
-		<rollingfile type="size" filename="c:\\ProgramData\\DataDog\\Logs\\agent.log" maxsize="1000000" maxrolls="2" />
-	</outputs>
-</seelog>`
-	logger, _ := seelog.LoggerFromConfigAsBytes([]byte(seeConfig))
-	log.ReplaceLogger(logger)
 }
 
 // CheckAndUpgradeConfig checks to see if there's an old datadog.conf, and if

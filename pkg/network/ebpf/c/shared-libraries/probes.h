@@ -4,6 +4,7 @@
 #include "bpf_telemetry.h"
 #include "bpf_bypass.h"
 
+#include "pid_tgid.h"
 #include "shared-libraries/types.h"
 
 static __always_inline void fill_path_safe(lib_path_t *path, const char *path_argument) {
@@ -38,7 +39,7 @@ static __always_inline void do_sys_open_helper_enter(const char *filename) {
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    path.pid = pid_tgid >> 32;
+    path.pid = GET_USER_MODE_PID(pid_tgid);
     bpf_map_update_with_telemetry(open_at_args, &pid_tgid, &path, BPF_ANY);
     return;
 }

@@ -12,14 +12,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
 type installerScriptTests func(os e2eos.Descriptor, arch e2eos.Architecture) installerScriptSuite
@@ -150,7 +151,7 @@ func (s *installerScriptBaseSuite) RunInstallScript(url string, params ...string
 
 func (s *installerScriptBaseSuite) RunInstallScriptWithError(url string, params ...string) error {
 	scriptParams := append(params, "DD_API_KEY=test", "DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com")
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("curl -L %s > install_script; sudo -E %s bash install_script", url, strings.Join(scriptParams, " ")))
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("curl -L %s > install_script; %s bash install_script", url, strings.Join(scriptParams, " ")))
 	return err
 }
 

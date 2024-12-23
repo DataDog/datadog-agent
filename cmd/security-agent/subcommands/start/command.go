@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -48,7 +49,7 @@ import (
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
@@ -63,9 +64,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -104,14 +104,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				dogstatsd.ClientBundle,
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
-				workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
-					catalog := workloadmeta.NodeAgent
-					if config.GetBool("security_agent.remote_workloadmeta") {
-						catalog = workloadmeta.Remote
-					}
-					return workloadmeta.Params{
-						AgentType: catalog,
-					}
+				workloadmetafx.Module(workloadmeta.Params{
+					AgentType: workloadmeta.Remote,
 				}),
 				remoteTaggerfx.Module(tagger.RemoteParams{
 					RemoteTarget: func(c config.Component) (string, error) {
@@ -179,9 +173,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				statusimpl.Module(),
 				fetchonlyimpl.Module(),
-				configsyncimpl.OptionalModule(),
+				configsyncimpl.Module(),
 				// Force the instantiation of the component
-				fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
+				fx.Invoke(func(_ configsync.Component) {}),
 				autoexitimpl.Module(),
 				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 				fx.Provide(func(c config.Component) settings.Params {
@@ -207,10 +201,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // TODO(components): note how workloadmeta is passed anonymously, it is still required as it is used
 // as a global. This should eventually be fixed and all workloadmeta interactions should be via the
 // injected instance.
-func start(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ pid.Component, _ autoexit.Component, settings settings.Component, wmeta workloadmeta.Component) error {
+func start(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ pid.Component, _ autoexit.Component, settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component) error {
 	defer StopAgent(log)
 
-	err := RunAgent(log, config, telemetry, statusComponent, settings, wmeta)
+	err := RunAgent(log, config, telemetry, statusComponent, settings, wmeta, at)
 	if errors.Is(err, ErrAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
 	}
@@ -262,8 +256,8 @@ var ErrAllComponentsDisabled = errors.New("all security-agent component are disa
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(log log.Component, config config.Component, telemetry telemetry.Component, statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component) (err error) {
-	if err := util.SetupCoreDump(config); err != nil {
+func RunAgent(log log.Component, config config.Component, telemetry telemetry.Component, statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component) (err error) {
+	if err := coredump.Setup(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
@@ -305,7 +299,7 @@ func RunAgent(log log.Component, config config.Component, telemetry telemetry.Co
 		}
 	}()
 
-	srv, err = api.NewServer(statusComponent, settings, wmeta)
+	srv, err = api.NewServer(statusComponent, settings, wmeta, at)
 	if err != nil {
 		return log.Errorf("Error while creating api server, exiting: %v", err)
 	}

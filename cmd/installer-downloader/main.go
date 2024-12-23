@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
@@ -45,12 +44,12 @@ func main() {
 	ctx := context.Background()
 
 	t := telemetry.NewTelemetry(env.HTTPClient(), env.APIKey, env.Site, fmt.Sprintf("datadog-installer-downloader-%s", Flavor))
-	_ = t.Start(ctx)
-	defer func() { _ = t.Stop(ctx) }()
 	var err error
-	span, ctx := telemetry.StartSpanFromEnv(ctx, "downloader")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, ctx := telemetry.StartSpanFromEnv(ctx, fmt.Sprintf("downloader-%s", Flavor))
 	err = runDownloader(ctx, env, Version, Flavor)
+
+	span.Finish(err)
+	t.Stop()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Installation failed: %v\n", err)
 		os.Exit(1)
@@ -72,9 +71,10 @@ func runDownloader(ctx context.Context, env *env.Env, version string, flavor str
 		return fmt.Errorf("failed to download installer: %w", err)
 	}
 	cmd := exec.CommandContext(ctx, filepath.Join(tmpDir, installerBinPath), "setup", "--flavor", flavor)
+	cmd.Dir = tmpDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Env = os.Environ()
+	cmd.Env = append(os.Environ(), telemetry.EnvFromContext(ctx)...)
 	err = cmd.Run()
 	if err != nil {
 		return fmt.Errorf("failed to run installer: %w", err)
@@ -91,6 +91,10 @@ func downloadInstaller(ctx context.Context, env *env.Env, version string, tmpDir
 	}
 	if downloadedPackage.Name != installerPackage {
 		return fmt.Errorf("unexpected package name: %s, expected %s", downloadedPackage.Name, installerPackage)
+	}
+	err = downloadedPackage.WriteOCILayout(tmpDir)
+	if err != nil {
+		return fmt.Errorf("failed to write OCI layout: %w", err)
 	}
 	err = downloadedPackage.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
