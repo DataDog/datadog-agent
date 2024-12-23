@@ -80,7 +80,7 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 	// Use the result from InspectWithDWARF to populate the locations of parameters
 	for functionName, functionMetadata := range r.Functions {
 		putLocationsInParams(functionMetadata.Parameters, r.StructOffsets, procInfo.TypeMap.Functions, functionName)
-		populateLocationExpressions(r.Functions, procInfo)
+		populateLocationExpressionsForFunction(r.Functions, procInfo, functionName)
 		correctStructSizes(procInfo.TypeMap.Functions[functionName])
 	}
 
@@ -158,6 +158,39 @@ func populateLocationExpressions(
 			}
 			GenerateLocationExpression(limitInfo, parameters[i])
 		}
+	}
+}
+
+func populateLocationExpressionsForFunction(
+	metadata map[string]bininspect.FunctionMetadata,
+	procInfo *ditypes.ProcessInfo,
+	functionName string,
+) {
+	log.Tracef("Populating location expressions for %s", functionName)
+	functions := procInfo.TypeMap.Functions
+	parameters := functions[functionName]
+	probes := procInfo.GetProbes()
+	funcNamesToLimits := map[string]*ditypes.InstrumentationInfo{}
+	for i := range probes {
+		funcNamesToLimits[probes[i].FuncName] = probes[i].InstrumentationInfo
+	}
+
+	funcMetadata, ok := metadata[functionName]
+	if !ok {
+		log.Warnf("no function metadata for function %s", functionName)
+		return
+	}
+	limitInfo, ok := funcNamesToLimits[functionName]
+	if !ok || limitInfo == nil {
+		log.Warnf("no limit info available for function %s", functionName)
+		return
+	}
+	for i := range parameters {
+		if i >= len(funcMetadata.Parameters) {
+			log.Warnf("parameter metadata does not line up with parameter itself (not found in metadata: %v)", parameters[i])
+			break
+		}
+		GenerateLocationExpression(limitInfo, parameters[i])
 	}
 }
 

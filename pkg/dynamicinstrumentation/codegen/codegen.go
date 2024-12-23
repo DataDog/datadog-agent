@@ -135,6 +135,7 @@ func collectLocationExpressions(param *ditypes.Parameter) []ditypes.LocationExpr
 		}
 		if len(top.LocationExpressions) > 0 {
 			collectedExpressions = append(top.LocationExpressions, collectedExpressions...)
+			top.LocationExpressions = []ditypes.LocationExpression{}
 		}
 	}
 	return collectedExpressions
