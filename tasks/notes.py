@@ -52,7 +52,7 @@ def add_installscript_prelude(ctx, release_branch):
 
 
 @task
-def update_changelog(ctx, release_branch, target="all", upstream="origin"):
+def update_changelog(ctx, release_branch=None, target="all", upstream="origin"):
     """
     Quick task to generate the new CHANGELOG using reno when releasing a minor
     version (linux/macOS only).
@@ -64,23 +64,27 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
 
     new_version = deduce_version(ctx, release_branch, next_version=False)
 
-    with agent_context(ctx, release_branch):
+    with agent_context(ctx, release_branch):  # TODO: Switch only if not None
         # Step 1 - generate the changelogs
 
         generate_agent = target in ["all", "agent"]
         generate_cluster_agent = target in ["all", "cluster-agent"]
 
-        new_version_int = list(map(int, new_version.split(".")))
-        if len(new_version_int) != 3:
-            print(f"Error: invalid version: {new_version_int}")
-            raise Exit(code=1)
+        if release_branch is not None:
+            new_version_int = list(map(int, new_version.split(".")))
+            if len(new_version_int) != 3:
+                print(f"Error: invalid version: {new_version_int}")
+                raise Exit(code=1)
 
-        # let's avoid losing uncommitted change with 'git reset --hard'
-        try:
-            ctx.run("git diff --exit-code HEAD", hide="both")
-        except Failure:
-            print("Error: You have uncommitted change, please commit or stash before using update_changelog")
-            return
+            # let's avoid losing uncommitted change with 'git reset --hard'
+            try:
+                ctx.run("git diff --exit-code HEAD", hide="both")
+            except Failure:
+                print("Error: You have uncommitted change, please commit or stash before using update_changelog")
+                return
+
+            # make sure we are up to date
+            ctx.run("git fetch")
 
         # let's check that the tag for the new version is present
         try:
