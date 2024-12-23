@@ -28,7 +28,8 @@ import (
 
 var (
 	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
-	// and lowering it might cause constant cpu usage.
+	// and lowering it might cause constant cpu usage. This is a var instead of a const only because the test code changes
+	// this value to speed up test execution.
 	scanTerminatedProcessesInterval = 30 * time.Second
 )
 
