@@ -42,6 +42,9 @@ type CliParams struct {
 
 	// CoreConfigPath represents the path to the core configuration file.
 	CoreConfigPath string
+
+	// inactivityTimeout represents the time in seconds that the program will wait for new logs before exiting
+	inactivityTimeout int
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
