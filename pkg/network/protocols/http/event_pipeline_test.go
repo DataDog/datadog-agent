@@ -27,8 +27,9 @@ const (
 )
 
 type HTTPEventData struct {
-	Method     uint8
-	StatusCode uint16
+	Method          uint8
+	StatusCode      uint16
+	RequestFragment []byte
 }
 
 // eBPFEventToBytes serializes the provided events into a byte array.
@@ -71,6 +72,7 @@ func setupBenchmark(b *testing.B, c *config.Config, totalEventsCount, numOfEvent
 	consumer, err := events.NewConsumer("test", program, p.processHTTP)
 	require.NoError(b, err)
 
+	// Using a wait group to ensure the goroutine finishes before the benchmark ends.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -110,7 +112,7 @@ func createHTTPEvents(eventsData []HTTPEventData) []EbpfEvent {
 				Response_last_seen:   2,
 				Request_method:       data.Method,
 				Response_status_code: data.StatusCode,
-				Request_fragment:     requestFragment([]byte{}), // Empty fragment as it's not needed
+				Request_fragment:     requestFragment(data.RequestFragment),
 			},
 		}
 	}
@@ -133,32 +135,22 @@ func BenchmarkHTTPEventConsumer(b *testing.B) {
 		numOfEventsInBatch int
 		httpEvents         []EbpfEvent
 	}{
-		{"SmallBatch",
-			1000,
-			8,
-			createHTTPEvents([]HTTPEventData{
-				{Method: uint8(MethodGet), StatusCode: http.StatusOK},
-				{Method: uint8(MethodGet), StatusCode: http.StatusAccepted}})},
-		{"MediumBatch",
-			38000,
-			10,
-			createHTTPEvents([]HTTPEventData{
-				{Method: uint8(MethodPost), StatusCode: http.StatusAccepted},
-				{Method: uint8(MethodGet), StatusCode: http.StatusCreated}})},
-		// LargeBatch is used to test the performance of the consumer with the maximum number of events.
-		// When attempting to insert more than this limit, events are dropped.
-		{"LargeBatch",
-			2100000,
-			14,
-			createHTTPEvents([]HTTPEventData{
-				{Method: uint8(MethodPost), StatusCode: http.StatusAccepted},
-				{Method: uint8(MethodGet), StatusCode: http.StatusCreated}})},
-		{"DifferentEvents",
-			42000,
-			14,
-			createHTTPEvents([]HTTPEventData{
-				{Method: uint8(MethodDelete), StatusCode: http.StatusAccepted},
-				{Method: uint8(MethodGet), StatusCode: http.StatusMultiStatus}})},
+		{"SmallBatch", 1000, 8, createHTTPEvents([]HTTPEventData{
+			{Method: uint8(MethodGet), StatusCode: http.StatusOK, RequestFragment: []byte("GET / HTTP/1.1")},
+			{Method: uint8(MethodPost), StatusCode: http.StatusCreated, RequestFragment: []byte("POST /create HTTP/1.1")},
+		})},
+		{"MediumBatch", 38000, 10, createHTTPEvents([]HTTPEventData{
+			{Method: uint8(MethodGet), StatusCode: http.StatusOK, RequestFragment: []byte("GET / HTTP/1.1")},
+			{Method: uint8(MethodPost), StatusCode: http.StatusCreated, RequestFragment: []byte("POST /create HTTP/1.1")},
+		})},
+		{"LargeBatch", 42000, 14, createHTTPEvents([]HTTPEventData{
+			{Method: uint8(MethodGet), StatusCode: http.StatusOK, RequestFragment: []byte("GET / HTTP/1.1")},
+			{Method: uint8(MethodPost), StatusCode: http.StatusCreated, RequestFragment: []byte("POST /create HTTP/1.1")},
+		})},
+		{"DifferentEvents", 42000, 14, createHTTPEvents([]HTTPEventData{
+			{Method: uint8(MethodGet), StatusCode: http.StatusOK, RequestFragment: []byte("GET / HTTP/1.1")},
+			{Method: uint8(MethodDelete), StatusCode: http.StatusAccepted, RequestFragment: []byte("DELETE /delete HTTP/1.1")},
+		})},
 	}
 
 	for _, tc := range testCases {
@@ -167,7 +159,6 @@ func BenchmarkHTTPEventConsumer(b *testing.B) {
 				consumer, p := setupBenchmark(b, config.New(), tc.totalEventsCount, tc.numOfEventsInBatch, tc.httpEvents, &wg)
 
 				consumer.Start()
-
 				require.Eventually(b, func() bool {
 					if tc.totalEventsCount == int(p.telemetry.hits2XX.counterPlain.Get()) {
 						b.Logf("USM summary: %s", p.telemetry.metricGroup.Summary())
