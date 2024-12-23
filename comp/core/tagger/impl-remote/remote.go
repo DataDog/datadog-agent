@@ -89,9 +89,6 @@ type remoteTagger struct {
 	streamCancel context.CancelFunc
 	filter       *types.Filter
 
-	queryCtx    context.Context
-	queryCancel context.CancelFunc
-
 	ctx    context.Context
 	cancel context.CancelFunc
 
@@ -284,58 +281,7 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 	)
 
 	cachedContainerID, err := cache.GetWithExpiration(key, func() (containerID string, err error) {
-		expBackoff := backoff.NewExponentialBackOff()
-		expBackoff.InitialInterval = 200 * time.Millisecond
-		expBackoff.MaxInterval = 1 * time.Second
-		expBackoff.MaxElapsedTime = 15 * time.Second
-
-		err = backoff.Retry(func() error {
-			select {
-			case <-t.ctx.Done():
-				return &backoff.PermanentError{Err: errTaggerFailedGenerateContainerIDFromOriginInfo}
-			default:
-			}
-
-			// Fetch the auth token
-			if t.token == "" {
-				var authError error
-				t.token, authError = t.options.TokenFetcher()
-				if authError != nil {
-					_ = t.log.Errorf("unable to fetch auth token, will possibly retry: %s", authError)
-					return authError
-				}
-			}
-
-			// Create the context with the auth token
-			t.queryCtx, t.queryCancel = context.WithCancel(
-				metadata.NewOutgoingContext(t.ctx, metadata.MD{
-					"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
-				}),
-			)
-
-			// Call the gRPC method to get the container ID from the origin info
-			containerIDResponse, err := t.client.TaggerGenerateContainerIDFromOriginInfo(t.queryCtx, &pb.GenerateContainerIDFromOriginInfoRequest{
-				ExternalData: &pb.GenerateContainerIDFromOriginInfoRequest_ExternalData{
-					Init:          &originInfo.ExternalData.Init,
-					ContainerName: &originInfo.ExternalData.ContainerName,
-					PodUID:        &originInfo.ExternalData.PodUID,
-				},
-			})
-			if err != nil {
-				_ = t.log.Errorf("unable to generate container ID from origin info, will retry: %s", err)
-				return err
-			}
-
-			if containerIDResponse == nil {
-				_ = t.log.Warnf("unable to generate container ID from origin info, will retry: %s", err)
-				return errors.New("containerIDResponse is nil")
-			}
-			containerID = containerIDResponse.ContainerID
-
-			t.log.Debugf("Container ID generated successfully from origin info %+v: %s", originInfo, containerID)
-			return nil
-		}, expBackoff)
-
+		containerID, err = t.queryContainerIDFromOriginInfo(originInfo)
 		return containerID, err
 	}, cacheExpiration)
 
@@ -344,6 +290,64 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 	}
 	fail = false
 	return cachedContainerID, nil
+}
+
+// queryContainerIDFromOriginInfo calls the local tagger to get the container ID from the Origin Info.
+func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (containerID string, err error) {
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 200 * time.Millisecond
+	expBackoff.MaxInterval = 1 * time.Second
+	expBackoff.MaxElapsedTime = 15 * time.Second
+
+	err = backoff.Retry(func() error {
+		select {
+		case <-t.ctx.Done():
+			return &backoff.PermanentError{Err: errTaggerFailedGenerateContainerIDFromOriginInfo}
+		default:
+		}
+
+		// Fetch the auth token
+		if t.token == "" {
+			var authError error
+			t.token, authError = t.options.TokenFetcher()
+			if authError != nil {
+				_ = t.log.Errorf("unable to fetch auth token, will possibly retry: %s", authError)
+				return authError
+			}
+		}
+
+		// Create the context with the auth token
+		queryCtx, queryCancel := context.WithCancel(
+			metadata.NewOutgoingContext(t.ctx, metadata.MD{
+				"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
+			}),
+		)
+		defer queryCancel()
+
+		// Call the gRPC method to get the container ID from the origin info
+		containerIDResponse, err := t.client.TaggerGenerateContainerIDFromOriginInfo(queryCtx, &pb.GenerateContainerIDFromOriginInfoRequest{
+			ExternalData: &pb.GenerateContainerIDFromOriginInfoRequest_ExternalData{
+				Init:          &originInfo.ExternalData.Init,
+				ContainerName: &originInfo.ExternalData.ContainerName,
+				PodUID:        &originInfo.ExternalData.PodUID,
+			},
+		})
+		if err != nil {
+			_ = t.log.Errorf("unable to generate container ID from origin info, will retry: %s", err)
+			return err
+		}
+
+		if containerIDResponse == nil {
+			_ = t.log.Warnf("unable to generate container ID from origin info, will retry: %s", err)
+			return errors.New("containerIDResponse is nil")
+		}
+		containerID = containerIDResponse.ContainerID
+
+		t.log.Debugf("Container ID generated successfully from origin info %+v: %s", originInfo, containerID)
+		return nil
+	}, expBackoff)
+
+	return containerID, err
 }
 
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.
