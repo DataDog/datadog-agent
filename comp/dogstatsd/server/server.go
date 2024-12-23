@@ -36,11 +36,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
 	statutil "github.com/DataDog/datadog-agent/pkg/util/stat"
+	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
 )
 
 var (
@@ -237,7 +237,7 @@ func newServerCompat(cfg model.Reader, log log.Component, capture replay.Compone
 
 	// if the server is running in a context where static tags are required, add those
 	// to extraTags.
-	if staticTags := util.GetStaticTagsSlice(context.TODO(), cfg); staticTags != nil {
+	if staticTags := tagutil.GetStaticTagsSlice(context.TODO(), cfg); staticTags != nil {
 		extraTags = append(extraTags, staticTags...)
 	}
 	sort.UniqInPlace(extraTags)

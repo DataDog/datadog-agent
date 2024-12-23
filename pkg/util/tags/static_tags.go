@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package util
+// Package tags provides utilities for working with tags.
+package tags
 
 import (
 	"context"
