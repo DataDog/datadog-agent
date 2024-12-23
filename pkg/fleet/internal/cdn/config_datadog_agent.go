@@ -233,12 +233,17 @@ func (a *agentConfig) writeIntegration(dir string, i integration, ddAgentUID, dd
 	hash.Write(json)
 	integrationPath := filepath.Join(integrationDir, fmt.Sprintf("%x.yaml", hash.Sum(nil)))
 
-	yamlContent, err := marshalYAMLConfig(map[string]interface{}{
-		"instances":   []interface{}{i.Instance},
-		"init_config": i.Init,
-		"logs":        i.Logs,
-		"policy_id":   a.policyIDs,
-	})
+	content := map[string]interface{}{}
+	if i.Instance != nil {
+		content["instances"] = []interface{}{i.Instance}
+	}
+	if i.Init != nil {
+		content["init_config"] = i.Init
+	}
+	if i.Logs != nil {
+		content["logs"] = i.Logs
+	}
+	yamlContent, err := marshalYAMLConfig(content)
 	if err != nil {
 		return fmt.Errorf("could not marshal integration content: %w", err)
 	}
