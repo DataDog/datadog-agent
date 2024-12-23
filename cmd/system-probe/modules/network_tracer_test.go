@@ -28,14 +28,15 @@ func TestDecode(t *testing.T) {
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
 				{ConnectionTuple: network.ConnectionTuple{
-					Source: util.AddressFromString("10.1.1.1"),
-					Dest:   util.AddressFromString("10.2.2.2"),
-					Pid:    6000,
-					NetNS:  7,
-					SPort:  1000,
-					DPort:  9000,
-					Type:   network.UDP,
-					Family: network.AFINET6,
+					Source:    util.AddressFromString("10.1.1.1"),
+					Dest:      util.AddressFromString("10.2.2.2"),
+					Pid:       6000,
+					NetNS:     7,
+					SPort:     1000,
+					DPort:     9000,
+					Type:      network.UDP,
+					Family:    network.AFINET6,
+					Direction: network.LOCAL,
 				},
 					Monotonic: network.StatCounters{
 						SentBytes:   1,
@@ -54,7 +55,6 @@ func TestDecode(t *testing.T) {
 						ReplSrcPort: 40,
 						ReplDstPort: 70,
 					},
-					Direction: network.LOCAL,
 				},
 			},
 		},

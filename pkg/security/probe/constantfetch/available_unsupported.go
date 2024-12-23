@@ -11,15 +11,13 @@ package constantfetch
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // GetAvailableConstantFetchers returns available constant fetchers
-func GetAvailableConstantFetchers(_ *config.Config, kv *kernel.Version, _ statsd.ClientInterface) []ConstantFetcher {
+func GetAvailableConstantFetchers(_ *config.Config, kv *kernel.Version) []ConstantFetcher {
 	fetchers := make([]ConstantFetcher, 0)
 
 	btfhubFetcher, err := NewBTFHubConstantFetcher(kv)
