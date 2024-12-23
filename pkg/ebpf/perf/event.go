@@ -192,6 +192,7 @@ func NewEventHandler(mapName string, handler func([]byte), mode EventHandlerMode
 }
 
 // BeforeInit implements the Modifier interface
+// This function will modify the shared buffers according to the user provided mode
 func (e *EventHandler) BeforeInit(mgr *manager.Manager, moduleName names.ModuleName, mgrOpts *manager.Options) (err error) {
 	ms, _, _ := mgr.GetMapSpec(e.mapName)
 	if ms == nil {
@@ -209,6 +210,8 @@ func (e *EventHandler) BeforeInit(mgr *manager.Manager, moduleName names.ModuleN
 			return fmt.Errorf("map %q is not a ring buffer, got %q instead", e.mapName, ms.Type.String())
 		}
 
+		// the size of the ring buffer is communicated to the kernel via the max entries field
+		// of the bpf map
 		if ms.MaxEntries != uint32(e.opts.ringBufferSize) {
 			ResizeRingBuffer(mgrOpts, e.mapName, e.opts.ringBufferSize)
 		}
@@ -229,6 +232,11 @@ func (e *EventHandler) BeforeInit(mgr *manager.Manager, moduleName names.ModuleN
 		if ms.Type != ebpf.PerfEventArray {
 			return fmt.Errorf("map %q is not a perf buffer, got %q instead", e.mapName, ms.Type.String())
 		}
+
+		// the layout of the bpf map for perf buffers does not match that of ring buffers.
+		// When upgrading perf buffers to ring buffers, we must account for these differences.
+		// - Ring buffers do not use key/value sizes
+		// - Ring buffers specify their size via max entries
 		if ringBufErr == nil {
 			UpgradePerfBuffer(mgr, mgrOpts, e.mapName)
 			if ms.MaxEntries != uint32(e.opts.ringBufferSize) {
