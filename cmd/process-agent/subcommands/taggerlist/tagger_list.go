@@ -18,11 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/api"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-const taggerListURLTpl = "http://%s/agent/tagger-list"
+const taggerListURLTpl = "https://%s/agent/tagger-list"
 
 // Commands returns a slice of subcommands for the `tagger-list` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -58,6 +59,10 @@ func taggerList(deps dependencies) error {
 		return err
 	}
 
+	err = util.SetAuthToken(deps.Config)
+	if err != nil {
+		return err
+	}
 	return api.GetTaggerList(color.Output, taggerURL)
 }
 

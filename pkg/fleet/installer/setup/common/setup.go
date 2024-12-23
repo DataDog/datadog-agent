@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
@@ -40,7 +41,7 @@ type Setup struct {
 	Out      *Output
 	Env      *env.Env
 	Ctx      context.Context
-	Span     telemetry.Span
+	Span     *telemetry.Span
 	Packages Packages
 	Config   Config
 }
@@ -60,6 +61,10 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	if err != nil {
 		return nil, fmt.Errorf("failed to create installer: %w", err)
 	}
+	var proxyNoProxy []string
+	if os.Getenv("DD_PROXY_NO_PROXY") != "" {
+		proxyNoProxy = strings.Split(os.Getenv("DD_PROXY_NO_PROXY"), ",")
+	}
 	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", flavor))
 	s := &Setup{
 		configDir: configDir,
@@ -75,7 +80,12 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 				APIKey:   env.APIKey,
 				Hostname: os.Getenv("DD_HOSTNAME"),
 				Site:     env.Site,
-				Env:      os.Getenv("DD_ENV"),
+				Proxy: DatadogConfigProxy{
+					HTTP:    os.Getenv("DD_PROXY_HTTP"),
+					HTTPS:   os.Getenv("DD_PROXY_HTTPS"),
+					NoProxy: proxyNoProxy,
+				},
+				Env: os.Getenv("DD_ENV"),
 			},
 			IntegrationConfigs: make(map[string]IntegrationConfig),
 		},
@@ -120,7 +130,7 @@ func (s *Setup) installPackage(name string, url string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(s.Ctx, "install")
 	defer func() { span.Finish(err) }()
 	span.SetTag("url", url)
-	span.SetTag("_top_level", 1)
+	span.SetTopLevel()
 
 	s.Out.WriteString(fmt.Sprintf("Installing %s...\n", name))
 	err = s.installer.Install(ctx, url, nil)

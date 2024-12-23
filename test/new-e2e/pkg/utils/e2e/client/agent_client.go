@@ -126,7 +126,7 @@ func waitForAgentsReady(tt *testing.T, host *Host, params *agentclientparams.Par
 }
 
 func processAgentRequest(params *agentclientparams.Params, host *Host) (*http.Request, bool, error) {
-	return makeStatusEndpointRequest(params, host, "http://localhost:%d/agent/status", params.ProcessAgentPort)
+	return makeStatusEndpointRequest(params, host, "https://localhost:%d/agent/status", params.ProcessAgentPort)
 }
 
 func traceAgentRequest(params *agentclientparams.Params, host *Host) (*http.Request, bool, error) {

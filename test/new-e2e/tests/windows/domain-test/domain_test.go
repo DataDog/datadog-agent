@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 
 	"github.com/stretchr/testify/assert"
