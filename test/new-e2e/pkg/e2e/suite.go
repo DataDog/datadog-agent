@@ -157,6 +157,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 
 	"github.com/stretchr/testify/suite"
@@ -348,7 +349,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 	}
 
 	// If env implements Initializable, we call Init
-	if initializable, ok := any(newEnv).(Initializable); ok {
+	if initializable, ok := any(newEnv).(common.Initializable); ok {
 		if err := initializable.Init(bs); err != nil {
 			return fmt.Errorf("failed to init environment, err: %v", err)
 		}
@@ -443,7 +444,7 @@ func (bs *BaseSuite[Env]) buildEnvFromResources(resources provisioners.RawResour
 			}
 
 			// See if the component requires init
-			if initializable, ok := fieldValue.Interface().(Initializable); ok {
+			if initializable, ok := fieldValue.Interface().(common.Initializable); ok {
 				if err := initializable.Init(bs); err != nil {
 					return fmt.Errorf("failed to init resource named: %s with key: %s, err: %w", field.Name, resourceKey, err)
 				}

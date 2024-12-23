@@ -28,9 +28,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 )
 
@@ -48,7 +48,7 @@ type convertPathSeparatorFn func(string) string
 type Host struct {
 	client *ssh.Client
 
-	context              e2e.Context
+	context              common.Context
 	username             string
 	host                 string
 	privateKey           []byte
@@ -63,7 +63,7 @@ type Host struct {
 
 // NewHost creates a new ssh client to connect to a remote host with
 // reconnect retry logic
-func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
+func NewHost(context common.Context, hostOutput remote.HostOutput) (*Host, error) {
 	var privateSSHKey []byte
 	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
 	if err != nil {

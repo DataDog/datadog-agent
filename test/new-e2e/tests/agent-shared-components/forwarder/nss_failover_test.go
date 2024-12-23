@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
@@ -43,7 +44,7 @@ type multiFakeIntakeEnv struct {
 	Fakeintake2 *components.FakeIntake
 }
 
-func (e *multiFakeIntakeEnv) Init(ctx e2e.Context) error {
+func (e *multiFakeIntakeEnv) Init(ctx common.Context) error {
 	if e.Agent != nil {
 		agent, err := client.NewHostAgentClient(ctx, e.Host.HostOutput, true)
 		if err != nil {
