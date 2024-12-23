@@ -853,7 +853,6 @@ require (
 	github.com/google/gnostic-models v0.6.9-0.20230804172637-c7be7c783f49 // indirect
 	github.com/google/go-github/v62 v62.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
-	github.com/google/licenseclassifier/v2 v2.0.0 // indirect
 	github.com/google/s2a-go v0.1.8 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/gophercloud/gophercloud v1.13.0 // indirect
@@ -1083,7 +1082,7 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 // Pull in replacements needed by upstream Trivy
 replace (
 	// Maps to Trivy fork https://github.com/DataDog/trivy/commits/use-fs-main-dd/
-	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20241220173447-f7eb37266f2f
+	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20241223160824-d6db1f1a84ce
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 )
 
