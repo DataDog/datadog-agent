@@ -142,11 +142,9 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) e
 		return err
 	}
 
-	err = runModifiersOfType(m.EnabledModifiers, "AfterInit", func(mod ModifierAfterInit) error {
+	return runModifiersOfType(m.EnabledModifiers, "AfterInit", func(mod ModifierAfterInit) error {
 		return mod.AfterInit(m.Manager, m.Name, opts)
 	})
-
-	return errs
 }
 
 // Stop is a wrapper around ebpf-manager.Manager.Stop
