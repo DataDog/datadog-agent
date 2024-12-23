@@ -69,7 +69,7 @@ include:
 
 generate_windows_gitlab_runner_bump_pr:
   stage: trigger_release
-  extends: .slack-notifier
+  extends: .slack-notifier-base
   needs: ["trigger_auto_staging_release"]
   tags: ["arch:amd64"]
   rules:
