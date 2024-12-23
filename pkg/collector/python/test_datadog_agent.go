@@ -19,7 +19,6 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -58,7 +57,7 @@ func testHeaders(t *testing.T) {
 	Headers(&headers)
 	require.NotNil(t, headers)
 
-	h := util.HTTPHeaders()
+	h := httpHeaders()
 	yamlPayload, _ := yaml.Marshal(h)
 	assert.Equal(t, string(yamlPayload), C.GoString(headers))
 }

@@ -7,18 +7,14 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	// component dependencies
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
@@ -26,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -144,40 +139,4 @@ func TestSetupHandlers(t *testing.T) {
 
 		assert.Equal(t, tc.wantCode, resp.StatusCode, "%s %s failed with a %d, want %d", tc.method, tc.route, resp.StatusCode, tc.wantCode)
 	}
-}
-
-func TestJSONConverter(t *testing.T) {
-	checks := []string{
-		"cassandra",
-		"kafka",
-		"jmx",
-		"jmx_alt",
-	}
-
-	cache := map[string]integration.RawMap{}
-	for _, c := range checks {
-		var cf integration.RawMap
-
-		// Read file contents
-		yamlFile, err := os.ReadFile(fmt.Sprintf("../jmxfetch/fixtures/%s.yaml", c))
-		assert.NoError(t, err)
-
-		// Parse configuration
-		err = yaml.Unmarshal(yamlFile, &cf)
-		assert.NoError(t, err)
-
-		cache[c] = cf
-	}
-
-	//convert
-	j := map[string]interface{}{}
-	c := map[string]interface{}{}
-	for name, config := range cache {
-		c[name] = getJSONSerializableMap(config)
-	}
-	j["configurations"] = c
-
-	//json encode
-	_, err := json.Marshal(getJSONSerializableMap(j))
-	assert.NoError(t, err)
 }
