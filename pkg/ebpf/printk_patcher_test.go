@@ -9,7 +9,6 @@ package ebpf
 
 import (
 	"bufio"
-	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,7 +19,6 @@ import (
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"

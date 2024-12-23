@@ -9,7 +9,6 @@ package tracer
 
 import (
 	"fmt"
-	"math"
 	"net"
 	"slices"
 	"testing"

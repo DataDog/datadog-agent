@@ -8,7 +8,6 @@
 package events
 
 import (
-	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -23,7 +22,6 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"

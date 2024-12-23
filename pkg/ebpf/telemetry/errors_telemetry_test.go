@@ -8,11 +8,8 @@
 package telemetry
 
 import (
-	"math"
 	"os"
 	"testing"
-
-	"golang.org/x/sys/unix"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
