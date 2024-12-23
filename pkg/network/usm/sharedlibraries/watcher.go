@@ -291,6 +291,9 @@ func (w *Watcher) Start() {
 	utils.AddAttacher(consts.USMModuleName, "native", w)
 }
 
+// sync unregisters from any terminated processes which we missed the exit
+// callback for, and also attempts to register to running processes to ensure
+// that we don't miss any process.
 func (w *Watcher) sync() {
 	// The mutex is only used for protection with the test code which reads the
 	// scannedPIDs map.
