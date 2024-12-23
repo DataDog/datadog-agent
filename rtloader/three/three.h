@@ -182,6 +182,7 @@ private:
     */
     typedef std::vector<std::string> PyPaths;
 
+    PyConfig _config;
     wchar_t *_pythonHome; /*!< unicode string with the PYTHONHOME for the underlying interpreter */
     wchar_t *_pythonExe; /*!< unicode string with the path to the executable of the underlying interpreter */
     PyObject *_baseClass; /*!< PyObject * pointer to the base Agent check class */

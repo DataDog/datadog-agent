@@ -42,6 +42,11 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     , _pymemInuse(0)
     , _pymemAlloc(0)
 {
+    PyConfig_InitPythonConfig(&_config);
+    // force initialize siginterrupt with signal in python so it can be overwritten by the agent
+    // This only effects the windows builds as linux already has the sigint handler initialized
+    // and thus python will ignore it
+    _config.install_signal_handlers = 1;
     initPythonHome(python_home);
 
     // If not empty, set our Python interpreter path
@@ -112,12 +117,9 @@ bool Three::init()
     PyImport_AppendInittab(KUBEUTIL_MODULE_NAME, PyInit_kubeutil);
     PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
 
-    // force initialize siginterrupt with signal in python so it can be overwritten by the agent
-    // This only effects the windows builds as linux already has the sigint handler initialized
-    // and thus python will ignore it
-    Py_InitializeEx(1);
+    status = Py_InitializeFromConfig(&_config);
 
-    if (!Py_IsInitialized()) {
+    if (PyStatus_Exception(status)) {
         setError("Python not initialized");
         return false;
     }
