@@ -119,12 +119,21 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	// URI Generic Syntax
 	// https://tools.ietf.org/html/rfc3986
 	uriPasswordReplacer := Replacer{
-		Regex: regexp.MustCompile(`(?i)([a-z][a-z0-9+-.]+://|\b)([^:]+):([^\s|"]+)@`),
+		Regex: regexp.MustCompile(`(?i)([a-z][a-z0-9+-.]+://)([^:]+):([^\s|"]+)@`),
 		Repl:  []byte(`$1$2:********@`),
 
-		// https://github.com/DataDog/datadog-agent/pull/15959
-		LastUpdated: parseVersion("7.45.0"),
+		// TODO: update the version when this replacer was added
+		LastUpdated: parseVersion("7.63.0"),
 	}
+
+	otherReplacer := Replacer{
+		Regex: regexp.MustCompile(`(?i)([a-z0-9+-.]+):(([^:@\s|"]*[^:@\s|"/])?)@`),
+		Repl:  []byte(`$1:********@`),
+
+		// TODO: add the version when this replacer was added
+		LastUpdated: parseVersion("7.63.0"),
+	}
+
 	yamlPasswordReplacer := matchYAMLKeyPart(
 		`(pass(word)?|pwd)`,
 		[]string{"pass", "pwd"},
@@ -224,6 +233,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, passwordReplacer)
 	scrubber.AddReplacer(SingleLine, tokenReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)
+	scrubber.AddReplacer(SingleLine, otherReplacer)
 
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)
 	scrubber.AddReplacer(SingleLine, appKeyYaml)
