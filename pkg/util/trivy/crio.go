@@ -29,7 +29,15 @@ func (c *fakeCRIOContainer) ID() (string, error) {
 }
 
 func (c *fakeCRIOContainer) ConfigFile() (*v1.ConfigFile, error) {
-	configFile := &v1.ConfigFile{}
+	configFile := &v1.ConfigFile{
+		Architecture: c.imgMeta.Architecture,
+		OS:           c.imgMeta.OS,
+	}
+	configFile.RootFS.DiffIDs = make([]v1.Hash, len(c.layerIDs))
+	for i, diffID := range c.layerIDs {
+		configFile.RootFS.DiffIDs[i], _ = v1.NewHash(diffID)
+	}
+
 	for _, layer := range c.imgMeta.Layers {
 		configFile.History = append(configFile.History, v1.History{
 			Author:     layer.History.Author,
