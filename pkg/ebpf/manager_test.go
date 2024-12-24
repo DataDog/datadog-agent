@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 )
 
@@ -38,13 +39,13 @@ func (t *dummyModifier) AfterInit(m *manager.Manager, name names.ModuleName, opt
 	return args.Error(0)
 }
 
-func (t *dummyModifier) BeforeStop(m *manager.Manager, name names.ModuleName, opts *manager.Options) error {
-	args := t.Called(m, name, opts)
+func (t *dummyModifier) BeforeStop(m *manager.Manager, name names.ModuleName, cleanupType manager.MapCleanupType) error {
+	args := t.Called(m, name, cleanupType)
 	return args.Error(0)
 }
 
-func (t *dummyModifier) AfterStop(m *manager.Manager, name names.ModuleName, opts *manager.Options) error {
-	args := t.Called(m, name, opts)
+func (t *dummyModifier) AfterStop(m *manager.Manager, name names.ModuleName, cleanupType manager.MapCleanupType) error {
+	args := t.Called(m, name, cleanupType)
 	return args.Error(0)
 }
 
@@ -86,13 +87,21 @@ func TestNewManagerWithDefault(t *testing.T) {
 
 func TestManagerInitWithOptions(t *testing.T) {
 	modifier := &dummyModifier{}
-	modifier.On("BeforeInit").Return(nil)
-	modifier.On("AfterInit").Return(nil)
+	modifier.On("BeforeInit", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	modifier.On("AfterInit", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	mgr := NewManager(&manager.Manager{}, "test", modifier)
 	require.NotNil(t, mgr)
 
-	err := mgr.InitWithOptions(nil, nil)
+	// Load a simple eBPF program to test the modifiers
+	cfg := NewConfig()
+	require.NotNil(t, cfg)
+
+	buf, err := bytecode.GetReader(cfg.BPFDir, "logdebug-test.o")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = buf.Close })
+
+	err = mgr.InitWithOptions(buf, nil)
 	require.NoError(t, err)
 
 	modifier.AssertExpectations(t)
@@ -100,8 +109,8 @@ func TestManagerInitWithOptions(t *testing.T) {
 
 func TestManagerStop(t *testing.T) {
 	modifier := &dummyModifier{}
-	modifier.On("BeforeStop").Return(nil)
-	modifier.On("AfterStop").Return(nil)
+	modifier.On("BeforeStop", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	modifier.On("AfterStop", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	mgr := NewManager(&manager.Manager{}, "test", modifier)
 	require.NotNil(t, mgr)
