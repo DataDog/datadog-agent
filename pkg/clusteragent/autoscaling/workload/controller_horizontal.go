@@ -479,7 +479,7 @@ func accumulateReplicasChange(currentTime time.Time, events []datadoghq.DatadogP
 	return
 }
 
-func stabilizeRecommendations(currentTime time.Time, pastActions []datadoghq.DatadogPodAutoscalerHorizontalAction, currentReplicas int32, originalTargetDesiredReplicas int32, stabilizationWindowUpscaleSeconds int32, stabilizationWindowDownscaleSeconds int32, scaleDirection scaleDirection) (int32, string) {
+func stabilizeRecommendations(currentTime time.Time, pastActions []datadoghq.DatadogPodAutoscalerHorizontalAction, currentReplicas int32, originalTargetDesiredReplicas int32, stabilizationWindowUpscaleSeconds int32, stabilizationWindowDownscaleSeconds int32, scaleDirection ScaleDirection) (int32, string) {
 	limitReason := ""
 
 	if len(pastActions) == 0 {
@@ -493,15 +493,15 @@ func stabilizeRecommendations(currentTime time.Time, pastActions []datadoghq.Dat
 	downCutoff := currentTime.Add(-time.Duration(stabilizationWindowDownscaleSeconds) * time.Second)
 
 	for _, a := range pastActions {
-		if scaleDirection == scaleUp && a.Time.Time.After(upCutoff) {
+		if scaleDirection == ScaleUp && a.Time.Time.After(upCutoff) {
 			upRecommendation = min(upRecommendation, *a.RecommendedReplicas)
 		}
 
-		if scaleDirection == scaleDown && a.Time.Time.After(downCutoff) {
+		if scaleDirection == ScaleDown && a.Time.Time.After(downCutoff) {
 			downRecommendation = max(downRecommendation, *a.RecommendedReplicas)
 		}
 
-		if (scaleDirection == scaleUp && a.Time.Time.Before(upCutoff)) || (scaleDirection == scaleDown && a.Time.Time.Before(downCutoff)) {
+		if (scaleDirection == ScaleUp && a.Time.Time.Before(upCutoff)) || (scaleDirection == ScaleDown && a.Time.Time.Before(downCutoff)) {
 			break
 		}
 	}
