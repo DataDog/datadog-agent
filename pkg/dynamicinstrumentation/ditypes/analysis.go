@@ -172,7 +172,7 @@ func (op LocationExpressionOpcode) String() string {
 	}
 }
 
-// CopyLocation express creates an expression which
+// CopyLocationExpression express creates an expression which
 // duplicates the u64 element on the top of the BPF parameter stack.
 func CopyLocationExpression() LocationExpression {
 	return LocationExpression{Opcode: OpCopy}

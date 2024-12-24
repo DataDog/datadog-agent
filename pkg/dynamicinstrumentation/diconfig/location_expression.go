@@ -22,6 +22,8 @@ import (
 // LocationExpressions that can be used to read the parameter from the target process.
 //
 // It walks the tree of the parameter and its pieces, generating LocationExpressions for each piece.
+//
+//nolint:revive
 func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *ditypes.Parameter) {
 	triePaths, expressionTargets := generateLocationVisitsMap(param)
 
@@ -90,8 +92,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					)
 				}
 				continue
-				/* end directly assigned types */
-			} else {
+			} else { /* end directly assigned types */
 				// This is not directly assigned, expect the address for it on the stack
 				if elementParam.Kind == uint(reflect.Pointer) {
 					targetExpressions = append(targetExpressions,
@@ -243,10 +244,11 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						targetExpressions = append(targetExpressions, expressionsToUseForEachArrayElement...)
 					}
 				} else {
+					// Basic type, indirectly assigned
 					targetExpressions = append(targetExpressions,
 						ditypes.DereferenceToOutputLocationExpression(uint(elementParam.TotalSize)))
 				}
-			}
+			} /* end indirectly assigned types */
 		}
 		expressionTargets[i].Parameter.LocationExpressions = targetExpressions
 	}
@@ -280,7 +282,7 @@ func printLocationExpressions(expressions []ditypes.LocationExpression) {
 	}
 }
 
-type ExpressionParamTuple struct {
+type expressionParamTuple struct {
 	TypePath  string
 	Parameter *ditypes.Parameter
 }
@@ -288,16 +290,16 @@ type ExpressionParamTuple struct {
 // generateLocationVisitsMap follows the tree of parameters (parameter.ParameterPieces), and
 // collects string values of all the paths to nodes that need expressions (`needsExpressions`),
 // as well as all combinations of elements that can be achieved by walking the tree (`trieKeys`).
-func generateLocationVisitsMap(parameter *ditypes.Parameter) (trieKeys, needsExpressions []ExpressionParamTuple) {
-	trieKeys = []ExpressionParamTuple{}
-	needsExpressions = []ExpressionParamTuple{}
+func generateLocationVisitsMap(parameter *ditypes.Parameter) (trieKeys, needsExpressions []expressionParamTuple) {
+	trieKeys = []expressionParamTuple{}
+	needsExpressions = []expressionParamTuple{}
 
 	var visit func(param *ditypes.Parameter, path string)
 	visit = func(param *ditypes.Parameter, path string) {
 		if param == nil {
 			return
 		}
-		trieKeys = append(trieKeys, ExpressionParamTuple{path + param.Type, param})
+		trieKeys = append(trieKeys, expressionParamTuple{path + param.Type, param})
 
 		if (len(param.ParameterPieces) == 0 ||
 			isBasicType(param.Kind) ||
@@ -305,7 +307,7 @@ func generateLocationVisitsMap(parameter *ditypes.Parameter) (trieKeys, needsExp
 			param.Kind == uint(reflect.Slice)) &&
 			param.Kind != uint(reflect.Struct) &&
 			param.Kind != uint(reflect.Pointer) {
-			needsExpressions = append(needsExpressions, ExpressionParamTuple{path + param.Type, param})
+			needsExpressions = append(needsExpressions, expressionParamTuple{path + param.Type, param})
 			return
 		}
 
