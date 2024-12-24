@@ -159,10 +159,6 @@ func TestReadParams(t *testing.T) {
 				8, 1, 0, // Struct field 1 is a uint8 (size 1)
 				9, 2, 0, // Struct field 2 is a uint16 (size 2)
 				8, 1, 0, // Struct field 3 is a uint8 (size 1)
-				25, 3, 0, // Slice elements are each a struct with 3 fields
-				8, 1, 0, // Struct field 1 is a uint8 (size 1)
-				9, 2, 0, // Struct field 2 is a uint16 (size 2)
-				8, 1, 0, // Struct field 3 is a uint8 (size 1)
 				1, 2, 0, 3, // Content of slice element 1 (not relevant for this function)
 				4, 5, 0, 6, // Content of slice element 2 (not relevant for this function)
 				// Padding
@@ -191,11 +187,7 @@ func TestReadParams(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			output := readParams(tt.inputBuffer)
-			if !reflect.DeepEqual(output, tt.expectedResult) {
-				fmt.Printf("Got: %v\n", output)
-				fmt.Printf("Expected: %v\n", tt.expectedResult)
-				t.Errorf("Didn't read correctly!")
-			}
+			assert.Equal(t, output, tt.expectedResult)
 		})
 	}
 }

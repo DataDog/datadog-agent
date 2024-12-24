@@ -50,7 +50,9 @@ func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) 
 }
 
 func readParams(values []byte) []*ditypes.Param {
-	log.Tracef("DI event bytes (0:100): %v", values[0:100])
+	if len(values) >= 100 {
+		log.Tracef("DI event bytes (0:100): %v", values[0:100])
+	}
 	outputParams := []*ditypes.Param{}
 	for i := 0; i+3 < len(values); {
 		paramTypeDefinition := parseTypeDefinition(values[i:])
