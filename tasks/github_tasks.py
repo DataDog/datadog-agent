@@ -125,8 +125,9 @@ def _update_windows_runner_version(new_version=None, buildenv_ref="master"):
     # We are only waiting 0.5min between each status check because buildenv is much faster than macOS builds
     workflow_conclusion, workflow_url = follow_workflow_run(run, "DataDog/buildenv", 0.5)
 
-    if workflow_conclusion == "failure":
-        print_failed_jobs_logs(run)
+    if workflow_conclusion != "success":
+        if workflow_conclusion == "failure":
+            print_failed_jobs_logs(run)
         return workflow_conclusion
 
     print_workflow_conclusion(workflow_conclusion, workflow_url)
