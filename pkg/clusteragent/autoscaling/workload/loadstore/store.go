@@ -11,27 +11,33 @@ import (
 	"strings"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
-// StoreInfo represents the store information, like memory usage and entity count.
+// StoreInfo represents the store information which aggregates the entities to lowest level, i.e., container level
 type StoreInfo struct {
 	currentTime  Timestamp
 	StatsResults []*StatsResult
 }
 
-// StatsResult represents the statistics result for the entities aggregated by namespace, deployment, and load name.
+// StatsResult provides a summary of the entities, grouped by namespace, podOwner, and metric name.
 type StatsResult struct {
 	Namespace  string
-	Deployment string
-	LoadName   string
-	Count      int
-	Min        ValueType
-	P10        ValueType
-	Medium     ValueType
-	Avg        ValueType
-	P95        ValueType
-	P99        ValueType
-	Max        ValueType
+	PodOwner   string
+	MetricName string
+	Count      int // Under <namespace, podOwner, metric>, number of containers if container type or pods if pod type
+}
+
+// PodResult provides the time series of entity values for a pod and its containers
+type PodResult struct {
+	PodName         string
+	ContainerValues map[string][]EntityValue // container name to a time series of entity values, e.g cpu usage from past three collection
+	PodLevelValue   []EntityValue            //  If Pod level value is not available, it will be empty
+}
+
+// QueryResult provides the pod results for a given query
+type QueryResult struct {
+	results []PodResult
 }
 
 // Store is an interface for in-memory storage of entities and their load metric values.
@@ -42,8 +48,11 @@ type Store interface {
 	// GetStoreInfo returns the store information.
 	GetStoreInfo() StoreInfo
 
-	// GetEntitiesStats to get all entities by given search filters
-	GetEntitiesStats(namespace string, deployment string, loadName string) StatsResult
+	// GetMetricsRaw provides the values of qualified entities by given search filters
+	GetMetricsRaw(metricName string,
+		namespace string,
+		podOwnerName string,
+		containerName string) QueryResult
 
 	//DeleteEntityByHashKey to delete entity by hash key
 	DeleteEntityByHashKey(hash uint64)
@@ -63,36 +72,64 @@ func createEntitiesFromPayload(payload *gogen.MetricPayload) map[*Entity]*Entity
 		metricName := series.GetMetric()
 		points := series.GetPoints()
 		tags := series.GetTags()
-		resources := series.GetResources()
 		entity := Entity{
-			EntityType: UnknownType,
-			SourceID:   "",
-			Host:       "",
-			EntityName: "",
-			Namespace:  "",
-			LoadName:   metricName,
-			Deployment: "",
-		}
-		for _, resource := range resources {
-			if resource.Type == "host" {
-				entity.Host = resource.Name
-			}
+			EntityType:   UnknownType,
+			EntityName:   "",
+			Namespace:    "",
+			MetricName:   metricName,
+			PodOwnerName: "",
+			PodOwnerkind: Unsupported,
 		}
 		for _, tag := range tags {
 			k, v := splitTag(tag)
 			switch k {
 			case "display_container_name":
+				entity.EntityType = ContainerType
 				entity.EntityName = v
 			case "kube_namespace":
 				entity.Namespace = v
 			case "container_id":
-				entity.SourceID = v
 				entity.EntityType = ContainerType
-			case "kube_deployment":
-				entity.Deployment = v
+			case "kube_ownerref_name":
+				entity.PodOwnerName = v
+			case "kube_ownerref_kind":
+				switch strings.ToLower(v) {
+				case "deployment":
+					entity.PodOwnerkind = Deployment
+				case "replicaset":
+					entity.PodOwnerkind = ReplicaSet
+				// TODO: add more cases
+				default:
+					entity.PodOwnerkind = Unsupported
+				}
+			case "container_name":
+				entity.ContainerName = v
+			case "pod_name":
+				entity.PodName = v
 			}
 		}
-		if entity.LoadName == "" || entity.Host == "" || entity.EntityType == UnknownType || entity.Namespace == "" || entity.SourceID == "" {
+		// TODO:
+		// if PodType, populate entity.type first
+		// if entity.EntityType == PodType {
+		// 		entity.EntityName = entity.PodName
+		// }
+
+		// for replicaset, the logic should be consistent with getNamespacedPodOwner in podwatcher
+		if entity.PodOwnerkind == ReplicaSet {
+			deploymentName := kubernetes.ParseDeploymentForReplicaSet(entity.PodOwnerName)
+			if deploymentName != "" {
+				entity.PodOwnerkind = Deployment
+				entity.PodOwnerName = deploymentName
+			} else {
+				entity.PodOwnerkind = Unsupported
+			}
+		}
+		if entity.MetricName == "" ||
+			entity.EntityType == UnknownType ||
+			entity.Namespace == "" ||
+			entity.PodOwnerName == "" ||
+			entity.EntityName == "" ||
+			entity.PodOwnerkind == Unsupported {
 			continue
 		}
 		for _, point := range points {

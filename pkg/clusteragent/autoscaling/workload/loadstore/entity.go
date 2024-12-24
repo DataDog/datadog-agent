@@ -10,11 +10,13 @@ package loadstore
 import (
 	"fmt"
 	"time"
-	"unsafe"
 )
 
 // EntityType defines the type of entity.
-type EntityType int
+type EntityType int8
+
+// PodOwnerType is parsed from kube_ownerref_kind, example values: deployment, statefulset, daemonset, etc.
+type PodOwnerType int8
 
 // ValueType defines the datatype of workload value.
 type ValueType float64
@@ -22,7 +24,15 @@ type ValueType float64
 // Enumeration of entity types.
 const (
 	ContainerType EntityType = iota
+	PodType                  // TODO: PodType is not supported yet
 	UnknownType
+)
+
+// Enumeration of pod owner types which is parsed from tags kube_ownerref_kind
+const (
+	Deployment PodOwnerType = iota
+	ReplicaSet
+	Unsupported
 )
 
 const (
@@ -35,33 +45,36 @@ const (
 )
 
 // Entity represents an entity with a type and its attributes.
+// if entity is a pod, if entity restarts, a new entity will be created because podname is different
+// if entity is a container, the entity will be same
 type Entity struct {
-	EntityType EntityType
-	SourceID   string
-	Host       string // serie.Host
-	EntityName string // display_container_name
-	Namespace  string
-	LoadName   string
-	Deployment string
+	EntityType EntityType // required, PodType or ContainerType
+
+	// Use display_container_name for EntityName if EntityType is container
+	// or use podname for entityName if EntityType is pod
+	// display_container_name = container.Name + pod.Name
+	// if container is restarted, the display_container_name will be the same
+	EntityName string // required
+
+	Namespace     string       // required
+	PodOwnerName  string       // required, parsed from tags kube_ownerref_name
+	PodOwnerkind  PodOwnerType // required, parsed from tags kube_ownerref_kind
+	PodName       string       // required, parsed from tags pod_name
+	ContainerName string       // optional, short container name, empty if EntityType is PodType
+	MetricName    string       // required, metric name of workload
 }
 
 // String returns a string representation of the Entity.
 func (e *Entity) String() string {
 	return fmt.Sprintf(
 		"  Key: %d,"+
-			"  SourceID: %s,"+
-			"  LoadName: %s"+
+			"  MetricName: %s"+
 			"  EntityName: %s,"+
 			"  EntityType: %d,"+
-			"  Host: %s,"+
 			"  Namespace: %s,"+
-			"  Deployment: %s",
-		hashEntityToUInt64(e), e.SourceID, e.LoadName, e.EntityName, e.EntityType, e.Host, e.Namespace, e.Deployment)
-}
-
-// MemoryUsage returns the memory usage of the entity in bytes.
-func (e *Entity) MemoryUsage() uint32 {
-	return uint32(len(e.SourceID)) + uint32(len(e.Host)) + uint32(len(e.EntityName)) + uint32(len(e.Namespace)) + uint32(len(e.LoadName)) + uint32(unsafe.Sizeof(e.EntityType)) + uint32(len(e.Deployment))
+			"  PodOwnerName: %s"+
+			"  PodOwnerType: %d",
+		hashEntityToUInt64(e), e.MetricName, e.EntityName, e.EntityType, e.Namespace, e.PodOwnerName, e.PodOwnerkind)
 }
 
 // EntityValue represents a value with a timestamp.
@@ -80,8 +93,7 @@ func (ev *EntityValue) String() string {
 
 // EntityValueQueue represents a queue with a fixed capacity that removes the front element when full
 type EntityValueQueue struct {
-	data     []ValueType
-	avg      ValueType
+	data     []*EntityValue
 	head     int
 	tail     int
 	size     int
@@ -90,7 +102,7 @@ type EntityValueQueue struct {
 
 // pushBack adds an element to the back of the queue.
 // If the queue is full, it removes the front element first.
-func (q *EntityValueQueue) pushBack(value ValueType) bool {
+func (q *EntityValueQueue) pushBack(value *EntityValue) bool {
 	if q.size == q.capacity {
 		// Remove the front element
 		q.head = (q.head + 1) % q.capacity
@@ -101,24 +113,28 @@ func (q *EntityValueQueue) pushBack(value ValueType) bool {
 	q.data[q.tail] = value
 	q.tail = (q.tail + 1) % q.capacity
 	q.size++
-	q.avg = q.average()
 	return true
 }
 
-// average calculates the average value of the queue.
-func (q *EntityValueQueue) average() ValueType {
+// ToSlice converts the EntityValueQueue data to a slice of EntityValue.
+func (q *EntityValueQueue) ToSlice() []EntityValue {
 	if q.size == 0 {
-		return 0
+		return []EntityValue{}
 	}
-	sum := ValueType(0)
-	for i := 0; i < q.size; i++ {
-		index := (q.head + i) % q.capacity
-		sum += q.data[index]
-	}
-	return sum / ValueType(q.size)
-}
 
-// value returns the average value of the queue
-func (q *EntityValueQueue) value() ValueType {
-	return q.avg
+	result := make([]EntityValue, 0, q.size)
+	if q.head < q.tail {
+		for _, v := range q.data[q.head:q.tail] {
+			result = append(result, *v)
+		}
+	} else {
+		for _, v := range q.data[q.head:] {
+			result = append(result, *v)
+		}
+		for _, v := range q.data[:q.tail] {
+			result = append(result, *v)
+		}
+	}
+
+	return result
 }
