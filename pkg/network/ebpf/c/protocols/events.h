@@ -67,12 +67,13 @@
                                                          key.cpu,                                       \
                                                          batch,                                         \
                                                          sizeof(batch_data_t));                         \
-                    }                                                                                   \
-                    perf_ret = bpf_perf_event_output(ctx,                                               \
+                    } else {                                                                            \
+                        perf_ret = bpf_perf_event_output(ctx,                                           \
                                                      &name##_batch_events,                              \
                                                      key.cpu,                                           \
                                                      batch,                                             \
                                                      sizeof(batch_data_t));                             \
+                    }                                                                                   \
                 }                                                                                       \
                 if (perf_ret < 0) {                                                                     \
                     _LOG(name, "batch flush error: cpu: %d idx: %llu err: %ld",                           \
