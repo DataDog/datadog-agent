@@ -6,7 +6,7 @@
 //go:build e2e
 // +build e2e
 
-package k8ssuite
+package agent_onboarding
 
 import (
 	"context"

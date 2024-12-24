@@ -6,7 +6,7 @@
 //go:build e2e
 // +build e2e
 
-package k8ssuite
+package agent_onboarding
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -16,15 +16,15 @@ import (
 	"testing"
 )
 
-type awsKindSuite struct {
+type localKindSuite struct {
 	k8sSuite
 }
 
-func (s *awsKindSuite) SetupSuite() {
-	s.local = false
+func (s *localKindSuite) SetupSuite() {
+	s.local = true
 }
 
-func TestAWSKindSuite(t *testing.T) {
+func TestLocalKindSuite(t *testing.T) {
 	operatorOptions := []operatorparams.Option{
 		operatorparams.WithNamespace(common.NamespaceName),
 		operatorparams.WithOperatorFullImagePath(common.OperatorImageName),
@@ -32,12 +32,11 @@ func TestAWSKindSuite(t *testing.T) {
 	}
 
 	provisionerOptions := []provisioners.KubernetesProvisionerOption{
-		provisioners.WithTestName("e2e-operator"),
 		provisioners.WithK8sVersion(common.K8sVersion),
 		provisioners.WithOperatorOptions(operatorOptions...),
 		provisioners.WithoutDDA(),
-		provisioners.WithLocal(false),
+		provisioners.WithLocal(true),
 	}
 
-	e2e.Run(t, &awsKindSuite{}, e2e.WithProvisioner(provisioners.KubernetesProvisioner(provisionerOptions...)), e2e.WithDevMode(), e2e.WithSkipDeleteOnFailure())
+	e2e.Run(t, &localKindSuite{}, e2e.WithProvisioner(provisioners.KubernetesProvisioner(provisionerOptions...)))
 }

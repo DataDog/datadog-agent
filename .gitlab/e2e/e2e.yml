@@ -653,7 +653,7 @@ new-e2e-agent-onboarding:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
   variables:
-    TARGETS: ./tests/agent-onboarding/k8sSuite
+    TARGETS: ./tests/agent-onboarding
     TEAM: container-ecosystems
   parallel:
     matrix:
