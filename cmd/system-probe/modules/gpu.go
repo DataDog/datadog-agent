@@ -10,6 +10,7 @@ package modules
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -46,6 +47,12 @@ var GPUMonitoring = module.Factory{
 
 		if processEventConsumer == nil {
 			return nil, fmt.Errorf("process event consumer not initialized")
+		}
+
+		// TODO: Use config path for rootfs
+		err := gpu.ConfigureDeviceCgroupsForProcess(uint32(os.Getpid()), "/host")
+		if err != nil {
+			log.Warnf("Failed to configure device cgroups for process: %v", err)
 		}
 
 		c := gpuconfig.New()
