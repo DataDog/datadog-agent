@@ -126,41 +126,6 @@ func collectFieldIDs(param *ditypes.Parameter) []bininspect.FieldIdentifier {
 	return fieldIDs
 }
 
-// populateLocationExpressions traverses through parameters for each function being
-// instrumented and generates the location expressions for collecting the specific
-// values.
-func populateLocationExpressions(
-	metadata map[string]bininspect.FunctionMetadata,
-	procInfo *ditypes.ProcessInfo) {
-
-	functions := procInfo.TypeMap.Functions
-	probes := procInfo.GetProbes()
-	funcNamesToLimits := map[string]*ditypes.InstrumentationInfo{}
-	for i := range probes {
-		funcNamesToLimits[probes[i].FuncName] = probes[i].InstrumentationInfo
-	}
-
-	for funcName, parameters := range functions {
-		funcMetadata, ok := metadata[funcName]
-		if !ok {
-			log.Warnf("no function metadata for function %s", funcName)
-			continue
-		}
-		limitInfo, ok := funcNamesToLimits[funcName]
-		if !ok || limitInfo == nil {
-			log.Warnf("no limit info available for function %s", funcName)
-			continue
-		}
-		for i := range parameters {
-			if i >= len(funcMetadata.Parameters) {
-				log.Warnf("parameter metadata does not line up with parameter itself (not found in metadata: %v)", parameters[i])
-				break
-			}
-			GenerateLocationExpression(limitInfo, parameters[i])
-		}
-	}
-}
-
 func populateLocationExpressionsForFunction(
 	metadata map[string]bininspect.FunctionMetadata,
 	procInfo *ditypes.ProcessInfo,

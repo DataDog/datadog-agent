@@ -174,30 +174,47 @@ func DirectReadToOutputLocationExpression(p *Parameter) LocationExpression {
 	return ReadStackToOutputLocationExpression(uint(p.Location.StackOffset), uint(p.TotalSize))
 }
 
+// ReadRegisterLocationExpression creates an expression which
+// reads `size` bytes from register `reg` into a u64 which is then pushed to
+// the top of the BPF parameter stack.
 // Arg1 = register
 // Arg2 = size of element
 func ReadRegisterLocationExpression(register, size uint) LocationExpression {
 	return LocationExpression{Opcode: OpReadUserRegister, Arg1: register, Arg2: size}
 }
 
+// ReadStackLocationExpression creates an expression which
+// reads `size` bytes from the traced program's stack at offset `stack_offset`
+// into a u64 which is then pushed to the top of the BPF parameter stack.
 // Arg1 = stack offset
 // Arg2 = size of element
 func ReadStackLocationExpression(offset, size uint) LocationExpression {
 	return LocationExpression{Opcode: OpReadUserStack, Arg1: offset, Arg2: size}
 }
 
+// ReadRegisterToOutputLocationExpression creates an expression which
+// reads `size` bytes from register `reg` into a u64 which is then written to
+// the output buffer.
 // Arg1 = register
 // Arg2 = size of element
 func ReadRegisterToOutputLocationExpression(register, size uint) LocationExpression {
 	return LocationExpression{Opcode: OpReadUserRegisterToOutput, Arg1: register, Arg2: size}
 }
 
+// ReadStackToOutputLocationExpression creates an expression which
+// reads `size` bytes from the traced program's stack at offset `stack_offset`
+// into a u64 which is then written to the output buffer
 // Arg1 = stack offset
 // Arg2 = size of element
 func ReadStackToOutputLocationExpression(offset, size uint) LocationExpression {
 	return LocationExpression{Opcode: OpReadUserStackToOutput, Arg1: offset, Arg2: size}
 }
 
+// DereferenceLocationExpression creates an expression which
+// pops the 8-byte address from the top of the BPF parameter stack and dereferences
+// it, reading a value of size `valueSize` from it, and pushes that value (encoded as a u64)
+// back to the BPF parameter stack.
+// It should only be used for types of 8 bytes or less
 // Arg1 = size of value we're reading from the 8 byte address at the top of the stack
 func DereferenceLocationExpression(valueSize uint) LocationExpression {
 	if valueSize > 8 {
@@ -206,6 +223,11 @@ func DereferenceLocationExpression(valueSize uint) LocationExpression {
 	return LocationExpression{Opcode: OpDereference, Arg1: valueSize}
 }
 
+// DereferenceToOutputLocationExpression creates an expression which
+// pops the 8-byte address from the top of the BPF parameter stack and
+// dereferences it, reading a value of size `valueSize` from it, and writes that value
+// directly to the output buffer.
+// It should only be used for types of 8 bytes or less
 // Arg1 = size of value we're reading from the 8 byte address at the top of the stack
 func DereferenceToOutputLocationExpression(valueSize uint) LocationExpression {
 	if valueSize > 8 {
@@ -214,59 +236,77 @@ func DereferenceToOutputLocationExpression(valueSize uint) LocationExpression {
 	return LocationExpression{Opcode: OpDereferenceToOutput, Arg1: valueSize}
 }
 
+// DereferenceLargeLocationExpression creates an expression which
+// pops the 8-byte address from the top of the BPF parameter stack and dereferences
+// it, reading a value of size `typeSize` from it, and pushes that value, encoded in 8-byte chunks
+// to the BPF parameter stack. This is safe to use for types larger than 8-bytes.
+// back to the BPF parameter stack.
 // Arg1 = size in bytes of value we're reading from the 8 byte address at the top of the stack
 // Arg2 = number of chunks (should be ({{.Arg1}} + 7) / 8)
 func DereferenceLargeLocationExpression(typeSize uint) LocationExpression {
 	return LocationExpression{Opcode: OpDereferenceLarge, Arg1: typeSize, Arg2: (typeSize + 7) / 8}
 }
 
+// DereferenceLargeToOutputLocationExpression creates an expression which
+// pops the 8-byte address from the top of the BPF parameter stack and dereferences
+// it, reading a value of size `typeSize` from it, and writes that value to the output buffer.
+// This is safe to use for types larger than 8-bytes.
 // Arg1 = size in bytes of value we're reading from the 8 byte address at the top of the stack
 // Arg2 = number of chunks (should be ({{.Arg1}} + 7) / 8)
 func DereferenceLargeToOutputLocationExpression(typeSize uint) LocationExpression {
 	return LocationExpression{Opcode: OpDereferenceLargeToOutput, Arg1: typeSize, Arg2: (typeSize + 7) / 8}
 }
 
-// Maximum limit (Arg1) should be set to the size of each element * max collection length
-// Arg1 = maximum limit on bytes read
-// Arg2 = number of chunks (should be (max + 7)/8)
-// Arg3 = size of each element
-func DereferenceDynamicLocationExpression(readLimit, elementSize uint) LocationExpression {
-	return LocationExpression{Opcode: OpDereferenceDynamic, Arg1: readLimit, Arg2: (readLimit + 7) / 8, Arg3: elementSize}
-}
-
+// DereferenceDynamicToOutputLocationExpression creates an expression which
+// reads an 8-byte length from the top of the BPF parameter stack, followed by
+// an 8-byte address. It applies the maximum `readLimit` to the length, then dereferences the address to
+// the output buffer.
 // Maximum limit (Arg1) should be set to the size of each element * max collection length
 // Arg1 = maximum limit on bytes read
 func DereferenceDynamicToOutputLocationExpression(readLimit uint) LocationExpression {
 	return LocationExpression{Opcode: OpDereferenceDynamicToOutput, Arg1: readLimit}
 }
 
+// ReadStringToOutput creates an expression which
+// reads a Go string to the output buffer, limited in length by `limit`.
+// In Go, strings are internally implemented as structs with two fields. The fields are length,
+// and a pointer to a character array. This expression expects the address of the string struct
+// itself to be on the top of the stack.
 // Arg1 = string length limit
 func ReadStringToOutput(limit uint16) LocationExpression {
 	return LocationExpression{Opcode: OpReadStringToOutput, Arg1: uint(limit)}
 }
 
+// ApplyOffsetLocationExpression creates an expression which
+// adds `offset` to the 8-byte address on the top of the bpf parameter stack.
 // Arg1 = uint value (offset) we're adding to the 8-byte address on top of the stack
 func ApplyOffsetLocationExpression(offset uint) LocationExpression {
 	return LocationExpression{Opcode: OpApplyOffset, Arg1: offset}
 }
 
+// PopLocationExpression creates an expression which
+// writes to output `num_elements` elements, each of size `elementSize, from the top of the stack.
 // Arg1 = number of elements to pop
 // Arg2 = size of each element
 func PopLocationExpression(numElements, elementSize uint) LocationExpression {
 	return LocationExpression{Opcode: OpPop, Arg1: numElements, Arg2: elementSize}
 }
 
+// InsertLabel inserts a label in the bpf program
 // No args, just set label
 func InsertLabel(label string) LocationExpression {
 	return LocationExpression{Opcode: OpLabel, Label: label}
 }
 
+// SetLimitEntry associates a collection identifier with the passed limit
 // Arg1 = limit to set
 // CollectionIdentifier = the collection that we're limiting
 func SetLimitEntry(collectionIdentifier string, limit uint) LocationExpression {
 	return LocationExpression{Opcode: OpSetGlobalLimit, CollectionIdentifier: collectionIdentifier, Arg1: limit}
 }
 
+// JumpToLabelIfEqualToLimit jumps to a specified label if the limit associated with the collection (by identifier)
+// is equal to the passed value
 // Arg1 = value to compare to global limit variable
 // CollectionIdentifier = the collection that we're limiting
 // Label = label to jump to if the value is equal to the global limit variable
@@ -274,11 +314,13 @@ func JumpToLabelIfEqualToLimit(val uint, collectionIdentifier, label string) Loc
 	return LocationExpression{Opcode: OpJumpIfGreaterThanLimit, CollectionIdentifier: collectionIdentifier, Arg1: val, Label: label}
 }
 
+// InsertComment inserts a comment into the bpf program
 // Label = comment
 func InsertComment(comment string) LocationExpression {
 	return LocationExpression{Opcode: OpComment, Label: comment}
 }
 
+// PrintStatement inserts a print statement into the bpf program
 // Label = format
 // CollectionIdentifier = arguments
 // Example usage: PrintStatement("%d", "variableName")
@@ -286,6 +328,8 @@ func PrintStatement(format, arguments string) LocationExpression {
 	return LocationExpression{Opcode: OpPrintStatement, Label: format, CollectionIdentifier: arguments}
 }
 
+// LocationExpression is an operation which will be executed in bpf with the purpose
+// of capturing parameters from a running Go program
 type LocationExpression struct {
 	Opcode               LocationExpressionOpcode
 	Arg1                 uint

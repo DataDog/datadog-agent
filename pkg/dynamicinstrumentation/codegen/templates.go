@@ -56,15 +56,3 @@ param_type = {{.Kind}};
 bpf_probe_read_kernel(&event->output[outputOffset], sizeof(param_type), &param_type);
 outputOffset += 1;
 `
-
-// Unsupported types just get a single `255` value to signify as a placeholder
-// that an unsupported type goes here. Size is where we keep the actual type.
-var unsupportedTypeTemplateText = `
-// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
-// No capture, unsupported type
-`
-
-var cutForFieldLimitTemplateText = `
-// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
-// No capture, cut for field limit
-`

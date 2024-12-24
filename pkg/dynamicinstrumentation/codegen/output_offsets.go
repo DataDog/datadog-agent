@@ -11,50 +11,12 @@ import (
 	"math/rand"
 	"reflect"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
 
 type paramDepthCounter struct {
 	depth int
 	param *ditypes.Parameter
-}
-
-func applyCaptureDepth(params []ditypes.Parameter, maxDepth int) []ditypes.Parameter {
-	log.Tracef("Applying capture depth: %d", maxDepth)
-	queue := []paramDepthCounter{}
-
-	for i := range params {
-		queue = append(queue, paramDepthCounter{
-			depth: 0,
-			param: &params[i],
-		})
-	}
-
-	for len(queue) != 0 {
-		front := queue[0]
-		queue = queue[1:]
-
-		if front.depth == maxDepth {
-			// max capture depth reached, remove parameters below this level.
-			front.param.ParameterPieces = []*ditypes.Parameter{}
-			if front.param.Kind == uint(reflect.Struct) {
-				// struct size reflects the number of fields,
-				// setting to 0 tells the user space parsing not to
-				// expect anything else.
-				front.param.TotalSize = 0
-			}
-		} else {
-			for i := range front.param.ParameterPieces {
-				queue = append(queue, paramDepthCounter{
-					depth: front.depth + 1,
-					param: front.param.ParameterPieces[i],
-				})
-			}
-		}
-	}
-	return params
 }
 
 func flattenParameters(params []*ditypes.Parameter) []*ditypes.Parameter {

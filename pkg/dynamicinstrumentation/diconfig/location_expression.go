@@ -52,11 +52,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 
 		// Go through each path element of the instrumentation target
 		for pathElementIndex := range pathElements {
-			var (
-				elementParam *ditypes.Parameter
-			)
-
-			elementParam = getParamFromTriePaths(pathElements[pathElementIndex])
+			var elementParam *ditypes.Parameter = getParamFromTriePaths(pathElements[pathElementIndex])
 			if elementParam == nil {
 				log.Infof("Path not found to target: %s", pathElements[pathElementIndex])
 				continue
@@ -253,7 +249,6 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 			}
 		}
 		expressionTargets[i].Parameter.LocationExpressions = targetExpressions
-		targetExpressions = []ditypes.LocationExpression{}
 	}
 }
 

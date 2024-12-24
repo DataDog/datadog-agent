@@ -10,7 +10,6 @@ package eventparser
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"reflect"
 	"unsafe"
@@ -75,7 +74,7 @@ func readParams(values []byte) []*ditypes.Param {
 // from the byte buffer. It returns the resulting parameter and an indication of
 // how many bytes were read from the buffer
 func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, int) {
-	var bufferIndex int = 0
+	var bufferIndex int
 	// Start by creating a stack with each layer of the definition
 	// which will correspond with the layers of the values read from buffer.
 	// This is done using a temporary stack to reverse the order.
@@ -257,18 +256,6 @@ func isTypeWithHeader(pieceType byte) bool {
 		reflect.Kind(pieceType) == reflect.Array ||
 		reflect.Kind(pieceType) == reflect.Slice ||
 		reflect.Kind(pieceType) == reflect.Pointer
-}
-
-func isRuntimeSizedType(pieceType byte) bool {
-	return reflect.Kind(pieceType) == reflect.Slice ||
-		reflect.Kind(pieceType) == reflect.String
-}
-
-func readRuntimeSizedLength(lengthBytes []byte) (uint16, error) {
-	if len(lengthBytes) != 2 {
-		return 0, errors.New("malformed bytes for runtime sized length")
-	}
-	return binary.NativeEndian.Uint16(lengthBytes), nil
 }
 
 func parseIndividualValue(paramType byte, paramValueBytes []byte) string {

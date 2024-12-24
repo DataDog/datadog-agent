@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"strings"
 	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
@@ -29,17 +28,15 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 
 	if probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters {
 		params := procInfo.TypeMap.Functions[probe.FuncName]
-		if params != nil {
-			for i := range params {
-				flattenedParams := flattenParameters([]*ditypes.Parameter{params[i]})
-				err := generateHeadersText(flattenedParams, out)
-				if err != nil {
-					return err
-				}
-				err = generateParametersTextViaLocationExpressions(flattenedParams, out)
-				if err != nil {
-					return err
-				}
+		for i := range params {
+			flattenedParams := flattenParameters([]*ditypes.Parameter{params[i]})
+			err := generateHeadersText(flattenedParams, out)
+			if err != nil {
+				return err
+			}
+			err = generateParametersTextViaLocationExpressions(flattenedParams, out)
+			if err != nil {
+				return err
 			}
 		}
 	} else {
@@ -130,9 +127,7 @@ func collectLocationExpressions(param *ditypes.Parameter) []ditypes.LocationExpr
 		if top == nil {
 			continue
 		}
-		for i := range top.ParameterPieces {
-			queue = append(queue, top.ParameterPieces[i])
-		}
+		queue = append(queue, top.ParameterPieces...)
 		if len(top.LocationExpressions) > 0 {
 			collectedExpressions = append(top.LocationExpressions, collectedExpressions...)
 			top.LocationExpressions = []ditypes.LocationExpression{}
@@ -184,10 +179,6 @@ func resolveLocationExpressionTemplate(locationExpression ditypes.LocationExpres
 	default:
 		return nil, errors.New("invalid location expression opcode")
 	}
-}
-
-func cleanupTypeName(s string) string {
-	return strings.TrimPrefix(s, "*")
 }
 
 func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
