@@ -566,7 +566,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
-def set_release_json(ctx, key, value, release_branch=None, skip_checkout=False, worktree=True):
+def set_release_json(ctx, key, value, release_branch=None, skip_checkout=False, worktree=False):
     def _main():
         nonlocal key
 
@@ -776,10 +776,6 @@ def _update_last_stable(_, version, major_version: int = 7):
     return release_json["current_milestone"]
 
 
-def _get_agent6_latest_release(gh):
-    return max((r for r in gh.get_releases() if r.title.startswith('6.53')), key=lambda r: r.created_at).title
-
-
 @task
 def cleanup(ctx, release_branch):
     """Perform the post release cleanup steps
@@ -789,13 +785,13 @@ def cleanup(ctx, release_branch):
       - Updates the release.json last_stable fields
     """
 
-    with agent_context(ctx, release_branch):
+    # This task will create a PR to update the last_stable field in release.json
+    # It must create the PR against the default branch (6 or 7), so setting the context on it
+    main_branch = get_default_branch()
+    with agent_context(ctx, main_branch):
         gh = GithubAPI()
         major_version = get_version_major(release_branch)
-        if major_version == 6:
-            latest_release = _get_agent6_latest_release(gh)
-        else:
-            latest_release = gh.latest_release()
+        latest_release = gh.latest_release(major_version)
         match = VERSION_RE.search(latest_release)
         if not match:
             raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
@@ -804,7 +800,6 @@ def cleanup(ctx, release_branch):
         current_milestone = _update_last_stable(ctx, version, major_version=major_version)
 
         # create pull request to update last stable version
-        main_branch = get_default_branch()
         cleanup_branch = f"release/{version}-cleanup"
         ctx.run(f"git checkout -b {cleanup_branch}")
         ctx.run("git add release.json")
@@ -973,7 +968,7 @@ def get_active_release_branch(ctx, release_branch):
 
     with agent_context(ctx, branch=release_branch):
         gh = GithubAPI()
-        next_version = get_next_version(gh, latest_release=_get_agent6_latest_release(gh) if is_agent6(ctx) else None)
+        next_version = get_next_version(gh, latest_release=gh.latest_release(6) if is_agent6(ctx) else None)
         release_branch = gh.get_branch(next_version.branch())
         if release_branch:
             print(f"{release_branch.name}")
@@ -1034,12 +1029,13 @@ def generate_release_metrics(ctx, milestone, freeze_date, release_date):
     print(code_stats)
 
 
+# TODO rename to freeze_date to cutoff_date
 @task
 def create_schedule(_, version, freeze_date):
     """Create confluence pages for the release schedule.
 
     Args:
-        freeze_date: Date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+        freeze_date: Date when the code cut-off happened. Expected format YYYY-MM-DD, like '2022-02-01'
     """
 
     required_environment_variables = ["ATLASSIAN_USERNAME", "ATLASSIAN_PASSWORD"]

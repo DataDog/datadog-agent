@@ -7,10 +7,10 @@
 package telemetryimpl
 
 import (
+	"context"
 	"net/http"
 
 	"go.uber.org/fx"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
@@ -38,13 +38,7 @@ func newTelemetry(deps dependencies) (telemetry.Component, error) {
 	client := &http.Client{
 		Transport: httputils.CreateHTTPTransport(deps.Config),
 	}
-	telemetry := fleettelemetry.NewTelemetry(client, utils.SanitizeAPIKey(deps.Config.GetString("api_key")), deps.Config.GetString("site"), "datadog-installer-daemon",
-		fleettelemetry.WithSamplingRules(
-			tracer.NameServiceRule("cdn.*", "datadog-installer-daemon", 0.1),
-			tracer.NameServiceRule("*garbage_collect*", "datadog-installer-daemon", 0.05),
-			tracer.NameServiceRule("HTTPClient.*", "datadog-installer-daemon", 0.05),
-		),
-	)
-	deps.Lc.Append(fx.Hook{OnStart: telemetry.Start, OnStop: telemetry.Stop})
+	telemetry := fleettelemetry.NewTelemetry(client, utils.SanitizeAPIKey(deps.Config.GetString("api_key")), deps.Config.GetString("site"), "datadog-installer-daemon")
+	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error { telemetry.Stop(); return nil }})
 	return telemetry, nil
 }
