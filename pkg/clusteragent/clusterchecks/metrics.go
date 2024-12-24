@@ -8,11 +8,8 @@
 package clusterchecks
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -56,18 +53,3 @@ var (
 		[]string{"node", le.JoinLeaderLabel}, "Utilization predicted by the rebalance algorithm",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
-
-func scanExtendedDanglingConfigs(store *clusterStore, expectedScheduleTime time.Duration) {
-	store.Lock()
-	defer store.Unlock()
-
-	for _, c := range store.danglingConfigs {
-		if !c.detectedExtendedDangling && c.isStuckScheduling(expectedScheduleTime) {
-			log.Errorf("Stuck scheduling")
-			extendedDanglingConfigs.Inc(le.JoinLeaderValue, c.config.Name, c.config.Source)
-			c.detectedExtendedDangling = true
-		} else {
-			log.Errorf("Not stuck scheduling")
-		}
-	}
-}

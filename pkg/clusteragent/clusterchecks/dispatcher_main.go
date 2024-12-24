@@ -26,14 +26,15 @@ import (
 
 // dispatcher holds the management logic for cluster-checks
 type dispatcher struct {
-	store                         *clusterStore
-	nodeExpirationSeconds         int64
-	extraTags                     []string
-	clcRunnersClient              clusteragent.CLCRunnerClientInterface
-	advancedDispatching           bool
-	excludedChecks                map[string]struct{}
-	excludedChecksFromDispatching map[string]struct{}
-	rebalancingPeriod             time.Duration
+	store                            *clusterStore
+	nodeExpirationSeconds            int64
+	extendedDanglingAttemptThreshold int
+	extraTags                        []string
+	clcRunnersClient                 clusteragent.CLCRunnerClientInterface
+	advancedDispatching              bool
+	excludedChecks                   map[string]struct{}
+	excludedChecksFromDispatching    map[string]struct{}
+	rebalancingPeriod                time.Duration
 }
 
 func newDispatcher(tagger tagger.Component) *dispatcher {
@@ -41,6 +42,7 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		store: newClusterStore(),
 	}
 	d.nodeExpirationSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.node_expiration_timeout")
+	d.extendedDanglingAttemptThreshold = pkgconfigsetup.Datadog().GetInt("cluster_checks.extended_dangling_attempt_threshold")
 
 	// Attach the cluster agent's global tags to all dispatched checks
 	// as defined in the tagger's workloadmeta collector
@@ -209,8 +211,7 @@ func (d *dispatcher) run(ctx context.Context) {
 	healthProbe := health.RegisterLiveness("clusterchecks-dispatch")
 	defer health.Deregister(healthProbe) //nolint:errcheck
 
-	cleanUpTimeout := time.Duration(d.nodeExpirationSeconds/2) * time.Second
-	cleanupTicker := time.NewTicker(cleanUpTimeout)
+	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()
 
 	rebalanceTicker := time.NewTicker(d.rebalancingPeriod)
@@ -226,27 +227,17 @@ func (d *dispatcher) run(ctx context.Context) {
 			// Expire old nodes, orphaned configs are moved to dangling
 			d.expireNodes()
 
-			log.Error("Clean up ticker signal received")
-
 			// Re-dispatch dangling configs
 			if d.shouldDispatchDangling() {
 				danglingConfigs := d.retrieveDangling()
-
-				log.Errorf("Dangling configs to be dispatched: %d", len(danglingConfigs))
-
 				scheduledConfigIDs := d.reschedule(danglingConfigs)
-
-				log.Errorf("Dangling configs successfully rescheduled: %d", len(scheduledConfigIDs))
-
 				d.store.Lock()
 				d.deleteDangling(scheduledConfigIDs)
 				d.store.Unlock()
 			}
 
-			// pkg/clusteragent/clusterchecks/dispatcher_main.go:239
-
 			// Check for configs that have been dangling longer than expected
-			scanExtendedDanglingConfigs(d.store, cleanUpTimeout*2)
+			scanExtendedDanglingConfigs(d.store, d.extendedDanglingAttemptThreshold)
 		case <-rebalanceTicker.C:
 			if d.advancedDispatching {
 				d.rebalance(false)

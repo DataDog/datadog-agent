@@ -28,7 +28,7 @@ func (d *dispatcher) getState() (types.StateResponse, error) {
 
 	response := types.StateResponse{
 		Warmup:   !d.store.active,
-		Dangling: makeConfigArrayFromEntry(d.store.danglingConfigs),
+		Dangling: makeConfigArrayFromDangling(d.store.danglingConfigs),
 	}
 	for _, node := range d.store.nodes {
 		n := types.StateNodeResponse{
@@ -62,7 +62,7 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 		// Only update if it's a new dangling config
 		if _, found := d.store.danglingConfigs[digest]; !found {
 			danglingConfigs.Inc(le.JoinLeaderValue)
-			d.store.danglingConfigs[digest] = createConfigEntry(config)
+			d.store.danglingConfigs[digest] = createDanglingConfig(config)
 		}
 		return false
 	}
@@ -141,7 +141,7 @@ func (d *dispatcher) retrieveDangling() []integration.Config {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
-	configs := makeConfigArrayFromEntry(d.store.danglingConfigs)
+	configs := makeConfigArrayFromDangling(d.store.danglingConfigs)
 	return configs
 }
 
