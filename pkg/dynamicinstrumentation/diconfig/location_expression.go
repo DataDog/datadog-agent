@@ -143,7 +143,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					} else {
 						// Expect address of the string struct itself on the location expression stack
 						targetExpressions = append(targetExpressions,
-							ditypes.ReadStringToOutput(uint16(limitsInfo.InstrumentationOptions.StringMaxSize)),
+							ditypes.ReadStringToOutputLocationExpression(uint16(limitsInfo.InstrumentationOptions.StringMaxSize)),
 						)
 					}
 					continue
@@ -266,6 +266,7 @@ func collectAllLocationExpressions(parameter *ditypes.Parameter, remove bool) []
 	return expressions
 }
 
+//nolint:all
 func printLocationExpressions(expressions []ditypes.LocationExpression) {
 	for i := range expressions {
 		fmt.Printf("%s %d %d %d %s %s\n",

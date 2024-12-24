@@ -79,28 +79,49 @@ func (l LocationExpression) String() string {
 	return fmt.Sprintf("%s (%d, %d, %d)", l.Opcode.String(), l.Arg1, l.Arg2, l.Arg3)
 }
 
+// LocationExpressionOpcode uniquely identifies each location expression operation
 type LocationExpressionOpcode uint
 
 const (
+	// OpInvalid represents an invalid operation
 	OpInvalid LocationExpressionOpcode = iota
+	// OpComment represents a comment operation
 	OpComment
+	// OpPrintStatement represents a print statement operation
 	OpPrintStatement
+	// OpReadUserRegister represents an operation to read a user register
 	OpReadUserRegister
+	// OpReadUserStack represents an operation to read the user stack
 	OpReadUserStack
+	// OpReadUserRegisterToOutput represents an operation to read a user register and output the value
 	OpReadUserRegisterToOutput
+	// OpReadUserStackToOutput represents an operation to read the user stack and output the value
 	OpReadUserStackToOutput
+	// OpDereference represents an operation to dereference a pointer
 	OpDereference
+	// OpDereferenceToOutput represents an operation to dereference a pointer and output the value
 	OpDereferenceToOutput
+	// OpDereferenceLarge represents an operation to dereference a large pointer
 	OpDereferenceLarge
+	// OpDereferenceLargeToOutput represents an operation to dereference a large pointer and output the value
 	OpDereferenceLargeToOutput
+	// OpDereferenceDynamic represents an operation to dynamically dereference a pointer
 	OpDereferenceDynamic
+	// OpDereferenceDynamicToOutput represents an operation to dynamically dereference a pointer and output the value
 	OpDereferenceDynamicToOutput
+	// OpReadStringToOutput represents an operation to read a string and output the value
 	OpReadStringToOutput
+	// OpApplyOffset represents an operation to apply an offset
 	OpApplyOffset
+	// OpPop represents an operation to pop a value from the stack
 	OpPop
+	// OpCopy represents an operation to copy a value
 	OpCopy
+	// OpLabel represents a label operation
 	OpLabel
+	// OpSetGlobalLimit represents an operation to set a global limit
 	OpSetGlobalLimit
+	// OpJumpIfGreaterThanLimit represents an operation to jump if a value is greater than a limit
 	OpJumpIfGreaterThanLimit
 )
 
@@ -150,10 +171,16 @@ func (op LocationExpressionOpcode) String() string {
 		return fmt.Sprintf("LocationExpressionOpcode(%d)", int(op))
 	}
 }
+
+// CopyLocation express creates an expression which
+// duplicates the u64 element on the top of the BPF parameter stack.
 func CopyLocationExpression() LocationExpression {
 	return LocationExpression{Opcode: OpCopy}
 }
 
+// DirectReadLocationExpression creates an expression which
+// directly reads a value from either a specific register or stack offset
+// and writes it to the bpf param stack
 func DirectReadLocationExpression(p *Parameter) LocationExpression {
 	if p == nil || p.Location == nil {
 		return LocationExpression{Opcode: OpInvalid}
@@ -164,6 +191,9 @@ func DirectReadLocationExpression(p *Parameter) LocationExpression {
 	return ReadStackLocationExpression(uint(p.Location.StackOffset), uint(p.TotalSize))
 }
 
+// DirectReadToOutputLocationExpression creates an expression which
+// directly reads a value from either a specific register or stack offset
+// and writes it to the output buffer
 func DirectReadToOutputLocationExpression(p *Parameter) LocationExpression {
 	if p == nil || p.Location == nil {
 		return LocationExpression{Opcode: OpInvalid}
@@ -267,13 +297,13 @@ func DereferenceDynamicToOutputLocationExpression(readLimit uint) LocationExpres
 	return LocationExpression{Opcode: OpDereferenceDynamicToOutput, Arg1: readLimit}
 }
 
-// ReadStringToOutput creates an expression which
+// ReadStringToOutputLocationExpression creates an expression which
 // reads a Go string to the output buffer, limited in length by `limit`.
 // In Go, strings are internally implemented as structs with two fields. The fields are length,
 // and a pointer to a character array. This expression expects the address of the string struct
 // itself to be on the top of the stack.
 // Arg1 = string length limit
-func ReadStringToOutput(limit uint16) LocationExpression {
+func ReadStringToOutputLocationExpression(limit uint16) LocationExpression {
 	return LocationExpression{Opcode: OpReadStringToOutput, Arg1: uint(limit)}
 }
 

@@ -14,11 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
 
-type paramDepthCounter struct {
-	depth int
-	param *ditypes.Parameter
-}
-
 func flattenParameters(params []*ditypes.Parameter) []*ditypes.Parameter {
 	flattenedParams := []*ditypes.Parameter{}
 	for i := range params {
