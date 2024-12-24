@@ -68,7 +68,11 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 
 	if len(stats) != 0 {
 		// scrub status output
-		stats, err = scrubber.DefaultScrubber.ScrubBytes(stats)
+		var e error
+		stats, e = scrubber.DefaultScrubber.ScrubBytes(stats)
+		if e != nil {
+			stats = []byte("[REDACTED] - failure to clean the message")
+		}
 	}
 
 	if err != nil {

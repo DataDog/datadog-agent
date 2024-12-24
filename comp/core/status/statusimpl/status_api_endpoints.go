@@ -47,10 +47,14 @@ func (s *statusImplementation) getStatus(w http.ResponseWriter, r *http.Request,
 	if len(buff) != 0 {
 		// scrub status output
 		s := scrubber.DefaultScrubber
+		var e error
 		if format == "json" {
-			buff, err = s.ScrubJSON(buff)
+			buff, e = s.ScrubJSON(buff)
 		} else {
-			buff, err = s.ScrubBytes(buff)
+			buff, e = s.ScrubBytes(buff)
+		}
+		if e != nil {
+			buff = []byte("[REDACTED] - failure to clean the message")
 		}
 	}
 
