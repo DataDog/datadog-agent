@@ -6,7 +6,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import create_release_pr
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_current_branch, try_git_command
+from tasks.libs.common.git import get_current_branch, get_default_branch, try_git_command
 from tasks.libs.common.worktree import agent_context
 from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude, update_changelog_generic
 from tasks.libs.releasing.version import deduce_version
@@ -52,7 +52,7 @@ def add_installscript_prelude(ctx, release_branch):
 
 
 @task
-def update_changelog(ctx, release_branch=None, target="all", upstream="origin"):
+def update_changelog(ctx, release_branch, target="all", upstream="origin"):
     """
     Quick task to generate the new CHANGELOG using reno when releasing a minor
     version (linux/macOS only).
@@ -63,28 +63,26 @@ def update_changelog(ctx, release_branch=None, target="all", upstream="origin"):
     """
 
     new_version = deduce_version(ctx, release_branch, next_version=False)
+    new_version_int = list(map(int, new_version.split(".")))
+    if len(new_version_int) != 3:
+        print(f"Error: invalid version: {new_version_int}")
+        raise Exit(code=1)
 
-    def _main():
+    # Launch this task from the main branch of the major version
+    branch = get_default_branch(major=new_version_int[0])
+
+    with agent_context(ctx, branch):
         # Step 1 - generate the changelogs
 
         generate_agent = target in ["all", "agent"]
         generate_cluster_agent = target in ["all", "cluster-agent"]
 
-        if release_branch is not None:
-            new_version_int = list(map(int, new_version.split(".")))
-            if len(new_version_int) != 3:
-                print(f"Error: invalid version: {new_version_int}")
-                raise Exit(code=1)
-
-            # let's avoid losing uncommitted change with 'git reset --hard'
-            try:
-                ctx.run("git diff --exit-code HEAD", hide="both")
-            except Failure:
-                print("Error: You have uncommitted change, please commit or stash before using update_changelog")
-                return
-
-            # make sure we are up to date
-            ctx.run("git fetch")
+        # let's avoid losing uncommitted change with 'git reset --hard'
+        try:
+            ctx.run("git diff --exit-code HEAD", hide="both")
+        except Failure:
+            print("Error: You have uncommitted change, please commit or stash before using update_changelog")
+            return
 
         # let's check that the tag for the new version is present
         try:
@@ -142,12 +140,6 @@ def update_changelog(ctx, release_branch=None, target="all", upstream="origin"):
         create_release_pr(
             f"Changelog update for {new_version} release", base_branch, update_branch, new_version, changelog_pr=True
         )
-
-    if release_branch is not None:
-        with agent_context(ctx, release_branch):
-            _main()
-    else:
-        _main()
 
 
 @task
