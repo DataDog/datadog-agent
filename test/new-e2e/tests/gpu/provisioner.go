@@ -149,7 +149,7 @@ func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner 
 		dockerCudaDeps := append(dockerPullCmds, validateGPUDevicesCmd...)
 		err = validateDockerCuda(awsEnv, host, dockerCudaDeps...)
 		if err != nil {
-			return err
+			return fmt.Errorf("validateDockerCuda failed: %w", err)
 		}
 
 		// Combine agent options from the parameters with the fakeintake and docker dependencies
@@ -164,12 +164,12 @@ func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner 
 		// Install the agent
 		agent, err := agent.NewHostAgent(&awsEnv, host, params.agentOptions...)
 		if err != nil {
-			return err
+			return fmt.Errorf("NewHostAgent failed: %w", err)
 		}
 
 		err = agent.Export(ctx, &env.Agent.HostAgentOutput)
 		if err != nil {
-			return err
+			return fmt.Errorf("agent export failed: %w", err)
 		}
 
 		return nil
