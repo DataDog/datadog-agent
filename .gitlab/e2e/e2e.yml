@@ -718,3 +718,19 @@ new-e2e-eks-cleanup-on-failure:
     - !reference [.except_mergequeue]
     - when: always
   allow_failure: true
+
+new-e2e-agent-onboarding:
+  extends:
+    - .new_e2e_template
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-onboarding
+    TEAM: container-ecosystems
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: "--run TestAWSKindSuite -c ddinfra:kubernetesVersion=1.19"
+      - EXTRA_PARAMS: "--run TestAWSKindSuite -c ddinfra:kubernetesVersion=1.22"
+      - EXTRA_PARAMS: "--run TestAWSKindSuite -c ddinfra:kubernetesVersion=1.27"
+      - EXTRA_PARAMS: "--run TestAWSKindSuite -c ddinfra:kubernetesVersion=1.29"
