@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -63,6 +64,11 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 		stats, err = statusComponent.GetStatusBySections([]string{status.CollectorSection}, "html", verbose)
 	} else {
 		stats, err = statusComponent.GetStatus("html", verbose, status.CollectorSection)
+	}
+
+	if len(stats) != 0 {
+		// scrub status output
+		stats, err = scrubber.DefaultScrubber.ScrubBytes(stats)
 	}
 
 	if err != nil {

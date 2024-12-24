@@ -11,6 +11,8 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var mimeTypeMap = map[string]string{
@@ -46,6 +48,16 @@ func (s *statusImplementation) getStatus(w http.ResponseWriter, r *http.Request,
 		buff, err = s.GetStatusBySections([]string{section}, format, verbose)
 	} else {
 		buff, err = s.GetStatus(format, verbose)
+	}
+
+	if len(buff) != 0 {
+		// scrub status output
+		s := scrubber.DefaultScrubber
+		if format == "json" {
+			buff, err = s.ScrubJSON(buff)
+		} else {
+			buff, err = s.ScrubBytes(buff)
+		}
 	}
 
 	if err != nil {
