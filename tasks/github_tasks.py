@@ -121,7 +121,7 @@ def _trigger_buildenv_workflow(new_version=None, buildenv_ref="master"):
         github_action_ref=buildenv_ref,
         new_version=new_version,
     )
-
+    # We are only waiting 0.5min between each status check because buildenv is much faster than macOS builds
     workflow_conclusion, workflow_url = follow_workflow_run(run, "DataDog/buildenv", 0.5)
 
     if workflow_conclusion == "failure":

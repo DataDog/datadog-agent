@@ -22,9 +22,6 @@ def trigger_buildenv_workflow(workflow_name="runner-bump.yml", github_action_ref
     if new_version is not None:
         inputs["new-version"] = new_version
 
-    # workflow_id = str(uuid.uuid1())
-    # inputs["id"] = workflow_id
-
     print(
         "Creating workflow on buildenv on commit {} with args:\n{}".format(  # noqa: FS002
             github_action_ref, "\n".join([f"  - {k}: {inputs[k]}" for k in inputs])
@@ -41,6 +38,7 @@ def trigger_buildenv_workflow(workflow_name="runner-bump.yml", github_action_ref
         print(f"Couldn't trigger workfglow run. result={result}")
         raise Exit(code=1)
 
+    # Since we can't get the worflow run id from a `create_dispatch` api call we are fetching the first running workflow after `now`.
     recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
     MAX_RETRY = 10
     while not recent_runs and MAX_RETRY > 0:
