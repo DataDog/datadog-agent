@@ -46,7 +46,7 @@ func eBPFEventToBytes(b *testing.B, events []EbpfEvent, numOfEventsInBatch int) 
 
 	serializedData := buffer.Bytes()
 	// Ensure the serialized data fits into the result array
-	require.LessOrEqualf(b, len(serializedData), len(result), "serialized data exceeds 4096 bytes")
+	require.LessOrEqualf(b, len(serializedData), len(result), "serialized data exceeds batchDataSize bytes")
 
 	for i, b := range serializedData {
 		result[i] = int8(b)
@@ -131,7 +131,7 @@ func BenchmarkHTTPEventConsumer(b *testing.B) {
 	testCases := []struct {
 		name             string
 		totalEventsCount int
-		// Serialized data can't exceed 4096 bytes that why we can insert 14 events in a batch.
+		// Serialized data can't exceed batchDataSize bytes that why we can insert 14 events in a batch.
 		numOfEventsInBatch int
 		httpEvents         []EbpfEvent
 	}{
