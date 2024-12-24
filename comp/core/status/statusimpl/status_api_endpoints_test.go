@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -228,7 +229,11 @@ func TestStatusAPIEndpoints(t *testing.T) {
 			require.Equal(t, rr.Code, test.expectedCode)
 
 			// Check the response content type
-			require.Equal(t, test.expectedBody, rr.Body.Bytes())
+			if strings.Contains(test.testedPath, "format=json") {
+				require.JSONEq(t, strings.TrimSpace(string(test.expectedBody)), strings.TrimSpace(rr.Body.String()))
+			} else {
+				require.Equal(t, strings.TrimSpace(string(test.expectedBody)), strings.TrimSpace(rr.Body.String()))
+			}
 
 			// Check additional tests
 			if test.additionalTests != nil {
