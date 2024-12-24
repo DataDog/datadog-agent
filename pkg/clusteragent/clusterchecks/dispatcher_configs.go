@@ -28,7 +28,7 @@ func (d *dispatcher) getState() (types.StateResponse, error) {
 
 	response := types.StateResponse{
 		Warmup:   !d.store.active,
-		Dangling: makeConfigArray(d.store.danglingConfigs),
+		Dangling: makeConfigArrayFromEntry(d.store.danglingConfigs),
 	}
 	for _, node := range d.store.nodes {
 		n := types.StateNodeResponse{
@@ -41,7 +41,7 @@ func (d *dispatcher) getState() (types.StateResponse, error) {
 	return response, nil
 }
 
-func (d *dispatcher) addConfig(config integration.Config, targetNodeName string) {
+func (d *dispatcher) addConfig(config integration.Config, targetNodeName string) bool {
 	d.store.Lock()
 	defer d.store.Unlock()
 
@@ -58,10 +58,13 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 	}
 
 	// No target node specified: store in danglingConfigs
-	if targetNodeName == "" {
-		danglingConfigs.Inc(le.JoinLeaderValue)
-		d.store.danglingConfigs[digest] = config
-		return
+	if targetNodeName == "" || true {
+		// Only update if it's a new dangling config
+		if _, found := d.store.danglingConfigs[digest]; !found {
+			danglingConfigs.Inc(le.JoinLeaderValue)
+			d.store.danglingConfigs[digest] = createConfigEntry(config)
+		}
+		return false
 	}
 
 	currentNode, foundCurrent := d.store.getNodeStore(d.store.digestToNode[digest])
@@ -82,6 +85,8 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 		currentNode.removeConfig(digest)
 		currentNode.Unlock()
 	}
+
+	return true
 }
 
 func (d *dispatcher) removeConfig(digest string) {
@@ -94,7 +99,7 @@ func (d *dispatcher) removeConfig(digest string) {
 
 	delete(d.store.digestToNode, digest)
 	delete(d.store.digestToConfig, digest)
-	delete(d.store.danglingConfigs, digest)
+	d.deleteDangling([]string{digest})
 
 	// This is a list because each instance in a config has its own check ID and
 	// all of them need to be deleted.
@@ -131,14 +136,25 @@ func (d *dispatcher) shouldDispatchDangling() bool {
 	return len(d.store.danglingConfigs) > 0 && len(d.store.nodes) > 0
 }
 
-// retrieveAndClearDangling extracts dangling configs from the store
-func (d *dispatcher) retrieveAndClearDangling() []integration.Config {
-	d.store.Lock()
-	defer d.store.Unlock()
-	configs := makeConfigArray(d.store.danglingConfigs)
-	d.store.clearDangling()
-	danglingConfigs.Set(0, le.JoinLeaderValue)
+// retrieveDangling extracts dangling configs from the store
+func (d *dispatcher) retrieveDangling() []integration.Config {
+	d.store.RLock()
+	defer d.store.RUnlock()
+
+	configs := makeConfigArrayFromEntry(d.store.danglingConfigs)
 	return configs
+}
+
+// deleteDangling clears the dangling configs from the store
+func (d *dispatcher) deleteDangling(ids []string) {
+	for _, id := range ids {
+		c := d.store.danglingConfigs[id]
+		delete(d.store.danglingConfigs, id)
+		danglingConfigs.Dec(le.JoinLeaderValue)
+		if c.detectedExtendedDangling {
+			extendedDanglingConfigs.Dec(le.JoinLeaderValue, c.config.Name, c.config.Source)
+		}
+	}
 }
 
 // patchConfiguration transforms the configuration from AD into a config

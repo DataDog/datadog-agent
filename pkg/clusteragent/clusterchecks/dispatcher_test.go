@@ -348,9 +348,10 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 
 	// Ensure we have 1 dangling to schedule, as new available node is registered
 	assert.True(t, dispatcher.shouldDispatchDangling())
-	configs := dispatcher.retrieveAndClearDangling()
+	configs := dispatcher.retrieveDangling()
 	// Assert the check is scheduled
-	dispatcher.reschedule(configs)
+	scheduledIDs := dispatcher.reschedule(configs)
+	dispatcher.deleteDangling(scheduledIDs)
 	danglingConfig, err := dispatcher.getAllConfigs()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(danglingConfig))
@@ -423,7 +424,8 @@ func TestDanglingConfig(t *testing.T) {
 	assert.True(t, dispatcher.shouldDispatchDangling())
 
 	// get the danglings and make sure they are removed from the store
-	configs := dispatcher.retrieveAndClearDangling()
+	configs := dispatcher.retrieveDangling()
+	dispatcher.deleteDangling([]string{config.Digest()})
 	assert.Len(t, configs, 1)
 	assert.Equal(t, 0, len(dispatcher.store.danglingConfigs))
 }

@@ -162,15 +162,19 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 }
 
 // reschdule sends configurations to dispatching without checking or patching them as Schedule does.
-func (d *dispatcher) reschedule(configs []integration.Config) {
+func (d *dispatcher) reschedule(configs []integration.Config) []string {
+	addedConfigIDs := make([]string, 0, len(configs))
 	for _, c := range configs {
 		log.Debugf("Rescheduling the check %s:%s", c.Name, c.Digest())
-		d.add(c)
+		if d.add(c) {
+			addedConfigIDs = append(addedConfigIDs, c.Digest())
+		}
 	}
+	return addedConfigIDs
 }
 
 // add stores and delegates a given configuration
-func (d *dispatcher) add(config integration.Config) {
+func (d *dispatcher) add(config integration.Config) bool {
 	target := d.getNodeToScheduleCheck()
 	if target == "" {
 		// If no node is found, store it in the danglingConfigs map for retrying later.
@@ -179,7 +183,7 @@ func (d *dispatcher) add(config integration.Config) {
 		log.Infof("Dispatching configuration %s:%s to node %s", config.Name, config.Digest(), target)
 	}
 
-	d.addConfig(config, target)
+	return d.addConfig(config, target)
 }
 
 // remove deletes a given configuration
@@ -205,7 +209,8 @@ func (d *dispatcher) run(ctx context.Context) {
 	healthProbe := health.RegisterLiveness("clusterchecks-dispatch")
 	defer health.Deregister(healthProbe) //nolint:errcheck
 
-	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
+	cleanUpTimeout := time.Duration(d.nodeExpirationSeconds/2) * time.Second
+	cleanupTicker := time.NewTicker(cleanUpTimeout)
 	defer cleanupTicker.Stop()
 
 	rebalanceTicker := time.NewTicker(d.rebalancingPeriod)
@@ -221,11 +226,27 @@ func (d *dispatcher) run(ctx context.Context) {
 			// Expire old nodes, orphaned configs are moved to dangling
 			d.expireNodes()
 
+			log.Error("Clean up ticker signal received")
+
 			// Re-dispatch dangling configs
 			if d.shouldDispatchDangling() {
-				danglingConfs := d.retrieveAndClearDangling()
-				d.reschedule(danglingConfs)
+				danglingConfigs := d.retrieveDangling()
+
+				log.Errorf("Dangling configs to be dispatched: %d", len(danglingConfigs))
+
+				scheduledConfigIDs := d.reschedule(danglingConfigs)
+
+				log.Errorf("Dangling configs successfully rescheduled: %d", len(scheduledConfigIDs))
+
+				d.store.Lock()
+				d.deleteDangling(scheduledConfigIDs)
+				d.store.Unlock()
 			}
+
+			// pkg/clusteragent/clusterchecks/dispatcher_main.go:239
+
+			// Check for configs that have been dangling longer than expected
+			scanExtendedDanglingConfigs(d.store, cleanUpTimeout*2)
 		case <-rebalanceTicker.C:
 			if d.advancedDispatching {
 				d.rebalance(false)

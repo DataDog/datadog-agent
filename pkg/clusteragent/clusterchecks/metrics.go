@@ -8,8 +8,11 @@
 package clusterchecks
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -18,6 +21,9 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	danglingConfigs = telemetry.NewGaugeWithOpts("cluster_checks", "configs_dangling",
 		[]string{le.JoinLeaderLabel}, "Number of check configurations not dispatched.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	extendedDanglingConfigs = telemetry.NewGaugeWithOpts("cluster_checks", "configs_extended_dangling",
+		[]string{le.JoinLeaderLabel, "config_name", "config_source"}, "Number of check configurations not dispatched, for extended number of scheduling attempts.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	dispatchedConfigs = telemetry.NewGaugeWithOpts("cluster_checks", "configs_dispatched",
 		[]string{"node", le.JoinLeaderLabel}, "Number of check configurations dispatched, by node.",
@@ -50,3 +56,18 @@ var (
 		[]string{"node", le.JoinLeaderLabel}, "Utilization predicted by the rebalance algorithm",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
+
+func scanExtendedDanglingConfigs(store *clusterStore, expectedScheduleTime time.Duration) {
+	store.Lock()
+	defer store.Unlock()
+
+	for _, c := range store.danglingConfigs {
+		if !c.detectedExtendedDangling && c.isStuckScheduling(expectedScheduleTime) {
+			log.Errorf("Stuck scheduling")
+			extendedDanglingConfigs.Inc(le.JoinLeaderValue, c.config.Name, c.config.Source)
+			c.detectedExtendedDangling = true
+		} else {
+			log.Errorf("Not stuck scheduling")
+		}
+	}
+}
