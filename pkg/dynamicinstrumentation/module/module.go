@@ -33,7 +33,6 @@ func NewModule(config *Config) (*Module, error) { //nolint:revive // TODO
 			SnapshotOutput:   coreconfig.SystemProbe().GetString("dynamic_instrumentation.snapshot_output_file_path"),
 			DiagnosticOutput: coreconfig.SystemProbe().GetString("dynamic_instrumentation.diagnostics_output_file_path"),
 		},
-		ResolveInlinedProgramCounters: coreconfig.SystemProbe().GetBool("dynamic_instrumentation.resolve_inlined_program_counters"),
 	})
 	if err != nil {
 		return nil, err

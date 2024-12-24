@@ -36,12 +36,6 @@ var (
 	SliceMaxLength          = 100   // SliceMaxLength is the default limit in number of elements of a slice
 )
 
-// RuntimeOptions contains configuration options for how the dynamic instrumentation product
-// should behave at runtime
-type RuntimeOptions struct {
-	ResolveInlinedProgramCounters bool
-}
-
 // ProbeID is the unique identifier for probes
 type ProbeID = string
 

@@ -10,18 +10,17 @@ package diconfig
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func NewFileConfigManager(opts *ditypes.RuntimeOptions, configFile string) (*ReaderConfigManager, func(), error) { //nolint:revive // TODO
+func NewFileConfigManager(configFile string) (*ReaderConfigManager, func(), error) { //nolint:revive // TODO
 	stopChan := make(chan bool)
 	stop := func() {
 		stopChan <- true
 	}
 
-	cm, err := NewReaderConfigManager(opts)
+	cm, err := NewReaderConfigManager()
 	if err != nil {
 		return nil, stop, err
 	}

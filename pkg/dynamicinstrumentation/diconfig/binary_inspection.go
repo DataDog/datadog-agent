@@ -20,10 +20,10 @@ import (
 // inspectGoBinaries goes through each service and populates information about the binary
 // and the relevant parameters, and their types
 // configEvent maps service names to info about the service and their configurations
-func inspectGoBinaries(runtimeOptions *ditypes.RuntimeOptions, configEvent ditypes.DIProcs) error {
+func inspectGoBinaries(configEvent ditypes.DIProcs) error {
 	var err error
 	for i := range configEvent {
-		err = AnalyzeBinary(runtimeOptions, configEvent[i])
+		err = AnalyzeBinary(configEvent[i])
 		if err != nil {
 			return fmt.Errorf("inspection of PID %d (path=%s) failed: %w", configEvent[i].PID, configEvent[i].BinaryPath, err)
 		}
@@ -33,7 +33,7 @@ func inspectGoBinaries(runtimeOptions *ditypes.RuntimeOptions, configEvent dityp
 
 // AnalyzeBinary reads the binary associated with the specified process and parses
 // the DWARF information. It populates relevant fields in the process representation
-func AnalyzeBinary(runtimeOptions *ditypes.RuntimeOptions, procInfo *ditypes.ProcessInfo) error {
+func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 	functions := []string{}
 	targetFunctions := map[string]bool{}
 	for _, probe := range procInfo.GetProbes() {
@@ -46,7 +46,7 @@ func AnalyzeBinary(runtimeOptions *ditypes.RuntimeOptions, procInfo *ditypes.Pro
 		return fmt.Errorf("could not retrieve debug information from binary: %w", err)
 	}
 
-	typeMap, err := getTypeMap(dwarfData, targetFunctions, runtimeOptions.ResolveInlinedProgramCounters)
+	typeMap, err := getTypeMap(dwarfData, targetFunctions)
 	if err != nil {
 		return fmt.Errorf("could not retrieve type information from binary %w", err)
 	}

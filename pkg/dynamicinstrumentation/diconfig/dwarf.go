@@ -22,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
-func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool, resolveInlinedProgramCounters bool) (*ditypes.TypeMap, error) {
-	return loadFunctionDefinitions(dwarfData, targetFunctions, resolveInlinedProgramCounters)
+func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
+	return loadFunctionDefinitions(dwarfData, targetFunctions)
 }
 
 type seenTypeCounter struct {
@@ -33,15 +33,14 @@ type seenTypeCounter struct {
 
 var seenTypes = make(map[string]*seenTypeCounter)
 
-func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]bool, resolveInlinedProgramCounters bool) (*ditypes.TypeMap, error) {
+func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
 	entryReader := dwarfData.Reader()
 	typeReader := dwarfData.Reader()
 	readingAFunction := false
 	var funcName string
 
 	var result = ditypes.TypeMap{
-		Functions:        make(map[string][]ditypes.Parameter),
-		InlinedFunctions: make(map[uint64][]*dwarf.Entry),
+		Functions: make(map[string][]ditypes.Parameter),
 	}
 
 	var (
@@ -80,25 +79,6 @@ entryLoop:
 					Entry: entry,
 				})
 			}
-		}
-
-		if resolveInlinedProgramCounters && entry.Tag == dwarf.TagInlinedSubroutine {
-			// This is a inlined function
-			for i := range entry.Field {
-				// Find it's high program counter (where it exits in the parent routine)
-				if entry.Field[i].Attr == dwarf.AttrHighpc {
-
-					// The field for HighPC can be a constant or address, which are int64 and uint64 respectively
-					if entry.Field[i].Class == dwarf.ClassConstant {
-						result.InlinedFunctions[uint64(entry.Field[i].Val.(int64))] =
-							append([]*dwarf.Entry{entry}, result.InlinedFunctions[uint64(entry.Field[i].Val.(int64))]...)
-					} else if entry.Field[i].Class == dwarf.ClassAddress {
-						result.InlinedFunctions[entry.Field[i].Val.(uint64)] =
-							append([]*dwarf.Entry{entry}, result.InlinedFunctions[entry.Field[i].Val.(uint64)]...)
-					}
-				}
-			}
-			continue entryLoop
 		}
 
 		if entry.Tag == dwarf.TagSubprogram {
