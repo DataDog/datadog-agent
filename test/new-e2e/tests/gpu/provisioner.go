@@ -28,7 +28,7 @@ import (
 
 // gpuEnabledAMI is an AMI that has GPU drivers pre-installed. In this case it's
 // an Ubuntu 22.04 with NVIDIA drivers
-const gpuEnabledAMI = "ami-0f71e237bb2ba34be"
+const gpuEnabledAMI = "ami-03ee78da2beb5b622"
 
 // gpuInstanceType is the instance type to use. By default we use g4dn.xlarge,
 // which is the cheapest GPU instance type
