@@ -70,10 +70,11 @@ from tasks.libs.releasing.version import (
     VERSION_RE,
     _create_version_from_match,
     current_version,
+    deduce_version,
+    get_version_major,
     next_final_version,
     next_rc_version,
 )
-from tasks.libs.types.version import Version
 from tasks.pipeline import edit_schedule, run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
@@ -83,68 +84,6 @@ GITLAB_FILES_TO_UPDATE = [
 ]
 
 BACKPORT_LABEL_COLOR = "5319e7"
-
-
-def deduce_version(ctx, branch, as_str=True, trust=False) -> str | Version:
-    release_version = get_next_version_from_branch(ctx, branch, as_str=as_str)
-
-    print(
-        f'{color_message("Info", Color.BLUE)}: Version {release_version} deduced from branch {branch}', file=sys.stderr
-    )
-
-    if (
-        trust
-        or not os.isatty(sys.stdin.fileno())
-        or yes_no_question(
-            'Is this the version you want to use?',
-            color="orange",
-            default=False,
-        )
-    ):
-        return release_version
-
-    raise Exit(color_message("Aborting.", "red"), code=1)
-
-
-def get_version_major(branch: str) -> int:
-    """Get the major version from a branch name."""
-
-    return 7 if branch == 'main' else int(branch.split('.')[0])
-
-
-def get_all_version_tags(ctx) -> list[str]:
-    """Returns the tags for all the versions of the Agent in git."""
-
-    cmd = "bash -c 'git tag | grep -E \"^[0-9]\\.[0-9]+\\.[0-9]+$\"'"
-
-    return ctx.run(cmd, hide=True).stdout.strip().split('\n')
-
-
-def get_next_version_from_branch(ctx, branch: str, as_str=True) -> str | Version:
-    """Returns the latest version + 1 belonging to a branch.
-
-    Example:
-        get_latest_version_from_branch("7.55.x") -> Version(7, 55, 4) if there are 7.55.0, 7.55.1, 7.55.2, 7.55.3 tags.
-        get_latest_version_from_branch("6.99.x") -> Version(6, 99, 0) if there are no 6.99.* tags.
-    """
-
-    re_branch = re.compile(r"^([0-9]\.[0-9]+\.)x$")
-
-    try:
-        matched = re_branch.match(branch).group(1)
-    except Exception as e:
-        raise Exit(
-            f'{color_message("Error:", "red")}: Branch {branch} is not a release branch (should be X.Y.x)', code=1
-        ) from e
-
-    tags = [tuple(map(int, tag.split('.'))) for tag in get_all_version_tags(ctx) if tag.startswith(matched)]
-    versions = sorted(Version(*tag) for tag in tags)
-
-    minor, major = tuple(map(int, branch.split('.')[:2]))
-
-    latest = versions[-1].next_version(bump_patch=True) if versions else Version(minor, major, 0)
-
-    return str(latest) if as_str else latest
 
 
 @task
@@ -627,7 +566,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
-def set_release_json(ctx, key, value, release_branch=None, skip_checkout=False, worktree=True):
+def set_release_json(ctx, key, value, release_branch=None, skip_checkout=False, worktree=False):
     def _main():
         nonlocal key
 
@@ -1090,12 +1029,13 @@ def generate_release_metrics(ctx, milestone, freeze_date, release_date):
     print(code_stats)
 
 
+# TODO rename to freeze_date to cutoff_date
 @task
 def create_schedule(_, version, freeze_date):
     """Create confluence pages for the release schedule.
 
     Args:
-        freeze_date: Date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+        freeze_date: Date when the code cut-off happened. Expected format YYYY-MM-DD, like '2022-02-01'
     """
 
     required_environment_variables = ["ATLASSIAN_USERNAME", "ATLASSIAN_PASSWORD"]
@@ -1221,7 +1161,7 @@ def create_github_release(ctx, release_branch, draft=True):
     )
 
     notes = []
-    version = deduce_version(ctx, release_branch)
+    version = deduce_version(ctx, release_branch, next_version=False)
 
     with agent_context(ctx, release_branch):
         for section, filename in sections:
