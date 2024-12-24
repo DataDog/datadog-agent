@@ -1,0 +1,27 @@
+# permissions for end users to view datadogdashboards.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: datadogdashboard-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: datadog-operator
+    app.kubernetes.io/part-of: datadog-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: datadogdashboard-viewer-role
+rules:
+- apiGroups:
+  - datadoghq.com
+  resources:
+  - datadogdashboards
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - datadoghq.com
+  resources:
+  - datadogdashboards/status
+  verbs:
+  - get

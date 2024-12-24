@@ -1,0 +1,456 @@
+{
+  "additionalProperties": false,
+  "description": "DatadogAgentProfile is the Schema for the datadogagentprofiles API",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": "string"
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "DatadogAgentProfileSpec defines the desired state of DatadogAgentProfile",
+      "properties": {
+        "config": {
+          "additionalProperties": false,
+          "properties": {
+            "override": {
+              "additionalProperties": {
+                "additionalProperties": false,
+                "properties": {
+                  "containers": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "env": {
+                          "description": "Specify additional environment variables in the container.\nSee also: https://docs.datadoghq.com/agent/guide/environment-variables/",
+                          "items": {
+                            "additionalProperties": false,
+                            "description": "EnvVar represents an environment variable present in a Container.",
+                            "properties": {
+                              "name": {
+                                "description": "Name of the environment variable. Must be a C_IDENTIFIER.",
+                                "type": "string"
+                              },
+                              "value": {
+                                "description": "Variable references $(VAR_NAME) are expanded\nusing the previously defined environment variables in the container and\nany service environment variables. If a variable cannot be resolved,\nthe reference in the input string will be unchanged. Double $$ are reduced\nto a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.\n\"$$(VAR_NAME)\" will produce the string literal \"$(VAR_NAME)\".\nEscaped references will never be expanded, regardless of whether the variable\nexists or not.\nDefaults to \"\".",
+                                "type": "string"
+                              },
+                              "valueFrom": {
+                                "additionalProperties": false,
+                                "description": "Source for the environment variable's value. Cannot be used if value is not empty.",
+                                "properties": {
+                                  "configMapKeyRef": {
+                                    "additionalProperties": false,
+                                    "description": "Selects a key of a ConfigMap.",
+                                    "properties": {
+                                      "key": {
+                                        "description": "The key to select.",
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "default": "",
+                                        "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                                        "type": "string"
+                                      },
+                                      "optional": {
+                                        "description": "Specify whether the ConfigMap or its key must be defined",
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "required": [
+                                      "key"
+                                    ],
+                                    "type": "object",
+                                    "x-kubernetes-map-type": "atomic"
+                                  },
+                                  "fieldRef": {
+                                    "additionalProperties": false,
+                                    "description": "Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels['\u003cKEY\u003e']`, `metadata.annotations['\u003cKEY\u003e']`,\nspec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.",
+                                    "properties": {
+                                      "apiVersion": {
+                                        "description": "Version of the schema the FieldPath is written in terms of, defaults to \"v1\".",
+                                        "type": "string"
+                                      },
+                                      "fieldPath": {
+                                        "description": "Path of the field to select in the specified API version.",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "fieldPath"
+                                    ],
+                                    "type": "object",
+                                    "x-kubernetes-map-type": "atomic"
+                                  },
+                                  "resourceFieldRef": {
+                                    "additionalProperties": false,
+                                    "description": "Selects a resource of the container: only resources limits and requests\n(limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.",
+                                    "properties": {
+                                      "containerName": {
+                                        "description": "Container name: required for volumes, optional for env vars",
+                                        "type": "string"
+                                      },
+                                      "divisor": {
+                                        "anyOf": [
+                                          {
+                                            "type": "integer"
+                                          },
+                                          {
+                                            "type": "string"
+                                          }
+                                        ],
+                                        "description": "Specifies the output format of the exposed resources, defaults to \"1\"",
+                                        "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                                        "x-kubernetes-int-or-string": true
+                                      },
+                                      "resource": {
+                                        "description": "Required: resource to select",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "resource"
+                                    ],
+                                    "type": "object",
+                                    "x-kubernetes-map-type": "atomic"
+                                  },
+                                  "secretKeyRef": {
+                                    "additionalProperties": false,
+                                    "description": "Selects a key of a secret in the pod's namespace",
+                                    "properties": {
+                                      "key": {
+                                        "description": "The key of the secret to select from.  Must be a valid secret key.",
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "default": "",
+                                        "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                                        "type": "string"
+                                      },
+                                      "optional": {
+                                        "description": "Specify whether the Secret or its key must be defined",
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "required": [
+                                      "key"
+                                    ],
+                                    "type": "object",
+                                    "x-kubernetes-map-type": "atomic"
+                                  }
+                                },
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "name"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array",
+                          "x-kubernetes-list-map-keys": [
+                            "name"
+                          ],
+                          "x-kubernetes-list-type": "map"
+                        },
+                        "resources": {
+                          "additionalProperties": false,
+                          "description": "Specify the Request and Limits of the pods.\nTo get guaranteed QoS class, specify requests and limits equal.\nSee also: http://kubernetes.io/docs/user-guide/compute-resources/",
+                          "properties": {
+                            "claims": {
+                              "description": "Claims lists the names of resources, defined in spec.resourceClaims,\nthat are used by this container.\n\nThis is an alpha field and requires enabling the\nDynamicResourceAllocation feature gate.\n\nThis field is immutable. It can only be set for containers.",
+                              "items": {
+                                "additionalProperties": false,
+                                "description": "ResourceClaim references one entry in PodSpec.ResourceClaims.",
+                                "properties": {
+                                  "name": {
+                                    "description": "Name must match the name of one entry in pod.spec.resourceClaims of\nthe Pod where this field is used. It makes that resource available\ninside a container.",
+                                    "type": "string"
+                                  },
+                                  "request": {
+                                    "description": "Request is the name chosen for a request in the referenced claim.\nIf empty, everything from the claim is made available, otherwise\nonly the result of this request.",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "name"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array",
+                              "x-kubernetes-list-map-keys": [
+                                "name"
+                              ],
+                              "x-kubernetes-list-type": "map"
+                            },
+                            "limits": {
+                              "additionalProperties": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "string"
+                                  }
+                                ],
+                                "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                                "x-kubernetes-int-or-string": true
+                              },
+                              "description": "Limits describes the maximum amount of compute resources allowed.\nMore info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+                              "type": "object"
+                            },
+                            "requests": {
+                              "additionalProperties": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "string"
+                                  }
+                                ],
+                                "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                                "x-kubernetes-int-or-string": true
+                              },
+                              "description": "Requests describes the minimum amount of compute resources required.\nIf Requests is omitted for a container, it defaults to Limits if that is explicitly specified,\notherwise to an implementation-defined value. Requests cannot exceed Limits.\nMore info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "description": "Configure the basic configurations for an Agent container\nValid Agent container names are: `agent`",
+                    "type": "object"
+                  },
+                  "labels": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Labels provide labels that are added to the Datadog Agent pods.",
+                    "type": "object"
+                  },
+                  "priorityClassName": {
+                    "description": "If specified, indicates the pod's priority. \"system-node-critical\" and\n\"system-cluster-critical\" are two special keywords which indicate the\nhighest priorities with the former being the highest priority. Any other\nname must be defined by creating a PriorityClass object with that name.\nIf not specified, the pod priority will be default or zero if there is no\ndefault.",
+                    "type": "string"
+                  },
+                  "runtimeClassName": {
+                    "description": "If specified, indicates the pod's RuntimeClass kubelet should use to run the pod.\nIf the named RuntimeClass does not exist, or the CRI cannot run the corresponding handler, the pod enters the Failed terminal phase.\nIf no runtimeClassName is specified, the default RuntimeHandler is used, which is equivalent to the behavior when the RuntimeClass feature is disabled.",
+                    "type": "string"
+                  },
+                  "updateStrategy": {
+                    "additionalProperties": false,
+                    "description": "The deployment strategy to use to replace existing pods with new ones.\nValid types are `RollingUpdate` or `OnDelete` for DaemonSets",
+                    "properties": {
+                      "rollingUpdate": {
+                        "additionalProperties": false,
+                        "description": "Configure the rolling update strategy of the Deployment or DaemonSet.",
+                        "properties": {
+                          "maxSurge": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "string"
+                              }
+                            ],
+                            "description": "MaxSurge behaves differently based on the Kubernetes resource. Refer to the\nKubernetes API documentation for additional details.",
+                            "x-kubernetes-int-or-string": true
+                          },
+                          "maxUnavailable": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "string"
+                              }
+                            ],
+                            "description": "The maximum number of pods that can be unavailable during the update.\nValue can be an absolute number (ex: 5) or a percentage of desired pods (ex: 10%).\nRefer to the Kubernetes API documentation for additional details..",
+                            "x-kubernetes-int-or-string": true
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": {
+                        "description": "Type can be \"RollingUpdate\" or \"OnDelete\" for DaemonSets and \"RollingUpdate\"\nor \"Recreate\" for Deployments",
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "object"
+              },
+              "description": "Override the default configurations of the node agent.",
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "profileAffinity": {
+          "additionalProperties": false,
+          "properties": {
+            "profileNodeAffinity": {
+              "items": {
+                "additionalProperties": false,
+                "description": "A node selector requirement is a selector that contains values, a key, and an operator\nthat relates the key and values.",
+                "properties": {
+                  "key": {
+                    "description": "The label key that the selector applies to.",
+                    "type": "string"
+                  },
+                  "operator": {
+                    "description": "Represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
+                    "type": "string"
+                  },
+                  "values": {
+                    "description": "An array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. If the operator is Gt or Lt, the values\narray must have a single element, which will be interpreted as an integer.\nThis array is replaced during a strategic merge patch.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "x-kubernetes-list-type": "atomic"
+                  }
+                },
+                "required": [
+                  "key",
+                  "operator"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "DatadogAgentProfileStatus defines the observed state of DatadogAgentProfile",
+      "properties": {
+        "applied": {
+          "description": "Applied shows whether the DatadogAgentProfile conflicts with an existing DatadogAgentProfile.",
+          "type": "string"
+        },
+        "conditions": {
+          "description": "Conditions represents the latest available observations of a DatadogAgentProfile's current state.",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": "array",
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "createStrategy": {
+          "additionalProperties": false,
+          "description": "CreateStrategy is the state of the create strategy feature.",
+          "properties": {
+            "lastTransition": {
+              "description": "LastTransition is the last time the status was updated.",
+              "format": "date-time",
+              "type": "string"
+            },
+            "maxUnavailable": {
+              "description": "MaxUnavailable shows the number of pods that can be in an unready state.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "nodesLabeled": {
+              "description": "NodesLabeled shows the number of nodes currently labeled.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "podsReady": {
+              "description": "PodsReady shows the number of pods in the ready state.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "status": {
+              "description": "Status shows the current state of the feature.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "currentHash": {
+          "description": "CurrentHash is the stored hash of the DatadogAgentProfile.",
+          "type": "string"
+        },
+        "lastUpdate": {
+          "description": "LastUpdate is the last time the status was updated.",
+          "format": "date-time",
+          "type": "string"
+        },
+        "valid": {
+          "description": "Valid shows if the DatadogAgentProfile has a valid config spec.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "type": "object"
+}

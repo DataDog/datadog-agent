@@ -1,0 +1,24 @@
+# permissions for end users to edit datadogmetrics.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: datadogmetric-editor-role
+rules:
+- apiGroups:
+  - datadoghq.com
+  resources:
+  - datadogmetrics
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - datadoghq.com
+  resources:
+  - datadogmetrics/status
+  verbs:
+  - get

@@ -1,0 +1,10 @@
+apiVersion: datadoghq.com/v2alpha1
+kind: DatadogAgent
+metadata:
+  namespace: e2e-operator
+  labels:
+    agent.datadoghq.com/e2e-test: datadog-agent-minimum
+spec:
+  global:
+    kubelet:
+      tlsVerify: false

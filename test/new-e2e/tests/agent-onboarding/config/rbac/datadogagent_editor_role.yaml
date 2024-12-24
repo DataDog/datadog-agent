@@ -1,0 +1,24 @@
+# permissions for end users to edit datadogagents.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: datadogagent-editor-role
+rules:
+- apiGroups:
+  - datadoghq.com
+  resources:
+  - datadogagents
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - datadoghq.com
+  resources:
+  - datadogagents/status
+  verbs:
+  - get

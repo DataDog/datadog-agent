@@ -1,0 +1,24 @@
+# permissions for end users to edit datadogpodautoscalers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: datadogpodautoscaler-editor-role
+rules:
+- apiGroups:
+  - datadoghq.com
+  resources:
+  - datadogpodautoscalers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - datadoghq.com
+  resources:
+  - datadogpodautoscalers/status
+  verbs:
+  - get

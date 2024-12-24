@@ -1,0 +1,104 @@
+{
+  "additionalProperties": false,
+  "description": "DatadogMetric allows autoscaling on arbitrary Datadog query",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": "string"
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "DatadogMetricSpec defines the desired state of DatadogMetric",
+      "properties": {
+        "externalMetricName": {
+          "description": "ExternalMetricName is reserved for internal use",
+          "type": "string"
+        },
+        "maxAge": {
+          "description": "MaxAge provides the max age for the metric query (overrides the default setting\n`external_metrics_provider.max_age`)",
+          "type": "string"
+        },
+        "query": {
+          "description": "Query is the raw datadog query",
+          "type": "string"
+        },
+        "timeWindow": {
+          "description": "TimeWindow provides the time window for the metric query, defaults to MaxAge.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "DatadogMetricStatus defines the observed state of DatadogMetric",
+      "properties": {
+        "autoscalerReferences": {
+          "description": "List of autoscalers currently using this DatadogMetric",
+          "type": "string"
+        },
+        "conditions": {
+          "description": "Conditions Represents the latest available observations of a DatadogMetric's current state.",
+          "items": {
+            "additionalProperties": false,
+            "description": "DatadogMetricCondition describes the state of a DatadogMetric at a certain point.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "Last time the condition transitioned from one status to another.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "lastUpdateTime": {
+                "description": "Last time the condition was updated.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "A human readable message indicating details about the transition.",
+                "type": "string"
+              },
+              "reason": {
+                "description": "The reason for the condition's last transition.",
+                "type": "string"
+              },
+              "status": {
+                "description": "Status of the condition, one of True, False, Unknown.",
+                "type": "string"
+              },
+              "type": {
+                "description": "Type of DatadogMetric condition.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": "array",
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "currentValue": {
+          "description": "Value is the latest value of the metric",
+          "type": "string"
+        }
+      },
+      "required": [
+        "currentValue"
+      ],
+      "type": "object"
+    }
+  },
+  "type": "object"
+}

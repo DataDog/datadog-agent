@@ -1,0 +1,20 @@
+# permissions for end users to view datadogpodautoscalers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: datadogpodautoscaler-viewer-role
+rules:
+- apiGroups:
+  - datadoghq.com
+  resources:
+  - datadogpodautoscalers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - datadoghq.com
+  resources:
+  - datadogpodautoscalers/status
+  verbs:
+  - get

@@ -1,0 +1,354 @@
+{
+  "additionalProperties": false,
+  "description": "DatadogMonitor allows to define and manage Monitors from your Kubernetes Cluster",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": "string"
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "DatadogMonitorSpec defines the desired state of DatadogMonitor",
+      "properties": {
+        "controllerOptions": {
+          "additionalProperties": false,
+          "description": "ControllerOptions are the optional parameters in the DatadogMonitor controller",
+          "properties": {
+            "disableRequiredTags": {
+              "description": "DisableRequiredTags disables the automatic addition of required tags to monitors.",
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "message": {
+          "description": "Message is a message to include with notifications for this monitor",
+          "type": "string"
+        },
+        "name": {
+          "description": "Name is the monitor name",
+          "type": "string"
+        },
+        "options": {
+          "additionalProperties": false,
+          "description": "Options are the optional parameters associated with your monitor",
+          "properties": {
+            "enableLogsSample": {
+              "description": "A Boolean indicating whether to send a log sample when the log monitor triggers.",
+              "type": "boolean"
+            },
+            "escalationMessage": {
+              "description": "A message to include with a re-notification.",
+              "type": "string"
+            },
+            "evaluationDelay": {
+              "description": "Time (in seconds) to delay evaluation, as a non-negative integer. For example, if the value is set to 300 (5min),\nthe timeframe is set to last_5m and the time is 7:00, the monitor evaluates data from 6:50 to 6:55.\nThis is useful for AWS CloudWatch and other backfilled metrics to ensure the monitor always has data during evaluation.",
+              "format": "int64",
+              "type": "integer"
+            },
+            "groupbySimpleMonitor": {
+              "description": "A Boolean indicating whether the log alert monitor triggers a single alert or multiple alerts when any group breaches a threshold.",
+              "type": "boolean"
+            },
+            "includeTags": {
+              "description": "A Boolean indicating whether notifications from this monitor automatically inserts its triggering tags into the title.",
+              "type": "boolean"
+            },
+            "locked": {
+              "description": "DEPRECATED: Whether or not the monitor is locked (only editable by creator and admins). Use `restricted_roles` instead.",
+              "type": "boolean"
+            },
+            "newGroupDelay": {
+              "description": "Time (in seconds) to allow a host to boot and applications to fully start before starting the evaluation of\nmonitor results. Should be a non negative integer.",
+              "format": "int64",
+              "type": "integer"
+            },
+            "noDataTimeframe": {
+              "description": "The number of minutes before a monitor notifies after data stops reporting. Datadog recommends at least 2x the\nmonitor timeframe for metric alerts or 2 minutes for service checks. If omitted, 2x the evaluation timeframe\nis used for metric alerts, and 24 hours is used for service checks.",
+              "format": "int64",
+              "type": "integer"
+            },
+            "notificationPresetName": {
+              "description": "An enum that toggles the display of additional content sent in the monitor notification.",
+              "type": "string"
+            },
+            "notifyAudit": {
+              "description": "A Boolean indicating whether tagged users are notified on changes to this monitor.",
+              "type": "boolean"
+            },
+            "notifyBy": {
+              "description": "A string indicating the granularity a monitor alerts on. Only available for monitors with groupings.\nFor instance, a monitor grouped by cluster, namespace, and pod can be configured to only notify on each new\ncluster violating the alert conditions by setting notify_by to [\"cluster\"]. Tags mentioned in notify_by must\nbe a subset of the grouping tags in the query. For example, a query grouped by cluster and namespace cannot\nnotify on region. Setting notify_by to [*] configures the monitor to notify as a simple-alert.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "x-kubernetes-list-type": "set"
+            },
+            "notifyNoData": {
+              "description": "A Boolean indicating whether this monitor notifies when data stops reporting.",
+              "type": "boolean"
+            },
+            "onMissingData": {
+              "description": "An enum that controls how groups or monitors are treated if an evaluation does not return data points.\nThe default option results in different behavior depending on the monitor query type.\nFor monitors using Count queries, an empty monitor evaluation is treated as 0 and is compared to the threshold conditions.\nFor monitors using any query type other than Count, for example Gauge, Measure, or Rate, the monitor shows the last known status.\nThis option is only available for APM Trace Analytics, Audit Trail, CI, Error Tracking, Event, Logs, and RUM monitors",
+              "type": "string"
+            },
+            "renotifyInterval": {
+              "description": "The number of minutes after the last notification before a monitor re-notifies on the current status.\nIt only re-notifies if it’s not resolved.",
+              "format": "int64",
+              "type": "integer"
+            },
+            "renotifyOccurrences": {
+              "description": "The number of times re-notification messages should be sent on the current status at the provided re-notification interval.",
+              "format": "int64",
+              "type": "integer"
+            },
+            "renotifyStatuses": {
+              "description": "The types of statuses for which re-notification messages should be sent. Valid values are alert, warn, no data.",
+              "items": {
+                "description": "MonitorRenotifyStatusType The different statuses for which renotification is supported.",
+                "type": "string"
+              },
+              "type": "array",
+              "x-kubernetes-list-type": "set"
+            },
+            "requireFullWindow": {
+              "description": "A Boolean indicating whether this monitor needs a full window of data before it’s evaluated. We highly\nrecommend you set this to false for sparse metrics, otherwise some evaluations are skipped. Default is false.",
+              "type": "boolean"
+            },
+            "thresholdWindows": {
+              "additionalProperties": false,
+              "description": "A struct of the alerting time window options.",
+              "properties": {
+                "recoveryWindow": {
+                  "description": "Describes how long an anomalous metric must be normal before the alert recovers.",
+                  "type": "string"
+                },
+                "triggerWindow": {
+                  "description": "Describes how long a metric must be anomalous before an alert triggers.",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "thresholds": {
+              "additionalProperties": false,
+              "description": "A struct of the different monitor threshold values.",
+              "properties": {
+                "critical": {
+                  "description": "The monitor CRITICAL threshold.",
+                  "type": "string"
+                },
+                "criticalRecovery": {
+                  "description": "The monitor CRITICAL recovery threshold.",
+                  "type": "string"
+                },
+                "ok": {
+                  "description": "The monitor OK threshold.",
+                  "type": "string"
+                },
+                "unknown": {
+                  "description": "The monitor UNKNOWN threshold.",
+                  "type": "string"
+                },
+                "warning": {
+                  "description": "The monitor WARNING threshold.",
+                  "type": "string"
+                },
+                "warningRecovery": {
+                  "description": "The monitor WARNING recovery threshold.",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "timeoutH": {
+              "description": "The number of hours of the monitor not reporting data before it automatically resolves from a triggered state.",
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "priority": {
+          "description": "Priority is an integer from 1 (high) to 5 (low) indicating alert severity",
+          "format": "int64",
+          "type": "integer"
+        },
+        "query": {
+          "description": "Query is the Datadog monitor query",
+          "type": "string"
+        },
+        "restrictedRoles": {
+          "description": "RestrictedRoles is a list of unique role identifiers to define which roles are allowed to edit the monitor.\n`restricted_roles` is the successor of `locked`. For more information about `locked` and `restricted_roles`,\nsee the [monitor options docs](https://docs.datadoghq.com/monitors/guide/monitor_api_options/#permissions-options).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "x-kubernetes-list-type": "set"
+        },
+        "tags": {
+          "description": "Tags is the monitor tags associated with your monitor",
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "x-kubernetes-list-type": "set"
+        },
+        "type": {
+          "description": "Type is the monitor type",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "DatadogMonitorStatus defines the observed state of DatadogMonitor",
+      "properties": {
+        "conditions": {
+          "description": "Conditions Represents the latest available observations of a DatadogMonitor's current state.",
+          "items": {
+            "additionalProperties": false,
+            "description": "DatadogMonitorCondition describes the current state of a DatadogMonitor",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "Last time the condition transitioned from one status to another.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "lastUpdateTime": {
+                "description": "Last time the condition was updated.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "A human readable message indicating details about the transition.",
+                "type": "string"
+              },
+              "reason": {
+                "description": "The reason for the condition's last transition.",
+                "type": "string"
+              },
+              "status": {
+                "description": "Status of the condition, one of True, False, Unknown.",
+                "type": "string"
+              },
+              "type": {
+                "description": "Type of DatadogMonitor condition",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": "array",
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "created": {
+          "description": "Created is the time the monitor was created",
+          "format": "date-time",
+          "type": "string"
+        },
+        "creator": {
+          "description": "Creator is the identify of the monitor creator",
+          "type": "string"
+        },
+        "currentHash": {
+          "description": "CurrentHash tracks the hash of the current DatadogMonitorSpec to know\nif the Spec has changed and needs an update",
+          "type": "string"
+        },
+        "downtimeStatus": {
+          "additionalProperties": false,
+          "description": "DowntimeStatus defines whether the monitor is downtimed",
+          "properties": {
+            "downtimeID": {
+              "description": "DowntimeID is the downtime ID.",
+              "type": "integer"
+            },
+            "isDowntimed": {
+              "description": "IsDowntimed shows the downtime status of the monitor.",
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "id": {
+          "description": "ID is the monitor ID generated in Datadog",
+          "type": "integer"
+        },
+        "monitorLastForceSyncTime": {
+          "description": "MonitorLastForceSyncTime is the last time the API monitor was last force synced with the DatadogMonitor resource",
+          "format": "date-time",
+          "type": "string"
+        },
+        "monitorState": {
+          "description": "MonitorState is the overall state of monitor",
+          "type": "string"
+        },
+        "monitorStateLastTransitionTime": {
+          "description": "MonitorStateLastTransitionTime is the last time the monitor state changed",
+          "format": "date-time",
+          "type": "string"
+        },
+        "monitorStateLastUpdateTime": {
+          "description": "MonitorStateLastUpdateTime is the last time the monitor state updated",
+          "format": "date-time",
+          "type": "string"
+        },
+        "monitorStateSyncStatus": {
+          "description": "MonitorStateSyncStatus shows the health of syncing the monitor state to Datadog",
+          "type": "string"
+        },
+        "primary": {
+          "description": "Primary defines whether the monitor is managed by the Kubernetes custom\nresource (true) or outside Kubernetes (false)",
+          "type": "boolean"
+        },
+        "triggeredState": {
+          "description": "TriggeredState only includes details for monitor groups that are triggering",
+          "items": {
+            "additionalProperties": false,
+            "description": "DatadogMonitorTriggeredState represents the details of a triggering DatadogMonitor\nThe DatadogMonitor is triggering if one of its groups is in Alert, Warn, or No Data",
+            "properties": {
+              "lastTransitionTime": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "monitorGroup": {
+                "description": "MonitorGroup is the name of the triggering group",
+                "type": "string"
+              },
+              "state": {
+                "description": "DatadogMonitorState represents the overall DatadogMonitor state",
+                "type": "string"
+              }
+            },
+            "required": [
+              "monitorGroup"
+            ],
+            "type": "object"
+          },
+          "type": "array",
+          "x-kubernetes-list-map-keys": [
+            "monitorGroup"
+          ],
+          "x-kubernetes-list-type": "map"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "type": "object"
+}

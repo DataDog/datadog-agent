@@ -1,0 +1,58 @@
+apiVersion: datadoghq.com/v2alpha1
+kind: DatadogAgent
+metadata:
+  name: datadog
+spec:
+  features:
+    clusterChecks:
+      enabled: true
+      useClusterChecksRunners: true
+    liveContainerCollection:
+      enabled: true
+    cws:
+      enabled: false
+    usm:
+      enabled: false
+    cspm:
+      enabled: false
+    sbom:
+      enabled: false
+  global:
+    credentials:
+      apiSecret:
+        secretName: datadog-secret
+        keyName: api-key
+      appSecret:
+        secretName: datadog-secret
+        keyName: app-key
+    clusterName: rc-updater-e2e-test-cluster
+    site: datadoghq.com
+    kubelet:
+      tlsVerify: false
+  override:
+    nodeAgent:
+      labels:
+        agent.datadoghq.com/e2e-test: datadog-agent-rc
+      containers:
+        agent:
+          env:
+            - name: DD_SKIP_SSL_VALIDATION
+              value: "false"
+    clusterAgent:
+      labels:
+        agent.datadoghq.com/e2e-test: datadog-agent-minimum
+      env:
+        - name: DD_CLUSTER_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: datadog-cluster-name
+              key: DD_CLUSTER_NAME
+    clusterChecksRunner:
+      labels:
+        agent.datadoghq.com/e2e-test: datadog-agent-minimum
+      env:
+        - name: DD_CLUSTER_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: datadog-cluster-name
+              key: DD_CLUSTER_NAME

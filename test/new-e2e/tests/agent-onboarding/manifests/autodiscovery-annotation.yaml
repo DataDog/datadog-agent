@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+  namespace: e2e-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+      e2e: autodiscovery
+  template:
+    metadata:
+      annotations:
+          ad.datadoghq.com/nginx.check_names: '["http_check"]'
+          ad.datadoghq.com/nginx.init_configs: '[{}]'
+          ad.datadoghq.com/nginx.instances: |
+            [
+              {
+                "name": "http_custom_identifier",
+                "url": "http://www.google.com"
+              }
+            ]
+          ad.datadoghq.com/tolerate-unready: "true"
+      labels:
+        app: nginx
+        e2e: autodiscovery
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
