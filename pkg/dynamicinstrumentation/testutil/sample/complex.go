@@ -35,13 +35,13 @@ type bigStruct struct {
 //go:noinline
 func test_big_struct(b bigStruct) {}
 
-type circular_reference_type struct {
-	t *circular_reference_type
+type circularReferenceType struct {
+	t *circularReferenceType
 }
 
 //nolint:all
 //go:noinline
-func test_circular_type(x circular_reference_type) {}
+func test_circular_type(x circularReferenceType) {}
 
 //nolint:all
 func ExecuteComplexFuncs() {
@@ -65,7 +65,7 @@ func ExecuteComplexFuncs() {
 	})
 	test_multiple_dereferences(o)
 
-	circ := circular_reference_type{}
+	circ := circularReferenceType{}
 	circ.t = &circ
 	test_circular_type(circ)
 }
