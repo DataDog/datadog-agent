@@ -35,7 +35,7 @@ def trigger_buildenv_workflow(workflow_name="runner-bump.yml", github_action_ref
     result = gh.trigger_workflow(workflow_name, github_action_ref, inputs)
 
     if not result:
-        print(f"Couldn't trigger workfglow run. result={result}")
+        print(f"Couldn't trigger workflow run. result={result}")
         raise Exit(code=1)
 
     # Since we can't get the worflow run id from a `create_dispatch` api call we are fetching the first running workflow after `now`.
