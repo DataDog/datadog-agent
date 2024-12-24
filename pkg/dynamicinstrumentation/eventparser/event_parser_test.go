@@ -333,7 +333,7 @@ func TestParseParams(t *testing.T) {
 			Name:   "uint slice ok",
 			Buffer: []byte{23, 3, 0, 7, 8, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			ExpectedOutput: []*ditypes.Param{
-				&ditypes.Param{
+				{
 					Type: "slice",
 					Size: 3,
 					Kind: byte(reflect.Slice),
@@ -364,7 +364,7 @@ func TestParseParams(t *testing.T) {
 			Name:   "uint pointer ok",
 			Buffer: []byte{22, 8, 0, 7, 8, 0, 123, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			ExpectedOutput: []*ditypes.Param{
-				&ditypes.Param{
+				{
 					Type: "ptr",
 					Size: 8,
 					Kind: byte(reflect.Pointer),
@@ -383,12 +383,12 @@ func TestParseParams(t *testing.T) {
 			Name:   "struct pointer ok",
 			Buffer: []byte{22, 8, 0, 25, 3, 0, 1, 1, 0, 2, 8, 0, 4, 2, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			ExpectedOutput: []*ditypes.Param{
-				&ditypes.Param{
+				{
 					Type: "ptr",
 					Size: 8,
 					Kind: byte(reflect.Pointer),
 					Fields: []*ditypes.Param{
-						&ditypes.Param{
+						{
 							Type: "struct",
 							Size: 3,
 							Kind: byte(reflect.Struct),
@@ -421,12 +421,12 @@ func TestParseParams(t *testing.T) {
 			Name:   "struct pointer nil",
 			Buffer: []byte{22, 8, 0, 25, 3, 0, 1, 1, 0, 2, 8, 0, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			ExpectedOutput: []*ditypes.Param{
-				&ditypes.Param{
+				{
 					Type: "ptr",
 					Size: 8,
 					Kind: byte(reflect.Pointer),
 					Fields: []*ditypes.Param{
-						&ditypes.Param{
+						{
 							Type: "struct",
 							Size: 3,
 							Kind: byte(reflect.Struct),
