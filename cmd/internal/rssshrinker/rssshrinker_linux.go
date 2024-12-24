@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 	"unsafe"
 )
 
@@ -32,39 +31,20 @@ const MADV_PAGEOUT = 21
 
 //revive:enable:var-naming
 
-// Setup starts timers to regularly release memory to the kernel.
+// Setup releases memory to the OS
 func Setup() {
-	// Release the memory garbage collected by the Go runtime to the kernel every 2 minutes.
-	go func() {
-		c := time.Tick(2 * time.Minute)
-		for range c {
-			debug.FreeOSMemory()
-		}
-	}()
+	// Release the memory garbage collected by the Go runtime to Linux
+	debug.FreeOSMemory()
 
-	// Release the memory allocated by C malloc to the kernel every 2 minutes.
+	// Release the memory allocated by C malloc to Linux
 	// This is for the native libraries pulled by Python.
-	go func() {
-		c := time.Tick(2 * time.Minute)
-		for range c {
-			C.malloc_trim(0)
-		}
-	}()
+	C.malloc_trim(0)
 
-	// Release file-backed memory to the kernel every 30 minutes.
+	// Release file-backed memory to Linux
 	// This is for the GO code that isn’t actively used.
-	go func() {
-		if err := pageOutFileBackedMemory(); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to release memory: %s\n", err)
-		}
-
-		c := time.Tick(30 * time.Minute)
-		for range c {
-			if err := pageOutFileBackedMemory(); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to release memory: %s\n", err)
-			}
-		}
-	}()
+	if err := pageOutFileBackedMemory(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to release memory: %s\n", err)
+	}
 }
 
 // pageOutFileBackedMemory releases file-backed memory by advising the kernel to page out the memory.
