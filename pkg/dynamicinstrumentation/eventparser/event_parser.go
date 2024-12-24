@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	byteOrder = binary.LittleEndian
+	byteOrder = binary.NativeEndian
 )
 
 // ParseEvent takes the raw buffer from bpf and parses it into an event. It also potentially
@@ -178,7 +178,7 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 		kind := b[i]
 		newParam := &ditypes.Param{
 			Kind: kind,
-			Size: binary.LittleEndian.Uint16(b[i+1 : i+3]),
+			Size: byteOrder.Uint16(b[i+1 : i+3]),
 			Type: parseKindToString(kind),
 		}
 		if newParam.Kind == 0 {
