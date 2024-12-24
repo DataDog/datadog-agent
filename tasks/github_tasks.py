@@ -118,6 +118,7 @@ def _trigger_buildenv_workflow(new_version=None, buildenv_ref="master"):
         raise Exit(message="Buildenv workflow need the 'new_version' field value to be not None")
 
     run = trigger_buildenv_workflow(
+        workflow_name="runner-bump.yml",
         github_action_ref=buildenv_ref,
         new_version=new_version,
     )
