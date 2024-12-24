@@ -168,9 +168,8 @@ func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err err
 			span.SetTag("retries", i)
 			span.SetTag("docker_runtime", "dd-shim")
 			return nil
-		} else {
-			currentRuntime = strings.TrimSpace(outb.String())
 		}
+		currentRuntime = strings.TrimSpace(outb.String())
 	}
 	span.SetTag("retries", 5)
 	span.SetTag("docker_runtime", currentRuntime)
