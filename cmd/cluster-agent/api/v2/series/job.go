@@ -118,8 +118,8 @@ func (jq *jobQueue) reportTelemetry(ctx context.Context) {
 				for _, statsResult := range statsResults {
 					telemetryWorkloadEntities.Set(float64(statsResult.Count),
 						statsResult.Namespace,
-						statsResult.Deployment,
-						statsResult.LoadName)
+						statsResult.PodOwner,
+						statsResult.MetricName)
 				}
 			}
 		}
