@@ -326,7 +326,7 @@ func (w *Watcher) sync() {
 		// libraries. Scanning twice with the sync interval reduce this risk of
 		// missing shared libraries due to this.
 		if scanned < 2 {
-			w.scannedPIDs[pid] = scanned + 1
+			w.scannedPIDs[pid]++
 			err := w.AttachPID(pid)
 			if err == nil {
 				log.Debugf("watcher attached to %v via periodic scan", pid)
