@@ -657,10 +657,7 @@ new-e2e-agent-onboarding:
     TEAM: container-ecosystems
   parallel:
     matrix:
-      - EXTRA_PARAMS: "--run TestAWSKindSuite -c ddinfra:kubernetesVersion=1.19"
-      - EXTRA_PARAMS: "--run TestAWSKindSuite -c ddinfra:kubernetesVersion=1.22"
-      - EXTRA_PARAMS: "--run TestAWSKindSuite -c ddinfra:kubernetesVersion=1.27"
-      - EXTRA_PARAMS: "--run TestAWSKindSuite -c ddinfra:kubernetesVersion=1.29"
+      - EXTRA_PARAMS: "--run TestAWSKindSuite"
 
 generate-flakes-finder-pipeline:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES

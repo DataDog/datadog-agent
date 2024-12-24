@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="5" failures="0" errors="0" time="709.247075">
+	<testsuite tests="5" failures="0" time="680.688000" name="github.com/DataDog/datadog-agent/test/new-e2e/tests/containers" timestamp="2024-12-24T13:00:20-05:00">
+		<properties>
+			<property name="go.version" value="go1.23.0 darwin/arm64"></property>
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/test/new-e2e/tests/containers" name="TestDockerSuite/TestDSDWithUDP/metric___custom.metric{^container_name:metric-sender-udp$}" time="10.200000"></testcase>
+		<testcase classname="github.com/DataDog/datadog-agent/test/new-e2e/tests/containers" name="TestDockerSuite/TestDSDWithUDP" time="10.200000"></testcase>
+		<testcase classname="github.com/DataDog/datadog-agent/test/new-e2e/tests/containers" name="TestDockerSuite/TestDSDWithUDS/metric___custom.metric{^container_name:metric-sender-uds$}" time="10.080000"></testcase>
+		<testcase classname="github.com/DataDog/datadog-agent/test/new-e2e/tests/containers" name="TestDockerSuite/TestDSDWithUDS" time="10.080000"></testcase>
+		<testcase classname="github.com/DataDog/datadog-agent/test/new-e2e/tests/containers" name="TestDockerSuite" time="172.290000"></testcase>
+	</testsuite>
+</testsuites>
