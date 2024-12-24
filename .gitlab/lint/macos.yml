@@ -7,10 +7,10 @@ include:
   extends: .macos_gitlab
   needs: ["go_deps", "go_tools_deps"]
   script:
-    - rm -rf ./download
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e linter.go --cpus 12 --debug --timeout 60
+    # - rm -rf ./download
 
 lint_macos_gitlab_amd64:
   extends: .lint_macos_gitlab
@@ -18,6 +18,58 @@ lint_macos_gitlab_amd64:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
+  parallel:
+    matrix:
+      - NB: 0
+      - NB: 1
+      - NB: 2
+      - NB: 3
+      - NB: 4
+      - NB: 5
+      - NB: 6
+      - NB: 7
+      - NB: 8
+      - NB: 9
+      - NB: 10
+      - NB: 11
+      - NB: 12
+      - NB: 13
+      - NB: 14
+      - NB: 15
+      - NB: 16
+      - NB: 17
+      - NB: 18
+      - NB: 19
+      - NB: 10
+      - NB: 21
+      - NB: 22
+      - NB: 23
+      - NB: 24
+      - NB: 25
+      - NB: 26
+      - NB: 27
+      - NB: 28
+      - NB: 29
+      - NB: 30
+      - NB: 31
+      - NB: 32
+      - NB: 33
+      - NB: 34
+      - NB: 35
+      - NB: 36
+      - NB: 37
+      - NB: 38
+      - NB: 39
+      - NB: 30
+      - NB: 41
+      - NB: 42
+      - NB: 43
+      - NB: 44
+      - NB: 45
+      - NB: 46
+      - NB: 47
+      - NB: 48
+      - NB: 49
 
 lint_macos_gitlab_arm64:
   extends: .lint_macos_gitlab
