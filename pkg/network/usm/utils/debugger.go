@@ -45,6 +45,7 @@ type BlockedProcess struct {
 type PathIdentifierWithSamplePath struct {
 	PathIdentifier
 	SamplePath string
+	Reason     string
 }
 
 // TracedProgramsEndpoint generates a summary of all active uprobe-based
@@ -197,11 +198,12 @@ func (d *tlsDebugger) GetBlockedPathIDsWithSamplePath(programType string) []Path
 
 		blockedIDsWithSampleFile := make([]PathIdentifierWithSamplePath, 0, len(registry.blocklistByID.Keys()))
 		for _, pathIdentifier := range registry.blocklistByID.Keys() {
-			samplePath, ok := registry.blocklistByID.Get(pathIdentifier)
+			entry, ok := registry.blocklistByID.Get(pathIdentifier)
 			if ok {
 				blockedIDsWithSampleFile = append(blockedIDsWithSampleFile, PathIdentifierWithSamplePath{
 					PathIdentifier: pathIdentifier,
-					SamplePath:     samplePath})
+					SamplePath:     entry.Path,
+					Reason:         entry.Reason})
 			}
 		}
 
