@@ -61,6 +61,13 @@
                         perf_ret = bpf_ringbuf_output(&name##_batch_events, batch, sizeof(batch_data_t), 0);\
                     }                                                                                   \
                 } else {                                                                                \
+                    if (with_telemetry) {                                                               \
+                        perf_ret = bpf_perf_event_output_with_telemetry(ctx,                            \
+                                                         &name##_batch_events,                          \
+                                                         key.cpu,                                       \
+                                                         batch,                                         \
+                                                         sizeof(batch_data_t));                         \
+                    }                                                                                   \
                     perf_ret = bpf_perf_event_output(ctx,                                               \
                                                      &name##_batch_events,                              \
                                                      key.cpu,                                           \
