@@ -113,7 +113,7 @@ def trigger_macos(
         raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
 
 
-def _trigger_buildenv_workflow(new_version=None, buildenv_ref="master"):
+def _update_windows_runner_version(new_version=None, buildenv_ref="master"):
     if new_version is None:
         raise Exit(message="Buildenv workflow need the 'new_version' field value to be not None")
 
@@ -127,6 +127,8 @@ def _trigger_buildenv_workflow(new_version=None, buildenv_ref="master"):
 
     if workflow_conclusion == "failure":
         print_failed_jobs_logs(run)
+    else:
+        raise Exit(message="Workflow failed, see errors below.")
 
     print_workflow_conclusion(workflow_conclusion, workflow_url)
 
@@ -145,15 +147,18 @@ def _trigger_buildenv_workflow(new_version=None, buildenv_ref="master"):
 
 
 @task
-def trigger_buildenv(
+def update_windows_runner_version(
     ctx,
     new_version=None,
     buildenv_ref="master",
 ):
+    """
+    Trigger a workflow on the buildenv repository to bump windows gitlab runner
+    """
     if new_version is None:
         new_version = str(current_version(ctx, "7"))
 
-    conclusion = _trigger_buildenv_workflow(new_version, buildenv_ref)
+    conclusion = _update_windows_runner_version(new_version, buildenv_ref)
     if conclusion != "success":
         raise Exit(message=f"Buildenv workflow {conclusion}", code=1)
 

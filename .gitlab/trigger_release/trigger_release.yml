@@ -79,8 +79,9 @@ generate_windows_gitlab_runner_bump_pr:
       when: never
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$/
 
-  script:
+  script: 
+    # Setting up a github app to access buildenv github repository
     - !reference [.setup_macos_github_app_for_runner_bump]
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
-    - inv -e github.trigger-buildenv
+    - inv -e github.update-windows-runner-version
