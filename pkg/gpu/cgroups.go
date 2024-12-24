@@ -19,27 +19,28 @@ import (
 
 // ConfigureDeviceCgroupsForProcess configures the cgroups for a process to allow access to the NVIDIA character devices
 func ConfigureDeviceCgroupsForProcess(pid uint32, rootfs string) error {
-	containerID, context, err := utils.GetProcContainerContext(pid, pid)
+	cgroups, err := utils.GetProcControlGroups(pid, pid)
 	if err != nil {
-		return fmt.Errorf("failed to get container ID for pid %d: %w", pid, err)
+		return fmt.Errorf("failed to get cgroups for pid %d: %w", pid, err)
 	}
 
-	if containerID == "" || string(context.CGroupID) == "" {
-		// Nothing to do if the process is not in a container
-		return nil
+	if len(cgroups) == 0 {
+		return fmt.Errorf("no cgroups found for pid %d", pid)
 	}
+
+	cgroup := cgroups[0]
 
 	// Configure systemd device allow first, so that in case of a reload we get the correct permissions
 	// The containerID for systemd is the last part of the cgroup path
-	cgroupParts := strings.Split(string(context.CGroupID), "/")
+	cgroupParts := strings.Split(string(cgroup.Path), "/")
 	systemdContainerID := cgroupParts[len(cgroupParts)-1]
 	if err := configureSystemdDeviceAllow(systemdContainerID, rootfs); err != nil {
 		return fmt.Errorf("failed to configure systemd device allow for container %s: %w", systemdContainerID, err)
 	}
 
 	// Configure cgroup device allow
-	if err := configureCgroupDeviceAllow(string(context.CGroupID), rootfs); err != nil {
-		return fmt.Errorf("failed to configure cgroup device allow for container %s: %w", containerID, err)
+	if err := configureCgroupDeviceAllow(string(cgroup.Path), rootfs); err != nil {
+		return fmt.Errorf("failed to configure cgroup device allow for container %s: %w", cgroup.Path, err)
 	}
 
 	return nil
