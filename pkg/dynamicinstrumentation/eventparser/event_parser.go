@@ -38,7 +38,7 @@ func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) 
 
 	allowed, droppedEvents, successfulEvents := ratelimiters.AllowOneEvent(event.ProbeID)
 	if !allowed {
-		return nil, fmt.Errorf("event dropped by rate limit. Probe %s\t(%d dropped events out of %d)\n",
+		return nil, fmt.Errorf("event dropped by rate limit, probe %s (%d dropped events out of %d)",
 			event.ProbeID, droppedEvents, droppedEvents+successfulEvents)
 	}
 
