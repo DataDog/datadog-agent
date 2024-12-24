@@ -127,8 +127,7 @@ def _update_windows_runner_version(new_version=None, buildenv_ref="master"):
 
     if workflow_conclusion == "failure":
         print_failed_jobs_logs(run)
-    else:
-        raise Exit(message="Workflow failed, see errors below.")
+        return workflow_conclusion
 
     print_workflow_conclusion(workflow_conclusion, workflow_url)
 
