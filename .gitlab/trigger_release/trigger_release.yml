@@ -59,7 +59,7 @@ trigger_manual_prod_release:
 include:
   - https://gitlab-templates.ddbuild.io/slack-notifier/v3-sdm/template.yml
 
-.setup_macos_github_app_for_runner_bump:
+.setup_github_app_agent_platform_auto_pr:
   # GitHub App rate-limits are per-app. Since we are rarely calling the job, we are only using the instance 2
   - |
     GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_2 key_b64) || exit $?; export GITHUB_KEY_B64
@@ -80,8 +80,8 @@ generate_windows_gitlab_runner_bump_pr:
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$/
 
   script: 
-    # We are using the macOS github app to access the buildenv repository
-    - !reference [.setup_macos_github_app_for_runner_bump]
+    # We are using the agent platform auto PR github app to access the buildenv repository (already used for macOS builds)
+    - !reference [.setup_github_app_agent_platform_auto_pr]
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
     - inv -e github.update-windows-runner-version
