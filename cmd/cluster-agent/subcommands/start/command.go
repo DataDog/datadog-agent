@@ -81,7 +81,7 @@ import (
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -241,7 +241,7 @@ func start(log log.Component,
 	// Starting Cluster Agent sequence
 	// Initialization order is important for multiple reasons, see comments
 
-	if err := util.SetupCoreDump(config); err != nil {
+	if err := coredump.Setup(config); err != nil {
 		pkglog.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
@@ -455,13 +455,12 @@ func start(log log.Component,
 	if config.GetBool("admission_controller.enabled") {
 		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			patchCtx := admissionpatch.ControllerContext{
-				IsLeaderFunc:        le.IsLeader,
-				LeaderSubscribeFunc: le.Subscribe,
-				K8sClient:           apiCl.Cl,
-				RcClient:            rcClient,
-				ClusterName:         clusterName,
-				ClusterID:           clusterID,
-				StopCh:              stopCh,
+				LeadershipStateSubscribeFunc: le.Subscribe,
+				K8sClient:                    apiCl.Cl,
+				RcClient:                     rcClient,
+				ClusterName:                  clusterName,
+				ClusterID:                    clusterID,
+				StopCh:                       stopCh,
 			}
 			if err := admissionpatch.StartControllers(patchCtx); err != nil {
 				log.Errorf("Cannot start auto instrumentation patcher: %v", err)
@@ -471,15 +470,14 @@ func start(log log.Component,
 		}
 
 		admissionCtx := admissionpkg.ControllerContext{
-			IsLeaderFunc:        le.IsLeader,
-			LeaderSubscribeFunc: le.Subscribe,
-			SecretInformers:     apiCl.CertificateSecretInformerFactory,
-			ValidatingInformers: apiCl.WebhookConfigInformerFactory,
-			MutatingInformers:   apiCl.WebhookConfigInformerFactory,
-			Client:              apiCl.Cl,
-			StopCh:              stopCh,
-			ValidatingStopCh:    validatingStopCh,
-			Demultiplexer:       demultiplexer,
+			LeadershipStateSubscribeFunc: le.Subscribe,
+			SecretInformers:              apiCl.CertificateSecretInformerFactory,
+			ValidatingInformers:          apiCl.WebhookConfigInformerFactory,
+			MutatingInformers:            apiCl.WebhookConfigInformerFactory,
+			Client:                       apiCl.Cl,
+			StopCh:                       stopCh,
+			ValidatingStopCh:             validatingStopCh,
+			Demultiplexer:                demultiplexer,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, datadogConfig)

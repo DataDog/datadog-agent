@@ -128,12 +128,6 @@ type NodeTreeConfig interface {
 	GetNode(string) (Node, error)
 }
 
-func (c *ntmConfig) logErrorNotImplemented(method string) error {
-	err := fmt.Errorf("not implemented: %s", method)
-	log.Error(err)
-	return err
-}
-
 // OnUpdate adds a callback to the list of receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
 // Callbacks are only called if the value is effectively changed.
@@ -241,11 +235,83 @@ func (c *ntmConfig) SetDefault(key string, value interface{}) {
 	_, _ = c.defaults.SetAt(parts, value, model.SourceDefault)
 }
 
+func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (Node, error) {
+	iter := source
+	for iter != model.SourceDefault {
+		iter = iter.PreviousSource()
+		tree, err := c.getTreeBySource(iter)
+		if err != nil {
+			return nil, err
+		}
+		node := c.leafAtPathFromNode(key, tree)
+		if _, isMissing := node.(*missingLeafImpl); !isMissing {
+			return node, nil
+		}
+	}
+	return nil, ErrNotFound
+}
+
 // UnsetForSource unsets a config entry for a given source
-func (c *ntmConfig) UnsetForSource(_key string, _source model.Source) {
+func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	c.Lock()
-	c.logErrorNotImplemented("UnsetForSource")
-	c.Unlock()
+	defer c.Unlock()
+
+	// Remove it from the original source tree
+	tree, err := c.getTreeBySource(source)
+	if err != nil {
+		log.Errorf("%s", err)
+		return
+	}
+	parentNode, childName, err := c.parentOfNode(tree, key)
+	if err != nil {
+		return
+	}
+	// Only remove if the setting is a leaf
+	if child, err := parentNode.GetChild(childName); err == nil {
+		if _, ok := child.(LeafNode); ok {
+			parentNode.RemoveChild(childName)
+		} else {
+			log.Errorf("cannot remove setting %q, not a leaf", key)
+			return
+		}
+	}
+
+	// If the node in the merged tree doesn't match the source we expect, we're done
+	if c.leafAtPathFromNode(key, c.root).Source() != source {
+		return
+	}
+
+	// Find what the previous value used to be, based upon the previous source
+	prevNode, err := c.findPreviousSourceNode(key, source)
+	if err != nil {
+		return
+	}
+
+	// Get the parent node of the leaf we're unsetting
+	parentNode, childName, err = c.parentOfNode(c.root, key)
+	if err != nil {
+		return
+	}
+	// Replace the child with the node from the previous layer
+	parentNode.InsertChildNode(childName, prevNode.Clone())
+}
+
+func (c *ntmConfig) parentOfNode(node Node, key string) (InnerNode, string, error) {
+	parts := splitKey(key)
+	lastPart := parts[len(parts)-1]
+	parts = parts[:len(parts)-1]
+	var err error
+	for _, p := range parts {
+		node, err = node.GetChild(p)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+	innerNode, ok := node.(InnerNode)
+	if !ok {
+		return nil, "", ErrNotFound
+	}
+	return innerNode, lastPart, nil
 }
 
 func (c *ntmConfig) addToKnownKeys(key string) {
@@ -562,7 +628,7 @@ func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	}
 
 	other := newInnerNode(nil)
-	if err = c.readConfigurationContent(other, content); err != nil {
+	if err = c.readConfigurationContent(other, model.SourceFile, content); err != nil {
 		return err
 	}
 
@@ -591,8 +657,17 @@ func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 	}
 	defer in.Close()
 
-	// TODO: Implement merging, merge in the policy that was read
-	return c.logErrorNotImplemented("MergeFleetPolicy")
+	content, err := io.ReadAll(in)
+	if err != nil {
+		return err
+	}
+
+	other := newInnerNode(nil)
+	if err = c.readConfigurationContent(other, model.SourceFleetPolicies, content); err != nil {
+		return err
+	}
+
+	return c.root.Merge(other)
 }
 
 // AllSettings returns all settings from the config
@@ -609,7 +684,7 @@ func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	defer c.RUnlock()
 
 	// We only want to include leaf with a source higher than SourceDefault
-	return c.root.DumpSettings(func(source model.Source) bool { return source.IsGreaterOrEqualThan(model.SourceUnknown) })
+	return c.root.DumpSettings(func(source model.Source) bool { return source.IsGreaterThan(model.SourceDefault) })
 }
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)

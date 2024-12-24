@@ -13,7 +13,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/cihub/seelog"
 	"github.com/mdlayher/netlink"
 	"github.com/pkg/errors"
 	"github.com/vishvananda/netns"
@@ -205,7 +204,7 @@ func (c *Consumer) isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
 		return false
 	}
 
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("netlink reply: %v", msgs)
 	}
 
@@ -340,7 +339,14 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 
 // LoadNfConntrackKernelModule requests a dummy connection tuple from netlink conntrack which is discarded but has
 // the side effect of loading the nf_conntrack_netlink module
-func LoadNfConntrackKernelModule(ns netns.NsHandle) error {
+func LoadNfConntrackKernelModule(cfg *config.Config) error {
+	ns, err := cfg.GetRootNetNs()
+	if err != nil {
+		return fmt.Errorf("error fetching root net namespace, will not attempt to load nf_conntrack_netlink module: %w", err)
+	}
+
+	defer ns.Close()
+
 	sock, err := NewSocket(ns)
 	if err != nil {
 		ino, errIno := kernel.GetInoForNs(ns)

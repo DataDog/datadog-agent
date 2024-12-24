@@ -10,11 +10,11 @@ package installer
 import (
 	"syscall"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 )
 
 // setInstallerUmask sets umask 0 to override any inherited umask
-func setInstallerUmask(span ddtrace.Span) {
+func setInstallerUmask(span *telemetry.Span) {
 	oldmask := syscall.Umask(0)
 	span.SetTag("inherited_umask", oldmask)
 }

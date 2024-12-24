@@ -96,6 +96,7 @@ type InnerNode interface {
 	Merge(InnerNode) error
 	SetAt([]string, interface{}, model.Source) (bool, error)
 	InsertChildNode(string, Node)
+	RemoveChild(string)
 	makeRemapCase()
 	DumpSettings(func(model.Source) bool) map[string]interface{}
 }
@@ -105,5 +106,5 @@ type LeafNode interface {
 	Node
 	Get() interface{}
 	Source() model.Source
-	SourceGreaterOrEqual(model.Source) bool
+	SourceGreaterThan(model.Source) bool
 }

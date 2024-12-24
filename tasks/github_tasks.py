@@ -23,7 +23,6 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
 from tasks.libs.common.git import get_default_branch
-from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
 from tasks.libs.common.utils import get_git_pretty_ref
 from tasks.libs.notify.pipeline_status import send_slack_message
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
@@ -79,8 +78,6 @@ def trigger_macos(
     version_cache=None,
     retry_download=3,
     retry_interval=10,
-    fast_tests=None,
-    test_washer=False,
     integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
 ):
     """
@@ -110,26 +107,8 @@ def trigger_macos(
             version_cache_file_content=version_cache,
             integrations_core_ref=integrations_core_ref,
         )
-    elif workflow_type == "test":
-        conclusion = _trigger_macos_workflow(
-            release_version,
-            destination,
-            retry_download,
-            retry_interval,
-            workflow_name="test.yaml",
-            datadog_agent_ref=datadog_agent_ref,
-            version_cache_file_content=version_cache,
-            fast_tests=fast_tests,
-            test_washer=test_washer,
-        )
-        repack_macos_junit_tar(conclusion, "junit-tests_macos.tgz", "junit-tests_macos-repacked.tgz")
-    elif workflow_type == "lint":
-        conclusion = _trigger_macos_workflow(
-            release_version,
-            workflow_name="lint.yaml",
-            datadog_agent_ref=datadog_agent_ref,
-            version_cache_file_content=version_cache,
-        )
+    else:
+        raise Exit(f"Unsupported workflow type: {workflow_type}", code=1)
     if conclusion != "success":
         raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
 

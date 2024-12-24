@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"strings"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 )
 
@@ -36,21 +36,21 @@ type Config struct {
 }
 
 // NewConfig creates a webhook controller configuration
-func NewConfig(admissionV1Enabled, namespaceSelectorEnabled, matchConditionsSupported bool) Config {
+func NewConfig(admissionV1Enabled, namespaceSelectorEnabled, matchConditionsSupported bool, datadogConfig config.Component) Config {
 	return Config{
-		webhookName:              pkgconfigsetup.Datadog().GetString("admission_controller.webhook_name"),
-		secretName:               pkgconfigsetup.Datadog().GetString("admission_controller.certificate.secret_name"),
-		validationEnabled:        pkgconfigsetup.Datadog().GetBool("admission_controller.validation.enabled"),
-		mutationEnabled:          pkgconfigsetup.Datadog().GetBool("admission_controller.mutation.enabled"),
+		webhookName:              datadogConfig.GetString("admission_controller.webhook_name"),
+		secretName:               datadogConfig.GetString("admission_controller.certificate.secret_name"),
+		validationEnabled:        datadogConfig.GetBool("admission_controller.validation.enabled"),
+		mutationEnabled:          datadogConfig.GetBool("admission_controller.mutation.enabled"),
 		namespace:                common.GetResourcesNamespace(),
 		admissionV1Enabled:       admissionV1Enabled,
 		namespaceSelectorEnabled: namespaceSelectorEnabled,
 		matchConditionsSupported: matchConditionsSupported,
-		svcName:                  pkgconfigsetup.Datadog().GetString("admission_controller.service_name"),
+		svcName:                  datadogConfig.GetString("admission_controller.service_name"),
 		svcPort:                  int32(443),
-		timeout:                  pkgconfigsetup.Datadog().GetInt32("admission_controller.timeout_seconds"),
-		failurePolicy:            pkgconfigsetup.Datadog().GetString("admission_controller.failure_policy"),
-		reinvocationPolicy:       pkgconfigsetup.Datadog().GetString("admission_controller.reinvocation_policy"),
+		timeout:                  datadogConfig.GetInt32("admission_controller.timeout_seconds"),
+		failurePolicy:            datadogConfig.GetString("admission_controller.failure_policy"),
+		reinvocationPolicy:       datadogConfig.GetString("admission_controller.reinvocation_policy"),
 	}
 }
 

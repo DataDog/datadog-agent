@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -273,7 +274,7 @@ func (r *Resolver) generateSBOM(root string) (report *trivy.Report, err error) {
 	seclog.Infof("Generating SBOM for %s", root)
 	r.sbomGenerations.Inc()
 
-	scanRequest := host.NewScanRequest(root, os.DirFS("/"))
+	scanRequest := host.NewScanRequest(root)
 	ch := collectors.GetHostScanner().Channel()
 	if ch == nil {
 		return nil, fmt.Errorf("couldn't retrieve global host scanner result channel")
@@ -486,15 +487,15 @@ func (r *Resolver) triggerScan(sbom *SBOM) {
 }
 
 // OnWorkloadSelectorResolvedEvent is used to handle the creation of a new cgroup with its resolved tags
-func (r *Resolver) OnWorkloadSelectorResolvedEvent(cgroup *cgroupModel.CacheEntry) {
+func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 	r.sbomsLock.Lock()
 	defer r.sbomsLock.Unlock()
 
-	if cgroup == nil {
+	if workload == nil {
 		return
 	}
 
-	id := cgroup.ContainerID
+	id := workload.ContainerID
 	// We don't scan hosts for now
 	if len(id) == 0 {
 		return
@@ -502,8 +503,8 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(cgroup *cgroupModel.CacheEntr
 
 	_, ok := r.sboms[id]
 	if !ok {
-		workloadKey := getWorkloadKey(cgroup.GetWorkloadSelectorCopy())
-		sbom, err := r.newWorkloadEntry(id, cgroup, workloadKey)
+		workloadKey := getWorkloadKey(workload.Selector.Copy())
+		sbom, err := r.newWorkloadEntry(id, workload.CacheEntry, workloadKey)
 		if err != nil {
 			seclog.Errorf("couldn't create new SBOM entry for sbom '%s': %v", id, err)
 		}

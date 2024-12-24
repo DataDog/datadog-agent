@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 	"math"
 	"net"
 	"net/http"
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
@@ -102,7 +102,7 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 		enableReceiveResourceSpansV2Val = 1.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.enable_receive_resource_spans_v2", enableReceiveResourceSpansV2Val, nil, 1)
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot), statsd: statsd, timing: timing, ignoreResNames: ignoreResNames}
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo), statsd: statsd, timing: timing, ignoreResNames: ignoreResNames}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -684,6 +684,13 @@ func resourceFromTags(meta map[string]string) string {
 			return m + " " + svc
 		}
 		return m
+	} else if typ := meta[semconv117.AttributeGraphqlOperationType]; typ != "" {
+		// Enrich GraphQL query resource names.
+		// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
+		if name := meta[semconv117.AttributeGraphqlOperationName]; name != "" {
+			return typ + " " + name
+		}
+		return typ
 	}
 	return ""
 }
