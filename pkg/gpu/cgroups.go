@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// ConfigureDeviceCgroupsForProcess configures the cgroups for a process to allow access to the NVIDIA character devices
 func ConfigureDeviceCgroupsForProcess(pid uint32, rootfs string) error {
 	containerID, context, err := utils.GetProcContainerContext(pid, pid)
 	if err != nil {
@@ -97,15 +98,8 @@ func configureCgroupDeviceAllow(containerID, rootfs string) error {
 // and check that the parts being added to the path do not cause the final path
 // to escape the rootfs/basedir.
 func buildSafePath(rootfs string, basedir string, parts ...string) (string, error) {
-	// Remove trailing slashes from rootfs
-	if strings.HasSuffix(rootfs, "/") {
-		rootfs = rootfs[:len(rootfs)-1]
-	}
-
-	// And remove leading slashes from basedir
-	if strings.HasPrefix(basedir, "/") {
-		basedir = basedir[1:]
-	}
+	rootfs = strings.TrimSuffix(rootfs, "/")   // Remove trailing slashes from rootfs
+	basedir = strings.TrimPrefix(basedir, "/") // Remove leading slashes from basedir
 
 	// that way we can now join the paths using Sprintf to build the base directory
 	root := fmt.Sprintf("%s/%s", rootfs, basedir)
