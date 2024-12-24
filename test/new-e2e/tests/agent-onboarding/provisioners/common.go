@@ -21,7 +21,7 @@ import (
 
 var (
 	MgrKustomizeDirPath    = filepath.Join(e2ecommon.ProjectRootPath, "config/e2e")
-	NewMgrKustomizeDirPath = filepath.Join(e2ecommon.ProjectRootPath, "config", "new-e2e")
+	NewMgrKustomizeDirPath = filepath.Join(e2ecommon.ProjectRootPath, "config")
 )
 
 const (

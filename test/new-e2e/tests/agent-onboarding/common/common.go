@@ -23,7 +23,7 @@ var (
 	OperatorImageName = GetEnv("IMG", "")
 
 	DdaMinimalPath = filepath.Join(ManifestsPath, "datadog-agent-minimum.yaml")
-	ManifestsPath  = filepath.Join(ProjectRootPath, "test/e2e/manifests")
+	ManifestsPath  = filepath.Join(ProjectRootPath, "manifests")
 
 	timeout         int64 = 60
 	ProjectRootPath       = projectRoot()
@@ -82,7 +82,7 @@ func ParseCollectorJson(collectorOutput string) map[string]interface{} {
 func projectRoot() string {
 	_, b, _, ok := runtime.Caller(0)
 	if ok {
-		return filepath.Join(filepath.Dir(b), "../../..")
+		return filepath.Join(filepath.Dir(b), "..")
 	}
 	return ""
 }

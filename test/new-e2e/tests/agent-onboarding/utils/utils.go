@@ -11,7 +11,7 @@ package utils
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-operator/test/e2e/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-onboarding/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
