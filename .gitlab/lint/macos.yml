@@ -7,10 +7,10 @@ include:
   extends: .macos_gitlab
   needs: ["go_deps", "go_tools_deps"]
   script:
+    - rm -rf ./download
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e linter.go --cpus 12 --debug --timeout 60
-    # - rm -rf ./download
 
 lint_macos_gitlab_amd64:
   extends: .lint_macos_gitlab
