@@ -566,7 +566,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
-def set_release_json(ctx, key, value, release_branch=None, skip_checkout=False, worktree=True):
+def set_release_json(ctx, key, value, release_branch=None, skip_checkout=False, worktree=False):
     def _main():
         nonlocal key
 

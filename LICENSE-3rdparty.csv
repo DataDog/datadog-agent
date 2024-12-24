@@ -2635,12 +2635,6 @@ core,golang.org/x/crypto/internal/alias,BSD-3-Clause,Copyright 2009 The Go Autho
 core,golang.org/x/crypto/internal/poly1305,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/nacl/secretbox,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/ocsp,BSD-3-Clause,Copyright 2009 The Go Authors
-core,golang.org/x/crypto/openpgp,BSD-3-Clause,Copyright 2009 The Go Authors
-core,golang.org/x/crypto/openpgp/armor,BSD-3-Clause,Copyright 2009 The Go Authors
-core,golang.org/x/crypto/openpgp/elgamal,BSD-3-Clause,Copyright 2009 The Go Authors
-core,golang.org/x/crypto/openpgp/errors,BSD-3-Clause,Copyright 2009 The Go Authors
-core,golang.org/x/crypto/openpgp/packet,BSD-3-Clause,Copyright 2009 The Go Authors
-core,golang.org/x/crypto/openpgp/s2k,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/pbkdf2,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/pkcs12,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/pkcs12/internal/rc2,BSD-3-Clause,Copyright 2009 The Go Authors
