@@ -151,14 +151,15 @@ def update_changelog(ctx, release_branch=None, target="all", upstream="origin"):
 
 
 @task
-def update_installscript_changelog(ctx, new_version):
+def update_installscript_changelog(ctx, release_branch):
     """
     Quick task to generate the new CHANGELOG-INSTALLSCRIPT using reno when releasing a minor
     version (linux/macOS only).
     """
-    new_version = deduce_version(ctx, new_version, next_version=False)
 
-    with agent_context(ctx, new_version):
+    new_version = deduce_version(ctx, release_branch, next_version=False)
+
+    with agent_context(ctx, release_branch):
         new_version_int = list(map(int, new_version.split(".")))
 
         if len(new_version_int) != 3:
