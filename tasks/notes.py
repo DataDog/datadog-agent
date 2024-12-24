@@ -64,7 +64,7 @@ def update_changelog(ctx, release_branch=None, target="all", upstream="origin"):
 
     new_version = deduce_version(ctx, release_branch, next_version=False)
 
-    with agent_context(ctx, release_branch):  # TODO: Switch only if not None
+    def _main():
         # Step 1 - generate the changelogs
 
         generate_agent = target in ["all", "agent"]
@@ -142,6 +142,12 @@ def update_changelog(ctx, release_branch=None, target="all", upstream="origin"):
         create_release_pr(
             f"Changelog update for {new_version} release", base_branch, update_branch, new_version, changelog_pr=True
         )
+
+    if release_branch is not None:
+        with agent_context(ctx, release_branch):
+            _main()
+    else:
+        _main()
 
 
 @task
