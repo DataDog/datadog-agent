@@ -134,12 +134,12 @@ def trigger_macos(
         raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
 
 
-def _trigger_buildenv_workflow(new_version=None, datadog_agent_ref="master"):
+def _trigger_buildenv_workflow(new_version=None, buildenv_ref="master"):
     if new_version is None:
         raise Exit(message="Buildenv workflow need the 'new_version' field value to be not None")
 
     run = trigger_buildenv_workflow(
-        github_action_ref=datadog_agent_ref,
+        github_action_ref=buildenv_ref,
         new_version=new_version,
     )
 
@@ -160,24 +160,22 @@ def _trigger_buildenv_workflow(new_version=None, datadog_agent_ref="master"):
 
     message = f":robobits: A new windows-runner bump PR to {new_version} has been generated. Please take a look :frog-review:\n:pr: {PR_URL} :ty:"
 
-    send_slack_message("agent-delivery-ops", message)
+    send_slack_message("ci-infra-support", message)
     return workflow_conclusion
 
 
 @task
 def trigger_buildenv(
     ctx,
-    release_branch,
-    workflow_type="build",
-    datadog_agent_ref="master",
     new_version=None,
+    buildenv_ref="master",
 ):
     if new_version is None:
         new_version = str(current_version(ctx, "7"))
 
-    conclusion = _trigger_buildenv_workflow(new_version, datadog_agent_ref)
+    conclusion = _trigger_buildenv_workflow(new_version, buildenv_ref)
     if conclusion != "success":
-        raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
+        raise Exit(message=f"Buildenv workflow {conclusion}", code=1)
 
 
 @task
