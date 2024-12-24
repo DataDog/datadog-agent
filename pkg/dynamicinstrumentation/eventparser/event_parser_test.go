@@ -8,13 +8,12 @@
 package eventparser
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	"github.com/kr/pretty"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCountBufferUsedByTypeDefinition(t *testing.T) {
@@ -250,13 +249,6 @@ func TestParseTypeDefinition(t *testing.T) {
 				25, 2, 0, // Struct field 4 is a struct with 2 fields
 				8, 1, 0, // Nested struct field 1 is a uint8 (size 1)
 				8, 1, 0, // Nested struct field 2 is a uint8 (size 1)
-				25, 4, 0, // Slice elements are each a struct with 2 fields
-				8, 1, 0, // Struct field 1 is a uint8 (size 1)
-				8, 1, 0, // Struct field 2 is a uint8 (size 1)
-				8, 1, 0, // Struct field 3 is a uint8 (size 1)
-				25, 2, 0, // Struct field 4 is a struct with 2 fields
-				8, 1, 0, // Nested struct field 1 is a uint8 (size 1)
-				8, 1, 0, // Nested struct field 2 is a uint8 (size 1)
 				1, 2, 3, // Content of slice element 1 (top-level uint8, then 2 second tier uint8s)
 				4, 5, 6, // Content of slice element 2 (top-level uint8, then 2 second tier uint8s)
 				// Padding
@@ -304,13 +296,32 @@ func TestParseTypeDefinition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			typeDefinition := parseTypeDefinition(tt.inputBuffer)
-			if !reflect.DeepEqual(typeDefinition, tt.expectedResult) {
-				fmt.Printf("%v\n", typeDefinition)
-				fmt.Printf("%v\n", tt.expectedResult)
-				t.Errorf("Not equal!")
+			if !paramsAreEqual(typeDefinition, tt.expectedResult) {
+				t.Errorf("params are not equal\nExpected: %s\nReceived: %s\n", pretty.Sprint(tt.expectedResult), pretty.Sprint(typeDefinition))
 			}
 		})
 	}
+}
+
+func paramsAreEqual(p1, p2 *ditypes.Param) bool {
+	if p1 == nil && p2 == nil {
+		return true
+	}
+	if p1 == nil || p2 == nil {
+		return false
+	}
+	if p1.ValueStr != p2.ValueStr || p1.Type != p2.Type || p1.Size != p2.Size || p1.Kind != p2.Kind {
+		return false
+	}
+	if len(p1.Fields) != len(p2.Fields) {
+		return false
+	}
+	for i := range p1.Fields {
+		if !paramsAreEqual(p1.Fields[i], p2.Fields[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 func TestParseParams(t *testing.T) {
