@@ -60,7 +60,7 @@ func (s *statusImplementation) getStatus(w http.ResponseWriter, r *http.Request,
 		var scrubOperationErr error
 
 		if format == "text" {
-			errorMsg = fmt.Sprintf("Error getting status. Error: %v", err)
+			errorMsg = fmt.Sprintf("Error getting status. Error: %v.", err)
 			scrubbedMsg, scrubOperationErr = scrubber.DefaultScrubber.ScrubBytes([]byte(errorMsg))
 		} else {
 			errorMsg = fmt.Sprintf("Error getting status. Error: %v, Status: %v", err, buff)
@@ -72,7 +72,7 @@ func (s *statusImplementation) getStatus(w http.ResponseWriter, r *http.Request,
 			scrubbedMsg = []byte("[REDACTED] failed to clean error")
 		}
 
-		http.Error(w, s.log.Error(scrubbedMsg).Error(), http.StatusInternalServerError)
+		http.Error(w, s.log.Error(string(scrubbedMsg)).Error(), http.StatusInternalServerError)
 		if format == "json" {
 			w.Header().Set("Content-Type", "application/json")
 		}
