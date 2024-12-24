@@ -8,6 +8,7 @@ package statusimpl
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -18,13 +19,6 @@ import (
 var mimeTypeMap = map[string]string{
 	"text": "text/plain",
 	"json": "application/json",
-}
-
-// SetJSONError writes a server error as JSON with the correct http error code
-func SetJSONError(w http.ResponseWriter, err error, errorCode int) {
-	body, _ := json.Marshal(map[string]string{"error": err.Error()})
-	http.Error(w, string(body), errorCode)
-	w.Header().Set("Content-Type", "application/json")
 }
 
 func (s *statusImplementation) getStatus(w http.ResponseWriter, r *http.Request, section string) {
@@ -61,12 +55,27 @@ func (s *statusImplementation) getStatus(w http.ResponseWriter, r *http.Request,
 	}
 
 	if err != nil {
+		var errorMsg string
+		var scrubbedMsg []byte
+		var scrubOperationErr error
+
 		if format == "text" {
-			http.Error(w, s.log.Errorf("Error getting status. Error: %v.", err).Error(), http.StatusInternalServerError)
-			return
+			errorMsg = fmt.Sprintf("Error getting status. Error: %v", err)
+			scrubbedMsg, scrubOperationErr = scrubber.DefaultScrubber.ScrubBytes([]byte(errorMsg))
+		} else {
+			errorMsg = fmt.Sprintf("Error getting status. Error: %v, Status: %v", err, buff)
+			body, _ := json.Marshal(map[string]string{"error": errorMsg})
+			scrubbedMsg, scrubOperationErr = scrubber.DefaultScrubber.ScrubJSON(body)
 		}
 
-		SetJSONError(w, s.log.Errorf("Error getting status. Error: %v, Status: %v", err, buff), http.StatusInternalServerError)
+		if scrubOperationErr != nil {
+			scrubbedMsg = []byte("[REDACTED] failed to clean error")
+		}
+
+		http.Error(w, s.log.Error(scrubbedMsg).Error(), http.StatusInternalServerError)
+		if format == "json" {
+			w.Header().Set("Content-Type", "application/json")
+		}
 		return
 	}
 

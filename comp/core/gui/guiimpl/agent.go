@@ -72,8 +72,13 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	}
 
 	if err != nil {
-		log.Errorf("Error getting status: %s", err.Error())
-		w.Write([]byte("Error getting status: " + err.Error()))
+		errMsg := fmt.Sprintf("Error getting status: %v", err)
+		scrubbedMsg, scrubOperationErr := scrubber.DefaultScrubber.ScrubBytes([]byte(errMsg))
+		if scrubOperationErr != nil {
+			scrubbedMsg = []byte("[REDACTED] failed to clean error")
+		}
+		log.Error(string(scrubbedMsg))
+		w.Write(scrubbedMsg)
 		return
 	}
 
