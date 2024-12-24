@@ -119,12 +119,13 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	// URI Generic Syntax
 	// https://tools.ietf.org/html/rfc3986
 	uriPasswordReplacer := Replacer{
-		Regex: regexp.MustCompile(`(?i)([a-z][a-z0-9+-.]+://|\b)([^:]+):([^\s|"]+)@`),
+		Regex: regexp.MustCompile(`(?i)([a-z][a-z0-9+-.]+://|\b)([^:\s]+):([^\s|"]+)@`),
 		Repl:  []byte(`$1$2:********@`),
 
-		// https://github.com/DataDog/datadog-agent/pull/15959
-		LastUpdated: parseVersion("7.45.0"),
+		// https://github.com/DataDog/datadog-agent/pull/32503
+		LastUpdated: parseVersion("7.63.0"),
 	}
+
 	yamlPasswordReplacer := matchYAMLKeyPart(
 		`(pass(word)?|pwd)`,
 		[]string{"pass", "pwd"},
