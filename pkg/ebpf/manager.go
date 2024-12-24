@@ -151,27 +151,20 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) e
 func (m *Manager) Stop(cleanupType manager.MapCleanupType) error {
 	var errs error
 
-	for _, mod := range m.EnabledModifiers {
-		log.Tracef("Running %s manager modifier BeforeStop", mod)
-		if as, ok := mod.(ModifierBeforeStop); ok {
-			if err := as.BeforeStop(m.Manager, m.Name, cleanupType); err != nil {
-				errs = errors.Join(errs, fmt.Errorf("error running %s manager modifier BeforeStop(): %s", mod, err))
-			}
-		}
+	err := runModifiersOfType(m.EnabledModifiers, "BeforeStop", func(mod ModifierBeforeStop) error {
+		return mod.BeforeStop(m.Manager, m.Name, cleanupType)
+	})
+	if err != nil {
+		errs = errors.Join(errs, err)
 	}
 
 	if err := m.Manager.Stop(cleanupType); err != nil {
 		errs = errors.Join(errs, fmt.Errorf("failed to stop manager %w", err))
 	}
 
-	for _, mod := range m.EnabledModifiers {
-		log.Tracef("Running %s manager modifier AfterStop", mod)
-		if as, ok := mod.(ModifierAfterStop); ok {
-			if err := as.AfterStop(m.Manager, m.Name, cleanupType); err != nil {
-				errs = errors.Join(errs, fmt.Errorf("error running %s manager modifier AfterStop(): %s", mod, err))
-			}
-		}
-	}
+	err = runModifiersOfType(m.EnabledModifiers, "AfterStop", func(mod ModifierAfterStop) error {
+		return mod.AfterStop(m.Manager, m.Name, cleanupType)
+	})
 
-	return errs
+	return errors.Join(errs, err)
 }
