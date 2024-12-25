@@ -88,3 +88,5 @@ func (a *APIServer) RunSelfTest(_ context.Context, _ *api.RunSelfTestParams) (*a
 		Error: "",
 	}, nil
 }
+
+func (a *APIServer) collectOSReleaseData() {}
