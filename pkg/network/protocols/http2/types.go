@@ -53,3 +53,5 @@ const (
 	K404Value      StaticTableEnumValue = C.k404
 	K500Value      StaticTableEnumValue = C.k500
 )
+
+type IncompleteFrameType = C.incomplete_frame_type_t

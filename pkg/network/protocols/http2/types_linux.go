@@ -107,3 +107,5 @@ const (
 	K404Value      StaticTableEnumValue = 0xd
 	K500Value      StaticTableEnumValue = 0xe
 )
+
+type IncompleteFrameType = uint8
