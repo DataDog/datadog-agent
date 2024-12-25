@@ -1267,7 +1267,7 @@ api_key:
   #         enabled: true
   ##        @param DD_APM_OBFUSCATION_CACHE_MAX_SIZE - integer - optional - default: 5000000
   ##        The maximum size of the cache in bytes. The maximum allowed resource length is 5000.
-  ##        We can store a minimum of 1000 queries (= 5000000 / 5000) by default.
+  ##        Datadog stores a minimum of 1000 queries (5000000 / 5000) by default.
   #         max_size: 5000000
 
   ## @param filter_tags - object - optional
