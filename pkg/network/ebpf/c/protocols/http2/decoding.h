@@ -461,6 +461,22 @@ static __always_inline bool fix_incomplete_frame_header(pktbuf_t pkt, incomplete
     return res;
 }
 
+// Determines if the given HTTP/2 frame is interesting.
+// An HTTP/2 frame is considered interesting if it is either:
+// - A Headers frame (kHeadersFrame)
+// - A RST Stream frame (kRSTStreamFrame)
+// - A Data frame (kDataFrame) with the END_OF_STREAM flag set
+// @param frame A pointer to the HTTP/2 frame to check.
+// @return true if the frame is interesting, false otherwise.
+static __always_inline bool is_interesting(http2_frame_t *frame) {
+    // END_STREAM can appear only in Headers and Data frames.
+    // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
+    // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
+    bool is_headers_or_rst_frame = frame->type == kHeadersFrame || frame->type == kRSTStreamFrame;
+    bool is_data_end_of_stream = (frame->type == kDataFrame) && ((frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM);
+    return is_headers_or_rst_frame || is_data_end_of_stream;
+}
+
 static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, incomplete_frame_t *incomplete_frame, http2_frame_t *current_frame) {
     // Attempting to read the initial frame in the packet, or handling a state where there is no remainder and finishing reading the current frame.
     if (incomplete_frame == NULL) {
@@ -534,7 +550,6 @@ static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, incomplete_fram
 // - RST_STREAM frames
 // - DATA frames with the END_STREAM flag set
 static __always_inline bool pktbuf_find_relevant_frames(pktbuf_t pkt, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel, http2_frame_t *last_frame) {
-    bool is_headers_or_rst_frame, is_data_end_of_stream;
     http2_frame_t current_frame = {};
 
     // The following if-clause could have been "simplified" into
@@ -570,12 +585,7 @@ static __always_inline bool pktbuf_find_relevant_frames(pktbuf_t pkt, http2_tail
             break;
         }
 
-        // END_STREAM can appear only in Headers and Data frames.
-        // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
-        // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
-        is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
-        is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
-        if (iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS && (is_headers_or_rst_frame || is_data_end_of_stream)) {
+        if (iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS && is_interesting(&current_frame)) {
             iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
             iteration_value->frames_array[iteration_value->frames_count].offset = pktbuf_data_offset(pkt);
             iteration_value->frames_count++;
@@ -650,9 +660,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
         return;
     }
 
-    bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
-    bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
-    if (is_headers_or_rst_frame || is_data_end_of_stream) {
+    if (is_interesting(&current_frame)) {
         iteration_value->frames_array[0].frame = current_frame;
         iteration_value->frames_array[0].offset = pktbuf_data_offset(pkt);
         iteration_value->frames_count = 1;
