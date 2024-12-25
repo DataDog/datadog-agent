@@ -10,6 +10,7 @@ package http
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"net/http"
 	"runtime"
 	"sync"
@@ -56,13 +57,13 @@ func eBPFEventToBytes(b *testing.B, events []EbpfEvent, numOfEventsInBatch int) 
 }
 
 // setupBenchmark sets up the benchmark environment by creating a consumer, protocol, and configuration.
-func setupBenchmark(b *testing.B, c *config.Config, totalEventsCount, numOfEventsInBatch int, httpEvents []EbpfEvent, wg *sync.WaitGroup) (*events.Consumer[EbpfEvent], *protocol) {
+func setupBenchmark(b *testing.B, c *config.Config, i, totalEventsCount, numOfEventsInBatch int, httpEvents []EbpfEvent, wg *sync.WaitGroup) (*events.Consumer[EbpfEvent], *protocol) {
 	require.NotEmpty(b, httpEvents, "httpEvents slice is empty")
 
 	program, err := events.NewEBPFProgram(c)
 	require.NoError(b, err)
 
-	httpTelemetry := NewTelemetry("http")
+	httpTelemetry := NewTelemetry(fmt.Sprintf("http_%s_%d_%d", b.Name(), b.N, i))
 
 	p := protocol{
 		cfg:        c,
@@ -156,13 +157,14 @@ func BenchmarkHTTPEventConsumer(b *testing.B) {
 	for _, tc := range testCases {
 		b.Run(tc.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				consumer, p := setupBenchmark(b, config.New(), tc.totalEventsCount, tc.numOfEventsInBatch, tc.httpEvents, &wg)
+				consumer, p := setupBenchmark(b, config.New(), i, tc.totalEventsCount, tc.numOfEventsInBatch, tc.httpEvents, &wg)
 
 				consumer.Start()
+				wg.Wait()
+
 				require.Eventually(b, func() bool {
 					if tc.totalEventsCount == int(p.telemetry.hits2XX.counterPlain.Get()) {
 						b.Logf("USM summary: %s", p.telemetry.metricGroup.Summary())
-						p.telemetry.hits2XX.counterPlain.Reset()
 						return true
 					}
 					return false
