@@ -1170,7 +1170,7 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
 	// setup and initiate atel
 	tel := makeTelMock(t)
 	o := convertYamlStrToMap(t, c)
-	s := makeSenderImpl(t, c)
+	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
 	a := getTestAtel(t, tel, o, s, nil, r)
 	require.True(t, a.enabled)
@@ -1244,7 +1244,7 @@ func TestAdjustPrometheusCounterValueTagless(t *testing.T) {
 	// setup and initiate atel
 	tel := makeTelMock(t)
 	o := convertYamlStrToMap(t, c)
-	s := makeSenderImpl(t, c)
+	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
 	a := getTestAtel(t, tel, o, s, nil, r)
 	require.True(t, a.enabled)
@@ -1594,7 +1594,7 @@ func TestHistogramFloatUpperBoundNormalizationWithMultivalueTags(t *testing.T) {
 	// setup and initiate atel
 	tel := makeTelMock(t)
 	o := convertYamlStrToMap(t, c)
-	s := makeSenderImpl(t, c)
+	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
 	a := getTestAtel(t, tel, o, s, nil, r)
 	require.True(t, a.enabled)
@@ -1844,7 +1844,7 @@ func TestHistogramPercentile(t *testing.T) {
 	// setup and initiate atel
 	tel := makeTelMock(t)
 	o := convertYamlStrToMap(t, c)
-	s := makeSenderImpl(t, c)
+	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
 	a := getTestAtel(t, tel, o, s, nil, r)
 	require.True(t, a.enabled)
@@ -1899,8 +1899,8 @@ func TestHistogramPercentile(t *testing.T) {
 	assert.Equal(t, 20.0, *metric.P99)
 }
 
-func TestUsingGZipCompressionInAgentTelemetrySender(t *testing.T) {
-	// Run with gzip (default)
+func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
+	// Run with compression (by default default)
 	var cfg1 = `
     agent_telemetry:
       enabled: true
@@ -1931,7 +1931,7 @@ func TestUsingGZipCompressionInAgentTelemetrySender(t *testing.T) {
 	r1.(*runnerMock).run()
 	assert.True(t, len(cl1.(*clientMock).body) > 0)
 
-	// Run without gzip
+	// Run without compression
 	var cfg2 = `
     agent_telemetry:
       use_compression: false
