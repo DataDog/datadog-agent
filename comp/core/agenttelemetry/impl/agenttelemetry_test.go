@@ -6,8 +6,6 @@
 package agenttelemetryimpl
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -29,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/zstd"
 )
 
 // HTTP client mock
@@ -1361,15 +1360,9 @@ func TestUsingGZipCompressionInAgentTelemetrySender(t *testing.T) {
 	a2.start()
 	r2.(*runnerMock).run()
 	assert.True(t, len(cl2.(*clientMock).body) > 0)
-
-	// Check gzip vs. no-gzip body
-	compressReader := bytes.NewReader(cl1.(*clientMock).body)
-	gziper, err := gzip.NewReader(compressReader)
+	decompressBody, err := zstd.Decompress(nil, cl1.(*clientMock).body)
 	require.NoError(t, err)
-	defer gziper.Close()
-	var decompress bytes.Buffer
-	_, err = io.Copy(&decompress, gziper)
-	require.NoError(t, err)
+	require.NotZero(t, len(decompressBody))
 
 	// we cannot compare body (time stamp different and internal
 	// bucket serialization, but success above and significant size differences

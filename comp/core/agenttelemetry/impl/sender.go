@@ -26,6 +26,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/zstd"
 )
 
 const (
@@ -333,11 +334,11 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 
 	// Try to compress the payload if needed
 	reqBody := reqBodyRaw
-	gzipCompressed := false
+	compressed := false
 	if s.compress {
-		reqBodyCompressed, err2 := gzipCompress(reqBodyRaw, s.compressionLevel)
+		reqBodyCompressed, err2 := zstd.CompressLevel(nil, reqBodyRaw, s.compressionLevel)
 		if err2 == nil {
-			gzipCompressed = true
+			compressed = true
 			reqBody = reqBodyCompressed
 		} else {
 			s.logComp.Errorf("Failed to compress agent telemetry payload: %v", err)
@@ -355,7 +356,7 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 			errs = errors.Join(errs, err)
 			continue
 		}
-		s.addHeaders(req, reqType, ep.GetAPIKey(), bodyLen, gzipCompressed)
+		s.addHeaders(req, reqType, ep.GetAPIKey(), bodyLen, compressed)
 		resp, err := s.client.Do(req.WithContext(ss.cancelCtx))
 		if err != nil {
 			errs = errors.Join(errs, err)
@@ -405,7 +406,7 @@ func (s *senderImpl) sendAgentMetricPayloads(ss *senderSession, metrics []*agent
 	}
 }
 
-func (s *senderImpl) addHeaders(req *http.Request, requesttype, apikey, bodylen string, gzipCompressed bool) {
+func (s *senderImpl) addHeaders(req *http.Request, requesttype, apikey, bodylen string, compressed bool) {
 	req.Header.Add("DD-Api-Key", apikey)
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Content-Length", bodylen)
@@ -416,7 +417,7 @@ func (s *senderImpl) addHeaders(req *http.Request, requesttype, apikey, bodylen 
 	// Not clear how to acquire that. Appears that EVP adds it automatically
 	req.Header.Add("datadog-container-id", "")
 
-	if gzipCompressed {
-		req.Header.Set("Content-Encoding", "gzip")
+	if compressed {
+		req.Header.Set("Content-Encoding", "zstd")
 	}
 }
