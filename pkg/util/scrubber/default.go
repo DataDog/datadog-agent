@@ -123,7 +123,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Repl:  []byte(`$1$2:********@`),
 
 		// https://github.com/DataDog/datadog-agent/pull/32503
-		LastUpdated: parseVersion("7.63.0"),
+		LastUpdated: parseVersion("7.62.0"),
 	}
 
 	yamlPasswordReplacer := matchYAMLKeyPart(
