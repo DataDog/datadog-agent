@@ -1407,7 +1407,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 }
 
 // TestIncompleteFrameTable tests the http2_incomplete_frame table map.
-// We would like to make sure that the remainder table map is being updated correctly.
+// We would like to make sure the incomplete_frame table map is being updated correctly.
 func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 	t := s.T()
 	cfg := s.getCfg()
