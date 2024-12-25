@@ -55,3 +55,6 @@ const (
 )
 
 type IncompleteFrameType = C.incomplete_frame_type_t
+type IncompleteFrameHeader = C.incomplete_frame_header_t
+type FrameType = C.http2_frame_t
+type IncompleteFramePayload = C.incomplete_frame_payload_t

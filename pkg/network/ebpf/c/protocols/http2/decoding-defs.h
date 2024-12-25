@@ -222,6 +222,21 @@ typedef enum {
 }  __attribute__((packed)) incomplete_frame_type_t;
 
 typedef struct {
+    // The incomplete frame header buffer.
+    char buf[HTTP2_FRAME_HEADER_SIZE];
+    // The number of bytes left to read in the frame header. Upper bound is HTTP2_FRAME_HEADER_SIZE (9) bytes, hence
+    // using __u8.
+    __u8 bytes_left;
+} incomplete_frame_header_t;
+
+typedef struct {
+    // The frame header of the incomplete frame payload.
+    http2_frame_t header;
+    // The number of bytes left to read in the payload.
+    __u32 bytes_left;
+} incomplete_frame_payload_t;
+
+typedef struct {
     // The type of the incomplete frame.
     incomplete_frame_type_t type;
     __u32 remainder;
