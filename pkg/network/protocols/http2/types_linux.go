@@ -86,6 +86,7 @@ type HTTP2Telemetry struct {
 	Path_size_bucket                 [8]uint64
 }
 type HTTP2IncompleteFrameEntry struct {
+	Type      uint8
 	Remainder uint32
 	Length    uint32
 	Buf       [9]byte

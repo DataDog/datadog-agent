@@ -636,6 +636,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
         // Handling the case where we have a frame header remainder, and we couldn't read the frame header.
         if (pktbuf_data_offset(pkt) < pktbuf_data_end(pkt) && pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
             incomplete_frame_t new_incomplete_frame = { 0 };
+            new_incomplete_frame.type = kIncompleteFrameHeader;
             new_incomplete_frame.remainder = HTTP2_FRAME_HEADER_SIZE - (pktbuf_data_end(pkt) - pktbuf_data_offset(pkt));
             bpf_memset(new_incomplete_frame.buf, 0, HTTP2_FRAME_HEADER_SIZE);
         #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
@@ -660,6 +661,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
     // We're exceeding the packet boundaries, so we have a remainder.
     if (pktbuf_data_offset(pkt) > pktbuf_data_end(pkt)) {
         incomplete_frame_t new_incomplete_frame = { 0 };
+        new_incomplete_frame.type = kIncompleteFramePayload;
 
         // Saving the remainder.
         new_incomplete_frame.remainder = pktbuf_data_offset(pkt) - pktbuf_data_end(pkt);
@@ -776,10 +778,12 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
     incomplete_frame_t new_incomplete_frame = { 0 };
     if (pktbuf_data_offset(pkt) > pktbuf_data_end(pkt)) {
         // We have a remainder
+        new_incomplete_frame.type = kIncompleteFramePayload;
         new_incomplete_frame.remainder = pktbuf_data_offset(pkt) - pktbuf_data_end(pkt);
         bpf_map_update_elem(&http2_incomplete_frames, tup, &new_incomplete_frame, BPF_ANY);
     } else if (pktbuf_data_offset(pkt) < pktbuf_data_end(pkt) && pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
         // We have a frame header remainder
+        new_incomplete_frame.type = kIncompleteFrameHeader;
         new_incomplete_frame.remainder = HTTP2_FRAME_HEADER_SIZE - (pktbuf_data_end(pkt) - pktbuf_data_offset(pkt));
         bpf_memset(new_incomplete_frame.buf, 0, HTTP2_FRAME_HEADER_SIZE);
     #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
