@@ -629,6 +629,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(t, o.CreditCards.Enabled)
 	assert.True(t, o.CreditCards.Luhn)
 	assert.True(t, o.Cache.Enabled)
+	assert.Equal(t, int64(5555555), o.Cache.MaxSize)
 
 	assert.True(t, cfg.InstallSignature.Found)
 	assert.Equal(t, traceconfig.InstallSignatureConfig{
