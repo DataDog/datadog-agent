@@ -71,6 +71,7 @@ func (t *Tailer) forwardMessages() {
 		if len(output.GetContent()) > 0 {
 			origin := message.NewOrigin(t.source)
 			origin.SetTags(output.ParsingExtra.Tags)
+			origin.LogSource.RecordBytes(int64(len(output.GetContent())))
 			t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
 		}
 	}
