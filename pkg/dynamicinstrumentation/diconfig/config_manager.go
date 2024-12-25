@@ -127,7 +127,7 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 	svcConfigProbe := *configProbe
 	svcConfigProbe.ServiceName = procInfo.ServiceName
 	procInfo.ProbesByID[configProbe.ID] = &svcConfigProbe
-
+	log.Infof("Installing config probe for service: %s.", svcConfigProbe.ServiceName)
 	err = AnalyzeBinary(procInfo)
 	if err != nil {
 		return fmt.Errorf("could not analyze binary for config probe: %w", err)
