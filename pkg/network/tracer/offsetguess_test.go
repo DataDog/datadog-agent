@@ -9,7 +9,6 @@ package tracer
 
 import (
 	"fmt"
-	"math"
 	"net"
 	"slices"
 	"testing"
@@ -158,17 +157,8 @@ func testOffsetGuess(t *testing.T) {
 	}
 
 	opts := manager.Options{
-		// Extend RLIMIT_MEMLOCK (8) size
-		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
-		// This will result in an EPERM (Operation not permitted) error, when trying to create an eBPF map
-		// using bpf(2) with BPF_MAP_CREATE.
-		//
-		// We are setting the limit to infinity until we have a better handle on the true requirements.
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		MapEditors: make(map[string]*ebpf.Map),
+		RemoveRlimit: true,
+		MapEditors:   make(map[string]*ebpf.Map),
 	}
 
 	require.NoError(t, mgr.InitWithOptions(buf, opts))

@@ -80,9 +80,7 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 	if err != nil {
 		return nil, err
 	}
-	stopFunctions := []func(){
-		diagnostics.StopGlobalDiagnostics,
-	}
+	stopFunctions := []func(){}
 	if opts.ReaderWriterOptions.CustomReaderWriters {
 		cm, err := diconfig.NewReaderConfigManager()
 		if err != nil {
