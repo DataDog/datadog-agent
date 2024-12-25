@@ -110,3 +110,17 @@ const (
 )
 
 type IncompleteFrameType = uint8
+type IncompleteFrameHeader = struct {
+	Buf  [9]byte
+	Left uint8
+}
+type FrameType = struct {
+	Pad_cgo_0 [3]byte
+	Type      uint8
+	Flags     uint8
+	Pad_cgo_1 [4]byte
+}
+type IncompleteFramePayload = struct {
+	Header FrameType
+	Left   uint32
+}
