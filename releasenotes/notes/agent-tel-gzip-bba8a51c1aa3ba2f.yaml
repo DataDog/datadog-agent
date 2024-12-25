@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Use HTTP gzip compression for the Agent telemetry payloads.
+    Use HTTP zstd compression for the Agent telemetry payloads.
