@@ -222,6 +222,8 @@ typedef enum {
 }  __attribute__((packed)) incomplete_frame_type_t;
 
 typedef struct {
+    // The type of the incomplete frame.
+    incomplete_frame_type_t type;
     __u32 remainder;
     __u32 header_length;
     char buf[HTTP2_FRAME_HEADER_SIZE];
