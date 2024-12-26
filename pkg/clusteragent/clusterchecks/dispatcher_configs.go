@@ -148,11 +148,12 @@ func (d *dispatcher) retrieveDangling() []integration.Config {
 // deleteDangling clears the dangling configs from the store
 func (d *dispatcher) deleteDangling(ids []string) {
 	for _, id := range ids {
-		c := d.store.danglingConfigs[id]
-		delete(d.store.danglingConfigs, id)
-		danglingConfigs.Dec(le.JoinLeaderValue)
-		if c.detectedExtendedDangling {
-			extendedDanglingConfigs.Dec(le.JoinLeaderValue, c.config.Name, c.config.Source)
+		if c, found := d.store.danglingConfigs[id]; found {
+			delete(d.store.danglingConfigs, id)
+			danglingConfigs.Dec(le.JoinLeaderValue)
+			if c.detectedExtendedDangling {
+				extendedDanglingConfigs.Dec(le.JoinLeaderValue, c.config.Name, c.config.Source)
+			}
 		}
 	}
 }
