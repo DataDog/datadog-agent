@@ -8,27 +8,29 @@
 package clusterchecks
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
 type danglingConfigWrapper struct {
-	config                   integration.Config
-	rescheduleAttempts       int
-	detectedExtendedDangling bool
+	config           integration.Config
+	timeCreated      time.Time
+	unscheduledCheck bool
 }
 
 // createDanglingConfig creates a new danglingConfigWrapper
 // This is used to keep track of the lifecycle of a dangling config
 func createDanglingConfig(config integration.Config) *danglingConfigWrapper {
 	return &danglingConfigWrapper{
-		config:                   config,
-		rescheduleAttempts:       0,
-		detectedExtendedDangling: false,
+		config:           config,
+		timeCreated:      time.Now(),
+		unscheduledCheck: false,
 	}
 }
 
-// isStuckScheduling returns true if the config has been attempted
-// rescheduling more than attemptLimit times
-func (c *danglingConfigWrapper) isStuckScheduling(attemptLimit int) bool {
-	return c.rescheduleAttempts > attemptLimit
+// isStuckScheduling returns true if the config has been in the store
+// for longer than the unscheduledCheckThresholdSeconds
+func (c *danglingConfigWrapper) isStuckScheduling(unscheduledCheckThresholdSeconds int64) bool {
+	return time.Since(c.timeCreated).Seconds() > float64(unscheduledCheckThresholdSeconds)
 }

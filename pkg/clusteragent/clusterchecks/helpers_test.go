@@ -10,9 +10,6 @@ package clusterchecks
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
@@ -153,28 +150,4 @@ func Test_calculateBusyness(t *testing.T) {
 			}
 		})
 	}
-}
-
-func Test_scanExtendedDanglingConfigs(t *testing.T) {
-	attemptLimit := 3
-	store := newClusterStore()
-	c1 := createDanglingConfig(integration.Config{
-		Name:   "config1",
-		Source: "source1",
-	})
-	store.danglingConfigs[c1.config.Digest()] = c1
-
-	for i := 0; i < attemptLimit; i++ {
-		scanExtendedDanglingConfigs(store, attemptLimit)
-	}
-
-	assert.Equal(t, attemptLimit, c1.rescheduleAttempts)
-	assert.False(t, c1.detectedExtendedDangling)
-	assert.False(t, c1.isStuckScheduling(attemptLimit))
-
-	scanExtendedDanglingConfigs(store, attemptLimit)
-
-	assert.Equal(t, attemptLimit+1, c1.rescheduleAttempts)
-	assert.True(t, c1.detectedExtendedDangling)
-	assert.True(t, c1.isStuckScheduling(attemptLimit))
 }

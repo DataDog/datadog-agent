@@ -13,8 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -84,21 +82,4 @@ func orderedKeys(m map[string]int) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-// scanExtendedDanglingConfigs scans the store for extended dangling configs
-// The attemptLimit is the number of times a reschedule is attempted before
-// considering a config as extended dangling.
-func scanExtendedDanglingConfigs(store *clusterStore, attemptLimit int) {
-	store.Lock()
-	defer store.Unlock()
-
-	for _, c := range store.danglingConfigs {
-		c.rescheduleAttempts++
-		if !c.detectedExtendedDangling && c.isStuckScheduling(attemptLimit) {
-			log.Warnf("Detected extended dangling config. Name:%s, Source:%s", c.config.Name, c.config.Source)
-			c.detectedExtendedDangling = true
-			extendedDanglingConfigs.Inc(le.JoinLeaderValue, c.config.Name, c.config.Source)
-		}
-	}
 }

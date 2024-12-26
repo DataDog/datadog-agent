@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,7 +29,7 @@ import (
 type dispatcher struct {
 	store                            *clusterStore
 	nodeExpirationSeconds            int64
-	extendedDanglingAttemptThreshold int
+	unscheduledCheckThresholdSeconds int64
 	extraTags                        []string
 	clcRunnersClient                 clusteragent.CLCRunnerClientInterface
 	advancedDispatching              bool
@@ -42,7 +43,12 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		store: newClusterStore(),
 	}
 	d.nodeExpirationSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.node_expiration_timeout")
-	d.extendedDanglingAttemptThreshold = pkgconfigsetup.Datadog().GetInt("cluster_checks.extended_dangling_attempt_threshold")
+	d.unscheduledCheckThresholdSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.unscheduled_check_threshold")
+
+	if d.unscheduledCheckThresholdSeconds < d.nodeExpirationSeconds {
+		log.Warnf("The unscheduled_check_threshold value should be larger than node_expiration_timeout, setting it to the same value")
+		d.unscheduledCheckThresholdSeconds = d.nodeExpirationSeconds
+	}
 
 	// Attach the cluster agent's global tags to all dispatched checks
 	// as defined in the tagger's workloadmeta collector
@@ -202,6 +208,22 @@ func (d *dispatcher) reset() {
 	d.store.reset()
 }
 
+// scanExtendedDanglingConfigs scans the store for extended dangling configs
+// The attemptLimit is the number of times a reschedule is attempted before
+// considering a config as extended dangling.
+func (d *dispatcher) scanUnscheduledChecks() {
+	d.store.Lock()
+	defer d.store.Unlock()
+
+	for _, c := range d.store.danglingConfigs {
+		if !c.unscheduledCheck && c.isStuckScheduling(d.unscheduledCheckThresholdSeconds) {
+			log.Warnf("Detected unscheduled check config. Name:%s, Source:%s", c.config.Name, c.config.Source)
+			c.unscheduledCheck = true
+			unscheduledCheck.Inc(le.JoinLeaderValue, c.config.Name, c.config.Source)
+		}
+	}
+}
+
 // run is the main management goroutine for the dispatcher
 func (d *dispatcher) run(ctx context.Context) {
 	d.store.Lock()
@@ -216,6 +238,9 @@ func (d *dispatcher) run(ctx context.Context) {
 
 	rebalanceTicker := time.NewTicker(d.rebalancingPeriod)
 	defer rebalanceTicker.Stop()
+
+	unscheduledCheckTicker := time.NewTicker(time.Duration(d.unscheduledCheckThresholdSeconds) * time.Second)
+	defer unscheduledCheckTicker.Stop()
 
 	for {
 		select {
@@ -235,9 +260,9 @@ func (d *dispatcher) run(ctx context.Context) {
 				d.deleteDangling(scheduledConfigIDs)
 				d.store.Unlock()
 			}
-
+		case <-unscheduledCheckTicker.C:
 			// Check for configs that have been dangling longer than expected
-			scanExtendedDanglingConfigs(d.store, d.extendedDanglingAttemptThreshold)
+			d.scanUnscheduledChecks()
 		case <-rebalanceTicker.C:
 			if d.advancedDispatching {
 				d.rebalance(false)

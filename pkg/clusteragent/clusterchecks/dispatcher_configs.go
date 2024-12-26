@@ -151,8 +151,8 @@ func (d *dispatcher) deleteDangling(ids []string) {
 		if c, found := d.store.danglingConfigs[id]; found {
 			delete(d.store.danglingConfigs, id)
 			danglingConfigs.Dec(le.JoinLeaderValue)
-			if c.detectedExtendedDangling {
-				extendedDanglingConfigs.Dec(le.JoinLeaderValue, c.config.Name, c.config.Source)
+			if c.unscheduledCheck {
+				unscheduledCheck.Dec(le.JoinLeaderValue, c.config.Name, c.config.Source)
 			}
 		}
 	}
