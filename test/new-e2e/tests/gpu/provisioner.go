@@ -28,7 +28,7 @@ import (
 
 // gpuEnabledAMI is an AMI that has GPU drivers pre-installed. In this case it's
 // an Ubuntu 22.04 with NVIDIA drivers
-const gpuEnabledAMI = "ami-0f71e237bb2ba34be"
+const gpuEnabledAMI = "ami-03ee78da2beb5b622"
 
 // gpuInstanceType is the instance type to use. By default we use g4dn.xlarge,
 // which is the cheapest GPU instance type
@@ -147,15 +147,15 @@ func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner 
 
 		// Validate that Docker can run CUDA samples
 		dockerCudaDeps := append(dockerPullCmds, validateGPUDevicesCmd...)
-		err = validateDockerCuda(awsEnv, host, dockerCudaDeps...)
+		dockerCudaValidateCmd, err := validateDockerCuda(awsEnv, host, dockerCudaDeps...)
 		if err != nil {
-			return err
+			return fmt.Errorf("validateDockerCuda failed: %w", err)
 		}
 
 		// Combine agent options from the parameters with the fakeintake and docker dependencies
 		params.agentOptions = append(params.agentOptions,
 			agentparams.WithFakeintake(fakeIntake),
-			agentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(dockerManager)), // Depend on Docker to avoid apt lock issues
+			agentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(dockerManager, dockerCudaValidateCmd)), // Depend on Docker to avoid apt lock issues
 		)
 
 		// Set updater to nil as we're not using it
@@ -164,12 +164,12 @@ func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner 
 		// Install the agent
 		agent, err := agent.NewHostAgent(&awsEnv, host, params.agentOptions...)
 		if err != nil {
-			return err
+			return fmt.Errorf("NewHostAgent failed: %w", err)
 		}
 
 		err = agent.Export(ctx, &env.Agent.HostAgentOutput)
 		if err != nil {
-			return err
+			return fmt.Errorf("agent export failed: %w", err)
 		}
 
 		return nil
@@ -224,14 +224,12 @@ func downloadDockerImages(e aws.Environment, vm *remote.Host, images []string, d
 	return cmds, nil
 }
 
-func validateDockerCuda(e aws.Environment, vm *remote.Host, dependsOn ...pulumi.Resource) error {
-	_, err := vm.OS.Runner().Command(
+func validateDockerCuda(e aws.Environment, vm *remote.Host, dependsOn ...pulumi.Resource) (pulumi.Resource, error) {
+	return vm.OS.Runner().Command(
 		e.CommonNamer().ResourceName("docker-cuda-validate"),
 		&command.Args{
 			Create: pulumi.Sprintf("%s && docker run --gpus all --rm %s bash -c \"%s\"", validationCommandMarker, cudaSanityCheckImage, nvidiaSMIValidationCmd),
 		},
 		utils.PulumiDependsOn(dependsOn...),
 	)
-
-	return err
 }

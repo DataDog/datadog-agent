@@ -104,6 +104,42 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	}, time.Second*10, 100*time.Millisecond)
 }
 
+// Test that shared library files opened for writing only are ignored.
+func (s *SharedLibrarySuite) TestSharedLibraryIgnoreWrite() {
+	t := s.T()
+
+	// Since we want to detect that the write _hasn't_ been detected, verify the
+	// read too to try to ensure that test isn't broken and failing to detect
+	// the write due to some bug in the test itself.
+	readPath, readPathID := createTempTestFile(t, "read-foo-libssl.so")
+	writePath, writePathID := createTempTestFile(t, "write-foo-libssl.so")
+
+	registerRecorder := new(utils.CallbackRecorder)
+	unregisterRecorder := new(utils.CallbackRecorder)
+
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+		Rule{
+			Re:           regexp.MustCompile(`foo-libssl.so`),
+			RegisterCB:   registerRecorder.Callback(),
+			UnregisterCB: unregisterRecorder.Callback(),
+		},
+	)
+	require.NoError(t, err)
+	watcher.Start()
+	t.Cleanup(watcher.Stop)
+
+	// Use a sleep 1 as in TestSharedLibraryDetectionWithPIDAndRootNamespace
+	// below to give the watcher a chance to detect the process.
+	_, err = exec.Command("sh", "-c",
+		fmt.Sprintf("sleep 1 < %s > %s", readPath, writePath)).CombinedOutput()
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Equal(c, 1, registerRecorder.CallsForPathID(readPathID))
+		assert.Equal(c, 0, registerRecorder.CallsForPathID(writePathID))
+	}, time.Second*5, 10*time.Millisecond)
+}
+
 func (s *SharedLibrarySuite) TestLongPath() {
 	t := s.T()
 
@@ -288,9 +324,10 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDAndRootNamespace()
 	t.Cleanup(watcher.Stop)
 
 	time.Sleep(10 * time.Millisecond)
-	// simulate a slow (1 second) : open, write, close of the file
+	// simulate a slow (1 second) : open, read, close of the file
 	// in a new pid and mount namespaces
-	o, err := exec.Command("unshare", "--fork", "--pid", "-R", root, "/ash", "-c", fmt.Sprintf("sleep 1 > %s", libpath)).CombinedOutput()
+	o, err := exec.Command("unshare", "--fork", "--pid", "-R", root, "/ash", "-c",
+		fmt.Sprintf("touch foo && mv foo %s && sleep 1 < %s", libpath, libpath)).CombinedOutput()
 	if err != nil {
 		t.Log(err, string(o))
 	}
