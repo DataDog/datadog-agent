@@ -99,10 +99,7 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     __u16 param_size;
     __u16 slice_length;
     __u16 *collectionLimit;
-    __u8 stack_counter = 0;
-
     int chunk_size = 0;
-    __u64 outputOffset = 0;
 
     // Set up temporary storage array which is used by some location expressions
     // to have memory off the stack to work with
@@ -113,13 +110,14 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
         return 0;
     }
 
-    struct expression_context context = {
+
+    expression_context_t context = {
         .ctx = ctx,
-        .output_offset = &outputOffset,
-        .stack_counter = &stack_counter,
         .event = event,
         .temp_storage = temp_storage,
-        .zero_string = zero_string
+        .zero_string = zero_string,
+        .output_offset = 0,
+        .stack_counter = 0,
     };
 
     {{ .InstrumentationInfo.BPFParametersSourceCode }}
@@ -131,7 +129,7 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     __u8 m = 0;
     __u64 placeholder;
     long pop_ret = 0;
-    for (m = 0; m < stack_counter; m++) {
+    for (m = 0; m < context.stack_counter; m++) {
         pop_ret = bpf_map_pop_elem(&param_stack, &placeholder);
         if (pop_ret != 0) {
             break;
