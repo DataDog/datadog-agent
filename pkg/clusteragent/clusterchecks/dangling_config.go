@@ -32,5 +32,6 @@ func createDanglingConfig(config integration.Config) *danglingConfigWrapper {
 // isStuckScheduling returns true if the config has been in the store
 // for longer than the unscheduledCheckThresholdSeconds
 func (c *danglingConfigWrapper) isStuckScheduling(unscheduledCheckThresholdSeconds int64) bool {
-	return time.Since(c.timeCreated).Seconds() > float64(unscheduledCheckThresholdSeconds)
+	expectCheckIsScheduledTime := c.timeCreated.Add(time.Duration(unscheduledCheckThresholdSeconds) * time.Second)
+	return time.Now().After(expectCheckIsScheduledTime)
 }
