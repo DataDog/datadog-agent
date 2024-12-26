@@ -47,9 +47,10 @@ func fetchColumnOidsWithBatching(sess session.Session, oids []string, oidBatchSi
 	return retValues, nil
 }
 
-// fetchColumnOids has an `oids` argument representing a `map[string]string`,
-// the key of the map is the column oid, and the value is the oid used to fetch the next value for the column.
-// The value oid might be equal to column oid or a row oid of the same column.
+// fetchColumnOids fetches all values for each specified column OID.
+// bulkMaxRepetitions is the number of entries to request per OID per SNMP
+// request when fetchStrategy = useGetBulk; it is ignored when fetchStrategy is
+// useGetNext.
 func fetchColumnOids(sess session.Session, oids []string, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
 	returnValues := make(valuestore.ColumnResultValuesType, len(oids))
 	alreadyProcessedOids := make(map[string]bool)
