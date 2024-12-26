@@ -60,12 +60,19 @@ func (d *dispatcher) getStats() *types.Stats {
 	for _, m := range d.store.digestToConfig {
 		checkNames[m.Name] = struct{}{}
 	}
+	extendedDanglingConfigs := 0
+	for _, c := range d.store.danglingConfigs {
+		if c.detectedExtendedDangling {
+			extendedDanglingConfigs++
+		}
+	}
 	return &types.Stats{
-		Active:          d.store.active,
-		NodeCount:       len(d.store.nodes),
-		ActiveConfigs:   len(d.store.digestToNode),
-		DanglingConfigs: len(d.store.danglingConfigs),
-		TotalConfigs:    len(d.store.digestToConfig),
-		CheckNames:      checkNames,
+		Active:                  d.store.active,
+		NodeCount:               len(d.store.nodes),
+		ActiveConfigs:           len(d.store.digestToNode),
+		DanglingConfigs:         len(d.store.danglingConfigs),
+		ExtendedDanglingConfigs: extendedDanglingConfigs,
+		TotalConfigs:            len(d.store.digestToConfig),
+		CheckNames:              checkNames,
 	}
 }
