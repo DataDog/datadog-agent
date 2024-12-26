@@ -30,6 +30,8 @@ replace (
 	github.com/spf13/cobra => github.com/aarzilli/cobra v1.1.3-0.20241206153912-45cac892e43f
 	// comment out a use of text/template
 	go.uber.org/dig => github.com/pgimalac/dig v1.18.1-0.20241226143044-f328231d7d7e
+	// comment out a use of text/template
+	github.com/xeipuuv/gojsonschema => github.com/pgimalac/gojsonschema v1.2.1-0.20241226211709-d63a0dde5719
 )
 
 // Internal deps fix version
