@@ -7,6 +7,7 @@ package examples
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentwithoperatorparams"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
@@ -32,7 +33,7 @@ type localKindOperatorSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-func localKindOperatorProvisioner() e2e.PulumiEnvRunFunc[environments.Kubernetes] {
+func localKindOperatorProvisioner() provisioners.PulumiEnvRunFunc[environments.Kubernetes] {
 	return func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 		kindEnv, err := local.NewEnvironment(ctx)
 		if err != nil {
