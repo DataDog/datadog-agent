@@ -101,7 +101,8 @@ func TestManagerInitWithOptions(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = buf.Close })
 
-	err = mgr.InitWithOptions(buf, nil)
+	opts := manager.Options{}
+	err = mgr.InitWithOptions(buf, &opts)
 	require.NoError(t, err)
 
 	modifier.AssertExpectations(t)
