@@ -118,3 +118,7 @@ func (p localProfile) NamePrefix() string {
 func (p localProfile) AllowDevMode() bool {
 	return true
 }
+
+func (p localProfile) CreateOutputDir() (string, error) {
+	return p.GetOutputDir()
+}

@@ -8,6 +8,8 @@ package client
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -19,7 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
@@ -43,7 +44,7 @@ func NewHostAgentClient(context common.Context, hostOutput remote.HostOutput, wa
 	commandRunner := newAgentCommandRunner(context.T(), ae)
 
 	if params.ShouldWaitForReady {
-		if err := waitForReadyTimeout(context.T(), host, commandRunner, agentReadyTimeout); err != nil {
+		if err := waitForReadyTimeout(context, host, commandRunner, agentReadyTimeout); err != nil {
 			return nil, err
 		}
 	}
@@ -64,7 +65,7 @@ func NewHostAgentClientWithParams(context common.Context, hostOutput remote.Host
 	commandRunner := newAgentCommandRunner(context.T(), ae)
 
 	if params.ShouldWaitForReady {
-		if err := waitForReadyTimeout(context.T(), host, commandRunner, agentReadyTimeout); err != nil {
+		if err := waitForReadyTimeout(context, host, commandRunner, agentReadyTimeout); err != nil {
 			return nil, err
 		}
 	}
@@ -181,35 +182,30 @@ func fetchAuthTokenCommand(authTokenPath string, osFamily osComp.Family) string 
 	return fmt.Sprintf("sudo cat %s", authTokenPath)
 }
 
-func waitForReadyTimeout(t *testing.T, host *Host, commandRunner *agentCommandRunner, timeout time.Duration) error {
+func waitForReadyTimeout(ctx common.Context, host *Host, commandRunner *agentCommandRunner, timeout time.Duration) error {
 	err := commandRunner.waitForReadyTimeout(timeout)
 
 	if err != nil {
 		// Propagate the original error if we have another error here
-		localErr := generateAndDownloadFlare(t, commandRunner, host)
+		localErr := generateAndDownloadFlare(ctx, commandRunner, host)
 
 		if localErr != nil {
-			t.Errorf("Could not generate and get a flare: %v", localErr)
+			ctx.T().Errorf("Could not generate and get a flare: %v", localErr)
 		}
 	}
 
 	return err
 }
 
-func generateAndDownloadFlare(t *testing.T, commandRunner *agentCommandRunner, host *Host) error {
-	outputRoot, err := runner.GetProfile().GetOutputDir()
+func generateAndDownloadFlare(ctx common.Context, commandRunner *agentCommandRunner, host *Host) error {
+	testPart := common.SanitizeDirectoryName(ctx.T().Name())
+	outputDir := filepath.Join(ctx.SessionOutputDir(), testPart)
+	err := os.MkdirAll(outputDir, 0755)
 	if err != nil {
-		return err
-	}
-	root, err := common.CreateRootOutputDir(outputRoot)
-	if err != nil {
-		return fmt.Errorf("could not get root output directory: %w", err)
-	}
-	outputDir, err := common.CreateTestOutputDir(root, t)
-	if err != nil {
-		return fmt.Errorf("could not get output directory: %w", err)
+		return fmt.Errorf("could not create output directory: %w", err)
 	}
 	flareFound := false
+	t := ctx.T()
 
 	_, err = commandRunner.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send", "--local"}))
 	if err != nil {

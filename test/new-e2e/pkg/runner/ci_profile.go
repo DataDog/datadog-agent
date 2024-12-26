@@ -8,6 +8,7 @@ package runner
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
@@ -101,4 +102,26 @@ func (p ciProfile) NamePrefix() string {
 // AllowDevMode returns if DevMode is allowed
 func (p ciProfile) AllowDevMode() bool {
 	return false
+}
+
+// CreateOutputSubDir creates an output directory inside the runner root directory for tests to store output files and artifacts.
+func (p ciProfile) CreateOutputSubDir(subdirectory string) (string, error) {
+	outputDir, err := p.baseProfile.CreateOutputSubDir(subdirectory)
+	if err != nil {
+		return "", err
+	}
+	// Create a symlink to the latest run for user convenience
+	latestLink := filepath.Join(filepath.Dir(outputDir), "latest")
+	// Remove the symlink if it already exists
+	if _, err := os.Lstat(latestLink); err == nil {
+		err = os.Remove(latestLink)
+		if err != nil {
+			return "", err
+		}
+	}
+	err = os.Symlink(outputDir, latestLink)
+	if err != nil {
+		return "", err
+	}
+	return outputDir, nil
 }

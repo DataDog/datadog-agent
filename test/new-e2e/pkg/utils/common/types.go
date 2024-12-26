@@ -10,6 +10,7 @@ import "testing"
 // Context defines an interface that allows to get information about current test context
 type Context interface {
 	T() *testing.T
+	SessionOutputDir() string
 }
 
 // Initializable defines the interface for an object that needs to be initialized
