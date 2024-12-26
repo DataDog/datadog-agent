@@ -94,7 +94,7 @@ func scanExtendedDanglingConfigs(store *clusterStore, attemptLimit int) {
 	defer store.Unlock()
 
 	for _, c := range store.danglingConfigs {
-		c.rescheduleAttempts += 1
+		c.rescheduleAttempts++
 		if !c.detectedExtendedDangling && c.isStuckScheduling(attemptLimit) {
 			log.Warnf("Detected extended dangling config. Name:%s, Source:%s", c.config.Name, c.config.Source)
 			c.detectedExtendedDangling = true
