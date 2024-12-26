@@ -4,9 +4,11 @@
 #include "ktypes.h"
 #include "macros.h"
 
+// event is the message which is passed back to user space from bpf containing
+// all information about the invocation of the instrumented function
 typedef struct event {
     struct base_event base;
-    char output[PARAM_BUFFER_SIZE];
+    char output[PARAM_BUFFER_SIZE]; // values of parameters
 } event_t;
 
 // expression_context contains state that is meant to be shared across location expressions

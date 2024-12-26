@@ -64,7 +64,8 @@ static __always_inline int pop(expression_context_t context, __u64 num_elements,
     long err;
     __u64 valueHolder;
     int i;
-    for(i = 0; i < num_elements; i++) {
+    __u8 num_elements_byte = (__u8)num_elements;
+    for(i = 0; i < num_elements_byte; i++) {
         bpf_map_pop_elem(&param_stack, &valueHolder);
         *context.stack_counter -= 1;
         log_debug("Popping to output: %llu", valueHolder);
