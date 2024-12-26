@@ -398,7 +398,7 @@ type AgentSecureClient interface {
 	//
 	//	$ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
 	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"externalDataInit": false,"externalDataPodUID": "54383382-cea3-49e3-9dda-325436ddd5b8","externalDataContainerName": "dd-trace-py"}' \
+	//	   --data '{"externalData": {"init": false,"containerName": "dd-trace-py","podUID": "c4b45c6a-b296-4bd5-88df-7c2d6bcaabef"}}' \
 	//	   https://localhost:5001/v1/grpc/tagger/generate_container_id_from_origin_info
 	//	{
 	//	  "containerID":"c9fd60251b5237467462dad48999815eb0025f367c6e1abe91e0bd787d5915fc"
@@ -680,7 +680,7 @@ type AgentSecureServer interface {
 	//
 	//	$ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
 	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"externalDataInit": false,"externalDataPodUID": "54383382-cea3-49e3-9dda-325436ddd5b8","externalDataContainerName": "dd-trace-py"}' \
+	//	   --data '{"externalData": {"init": false,"containerName": "dd-trace-py","podUID": "c4b45c6a-b296-4bd5-88df-7c2d6bcaabef"}}' \
 	//	   https://localhost:5001/v1/grpc/tagger/generate_container_id_from_origin_info
 	//	{
 	//	  "containerID":"c9fd60251b5237467462dad48999815eb0025f367c6e1abe91e0bd787d5915fc"
