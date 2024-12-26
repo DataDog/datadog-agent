@@ -8,6 +8,7 @@ package integrationslogs
 import (
 	_ "embed"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -87,8 +88,9 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 	// 1. Send logs until to the logs from integrations launcher until their
 	// cumulative size is greater than integration_logs_files_max_size (for logs
 	// of size 256kb, this will be four logs given the max size of 1mb)
-	// 2. Put a counter in the logs that increases by 1 every time the check is
-	// called, then check that each log's counter is 1 more than the previous log
+	// 2. Put a counter in the logs that starts at 1 and increases by 1 every time
+	// the check is called, then check that a log that contains the increased
+	// count exists in the logs
 
 	tags := []string{"test:rotate"}
 	yamlData, err := generateYaml("a", true, 1024*230, 1, tags, "rotation_source", "rotation_service")
@@ -99,29 +101,34 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 		agentparams.WithFile("/etc/datadog-agent/conf.d/rotation.yaml", string(yamlData), true),
 		agentparams.WithFile("/etc/datadog-agent/checks.d/rotation.py", customIntegration, true))))
 
-	// Check each log is received and is unique
-	prevLogCount := -1
+	// The log file should rotate every four logs, so checking through five
+	// iterations should guarantee a rotation. The counters in the logs should
+	// also contain the numbers 1 through 5
 	for i := 0; i < 5; i++ {
+		logCounter := i + 1
 		assert.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 			logs, err := utils.FetchAndFilterLogs(v.Env().FakeIntake, "rotation_service", ".*counter: \\d+.*")
 			assert.NoError(c, err)
+			assert.GreaterOrEqual(c, len(logs), logCounter, "Fewer logs than expected")
 
-			if assert.NotEmpty(c, logs) && len(logs) >= i+1 {
-				log := logs[i]
-				regex := regexp.MustCompile(`counter: (\d+)`)
-				matches := regex.FindStringSubmatch(log.Message)
-				assert.Greater(c, len(matches), 1, "Did not find count in log")
+			// Sort the logs slice in ascending order according to timestamp. This
+			// guarantees that the last written log will be in last position in the
+			// slice. This is needed since FetchAndFilterLogs doesn't guarantee order
+			sort.Slice(logs, func(j, k int) bool {
+				return logs[j].Timestamp < logs[k].Timestamp
+			})
 
-				number := matches[1]
-				count, err := strconv.Atoi(number)
-				assert.Nil(c, err)
+			// Search for the next incremented log in the fetched
+			// logs.
+			log := logs[len(logs)-1]
+			regex := regexp.MustCompile(`counter: (\d+)`)
+			matches := regex.FindStringSubmatch(log.Message)
+			assert.Greater(c, len(matches), 1, "Did not find matching \"count\" regular expression in log")
+			number := matches[1]
+			count, err := strconv.Atoi(number)
+			assert.Nil(c, err)
 
-				if prevLogCount != -1 {
-					assert.Equal(c, prevLogCount+1, count)
-				}
-
-				prevLogCount = count
-			}
+			assert.Equal(c, logCounter, count)
 		}, 2*time.Minute, 5*time.Second)
 	}
 }
