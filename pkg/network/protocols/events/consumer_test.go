@@ -8,7 +8,6 @@
 package events
 
 import (
-	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -24,7 +23,6 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -190,10 +188,7 @@ func newEBPFProgram(c *config.Config) (*ddebpf.Manager, error) {
 		},
 	}
 	options := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
+		RemoveRlimit: true,
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
