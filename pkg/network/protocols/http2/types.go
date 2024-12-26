@@ -36,7 +36,6 @@ type http2Path C.path_t
 type HTTP2Stream C.http2_stream_t
 type EbpfTx C.http2_event_t
 type HTTP2Telemetry C.http2_telemetry_t
-type HTTP2IncompleteFrameEntry C.incomplete_frame_t
 
 type StaticTableEnumValue = C.static_table_value_t
 
@@ -58,3 +57,4 @@ type IncompleteFrameType = C.incomplete_frame_type_t
 type IncompleteFrameHeader = C.incomplete_frame_header_t
 type FrameType = C.http2_frame_t
 type IncompleteFramePayload = C.incomplete_frame_payload_t
+type HTTP2IncompleteFrameEntry C.incomplete_frame_t

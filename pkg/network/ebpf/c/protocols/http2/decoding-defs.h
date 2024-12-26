@@ -237,11 +237,12 @@ typedef struct {
 } incomplete_frame_payload_t;
 
 typedef struct {
+    union {
+        incomplete_frame_header_t incomplete_header;
+        incomplete_frame_payload_t incomplete_payload;
+    };
     // The type of the incomplete frame.
     incomplete_frame_type_t type;
-    __u32 remainder;
-    __u32 header_length;
-    char buf[HTTP2_FRAME_HEADER_SIZE];
 } incomplete_frame_t;
 
 // http2_telemetry_t is used to hold the HTTP/2 kernel telemetry.
