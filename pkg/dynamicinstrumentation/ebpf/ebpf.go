@@ -133,14 +133,14 @@ func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) erro
 		if err != nil {
 			return err
 		}
-		programTemplate, err := template.New("program_template").Parse(string(fileContents))
+		_, err := template.New("program_template").Parse(string(fileContents))
 		if err != nil {
 			return err
 		}
-		err = programTemplate.Execute(out, probe)
-		if err != nil {
-			return err
-		}
+		// err = programTemplate.Execute(out, probe)
+		// if err != nil {
+		// 	return err
+		// }
 		return nil
 	}
 

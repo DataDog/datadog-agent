@@ -27,6 +27,10 @@ ALL_TAGS = {
     "ec2",
     "etcd",
     "fargateprocess",
+    # removes the import to golang.org/x/net/trace in google.golang.org/grpc,
+    # which prevents dead code elimination due to using reflect.MethodByName indirectly
+    # from the init function
+    "grpcnotrace",
     "jmx",
     "jetson",
     "kubeapiserver",
@@ -64,6 +68,7 @@ AGENT_TAGS = {
     "docker",
     "ec2",
     "etcd",
+    "grpcnotrace",
     "jetson",
     "jmx",
     "kubeapiserver",
@@ -89,6 +94,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "crio",
         "docker",
         "ec2",
+        "grpcnotrace",
         "jetson",
         "kubeapiserver",
         "kubelet",
@@ -103,19 +109,28 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
 FIPS_AGENT_TAGS = AGENT_TAGS.union({"goexperiment.systemcrypto"})
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
-CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2"}
+CLUSTER_AGENT_TAGS = {
+    "clusterchecks",
+    "datadog.no_waf",
+    "grpcnotrace",
+    "kubeapiserver",
+    "orchestrator",
+    "zlib",
+    "zstd",
+    "ec2",
+}
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
-CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks"}
+CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "grpcnotrace"}
 
 # DOGSTATSD_TAGS lists the tags needed when building dogstatsd
-DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"}
+DOGSTATSD_TAGS = {"containerd", "docker", "grpcnotrace", "kubelet", "podman", "zlib", "zstd"}
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib", "zstd"}
+IOT_AGENT_TAGS = {"grpcnotrace", "jetson", "otlp", "systemd", "zlib", "zstd"}
 
 # INSTALLER_TAGS lists the tags needed when building the installer
-INSTALLER_TAGS = {"docker", "ec2", "kubelet"}
+INSTALLER_TAGS = {"grpcnotrace", "docker", "ec2", "kubelet"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess"}).difference({"otlp", "python", "trivy"})
@@ -128,6 +143,7 @@ PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
         "crio",
         "docker",
         "ec2",
+        "grpcnotrace",
         "jetson",
         "kubeapiserver",
         "kubelet",
@@ -143,6 +159,7 @@ SECURITY_AGENT_TAGS = {
     "datadog.no_waf",
     "docker",
     "containerd",
+    "grpcnotrace",
     "kubeapiserver",
     "kubelet",
     "podman",
@@ -158,6 +175,7 @@ SERVERLESS_TAGS = {"serverless", "otlp"}
 SYSTEM_PROBE_TAGS = {
     "datadog.no_waf",
     "ec2",
+    "grpcnotrace",
     "linux_bpf",
     "netcgo",
     "npm",
@@ -168,13 +186,24 @@ SYSTEM_PROBE_TAGS = {
 }
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
-TRACE_AGENT_TAGS = {"docker", "containerd", "datadog.no_waf", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman"}
+TRACE_AGENT_TAGS = {
+    "docker",
+    "containerd",
+    "datadog.no_waf",
+    "grpcnotrace",
+    "kubeapiserver",
+    "kubelet",
+    "otlp",
+    "netcgo",
+    "podman",
+}
 
 # TRACE_AGENT_HEROKU_TAGS lists the tags necessary to build the trace-agent for Heroku
 TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
     {
         "containerd",
         "docker",
+        "grpcnotrace",
         "kubeapiserver",
         "kubelet",
         "podman",

@@ -98,15 +98,15 @@ func writeNotRunning(log log.Component, w io.Writer) {
 }
 
 func writeError(log log.Component, w io.Writer, e error) {
-	tpl, err := template.New("").Funcs(compStatus.TextFmap()).Parse(errorMessage)
+	_, err := template.New("").Funcs(compStatus.TextFmap()).Parse(errorMessage)
 	if err != nil {
 		_ = log.Error(err)
 	}
 
-	err = tpl.Execute(w, e)
-	if err != nil {
-		_ = log.Error(err)
-	}
+	// err = tpl.Execute(w, e)
+	// if err != nil {
+	// 	_ = log.Error(err)
+	// }
 }
 
 func fetchStatus(statusURL string) ([]byte, error) {

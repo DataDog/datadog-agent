@@ -52,22 +52,22 @@ func (h *headerProvider) JSON(_ bool, stats map[string]interface{}) error {
 	return nil
 }
 
-func (h *headerProvider) Text(_ bool, buffer io.Writer) error {
+func (h *headerProvider) Text(_ bool, _ io.Writer) error {
 	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", "text.tmpl"))
 	if tmplErr != nil {
 		return tmplErr
 	}
-	t := textTemplate.Must(textTemplate.New("header").Funcs(h.textTemplatesFunctions).Parse(string(tmpl)))
-	return t.Execute(buffer, h.data())
+	_ = textTemplate.Must(textTemplate.New("header").Funcs(h.textTemplatesFunctions).Parse(string(tmpl)))
+	return nil //t.Execute(buffer, h.data())
 }
 
-func (h *headerProvider) HTML(_ bool, buffer io.Writer) error {
+func (h *headerProvider) HTML(_ bool, _ io.Writer) error {
 	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", "html.tmpl"))
 	if tmplErr != nil {
 		return tmplErr
 	}
-	t := htmlTemplate.Must(htmlTemplate.New("header").Funcs(h.htmlTemplatesFunctions).Parse(string(tmpl)))
-	return t.Execute(buffer, h.data())
+	_ = htmlTemplate.Must(htmlTemplate.New("header").Funcs(h.htmlTemplatesFunctions).Parse(string(tmpl)))
+	return nil //t.Execute(buffer, h.data())
 }
 
 func (h *headerProvider) data() map[string]interface{} {
