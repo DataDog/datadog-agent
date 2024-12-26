@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package e2e
+package common
 
 import (
 	"fmt"
@@ -12,20 +12,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-
 	"testing"
 )
 
-type testLogger struct {
+// TestLogger is a logger that writes to the test log.
+type TestLogger struct {
 	t *testing.T
 }
 
-func newTestLogger(t *testing.T) testLogger {
-	return testLogger{t: t}
+// NewTestLogger creates a new TestLogger that writes to the test log.
+func NewTestLogger(t *testing.T) TestLogger {
+	return TestLogger{t: t}
 }
 
-func (tl testLogger) Write(p []byte) (n int, err error) {
+// Write writes the given bytes to the test log.
+func (tl TestLogger) Write(p []byte) (n int, err error) {
 	tl.t.Helper()
 	tl.t.Log(string(p))
 	return len(p), nil
@@ -41,18 +42,14 @@ func (tl testLogger) Write(p []byte) (n int, err error) {
 // See runner.GetProfile().GetOutputDir() for the root output directory selection logic.
 //
 // See CreateTestOutputDir and BaseSuite.CreateTestOutputDir for a function that returns a subdirectory for a specific test.
-func CreateRootOutputDir() (string, error) {
-	outputRoot, err := runner.GetProfile().GetOutputDir()
-	if err != nil {
-		return "", err
-	}
+func CreateRootOutputDir(outputRoot string) (string, error) {
 	// Append timestamp to distinguish between multiple runs
 	// Format: YYYY-MM-DD_HH-MM-SS
 	// Use a custom timestamp format because Windows paths can't contain ':' characters
 	// and we don't need the timezone information.
 	timePart := time.Now().Format("2006-01-02_15-04-05")
 	// create root directory
-	err = os.MkdirAll(outputRoot, 0755)
+	err := os.MkdirAll(outputRoot, 0755)
 	if err != nil {
 		return "", err
 	}
@@ -82,7 +79,7 @@ func CreateRootOutputDir() (string, error) {
 	return outputRoot, nil
 }
 
-// CreateTestOutputDir creates a directory for a specific test that can be used to store output files and artifacts.
+// CreateTestOutputDir creates a local directory for a specific test that can be used to store output files and artifacts.
 // The test name is used in the directory name, and invalid characters are replaced with underscores.
 //
 // Example:

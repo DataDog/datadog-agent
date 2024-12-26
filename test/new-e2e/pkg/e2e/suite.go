@@ -285,7 +285,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 
 	bs.T().Logf("Updating environment with new provisioners")
 
-	logger := newTestLogger(bs.T())
+	logger := common.NewTestLogger(bs.T())
 	ctx, cancel := bs.providerContext(createTimeout)
 	defer cancel()
 
@@ -598,7 +598,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			}
 		}
 
-		if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
+		if err := provisioner.Destroy(ctx, bs.params.stackName, common.NewTestLogger(bs.T())); err != nil {
 			bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 		}
 	}
@@ -614,7 +614,12 @@ func (bs *BaseSuite[Env]) GetRootOutputDir() (string, error) {
 	var err error
 	bs.onceTestSessionOutputDir.Do(func() {
 		// Store the timestamped directory to be used by all tests in the suite
-		bs.testSessionOutputDir, err = CreateRootOutputDir()
+		var outputRoot string
+		outputRoot, err = runner.GetProfile().GetOutputDir()
+		if err != nil {
+			return
+		}
+		bs.testSessionOutputDir, err = common.CreateRootOutputDir(outputRoot)
 	})
 	return bs.testSessionOutputDir, err
 }
@@ -627,7 +632,7 @@ func (bs *BaseSuite[Env]) CreateTestOutputDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return CreateTestOutputDir(root, bs.T())
+	return common.CreateTestOutputDir(root, bs.T())
 }
 
 // Run is a helper function to run a test suite.
