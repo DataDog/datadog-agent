@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The Cluster Agent is now able to delete the `ValidatingAdmissionWebhook` and `MutatingAdmissionWebhook`
+    depending on the `admission_controller.validation.enabled` and `admission_controller.mutation.enabled` settings.
+    Note that the `admission_controller.enabled` needs to the set to `true` to still allow the Cluster Agent to
+    interract with Kubernetes Admission Controller.
