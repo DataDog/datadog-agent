@@ -24,7 +24,26 @@
         "profile_definition"
       ]
     },
-    "ListMap[github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition.MetadataResourceConfig]": {
+    "ListMap[string]": {
+      "items": {
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "value"
+        ]
+      },
+      "type": "array"
+    },
+    "MetadataConfig": {
       "items": {
         "properties": {
           "key": {
@@ -214,25 +233,6 @@
       },
       "type": "array"
     },
-    "ListMap[string]": {
-      "items": {
-        "properties": {
-          "key": {
-            "type": "string"
-          },
-          "value": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "key",
-          "value"
-        ]
-      },
-      "type": "array"
-    },
     "MetricIndexTransform": {
       "properties": {
         "start": {
@@ -342,7 +342,7 @@
           "type": "array"
         },
         "metadata": {
-          "$ref": "#/$defs/ListMap[github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition.MetadataResourceConfig]"
+          "$ref": "#/$defs/MetadataConfig"
         },
         "metric_tags": {
           "items": {
