@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    The Cluster Agent is now able to delete the `ValidatingAdmissionWebhook` and `MutatingAdmissionWebhook`
+    The Cluster Agent is now able to delete `ValidatingAdmissionWebhook` and `MutatingAdmissionWebhook`
     depending on the `admission_controller.validation.enabled` and `admission_controller.mutation.enabled` settings.
-    Note that the `admission_controller.enabled` needs to the set to `true` to still allow the Cluster Agent to
-    interract with Kubernetes Admission Controller.
+    Note that `admission_controller.enabled` must be set to `true` to allow the Cluster Agent to
+    interact with the Kubernetes Admission Controller.
