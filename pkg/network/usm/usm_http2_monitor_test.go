@@ -1384,7 +1384,7 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 		},
 		{
 			name: "validate remainder in map",
-			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			// The purpose of this test is to validate that we can handle reassembled tcp segments.
 			messageBuilder: func() [][]byte {
 				a := newFramer().
 					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
@@ -1395,7 +1395,7 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 					a[10:],
 				}
 			},
-			mapSize: 1,
+			mapSize: 0,
 		},
 	}
 	for _, tt := range tests {
