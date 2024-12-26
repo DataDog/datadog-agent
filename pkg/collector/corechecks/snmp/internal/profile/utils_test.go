@@ -106,7 +106,7 @@ func Test_mergeProfiles(t *testing.T) {
 		"profile-p3": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
 				Description: "abc",
-				Metadata: profiledefinition.MetadataConfig{
+				Metadata: profiledefinition.ListMap[profiledefinition.MetadataResourceConfig]{
 					"device": profiledefinition.MetadataResourceConfig{
 						Fields: map[string]profiledefinition.MetadataField{
 							"name": {

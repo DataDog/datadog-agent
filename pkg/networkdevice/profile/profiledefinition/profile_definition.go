@@ -18,14 +18,14 @@ type DeviceMeta struct {
 // 2/ Datadog backend: the profiles are in json format, they are used to store profiles created via UI.
 // The serialisation of json profiles are defined by the json annotation.
 type ProfileDefinition struct {
-	Name         string            `yaml:"name" json:"name"`
-	Description  string            `yaml:"description,omitempty" json:"description,omitempty"`
-	SysObjectIDs StringArray       `yaml:"sysobjectid,omitempty" json:"sysobjectid,omitempty"`
-	Extends      []string          `yaml:"extends,omitempty" json:"extends,omitempty"`
-	Metadata     MetadataConfig    `yaml:"metadata,omitempty" json:"metadata,omitempty" jsonschema:"-"`
-	MetricTags   []MetricTagConfig `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
-	StaticTags   []string          `yaml:"static_tags,omitempty" json:"static_tags,omitempty"`
-	Metrics      []MetricsConfig   `yaml:"metrics,omitempty" json:"metrics,omitempty"`
+	Name         string                          `yaml:"name" json:"name"`
+	Description  string                          `yaml:"description,omitempty" json:"description,omitempty"`
+	SysObjectIDs StringArray                     `yaml:"sysobjectid,omitempty" json:"sysobjectid,omitempty"`
+	Extends      []string                        `yaml:"extends,omitempty" json:"extends,omitempty"`
+	Metadata     ListMap[MetadataResourceConfig] `yaml:"metadata,omitempty" json:"metadata,omitempty"`
+	MetricTags   []MetricTagConfig               `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
+	StaticTags   []string                        `yaml:"static_tags,omitempty" json:"static_tags,omitempty"`
+	Metrics      []MetricsConfig                 `yaml:"metrics,omitempty" json:"metrics,omitempty"`
 
 	// Used previously to pass device vendor field (has been replaced by Metadata).
 	// Used in RC for passing device vendor field.
@@ -44,6 +44,6 @@ type DeviceProfileRcConfig struct {
 // NewProfileDefinition creates a new ProfileDefinition
 func NewProfileDefinition() *ProfileDefinition {
 	p := &ProfileDefinition{}
-	p.Metadata = make(MetadataConfig)
+	p.Metadata = ListMap[MetadataResourceConfig]{}
 	return p
 }

@@ -24,6 +24,196 @@
         "profile_definition"
       ]
     },
+    "ListMap[github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition.MetadataResourceConfig]": {
+      "items": {
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "properties": {
+              "fields": {
+                "items": {
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "properties": {
+                        "symbol": {
+                          "properties": {
+                            "OID": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "extract_value": {
+                              "type": "string"
+                            },
+                            "scale_factor": {
+                              "type": "number"
+                            },
+                            "format": {
+                              "type": "string"
+                            },
+                            "constant_value_one": {
+                              "type": "boolean"
+                            },
+                            "metric_type": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "type": "object"
+                        },
+                        "symbols": {
+                          "items": {
+                            "properties": {
+                              "OID": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "extract_value": {
+                                "type": "string"
+                              },
+                              "scale_factor": {
+                                "type": "number"
+                              },
+                              "format": {
+                                "type": "string"
+                              },
+                              "constant_value_one": {
+                                "type": "boolean"
+                              },
+                              "metric_type": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false,
+                      "type": "object"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "key",
+                    "value"
+                  ]
+                },
+                "type": "array"
+              },
+              "id_tags": {
+                "items": {
+                  "properties": {
+                    "tag": {
+                      "type": "string"
+                    },
+                    "index": {
+                      "type": "integer"
+                    },
+                    "symbol": {
+                      "properties": {
+                        "OID": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "extract_value": {
+                          "type": "string"
+                        },
+                        "scale_factor": {
+                          "type": "number"
+                        },
+                        "format": {
+                          "type": "string"
+                        },
+                        "constant_value_one": {
+                          "type": "boolean"
+                        },
+                        "metric_type": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false,
+                      "type": "object"
+                    },
+                    "index_transform": {
+                      "items": {
+                        "properties": {
+                          "start": {
+                            "type": "integer"
+                          },
+                          "end": {
+                            "type": "integer"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "start",
+                          "end"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "mapping": {
+                      "items": {
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "key",
+                          "value"
+                        ]
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "tag"
+                  ]
+                },
+                "type": "array"
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "fields"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "value"
+        ]
+      },
+      "type": "array"
+    },
     "ListMap[string]": {
       "items": {
         "properties": {
@@ -135,6 +325,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "metadata": {
+          "$ref": "#/$defs/ListMap[github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition.MetadataResourceConfig]"
         },
         "metric_tags": {
           "items": {
