@@ -12,8 +12,6 @@ import packages
 
 def postinst(install_directory, storage_location):
     try:
-        if len(sys.argv) != 2:
-            print("Usage: postinst.py <INSTALL_DIR>")
         install_directory = sys.argv[1]
         if os.path.exists(install_directory) and os.path.exists(storage_location):
             postinst_python_installed_packages_file = packages.postinst_python_installed_packages_file(storage_location)

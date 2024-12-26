@@ -94,13 +94,13 @@ namespace Datadog.AgentCustomActions
         {
             return Datadog.CustomActions.PythonDistributionCustomAction.RunPostInstPythonScript(session);
         }
-        
+
         [CustomAction]
         public static ActionResult RunPreRemovePythonScript(Session session)
         {
             return Datadog.CustomActions.PythonDistributionCustomAction.RunPreRemovePythonScript(session);
         }
-        
+
         [CustomAction]
         public static ActionResult ConfigureUser(Session session)
         {

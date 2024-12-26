@@ -86,6 +86,8 @@ def check_all_files_owner_system_windows(directory):
     Check if all files in a used are owned by sytem.
     This prevents issues with files created on first 
     install being used to install dependencies on install.
+    Datadirectory permissions pervent deletion of file between check
+    and use.
     """
     files = []
     files.append(directory)

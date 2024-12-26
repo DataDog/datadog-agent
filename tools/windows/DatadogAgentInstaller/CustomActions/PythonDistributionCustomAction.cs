@@ -174,10 +174,14 @@ namespace Datadog.CustomActions
         {
             return PrepareDecompressPythonDistributions(new SessionWrapper(session));
         }
-        
-        private static ActionResult RunPythonScript(ISession session, string script){
+
+        private static ActionResult RunPythonScript(ISession session, string script)
+        {
             var projectLocation = session.Property("PROJECTLOCATION");
             var dataDirectory = session.Property("APPLICATIONDATADIRECTORY");
+            // get protected directory path
+            dataDirectory = Path.Combine(dataDirectory, "protected");
+
             var pythonPath = Path.Combine(projectLocation, "embedded3", "python.exe");
             var postInstScript = Path.Combine(projectLocation, "python-scripts", script);
             if (!File.Exists(pythonPath))
@@ -218,12 +222,12 @@ namespace Datadog.CustomActions
             }
             return ActionResult.Success;
         }
-        
+
         public static ActionResult RunPostInstPythonScript(Session session)
         {
             return RunPythonScript(new SessionWrapper(session), "postinst.py");
         }
-        
+
         public static ActionResult RunPreRemovePythonScript(Session session)
         {
             return RunPythonScript(new SessionWrapper(session), "prerm.py");

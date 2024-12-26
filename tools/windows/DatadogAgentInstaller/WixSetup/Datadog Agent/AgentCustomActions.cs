@@ -33,7 +33,7 @@ namespace WixSetup.Datadog_Agent
         public ManagedAction PrepareDecompressPythonDistributions { get; }
 
         public ManagedAction RunPostInstPythonScript { get; }
-        
+
         public ManagedAction RunPreRemovePythonScript { get; }
 
         public ManagedAction DecompressPythonDistributions { get; }
@@ -260,7 +260,7 @@ namespace WixSetup.Datadog_Agent
             {
                 Execute = Execute.immediate
             };
-            
+
             RunPostInstPythonScript = new CustomAction<CustomActions>(
                     new Id(nameof(RunPostInstPythonScript)),
                     CustomActions.RunPostInstPythonScript,
@@ -275,7 +275,7 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
-            
+
 
             // Cleanup leftover files on uninstall
             CleanupOnUninstall = new CustomAction<CustomActions>(
@@ -292,14 +292,14 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
-            
+
             RunPreRemovePythonScript = new CustomAction<CustomActions>(
                     new Id(nameof(RunPreRemovePythonScript)),
                     CustomActions.RunPreRemovePythonScript,
                     Return.ignore,
                     When.Before,
-                    new Step(CleanupOnUninstall.Id),
-                    Conditions.Uninstalling
+                    Step.RemoveFiles,
+                    Conditions.RemovingForUpgrade | Conditions.Maintenance | Conditions.Uninstalling
                 )
             {
                 Execute = Execute.deferred,
