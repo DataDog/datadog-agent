@@ -30,3 +30,10 @@ func (v *agentSuite) TestAgentCommandNoArg() {
 	assert.NotNil(v.T(), status)
 	assert.NotEmpty(v.T(), status.Content)
 }
+
+func (v *agentSuite) TestAgentForceFailure() {
+	status, err := v.Env().Agent.Client.StatusWithError()
+	require.NoError(v.T(), err)
+	assert.NotNil(v.T(), status)
+	assert.Empty(v.T(), status.Content)
+}
