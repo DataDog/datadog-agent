@@ -160,7 +160,7 @@ func TestMergeGPU(t *testing.T) {
 			Name: "gpu-1",
 		},
 		Vendor:     "nvidia",
-		Model:      "",
+		Device:     "",
 		ActivePIDs: []int{123, 456},
 	}
 	gpu2 := GPU{
@@ -172,13 +172,13 @@ func TestMergeGPU(t *testing.T) {
 			Name: "gpu-1",
 		},
 		Vendor:     "nvidia",
-		Model:      "tesla",
+		Device:     "tesla",
 		ActivePIDs: []int{654},
 	}
 
 	err := gpu1.Merge(&gpu2)
 	assert.NoError(t, err)
-	assert.Equal(t, gpu1.Model, "tesla")
+	assert.Equal(t, gpu1.Device, "tesla")
 	assert.ElementsMatch(t, gpu1.ActivePIDs, []int{654})
 	assert.Equal(t, gpu1.Vendor, "nvidia")
 }

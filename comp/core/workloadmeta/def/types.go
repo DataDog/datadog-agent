@@ -1358,12 +1358,12 @@ type GPU struct {
 	// Vendor is the name of the manufacturer of the device (e.g., NVIDIA)
 	Vendor string
 
-	// Model is the comercial name of the device (e.g., Tesla V100) as returned
+	// Device is the comercial name of the device (e.g., Tesla V100) as returned
 	// by the device driver (NVML for NVIDIA GPUs). Note that some models might
 	// have some additional information like the memory size (e.g., Tesla
 	// A100-SXM2-80GB), the exact format of this field is vendor and device
 	// specific.
-	Model      string
+	Device     string
 	ActivePIDs []int
 }
 
@@ -1406,7 +1406,7 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, g.EntityMeta.String(verbose))
 
 	_, _ = fmt.Fprintln(&sb, "Vendor:", g.Vendor)
-	_, _ = fmt.Fprintln(&sb, "Model:", g.Model)
+	_, _ = fmt.Fprintln(&sb, "Device:", g.Device)
 	_, _ = fmt.Fprintln(&sb, "Active PIDs:", g.ActivePIDs)
 
 	return sb.String()
