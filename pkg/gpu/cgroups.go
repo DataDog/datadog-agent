@@ -61,7 +61,8 @@ func configureSystemdDeviceAllow(containerID string, rootfs string) error {
 	}
 	defer systemdDeviceAllow.Close()
 
-	// Allow access to the NVIDIA character device
+	// Allow access to the NVIDIA character device.
+	// Hardcode the string to avoid this from being accidentally changed to another value or set dynamically.
 	_, err = systemdDeviceAllow.WriteString("DeviceAllow=char-nvidia rwm\n")
 	if err != nil {
 		return fmt.Errorf("failed to write to %s: %w", systemdDeviceAllowPath, err)
@@ -86,6 +87,7 @@ func configureCgroupDeviceAllow(containerID, rootfs string) error {
 	defer cgroupDeviceAllow.Close()
 
 	// Allow access to the NVIDIA character device. 195 is the major number for the NVIDIA character device.
+	// Hardcode the string to avoid this from being accidentally changed to another value or set dynamically.
 	_, err = cgroupDeviceAllow.WriteString("c 195:* rwm\n")
 	if err != nil {
 		return fmt.Errorf("failed to write to %s: %w", cgroupDeviceAllowPath, err)
