@@ -138,7 +138,7 @@ func getStatusURL() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("config error: %s", err.Error())
 	}
-	return fmt.Sprintf("http://%s/agent/status", addressPort), nil
+	return fmt.Sprintf("https://%s/agent/status", addressPort), nil
 }
 
 func runStatus(deps dependencies) error {

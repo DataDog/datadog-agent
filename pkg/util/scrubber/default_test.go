@@ -108,6 +108,12 @@ func TestConfigRCAppKey(t *testing.T) {
 
 func TestConfigStripURLPassword(t *testing.T) {
 	assertClean(t,
+		`proxy: random_url_key: http://user:password@host:port`,
+		`proxy: random_url_key: http://user:********@host:port`)
+	assertClean(t,
+		`random_url_key http://user:password@host:port`,
+		`random_url_key http://user:********@host:port`)
+	assertClean(t,
 		`random_url_key: http://user:password@host:port`,
 		`random_url_key: http://user:********@host:port`)
 	assertClean(t,
