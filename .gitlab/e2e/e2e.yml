@@ -294,6 +294,7 @@ new-e2e-aml:
     - deploy_windows_testing-a7
     - qa_agent
     - qa_agent_jmx
+    - qa_agent_fips_jmx
     - qa_dca
   rules:
     - !reference [.on_aml_or_e2e_changes]
