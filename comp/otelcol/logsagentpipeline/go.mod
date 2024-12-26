@@ -63,7 +63,7 @@ replace (
 require github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.56.0-rc.3
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.138 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.139-0.20241227121136-afacfe086aee // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3 // indirect
