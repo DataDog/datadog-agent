@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -37,6 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -212,6 +215,31 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 		return err
 	}
 	return r.NamespaceResolver.Start(ctx)
+}
+
+// ResolveCGroupContext resolves the cgroup context from a cgroup path key
+func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags containerutils.CGroupFlags) (*model.CGroupContext, error) {
+	if cgroupContext, found := r.CGroupResolver.GetCGroupContext(pathKey); found {
+		return cgroupContext, nil
+	}
+
+	path, err := r.DentryResolver.Resolve(pathKey, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
+	}
+
+	cgroup := filepath.Dir(string(path))
+	if cgroup == "/" {
+		cgroup = path
+	}
+
+	cgroupContext := &model.CGroupContext{
+		CGroupID:    containerutils.CGroupID(cgroup),
+		CGroupFlags: containerutils.CGroupFlags(cgroupFlags),
+		CGroupFile:  pathKey,
+	}
+
+	return cgroupContext, nil
 }
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.

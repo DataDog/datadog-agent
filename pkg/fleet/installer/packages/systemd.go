@@ -17,15 +17,15 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const systemdPath = "/etc/systemd/system"
 
 func stopUnit(ctx context.Context, unit string, args ...string) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "stop_unit")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "stop_unit")
+	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
 	args = append([]string{"stop", unit}, args...)
 	err = exec.CommandContext(ctx, "systemctl", args...).Run()
@@ -42,8 +42,8 @@ func stopUnit(ctx context.Context, unit string, args ...string) (err error) {
 }
 
 func startUnit(ctx context.Context, unit string, args ...string) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "start_unit")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "start_unit")
+	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
 	args = append([]string{"start", unit}, args...)
 	err = exec.CommandContext(ctx, "systemctl", args...).Run()
@@ -56,8 +56,8 @@ func startUnit(ctx context.Context, unit string, args ...string) (err error) {
 }
 
 func enableUnit(ctx context.Context, unit string) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "enable_unit")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "enable_unit")
+	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
 	err = exec.CommandContext(ctx, "systemctl", "enable", unit).Run()
 	exitErr := &exec.ExitError{}
@@ -69,8 +69,8 @@ func enableUnit(ctx context.Context, unit string) (err error) {
 }
 
 func disableUnit(ctx context.Context, unit string) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "disable_unit")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "disable_unit")
+	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
 
 	enabledErr := exec.CommandContext(ctx, "systemctl", "is-enabled", "--quiet", unit).Run()
@@ -93,8 +93,8 @@ func disableUnit(ctx context.Context, unit string) (err error) {
 }
 
 func loadUnit(ctx context.Context, unit string) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "load_unit")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "load_unit")
+	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
 	content, err := embedded.FS.ReadFile(unit)
 	if err != nil {
@@ -105,15 +105,19 @@ func loadUnit(ctx context.Context, unit string) (err error) {
 }
 
 func removeUnit(ctx context.Context, unit string) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "remove_unit")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "remove_unit")
+	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
-	return os.Remove(path.Join(systemdPath, unit))
+	err = os.Remove(path.Join(systemdPath, unit))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 func systemdReload(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "systemd_reload")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "systemd_reload")
+	defer func() { span.Finish(err) }()
 	err = exec.CommandContext(ctx, "systemctl", "daemon-reload").Run()
 	exitErr := &exec.ExitError{}
 	if !errors.As(err, &exitErr) {

@@ -1,4 +1,4 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers $GOFILE
+//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=readonly -no_std_marshalers $GOFILE
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -28,6 +28,8 @@ type AgentContext struct {
 	OS            string            `json:"os,omitempty"`
 	Arch          string            `json:"arch,omitempty"`
 	Origin        string            `json:"origin,omitempty"`
+	KernelVersion string            `json:"kernel_version,omitempty"`
+	Distribution  string            `json:"distribution,omitempty"`
 }
 
 // BackendEvent - Rule event wrapper used to send an event to the backend

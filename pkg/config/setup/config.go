@@ -79,7 +79,7 @@ const (
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
 	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
-	DefaultCompressorKind = "zlib"
+	DefaultCompressorKind = "zstd"
 
 	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
 	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
@@ -257,8 +257,8 @@ func init() {
 	if envvar == "enable" {
 		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	} else if envvar == "tee" {
-		var viperConfig = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))   // nolint: forbidigo // legit use case
-		var nodetreeConfig = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+		viperConfig := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))   // nolint: forbidigo // legit use case
+		nodetreeConfig := nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 		datadog = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
 	} else {
 		datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
@@ -490,7 +490,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("leader_election_default_resource", "configmap")
 	config.BindEnvAndSetDefault("leader_election_release_on_shutdown", true)
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
-	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 5)
+	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 10)
 
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
@@ -703,6 +703,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30)        // value in seconds
 	config.BindEnvAndSetDefault("external_metrics_provider.chunk_size", 35)                     // Maximum number of queries to batch when querying Datadog.
 	config.BindEnvAndSetDefault("external_metrics_provider.split_batches_with_backoff", false)  // Splits batches and runs queries with errors individually with an exponential backoff
+	config.BindEnvAndSetDefault("external_metrics_provider.num_workers", 2)                     // Number of workers spawned by controller (only when CRD is used)
 	pkgconfigmodel.AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.support_hybrid_ignore_ad_tags", false) // TODO(CINT)(Agent 7.53+) Remove this flag when hybrid ignore_ad_tags is fully deprecated
@@ -867,8 +868,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
 	config.BindEnv("process_config.orchestrator_dd_url", "DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL", "DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL")
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints` setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints` will take precedence.
-	config.SetKnown("process_config.orchestrator_additional_endpoints.*")
-	config.SetKnown("orchestrator_explorer.orchestrator_additional_endpoints.*")
+	config.SetKnown("process_config.orchestrator_additional_endpoints")
 	config.BindEnvAndSetDefault("orchestrator_explorer.extra_tags", []string{})
 
 	// Network
@@ -897,7 +897,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
-	config.BindEnvAndSetDefault("security_agent.remote_workloadmeta", true)
 
 	// debug config to enable a remote client to receive data from the workloadmeta agent without a timeout
 	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", true)
@@ -1037,7 +1036,10 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
 	config.BindEnvAndSetDefault("app_key", "")
 	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"})
-	config.SetDefault("proxy", nil)
+	config.SetDefault("proxy.http", "")
+	config.SetDefault("proxy.https", "")
+	config.SetDefault("proxy.no_proxy", []string{})
+
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("sslkeylogfile", "")
 	config.BindEnv("tls_handshake_timeout")
@@ -1090,6 +1092,8 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
+	// used to override the path where the IPC cert/key files are stored/retrieved
+	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
 	config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
@@ -1119,10 +1123,6 @@ func agent(config pkgconfigmodel.Setup) {
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 	config.BindEnvAndSetDefault("GUI_session_expiration", 0)
-
-	config.SetKnown("proxy.http")
-	config.SetKnown("proxy.https")
-	config.SetKnown("proxy.no_proxy")
 
 	// Core agent (disabled for Error Tracking Standalone, Logs Collection Only)
 	config.BindEnvAndSetDefault("core_agent.enabled", true)
@@ -1282,9 +1282,7 @@ func telemetry(config pkgconfigmodel.Setup) {
 
 	// Agent Telemetry
 	config.BindEnvAndSetDefault("agent_telemetry.enabled", true)
-	config.SetKnown("agent_telemetry.additional_endpoints.*")
 	bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
-
 }
 
 func serializer(config pkgconfigmodel.Setup) {
@@ -1331,7 +1329,7 @@ func serverless(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("capture_lambda_payload_max_depth", 10)
 	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
-	config.BindEnvAndSetDefault("serverless.service_mapping", nil, "DD_SERVICE_MAPPING")
+	config.BindEnvAndSetDefault("serverless.service_mapping", "", "DD_SERVICE_MAPPING")
 }
 
 func forwarder(config pkgconfigmodel.Setup) {
@@ -1573,6 +1571,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Add a tag to logs that are truncated by the agent
 	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
 
+	// Number of logs pipeline instances. Defaults to number of logical CPU cores as defined by GOMAXPROCS or 4, whichever is lower.
+	logsPipelines := min(4, runtime.GOMAXPROCS(0))
+	config.BindEnvAndSetDefault("logs_config.pipelines", logsPipelines)
+
 	// If true, the agent looks for container logs in the location used by podman, rather
 	// than docker.  This is a temporary configuration parameter to support podman logs until
 	// a more substantial refactor of autodiscovery is made to determine this automatically.
@@ -1671,12 +1673,19 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 5)       // Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
 	config.BindEnvAndSetDefault("kubelet_listener_polling_interval", 5) // Polling frequency in seconds of the pod watcher to detect new pods/containers (affected by kubelet_cache_pods_duration setting)
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
+	config.BindEnvAndSetDefault("kubernetes_use_endpoint_slices", false)
 	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
 	config.BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
 	config.BindEnvAndSetDefault("kubernetes_apiserver_informer_client_timeout", 0)
 	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
+
+	defaultPodresourcesSocket := "/var/lib/kubelet/pod-resources/kubelet.sock"
+	if runtime.GOOS == "windows" {
+		defaultPodresourcesSocket = `\\.\pipe\kubelet-pod-resources`
+	}
+	config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", defaultPodresourcesSocket)
 }
 
 func podman(config pkgconfigmodel.Setup) {
@@ -1809,19 +1818,18 @@ func findUnknownKeys(config pkgconfigmodel.Config) []string {
 	var unknownKeys []string
 	knownKeys := config.GetKnownKeysLowercased()
 	loadedKeys := config.AllKeysLowercased()
-	for _, key := range loadedKeys {
-		if _, found := knownKeys[key]; !found {
-			// Check if any subkey terminated with a '.*' wildcard is marked as known
-			// e.g.: apm_config.* would match all sub-keys of apm_config
-			splitPath := strings.Split(key, ".")
-			for j := range splitPath {
-				subKey := strings.Join(splitPath[:j+1], ".") + ".*"
-				if _, found = knownKeys[subKey]; found {
+	for _, loadedKey := range loadedKeys {
+		if _, found := knownKeys[loadedKey]; !found {
+			nestedValue := false
+			// If a value is within a known key it is considered known.
+			for knownKey := range knownKeys {
+				if strings.HasPrefix(loadedKey, knownKey+".") {
+					nestedValue = true
 					break
 				}
 			}
-			if !found {
-				unknownKeys = append(unknownKeys, key)
+			if !nestedValue {
+				unknownKeys = append(unknownKeys, loadedKey)
 			}
 		}
 	}

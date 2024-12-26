@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -33,7 +34,7 @@ func (r *Resolver) OnCGroupDeletedEvent(_ *cgroupModel.CacheEntry) {
 }
 
 // OnWorkloadSelectorResolvedEvent is used to handle the creation of a new cgroup with its resolved tags
-func (r *Resolver) OnWorkloadSelectorResolvedEvent(_ *cgroupModel.CacheEntry) {
+func (r *Resolver) OnWorkloadSelectorResolvedEvent(_ *tags.Workload) {
 }
 
 // ResolvePackage returns the Package that owns the provided file

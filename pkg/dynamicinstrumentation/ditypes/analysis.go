@@ -12,15 +12,10 @@ import (
 	"fmt"
 )
 
-// TypeMap contains all the information about functions and their parameters including
-// functions that have been inlined in the binary
+// TypeMap contains all the information about functions and their parameters
 type TypeMap struct {
 	// Functions maps fully-qualified function names to a slice of its parameters
 	Functions map[string][]Parameter
-
-	// InlinedFunctions maps program counters to a slice of dwarf entries used
-	// when resolving stack traces that include inlined functions
-	InlinedFunctions map[uint64][]*dwarf.Entry
 
 	// FunctionsByPC places DWARF subprogram (function) entries in order by
 	// its low program counter which is necessary for resolving stack traces

@@ -80,6 +80,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.base_backoff", "5m")
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.max_backoff", "1h")
+	// those configs are used by the core agent path, but are not used by the system probe
+	cfg.SetKnown("sbom.container_image.enabled")
+	cfg.SetKnown("sbom.container_image.overlayfs_direct_scan")
 
 	// Auto exit configuration
 	cfg.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -214,6 +217,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "conntrack_init_timeout"), 10*time.Second)
 	cfg.BindEnvAndSetDefault(join(netNS, "allow_netlink_conntracker_fallback"), true)
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_ebpf_conntracker"), true)
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_cilium_lb_conntracker"), false)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "source_excludes"), map[string][]string{})
 	cfg.BindEnvAndSetDefault(join(spNS, "dest_excludes"), map[string][]string{})
@@ -368,13 +372,12 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.classifier_handle"), 0)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_classifier_handle"), 0)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_ring_buffer"), true)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry"), false)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry_amd64"), false)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry_arm64"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry"), true)
+	eventMonitorBindEnv(cfg, join(evNS, "event_stream.use_fentry_amd64"))
+	eventMonitorBindEnv(cfg, join(evNS, "event_stream.use_fentry_arm64"))
 	eventMonitorBindEnv(cfg, join(evNS, "event_stream.buffer_size"))
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES"})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_compilation.enabled"), false)
-	eventMonitorBindEnv(cfg, join(evNS, "runtime_compilation.compiled_constants_enabled"))
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.ingress.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_packet.enabled"), false)

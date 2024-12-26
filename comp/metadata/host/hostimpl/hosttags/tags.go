@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	haagenthelpers "github.com/DataDog/datadog-agent/comp/haagent/helpers"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -131,6 +132,10 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
 		}
 		hostTags = appendToHostTags(hostTags, clusterNameTags)
+	}
+
+	if haagenthelpers.IsEnabled(conf) {
+		hostTags = appendToHostTags(hostTags, haagenthelpers.GetHaAgentTags(conf))
 	}
 
 	gceTags := []string{}

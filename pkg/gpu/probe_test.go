@@ -47,6 +47,7 @@ func (s *probeTestSuite) getProbe() *Probe {
 	deps := ProbeDependencies{
 		NvmlLib:        testutil.GetBasicNvmlMock(),
 		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(t),
+		WorkloadMeta:   testutil.GetWorkloadMetaMock(t),
 	}
 	probe, err := NewProbe(cfg, deps)
 	require.NoError(t, err)
@@ -181,7 +182,7 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	}
 
 	stats, err := probe.GetAndFlush()
-	key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID}
+	key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID, ContainerID: cid}
 	require.NoError(t, err)
 	require.NotNil(t, stats)
 	pidStats := getMetricsEntry(key, stats)

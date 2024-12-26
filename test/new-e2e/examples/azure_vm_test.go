@@ -6,8 +6,9 @@
 package examples
 
 import (
-	azurehost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/azure/host/windows"
 	"testing"
+
+	azurehost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/azure/host/windows"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"

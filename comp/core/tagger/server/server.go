@@ -14,7 +14,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/google/uuid"
+
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -57,7 +60,15 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 	filter := filterBuilder.Build(cardinality)
 
-	subscriptionID := fmt.Sprintf("streaming-client-%s", in.GetStreamingID())
+	streamingID := in.GetStreamingID()
+	if streamingID == "" {
+		// this is done to preserve backward compatibility
+		// if CLC runner is using an old version, the streaming ID would be an empty string,
+		// and the server needs to auto-assign a unique id
+		streamingID = uuid.New().String()
+	}
+
+	subscriptionID := fmt.Sprintf("streaming-client-%s", streamingID)
 	subscription, err := s.taggerComponent.Subscribe(subscriptionID, filter)
 	if err != nil {
 		return err
@@ -67,6 +78,15 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 	ticker := time.NewTicker(streamKeepAliveInterval)
 	defer ticker.Stop()
+
+	sendFunc := func(chunk []*pb.StreamTagsEvent) error {
+		return grpc.DoWithTimeout(func() error {
+			return out.Send(&pb.StreamTagsResponse{
+				Events: chunk,
+			})
+		}, taggerStreamSendTimeout)
+	}
+
 	for {
 		select {
 		case events, ok := <-subscription.EventsChan():
@@ -88,20 +108,10 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 				responseEvents = append(responseEvents, e)
 			}
 
-			// Split events into chunks and send each one
-			chunks := splitEvents(responseEvents, s.maxEventSize)
-			for _, chunk := range chunks {
-				err = grpc.DoWithTimeout(func() error {
-					return out.Send(&pb.StreamTagsResponse{
-						Events: chunk,
-					})
-				}, taggerStreamSendTimeout)
-
-				if err != nil {
-					log.Warnf("error sending tagger event: %s", err)
-					s.taggerComponent.GetTaggerTelemetryStore().ServerStreamErrors.Inc()
-					return err
-				}
+			if err := processChunksInPlace(responseEvents, s.maxEventSize, computeTagsEventInBytes, sendFunc); err != nil {
+				log.Warnf("error sending tagger event: %s", err)
+				s.taggerComponent.GetTaggerTelemetryStore().ServerStreamErrors.Inc()
+				return err
 			}
 
 		case <-out.Context().Done():
@@ -154,5 +164,24 @@ func (s *Server) TaggerFetchEntity(_ context.Context, in *pb.FetchEntityRequest)
 		Id:          in.Id,
 		Cardinality: in.GetCardinality(),
 		Tags:        tags,
+	}, nil
+}
+
+// TaggerGenerateContainerIDFromOriginInfo request the generation of a container ID from external data from the Tagger.
+// This function takes an Origin Info but only uses the ExternalData part of it, this is done for backward compatibility.
+func (s *Server) TaggerGenerateContainerIDFromOriginInfo(_ context.Context, in *pb.GenerateContainerIDFromOriginInfoRequest) (*pb.GenerateContainerIDFromOriginInfoResponse, error) {
+	generatedContainerID, err := s.taggerComponent.GenerateContainerIDFromOriginInfo(origindetection.OriginInfo{
+		ExternalData: origindetection.ExternalData{
+			Init:          *in.ExternalData.Init,
+			ContainerName: *in.ExternalData.ContainerName,
+			PodUID:        *in.ExternalData.PodUID,
+		},
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%s", err)
+	}
+
+	return &pb.GenerateContainerIDFromOriginInfoResponse{
+		ContainerID: generatedContainerID,
 	}, nil
 }

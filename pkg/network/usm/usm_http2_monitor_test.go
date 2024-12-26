@@ -1351,9 +1351,9 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 	}
 }
 
-// TestRemainderTable tests the remainder table map.
-// We would like to make sure that the remainder table map is being updated correctly.
-func (s *usmHTTP2Suite) TestRemainderTable() {
+// TestIncompleteFrameTable tests the http2_incomplete_frame table map.
+// We would like to make sure the incomplete_frame table map is being updated correctly.
+func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 	t := s.T()
 	cfg := s.getCfg()
 
@@ -1416,7 +1416,7 @@ func (s *usmHTTP2Suite) TestRemainderTable() {
 			require.NoError(t, writeInput(c, 500*time.Millisecond, tt.messageBuilder()...))
 
 			assert.Eventually(t, func() bool {
-				require.Len(t, getRemainderTableMapKeys(t, usmMonitor.ebpfProgram), tt.mapSize)
+				require.Len(t, getIncompleteFrameTableMapKeys(t, usmMonitor.ebpfProgram), tt.mapSize)
 				return true
 			}, time.Second*5, time.Millisecond*100, "")
 			if t.Failed() {
@@ -1877,14 +1877,14 @@ func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDyn
 	require.EqualValues(t, expectedDynamicTablePathIndexes, resultIndexes)
 }
 
-// getRemainderTableMapKeys returns the keys of the remainder table map.
-func getRemainderTableMapKeys(t *testing.T, ebpfProgram *ebpfProgram) []usmhttp.ConnTuple {
-	remainderMap, _, err := ebpfProgram.GetMap("http2_remainder")
+// getIncompleteFrameTableMapKeys returns the keys of the incomplete frame table map.
+func getIncompleteFrameTableMapKeys(t *testing.T, ebpfProgram *ebpfProgram) []usmhttp.ConnTuple {
+	incompleteFrameMap, _, err := ebpfProgram.GetMap("http2_incomplete_frames")
 	require.NoError(t, err)
 	resultIndexes := make([]usmhttp.ConnTuple, 0)
 	var key usmhttp2.ConnTuple
-	var value usmhttp2.HTTP2RemainderEntry
-	iterator := remainderMap.Iterate()
+	var value usmhttp2.HTTP2IncompleteFrameEntry
+	iterator := incompleteFrameMap.Iterate()
 
 	for iterator.Next(&key, &value) {
 		resultIndexes = append(resultIndexes, key)

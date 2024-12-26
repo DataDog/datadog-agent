@@ -9,6 +9,7 @@ package servicediscovery
 
 import (
 	"cmp"
+	"net/http"
 	"testing"
 	"time"
 
@@ -22,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
-	netmocks "github.com/DataDog/datadog-agent/pkg/process/net/mocks"
 )
 
 type testProc struct {
@@ -72,47 +71,53 @@ var (
 
 var (
 	portTCP8080 = model.Service{
-		PID:                 procTestService1.pid,
-		Name:                "test-service-1",
-		GeneratedName:       "test-service-1-generated",
-		GeneratedNameSource: "test-service-1-generated-source",
-		DDService:           "test-service-1",
-		DDServiceInjected:   true,
-		Ports:               []uint16{8080},
-		APMInstrumentation:  string(apm.None),
-		RSS:                 100 * 1024 * 1024,
-		CPUCores:            1.5,
-		CommandLine:         []string{"test-service-1"},
-		StartTimeMilli:      procLaunchedMilli,
-		ContainerID:         dummyContainerID,
+		PID:                        procTestService1.pid,
+		Name:                       "test-service-1",
+		GeneratedName:              "test-service-1-generated",
+		GeneratedNameSource:        "test-service-1-generated-source",
+		ContainerServiceName:       "test-service-1-container",
+		ContainerServiceNameSource: "service",
+		DDService:                  "test-service-1",
+		DDServiceInjected:          true,
+		Ports:                      []uint16{8080},
+		APMInstrumentation:         string(apm.None),
+		RSS:                        100 * 1024 * 1024,
+		CPUCores:                   1.5,
+		CommandLine:                []string{"test-service-1"},
+		StartTimeMilli:             procLaunchedMilli,
+		ContainerID:                dummyContainerID,
 	}
 	portTCP8080UpdatedRSS = model.Service{
-		PID:                 procTestService1.pid,
-		Name:                "test-service-1",
-		GeneratedName:       "test-service-1-generated",
-		GeneratedNameSource: "test-service-1-generated-source",
-		DDService:           "test-service-1",
-		DDServiceInjected:   true,
-		Ports:               []uint16{8080},
-		APMInstrumentation:  string(apm.None),
-		RSS:                 200 * 1024 * 1024,
-		CPUCores:            1.5,
-		CommandLine:         []string{"test-service-1"},
-		StartTimeMilli:      procLaunchedMilli,
-		ContainerID:         dummyContainerID,
+		PID:                        procTestService1.pid,
+		Name:                       "test-service-1",
+		GeneratedName:              "test-service-1-generated",
+		GeneratedNameSource:        "test-service-1-generated-source",
+		ContainerServiceName:       "test-service-1-container",
+		ContainerServiceNameSource: "service",
+		DDService:                  "test-service-1",
+		DDServiceInjected:          true,
+		Ports:                      []uint16{8080},
+		APMInstrumentation:         string(apm.None),
+		RSS:                        200 * 1024 * 1024,
+		CPUCores:                   1.5,
+		CommandLine:                []string{"test-service-1"},
+		StartTimeMilli:             procLaunchedMilli,
+		ContainerID:                dummyContainerID,
 	}
 	portTCP8080DifferentPID = model.Service{
-		PID:                 procTestService1DifferentPID.pid,
-		Name:                "test-service-1",
-		GeneratedName:       "test-service-1-generated",
-		GeneratedNameSource: "test-service-1-generated-source",
-		DDService:           "test-service-1",
-		DDServiceInjected:   true,
-		Ports:               []uint16{8080},
-		APMInstrumentation:  string(apm.Injected),
-		CommandLine:         []string{"test-service-1"},
-		StartTimeMilli:      procLaunchedMilli,
-		ContainerID:         dummyContainerID,
+		PID:                        procTestService1DifferentPID.pid,
+		Name:                       "test-service-1",
+		GeneratedName:              "test-service-1-generated",
+		GeneratedNameSource:        "test-service-1-generated-source",
+		ContainerServiceName:       "test-service-1-container",
+		ContainerServiceNameSource: "service",
+		DDService:                  "test-service-1",
+		DDServiceInjected:          true,
+		Ports:                      []uint16{8080},
+		APMInstrumentation:         string(apm.Injected),
+		CommandLine:                []string{"test-service-1"},
+		StartTimeMilli:             procLaunchedMilli,
+		ContainerID:                dummyContainerID,
 	}
 	portTCP8081 = model.Service{
 		PID:            procIgnoreService1.pid,
@@ -123,25 +128,29 @@ var (
 		ContainerID:    dummyContainerID,
 	}
 	portTCP5000 = model.Service{
-		PID:                 procPythonService.pid,
-		Name:                "python-service",
-		GeneratedName:       "python-service",
-		GeneratedNameSource: "python-service-source",
-		Language:            "python",
-		Ports:               []uint16{5000},
-		CommandLine:         pythonCommandLine,
-		StartTimeMilli:      procLaunchedMilli,
-		ContainerID:         dummyContainerID,
+		PID:                        procPythonService.pid,
+		Name:                       "python-service",
+		GeneratedName:              "python-service",
+		GeneratedNameSource:        "python-service-source",
+		ContainerServiceName:       "test-service-1-container",
+		ContainerServiceNameSource: "app",
+		Language:                   "python",
+		Ports:                      []uint16{5000},
+		CommandLine:                pythonCommandLine,
+		StartTimeMilli:             procLaunchedMilli,
+		ContainerID:                dummyContainerID,
 	}
 	portTCP5432 = model.Service{
-		PID:                 procTestService1Repeat.pid,
-		Name:                "test-service-1",
-		GeneratedName:       "test-service-1",
-		GeneratedNameSource: "test-service-1-generated-source",
-		Ports:               []uint16{5432},
-		CommandLine:         []string{"test-service-1"},
-		StartTimeMilli:      procLaunchedMilli,
-		ContainerID:         dummyContainerID,
+		PID:                        procTestService1Repeat.pid,
+		Name:                       "test-service-1",
+		GeneratedName:              "test-service-1",
+		GeneratedNameSource:        "test-service-1-generated-source",
+		ContainerServiceName:       "test-service-1-container",
+		ContainerServiceNameSource: "service",
+		Ports:                      []uint16{5432},
+		CommandLine:                []string{"test-service-1"},
+		StartTimeMilli:             procLaunchedMilli,
+		ContainerID:                dummyContainerID,
 	}
 )
 
@@ -236,6 +245,8 @@ func Test_linuxImpl(t *testing.T) {
 						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1-generated",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
+						ContainerServiceName:       "test-service-1-container",
+						ContainerServiceNameSource: "service",
 						DDService:                  "test-service-1",
 						ServiceNameSource:          "injected",
 						ServiceType:                "web_service",
@@ -261,6 +272,8 @@ func Test_linuxImpl(t *testing.T) {
 						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1-generated",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
+						ContainerServiceName:       "test-service-1-container",
+						ContainerServiceNameSource: "service",
 						DDService:                  "test-service-1",
 						ServiceNameSource:          "injected",
 						ServiceType:                "web_service",
@@ -286,6 +299,8 @@ func Test_linuxImpl(t *testing.T) {
 						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1-generated",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
+						ContainerServiceName:       "test-service-1-container",
+						ContainerServiceNameSource: "service",
 						DDService:                  "test-service-1",
 						ServiceNameSource:          "injected",
 						ServiceType:                "web_service",
@@ -311,6 +326,8 @@ func Test_linuxImpl(t *testing.T) {
 						ServiceName:                "python-service",
 						GeneratedServiceName:       "python-service",
 						GeneratedServiceNameSource: "python-service-source",
+						ContainerServiceName:       "test-service-1-container",
+						ContainerServiceNameSource: "app",
 						ServiceType:                "web_service",
 						HostName:                   host,
 						Env:                        "",
@@ -332,6 +349,8 @@ func Test_linuxImpl(t *testing.T) {
 						ServiceName:                "python-service",
 						GeneratedServiceName:       "python-service",
 						GeneratedServiceNameSource: "python-service-source",
+						ContainerServiceName:       "test-service-1-container",
+						ContainerServiceNameSource: "app",
 						ServiceType:                "web_service",
 						HostName:                   host,
 						Env:                        "",
@@ -390,6 +409,8 @@ func Test_linuxImpl(t *testing.T) {
 						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
+						ContainerServiceName:       "test-service-1-container",
+						ContainerServiceNameSource: "service",
 						ServiceType:                "db",
 						HostName:                   host,
 						Env:                        "",
@@ -410,6 +431,8 @@ func Test_linuxImpl(t *testing.T) {
 						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1-generated",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
+						ContainerServiceName:       "test-service-1-container",
+						ContainerServiceNameSource: "service",
 						DDService:                  "test-service-1",
 						ServiceNameSource:          "injected",
 						ServiceType:                "web_service",
@@ -435,6 +458,8 @@ func Test_linuxImpl(t *testing.T) {
 						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
+						ContainerServiceName:       "test-service-1-container",
+						ContainerServiceNameSource: "service",
 						ServiceType:                "db",
 						HostName:                   host,
 						Env:                        "",
@@ -455,6 +480,8 @@ func Test_linuxImpl(t *testing.T) {
 						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
+						ContainerServiceName:       "test-service-1-container",
+						ContainerServiceNameSource: "service",
 						ServiceType:                "db",
 						HostName:                   host,
 						Env:                        "",
@@ -475,6 +502,8 @@ func Test_linuxImpl(t *testing.T) {
 						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1-generated",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
+						ContainerServiceName:       "test-service-1-container",
+						ContainerServiceNameSource: "service",
 						DDService:                  "test-service-1",
 						ServiceNameSource:          "injected",
 						ServiceType:                "web_service",
@@ -535,6 +564,8 @@ func Test_linuxImpl(t *testing.T) {
 						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1-generated",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
+						ContainerServiceName:       "test-service-1-container",
+						ContainerServiceNameSource: "service",
 						DDService:                  "test-service-1",
 						ServiceNameSource:          "injected",
 						ServiceType:                "web_service",
@@ -560,6 +591,8 @@ func Test_linuxImpl(t *testing.T) {
 						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1-generated",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
+						ContainerServiceName:       "test-service-1-container",
+						ContainerServiceNameSource: "service",
 						DDService:                  "test-service-1",
 						ServiceNameSource:          "injected",
 						ServiceType:                "web_service",
@@ -601,19 +634,14 @@ func Test_linuxImpl(t *testing.T) {
 			require.NotNil(t, check.os)
 
 			for _, cr := range tc.checkRun {
-				mSysProbe := netmocks.NewSysProbeUtil(t)
-				mSysProbe.EXPECT().GetDiscoveryServices().
-					Return(cr.servicesResp, nil).
-					Times(1)
-
 				_, mHostname := hostnameinterface.NewMock(hostnameinterface.MockHostname(host))
 
 				mTimer := NewMocktimer(ctrl)
 				mTimer.EXPECT().Now().Return(cr.time).AnyTimes()
 
 				// set mocks
-				check.os.(*linuxImpl).getSysProbeClient = func(_ string) (net.SysProbeUtil, error) {
-					return mSysProbe, nil
+				check.os.(*linuxImpl).getDiscoveryServices = func(_ *http.Client) (*model.ServicesResponse, error) {
+					return cr.servicesResp, nil
 				}
 				check.os.(*linuxImpl).time = mTimer
 				check.sender.hostname = mHostname

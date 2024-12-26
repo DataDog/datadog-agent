@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -87,7 +86,7 @@ func Test_pathtestStore_add(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
 			utillog.SetupLogger(l, "debug")
 

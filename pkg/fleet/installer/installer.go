@@ -19,22 +19,22 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
 	packageDatadogAgent     = "datadog-agent"
 	packageAPMInjector      = "datadog-apm-inject"
+	packageAPMLibraries     = "datadog-apm-libraries"
 	packageDatadogInstaller = "datadog-installer"
 )
 
@@ -160,14 +160,18 @@ func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error)
 func (i *installerImpl) Install(ctx context.Context, url string, args []string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	pkg, err := i.downloader.Download(ctx, url)
+	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
 	}
-	span, ok := tracer.SpanFromContext(ctx)
+	span, ok := telemetry.SpanFromContext(ctx)
 	if ok {
-		span.SetTag(ext.ResourceName, pkg.Name)
+		span.SetResourceName(pkg.Name)
 		span.SetTag("package_version", pkg.Version)
+	}
+	err = i.preparePackage(ctx, pkg.Name, args) // Preinst
+	if err != nil {
+		return fmt.Errorf("could not prepare package: %w", err)
 	}
 	dbPkg, err := i.db.GetPackage(pkg.Name)
 	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
@@ -203,11 +207,21 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
-	err = i.configurePackage(ctx, pkg.Name)
+	err = i.configurePackage(ctx, pkg.Name) // Config
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
 	}
-	err = i.setupPackage(ctx, pkg.Name, args)
+	if pkg.Name == packageDatadogInstaller {
+		// We must handle the configuration of some packages that are not
+		// don't have an OCI. To properly configure their configuration repositories,
+		// we call configurePackage when setting up the installer; which is the only
+		// package that is always installed.
+		err = i.configurePackage(ctx, packageAPMLibraries)
+		if err != nil {
+			return fmt.Errorf("could not configure package: %w", err)
+		}
+	}
+	err = i.setupPackage(ctx, pkg.Name, args) // Postinst
 	if err != nil {
 		return fmt.Errorf("could not setup package: %w", err)
 	}
@@ -467,9 +481,9 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	}
 
 	// remove all from disk
-	span, _ := tracer.StartSpanFromContext(ctx, "remove_all")
+	span, _ := telemetry.StartSpanFromContext(ctx, "remove_all")
 	err = os.RemoveAll(i.packagesDir)
-	defer span.Finish(tracer.WithError(err))
+	defer span.Finish(err)
 	if err != nil {
 		log.Warnf("could not delete packages dir: %v", err)
 	}
@@ -615,6 +629,17 @@ func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error
 	}
 }
 
+func (i *installerImpl) preparePackage(ctx context.Context, pkg string, _ []string) error {
+	switch pkg {
+	case packageDatadogInstaller:
+		return packages.PrepareInstaller(ctx)
+	case packageDatadogAgent:
+		return packages.PrepareAgent(ctx)
+	default:
+		return nil
+	}
+}
+
 func (i *installerImpl) setupPackage(ctx context.Context, pkg string, args []string) error {
 	switch pkg {
 	case packageDatadogInstaller:
@@ -646,11 +671,11 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 		return nil
 	}
 
-	span, _ := tracer.StartSpanFromContext(ctx, "configure_package")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "configure_package")
+	defer func() { span.Finish(err) }()
 
 	switch pkg {
-	case packageDatadogAgent, packageAPMInjector:
+	case packageDatadogAgent, packageAPMInjector, packageAPMLibraries:
 		config, err := i.cdn.Get(ctx, pkg)
 		if err != nil {
 			return fmt.Errorf("could not get %s CDN config: %w", pkg, err)
