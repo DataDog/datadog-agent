@@ -58,7 +58,7 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 	}
 
 	// No target node specified: store in danglingConfigs
-	if targetNodeName == "" || true {
+	if targetNodeName == "" {
 		// Only update if it's a new dangling config
 		if _, found := d.store.danglingConfigs[digest]; !found {
 			danglingConfigs.Inc(le.JoinLeaderValue)
