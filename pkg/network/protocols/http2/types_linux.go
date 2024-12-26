@@ -85,13 +85,6 @@ type HTTP2Telemetry struct {
 	Exceeding_max_frames_to_filter   uint64
 	Path_size_bucket                 [8]uint64
 }
-type HTTP2IncompleteFrameEntry struct {
-	Type      uint8
-	Remainder uint32
-	Length    uint32
-	Buf       [9]byte
-	Pad_cgo_0 [3]byte
-}
 
 type StaticTableEnumValue = uint8
 
@@ -123,4 +116,10 @@ type FrameType = struct {
 type IncompleteFramePayload = struct {
 	Header FrameType
 	Left   uint32
+}
+type HTTP2IncompleteFrameEntry struct {
+	Header    IncompleteFrameHeader
+	Pad_cgo_0 [6]byte
+	Type      uint8
+	Pad_cgo_1 [3]byte
 }
