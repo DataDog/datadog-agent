@@ -161,8 +161,6 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) {
 	d.lastRetryError = err
 }
 
-// TODO try with us-5 to make sure it fails
-//
 //nolint:revive // TODO(AML) Fix revive linter
 func CheckConnectivityDiagnose(endpoint config.Endpoint) (url string, err error) {
 	const operationTimeout = 5 * time.Second

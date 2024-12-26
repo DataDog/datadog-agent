@@ -38,6 +38,14 @@ func getLogsEndpoints(useTCP bool) (*logsConfig.Endpoints, error) {
 	return logsConfig.BuildHTTPEndpointsWithConfig(datadogConfig, logsConfigKey, "agent-http-intake.logs.", "logs", logsConfig.AgentJSONIntakeProtocol, logsConfig.DefaultIntakeOrigin)
 }
 
+// getLogsUseTCP returns true if the agent should use TCP to transport logs
+func getLogsUseTCP() bool {
+	datadogConfig := pkgconfigsetup.Datadog()
+	useTCP := datadogConfig.GetBool("logs_config.force_use_tcp") && !datadogConfig.GetBool("logs_config.force_use_http")
+
+	return useTCP
+}
+
 // Diagnose performs connectivity diagnosis
 func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
@@ -60,9 +68,8 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	client := forwarder.NewHTTPClient(pkgconfigsetup.Datadog())
 
 	// Create diagnosis for logs
-	datadogConfig := pkgconfigsetup.Datadog()
-	if datadogConfig.GetBool("logs_enabled") {
-		useTCP := datadogConfig.GetBool("logs_config.force_use_tcp") && !datadogConfig.GetBool("logs_config.force_use_http")
+	if pkgconfigsetup.Datadog().GetBool("logs_enabled") {
+		useTCP := getLogsUseTCP()
 		endpoints, err := getLogsEndpoints(useTCP)
 
 		if err != nil {
