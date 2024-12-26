@@ -29,6 +29,7 @@ var envVariablesByStoreKey = map[StoreKey]string{
 	GCPPrivateKeyPath:            "E2E_GCP_PRIVATE_KEY_PATH",
 	GCPPublicKeyPath:             "E2E_GCP_PUBLIC_KEY_PATH",
 	GCPPrivateKeyPassword:        "E2E_GCP_PRIVATE_KEY_PASSWORD",
+	LocalPublicKeyPath:           "E2E_LOCAL_PUBLIC_KEY_PATH",
 	PulumiPassword:               "E2E_PULUMI_PASSWORD",
 	SkipDeleteOnFailure:          "E2E_SKIP_DELETE_ON_FAILURE",
 	StackParameters:              "E2E_STACK_PARAMS",
