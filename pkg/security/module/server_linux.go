@@ -267,3 +267,15 @@ func (a *APIServer) RunSelfTest(_ context.Context, _ *api.RunSelfTestParams) (*a
 		Error: "",
 	}, nil
 }
+
+func (a *APIServer) collectOSReleaseData() {
+	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		return
+	}
+
+	kv := p.GetKernelVersion()
+
+	a.kernelVersion = kv.Code.String()
+	a.distribution = fmt.Sprintf("%s - %s", kv.OsRelease["ID"], kv.OsRelease["VERSION_ID"])
+}

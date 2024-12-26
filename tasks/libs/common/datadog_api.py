@@ -16,8 +16,12 @@ def create_metric(metric_type, metric_name, timestamp, value, tags, unit=None, m
     unit = unit or unset
     metadata = unset
 
-    if metric_origin:
-        metadata = MetricMetadata(origin=MetricOrigin(**metric_origin))
+    origin_metadata = metric_origin or {
+        "origin_product": 10,  # Agent
+        "origin_sub_product": 54,  # Agent CI
+        "origin_product_detail": 64,  # Gitlab
+    }
+    metadata = MetricMetadata(origin=MetricOrigin(**origin_metadata))
 
     return MetricSeries(
         metric=metric_name,

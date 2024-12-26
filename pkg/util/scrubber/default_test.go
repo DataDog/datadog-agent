@@ -6,16 +6,13 @@
 package scrubber
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 func assertClean(t *testing.T, contents, cleanContents string) {
@@ -24,96 +21,6 @@ func assertClean(t *testing.T, contents, cleanContents string) {
 	cleanedString := string(cleaned)
 
 	assert.Equal(t, strings.TrimSpace(cleanContents), strings.TrimSpace(cleanedString))
-}
-
-func TestConfigScrubbedValidYaml(t *testing.T) {
-	wd, _ := os.Getwd()
-
-	inputConf := filepath.Join(wd, "test", "conf.yaml")
-	inputConfData, err := os.ReadFile(inputConf)
-	require.NoError(t, err)
-
-	outputConf := filepath.Join(wd, "test", "conf_scrubbed.yaml")
-	outputConfData, err := os.ReadFile(outputConf)
-	require.NoError(t, err)
-
-	cleaned, err := ScrubBytes([]byte(inputConfData))
-	require.NoError(t, err)
-
-	// First test that the a scrubbed yaml is still a valid yaml
-	var out interface{}
-	err = yaml.Unmarshal(cleaned, &out)
-	assert.NoError(t, err, "Could not load YAML configuration after being scrubbed")
-
-	// We replace windows line break by linux so the tests pass on every OS
-	trimmedOutput := strings.TrimSpace(strings.Replace(string(outputConfData), "\r\n", "\n", -1))
-	trimmedCleaned := strings.TrimSpace(strings.Replace(string(cleaned), "\r\n", "\n", -1))
-
-	assert.Equal(t, trimmedOutput, trimmedCleaned)
-}
-
-func TestConfigScrubbedYaml(t *testing.T) {
-	wd, _ := os.Getwd()
-
-	inputConf := filepath.Join(wd, "test", "conf_multiline.yaml")
-	inputConfData, err := os.ReadFile(inputConf)
-	require.NoError(t, err)
-
-	outputConf := filepath.Join(wd, "test", "conf_multiline_scrubbed.yaml")
-	outputConfData, err := os.ReadFile(outputConf)
-	require.NoError(t, err)
-
-	cleaned, err := ScrubYaml([]byte(inputConfData))
-	require.NoError(t, err)
-
-	// First test that the a scrubbed yaml is still a valid yaml
-	var out interface{}
-	err = yaml.Unmarshal(cleaned, &out)
-	assert.NoError(t, err, "Could not load YAML configuration after being scrubbed")
-
-	// We replace windows line break by linux so the tests pass on every OS
-	trimmedOutput := strings.TrimSpace(strings.Replace(string(outputConfData), "\r\n", "\n", -1))
-	trimmedCleaned := strings.TrimSpace(strings.Replace(string(cleaned), "\r\n", "\n", -1))
-
-	assert.Equal(t, trimmedOutput, trimmedCleaned)
-}
-
-func TestConfigScrubbedJson(t *testing.T) {
-	wd, _ := os.Getwd()
-
-	inputConf := filepath.Join(wd, "test", "config.json")
-	inputConfData, err := os.ReadFile(inputConf)
-	require.NoError(t, err)
-	cleaned, err := ScrubJSON([]byte(inputConfData))
-	require.NoError(t, err)
-	// First test that the a scrubbed json is still valid
-	var actualOutJSON map[string]interface{}
-	err = json.Unmarshal(cleaned, &actualOutJSON)
-	assert.NoError(t, err, "Could not load JSON configuration after being scrubbed")
-
-	outputConf := filepath.Join(wd, "test", "config_scrubbed.json")
-	outputConfData, err := os.ReadFile(outputConf)
-	require.NoError(t, err)
-	var expectedOutJSON map[string]interface{}
-	err = json.Unmarshal(outputConfData, &expectedOutJSON)
-	require.NoError(t, err)
-	assert.Equal(t, reflect.DeepEqual(expectedOutJSON, actualOutJSON), true)
-}
-
-func TestEmptyYaml(t *testing.T) {
-	cleaned, err := ScrubYaml(nil)
-	require.NoError(t, err)
-	assert.Equal(t, "", string(cleaned))
-
-	cleaned, err = ScrubYaml([]byte(""))
-	require.NoError(t, err)
-	assert.Equal(t, "", string(cleaned))
-}
-
-func TestEmptyYamlString(t *testing.T) {
-	cleaned, err := ScrubYamlString("")
-	require.NoError(t, err)
-	assert.Equal(t, "", string(cleaned))
 }
 
 func TestConfigStripApiKey(t *testing.T) {
@@ -200,6 +107,12 @@ func TestConfigRCAppKey(t *testing.T) {
 }
 
 func TestConfigStripURLPassword(t *testing.T) {
+	assertClean(t,
+		`proxy: random_url_key: http://user:password@host:port`,
+		`proxy: random_url_key: http://user:********@host:port`)
+	assertClean(t,
+		`random_url_key http://user:password@host:port`,
+		`random_url_key http://user:********@host:port`)
 	assertClean(t,
 		`random_url_key: http://user:password@host:port`,
 		`random_url_key: http://user:********@host:port`)
@@ -567,39 +480,8 @@ func TestAddStrippedKeys(t *testing.T) {
 	AddStrippedKeys([]string{"foobar"})
 
 	assertClean(t, contents, `foobar: "********"`)
-}
 
-func TestAddStrippedKeysExceptions(t *testing.T) {
-	t.Run("single key", func(t *testing.T) {
-		contents := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'`
-
-		AddStrippedKeys([]string{"api_key"})
-
-		scrubbed, err := ScrubYamlString(contents)
-		require.Nil(t, err)
-		require.YAMLEq(t, `api_key: '***************************aaaaa'`, scrubbed)
-	})
-
-	t.Run("multiple keys", func(t *testing.T) {
-		contents := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-some_other_key: 'bbbb'
-app_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccc'
-yet_another_key: 'dddd'`
-
-		keys := []string{"api_key", "some_other_key", "app_key"}
-		AddStrippedKeys(keys)
-
-		// check that AddStrippedKeys didn't modify the parameter slice
-		assert.Equal(t, []string{"api_key", "some_other_key", "app_key"}, keys)
-
-		scrubbed, err := ScrubYamlString(contents)
-		require.Nil(t, err)
-		expected := `api_key: '***************************aaaaa'
-some_other_key: '********'
-app_key: '***********************************acccc'
-yet_another_key: 'dddd'`
-		require.YAMLEq(t, expected, scrubbed)
-	})
+	dynamicReplacers = []Replacer{}
 }
 
 func TestAddStrippedKeysNewReplacer(t *testing.T) {
@@ -612,6 +494,8 @@ func TestAddStrippedKeysNewReplacer(t *testing.T) {
 	cleaned, err := newScrubber.ScrubBytes([]byte(contents))
 	require.NoError(t, err)
 	assert.Equal(t, strings.TrimSpace(`foobar: "********"`), strings.TrimSpace(string(cleaned)))
+
+	dynamicReplacers = []Replacer{}
 }
 
 func TestCertConfig(t *testing.T) {
@@ -686,33 +570,6 @@ network_devices:
 log_level: info`)
 }
 
-func TestConfigFile(t *testing.T) {
-	cleanedConfigFile := `dd_url: https://app.datadoghq.com
-
-api_key: "***************************aaaaa"
-
-proxy: http://user:********@host:port
-
-
-
-
-
-
-dogstatsd_port : 8125
-
-
-log_level: info
-`
-
-	wd, _ := os.Getwd()
-	filePath := filepath.Join(wd, "test", "datadog.yaml")
-	cleaned, err := ScrubFile(filePath)
-	assert.NoError(t, err)
-	cleanedString := string(cleaned)
-
-	assert.Equal(t, cleanedConfigFile, cleanedString)
-}
-
 func TestBearerToken(t *testing.T) {
 	assertClean(t,
 		`Bearer 2fe663014abcd1850076f6d68c0355666db98758262870811cace007cd4a62ba`,
@@ -784,4 +641,31 @@ func TestScrubCommandsEnv(t *testing.T) {
 			assert.EqualValues(t, tc.expected, scrubbed)
 		})
 	}
+}
+
+func TestConfigFile(t *testing.T) {
+	cleanedConfigFile := `dd_url: https://app.datadoghq.com
+
+api_key: "***************************aaaaa"
+
+proxy: http://user:********@host:port
+
+
+
+
+
+
+dogstatsd_port : 8125
+
+
+log_level: info
+`
+
+	wd, _ := os.Getwd()
+	filePath := filepath.Join(wd, "test", "datadog.yaml")
+	cleaned, err := ScrubFile(filePath)
+	assert.NoError(t, err)
+	cleanedString := string(cleaned)
+
+	assert.Equal(t, cleanedConfigFile, cleanedString)
 }

@@ -101,12 +101,6 @@ type Config struct {
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
 
-	// EnableRuntimeCompiledConstants defines if the runtime compilation based constant fetcher is enabled
-	RuntimeCompiledConstantsEnabled bool
-
-	// RuntimeCompiledConstantsIsSet is set if the runtime compiled constants option is user-set
-	RuntimeCompiledConstantsIsSet bool
-
 	// NetworkLazyInterfacePrefixes is the list of interfaces prefix that aren't explicitly deleted by the container
 	// runtime, and that are lazily deleted by the kernel when a network namespace is cleaned up. This list helps the
 	// agent detect when a network namespace should be purged from all caches.
@@ -190,9 +184,7 @@ func NewConfig() (*Config, error) {
 		EventServerBurst: pkgconfigsetup.SystemProbe().GetInt(join(evNS, "event_server.burst")),
 
 		// runtime compilation
-		RuntimeCompilationEnabled:       getBool("runtime_compilation.enabled"),
-		RuntimeCompiledConstantsEnabled: getBool("runtime_compilation.compiled_constants_enabled"),
-		RuntimeCompiledConstantsIsSet:   isSet("runtime_compilation.compiled_constants_enabled"),
+		RuntimeCompilationEnabled: getBool("runtime_compilation.enabled"),
 	}
 
 	if err := c.sanitize(); err != nil {
@@ -223,10 +215,6 @@ func (c *Config) sanitize() error {
 	// not enable at the system-probe level, disable for cws as well
 	if !c.Config.EnableRuntimeCompiler {
 		c.RuntimeCompilationEnabled = false
-	}
-
-	if !c.RuntimeCompilationEnabled {
-		c.RuntimeCompiledConstantsEnabled = false
 	}
 
 	if c.EventStreamBufferSize%os.Getpagesize() != 0 || c.EventStreamBufferSize&(c.EventStreamBufferSize-1) != 0 {

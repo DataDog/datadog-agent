@@ -11,14 +11,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"slices"
 	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
-	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -381,10 +379,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
 	}
 
-	options.RLimit = &unix.Rlimit{
-		Cur: math.MaxUint64,
-		Max: math.MaxUint64,
-	}
+	options.RemoveRlimit = true
 
 	options.MapSpecEditors = map[string]manager.MapSpecEditor{
 		connectionStatesMap: {

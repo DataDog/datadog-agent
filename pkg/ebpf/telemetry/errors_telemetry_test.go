@@ -8,11 +8,8 @@
 package telemetry
 
 import (
-	"math"
 	"os"
 	"testing"
-
-	"golang.org/x/sys/unix"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -75,10 +72,7 @@ func triggerTestAndGetTelemetry(t *testing.T) []prometheus.Metric {
 	collector := NewEBPFErrorsCollector()
 
 	options := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
+		RemoveRlimit: true,
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{

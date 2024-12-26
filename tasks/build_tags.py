@@ -17,7 +17,6 @@ from tasks.flavor import AgentFlavor
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
 ALL_TAGS = {
-    "apm",
     "clusterchecks",
     "consul",
     "containerd",
@@ -40,7 +39,6 @@ ALL_TAGS = {
     "otlp",
     "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
-    "process",
     "python",
     "sds",
     "serverless",
@@ -58,7 +56,6 @@ ALL_TAGS = {
 
 # AGENT_TAGS lists the tags needed when building the agent.
 AGENT_TAGS = {
-    "apm",
     "consul",
     "containerd",
     "cri",
@@ -76,7 +73,6 @@ AGENT_TAGS = {
     "orchestrator",
     "otlp",
     "podman",
-    "process",
     "python",
     "systemd",
     "trivy",
@@ -159,7 +155,17 @@ SECURITY_AGENT_TAGS = {
 SERVERLESS_TAGS = {"serverless", "otlp"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"linux_bpf", "npm", "pcap"}).difference({"python", "systemd"})
+SYSTEM_PROBE_TAGS = {
+    "datadog.no_waf",
+    "ec2",
+    "linux_bpf",
+    "netcgo",
+    "npm",
+    "pcap",
+    "trivy",
+    "zlib",
+    "zstd",
+}
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
 TRACE_AGENT_TAGS = {"docker", "containerd", "datadog.no_waf", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman"}
