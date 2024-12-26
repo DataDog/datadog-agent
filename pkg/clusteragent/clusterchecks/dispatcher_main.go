@@ -208,9 +208,8 @@ func (d *dispatcher) reset() {
 	d.store.reset()
 }
 
-// scanExtendedDanglingConfigs scans the store for extended dangling configs
-// The attemptLimit is the number of times a reschedule is attempted before
-// considering a config as extended dangling.
+// scanUnscheduledChecks scans the store for configs that have been
+// unscheduled for longer than the unscheduledCheckThresholdSeconds
 func (d *dispatcher) scanUnscheduledChecks() {
 	d.store.Lock()
 	defer d.store.Unlock()
