@@ -62,7 +62,7 @@ func newJobQueue(ctx context.Context) *jobQueue {
 				Limiter: rate.NewLimiter(rate.Limit(payloadProcessQPS), payloadProcessRateBurst),
 			},
 		)),
-		store:     loadstore.NewEntityStore(ctx),
+		store:     loadstore.GetWorkloadMetricStore(ctx),
 		isStarted: false,
 	}
 	go q.start(ctx)
@@ -113,6 +113,9 @@ func (jq *jobQueue) reportTelemetry(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-infoTicker.C:
+				if jq.store == nil {
+					continue
+				}
 				info := jq.store.GetStoreInfo()
 				statsResults := info.StatsResults
 				for _, statsResult := range statsResults {
