@@ -26,7 +26,7 @@ func NewLeaderMetric() telemetry.Gauge {
 		"leader_election",
 		"is_leader",
 		[]string{JoinLeaderLabel, isLeaderLabel}, // join_leader is for label joins
-		"The label is_leader is true if the reporting pod is leader, equals false otherwise.",
+		"When the pod is leader, is_leader is true, and its value becomes 1. Otherwise, is_leader is false, and the value is 0.",
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 }
