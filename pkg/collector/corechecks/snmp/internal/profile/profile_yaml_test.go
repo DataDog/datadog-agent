@@ -93,16 +93,16 @@ func Test_loadYamlProfiles_withUserProfiles(t *testing.T) {
 	p3 := defaultProfiles["p3"].Definition // user p3
 	p4 := defaultProfiles["p4"].Definition // user p3
 
-	assert.Equal(t, "p1_user", p1.Device.Vendor) // overrides datadog p1 profile
+	assert.Equal(t, "p1_user", p1.GetVendor()) // overrides datadog p1 profile
 	assert.NotNil(t, getMetricFromProfile(p1, "user_p1_metric"))
 
-	assert.Equal(t, "p2_datadog", p2.Device.Vendor)
+	assert.Equal(t, "p2_datadog", p2.GetVendor())
 	assert.NotNil(t, getMetricFromProfile(p2, "default_p2_metric"))
 
-	assert.Equal(t, "p3_user", p3.Device.Vendor)
+	assert.Equal(t, "p3_user", p3.GetVendor())
 	assert.NotNil(t, getMetricFromProfile(p3, "user_p3_metric"))
 
-	assert.Equal(t, "p4_user", p4.Device.Vendor)
+	assert.Equal(t, "p4_user", p4.GetVendor())
 	assert.NotNil(t, getMetricFromProfile(p4, "user_p4_metric"))
 	assert.NotNil(t, getMetricFromProfile(p4, "default_p4_metric"))
 }

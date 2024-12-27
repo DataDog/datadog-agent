@@ -108,10 +108,12 @@ func TestUpdatableProvider(t *testing.T) {
 				Extends:      []string{"_base"},
 				Metrics:      makeMetrics("2.2.1.0", "2.1.1.0"),
 				MetricTags:   makeTags("2.2.2.0"),
-				Device:       profiledefinition.DeviceMeta{Vendor: "Crisco Systems"},
 				Metadata: profiledefinition.MetadataConfig{
 					"device": profiledefinition.MetadataResourceConfig{
 						Fields: map[string]profiledefinition.MetadataField{
+							"vendor": {
+								Value: "Crisco Systems",
+							},
 							"os_name": {
 								Value: "someOS",
 							},
@@ -132,13 +134,15 @@ func TestUpdatableProvider(t *testing.T) {
 				Name:         "some_device",
 				SysObjectIDs: []string{"9.9.9.*"},
 				Extends:      []string{"_base"},
-				Device:       profiledefinition.DeviceMeta{Vendor: "ACME Exploding Routers Inc."},
 				Metrics:      makeMetrics("1.2.1.0", "2.1.1.0"),
 				MetricTags:   makeTags("1.2.2.0"),
 
 				Metadata: profiledefinition.MetadataConfig{
 					"device": profiledefinition.MetadataResourceConfig{
 						Fields: map[string]profiledefinition.MetadataField{
+							"vendor": {
+								Value: "ACME Exploding Routers Inc.",
+							},
 							"os_name": {
 								Value: "someOS",
 							},
@@ -174,9 +178,16 @@ func TestUpdatableProvider(t *testing.T) {
 				Extends:      []string{"_base"},
 				Metrics:      makeMetrics("2.2.1.0", "4.0", "1.1.1.0"),
 				MetricTags:   makeTags("2.2.2.0", "1.1.2.0"),
-				Device:       profiledefinition.DeviceMeta{Vendor: "Crisco Systems"},
-				Metadata:     profiledefinition.MetadataConfig{},
-				Version:      1,
+				Metadata: profiledefinition.MetadataConfig{
+					"device": profiledefinition.MetadataResourceConfig{
+						Fields: map[string]profiledefinition.MetadataField{
+							"vendor": {
+								Value: "Crisco Systems",
+							},
+						},
+					},
+				},
+				Version: 1,
 			},
 			IsUserProfile: true,
 		}

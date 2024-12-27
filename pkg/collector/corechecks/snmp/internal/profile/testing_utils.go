@@ -72,7 +72,6 @@ func FixtureProfileDefinitionMap() ProfileConfigMap {
 				Name:         "f5-big-ip",
 				Metrics:      metrics,
 				Extends:      []string{"_base.yaml", "_generic-if.yaml"},
-				Device:       profiledefinition.DeviceMeta{Vendor: "f5"},
 				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 				StaticTags:   []string{"static_tag:from_profile_root", "static_tag:from_base_profile"},
 				MetricTags: []profiledefinition.MetricTagConfig{
