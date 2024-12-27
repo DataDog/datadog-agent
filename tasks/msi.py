@@ -44,6 +44,7 @@ DATADOG_AGENT_MSI_ALLOW_LIST = [
     "APPLICATIONDATADIRECTORY",
     "EXAMPLECONFSLOCATION",
     "checks.d",
+    "protected",
     "run",
     "logs",
     "ProgramMenuDatadog",
