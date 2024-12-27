@@ -706,7 +706,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
             f'backport/{release_branch}',
             BACKPORT_LABEL_COLOR,
             f'Automatically create a backport PR to {release_branch}',
-            ignore_existing=True,
+            exist_ok=True,
         )
 
         # Step 2 - Create PRs with new settings in datadog-agent repository
@@ -1216,8 +1216,7 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
     next.devel = False
 
     print(f"Creating the {next} milestone...")
-
-    gh.create_milestone(str(next), ignore_existing=True)
+    gh.create_milestone(str(next), exist_ok=True)
 
     with agent_context(ctx, get_default_branch(major=major_version)):
         milestone_branch = f"release_milestone-{int(time.time())}"

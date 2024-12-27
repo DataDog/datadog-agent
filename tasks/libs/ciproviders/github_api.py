@@ -519,28 +519,26 @@ class GithubAPI:
         auth_token = integration.get_access_token(install_id)
         print(auth_token.token)
 
-    def create_label(self, name, color, description="", ignore_existing=False):
+    def create_label(self, name, color, description="", exist_ok=False):
         """
         Creates a label in the given GitHub repository.
         """
-        import github
 
         try:
             return self._repository.create_label(name, color, description)
-        except github.GithubException as e:
-            if not (e.status == 422 and ignore_existing):
+        except GithubException as e:
+            if not (e.status == 422 and e.data["errors"][0]["code"] == "already_exists" and exist_ok):
                 raise e
 
-    def create_milestone(self, title, ignore_existing=False):
+    def create_milestone(self, title, exist_ok=False):
         """
         Creates a milestone in the given GitHub repository.
         """
-        import github
 
         try:
             return self._repository.create_milestone(title)
-        except github.GithubException as e:
-            if not (e.status == 422 and ignore_existing):
+        except GithubException as e:
+            if not (e.status == 422 and e.data["errors"][0]["code"] == "already_exists" and exist_ok):
                 raise e
 
     def create_release(self, tag, message, draft=True):
