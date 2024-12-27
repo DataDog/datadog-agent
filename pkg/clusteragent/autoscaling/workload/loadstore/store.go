@@ -8,11 +8,28 @@
 package loadstore
 
 import (
+	"context"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
+
+var (
+	// WorkloadMetricStore is the store for workload metrics
+	WorkloadMetricStore Store
+	// WorkloadMetricStoreOnce is used to init the store once
+	WorkloadMetricStoreOnce sync.Once
+)
+
+// GetWorkloadMetricStore returns the workload metric store, init once
+func GetWorkloadMetricStore(ctx context.Context) Store {
+	WorkloadMetricStoreOnce.Do(func() {
+		WorkloadMetricStore = NewEntityStore(ctx)
+	})
+	return WorkloadMetricStore
+}
 
 // StoreInfo represents the store information which aggregates the entities to lowest level, i.e., container level
 type StoreInfo struct {
