@@ -157,8 +157,14 @@ func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner 
 		pulumi.All(dockerCudaValidateCmd.Stdout, dockerCudaValidateCmd.Stderr).ApplyT(func(outputs []string) error {
 			stdout := outputs[0]
 			stderr := outputs[1]
-			ctx.Log.Info(fmt.Sprintf("Docker CUDA validation stdout: %s", stdout), nil)
-			ctx.Log.Info(fmt.Sprintf("Docker CUDA validation stderr: %s", stderr), nil)
+			err := ctx.Log.Info(fmt.Sprintf("Docker CUDA validation stdout: %s", stdout), nil)
+			if err != nil {
+				return err
+			}
+			err = ctx.Log.Info(fmt.Sprintf("Docker CUDA validation stderr: %s", stderr), nil)
+			if err != nil {
+				return err
+			}
 			return nil
 		})
 
