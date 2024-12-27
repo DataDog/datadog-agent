@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
@@ -206,7 +205,7 @@ func generateAndDownloadFlare(t *testing.T, commandRunner *agentCommandRunner, h
 	if err != nil {
 		return fmt.Errorf("could not get test session output directory: %w", err)
 	}
-	outputDir, err := e2e.CreateTestOutputDir(root, t)
+	outputDir, err := common.CreateTestOutputDir(root, t)
 	if err != nil {
 		return fmt.Errorf("could not get output directory: %w", err)
 	}

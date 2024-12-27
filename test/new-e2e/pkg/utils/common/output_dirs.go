@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"testing"
 	"time"
 )
 
@@ -55,4 +57,23 @@ func CreateTestSessionOutputDir(outputRoot string) (string, error) {
 		}
 	}
 	return outputRoot, nil
+}
+
+// CreateTestOutputDir creates a local directory for a specific test that can be used to store output files and artifacts.
+// The test name is used in the directory name, and invalid characters are replaced with underscores.
+//
+// Example:
+//   - test name: TestInstallSuite/TestInstall/install_version=7.50.0
+//   - output directory: <root>/TestInstallSuite/TestInstall/install_version_7_50_0
+func CreateTestOutputDir(root string, t *testing.T) (string, error) {
+	// https://en.wikipedia.org/wiki/Filename#Reserved_characters_and_words
+	invalidPathChars := strings.Join([]string{"?", "%", "*", ":", "|", "\"", "<", ">", ".", ",", ";", "="}, "")
+
+	testPart := strings.ReplaceAll(t.Name(), invalidPathChars, "_")
+	path := filepath.Join(root, testPart)
+	err := os.MkdirAll(path, 0755)
+	if err != nil {
+		return "", err
+	}
+	return path, nil
 }

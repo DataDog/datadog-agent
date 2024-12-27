@@ -632,7 +632,7 @@ func (bs *BaseSuite[Env]) CreateTestOutputDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return CreateTestOutputDir(root, bs.T())
+	return common.CreateTestOutputDir(root, bs.T())
 }
 
 // Run is a helper function to run a test suite.
