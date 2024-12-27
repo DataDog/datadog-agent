@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -21,9 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-// CopyProfileDefinition copies a profile, it's used for testing
-func CopyProfileDefinition(profileDef profiledefinition.ProfileDefinition) profiledefinition.ProfileDefinition {
-	return *profileDef.Clone()
+// pathExists returns true if the given path exists
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return !os.IsNotExist(err)
 }
 
 // SetConfdPathAndCleanProfiles is used for testing only
