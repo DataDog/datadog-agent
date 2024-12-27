@@ -67,7 +67,8 @@ func getProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (*P
 					continue
 				}
 				if profiles[prevMatchedProfile.Definition.Name].IsUserProfile == profConfig.IsUserProfile {
-					return nil, fmt.Errorf("profile %q has the same sysObjectID (%s) as %q", profileName, oidPattern, prevMatchedProfile)
+					return nil, fmt.Errorf("profile %q has the same sysObjectID (%s) as %q", profileName, oidPattern,
+						prevMatchedProfile.Definition.Name)
 				}
 			}
 			tmpSysOidToProfile[oidPattern] = &profConfig
