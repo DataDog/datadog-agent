@@ -162,8 +162,6 @@ agents:
 			return err
 		}
 		dependsOnDDAgent = utils.PulumiDependsOn(agent)
-	} else {
-		env.Agent = nil
 	}
 
 	if params.deployOperator {
@@ -238,13 +236,7 @@ agents:
 	}
 
 	if params.deployOperator && params.operatorDDAOptions != nil {
-		ddaOptions := make([]agentwithoperatorparams.Option, 0)
-		ddaOptions = append(
-			ddaOptions,
-			params.operatorDDAOptions...,
-		)
-
-		ddaWithOperatorComp, err := agent.NewDDAWithOperator(&awsEnv, awsEnv.CommonNamer().ResourceName("kind-with-operator"), kubeProvider, ddaOptions...)
+		ddaWithOperatorComp, err := agent.NewDDAWithOperator(&awsEnv, awsEnv.CommonNamer().ResourceName("kind-with-operator"), kubeProvider, params.operatorDDAOptions...)
 		if err != nil {
 			return err
 		}
@@ -253,7 +245,9 @@ agents:
 			return err
 		}
 
-	} else {
+	}
+
+	if params.agentOptions == nil || (params.operatorDDAOptions == nil) {
 		env.Agent = nil
 	}
 
