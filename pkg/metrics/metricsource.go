@@ -307,6 +307,8 @@ const (
 	MetricSourceAppgateSDP
 	MetricSourceAnyscale
 	MetricSourceMilvus
+	MetricSourceNvidiaNim
+	MetricSourceQuarkus
 )
 
 // String returns a string representation of MetricSource
@@ -714,6 +716,8 @@ func (ms MetricSource) String() string {
 		return "karpenter"
 	case MetricSourceNvidiaTriton:
 		return "nvidia_triton"
+	case MetricSourceNvidiaNim:
+		return "nvidia_nim"
 	case MetricSourceRay:
 		return "ray"
 	case MetricSourceStrimzi:
@@ -876,6 +880,8 @@ func (ms MetricSource) String() string {
 		return "aws_neuron"
 	case MetricSourceMilvus:
 		return "milvus"
+	case MetricSourceQuarkus:
+		return "quarkus"
 	default:
 		return "<unknown>"
 	}
@@ -1248,6 +1254,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceKarpenter
 	case "nvidia_triton":
 		return MetricSourceNvidiaTriton
+	case "nvidia_nim":
+		return MetricSourceNvidiaNim
 	case "ray":
 		return MetricSourceRay
 	case "strimzi":
@@ -1416,6 +1424,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceTibcoEMS
 	case "milvus":
 		return MetricSourceMilvus
+	case "quarkus":
+		return MetricSourceQuarkus
 	default:
 		return MetricSourceUnknown
 	}

@@ -1,6 +1,7 @@
 #ifndef __TRACER_BIND_H
 #define __TRACER_BIND_H
 
+#include "pid_tgid.h"
 #include "tracer/tracer.h"
 #include "tracer/maps.h"
 #include "tracer/port.h"
@@ -19,7 +20,7 @@ static __always_inline u16 sockaddr_sin_port(struct sockaddr *addr) {
 }
 
 static __always_inline int sys_enter_bind(struct socket *sock, struct sockaddr *addr) {
-    __u64 tid = bpf_get_current_pid_tgid();
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
 
     __u16 type = 0;
     bpf_probe_read_kernel_with_telemetry(&type, sizeof(__u16), &sock->type);
@@ -28,7 +29,7 @@ static __always_inline int sys_enter_bind(struct socket *sock, struct sockaddr *
     }
 
     if (addr == NULL) {
-        log_debug("sys_enter_bind: could not read sockaddr, sock=%p, tid=%llu", sock, tid);
+        log_debug("sys_enter_bind: could not read sockaddr, sock=%p, pid_tgid=%llu", sock, pid_tgid);
         return 0;
     }
 
@@ -49,19 +50,19 @@ static __always_inline int sys_enter_bind(struct socket *sock, struct sockaddr *
 
     args.addr = addr;
 
-    bpf_map_update_with_telemetry(pending_bind, &tid, &args, BPF_ANY);
-    log_debug("sys_enter_bind: started a bind on UDP sock=%p tid=%llu", sock, tid);
+    bpf_map_update_with_telemetry(pending_bind, &pid_tgid, &args, BPF_ANY);
+    log_debug("sys_enter_bind: started a bind on UDP sock=%p pid_tgid=%llu", sock, pid_tgid);
 
     return 0;
 }
 
 static __always_inline int sys_exit_bind(__s64 ret) {
-    __u64 tid = bpf_get_current_pid_tgid();
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // bail if this bind() is not the one we're instrumenting
-    bind_syscall_args_t *args = bpf_map_lookup_elem(&pending_bind, &tid);
+    bind_syscall_args_t *args = bpf_map_lookup_elem(&pending_bind, &pid_tgid);
 
-    log_debug("sys_exit_bind: tid=%llu, ret=%lld", tid, ret);
+    log_debug("sys_exit_bind: pid_tgid=%llu, ret=%lld", pid_tgid, ret);
 
     if (args == NULL) {
         log_debug("sys_exit_bind: was not a UDP bind, will not process");
@@ -70,7 +71,7 @@ static __always_inline int sys_exit_bind(__s64 ret) {
 
     struct sock * sk = args->sk;
     struct sockaddr *addr = args->addr;
-    bpf_map_delete_elem(&pending_bind, &tid);
+    bpf_map_delete_elem(&pending_bind, &pid_tgid);
 
     if (ret != 0) {
         return 0;

@@ -27,6 +27,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
@@ -421,7 +422,7 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 		// | none                   | empty           || empty                               |
 		// | empty                  | not empty       || container prefix + originFromMsg    |
 		// | none                   | not empty       || container prefix + originFromMsg    |
-		if t.datadogConfig.dogstatsdOptOutEnabled && originInfo.Cardinality == "none" {
+		if t.datadogConfig.dogstatsdOptOutEnabled && originInfo.Cardinality == types.NoneCardinalityString {
 			originInfo.ContainerIDFromSocket = packets.NoOrigin
 			originInfo.PodUID = ""
 			originInfo.ContainerID = ""
@@ -459,8 +460,7 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 		}
 	default:
 		// Disable origin detection if cardinality is none
-		// TODO: The `none` cardinality should be directly supported by the Tagger.
-		if originInfo.Cardinality == "none" {
+		if originInfo.Cardinality == types.NoneCardinalityString {
 			originInfo.ContainerIDFromSocket = packets.NoOrigin
 			originInfo.PodUID = ""
 			originInfo.ContainerID = ""
@@ -538,7 +538,12 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 	}
 }
 
-// generateContainerIDFromExternalData generates a container ID from the external data
+// GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
+func (t *TaggerWrapper) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
+	return t.defaultTagger.GenerateContainerIDFromOriginInfo(originInfo)
+}
+
+// generateContainerIDFromExternalData generates a container ID from the External Data.
 func (t *TaggerWrapper) generateContainerIDFromExternalData(e externalData, metricsProvider provider.ContainerIDForPodUIDAndContNameRetriever) (string, error) {
 	return metricsProvider.ContainerIDForPodUIDAndContName(e.podUID, e.containerName, e.init, time.Second)
 }
