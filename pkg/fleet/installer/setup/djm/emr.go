@@ -115,7 +115,7 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 
 	setHostTag(s, "instance_group_id", info.InstanceGroupID)
 	setHostTag(s, "is_master_node", strconv.FormatBool(info.IsMaster))
-	s.Span.SetTag("host_tag."+"is_master_node", info.IsMaster)
+	s.Span.SetTag("host."+"is_master_node", info.IsMaster)
 
 	extraInstanceInfoRaw, err := os.ReadFile(filepath.Join(emrInfoPath, "extraInstanceData.json"))
 	if err != nil {
