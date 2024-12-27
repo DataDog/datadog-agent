@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
-	"github.com/cihub/seelog"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
 	"github.com/oliveagle/jsonpath"
@@ -44,6 +43,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -57,7 +57,7 @@ import (
 )
 
 var (
-	logger seelog.LoggerInterface
+	logger log.LoggerInterface
 )
 
 const (
@@ -999,7 +999,7 @@ func (tm *testModule) Close() {
 var logInitilialized bool
 
 func initLogger() error {
-	logLevel, found := seelog.LogLevelFromString(logLevelStr)
+	logLevel, found := log.LogLevelFromString(logLevelStr)
 	if !found {
 		return fmt.Errorf("invalid log level '%s'", logLevel)
 	}
@@ -1014,20 +1014,20 @@ func initLogger() error {
 	return nil
 }
 
-func swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
+func swapLogLevel(logLevel log.LogLevel) (log.LogLevel, error) {
 	if logger == nil {
 		logFormat := "[%Date(2006-01-02 15:04:05.000)] [%LEVEL] %Func:%Line %Msg\n"
 
 		var err error
 
-		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
+		logger, err = log.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
 		if err != nil {
 			return 0, err
 		}
 	}
 	log.SetupLogger(logger, logLevel.String())
 
-	prevLevel, _ := seelog.LogLevelFromString(logLevelStr)
+	prevLevel, _ := log.LogLevelFromString(logLevelStr)
 	logLevelStr = logLevel.String()
 	return prevLevel, nil
 }
@@ -1125,7 +1125,7 @@ func checkNetworkCompatibility(tb testing.TB) {
 	})
 }
 
-func (tm *testModule) StopActivityDump(name, containerID string) error {
+func (tm *testModule) StopActivityDump(name string) error {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
 		return errors.New("not supported")
@@ -1136,8 +1136,7 @@ func (tm *testModule) StopActivityDump(name, containerID string) error {
 		return errors.New("no manager")
 	}
 	params := &api.ActivityDumpStopParams{
-		Name:        name,
-		ContainerID: containerID,
+		Name: name,
 	}
 	_, err := managers.StopActivityDump(params)
 	if err != nil {
@@ -1148,7 +1147,8 @@ func (tm *testModule) StopActivityDump(name, containerID string) error {
 
 type activityDumpIdentifier struct {
 	Name        string
-	ContainerID string
+	ContainerID containerutils.ContainerID
+	CGroupID    containerutils.CGroupID
 	Timeout     string
 	OutputFiles []string
 }
@@ -1183,7 +1183,8 @@ func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
 
 		dumps = append(dumps, &activityDumpIdentifier{
 			Name:        dump.Metadata.Name,
-			ContainerID: dump.Metadata.ContainerID,
+			ContainerID: containerutils.ContainerID(dump.Metadata.ContainerID),
+			CGroupID:    containerutils.CGroupID(dump.Metadata.CGroupID),
 			Timeout:     dump.Metadata.Timeout,
 			OutputFiles: files,
 		})
@@ -1253,6 +1254,7 @@ func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
 	}
 
 	time.Sleep(1 * time.Second) // a quick sleep to ensure the dump has started
+
 	return docker, nil
 }
 
@@ -1261,7 +1263,7 @@ func (tm *testModule) GetDumpFromDocker(dockerInstance *dockerCmdWrapper) (*acti
 	if err != nil {
 		return nil, err
 	}
-	dump := findLearningContainerID(dumps, dockerInstance.containerID)
+	dump := findLearningContainerID(dumps, containerutils.ContainerID(dockerInstance.containerID))
 	if dump == nil {
 		return nil, errors.New("ContainerID not found on activity dump list")
 	}
@@ -1282,7 +1284,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 }
 
 //nolint:deadcode,unused
-func findLearningContainerID(dumps []*activityDumpIdentifier, containerID string) *activityDumpIdentifier {
+func findLearningContainerID(dumps []*activityDumpIdentifier, containerID containerutils.ContainerID) *activityDumpIdentifier {
 	for _, dump := range dumps {
 		if dump.ContainerID == containerID {
 			return dump
@@ -1539,7 +1541,7 @@ func (tm *testModule) StopAllActivityDumps() error {
 		return nil
 	}
 	for _, dump := range dumps {
-		_ = tm.StopActivityDump(dump.Name, "")
+		_ = tm.StopActivityDump(dump.Name)
 	}
 	dumps, err = tm.ListActivityDumps()
 	if err != nil {

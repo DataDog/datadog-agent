@@ -17,7 +17,6 @@ from tasks.flavor import AgentFlavor
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
 ALL_TAGS = {
-    "apm",
     "clusterchecks",
     "consul",
     "containerd",
@@ -28,7 +27,6 @@ ALL_TAGS = {
     "ec2",
     "etcd",
     "fargateprocess",
-    "gce",
     "jmx",
     "jetson",
     "kubeapiserver",
@@ -41,9 +39,7 @@ ALL_TAGS = {
     "otlp",
     "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
-    "process",
     "python",
-    "remotewmonly",  # used when you want to use only the remote workloadmeta store without importing all dependencies of local collectors
     "sds",
     "serverless",
     "systemd",
@@ -60,7 +56,6 @@ ALL_TAGS = {
 
 # AGENT_TAGS lists the tags needed when building the agent.
 AGENT_TAGS = {
-    "apm",
     "consul",
     "containerd",
     "cri",
@@ -69,7 +64,6 @@ AGENT_TAGS = {
     "docker",
     "ec2",
     "etcd",
-    "gce",
     "jetson",
     "jmx",
     "kubeapiserver",
@@ -79,7 +73,6 @@ AGENT_TAGS = {
     "orchestrator",
     "otlp",
     "podman",
-    "process",
     "python",
     "systemd",
     "trivy",
@@ -110,7 +103,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
 FIPS_AGENT_TAGS = AGENT_TAGS.union({"goexperiment.systemcrypto"})
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
-CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2", "gce"}
+CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2"}
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
 CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks"}
@@ -122,7 +115,7 @@ DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"}
 IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib", "zstd"}
 
 # INSTALLER_TAGS lists the tags needed when building the installer
-INSTALLER_TAGS = {"docker", "ec2", "gce", "kubelet"}
+INSTALLER_TAGS = {"docker", "ec2", "kubelet"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess"}).difference({"otlp", "python", "trivy"})
@@ -162,7 +155,17 @@ SECURITY_AGENT_TAGS = {
 SERVERLESS_TAGS = {"serverless", "otlp"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"linux_bpf", "npm", "pcap", "remotewmonly"}).difference({"python", "systemd"})
+SYSTEM_PROBE_TAGS = {
+    "datadog.no_waf",
+    "ec2",
+    "linux_bpf",
+    "netcgo",
+    "npm",
+    "pcap",
+    "trivy",
+    "zlib",
+    "zstd",
+}
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
 TRACE_AGENT_TAGS = {"docker", "containerd", "datadog.no_waf", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman"}

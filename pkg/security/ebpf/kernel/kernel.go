@@ -103,6 +103,8 @@ var (
 	Kernel6_5 = kernel.VersionCode(6, 5, 0)
 	// Kernel6_6 is the KernelVersion representation of kernel version 6.6
 	Kernel6_6 = kernel.VersionCode(6, 6, 0)
+	// Kernel6_7 is the KernelVersion representation of kernel version 6.7
+	Kernel6_7 = kernel.VersionCode(6, 7, 0)
 	// Kernel6_10 is the KernelVersion representation of kernel version 6.10
 	Kernel6_10 = kernel.VersionCode(6, 10, 0)
 	// Kernel6_11 is the KernelVersion representation of kernel version 6.11
@@ -249,6 +251,11 @@ func (k *Version) IsRH9Kernel() bool {
 // IsRH9_3Kernel returns whether the kernel is a rh9.3 kernel
 func (k *Version) IsRH9_3Kernel() bool {
 	return k.IsRH9Kernel() && strings.HasPrefix(k.OsRelease["VERSION_ID"], "9.3")
+}
+
+// IsRH9_4Kernel returns whether the kernel is a rh9.3 kernel
+func (k *Version) IsRH9_4Kernel() bool {
+	return k.IsRH9Kernel() && strings.HasPrefix(k.OsRelease["VERSION_ID"], "9.4")
 }
 
 // IsSuseKernel returns whether the kernel is a suse kernel

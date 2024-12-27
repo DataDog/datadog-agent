@@ -128,6 +128,8 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 			svc.service.CPUCores = service.CPUCores
 			svc.service.ContainerID = service.ContainerID
 			svc.service.GeneratedName = service.GeneratedName
+			svc.service.ContainerServiceName = service.ContainerServiceName
+			svc.service.ContainerServiceNameSource = service.ContainerServiceNameSource
 			svc.service.Name = service.Name
 			svc.meta.Name = service.Name
 			events.heartbeat = append(events.heartbeat, *svc)
@@ -167,6 +169,8 @@ func (li *linuxImpl) handlePotentialServices(events *serviceEvents, now time.Tim
 			svc.service.CPUCores = service.CPUCores
 			svc.service.ContainerID = service.ContainerID
 			svc.service.GeneratedName = service.GeneratedName
+			svc.service.ContainerServiceName = service.ContainerServiceName
+			svc.service.ContainerServiceNameSource = service.ContainerServiceNameSource
 			svc.service.Name = service.Name
 			svc.meta.Name = service.Name
 
