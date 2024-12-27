@@ -41,7 +41,7 @@ func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error)
 	const name = "ad-containerlistener"
 	l := &ContainerListener{}
 	filter := workloadmeta.NewFilterBuilder().
-		SetSource(workloadmeta.SourceRuntime).
+		SetSource(workloadmeta.SourceAll).
 		AddKind(workloadmeta.KindContainer).Build()
 
 	wmetaInstance, ok := options.Wmeta.Get()
