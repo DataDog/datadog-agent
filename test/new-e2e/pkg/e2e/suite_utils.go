@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-
 	"testing"
 )
 
@@ -41,18 +39,14 @@ func (tl testLogger) Write(p []byte) (n int, err error) {
 // See runner.GetProfile().GetOutputDir() for the root output directory selection logic.
 //
 // See CreateTestOutputDir and BaseSuite.CreateTestOutputDir for a function that returns a subdirectory for a specific test.
-func CreateTestSessionOutputDir() (string, error) {
-	outputRoot, err := runner.GetProfile().GetOutputDir()
-	if err != nil {
-		return "", err
-	}
+func CreateTestSessionOutputDir(outputRoot string) (string, error) {
 	// Append timestamp to distinguish between multiple runs
 	// Format: YYYY-MM-DD_HH-MM-SS
 	// Use a custom timestamp format because Windows paths can't contain ':' characters
 	// and we don't need the timezone information.
 	timePart := time.Now().Format("2006-01-02_15-04-05")
 	// create root directory
-	err = os.MkdirAll(outputRoot, 0755)
+	err := os.MkdirAll(outputRoot, 0755)
 	if err != nil {
 		return "", err
 	}

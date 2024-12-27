@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
@@ -197,9 +198,13 @@ func waitForReadyTimeout(t *testing.T, host *Host, commandRunner *agentCommandRu
 }
 
 func generateAndDownloadFlare(t *testing.T, commandRunner *agentCommandRunner, host *Host) error {
-	root, err := e2e.CreateTestSessionOutputDir()
+	outputRoot, err := runner.GetProfile().GetOutputDir()
 	if err != nil {
 		return fmt.Errorf("could not get root output directory: %w", err)
+	}
+	root, err := e2e.CreateTestSessionOutputDir(outputRoot)
+	if err != nil {
+		return fmt.Errorf("could not get test session output directory: %w", err)
 	}
 	outputDir, err := e2e.CreateTestOutputDir(root, t)
 	if err != nil {

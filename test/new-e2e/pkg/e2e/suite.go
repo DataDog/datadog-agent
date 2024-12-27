@@ -613,8 +613,13 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 func (bs *BaseSuite[Env]) GetRootOutputDir() (string, error) {
 	var err error
 	bs.onceTestSessionOutputDir.Do(func() {
+		var outputRoot string
+		outputRoot, err = runner.GetProfile().GetOutputDir()
+		if err != nil {
+			return
+		}
 		// Store the timestamped directory to be used by all tests in the suite
-		bs.testSessionOutputDir, err = CreateTestSessionOutputDir()
+		bs.testSessionOutputDir, err = CreateTestSessionOutputDir(outputRoot)
 	})
 	return bs.testSessionOutputDir, err
 }
