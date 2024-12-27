@@ -527,7 +527,9 @@ class GithubAPI:
         try:
             return self._repository.create_label(name, color, description)
         except GithubException as e:
-            if not (e.status == 422 and e.data["errors"][0]["code"] == "already_exists" and exist_ok):
+            if not (
+                e.status == 422 and "already_exists" in (errors["code"] for errors in e.data["errors"]) and exist_ok
+            ):
                 raise e
 
     def create_milestone(self, title, exist_ok=False):
@@ -538,7 +540,9 @@ class GithubAPI:
         try:
             return self._repository.create_milestone(title)
         except GithubException as e:
-            if not (e.status == 422 and e.data["errors"][0]["code"] == "already_exists" and exist_ok):
+            if not (
+                e.status == 422 and "already_exists" in (errors["code"] for errors in e.data["errors"]) and exist_ok
+            ):
                 raise e
 
     def create_release(self, tag, message, draft=True):
