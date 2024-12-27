@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package cmd implements a cobra command for validating and normalizing profiles.
 package cmd
 
 import (
@@ -55,6 +56,7 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+// GetProfile parses a profile from a file path and validates it.
 func GetProfile(filePath string) (*profiledefinition.ProfileDefinition, []string) {
 	buf, err := os.ReadFile(filePath)
 	if err != nil {
@@ -72,6 +74,7 @@ func GetProfile(filePath string) (*profiledefinition.ProfileDefinition, []string
 	return def, nil
 }
 
+// WriteProfile writes a profile to disk.
 func WriteProfile(def *profiledefinition.ProfileDefinition, name string, outdir string, useJSON bool) error {
 	if outdir == "" {
 		return nil
@@ -108,6 +111,7 @@ func WriteProfile(def *profiledefinition.ProfileDefinition, name string, outdir 
 	return nil
 }
 
+// Execute runs the command.
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
