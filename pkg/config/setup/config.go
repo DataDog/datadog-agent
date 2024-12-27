@@ -348,6 +348,18 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
 	config.BindEnvAndSetDefault("secret_refresh_interval", 0)
 	config.SetDefault("secret_audit_file_max_size", 0)
+	config.SetKnown("secrets_vault_auth_path")
+	config.SetKnown("secrets_sa_token_path")
+	config.SetKnown("secrets_vault_role")
+	config.SetKnown("secrets_vault_address")
+	config.SetKnown("secrets_lookup_path")
+	config.SetKnown("secrets_values_key")
+	config.SetKnown("secrets_timeout")
+
+	// Infrastucture
+	config.SetKnown("partition")
+	config.SetKnown("datacenter")
+	config.SetKnown("cloudprovider")
 
 	// IPC API server timeout
 	config.BindEnvAndSetDefault("server_timeout", 30)
@@ -547,6 +559,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resource_annotations_exclude", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.cluster_tagger.grpc_max_message_size", 4<<20) // 4 MB
+
+	// Defines the entity ID to be used to identify the container. This is typically set by the cluster agent,
+	// however, this value can be manually overridden to "none" to disable the cluster agent entity ID injection.
+	config.SetKnown("entity_id")
 
 	// Metadata endpoints
 
@@ -824,6 +840,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
+	config.SetKnown("orchestrator_explorer.run_on_node_agent")
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
