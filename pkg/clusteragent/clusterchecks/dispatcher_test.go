@@ -10,6 +10,7 @@ package clusterchecks
 import (
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -402,6 +403,9 @@ func TestDispatchFourConfigsTwoNodes(t *testing.T) {
 }
 
 func TestDanglingConfig(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("cluster_checks.unscheduled_check_threshold", 1)
+	mockConfig.SetWithoutSource("cluster_checks.node_expiration_timeout", 1)
 	fakeTagger := mock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 	config := integration.Config{
@@ -418,6 +422,13 @@ func TestDanglingConfig(t *testing.T) {
 
 	// shouldDispatchDangling is still false because no node is available
 	assert.False(t, dispatcher.shouldDispatchDangling())
+
+	// force config to dangle long enough to be classified as unscheduled check
+	assert.False(t, dispatcher.store.danglingConfigs[config.Digest()].unscheduledCheck)
+	require.Eventually(t, func() bool {
+		dispatcher.scanUnscheduledChecks()
+		return dispatcher.store.danglingConfigs[config.Digest()].unscheduledCheck
+	}, 2*time.Second, 250*time.Millisecond)
 
 	// register a node, shouldDispatchDangling will become true
 	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
