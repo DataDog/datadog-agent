@@ -57,6 +57,7 @@ func (p *ProfileDefinition) SplitOIDs(includeMetadata bool) ([]string, []string)
 	return splitOIDs(p.Metrics, p.MetricTags, nil)
 }
 
+// Clone duplicates this ProfileDefinition
 func (p *ProfileDefinition) Clone() *ProfileDefinition {
 	if p == nil {
 		return nil
