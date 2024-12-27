@@ -202,7 +202,7 @@ func generateAndDownloadFlare(t *testing.T, commandRunner *agentCommandRunner, h
 	if err != nil {
 		return fmt.Errorf("could not get root output directory: %w", err)
 	}
-	root, err := e2e.CreateTestSessionOutputDir(outputRoot)
+	root, err := common.CreateTestSessionOutputDir(outputRoot)
 	if err != nil {
 		return fmt.Errorf("could not get test session output directory: %w", err)
 	}

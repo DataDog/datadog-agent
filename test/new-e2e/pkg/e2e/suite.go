@@ -619,7 +619,7 @@ func (bs *BaseSuite[Env]) GetRootOutputDir() (string, error) {
 			return
 		}
 		// Store the timestamped directory to be used by all tests in the suite
-		bs.testSessionOutputDir, err = CreateTestSessionOutputDir(outputRoot)
+		bs.testSessionOutputDir, err = common.CreateTestSessionOutputDir(outputRoot)
 	})
 	return bs.testSessionOutputDir, err
 }
