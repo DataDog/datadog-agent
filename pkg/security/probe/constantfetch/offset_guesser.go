@@ -10,12 +10,10 @@ package constantfetch
 
 import (
 	"errors"
-	"math"
 	"os"
 	"os/exec"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -160,11 +158,11 @@ func (og *OffsetGuesser) guess(id string) error {
 }
 
 // AppendSizeofRequest appends a sizeof request
-func (og *OffsetGuesser) AppendSizeofRequest(_, _, _ string) {
+func (og *OffsetGuesser) AppendSizeofRequest(_, _ string) {
 }
 
 // AppendOffsetofRequest appends an offset request
-func (og *OffsetGuesser) AppendOffsetofRequest(id, _, _, _ string) {
+func (og *OffsetGuesser) AppendOffsetofRequest(id, _ string, _ ...string) {
 	og.res[id] = ErrorSentinel
 }
 
@@ -186,10 +184,7 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 				Value: uint64(utils.Getpid()),
 			},
 		},
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
+		RemoveRlimit: true,
 	}
 
 	for _, probe := range probes.AllProbes(true) {

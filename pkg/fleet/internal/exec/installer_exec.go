@@ -40,7 +40,7 @@ func NewInstallerExec(env *env.Env, installerBinPath string) *InstallerExec {
 
 type installerCmd struct {
 	*exec.Cmd
-	span telemetry.Span
+	span *telemetry.Span
 	ctx  context.Context
 }
 

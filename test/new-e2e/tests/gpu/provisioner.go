@@ -11,24 +11,26 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
+
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/command"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/components/remote"
+	componentsremote "github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 )
 
 // gpuEnabledAMI is an AMI that has GPU drivers pre-installed. In this case it's
 // an Ubuntu 22.04 with NVIDIA drivers
-const gpuEnabledAMI = "ami-0f71e237bb2ba34be"
+const gpuEnabledAMI = "ami-03ee78da2beb5b622"
 
 // gpuInstanceType is the instance type to use. By default we use g4dn.xlarge,
 // which is the cheapest GPU instance type
@@ -89,8 +91,8 @@ func getDefaultProvisionerParams() *provisionerParams {
 	}
 }
 
-func gpuInstanceProvisioner(params *provisionerParams) e2e.Provisioner {
-	return e2e.NewTypedPulumiProvisioner[environments.Host]("gpu", func(ctx *pulumi.Context, env *environments.Host) error {
+func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner {
+	return provisioners.NewTypedPulumiProvisioner[environments.Host]("gpu", func(ctx *pulumi.Context, env *environments.Host) error {
 		name := "gpuvm"
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -147,15 +149,29 @@ func gpuInstanceProvisioner(params *provisionerParams) e2e.Provisioner {
 
 		// Validate that Docker can run CUDA samples
 		dockerCudaDeps := append(dockerPullCmds, validateGPUDevicesCmd...)
-		err = validateDockerCuda(awsEnv, host, dockerCudaDeps...)
+		dockerCudaValidateCmd, err := validateDockerCuda(awsEnv, host, dockerCudaDeps...)
 		if err != nil {
-			return err
+			return fmt.Errorf("validateDockerCuda failed: %w", err)
 		}
+		// incident-33572: log the output of the CUDA validation command
+		pulumi.All(dockerCudaValidateCmd.Stdout, dockerCudaValidateCmd.Stderr).ApplyT(func(outputs []string) error {
+			stdout := outputs[0]
+			stderr := outputs[1]
+			err := ctx.Log.Info(fmt.Sprintf("Docker CUDA validation stdout: %s", stdout), nil)
+			if err != nil {
+				return err
+			}
+			err = ctx.Log.Info(fmt.Sprintf("Docker CUDA validation stderr: %s", stderr), nil)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
 
 		// Combine agent options from the parameters with the fakeintake and docker dependencies
 		params.agentOptions = append(params.agentOptions,
 			agentparams.WithFakeintake(fakeIntake),
-			agentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(dockerManager)), // Depend on Docker to avoid apt lock issues
+			agentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(dockerManager, dockerCudaValidateCmd)), // Depend on Docker to avoid apt lock issues
 		)
 
 		// Set updater to nil as we're not using it
@@ -164,12 +180,12 @@ func gpuInstanceProvisioner(params *provisionerParams) e2e.Provisioner {
 		// Install the agent
 		agent, err := agent.NewHostAgent(&awsEnv, host, params.agentOptions...)
 		if err != nil {
-			return err
+			return fmt.Errorf("NewHostAgent failed: %w", err)
 		}
 
 		err = agent.Export(ctx, &env.Agent.HostAgentOutput)
 		if err != nil {
-			return err
+			return fmt.Errorf("agent export failed: %w", err)
 		}
 
 		return nil
@@ -177,7 +193,7 @@ func gpuInstanceProvisioner(params *provisionerParams) e2e.Provisioner {
 }
 
 // validateGPUDevices checks that there are GPU devices present and accesible
-func validateGPUDevices(e aws.Environment, vm *remote.Host) ([]pulumi.Resource, error) {
+func validateGPUDevices(e aws.Environment, vm *componentsremote.Host) ([]pulumi.Resource, error) {
 	commands := map[string]string{
 		"pci":    fmt.Sprintf("lspci -d %s:: | grep NVIDIA", nvidiaPCIVendorID),
 		"driver": "lsmod | grep nvidia",
@@ -203,7 +219,7 @@ func validateGPUDevices(e aws.Environment, vm *remote.Host) ([]pulumi.Resource, 
 	return cmds, nil
 }
 
-func downloadDockerImages(e aws.Environment, vm *remote.Host, images []string, dependsOn ...pulumi.Resource) ([]pulumi.Resource, error) {
+func downloadDockerImages(e aws.Environment, vm *componentsremote.Host, images []string, dependsOn ...pulumi.Resource) ([]pulumi.Resource, error) {
 	var cmds []pulumi.Resource
 
 	for i, image := range images {
@@ -224,14 +240,12 @@ func downloadDockerImages(e aws.Environment, vm *remote.Host, images []string, d
 	return cmds, nil
 }
 
-func validateDockerCuda(e aws.Environment, vm *remote.Host, dependsOn ...pulumi.Resource) error {
-	_, err := vm.OS.Runner().Command(
+func validateDockerCuda(e aws.Environment, vm *componentsremote.Host, dependsOn ...pulumi.Resource) (*remote.Command, error) {
+	return vm.OS.Runner().Command(
 		e.CommonNamer().ResourceName("docker-cuda-validate"),
 		&command.Args{
 			Create: pulumi.Sprintf("%s && docker run --gpus all --rm %s bash -c \"%s\"", validationCommandMarker, cudaSanityCheckImage, nvidiaSMIValidationCmd),
 		},
 		utils.PulumiDependsOn(dependsOn...),
 	)
-
-	return err
 }
