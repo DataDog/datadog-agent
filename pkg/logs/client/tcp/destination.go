@@ -161,7 +161,7 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) {
 	d.lastRetryError = err
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// CheckConnectivityDiagnose is a diagnosis for TCP connections
 func CheckConnectivityDiagnose(endpoint config.Endpoint) (url string, err error) {
 	const operationTimeout = 5 * time.Second
 	connManager := NewConnectionManager(endpoint, statusinterface.NewNoopStatusProvider())

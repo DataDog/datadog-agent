@@ -6,6 +6,9 @@
 package tcp
 
 import (
+	"context"
+	"net"
+	"strconv"
 	"testing"
 	"time"
 
@@ -32,7 +35,8 @@ func TestDestinationHA(t *testing.T) {
 	}
 }
 
-// TestConnecitivityDiagnoseNoBlock ensures the connectivity diagnose doesn't block
+// TestConnecitivityDiagnoseNoBlock ensures the connectivity diagnose doesn't
+// block
 func TestConnecitivityDiagnoseNoBlock(t *testing.T) {
 	endpoint := config.NewEndpoint("00000000", "host", 0, true)
 	done := make(chan struct{})
@@ -47,4 +51,63 @@ func TestConnecitivityDiagnoseNoBlock(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Error("TCP diagnosis check blocked for too long.")
 	}
+}
+
+func StartTestTCPServer(t *testing.T) (string, func()) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				if _, ok := err.(net.Error); ok {
+					continue
+				}
+				break // Exit the loop if the listener is closed
+			}
+
+			defer conn.Close()
+		}
+	}()
+
+	// Return the server address and a cleanup function
+	return listener.Addr().String(), func() {
+		_ = listener.Close()
+	}
+}
+
+// TestConnectivityDiagnoseFails ensures the connectivity diagnosis operates
+// correctly
+func TestConnectivityDiagnoseOperation(t *testing.T) {
+	// Start the test TCP server
+	serverAddr, cleanup := StartTestTCPServer(t)
+	defer cleanup()
+
+	// Simulate a client connecting to the server
+	conn, err := net.Dial("tcp", serverAddr)
+	if err != nil {
+		t.Fatalf("Failed to connect to test TCP server: %v", err)
+	}
+	defer conn.Close()
+
+	testFailEndpoint := config.NewEndpoint("api-key", "failhost", 1234, true)
+	connManager := NewConnectionManager(testFailEndpoint, statusinterface.NewNoopStatusProvider())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err = connManager.NewConnection(ctx)
+	assert.NotNil(t, err)
+
+	host, port, err := net.SplitHostPort(serverAddr)
+	assert.Nil(t, err)
+	portInt, err := strconv.Atoi(port)
+	assert.Nil(t, err)
+	testSuccessEndpoint := config.NewEndpoint("api-key", host, portInt, false)
+	connManager = NewConnectionManager(testSuccessEndpoint, statusinterface.NewNoopStatusProvider())
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err = connManager.NewConnection(ctx)
+	assert.Nil(t, err)
 }
