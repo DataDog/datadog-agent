@@ -31,7 +31,7 @@ func (tl testLogger) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// CreateRootOutputDir creates and returns a directory for tests to store output files and artifacts.
+// CreateTestSessionOutputDir creates and returns a directory for tests to store output files and artifacts.
 // A timestamp is included in the path to distinguish between multiple runs, and os.MkdirTemp() is
 // used to avoid name collisions between parallel runs.
 //
@@ -41,7 +41,7 @@ func (tl testLogger) Write(p []byte) (n int, err error) {
 // See runner.GetProfile().GetOutputDir() for the root output directory selection logic.
 //
 // See CreateTestOutputDir and BaseSuite.CreateTestOutputDir for a function that returns a subdirectory for a specific test.
-func CreateRootOutputDir() (string, error) {
+func CreateTestSessionOutputDir() (string, error) {
 	outputRoot, err := runner.GetProfile().GetOutputDir()
 	if err != nil {
 		return "", err
