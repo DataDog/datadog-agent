@@ -18,6 +18,8 @@ retract (
 // Internal deps fix version
 replace (
 	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
+	// add a "containerd_no_plugins" tag to remove the "plugin" import, which makes binaries bigger
+	github.com/containerd/containerd => github.com/pgimalac/containerd v1.7.24-0.20241227111440-c29d9741a30e
 	github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
 	github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 	github.com/ugorji/go => github.com/ugorji/go v1.1.7
