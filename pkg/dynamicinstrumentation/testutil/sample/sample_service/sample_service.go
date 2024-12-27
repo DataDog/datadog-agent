@@ -44,6 +44,7 @@ func main() {
 		sample.ExecuteStructFuncs()
 		sample.ExecuteStackAndInlining()
 		sample.ExecutePointerFuncs()
+		sample.ExecuteComplexFuncs()
 
 		// unsupported for MVP, should not cause crashes
 		sample.ExecuteGenericFuncs()

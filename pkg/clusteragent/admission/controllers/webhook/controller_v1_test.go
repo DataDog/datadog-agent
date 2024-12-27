@@ -1190,7 +1190,7 @@ func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerF
 		factory.Admissionregistration().V1().ValidatingWebhookConfigurations(),
 		factory.Admissionregistration().V1().MutatingWebhookConfigurations(),
 		func() bool { return true },
-		make(chan struct{}),
+		make(<-chan struct{}),
 		getV1Cfg(f.t),
 		wmeta,
 		nil,

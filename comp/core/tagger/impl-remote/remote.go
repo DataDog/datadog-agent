@@ -36,6 +36,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -44,11 +45,13 @@ import (
 const (
 	noTimeout         = 0 * time.Minute
 	streamRecvTimeout = 10 * time.Minute
+	cacheExpiration   = 1 * time.Minute
 )
 
-var errTaggerStreamNotStarted = errors.New("tagger stream not started")
-
-var errTaggerFailedGenerateContainerIDFromOriginInfo = errors.New("tagger failed to generate container ID from origin info")
+var (
+	errTaggerStreamNotStarted                        = errors.New("tagger stream not started")
+	errTaggerFailedGenerateContainerIDFromOriginInfo = errors.New("tagger failed to generate container ID from origin info")
+)
 
 // Requires defines the dependencies for the remote tagger.
 type Requires struct {
@@ -85,9 +88,6 @@ type remoteTagger struct {
 	streamCtx    context.Context
 	streamCancel context.CancelFunc
 	filter       *types.Filter
-
-	queryCtx    context.Context
-	queryCancel context.CancelFunc
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -269,14 +269,37 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 		}
 	}()
 
+	// Generate cache key
+	initPrefix := ""
+	if originInfo.ExternalData.Init {
+		initPrefix = "i/"
+	}
+	key := cache.BuildAgentKey(
+		"remoteTagger",
+		"cid",
+		initPrefix+originInfo.ExternalData.PodUID+"/"+originInfo.ExternalData.ContainerName,
+	)
+
+	cachedContainerID, err := cache.GetWithExpiration(key, func() (containerID string, err error) {
+		containerID, err = t.queryContainerIDFromOriginInfo(originInfo)
+		return containerID, err
+	}, cacheExpiration)
+
+	if err != nil {
+		return "", err
+	}
+	fail = false
+	return cachedContainerID, nil
+}
+
+// queryContainerIDFromOriginInfo calls the local tagger to get the container ID from the Origin Info.
+func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (containerID string, err error) {
 	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 500 * time.Millisecond
+	expBackoff.InitialInterval = 200 * time.Millisecond
 	expBackoff.MaxInterval = 1 * time.Second
 	expBackoff.MaxElapsedTime = 15 * time.Second
 
-	var containerID string
-
-	err := backoff.Retry(func() error {
+	err = backoff.Retry(func() error {
 		select {
 		case <-t.ctx.Done():
 			return &backoff.PermanentError{Err: errTaggerFailedGenerateContainerIDFromOriginInfo}
@@ -294,14 +317,15 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 		}
 
 		// Create the context with the auth token
-		t.queryCtx, t.queryCancel = context.WithCancel(
+		queryCtx, queryCancel := context.WithCancel(
 			metadata.NewOutgoingContext(t.ctx, metadata.MD{
 				"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
 			}),
 		)
+		defer queryCancel()
 
 		// Call the gRPC method to get the container ID from the origin info
-		containerIDResponse, err := t.client.TaggerGenerateContainerIDFromOriginInfo(t.queryCtx, &pb.GenerateContainerIDFromOriginInfoRequest{
+		containerIDResponse, err := t.client.TaggerGenerateContainerIDFromOriginInfo(queryCtx, &pb.GenerateContainerIDFromOriginInfoRequest{
 			ExternalData: &pb.GenerateContainerIDFromOriginInfoRequest_ExternalData{
 				Init:          &originInfo.ExternalData.Init,
 				ContainerName: &originInfo.ExternalData.ContainerName,
@@ -319,15 +343,11 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 		}
 		containerID = containerIDResponse.ContainerID
 
-		fail = false
 		t.log.Debugf("Container ID generated successfully from origin info %+v: %s", originInfo, containerID)
 		return nil
 	}, expBackoff)
 
-	if err != nil {
-		return "", err
-	}
-	return containerID, nil
+	return containerID, err
 }
 
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.

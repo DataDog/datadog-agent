@@ -566,7 +566,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
-def set_release_json(ctx, key, value, release_branch=None, skip_checkout=False, worktree=True):
+def set_release_json(ctx, key, value, release_branch=None, skip_checkout=False, worktree=False):
     def _main():
         nonlocal key
 
@@ -1029,12 +1029,13 @@ def generate_release_metrics(ctx, milestone, freeze_date, release_date):
     print(code_stats)
 
 
+# TODO rename to freeze_date to cutoff_date
 @task
 def create_schedule(_, version, freeze_date):
     """Create confluence pages for the release schedule.
 
     Args:
-        freeze_date: Date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+        freeze_date: Date when the code cut-off happened. Expected format YYYY-MM-DD, like '2022-02-01'
     """
 
     required_environment_variables = ["ATLASSIAN_USERNAME", "ATLASSIAN_PASSWORD"]
