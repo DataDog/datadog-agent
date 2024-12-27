@@ -188,7 +188,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.62.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/log/mock v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.62.0-rc.1 // indirect
@@ -205,7 +204,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.62.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.62.0-rc.1 // indirect
@@ -254,7 +252,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/json v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.62.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.0-rc.1 // indirect
