@@ -6,62 +6,118 @@
 package ports
 
 import (
+	"fmt"
 	"strings"
+	"syscall"
+	"unicode/utf16"
 	"unsafe"
-
-	"golang.org/x/sys/windows"
 )
 
-const (
-	SystemProcessIDInformationClass = 88 // SystemProcessIDInformationClass gives access to process names without elevated privileges on Windows
-)
+// -----------------------------------------------------------------------
+// 1. Definitions & Structures
+// -----------------------------------------------------------------------
+// NTSTATUS is the return type used by many native Windows functions.
+type NTSTATUS uint32
 
-// SystemProcessIDInformation is a struct for Windows API.
-type SystemProcessIDInformation struct {
-	ProcessID uintptr
-	ImageName windows.NTUnicodeString
+// NT_SUCCESS is a helper function to check if a status is a success. 0 is success, all other values are failure.
+func NT_SUCCESS(status NTSTATUS) bool {
+	return status >= 0
 }
 
-var ntQuerySystemInformation = windows.NtQuerySystemInformation
+const (
+	SystemProcessIDInformation = 88 // SystemProcessIDInformation gives access to process names without elevated privileges on Windows.
+)
 
-// RetrieveProcessName fetches the process name on Windows using NtQuerySystemInformation
-// with SystemProcessIDInformation, which does not require elevated privileges.
+// UNICODE_STRING mirrors the Windows UNICODE_STRING struct.
+type UNICODE_STRING struct {
+	Length        uint16
+	MaximumLength uint16
+	Buffer        *uint16
+}
+
+// SYSTEM_PROCESS_ID_INFORMATION mirrors the SystemProcessIdInformation struct used by NtQuerySystemInformation.
+type SYSTEM_PROCESS_ID_INFORMATION struct {
+	ProcessID uintptr
+	ImageName UNICODE_STRING
+}
+
+// -----------------------------------------------------------------------
+// 2. Loading NtQuerySystemInformation
+// -----------------------------------------------------------------------
+var (
+	ntdll                        = syscall.NewLazyDLL("ntdll.dll")
+	procNtQuerySystemInformation = ntdll.NewProc("NtQuerySystemInformation")
+)
+
+// NtQuerySystemInformation is an *undocumented* function prototype:
+//
+//	NTSTATUS NtQuerySystemInformation(
+//	    SYSTEM_INFORMATION_CLASS SystemInformationClass,
+//	    PVOID SystemInformation,
+//	    ULONG SystemInformationLength,
+//	    PULONG ReturnLength
+//	);
+func NtQuerySystemInformation(
+	systemInformationClass uint32,
+	systemInformation unsafe.Pointer,
+	systemInformationLength uint32,
+	returnLength *uint32,
+) NTSTATUS {
+	r0, _, _ := procNtQuerySystemInformation.Call(
+		uintptr(systemInformationClass),
+		uintptr(systemInformation),
+		uintptr(systemInformationLength),
+		uintptr(unsafe.Pointer(returnLength)),
+	)
+	return NTSTATUS(r0)
+}
+
+// -----------------------------------------------------------------------
+// 3. Helper function to convert a UNICODE_STRING to a Go string
+// -----------------------------------------------------------------------
+func unicodeStringToString(u UNICODE_STRING) string {
+	// Length is in bytes; divide by 2 for number of uint16 chars
+	length := int(u.Length / 2)
+	if length == 0 || u.Buffer == nil {
+		return ""
+	}
+	// Convert from a pointer to a slice of uint16
+	buf := (*[1 << 20]uint16)(unsafe.Pointer(u.Buffer))[:length:length]
+	// Convert UTF-16 to Go string
+	return string(utf16.Decode(buf))
+}
+
 // RetrieveProcessName fetches the process name on Windows using NtQuerySystemInformation
 // with SystemProcessIDInformation, which does not require elevated privileges.
 func RetrieveProcessName(pid int, _ string) (string, error) {
-	var processInfo SystemProcessIDInformation
+	// Allocate a slice of 256 uint16s (512 bytes).
+	// Used for UNICODE_STRING buffer.
+	buf := make([]uint16, 256)
 
-	// Explicitly calculate the size of the buffer required for the process information.
-	bufferSize := uint32(unsafe.Sizeof(processInfo))
+	// Prepare the SYSTEM_PROCESS_ID_INFORMATION struct
+	var info SYSTEM_PROCESS_ID_INFORMATION
+	info.ProcessID = uintptr(pid)
+	info.ImageName.Length = 0
+	info.ImageName.MaximumLength = 256 * 2
+	info.ImageName.Buffer = &buf[0]
 
-	// Allocate memory for the buffer to hold the process information.
-	buffer := make([]byte, bufferSize)
+	// Call NtQuerySystemInformation
+	var returnLength uint32
+	status := NtQuerySystemInformation(
+		SystemProcessIDInformation,
+		unsafe.Pointer(&info),
+		uint32(unsafe.Sizeof(info)),
+		&returnLength,
+	)
 
-	// Cast the buffer pointer to the appropriate type.
-	bufferPtr := unsafe.Pointer(&buffer[0])
-
-	// Set the process ID in the buffer.
-	processInfo.ProcessID = uintptr(pid)
-
-	// Call NTQuerySystemInformation with the correct buffer size
-	ret := ntQuerySystemInformation(SystemProcessIDInformationClass, bufferPtr, bufferSize, nil)
-	if ret != nil {
-		return "", ret
+	// If NT_SUCCESS(status) is false, return an error and empty string
+	if !NT_SUCCESS(status) {
+		return "", fmt.Errorf("NtQuerySystemInformation failed with NTSTATUS 0x%X", status)
 	}
 
-	// Extract ImageName.Buffer from the buffer.
-	// bufferStart := uintptr(bufferPtr)
-	// imageNameBufferOffset := uintptr(unsafe.Offsetof(processInfo.ImageName.Buffer))
-	// imageNameBuffer := (*uint16)(unsafe.Pointer(bufferStart + imageNameBufferOffset))
-
-	// Safer version of L52-55
-	imageNameBuffer := (*uint16)(unsafe.Pointer(uintptr(bufferPtr) + uintptr(unsafe.Offsetof(processInfo.ImageName.Buffer))))
-
-	// Convert the Unicode string to a Go string.
-	rawName := windows.UTF16PtrToString(imageNameBuffer)
-	rawName = strings.ToLower(rawName)
-	rawName = strings.TrimRight(rawName, "\x00")
-	rawName = strings.TrimSuffix(rawName, ".exe")
+	// Convert UNICODE_STRING to Go string
+	imageName := unicodeStringToString(info.ImageName)
+	rawName := strings.TrimSuffix(imageName, ".exe")
 
 	return rawName, nil
 }

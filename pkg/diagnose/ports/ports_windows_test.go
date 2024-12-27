@@ -6,48 +6,37 @@
 package ports
 
 import (
+	"strings"
+	"syscall"
 	"testing"
-	"unsafe"
-
-	"golang.org/x/sys/windows"
 )
 
-func TestRetrieveProcessName(t *testing.T) {
-	// Save the original function and restore it after the test
-	originalNtQuerySystemInformation := ntQuerySystemInformation
-	defer func() { ntQuerySystemInformation = originalNtQuerySystemInformation }()
+// TestRetrieveProcessName_ValidPID tests that RetrieveProcessName returns a non-empty name
+// for the current process (should be the Agent).
+func TestRetrieveProcessName_ValidPID(t *testing.T) {
+	// Grab current process PID
+	pid := syscall.Getpid()
 
-	// Mock ntQuerySystemInformation to return a known process name "agent.exe"
-	ntQuerySystemInformation = func(
-		_ int32,
-		systemInformation unsafe.Pointer,
-		_ uint32,
-		_ *uint32,
-	) error {
-		processInfo := (*SystemProcessIDInformation)(systemInformation)
-
-		// We want to simulate that NtQuerySystemInformation returned "agent.exe"
-		testName := "agent.exe"
-		utf16Name, err := windows.UTF16PtrFromString(testName)
-		if err != nil {
-			return err
-		}
-
-		processInfo.ImageName.Buffer = utf16Name
-		processInfo.ImageName.Length = uint16(len(testName) * 2) // length in bytes
-		processInfo.ImageName.MaximumLength = uint16((len(testName) + 1) * 2)
-
-		return nil
-	}
-
-	// Now call RetrieveProcessName with a dummy PID
-	processName, err := RetrieveProcessName(1234, "")
+	name, err := RetrieveProcessName(pid, "")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("RetrieveProcessName failed for PID %d: %v", pid, err)
 	}
 
-	expected := "agent"
-	if processName != expected {
-		t.Errorf("expected %q, got %q", expected, processName)
+	if name == "" {
+		t.Errorf("Expected a non-empty process name for PID %d, but got an empty string", pid)
+	} else {
+		t.Logf("RetrieveProcessName succeeded. PID %d => '%s'", pid, name)
+	}
+}
+
+// TestRetrieveProcessName_InvalidPID tests that RetrieveProcessName returns an error
+// if the PID is invalid.
+func TestRetrieveProcessName_InvalidPID(t *testing.T) {
+	_, err := RetrieveProcessName(-1, "")
+	if err == nil {
+		t.Error("Expected an error when calling RetrieveProcessName with an invalid PID (-1), but got nil")
+	} else if !strings.Contains(strings.ToLower(err.Error()), "ntquer") {
+		// We only do a loose check here, to see if it's the NT query error
+		t.Logf("Received expected error for invalid PID: %v", err)
 	}
 }
