@@ -265,8 +265,8 @@ func Test_mergeProfileDefinition(t *testing.T) {
 	}{
 		{
 			name:             "merge case",
-			baseDefinition:   CopyProfileDefinition(okBaseDefinition),
-			targetDefinition: CopyProfileDefinition(okTargetDefinition),
+			baseDefinition:   *okBaseDefinition.Clone(),
+			targetDefinition: *okTargetDefinition.Clone(),
 			expectedDefinition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
@@ -340,8 +340,8 @@ func Test_mergeProfileDefinition(t *testing.T) {
 		},
 		{
 			name:             "empty base definition",
-			baseDefinition:   CopyProfileDefinition(emptyBaseDefinition),
-			targetDefinition: CopyProfileDefinition(okTargetDefinition),
+			baseDefinition:   *emptyBaseDefinition.Clone(),
+			targetDefinition: *okTargetDefinition.Clone(),
 			expectedDefinition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
@@ -387,8 +387,8 @@ func Test_mergeProfileDefinition(t *testing.T) {
 		},
 		{
 			name:             "empty taget definition",
-			baseDefinition:   CopyProfileDefinition(okBaseDefinition),
-			targetDefinition: CopyProfileDefinition(emptyBaseDefinition),
+			baseDefinition:   *okBaseDefinition.Clone(),
+			targetDefinition: *emptyBaseDefinition.Clone(),
 			expectedDefinition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: profiledefinition.ProfileMetricTypeGauge},

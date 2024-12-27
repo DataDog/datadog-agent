@@ -6,24 +6,19 @@
 package profile
 
 import (
-	"os"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"maps"
 )
 
-// mergeProfiles merges two ProfileConfigMaps
-// we clone the profiles to lower the risk of modifying original profiles
-func mergeProfiles(profilesA ProfileConfigMap, profilesB ProfileConfigMap) ProfileConfigMap {
+// mergeProfiles merges two or more ProfileConfigMaps. Later entries will
+// supersede earlier ones.
+func mergeProfiles(configMaps ...ProfileConfigMap) ProfileConfigMap {
+	// Shallow-copy all entries from each overlay into a new map, then clone the
+	// result. That way we avoid cloning profiles that get overlaid by later
+	// versions.
 	profiles := make(ProfileConfigMap)
-	for k, v := range profilesA {
-		profiles[k] = v.Clone()
+	for _, overlay := range configMaps {
+		maps.Copy(profiles, overlay)
 	}
-	for k, v := range profilesB {
-		profiles[k] = v.Clone()
-	}
-	return profiles
-}
-
-// pathExists returns true if the given path exists
-func pathExists(path string) bool {
-	_, err := os.Stat(path)
-	return !os.IsNotExist(err)
+	return profiledefinition.CloneMap(profiles)
 }
