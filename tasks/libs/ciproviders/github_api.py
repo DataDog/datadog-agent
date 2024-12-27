@@ -528,7 +528,10 @@ class GithubAPI:
             return self._repository.create_label(name, color, description)
         except GithubException as e:
             if not (
-                e.status == 422 and "already_exists" in (errors["code"] for errors in e.data["errors"]) and exist_ok
+                e.status == 422
+                and len(e.data["errors"]) == 1
+                and e.data["errors"][0]["code"] == "already_exists"
+                and exist_ok
             ):
                 raise e
 
@@ -541,7 +544,10 @@ class GithubAPI:
             return self._repository.create_milestone(title)
         except GithubException as e:
             if not (
-                e.status == 422 and "already_exists" in (errors["code"] for errors in e.data["errors"]) and exist_ok
+                e.status == 422
+                and len(e.data["errors"]) == 1
+                and e.data["errors"][0]["code"] == "already_exists"
+                and exist_ok
             ):
                 raise e
 
