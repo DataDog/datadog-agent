@@ -15,8 +15,6 @@ package wlan
 */
 import "C"
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -41,12 +39,4 @@ func SetupLocationAccess() {
 	// Start fetching location updates
 	C.StartLocationUpdates()
 	log.Info("Started Location Updates")
-
-	// TODO: Is this sleep necessary?
-	// Keep the Go program running to allow location updates to be received.
-	time.Sleep(30 * time.Second)
-
-	// Stop fetching location updates
-	C.StopLocationUpdates()
-	log.Info("Stopped Location Updates")
 }
