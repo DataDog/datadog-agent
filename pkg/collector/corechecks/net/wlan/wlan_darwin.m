@@ -20,8 +20,13 @@
     if (self) {
         self.locationManager = [[CLLocationManager alloc] init];
         self.locationManager.delegate = self;
-        // macOS can use this method for requesting authorization
-        [self.locationManager requestWhenInUseAuthorization];
+
+        if (@available(macOS 10.15, *)) {
+            [self.locationManager requestWhenInUseAuthorization];
+        } else {
+            // Fallback code for earlier versions
+            NSLog(@"Location access is not available on macOS versions earlier than 10.15.");
+        }
     }
     return self;
 }
