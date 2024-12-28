@@ -22,14 +22,30 @@ import (
 )
 
 const (
-	encodingGzip    = "gzip"
-	encodingDeflate = "deflate"
+	encodingGzip           = "gzip"
+	encodingDeflate        = "deflate"
+	loadMetricsHandlerName = "load-metrics-handler"
 )
 
 // InstallNodeMetricsEndpoints register handler for node metrics collection
-func InstallNodeMetricsEndpoints(ctx context.Context, r *mux.Router, _ config.Component) {
-	handler := newSeriesHandler(ctx)
-	r.HandleFunc("/series", api.WithTelemetryWrapper("load-metrics-handler", handler.handle)).Methods("POST")
+func InstallNodeMetricsEndpoints(ctx context.Context, r *mux.Router, cfg config.Component) {
+	leaderHander := newSeriesHandler(ctx)
+	handler := api.WithLeaderProxyHandler(
+		loadMetricsHandlerName,
+		func(w http.ResponseWriter, r *http.Request) bool { // preHandler
+			if !cfg.GetBool("autoscaling.failover.enabled") {
+				http.Error(w, "Autoscaling workload failover store is disabled on the cluster agent", http.StatusServiceUnavailable)
+				return false
+			}
+			if r.Body == nil {
+				http.Error(w, "Request body is empty", http.StatusBadRequest)
+				return false
+			}
+			return true
+		},
+		leaderHander.handle,
+	)
+	r.HandleFunc("/series", api.WithTelemetryWrapper(loadMetricsHandlerName, handler)).Methods("POST")
 }
 
 // Handler handles the series request and store the metrics to loadstore
