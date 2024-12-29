@@ -19,7 +19,6 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -321,7 +320,7 @@ func (tm *testModule) RegisterRuleEventHandler(cb onRuleHandler) {
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType model.EventType, ruleIDs ...string) error {
+func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType model.EventType, ruleID string) error {
 	tb.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -329,7 +328,7 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 	message := make(chan ActionMessage, 1)
 
 	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, event *events.CustomEvent) {
-		if event.GetEventType() != eventType || !slices.Contains(ruleIDs, rule.ID) {
+		if event.GetEventType() != eventType || rule.ID != ruleID {
 			return
 		}
 
@@ -351,21 +350,42 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 	})
 	defer tm.RegisterCustomSendEventHandler(nil)
 
-	if action == nil {
-		message <- Continue
-	} else {
-		if err := action(); err != nil {
-			message <- Skip
-			return err
-		}
-		message <- Continue
+	if err := action(); err != nil {
+		message <- Skip
+		return err
 	}
+	message <- Continue
 
 	select {
 	case <-time.After(timeout):
 		return tm.NewTimeoutError()
 	case <-ctx.Done():
 		return nil
+	}
+}
+
+// WaitForPotentialAbnormalPath waits for potential abnormal_path errors. It is use to check before closing the test module
+func (tm *testModule) WaitForPotentialAbnormalPath(timeout time.Duration) bool {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	message := make(chan string, 1)
+
+	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, event *events.CustomEvent) {
+		if rule.ID == events.AbnormalPathRuleID {
+			message <- "FOUND"
+			cancel()
+		}
+	})
+	defer tm.RegisterCustomSendEventHandler(nil)
+
+	select {
+	case <-message:
+		return true
+	case <-time.After(timeout):
+		return false
+	case <-ctx.Done():
+		return false
 	}
 }
 
