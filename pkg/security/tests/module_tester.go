@@ -371,7 +371,7 @@ func (tm *testModule) WaitForPotentialAbnormalPath(timeout time.Duration) bool {
 
 	message := make(chan string, 1)
 
-	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, event *events.CustomEvent) {
+	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, _ *events.CustomEvent) {
 		if rule.ID == events.AbnormalPathRuleID {
 			message <- "FOUND"
 			cancel()
