@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -965,7 +966,12 @@ func (tm *testModule) validateSyscallsInFlight() {
 }
 
 func (tm *testModule) Close() {
+
+	waitForPotentialEventError(tm, nil, 2*time.Second)
+
 	if !tm.opts.staticOpts.disableRuntimeSecurity {
+		// The stats from the rate_limiter should sent, tm.eventMonitor.SendStats() does not do that
+		tm.cws.SendStats()
 		tm.eventMonitor.SendStats()
 	}
 
@@ -1102,6 +1108,12 @@ func waitForIMDSResponseProbeEvent(test *testModule, action func() error, proces
 			value: "response",
 		},
 	}...)
+}
+
+func waitForPotentialEventError(test *testModule, action func() error, timeout time.Duration) error {
+	return test.GetCustomEventSent(test.t, action, func(rule *rules.Rule, event *events.CustomEvent) bool {
+		return true
+	}, timeout, model.CustomEventType, events.AbnormalPathRuleID, events.BrokenProcessLineageErrorRuleID, events.NoProcessContextErrorRuleID)
 }
 
 //nolint:deadcode,unused

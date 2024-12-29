@@ -19,6 +19,7 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -320,7 +321,7 @@ func (tm *testModule) RegisterRuleEventHandler(cb onRuleHandler) {
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType model.EventType, ruleID string) error {
+func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType model.EventType, ruleIDs ...string) error {
 	tb.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -328,7 +329,7 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 	message := make(chan ActionMessage, 1)
 
 	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, event *events.CustomEvent) {
-		if event.GetEventType() != eventType || rule.ID != ruleID {
+		if event.GetEventType() != eventType || !slices.Contains(ruleIDs, rule.ID) {
 			return
 		}
 
@@ -350,11 +351,15 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 	})
 	defer tm.RegisterCustomSendEventHandler(nil)
 
-	if err := action(); err != nil {
-		message <- Skip
-		return err
+	if action == nil {
+		message <- Continue
+	} else {
+		if err := action(); err != nil {
+			message <- Skip
+			return err
+		}
+		message <- Continue
 	}
-	message <- Continue
 
 	select {
 	case <-time.After(timeout):
