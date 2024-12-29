@@ -1113,7 +1113,7 @@ func waitForIMDSResponseProbeEvent(test *testModule, action func() error, proces
 func waitForPotentialEventError(test *testModule, action func() error, timeout time.Duration) error {
 	return test.GetCustomEventSent(test.t, action, func(rule *rules.Rule, event *events.CustomEvent) bool {
 		return true
-	}, timeout, model.CustomEventType, events.AbnormalPathRuleID, events.BrokenProcessLineageErrorRuleID, events.NoProcessContextErrorRuleID)
+	}, timeout, model.CustomEventType, events.AbnormalPathRuleID)
 }
 
 //nolint:deadcode,unused
