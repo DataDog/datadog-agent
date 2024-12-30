@@ -12,8 +12,6 @@ typedef struct {
 } WiFiInfo;
 
 WiFiInfo GetWiFiInformation();
-void InitLocationManager();
-void StartLocationUpdates();
-void StopLocationUpdates();
+void InitLocationServices();
 
 #endif

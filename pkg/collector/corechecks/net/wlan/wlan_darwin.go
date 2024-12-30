@@ -32,10 +32,6 @@ func GetWiFiInfo() (WiFiInfo, error) {
 }
 
 func SetupLocationAccess() {
-	C.InitLocationManager()
+	C.InitLocationServices()
 	log.Info("Initialized Location Manager")
-
-	// Start fetching location updates
-	C.StartLocationUpdates()
-	log.Info("Started Location Updates")
 }

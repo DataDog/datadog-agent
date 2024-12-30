@@ -8,9 +8,11 @@
 #include <CoreLocation/CoreLocation.h>
 #include "wlan_darwin.h"
 
-// Use @interface to define a class that acts as a delegate for CLLocationManager
+
 @interface LocationManager : NSObject <CLLocationManagerDelegate>
-@property (strong, nonatomic) CLLocationManager *locationManager;
+@property (nonatomic, strong) CLLocationManager *locationManager;
+@property (nonatomic, strong) CWWiFiClient *wifiClient;
+@property (nonatomic, assign) BOOL isRunning;
 @end
 
 @implementation LocationManager
@@ -18,56 +20,86 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        self.locationManager = [[CLLocationManager alloc] init];
-        self.locationManager.delegate = self;
-
-        if (@available(macOS 10.15, *)) {
-            [self.locationManager requestAlwaysAuthorization];
-        } else {
-            // Fallback code for earlier versions
-            NSLog(@"Location access is not available on macOS versions earlier than 10.15.");
-        }
+        self.isRunning = YES;
+        [self setupLocationServices];
+        [self setupWiFiClient];
     }
     return self;
 }
 
-- (void)locationManager:(CLLocationManager *)manager didChangeAuthorizationStatus:(CLAuthorizationStatus)status {
+- (void)setupLocationServices {
+    self.locationManager = [[CLLocationManager alloc] init];
+    self.locationManager.delegate = self;
+    
+    if (self.locationManager.authorizationStatus == kCLAuthorizationStatusNotDetermined) {
+        [self.locationManager requestAlwaysAuthorization];
+    }
+}
+
+- (void)setupWiFiClient {
+    self.wifiClient = [CWWiFiClient sharedWiFiClient];
+}
+
+- (void)printCurrentWiFiInfo {
+    NSError *error = nil;
+    CWInterface *interface = [CWWiFiClient sharedWiFiClient].interface;
+    
+    if (!interface) {
+        NSLog(@"Error getting WiFi interface");
+        return;
+    }
+    
+    if (interface.ssid) {
+        NSLog(@"Connected to WiFi network: %@", interface.ssid);
+        NSLog(@"BSSID: %@", interface.bssid);
+        NSLog(@"Signal Strength (RSSI): %ld dBm", (long)interface.rssiValue);
+    } else {
+        NSLog(@"Not connected to any WiFi network");
+    }
+}
+
+#pragma mark - CLLocationManagerDelegate
+
+- (void)locationManagerDidChangeAuthorization:(CLLocationManager *)manager {
+    CLAuthorizationStatus status = manager.authorizationStatus;
+    
     switch (status) {
-        case kCLAuthorizationStatusAuthorized:
-            NSLog(@"Location access granted");
+        case kCLAuthorizationStatusAuthorizedAlways:
+            NSLog(@"Location services authorized!");
             [self.locationManager startUpdatingLocation];
+            [self printCurrentWiFiInfo];
             break;
+            
         case kCLAuthorizationStatusDenied:
+            NSLog(@"Location services denied by user");
+            self.isRunning = NO;
+            break;
+            
         case kCLAuthorizationStatusRestricted:
-            NSLog(@"Location access denied");
+            NSLog(@"Location services restricted");
+            self.isRunning = NO;
             break;
         default:
+            NSLog(@"Location services status undetermined: %d", status);
             break;
     }
 }
 
 - (void)locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray<CLLocation *> *)locations {
     CLLocation *location = [locations lastObject];
-    NSLog(@"Latitude: %f, Longitude: %f", location.coordinate.latitude, location.coordinate.longitude);
+    NSLog(@"Location updated: %@", location);
+    [self printCurrentWiFiInfo];
+}
+
+- (void)locationManager:(CLLocationManager *)manager didFailWithError:(NSError *)error {
+    NSLog(@"Location update failed with error: %@", error.localizedDescription);
 }
 
 @end
 
-LocationManager *locationManager = nil;
-
-// Wrapper function to initialize location manager
-void InitLocationManager() {
-    locationManager = [[LocationManager alloc] init];
-}
-
 // Wrapper function to start location updates
-void StartLocationUpdates() {
-    [locationManager.locationManager startUpdatingLocation];
-}
-
-// Wrapper function to stop location updates
-void StopLocationUpdates() {
-    [locationManager.locationManager stopUpdatingLocation];
+void InitLocationServices() {
+    LocationManager *locationManager = [[LocationManager alloc] init];
 }
 
 // GetWiFiInformation return wifi data
