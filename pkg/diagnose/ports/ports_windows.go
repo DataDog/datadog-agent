@@ -110,7 +110,13 @@ func RetrieveProcessName(pid int, _ string) (string, error) {
 
 	// Convert unicodeString to Go string
 	imageName := unicodeStringToString(info.ImageName)
-	rawName := strings.TrimSuffix(imageName, ".exe")
 
-	return rawName, nil
+	// Extract the base name of the process, remove .exe extension if present
+	idx := strings.LastIndex(imageName, `\`)
+	if idx != -1 {
+		imageName = imageName[idx+1:]
+	}
+	imageName = strings.TrimSuffix(imageName, ".exe")
+
+	return imageName, nil
 }
