@@ -18,10 +18,9 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
@@ -40,7 +39,7 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
-		e2eos.FedoraDefault,
+		// e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
 		e2eos.CentOS7,
 		e2eos.Suse15,
 	}
@@ -108,11 +107,6 @@ func TestPackages(t *testing.T) {
 			suite := test.t(flavor, flavor.Architecture, method)
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
-				// FIXME: Fedora currently has DNS issues
-				if flavor.Flavor == e2eos.Fedora {
-					flake.Mark(t)
-				}
-
 				opts := []awshost.ProvisionerOption{
 					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
 					awshost.WithoutAgent(),
@@ -217,7 +211,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		playbookPath := s.writeAnsiblePlaybook(env, params...)
 
 		// Run the playbook
-		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook %s > /dev/null 2> /dev/null", ansiblePrefix, playbookPath))
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s", ansiblePrefix, playbookPath))
 
 		// touch install files for compatibility
 		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stdout.log")

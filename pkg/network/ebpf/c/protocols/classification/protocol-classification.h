@@ -160,15 +160,26 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
 
-    if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(buffer, usm_ctx->buffer.size, skb_info.data_end)) {
+    tls_record_header_t tls_hdr = {0};
+
+    if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(skb, skb_info.data_off, skb_info.data_end, &tls_hdr)) {
         protocol_stack = get_or_create_protocol_stack(&usm_ctx->tuple);
         if (!protocol_stack) {
             return;
         }
         // TLS classification
-        update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
-        // The connection is TLS encrypted, thus we cannot classify the protocol
-        // using the socket filter and therefore we can bail out;
+        if (tls_hdr.content_type != TLS_HANDSHAKE) {
+            // We can't classify TLS encrypted traffic further, so return early
+            update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
+            return;
+        }
+
+        // Parse TLS handshake payload
+        tls_info_t *tags = get_or_create_tls_enhanced_tags(&usm_ctx->tuple);
+        if (tags) {
+            // The packet is a TLS handshake, so trigger tail calls to extract metadata from the payload
+            goto next_program;
+        }
         return;
     }
 
@@ -197,6 +208,58 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
  next_program:
+    classification_next_program(skb, usm_ctx);
+}
+
+__maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_handshake_client(struct __sk_buff *skb) {
+    usm_context_t *usm_ctx = usm_context(skb);
+    if (!usm_ctx) {
+        return;
+    }
+    tls_info_t* tls_info = get_tls_enhanced_tags(&usm_ctx->tuple);
+    if (!tls_info) {
+        goto next_program;
+    }
+    __u32 offset = usm_ctx->skb_info.data_off + sizeof(tls_record_header_t);
+    __u32 data_end = usm_ctx->skb_info.data_end;
+    if (!is_tls_handshake_client_hello(skb, offset, usm_ctx->skb_info.data_end)) {
+        goto next_program;
+    }
+    if (!parse_client_hello(skb, offset, data_end, tls_info)) {
+        return;
+    }
+
+next_program:
+    classification_next_program(skb, usm_ctx);
+}
+
+__maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_handshake_server(struct __sk_buff *skb) {
+    usm_context_t *usm_ctx = usm_context(skb);
+    if (!usm_ctx) {
+        return;
+    }
+    tls_info_t* tls_info = get_tls_enhanced_tags(&usm_ctx->tuple);
+    if (!tls_info) {
+        goto next_program;
+    }
+    __u32 offset = usm_ctx->skb_info.data_off + sizeof(tls_record_header_t);
+    __u32 data_end = usm_ctx->skb_info.data_end;
+    if (!is_tls_handshake_server_hello(skb, offset, data_end)) {
+        goto next_program;
+    }
+    if (!parse_server_hello(skb, offset, data_end, tls_info)) {
+        return;
+    }
+
+    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&usm_ctx->tuple);
+    if (!protocol_stack) {
+        return;
+    }
+    update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
+    // We can't classify TLS encrypted traffic further, so return early
+    return;
+
+next_program:
     classification_next_program(skb, usm_ctx);
 }
 

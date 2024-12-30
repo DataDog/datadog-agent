@@ -6,9 +6,13 @@
 package installer
 
 import (
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"strings"
+	"time"
+
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
+
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
 type packageInstallerSuite struct {
@@ -102,20 +106,33 @@ func (s *packageInstallerSuite) TestReInstall() {
 func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 	// Install prod
 	err := s.RunInstallScriptProdOci(
+		"DD_REMOTE_UPDATES=true",
 		envForceVersion("datadog-installer", "7.58.0-installer-0.5.1-1"),
 	)
 	defer s.Purge()
 	assert.NoError(s.T(), err)
 
-	version := s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
-	assert.Equal(s.T(), "7.58.0-installer-0.5.1\n", version)
+	versionDisk := s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
+	assert.Equal(s.T(), "7.58.0-installer-0.5.1\n", versionDisk)
+	assert.Eventually(s.T(), func() bool {
+		versionRunning, err := s.Env().RemoteHost.Execute("sudo datadog-installer status")
+		s.T().Logf("checking version: %s, err: %v", versionRunning, err)
+		return err == nil && strings.Contains(versionRunning, "7.58.0-installer-0.5.1")
+	}, 30*time.Second, 1*time.Second)
 
 	// Install from QA registry
-	err = s.RunInstallScriptWithError()
+	err = s.RunInstallScriptWithError(
+		"DD_REMOTE_UPDATES=true",
+	)
 	assert.NoError(s.T(), err)
 
-	version = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
-	assert.NotEqual(s.T(), "7.58.0-installer-0.5.1\n", version)
+	versionDisk = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
+	assert.NotEqual(s.T(), "7.58.0-installer-0.5.1\n", versionDisk)
+	assert.Eventually(s.T(), func() bool {
+		versionRunning, err := s.Env().RemoteHost.Execute("sudo datadog-installer status")
+		s.T().Logf("checking version: %s, err: %v", versionRunning, err)
+		return err == nil && !strings.Contains(versionRunning, "7.58.0-installer-0.5.1")
+	}, 30*time.Second, 1*time.Second)
 }
 
 func (s *packageInstallerSuite) TestInstallWithUmask() {

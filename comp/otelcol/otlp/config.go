@@ -14,12 +14,13 @@ import (
 
 	"go.uber.org/multierr"
 
+	"github.com/go-viper/mapstructure/v2"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/go-viper/mapstructure/v2"
+	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
 )
 
 func portToUint(v int) (port uint, err error) {
@@ -51,7 +52,7 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 		metricsConfigMap["apm_stats_receiver_addr"] = fmt.Sprintf("http://localhost:%s/v0.6/stats", coreconfig.Datadog().GetString("apm_config.receiver_port"))
 	}
 
-	tags := strings.Join(util.GetStaticTagsSlice(context.TODO()), ",")
+	tags := strings.Join(tagutil.GetStaticTagsSlice(context.TODO(), cfg), ",")
 	if tags != "" {
 		metricsConfigMap["tags"] = tags
 	}
