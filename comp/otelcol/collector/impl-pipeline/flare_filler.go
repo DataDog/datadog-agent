@@ -127,9 +127,14 @@ func (c *collectorImpl) requestOtelConfigInfo(endpointURL string) ([]byte, error
 		return []byte(overrideConfigResponse), nil
 	}
 
+	authToken, err := c.authToken.Get()
+	if err != nil {
+		return nil, err
+	}
+
 	options := apiutil.ReqOptions{
 		Ctx:       c.ctx,
-		Authtoken: c.authToken.Get(),
+		Authtoken: authToken,
 	}
 
 	data, err := apiutil.DoGetWithOptions(c.client, endpointURL, &options)
