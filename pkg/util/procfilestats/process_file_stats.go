@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package util
+// Package procfilestats provides a way to retrieve process open file stats
+package procfilestats
 
 // ProcessFileStats is used to retrieve stats from gopsutil/v3/process -- these stats are used for troubleshooting purposes
 type ProcessFileStats struct {
