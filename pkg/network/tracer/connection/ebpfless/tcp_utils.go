@@ -16,10 +16,23 @@ import (
 
 	"github.com/google/gopacket/layers"
 
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 const ebpflessModuleName = "ebpfless_network_tracer"
+
+// TCPProcessorTuple is a reduction of network.ConnectionTuple to only the fields
+// that TCPProcessor can see via packet capture. In particular, Direction and PID are gone.
+type TCPProcessorTuple struct {
+	Source util.Address
+	Dest   util.Address
+	NetNS  uint32
+	SPort  uint16
+	DPort  uint16
+	Family network.ConnectionFamily
+}
 
 // ProcessResult represents what the ebpfless tracer should do with ConnectionStats after processing a packet
 type ProcessResult uint8
@@ -120,6 +133,25 @@ func labelForState(tcpState connStatus) string {
 		return connStatusLabels[idx]
 	}
 	return "BadState-" + strconv.Itoa(idx)
+}
+
+type ConnDirection uint8
+
+const (
+	ConnDirectionUnknown ConnDirection = iota
+	ConnDirectionIncoming
+	ConnDirectionOutgoing
+)
+
+func connDirectionFromPktType(pktType uint8) ConnDirection {
+	switch pktType {
+	case unix.PACKET_HOST:
+		return ConnDirectionIncoming
+	case unix.PACKET_OUTGOING:
+		return ConnDirectionOutgoing
+	default:
+		return ConnDirectionUnknown
+	}
 }
 
 func isSeqBefore(prev, cur uint32) bool {

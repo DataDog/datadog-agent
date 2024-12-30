@@ -9,7 +9,6 @@ package ebpfless
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"syscall"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type connectionState struct {
@@ -61,6 +61,9 @@ type connectionState struct {
 	// Can we make all connections in TCPProcessor have a ConnectionStats no matter what, and
 	// filter them out in GetConnections?
 	lastUpdateEpoch uint64
+
+	// connDirection has the direction of the connection, if we saw the SYN packet
+	connDirection ConnDirection
 }
 
 func (st *connectionState) hasMissedHandshake() bool {
@@ -71,9 +74,9 @@ func (st *connectionState) hasMissedHandshake() bool {
 type TCPProcessor struct {
 	cfg *config.Config
 	// pendingConns contains connections with tcpState == connStatAttempted
-	pendingConns map[network.ConnectionTuple]*connectionState
+	pendingConns map[TCPProcessorTuple]*connectionState
 	// establishedConns contains connections with tcpState == connStatEstablished
-	establishedConns map[network.ConnectionTuple]*connectionState
+	establishedConns map[TCPProcessorTuple]*connectionState
 }
 
 // TODO make this into a config value
@@ -84,8 +87,8 @@ const pendingConnTimeoutNs = uint64(5 * time.Second)
 func NewTCPProcessor(cfg *config.Config) *TCPProcessor {
 	return &TCPProcessor{
 		cfg:              cfg,
-		pendingConns:     make(map[network.ConnectionTuple]*connectionState, maxPendingConns),
-		establishedConns: make(map[network.ConnectionTuple]*connectionState, cfg.MaxTrackedConnections),
+		pendingConns:     make(map[TCPProcessorTuple]*connectionState, maxPendingConns),
+		establishedConns: make(map[TCPProcessorTuple]*connectionState, cfg.MaxTrackedConnections),
 	}
 }
 
@@ -134,6 +137,10 @@ func checkInvalidTCP(tcp *layers.TCP) bool {
 func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, _payloadLen uint16) {
 	if tcp.RST {
 		return
+	}
+	// if this is the initial SYN, set the connection direction
+	if tcp.SYN && !tcp.ACK {
+		st.connDirection = connDirectionFromPktType(pktType)
 	}
 	// progress the synStates based off this packet
 	if pktType == unix.PACKET_OUTGOING {
@@ -278,7 +285,12 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64
 		return ProcessResultNone, nil
 	}
 
-	st := t.getConn(conn.ConnectionTuple)
+	tuple := getTCPProcessorTuple(conn.ConnectionTuple)
+	st, ok := t.getConn(tuple)
+	if !ok {
+		// create a fresh state object that will be stored by moveConn later
+		st = &connectionState{}
+	}
 	origState := st.tcpState
 
 	t.updateSynFlag(conn, st, pktType, tcp, payloadLen)
@@ -288,7 +300,7 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64
 
 	stateChanged := st.tcpState != origState
 	if stateChanged {
-		ok := t.moveConn(conn.ConnectionTuple, st)
+		ok := t.moveConn(tuple, st)
 		// if the map is full then we are unable to move the connection, report that
 		if !ok {
 			return ProcessResultMapFull, nil
@@ -306,27 +318,31 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64
 	return ProcessResultNone, nil
 }
 
-func (t *TCPProcessor) getConn(tuple network.ConnectionTuple) *connectionState {
+func (t *TCPProcessor) getConn(tuple TCPProcessorTuple) (*connectionState, bool) {
 	if st, ok := t.establishedConns[tuple]; ok {
-		return st
+		return st, true
 	}
 	if st, ok := t.pendingConns[tuple]; ok {
-		return st
+		return st, true
 	}
-	// otherwise, create a fresh state object that will be stored by moveConn later
-	return &connectionState{}
+	return nil, false
 }
 
 // RemoveConn clears a ConnectionTuple from its internal state.
 func (t *TCPProcessor) RemoveConn(tuple network.ConnectionTuple) {
+	tcpTuple := getTCPProcessorTuple(tuple)
+	t.removeConn(tcpTuple)
+}
+
+func (t *TCPProcessor) removeConn(tuple TCPProcessorTuple) {
 	delete(t.pendingConns, tuple)
 	delete(t.establishedConns, tuple)
 }
 
 // moveConn moves a connection to the correct map based on its tcpState.
 // If it had to drop the connection because the target map was full, it returns false.
-func (t *TCPProcessor) moveConn(tuple network.ConnectionTuple, st *connectionState) bool {
-	t.RemoveConn(tuple)
+func (t *TCPProcessor) moveConn(tuple TCPProcessorTuple, st *connectionState) bool {
+	t.removeConn(tuple)
 
 	switch st.tcpState {
 	// For this case, simply let closed connections disappear. Process() will return
@@ -347,6 +363,30 @@ func (t *TCPProcessor) moveConn(tuple network.ConnectionTuple, st *connectionSta
 		return ok
 	}
 	return true
+}
+
+// getTCPProcessorTuple reduces network.ConnectionTuple to only the fields
+// that TCPProcessor can see via packet capture. In particular, Direction and PID are gone.
+func getTCPProcessorTuple(tuple network.ConnectionTuple) TCPProcessorTuple {
+	return TCPProcessorTuple{
+		Source: tuple.Source,
+		Dest:   tuple.Dest,
+		NetNS:  tuple.NetNS,
+		SPort:  tuple.SPort,
+		DPort:  tuple.DPort,
+		Family: tuple.Family,
+	}
+}
+
+// GetConnDirection returns the direction of the connection.
+// If the SYN packet was not seen (for a pre-existing connection), it returns ConnDirUnknown.
+func (t *TCPProcessor) GetConnDirection(tuple network.ConnectionTuple) (ConnDirection, bool) {
+	tcpTuple := getTCPProcessorTuple(tuple)
+	conn, ok := t.getConn(tcpTuple)
+	if !ok {
+		return ConnDirectionUnknown, false
+	}
+	return conn.connDirection, true
 }
 
 // CleanupExpiredPendingConns iterates through pendingConns and removes those that

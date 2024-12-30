@@ -8,7 +8,6 @@
 package ebpfless
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"net"
 	"syscall"
 	"testing"
@@ -20,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -176,6 +176,16 @@ func newTCPTestFixture(t *testing.T) *tcpTestFixture {
 	}
 }
 
+func (fixture *tcpTestFixture) getConnectionState() *connectionState {
+	connTuple := fixture.conn.ConnectionTuple
+	tcpTuple := getTCPProcessorTuple(connTuple)
+	conn, ok := fixture.tcp.getConn(tcpTuple)
+	if ok {
+		return conn
+	}
+	return &connectionState{}
+}
+
 func (fixture *tcpTestFixture) runPkt(pkt testCapture) ProcessResult {
 	if fixture.conn == nil {
 		fixture.conn = makeTCPStates(pkt)
@@ -200,8 +210,7 @@ func (fixture *tcpTestFixture) runAgainstState(packets []testCapture, expected [
 		expectedStrs = append(expectedStrs, labelForState(expected[i]))
 
 		fixture.runPkt(pkt)
-		connTuple := fixture.conn.ConnectionTuple
-		actual := fixture.tcp.getConn(connTuple).tcpState
+		actual := fixture.getConnectionState().tcpState
 		actualStrs = append(actualStrs, labelForState(actual))
 	}
 	require.Equal(fixture.t, expectedStrs, actualStrs)
@@ -257,7 +266,6 @@ func testBasicHandshake(t *testing.T, pb packetBuilder) {
 		TCPEstablished: 1,
 		TCPClosed:      1,
 	}
-
 	require.Equal(t, expectedStats, f.conn.Monotonic)
 
 	require.Empty(t, f.tcp.pendingConns)
@@ -814,4 +822,44 @@ func TestPendingConnExpiry(t *testing.T) {
 	tenSecNs := uint64((10 * time.Second).Nanoseconds())
 	f.tcp.CleanupExpiredPendingConns(now + tenSecNs)
 	require.Empty(t, f.tcp.pendingConns)
+}
+
+func TestTCPProcessorConnDirection(t *testing.T) {
+	pb := newPacketBuilder(lowerSeq, higherSeq)
+
+	t.Run("outgoing", func(t *testing.T) {
+		f := newTCPTestFixture(t)
+		capture := []testCapture{
+			pb.outgoing(0, 0, 0, SYN),
+			pb.incoming(0, 0, 1, SYN|ACK),
+			pb.outgoing(0, 1, 1, ACK),
+		}
+		f.runPkts(capture)
+
+		require.Equal(t, ConnDirectionOutgoing, f.getConnectionState().connDirection)
+
+		// only connection stat
+	})
+	t.Run("incoming", func(t *testing.T) {
+		f := newTCPTestFixture(t)
+		capture := []testCapture{
+			pb.incoming(0, 0, 0, SYN),
+			pb.outgoing(0, 0, 1, SYN|ACK),
+			pb.incoming(0, 1, 1, ACK),
+		}
+		f.runPkts(capture)
+
+		require.Equal(t, ConnDirectionIncoming, f.getConnectionState().connDirection)
+	})
+	t.Run("preexisting", func(t *testing.T) {
+		f := newTCPTestFixture(t)
+		capture := []testCapture{
+			// just sending data, no SYN
+			pb.outgoing(1, 10, 10, ACK),
+			pb.incoming(1, 10, 11, ACK),
+		}
+		f.runPkts(capture)
+
+		require.Equal(t, ConnDirectionUnknown, f.getConnectionState().connDirection)
+	})
 }

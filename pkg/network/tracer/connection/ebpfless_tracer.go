@@ -187,13 +187,24 @@ func (t *ebpfLessTracer) processConnection(
 		return nil
 	}
 
-	t.determineConnectionDirection(t.scratchConn, pktType)
+	// check if we are configured to trace this connection
+	switch t.scratchConn.Type {
+	case network.UDP:
+		if (ip4Present && !t.config.CollectUDPv4Conns) || (ip6Present && !t.config.CollectUDPv6Conns) {
+			return nil
+		}
+	case network.TCP:
+		if (ip4Present && !t.config.CollectTCPv4Conns) || (ip6Present && !t.config.CollectTCPv6Conns) {
+			return nil
+		}
+	}
+
 	flipSourceDest(t.scratchConn, pktType)
 
 	t.m.Lock()
 	defer t.m.Unlock()
 
-	conn := t.conns[t.scratchConn.ConnectionTuple]
+	conn, isNewConn := t.conns[t.scratchConn.ConnectionTuple]
 	if conn == nil {
 		conn = &network.ConnectionStats{}
 		*conn = *t.scratchConn
@@ -215,15 +226,9 @@ func (t *ebpfLessTracer) processConnection(
 	var result ebpfless.ProcessResult
 	switch conn.Type {
 	case network.UDP:
-		if (ip4Present && !t.config.CollectUDPv4Conns) || (ip6Present && !t.config.CollectUDPv6Conns) {
-			return nil
-		}
 		result = ebpfless.ProcessResultStoreConn
 		err = t.udp.process(conn, pktType, udp)
 	case network.TCP:
-		if (ip4Present && !t.config.CollectTCPv4Conns) || (ip6Present && !t.config.CollectTCPv6Conns) {
-			return nil
-		}
 		result, err = t.tcp.Process(conn, uint64(ts), pktType, ip4, ip6, tcp)
 	default:
 		err = fmt.Errorf("unsupported connection type %d", conn.Type)
@@ -240,6 +245,10 @@ func (t *ebpfLessTracer) processConnection(
 	switch result {
 	case ebpfless.ProcessResultNone:
 	case ebpfless.ProcessResultStoreConn:
+		if isNewConn {
+			t.determineConnectionDirection(conn, pktType)
+		}
+
 		maxTrackedConns := int(t.config.MaxTrackedConnections)
 		ok := ebpfless.WriteMapWithSizeLimit(t.conns, conn.ConnectionTuple, conn, maxTrackedConns)
 		if !ok {
@@ -268,9 +277,22 @@ func flipSourceDest(conn *network.ConnectionStats, pktType uint8) {
 }
 
 func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionStats, pktType uint8) {
-	t.m.Lock()
-	defer t.m.Unlock()
+	// first try asking the TCP processor if it knows the direction
+	if conn.Type == network.TCP {
+		connDirection, ok := t.tcp.GetConnDirection(conn.ConnectionTuple)
+		if ok && connDirection != ebpfless.ConnDirectionUnknown {
+			switch connDirection {
+			case ebpfless.ConnDirectionIncoming:
+				conn.Direction = network.INCOMING
+			case ebpfless.ConnDirectionOutgoing:
+				conn.Direction = network.OUTGOING
+			}
+			return
+		}
+	}
 
+	// check if a server is bound to the SPort. We use SPort because the connection tuples are always
+	// "machine-centric" (i.e. the source is always the local machine) -- refer to flipSourceDest.
 	ok := t.boundPorts.Find(conn.Type, conn.SPort)
 	if ok {
 		// incoming connection
@@ -278,6 +300,8 @@ func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionSt
 		return
 	}
 
+	// if we don't have any info, then assume this is the first packet on the connection and use its
+	// pktType to sest a direction
 	switch pktType {
 	case unix.PACKET_HOST:
 		conn.Direction = network.INCOMING
