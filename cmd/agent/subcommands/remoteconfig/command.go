@@ -80,7 +80,7 @@ func state(_ *cliParams, config config.Component) error {
 		return err
 	}
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort())
+	cli, err := agentgrpc.GetDDAgentSecureClient(ipcAddress, pkgconfigsetup.GetIPCPort())
 	if err != nil {
 		return err
 	}
