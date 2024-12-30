@@ -616,6 +616,7 @@ static __always_inline bool pktbuf_find_relevant_frames(pktbuf_t pkt, http2_tail
 
 static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_data_offset, conn_tuple_t *tup) {
     const __u32 zero = 0;
+    __u32 next_prog = PROG_HTTP2_FRAME_FILTER;
     http2_frame_t current_frame = {};
 
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
@@ -693,11 +694,11 @@ jump_next_tc:
     pktbuf_tail_call_option_t frame_filter_tail_call_array[] = {
         [PKTBUF_SKB] = {
             .prog_array_map = &protocols_progs,
-            .index = PROG_HTTP2_FRAME_FILTER,
+            .index = next_prog,
         },
         [PKTBUF_TLS] = {
             .prog_array_map = &tls_process_progs,
-            .index = PROG_HTTP2_FRAME_FILTER,
+            .index = next_prog,
         },
     };
     pktbuf_tail_call_compact(pkt, frame_filter_tail_call_array);
