@@ -54,7 +54,7 @@ func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, 
 	fb.AddFileFromFunc("envvars.log", getEnvVars) //nolint:errcheck
 	linuxKernelSymbols(fb)                        //nolint:errcheck
 	getLinuxPid1MountInfo(fb)                     //nolint:errcheck
-	getLinuxDmesg(fb)                             //nolint:errcheck
+	fb.AddFileFromFunc("dmesg", getLinuxDmesg)    //nolint:errcheck
 	getLinuxKprobeEvents(fb)                      //nolint:errcheck
 	getLinuxTracingAvailableEvents(fb)            //nolint:errcheck
 	getLinuxTracingAvailableFilterFunctions(fb)   //nolint:errcheck
