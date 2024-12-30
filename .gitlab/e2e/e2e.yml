@@ -14,8 +14,16 @@
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?
     - export AWS_PROFILE=agent-qa-ci
     # Now all `aws` commands target the agent-qa profile
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_PUBLIC_KEY_PATH || exit $?
-    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_PRIVATE_KEY_PATH || exit $?
+    # TODO: ADXT-768: Create new secret with different ssh key for the different cloud providers
+    # SSH Key retrieval for AWS
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_AWS_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_AWS_PRIVATE_KEY_PATH && chmod 600 $E2E_AWS_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_AWS_PRIVATE_KEY_PATH || exit $?
+    # SSH Key retrieval for Azure
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_AZURE_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_AZURE_PRIVATE_KEY_PATH && chmod 600 $E2E_AZURE_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_AZURE_PRIVATE_KEY_PATH || exit $?
+    # SSH Key retrieval for GCP
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_GCP_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_GCP_PRIVATE_KEY_PATH && chmod 600 $E2E_GCP_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_GCP_PRIVATE_KEY_PATH || exit $?
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
     # Setup Azure credentials. https://www.pulumi.com/registry/packages/azure-native/installation-configuration/#set-configuration-using-pulumi-config
@@ -35,15 +43,23 @@
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
-    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
-    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    # AWS SSH Key configuration
+    E2E_AWS_PUBLIC_KEY_PATH: /tmp/agent-qa-aws-ssh-key.pub
+    E2E_AWS_PRIVATE_KEY_PATH: /tmp/agent-qa-aws-ssh-key
     E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    # Azure SSH Key configuration
+    E2E_AZURE_PUBLIC_KEY_PATH: /tmp/agent-qa-azure-ssh-key.pub
+    E2E_AZURE_PRIVATE_KEY_PATH: /tmp/agent-qa-azure-ssh-key
+    # GCP SSH Key configuration
+    E2E_GCP_PUBLIC_KEY_PATH: /tmp/agent-qa-gcp-ssh-key.pub
+    E2E_GCP_PRIVATE_KEY_PATH: /tmp/agent-qa-gcp-ssh-key
     E2E_PIPELINE_ID: $CI_PIPELINE_ID
     E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
     E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    E2E_LOGS_PROCESSING_TEST_DEPTH: 1
   script:
-    - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+    - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
   artifacts:
@@ -369,6 +385,20 @@ new-e2e-apm:
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
 
+new-e2e-installer-script:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_installer_oci
+    - qa_installer_script
+  variables:
+    TARGETS: ./tests/installer/script
+    TEAM: fleet
+    FLEET_INSTALL_METHOD: "install_script"
+
 new-e2e-installer:
   extends: .new_e2e_template
   rules:
@@ -382,12 +412,13 @@ new-e2e-installer:
     - deploy_rpm_testing-a7_x64
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
-    - qa_installer_oci
-    - qa_agent_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
     FLEET_INSTALL_METHOD: "install_script"
+    E2E_LOGS_PROCESSING_TEST_DEPTH: 2
 
 new-e2e-installer-windows:
   extends: .new_e2e_template
@@ -397,8 +428,8 @@ new-e2e-installer-windows:
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
-    - qa_installer_oci
-    - qa_agent_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
   before_script:
     # CURRENT_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
@@ -440,8 +471,8 @@ new-e2e-installer-ansible:
     - deploy_rpm_testing-a7_x64
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
-    - qa_installer_oci
-    - qa_agent_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
@@ -479,6 +510,15 @@ new-e2e-ha-agent:
   variables:
     TARGETS: ./tests/ha-agent
     TEAM: ndm-core
+
+new-e2e-netpath:
+  extends: .new_e2e_template_needs_deb_windows_x64
+  rules:
+    - !reference [.on_netpath_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/netpath
+    TEAM: network-performance-monitoring
 
 new-e2e-windows-systemprobe:
   extends: .new_e2e_template
@@ -623,8 +663,8 @@ generate-flakes-finder-pipeline:
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
     - deploy_windows_testing-a7
-    - qa_installer_oci
-    - qa_agent_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
     - qa_cws_instrumentation
     - qa_dca
     - qa_dogstatsd

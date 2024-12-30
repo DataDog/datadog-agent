@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 )
 
@@ -41,7 +41,7 @@ agents:
           value: 'enable_receive_resource_spans_v2'
 `
 	t.Parallel()
-	e2e.Run(t, &otlpIngestSpanReceiverV2TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
+	e2e.Run(t, &otlpIngestSpanReceiverV2TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)))))
 }
 
 func (s *otlpIngestSpanReceiverV2TestSuite) SetupSuite() {

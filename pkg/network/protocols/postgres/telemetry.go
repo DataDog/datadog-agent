@@ -11,8 +11,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
@@ -175,7 +173,7 @@ func (t *Telemetry) Count(tx *ebpf.EbpfEvent, eventWrapper *EventWrapper) {
 
 // Log logs the postgres stats summary
 func (t *Telemetry) Log() {
-	if log.ShouldLog(seelog.DebugLvl) {
+	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("postgres stats summary: %s", t.metricGroup.Summary())
 	}
 }
@@ -220,7 +218,7 @@ func (t *kernelTelemetry) update(kernCounts *ebpf.PostgresKernelMsgCount, isTLS 
 
 // Log logs summary of telemetry
 func (t *kernelTelemetry) Log() {
-	if log.ShouldLog(seelog.DebugLvl) {
+	if log.ShouldLog(log.DebugLvl) {
 		s := t.metricGroup.Summary()
 		log.Debugf("postgres kernel telemetry, summary: %s", s)
 	}
