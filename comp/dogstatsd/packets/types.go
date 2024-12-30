@@ -8,7 +8,7 @@ package packets
 import (
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/size"
 )
 
 // SourceType is the type of listener
@@ -56,7 +56,7 @@ func (p *Packet) DataSizeInBytes() int {
 	return len(p.Contents) + len(p.Buffer) + len(p.Origin) + len(p.ListenerID)
 }
 
-var _ util.HasSizeInBytes = (*Packet)(nil)
+var _ size.HasSizeInBytes = (*Packet)(nil)
 
 // SizeInBytes returns the size of the packets in bytes
 func (ps *Packets) SizeInBytes() int {
@@ -72,4 +72,4 @@ func (ps *Packets) DataSizeInBytes() int {
 	return size
 }
 
-var _ util.HasSizeInBytes = (*Packets)(nil)
+var _ size.HasSizeInBytes = (*Packets)(nil)
