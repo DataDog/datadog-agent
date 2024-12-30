@@ -208,6 +208,11 @@ func (c *APMCheck) IsTelemetryEnabled() bool {
 	return c.telemetry
 }
 
+// IsHACheck returns if the check is an HA Check
+func (c *APMCheck) IsHACheck() bool {
+	return false
+}
+
 // Stop sends a termination signal to the APM process
 func (c *APMCheck) Stop() {
 	if !c.running.Load() {
