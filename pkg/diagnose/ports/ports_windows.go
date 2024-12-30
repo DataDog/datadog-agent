@@ -13,37 +13,32 @@ import (
 	"unsafe"
 )
 
-// -----------------------------------------------------------------------
-// 1. Definitions & Structures
-// -----------------------------------------------------------------------
 // NTSTATUS is the return type used by many native Windows functions.
 type NTSTATUS uint32
 
-// NT_SUCCESS is a helper function to check if a status is a success. 0 is success, all other values are failure.
-func NT_SUCCESS(status NTSTATUS) bool {
+// ntSuccess is a helper function to check if a status is a success. 0 is success, all other values are failure.
+func ntSuccess(status NTSTATUS) bool {
 	return status >= 0
 }
 
 const (
-	SystemProcessIDInformation = 88 // SystemProcessIDInformation gives access to process names without elevated privileges on Windows.
+	SystemProcessIDInformationClass = 88 // SystemProcessIDInformationClass gives access to process names without elevated privileges on Windows.
 )
 
-// UNICODE_STRING mirrors the Windows UNICODE_STRING struct.
-type UNICODE_STRING struct {
+// unicodeString mirrors the Windows unicodeString struct.
+type unicodeString struct {
 	Length        uint16
 	MaximumLength uint16
 	Buffer        *uint16
 }
 
-// SYSTEM_PROCESS_ID_INFORMATION mirrors the SystemProcessIdInformation struct used by NtQuerySystemInformation.
-type SYSTEM_PROCESS_ID_INFORMATION struct {
+// SystemProcessIDInformation mirrors the SystemProcessIdInformation struct used by NtQuerySystemInformation.
+type SystemProcessIDInformation struct {
 	ProcessID uintptr
-	ImageName UNICODE_STRING
+	ImageName unicodeString
 }
 
-// -----------------------------------------------------------------------
-// 2. Loading NtQuerySystemInformation
-// -----------------------------------------------------------------------
+// Loading NtQuerySystemInformation
 var (
 	ntdll                        = syscall.NewLazyDLL("ntdll.dll")
 	procNtQuerySystemInformation = ntdll.NewProc("NtQuerySystemInformation")
@@ -72,10 +67,8 @@ func NtQuerySystemInformation(
 	return NTSTATUS(r0)
 }
 
-// -----------------------------------------------------------------------
-// 3. Helper function to convert a UNICODE_STRING to a Go string
-// -----------------------------------------------------------------------
-func unicodeStringToString(u UNICODE_STRING) string {
+// unicodeStringToString is a helper function to convert a unicodeString to a Go string
+func unicodeStringToString(u unicodeString) string {
 	// Length is in bytes; divide by 2 for number of uint16 chars
 	length := int(u.Length / 2)
 	if length == 0 || u.Buffer == nil {
@@ -88,14 +81,14 @@ func unicodeStringToString(u UNICODE_STRING) string {
 }
 
 // RetrieveProcessName fetches the process name on Windows using NtQuerySystemInformation
-// with SystemProcessIDInformation, which does not require elevated privileges.
+// with SystemProcessIDInformationClass, which does not require elevated privileges.
 func RetrieveProcessName(pid int, _ string) (string, error) {
 	// Allocate a slice of 256 uint16s (512 bytes).
-	// Used for UNICODE_STRING buffer.
+	// Used for unicodeString buffer.
 	buf := make([]uint16, 256)
 
-	// Prepare the SYSTEM_PROCESS_ID_INFORMATION struct
-	var info SYSTEM_PROCESS_ID_INFORMATION
+	// Prepare the SystemProcessIDInformation struct
+	var info SystemProcessIDInformation
 	info.ProcessID = uintptr(pid)
 	info.ImageName.Length = 0
 	info.ImageName.MaximumLength = 256 * 2
@@ -104,18 +97,18 @@ func RetrieveProcessName(pid int, _ string) (string, error) {
 	// Call NtQuerySystemInformation
 	var returnLength uint32
 	status := NtQuerySystemInformation(
-		SystemProcessIDInformation,
+		SystemProcessIDInformationClass,
 		unsafe.Pointer(&info),
 		uint32(unsafe.Sizeof(info)),
 		&returnLength,
 	)
 
-	// If NT_SUCCESS(status) is false, return an error and empty string
-	if !NT_SUCCESS(status) {
+	// If ntSuccess(status) is false, return an error and empty string
+	if !ntSuccess(status) {
 		return "", fmt.Errorf("NtQuerySystemInformation failed with NTSTATUS 0x%X", status)
 	}
 
-	// Convert UNICODE_STRING to Go string
+	// Convert unicodeString to Go string
 	imageName := unicodeStringToString(info.ImageName)
 	rawName := strings.TrimSuffix(imageName, ".exe")
 
