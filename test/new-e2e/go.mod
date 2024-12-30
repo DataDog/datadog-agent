@@ -58,7 +58,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20241224112147-36860d3c29b4
+	github.com/DataDog/test-infra-definitions v0.0.0-20241230161929-658f6c49e27c
 	github.com/aws/aws-sdk-go-v2 v1.32.7
 	github.com/aws/aws-sdk-go-v2/config v1.28.7
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.190.0
@@ -75,7 +75,7 @@ require (
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.65.0
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.19.0
-	github.com/pulumi/pulumi/sdk/v3 v3.142.0
+	github.com/pulumi/pulumi/sdk/v3 v3.144.1
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.10.0
 	github.com/xeipuuv/gojsonschema v1.2.0
@@ -217,9 +217,9 @@ require (
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/esc v0.10.0 // indirect
 	github.com/pulumi/pulumi-command/sdk v1.0.1
-	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.7 // indirect
+	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.8 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.3 // indirect
-	github.com/pulumi/pulumi-random/sdk/v4 v4.16.7 // indirect
+	github.com/pulumi/pulumi-random/sdk/v4 v4.16.8 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 // indirect
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
@@ -303,12 +303,12 @@ require (
 	github.com/onsi/ginkgo/v2 v2.20.2 // indirect
 	github.com/onsi/gomega v1.34.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.73.1 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.73.1 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.73.1 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.73.1 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.73.1 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.73.1 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.79.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.79.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.79.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.79.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.79.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.79.0 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v3 v3.4.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
 	github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19 // indirect
