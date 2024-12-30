@@ -571,10 +571,7 @@ func (p *EBPFProbe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
-	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := serializers.MarshalEvent(event, nil)
-		return eventJSON, event.GetEventType(), err
-	})
+	logTraceEvent(event.GetEventType(), event)
 
 	// filter out event if already present on a profile
 	if p.config.RuntimeSecurity.SecurityProfileEnabled {
