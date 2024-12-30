@@ -19,15 +19,15 @@ import (
 func TestResolveLocalConnections(t *testing.T) {
 	conns := []ConnectionStats{
 		{ConnectionTuple: ConnectionTuple{
-			Pid:    8579,
-			Source: util.AddressFromString("172.29.132.189"),
-			SPort:  37432,
-			Dest:   util.AddressFromString("172.29.168.124"),
-			DPort:  8080,
-			NetNS:  4026533024,
-			Type:   TCP,
-		},
+			Pid:       8579,
+			Source:    util.AddressFromString("172.29.132.189"),
+			SPort:     37432,
+			Dest:      util.AddressFromString("172.29.168.124"),
+			DPort:     8080,
+			NetNS:     4026533024,
+			Type:      TCP,
 			Direction: OUTGOING,
+		},
 			ContainerID: struct {
 				Source *intern.Value
 				Dest   *intern.Value
@@ -37,15 +37,15 @@ func TestResolveLocalConnections(t *testing.T) {
 			IntraHost: true,
 		},
 		{ConnectionTuple: ConnectionTuple{
-			Pid:    8576,
-			Source: util.AddressFromString("172.29.132.189"),
-			SPort:  46822,
-			Dest:   util.AddressFromString("172.29.168.124"),
-			DPort:  8080,
-			NetNS:  4026533024,
-			Type:   TCP,
-		},
+			Pid:       8576,
+			Source:    util.AddressFromString("172.29.132.189"),
+			SPort:     46822,
+			Dest:      util.AddressFromString("172.29.168.124"),
+			DPort:     8080,
+			NetNS:     4026533024,
+			Type:      TCP,
 			Direction: OUTGOING,
+		},
 			ContainerID: struct {
 				Source *intern.Value
 				Dest   *intern.Value
@@ -55,15 +55,15 @@ func TestResolveLocalConnections(t *testing.T) {
 			IntraHost: true,
 		},
 		{ConnectionTuple: ConnectionTuple{
-			Pid:    1342852,
-			Source: util.AddressFromString("172.29.168.124"),
-			SPort:  8080,
-			Dest:   util.AddressFromString("172.29.132.189"),
-			DPort:  46822,
-			NetNS:  4026533176,
-			Type:   TCP,
-		},
+			Pid:       1342852,
+			Source:    util.AddressFromString("172.29.168.124"),
+			SPort:     8080,
+			Dest:      util.AddressFromString("172.29.132.189"),
+			DPort:     46822,
+			NetNS:     4026533176,
+			Type:      TCP,
 			Direction: INCOMING,
+		},
 			ContainerID: struct {
 				Source *intern.Value
 				Dest   *intern.Value
@@ -73,15 +73,15 @@ func TestResolveLocalConnections(t *testing.T) {
 			IntraHost: true,
 		},
 		{ConnectionTuple: ConnectionTuple{
-			Pid:    1344818,
-			Source: util.AddressFromString("172.29.168.124"),
-			SPort:  8080,
-			Dest:   util.AddressFromString("172.29.132.189"),
-			DPort:  37432,
-			NetNS:  4026533176,
-			Type:   TCP,
-		},
+			Pid:       1344818,
+			Source:    util.AddressFromString("172.29.168.124"),
+			SPort:     8080,
+			Dest:      util.AddressFromString("172.29.132.189"),
+			DPort:     37432,
+			NetNS:     4026533176,
+			Type:      TCP,
 			Direction: INCOMING,
+		},
 			ContainerID: struct {
 				Source *intern.Value
 				Dest   *intern.Value
@@ -116,12 +116,13 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		{
 			name: "raddr resolution with nat",
 			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
-				Pid:    1,
-				Source: util.AddressFromString("127.0.0.1"),
-				SPort:  1234,
-				Dest:   util.AddressFromString("10.1.1.2"),
-				DPort:  1234,
-				NetNS:  1,
+				Pid:       1,
+				Source:    util.AddressFromString("127.0.0.1"),
+				SPort:     1234,
+				Dest:      util.AddressFromString("10.1.1.2"),
+				DPort:     1234,
+				NetNS:     1,
+				Direction: INCOMING,
 			},
 				IPTranslation: &IPTranslation{
 					ReplDstIP:   util.AddressFromString("127.0.0.1"),
@@ -129,7 +130,6 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					ReplSrcIP:   util.AddressFromString("10.1.1.2"),
 					ReplSrcPort: 1234,
 				},
-				Direction: INCOMING,
 				IntraHost: true,
 				ContainerID: struct {
 					Source *intern.Value
@@ -143,12 +143,13 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		{
 			name: "raddr resolution with nat to localhost",
 			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
-				Pid:    2,
-				NetNS:  1,
-				Source: util.AddressFromString("10.1.1.2"),
-				SPort:  1234,
-				Dest:   util.AddressFromString("10.1.1.1"),
-				DPort:  1234,
+				Pid:       2,
+				NetNS:     1,
+				Source:    util.AddressFromString("10.1.1.2"),
+				SPort:     1234,
+				Dest:      util.AddressFromString("10.1.1.1"),
+				DPort:     1234,
+				Direction: OUTGOING,
 			},
 				IPTranslation: &IPTranslation{
 					ReplDstIP:   util.AddressFromString("10.1.1.2"),
@@ -156,7 +157,6 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					ReplSrcIP:   util.AddressFromString("127.0.0.1"),
 					ReplSrcPort: 1234,
 				},
-				Direction: OUTGOING,
 				IntraHost: true,
 				ContainerID: struct {
 					Source *intern.Value
@@ -170,15 +170,15 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		{
 			name: "raddr failed localhost resolution",
 			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
-				Pid:    3,
-				NetNS:  3,
-				Source: util.AddressFromString("127.0.0.1"),
-				SPort:  1235,
-				Dest:   util.AddressFromString("127.0.0.1"),
-				DPort:  1234,
+				Pid:       3,
+				NetNS:     3,
+				Source:    util.AddressFromString("127.0.0.1"),
+				SPort:     1235,
+				Dest:      util.AddressFromString("127.0.0.1"),
+				DPort:     1234,
+				Direction: INCOMING,
 			},
 				IntraHost: true,
-				Direction: INCOMING,
 				ContainerID: struct {
 					Source *intern.Value
 					Dest   *intern.Value
@@ -191,15 +191,15 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		{
 			name: "raddr resolution within same netns (3)",
 			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
-				Pid:    5,
-				NetNS:  3,
-				Source: util.AddressFromString("127.0.0.1"),
-				SPort:  1240,
-				Dest:   util.AddressFromString("127.0.0.1"),
-				DPort:  1235,
+				Pid:       5,
+				NetNS:     3,
+				Source:    util.AddressFromString("127.0.0.1"),
+				SPort:     1240,
+				Dest:      util.AddressFromString("127.0.0.1"),
+				DPort:     1235,
+				Direction: OUTGOING,
 			},
 				IntraHost: true,
-				Direction: OUTGOING,
 				ContainerID: struct {
 					Source *intern.Value
 					Dest   *intern.Value
@@ -212,15 +212,15 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		{
 			name: "raddr resolution within same netns (1)",
 			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
-				Pid:    3,
-				NetNS:  3,
-				Source: util.AddressFromString("127.0.0.1"),
-				SPort:  1235,
-				Dest:   util.AddressFromString("127.0.0.1"),
-				DPort:  1240,
+				Pid:       3,
+				NetNS:     3,
+				Source:    util.AddressFromString("127.0.0.1"),
+				SPort:     1235,
+				Dest:      util.AddressFromString("127.0.0.1"),
+				DPort:     1240,
+				Direction: INCOMING,
 			},
 				IntraHost: true,
-				Direction: INCOMING,
 				ContainerID: struct {
 					Source *intern.Value
 					Dest   *intern.Value
@@ -233,15 +233,15 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		{
 			name: "raddr resolution within same netns (2)",
 			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
-				Pid:    5,
-				NetNS:  3,
-				Source: util.AddressFromString("127.0.0.1"),
-				SPort:  1240,
-				Dest:   util.AddressFromString("127.0.0.1"),
-				DPort:  1235,
+				Pid:       5,
+				NetNS:     3,
+				Source:    util.AddressFromString("127.0.0.1"),
+				SPort:     1240,
+				Dest:      util.AddressFromString("127.0.0.1"),
+				DPort:     1235,
+				Direction: OUTGOING,
 			},
 				IntraHost: true,
-				Direction: OUTGOING,
 				ContainerID: struct {
 					Source *intern.Value
 					Dest   *intern.Value
@@ -254,15 +254,15 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		{
 			name: "raddr failed resolution, known address in different netns",
 			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
-				Pid:    5,
-				NetNS:  4,
-				Source: util.AddressFromString("127.0.0.1"),
-				SPort:  1240,
-				Dest:   util.AddressFromString("127.0.0.1"),
-				DPort:  1235,
+				Pid:       5,
+				NetNS:     4,
+				Source:    util.AddressFromString("127.0.0.1"),
+				SPort:     1240,
+				Dest:      util.AddressFromString("127.0.0.1"),
+				DPort:     1235,
+				Direction: OUTGOING,
 			},
 				IntraHost: true,
-				Direction: OUTGOING,
 				ContainerID: struct {
 					Source *intern.Value
 					Dest   *intern.Value
@@ -275,14 +275,14 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		{
 			name: "failed laddr and raddr resolution",
 			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
-				Pid:    10,
-				NetNS:  10,
-				Source: util.AddressFromString("127.0.0.1"),
-				SPort:  1234,
-				Dest:   util.AddressFromString("10.1.1.1"),
-				DPort:  1235,
-			},
+				Pid:       10,
+				NetNS:     10,
+				Source:    util.AddressFromString("127.0.0.1"),
+				SPort:     1234,
+				Dest:      util.AddressFromString("10.1.1.1"),
+				DPort:     1235,
 				Direction: OUTGOING,
+			},
 				IntraHost: false,
 			},
 			expectedRaddrID: "",
@@ -290,14 +290,14 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		{
 			name: "failed resolution: unknown pid for laddr, raddr address in different netns from known address",
 			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
-				Pid:    11,
-				NetNS:  10,
-				Source: util.AddressFromString("127.0.0.1"),
-				SPort:  1250,
-				Dest:   util.AddressFromString("127.0.0.1"),
-				DPort:  1240,
-			},
+				Pid:       11,
+				NetNS:     10,
+				Source:    util.AddressFromString("127.0.0.1"),
+				SPort:     1250,
+				Dest:      util.AddressFromString("127.0.0.1"),
+				DPort:     1240,
 				Direction: OUTGOING,
+			},
 				IntraHost: true,
 			},
 			expectedRaddrID: "",
@@ -305,14 +305,14 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		{
 			name: "localhost resolution within same netns 1/2",
 			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
-				Pid:    6,
-				NetNS:  7,
-				Source: util.AddressFromString("127.0.0.1"),
-				SPort:  1260,
-				Dest:   util.AddressFromString("127.0.0.1"),
-				DPort:  1250,
-			},
+				Pid:       6,
+				NetNS:     7,
+				Source:    util.AddressFromString("127.0.0.1"),
+				SPort:     1260,
+				Dest:      util.AddressFromString("127.0.0.1"),
+				DPort:     1250,
 				Direction: OUTGOING,
+			},
 				IntraHost: true,
 				ContainerID: struct {
 					Source *intern.Value
@@ -326,14 +326,14 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		{
 			name: "localhost resolution within same netns 2/2",
 			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
-				Pid:    7,
-				NetNS:  7,
-				Source: util.AddressFromString("127.0.0.1"),
-				SPort:  1250,
-				Dest:   util.AddressFromString("127.0.0.1"),
-				DPort:  1260,
-			},
+				Pid:       7,
+				NetNS:     7,
+				Source:    util.AddressFromString("127.0.0.1"),
+				SPort:     1250,
+				Dest:      util.AddressFromString("127.0.0.1"),
+				DPort:     1260,
 				Direction: INCOMING,
+			},
 				IntraHost: true,
 				ContainerID: struct {
 					Source *intern.Value
@@ -347,14 +347,14 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		{
 			name: "zero src netns failed resolution",
 			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
-				Pid:    22,
-				NetNS:  0,
-				Source: util.AddressFromString("127.0.0.1"),
-				SPort:  8282,
-				Dest:   util.AddressFromString("127.0.0.1"),
-				DPort:  1250,
-			},
+				Pid:       22,
+				NetNS:     0,
+				Source:    util.AddressFromString("127.0.0.1"),
+				SPort:     8282,
+				Dest:      util.AddressFromString("127.0.0.1"),
+				DPort:     1250,
 				Direction: OUTGOING,
+			},
 				ContainerID: struct {
 					Source *intern.Value
 					Dest   *intern.Value
@@ -367,14 +367,14 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		{
 			name: "zero src and dst netns failed resolution",
 			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
-				Pid:    21,
-				NetNS:  0,
-				Source: util.AddressFromString("127.0.0.1"),
-				SPort:  8181,
-				Dest:   util.AddressFromString("127.0.0.1"),
-				DPort:  8282,
-			},
+				Pid:       21,
+				NetNS:     0,
+				Source:    util.AddressFromString("127.0.0.1"),
+				SPort:     8181,
+				Dest:      util.AddressFromString("127.0.0.1"),
+				DPort:     8282,
 				Direction: OUTGOING,
+			},
 				ContainerID: struct {
 					Source *intern.Value
 					Dest   *intern.Value

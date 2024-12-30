@@ -308,6 +308,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceZk,
 		metrics.MetricSourceAwsNeuron,
 		metrics.MetricSourceNvidiaNim,
+		metrics.MetricSourceQuarkus,
 		metrics.MetricSourceMilvus:
 		return 11 // integrationMetrics
 	default:
@@ -902,6 +903,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 425
 	case metrics.MetricSourceNvidiaNim:
 		return 426
+	case metrics.MetricSourceQuarkus:
+		return 427
 	default:
 		return 0
 	}

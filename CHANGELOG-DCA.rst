@@ -2,6 +2,46 @@
 Release Notes
 =============
 
+.. _Release Notes_7.60.1:
+
+7.60.1
+======
+
+.. _Release Notes_7.60.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-12-19
+Pinned to datadog-agent v7.60.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7601>`_.
+
+.. _Release Notes_7.60.0:
+
+7.60.0
+======
+
+.. _Release Notes_7.60.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-12-16
+Pinned to datadog-agent v7.60.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7600>`_.
+
+
+.. _Release Notes_7.60.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes bug where incorrect timestamp would be used for unbundled Kubernetes events.
+
+- Fixed an issue in the KSM check when it's configured with the option
+  ``pod_collection_mode`` set to ``node_kubelet``. Previously, the check could
+  fail to start if there was a timeout while contacting the API server. This
+  issue has now been resolved.
+
+
 .. _Release Notes_7.59.1:
 
 7.59.1

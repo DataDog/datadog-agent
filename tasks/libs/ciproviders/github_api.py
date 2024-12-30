@@ -332,7 +332,9 @@ class GithubAPI:
 
         return sorted(recent_runs, key=lambda run: run.created_at, reverse=True)
 
-    def latest_release(self) -> str:
+    def latest_release(self, major_version=7) -> str:
+        if major_version == 6:
+            return max((r for r in self.get_releases() if r.title.startswith('6.53')), key=lambda r: r.created_at).title
         release = self._repository.get_latest_release()
         return release.title
 
@@ -522,6 +524,9 @@ class GithubAPI:
         Creates a label in the given GitHub repository.
         """
         return self._repository.create_label(name, color, description)
+
+    def create_milestone(self, title):
+        self._repository.create_milestone(title)
 
     def create_release(self, tag, message, draft=True):
         return self._repository.create_git_release(

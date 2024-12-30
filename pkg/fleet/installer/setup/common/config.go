@@ -103,12 +103,20 @@ type DatadogConfig struct {
 	APIKey               string                     `yaml:"api_key"`
 	Hostname             string                     `yaml:"hostname,omitempty"`
 	Site                 string                     `yaml:"site,omitempty"`
+	Proxy                DatadogConfigProxy         `yaml:"proxy,omitempty"`
 	Env                  string                     `yaml:"env,omitempty"`
 	Tags                 []string                   `yaml:"tags,omitempty"`
 	LogsEnabled          bool                       `yaml:"logs_enabled,omitempty"`
 	DJM                  DatadogConfigDJM           `yaml:"djm,omitempty"`
 	ProcessConfig        DatadogConfigProcessConfig `yaml:"process_config,omitempty"`
 	ExpectedTagsDuration string                     `yaml:"expected_tags_duration,omitempty"`
+}
+
+// DatadogConfigProxy represents the configuration for the proxy
+type DatadogConfigProxy struct {
+	HTTP    string   `yaml:"http,omitempty"`
+	HTTPS   string   `yaml:"https,omitempty"`
+	NoProxy []string `yaml:"no_proxy,omitempty"`
 }
 
 // DatadogConfigDJM represents the configuration for the Data Jobs Monitoring
@@ -142,6 +150,12 @@ type IntegrationConfigInstanceSpark struct {
 	SparkClusterMode string `yaml:"spark_cluster_mode"`
 	ClusterName      string `yaml:"cluster_name"`
 	StreamingMetrics bool   `yaml:"streaming_metrics"`
+}
+
+// IntegrationConfigInstanceYarn represents the configuration for the Yarn integration
+type IntegrationConfigInstanceYarn struct {
+	ResourceManagerURI string `yaml:"resourcemanager_uri"`
+	ClusterName        string `yaml:"cluster_name"`
 }
 
 // InjectTracerConfig represents the configuration to write in /etc/datadog-agent/inject/tracer.yaml

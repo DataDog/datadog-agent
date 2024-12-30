@@ -1073,7 +1073,6 @@ func (s *TracerSuite) TestDNSStats() {
 
 func (s *TracerSuite) TestTCPEstablished() {
 	t := s.T()
-	// Ensure closed connections are flushed as soon as possible
 	cfg := testConfig()
 
 	tr := setupTracer(t, cfg)
@@ -1130,6 +1129,7 @@ func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
 	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
 	require.NoError(t, err)
 	laddr, raddr := c.LocalAddr(), c.RemoteAddr()
+	t.Logf("laddr=%s raddr=%s", laddr, raddr)
 
 	// Ensure closed connections are flushed as soon as possible
 	cfg := testConfig()

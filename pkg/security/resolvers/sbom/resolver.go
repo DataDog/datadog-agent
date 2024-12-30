@@ -274,7 +274,7 @@ func (r *Resolver) generateSBOM(root string) (report *trivy.Report, err error) {
 	seclog.Infof("Generating SBOM for %s", root)
 	r.sbomGenerations.Inc()
 
-	scanRequest := host.NewScanRequest(root, os.DirFS("/"))
+	scanRequest := host.NewScanRequest(root)
 	ch := collectors.GetHostScanner().Channel()
 	if ch == nil {
 		return nil, fmt.Errorf("couldn't retrieve global host scanner result channel")
