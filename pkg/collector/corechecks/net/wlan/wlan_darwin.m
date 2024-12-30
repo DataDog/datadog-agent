@@ -22,7 +22,7 @@
         self.locationManager.delegate = self;
 
         if (@available(macOS 10.15, *)) {
-            [self.locationManager requestWhenInUseAuthorization];
+            [self.locationManager requestAlwaysAuthorization];
         } else {
             // Fallback code for earlier versions
             NSLog(@"Location access is not available on macOS versions earlier than 10.15.");
