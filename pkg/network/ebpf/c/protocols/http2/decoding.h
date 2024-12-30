@@ -478,11 +478,6 @@ static __always_inline bool is_interesting(http2_frame_t *frame) {
 }
 
 static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, incomplete_frame_t *incomplete_frame, http2_frame_t *current_frame) {
-    // Attempting to read the initial frame in the packet, or handling a state where there is no remainder and finishing reading the current frame.
-    if (incomplete_frame == NULL) {
-        return read_frame(pkt, current_frame);
-    }
-
     // Getting here means we have a frame state from the previous packets.
     // Scenarios in order:
     //  1. Check if we have a frame-header remainder - if so, we must try and read the rest of the frame header.
@@ -645,6 +640,10 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
     }
 
     incomplete_frame_t *incomplete_frame = bpf_map_lookup_elem(&http2_incomplete_frames, tup);
+    // If there is no incomplete frame, we can just continue to the next TC.
+    if (incomplete_frame == NULL) {
+        goto jump_next_tc;
+    }
     bool has_valid_first_frame = pktbuf_get_first_frame(pkt, incomplete_frame, &current_frame);
     // If we have a state and we consumed it, then delete it.
     if (is_empty(incomplete_frame)) {
@@ -686,6 +685,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
         // Not calling the next tail call as we have nothing to process.
         return;
     }
+jump_next_tc:
     // Overriding the data_off field of the cached packet. The next prog will start from the offset of the next valid
     // frame.
     *external_data_offset = pktbuf_data_offset(pkt);
