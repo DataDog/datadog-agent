@@ -244,7 +244,7 @@ func logCheckDuration(name string, start time.Time, runCounter int32) {
 	case runCounter == 5:
 		log.Infof("Finished %s check #%d in %s. First 5 check runs finished, next runs will be logged every 20 runs.", name, runCounter, d)
 	case runCounter%20 == 0:
-		log.Infof("Finish %s check #%d in %s", name, runCounter, d)
+		log.Infof("Finished next round of 20 runs; completed %s check #%d in %s", name, runCounter, d)
 	}
 }
 
