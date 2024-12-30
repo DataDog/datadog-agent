@@ -154,9 +154,9 @@ func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner 
 			return fmt.Errorf("validateDockerCuda failed: %w", err)
 		}
 		// incident-33572: log the output of the CUDA validation command
-		pulumi.All(dockerCudaValidateCmd.Stdout, dockerCudaValidateCmd.Stderr).ApplyT(func(outputs []string) error {
-			stdout := outputs[0]
-			stderr := outputs[1]
+		pulumi.All(dockerCudaValidateCmd.Stdout, dockerCudaValidateCmd.Stderr).ApplyT(func(args []interface{}) error {
+			stdout := args[0].(string)
+			stderr := args[1].(string)
 			err := ctx.Log.Info(fmt.Sprintf("Docker CUDA validation stdout: %s", stdout), nil)
 			if err != nil {
 				return err
