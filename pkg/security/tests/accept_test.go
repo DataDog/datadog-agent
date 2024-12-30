@@ -60,13 +60,14 @@ func TestAcceptEvent(t *testing.T) {
 		}()
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET", "0.0.0.0", strconv.Itoa(port))
-		}, func(event *model.Event, _ *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_accept_af_inet")
 			assert.Equal(t, "accept", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET), event.Accept.AddrFamily, "wrong address family")
 			assert.Equal(t, uint16(port), event.Accept.Addr.Port, "wrong address port")
 			assert.Equal(t, "127.0.0.1", event.Accept.Addr.IPNet.IP.String(), "wrong address")
 			assert.LessOrEqual(t, int64(0), event.Accept.Retval, "wrong retval")
-			test.validateConnectSchema(t, event)
+			test.validateAcceptSchema(t, event)
 		})
 	})
 
@@ -84,13 +85,14 @@ func TestAcceptEvent(t *testing.T) {
 		}()
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET6", "::", strconv.Itoa(port))
-		}, func(event *model.Event, _ *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_accept_af_inet6")
 			assert.Equal(t, "accept", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET6), event.Accept.AddrFamily, "wrong address family")
 			assert.Equal(t, uint16(port), event.Accept.Addr.Port, "wrong address port")
 			assert.Equal(t, "::1", event.Accept.Addr.IPNet.IP.String(), "wrong address")
 			assert.LessOrEqual(t, int64(0), event.Accept.Retval, "wrong retval")
-			test.validateConnectSchema(t, event)
+			test.validateAcceptSchema(t, event)
 		})
 	})
 }
