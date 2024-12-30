@@ -39,6 +39,15 @@ func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 	}
 }
 
+func addSecurityAgentPlatformSpecificEntries(fb flaretypes.FlareBuilder) {
+	linuxKernelSymbols(fb)                      //nolint:errcheck
+	getLinuxPid1MountInfo(fb)                   //nolint:errcheck
+	fb.AddFileFromFunc("dmesg", getLinuxDmesg)  //nolint:errcheck
+	getLinuxKprobeEvents(fb)                    //nolint:errcheck
+	getLinuxTracingAvailableEvents(fb)          //nolint:errcheck
+	getLinuxTracingAvailableFilterFunctions(fb) //nolint:errcheck
+}
+
 func getLinuxKernelSymbols(fb flaretypes.FlareBuilder) error {
 	return fb.CopyFile("/proc/kallsyms")
 }

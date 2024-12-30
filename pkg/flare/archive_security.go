@@ -52,12 +52,8 @@ func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, 
 	getRuntimeFiles(fb)                           //nolint:errcheck
 	getExpVar(fb)                                 //nolint:errcheck
 	fb.AddFileFromFunc("envvars.log", getEnvVars) //nolint:errcheck
-	linuxKernelSymbols(fb)                        //nolint:errcheck
-	getLinuxPid1MountInfo(fb)                     //nolint:errcheck
-	fb.AddFileFromFunc("dmesg", getLinuxDmesg)    //nolint:errcheck
-	getLinuxKprobeEvents(fb)                      //nolint:errcheck
-	getLinuxTracingAvailableEvents(fb)            //nolint:errcheck
-	getLinuxTracingAvailableFilterFunctions(fb)   //nolint:errcheck
+
+	addSecurityAgentPlatformSpecificEntries(fb)
 }
 
 func getComplianceFiles(fb flaretypes.FlareBuilder) error {

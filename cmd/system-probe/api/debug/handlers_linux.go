@@ -65,8 +65,8 @@ func parseDmesg(buffer []byte) (string, error) {
 	return result, nil
 }
 
-// HandleDmesg writes linux dmesg into the HTTP response.
-func HandleDmesg(w http.ResponseWriter, _ *http.Request) {
+// HandleLinuxDmesg writes linux dmesg into the HTTP response.
+func HandleLinuxDmesg(w http.ResponseWriter, _ *http.Request) {
 	dmesg, err := readAllDmesg()
 	if err != nil {
 		w.WriteHeader(500)
