@@ -50,17 +50,6 @@ import (
 	compressionimpl "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/load"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
-	ioCheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -199,8 +188,6 @@ func start(
 	// TODO: figure out how to initial.ize checks context
 	// check.InitializeInventoryChecksContext(invChecks)
 
-	// do not register core checks in checks-agent
-	// registerCoreChecks()
 	scheduler := pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, optional.NewNoneOption[integrations.Component](), tagger)
 
 	// // Start the scheduler
@@ -350,19 +337,4 @@ func startScheduler(ctx context.Context, f context.CancelFunc, client core.Agent
 		scheduler.Schedule(scheduleConfigs)
 		scheduler.Unschedule(unscheduleConfigs)
 	}
-}
-
-// registerCoreChecks registers all core checks
-func registerCoreChecks() {
-	// Required checks
-	corechecks.RegisterCheck(cpu.CheckName, cpu.Factory())
-	corechecks.RegisterCheck(load.CheckName, load.Factory())
-	corechecks.RegisterCheck(memory.CheckName, memory.Factory())
-	corechecks.RegisterCheck(uptime.CheckName, uptime.Factory())
-	corechecks.RegisterCheck(ntp.CheckName, ntp.Factory())
-	corechecks.RegisterCheck(network.CheckName, network.Factory())
-	corechecks.RegisterCheck(snmp.CheckName, snmp.Factory())
-	corechecks.RegisterCheck(ioCheck.CheckName, ioCheck.Factory())
-	corechecks.RegisterCheck(filehandles.CheckName, filehandles.Factory())
-	corechecks.RegisterCheck(disk.CheckName, disk.Factory())
 }
