@@ -43,15 +43,16 @@ if os.name == 'nt':
         # should be run here to prevent security issues
         if not os.path.exists(data_dog_data_dir):
             print(f"Directory {data_dog_data_dir} does not exist.")
-            return
+            return 1
         if not packages.check_all_files_owner_system_windows(install_directory):
             print("Files are not owned by system.")
-            return
+            return 1
         postinst(install_directory, data_dog_data_dir)
 else:
     def main():
         if len(sys.argv) != 2:
             print("Usage: postinst.py <INSTALL_DIR>")
+            return 1
         install_directory = sys.argv[1]
         postinst(install_directory, install_directory)
 
