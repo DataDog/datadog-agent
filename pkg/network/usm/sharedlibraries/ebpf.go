@@ -594,7 +594,8 @@ func (e *EbpfProgram) initializeProbes() {
 	openat2Supported := sysOpenAt2Supported()
 	isFexitSupported := fexitSupported("do_sys_openat2")
 
-	advancedProbes := []manager.ProbeIdentificationPair{
+	// Tracing represents fentry/fexit probes.
+	tracingProbes := []manager.ProbeIdentificationPair{
 		{
 			EBPFFuncName: fmt.Sprintf("do_sys_%s_exit", openat2SysCall),
 			UID:          probeUID,
@@ -610,10 +611,11 @@ func (e *EbpfProgram) initializeProbes() {
 		openatProbes = append(openatProbes, openSysCall)
 	}
 
-	oldProbes := make([]manager.ProbeIdentificationPair, 0, len(traceTypes)*len(openatProbes))
+	// tp stands for tracepoints, which is the older format of the probes.
+	tpProbes := make([]manager.ProbeIdentificationPair, 0, len(traceTypes)*len(openatProbes))
 	for _, probe := range openatProbes {
 		for _, traceType := range traceTypes {
-			oldProbes = append(oldProbes, manager.ProbeIdentificationPair{
+			tpProbes = append(tpProbes, manager.ProbeIdentificationPair{
 				EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", traceType, probe),
 				UID:          probeUID,
 			})
@@ -621,11 +623,11 @@ func (e *EbpfProgram) initializeProbes() {
 	}
 
 	if isFexitSupported && openat2Supported {
-		e.enabledProbes = advancedProbes
-		e.disabledProbes = oldProbes
+		e.enabledProbes = tracingProbes
+		e.disabledProbes = tpProbes
 	} else {
-		e.enabledProbes = oldProbes
-		e.disabledProbes = advancedProbes
+		e.enabledProbes = tpProbes
+		e.disabledProbes = tracingProbes
 	}
 }
 
