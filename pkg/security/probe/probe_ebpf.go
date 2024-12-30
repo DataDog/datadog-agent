@@ -1090,7 +1090,14 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 				if containerID == "" && event.PTrace.Request != unix.PTRACE_ATTACH {
 					pidToResolve = event.PTrace.NSPID
 				} else {
-					pid, err := utils.TryToResolveTraceePid(event.ProcessContext.Process.Pid, event.PTrace.NSPID)
+					nsid, err := p.fieldHandlers.ResolveProcessNSID(event)
+					if err != nil {
+						seclog.Debugf("PTrace NSID resolution error for process %s in container %s: %v",
+							event.ProcessContext.Process.FileEvent.PathnameStr, containerID, err)
+						return
+					}
+
+					pid, err := utils.TryToResolveTraceePid(event.ProcessContext.Process.Pid, nsid, event.PTrace.NSPID)
 					if err != nil {
 						seclog.Debugf("PTrace tracee resolution error for process %s in container %s: %v",
 							event.ProcessContext.Process.FileEvent.PathnameStr, containerID, err)
@@ -2494,13 +2501,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeIno, "struct inode", "i_ino")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeGid, "struct inode", "i_gid")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeNlink, "struct inode", "i_nlink")
-	if kv.IsInRangeCloseOpen(kernel.Kernel6_7, kernel.Kernel6_11) {
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeMtime, "struct inode", "__i_mtime")
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeCtime, "struct inode", "__i_ctime")
-	} else if kv.Code < kernel.Kernel6_7 {
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeMtime, "struct inode", "i_mtime")
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeCtime, "struct inode", "i_ctime")
-	}
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeMtime, "struct inode", "i_mtime", "__i_mtime")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeCtime, "struct inode", "i_ctime", "__i_ctime")
 }
 
 // HandleActions handles the rule actions

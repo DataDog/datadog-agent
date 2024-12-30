@@ -38,3 +38,7 @@ func TestSetExternalTags(t *testing.T) {
 func TestEmitAgentTelemetry(t *testing.T) {
 	testEmitAgentTelemetry(t)
 }
+
+func TestObfuscaterConfig(t *testing.T) {
+	testObfuscaterConfig(t)
+}

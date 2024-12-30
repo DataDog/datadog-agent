@@ -49,7 +49,11 @@ func (goDI *GoDI) startRingbufferConsumer(rate float64) (func(), error) {
 				continue
 			}
 
-			event := eventparser.ParseEvent(record.RawSample, rateLimiters)
+			event, err := eventparser.ParseEvent(record.RawSample, rateLimiters)
+			if err != nil {
+				log.Trace(err)
+				continue
+			}
 			if event == nil {
 				continue
 			}

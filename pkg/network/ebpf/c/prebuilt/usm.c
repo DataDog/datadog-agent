@@ -7,6 +7,7 @@
 #include "offsets.h"
 
 #include "protocols/classification/dispatcher-helpers.h"
+#include "protocols/flush.h"
 #include "protocols/http/buffer.h"
 #include "protocols/http/http.h"
 #include "protocols/http2/decoding.h"
@@ -45,21 +46,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
     // map connection tuple during SSL_do_handshake(ctx)
     map_ssl_ctx_to_sock(sk);
 
-    return 0;
-}
-
-SEC("tracepoint/net/netif_receive_skb")
-int tracepoint__net__netif_receive_skb(void *ctx) {
-    CHECK_BPF_PROGRAM_BYPASSED()
-    log_debug("tracepoint/net/netif_receive_skb");
-    // flush batch to userspace
-    // because perf events can't be sent from socket filter programs
-    http_batch_flush(ctx);
-    http2_batch_flush(ctx);
-    terminated_http2_batch_flush(ctx);
-    kafka_batch_flush(ctx);
-    postgres_batch_flush(ctx);
-    redis_batch_flush(ctx);
     return 0;
 }
 
