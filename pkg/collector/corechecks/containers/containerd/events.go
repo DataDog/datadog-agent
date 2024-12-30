@@ -111,6 +111,9 @@ type subscriber struct {
 	CollectionTimestamp int64
 	running             bool
 	client              ctrUtil.ContainerdItf
+
+	imageSizeCache     map[string]map[string]int64 // namespace -> image -> size
+	imageSizeCacheLock sync.RWMutex
 }
 
 func createEventSubscriber(name string, client ctrUtil.ContainerdItf, f []string) *subscriber {
@@ -119,6 +122,7 @@ func createEventSubscriber(name string, client ctrUtil.ContainerdItf, f []string
 		CollectionTimestamp: time.Now().Unix(),
 		Filters:             f,
 		client:              client,
+		imageSizeCache:      make(map[string]map[string]int64),
 	}
 }
 
@@ -276,6 +280,7 @@ func (s *subscriber) run(ctx context.Context) error {
 				event.Extra = updated.Labels
 				event.Message = fmt.Sprintf("Image %s updated", updated.Name)
 				s.addEvents(event)
+				s.handleImageUpdate(message.Namespace, updated.Name)
 			case "/images/create":
 				created := &events.ImageCreate{}
 				err := proto.Unmarshal(message.Event.GetValue(), created)
@@ -288,6 +293,7 @@ func (s *subscriber) run(ctx context.Context) error {
 				event.Message = fmt.Sprintf("Image %s created", created.Name)
 				event.Extra = created.Labels
 				s.addEvents(event)
+				s.handleImageCreate(message.Namespace, created.Name)
 			case "/images/delete":
 				deleted := &events.ImageDelete{}
 				err := proto.Unmarshal(message.Event.GetValue(), deleted)
@@ -298,6 +304,7 @@ func (s *subscriber) run(ctx context.Context) error {
 				event := processMessage(deleted.Name, message)
 				event.Message = fmt.Sprintf("Image %s created", deleted.Name)
 				s.addEvents(event)
+				s.handleImageDelete(message.Namespace, deleted.Name)
 			case "/tasks/create":
 				created := &events.TaskCreate{}
 				err := proto.Unmarshal(message.Event.GetValue(), created)
@@ -487,4 +494,76 @@ func pauseContainersIDs(client ctrUtil.ContainerdItf) (setPauseContainers, error
 	}
 
 	return pauseContainers, nil
+}
+
+func (s *subscriber) GetImageSizes() map[string]map[string]int64 {
+	s.imageSizeCacheLock.RLock()
+	defer s.imageSizeCacheLock.RUnlock()
+
+	// Create a snapshot of the cache
+	snapshot := make(map[string]map[string]int64)
+	for namespace, images := range s.imageSizeCache {
+		snapshot[namespace] = make(map[string]int64)
+		for imageName, size := range images {
+			snapshot[namespace][imageName] = size
+		}
+	}
+
+	return snapshot
+}
+
+func (s *subscriber) handleImageCreate(namespace, imageName string) {
+	size, err := s.getImageSize(namespace, imageName)
+	if err != nil {
+		log.Debugf("Failed to fetch size for new image %s in namespace %s: %v", imageName, namespace, err)
+		return
+	}
+	s.imageSizeCacheLock.Lock()
+	defer s.imageSizeCacheLock.Unlock()
+
+	if _, exists := s.imageSizeCache[namespace]; !exists {
+		s.imageSizeCache[namespace] = make(map[string]int64)
+	}
+	s.imageSizeCache[namespace][imageName] = size
+}
+
+func (s *subscriber) handleImageDelete(namespace, imageName string) {
+	s.imageSizeCacheLock.Lock()
+	defer s.imageSizeCacheLock.Unlock()
+
+	if images, exists := s.imageSizeCache[namespace]; exists {
+		delete(images, imageName)
+
+		if len(images) == 0 {
+			delete(s.imageSizeCache, namespace)
+		}
+	}
+}
+
+func (s *subscriber) handleImageUpdate(namespace, imageName string) {
+	size, err := s.getImageSize(namespace, imageName)
+	if err != nil {
+		log.Debugf("Failed to fetch size for updated image %s in namespace %s: %v", imageName, namespace, err)
+		return
+	}
+	s.imageSizeCacheLock.Lock()
+	defer s.imageSizeCacheLock.Unlock()
+
+	if _, exists := s.imageSizeCache[namespace]; !exists {
+		s.imageSizeCache[namespace] = make(map[string]int64)
+	}
+	s.imageSizeCache[namespace][imageName] = size
+}
+
+func (s *subscriber) getImageSize(namespace, imageName string) (int64, error) {
+	var size int64
+	err := s.client.CallWithClientContext(namespace, func(ctx context.Context) error {
+		image, err := s.client.Image(namespace, imageName)
+		if err != nil {
+			return err
+		}
+		size, err = image.Size(ctx)
+		return err
+	})
+	return size, err
 }

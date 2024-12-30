@@ -106,6 +106,10 @@ func (c *ContainerdCheck) Configure(senderManager sender.SenderManager, _ uint64
 	c.processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
 	c.subscriber = createEventSubscriber("ContainerdCheck", c.client, cutil.FiltersWithNamespaces(c.instance.ContainerdFilters))
 
+	if err := c.initializeImageCache(); err != nil {
+		log.Warnf("Failed to initialize image size cache: %v", err)
+	}
+
 	return nil
 }
 
@@ -153,8 +157,8 @@ func (c *ContainerdCheck) runContainerdCustom(sender sender.Sender) error {
 	}
 
 	for _, namespace := range namespaces {
-		if err := c.collectImageSizes(sender, c.client, namespace); err != nil {
-			log.Infof("Failed to scrape containerd openmetrics endpoint, err: %s", err)
+		if err := c.collectImageSizes(sender, namespace); err != nil {
+			log.Infof("Namespace skipped: %s", err)
 		}
 	}
 
@@ -215,25 +219,15 @@ func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error 
 	return nil
 }
 
-func (c *ContainerdCheck) collectImageSizes(sender sender.Sender, cl cutil.ContainerdItf, namespace string) error {
-	// Report images size
-	images, err := cl.ListImages(namespace)
-	if err != nil {
-		return err
+func (c *ContainerdCheck) collectImageSizes(sender sender.Sender, namespace string) error {
+	imageSizes := c.subscriber.GetImageSizes()
+	cachedImages, ok := imageSizes[namespace]
+	if !ok {
+		return fmt.Errorf("no cached images found for namespace: %s", namespace)
 	}
 
-	for _, image := range images {
-		var size int64
-
-		if err := cl.CallWithClientContext(namespace, func(c context.Context) error {
-			size, err = image.Size(c)
-			return err
-		}); err != nil {
-			log.Debugf("Unable to get image size for image: %s, err: %s", image.Name(), err)
-			continue
-		}
-
-		sender.Gauge("containerd.image.size", float64(size), "", getImageTags(image.Name()))
+	for imageName, size := range cachedImages {
+		sender.Gauge("containerd.image.size", float64(size), "", getImageTags(imageName))
 	}
 
 	return nil
@@ -251,4 +245,38 @@ func (c *ContainerdCheck) collectEvents(sender sender.Sender) {
 	events := c.subscriber.Flush(time.Now().Unix())
 	// Process events
 	c.computeEvents(events, sender, c.containerFilter)
+}
+
+func (c *ContainerdCheck) initializeImageCache() error {
+	namespaces, err := cutil.NamespacesToWatch(context.TODO(), c.client)
+	if err != nil {
+		return fmt.Errorf("failed to list namespaces: %w", err)
+	}
+
+	c.subscriber.imageSizeCacheLock.Lock()
+	defer c.subscriber.imageSizeCacheLock.Unlock()
+
+	for _, namespace := range namespaces {
+		images, err := c.client.ListImages(namespace)
+		if err != nil {
+			log.Warnf("Failed to list images for namespace %s: %v", namespace, err)
+			continue
+		}
+
+		if _, exists := c.subscriber.imageSizeCache[namespace]; !exists {
+			c.subscriber.imageSizeCache[namespace] = make(map[string]int64)
+		}
+
+		for _, image := range images {
+			size, err := c.subscriber.getImageSize(namespace, image.Name())
+			if err != nil {
+				log.Debugf("Failed to get size for image %s in namespace %s: %v", image.Name(), namespace, err)
+				continue
+			}
+
+			c.subscriber.imageSizeCache[namespace][image.Name()] = size
+		}
+	}
+
+	return nil
 }
