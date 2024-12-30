@@ -373,6 +373,7 @@ type LinkEvent struct {
 // MkdirEvent represents a mkdir event
 type MkdirEvent struct {
 	SyscallEvent
+	SyscallContext
 	File FileEvent `field:"file"`
 	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`Mode of the new directory` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`Rights of the new directory` Constants:`File mode constants`
 }
@@ -479,6 +480,7 @@ type RenameEvent struct {
 // RmdirEvent represents a rmdir event
 type RmdirEvent struct {
 	SyscallEvent
+	SyscallContext
 	File FileEvent `field:"file"`
 }
 
