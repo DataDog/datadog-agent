@@ -5,19 +5,19 @@
 #include "protocols/http2/usm-events.h"
 #include "protocols/http/types.h"
 
-// http2_tls_handle_first_frame is the entry point of our HTTP2+TLS processing.
+// http2_tls_handle_incomplete_frame is the entry point of our HTTP2+TLS processing.
 // It is responsible for getting and filtering the first frame present in the
 // buffer we get from the TLS uprobes.
 //
 // This first frame needs special handling as it may be split between multiple
 // two buffers, and we may have the first part of the first frame from the
-// processing of the previous buffer, in which case http2_tls_handle_first_frame
+// processing of the previous buffer, in which case http2_tls_handle_incomplete_frame
 // will try to complete the frame.
 //
 // Once we have the first frame, we can continue to the regular frame filtering
 // program.
-SEC("uprobe/http2_tls_handle_first_frame")
-int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
+SEC("uprobe/http2_tls_handle_incomplete_frame")
+int uprobe__http2_tls_handle_incomplete_frame(struct pt_regs *ctx) {
     const __u32 zero = 0;
 
     tls_dispatcher_arguments_t dispatcher_args_copy;
@@ -32,7 +32,7 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
 
     pktbuf_t pkt = pktbuf_from_tls(ctx, &dispatcher_args_copy);
 
-    handle_first_frame(pkt, (__u32*)&args->data_off, &dispatcher_args_copy.tup);
+    handle_incomplete_frame(pkt, (__u32*)&args->data_off, &dispatcher_args_copy.tup);
     return 0;
 }
 

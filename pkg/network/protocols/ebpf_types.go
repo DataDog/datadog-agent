@@ -39,8 +39,8 @@ const (
 	ProgramHTTP ProgramType = C.PROG_HTTP
 	// ProgramHTTPTermination is tail call to process http termination.
 	ProgramHTTPTermination ProgramType = C.PROG_HTTP_TERMINATION
-	// ProgramHTTP2HandleFirstFrame is the Golang representation of the C.PROG_HTTP2_HANDLE_FIRST_FRAME enum
-	ProgramHTTP2HandleFirstFrame ProgramType = C.PROG_HTTP2_HANDLE_FIRST_FRAME
+	// ProgramHTTP2HandleFirstFrame is the Golang representation of the C.PROG_HTTP2_HANDLE_INCOMPLETE_FRAME enum
+	ProgramHTTP2HandleFirstFrame ProgramType = C.PROG_HTTP2_HANDLE_INCOMPLETE_FRAME
 	// ProgramHTTP2FrameFilter is the Golang representation of the C.PROG_HTTP2_HANDLE_FRAME enum
 	ProgramHTTP2FrameFilter ProgramType = C.PROG_HTTP2_FRAME_FILTER
 	// ProgramHTTP2HeadersParser is the Golang representation of the C.PROG_HTTP2_HEADERS_PARSER enum
