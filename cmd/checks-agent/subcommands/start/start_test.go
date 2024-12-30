@@ -10,17 +10,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		[]*cobra.Command{MakeCommand()},
-		[]string{"run"},
+		[]string{"start"},
 		start,
-		func(_ pidimpl.Params, _ core.BundleParams, _ secrets.Params) {},
+		func() {},
 	)
 }

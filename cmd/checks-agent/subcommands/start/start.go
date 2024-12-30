@@ -198,7 +198,7 @@ func start(
 
 	// TODO: figure out how to initial.ize checks context
 	// check.InitializeInventoryChecksContext(invChecks)
-	registerCoreChecks()
+	registerCoreChecks(config)
 	scheduler := pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, optional.NewNoneOption[integrations.Component](), tagger)
 
 	// // Start the scheduler
@@ -350,7 +350,7 @@ func startScheduler(ctx context.Context, f context.CancelFunc, client core.Agent
 }
 
 // registerCoreChecks registers all core checks
-func registerCoreChecks() {
+func registerCoreChecks(config config.Component) {
 	// Required checks
 	corechecks.RegisterCheck(cpu.CheckName, cpu.Factory())
 	corechecks.RegisterCheck(load.CheckName, load.Factory())
@@ -358,7 +358,7 @@ func registerCoreChecks() {
 	corechecks.RegisterCheck(uptime.CheckName, uptime.Factory())
 	corechecks.RegisterCheck(ntp.CheckName, ntp.Factory())
 	corechecks.RegisterCheck(network.CheckName, network.Factory())
-	corechecks.RegisterCheck(snmp.CheckName, snmp.Factory())
+	corechecks.RegisterCheck(snmp.CheckName, snmp.Factory(config))
 	corechecks.RegisterCheck(ioCheck.CheckName, ioCheck.Factory())
 	corechecks.RegisterCheck(filehandles.CheckName, filehandles.Factory())
 	corechecks.RegisterCheck(disk.CheckName, disk.Factory())
