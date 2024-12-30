@@ -792,6 +792,13 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
     if (pktbuf_data_offset(pkt) > pktbuf_data_end(pkt)) {
         // We have a remainder
         new_incomplete_frame.type = kIncompleteFramePayload;
+        // We don't want to process multiple times data frames, so we will mark them as processed.
+        // For data frames we only process the header and we don't care about their payloads, so we need to ensure
+        // we processed the frame header only once. But for header frames we do process the payload, and we still need
+        // to do so as a best effort. A common practice is to send only the frame header for Headers frame, and in a
+        // separate packet to send the payload. In such a case, we will have a payload remainder, and we want to
+        // process it.
+        new_incomplete_frame.incomplete_payload.processed = last_frame.type != kHeadersFrame;
         new_incomplete_frame.incomplete_payload.header = last_frame;
         new_incomplete_frame.incomplete_payload.bytes_left = pktbuf_data_offset(pkt) - pktbuf_data_end(pkt);
         bpf_map_update_elem(&http2_incomplete_frames, tup, &new_incomplete_frame, BPF_ANY);
