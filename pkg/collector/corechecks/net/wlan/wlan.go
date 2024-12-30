@@ -36,7 +36,6 @@ type WiFiInfo struct {
 	Channel         int
 	Noise           int
 	TransmitRate    float64
-	SecurityType    string
 	HardwareAddress string
 }
 

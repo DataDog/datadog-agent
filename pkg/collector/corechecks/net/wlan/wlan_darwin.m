@@ -84,43 +84,5 @@ WiFiInfo GetWiFiInformation() {
     info.transmitRate = wifiInterface.transmitRate;
     info.hardwareAddress = [[wifiInterface hardwareAddress] UTF8String];
 
-    CWSecurity security = wifiInterface.security;
-    const char *securityStr = "";
-
-    switch (security) {
-        case kCWSecurityNone:
-            securityStr = "None";
-            break;
-        case kCWSecurityWEP:
-            securityStr = "WEP";
-            break;
-        case kCWSecurityWPAPersonal:
-            securityStr = "WPA Personal";
-            break;
-        case kCWSecurityWPAPersonalMixed:
-            securityStr = "WPA/WPA2 Personal";
-            break;
-        case kCWSecurityWPA2Personal:
-            securityStr = "WPA2 Personal";
-            break;
-        case kCWSecurityWPA3Personal:
-            securityStr = "WPA3 Personal";
-            break;
-        case kCWSecurityWPAEnterprise:
-            securityStr = "WPA Enterprise";
-            break;
-        case kCWSecurityWPA2Enterprise:
-            securityStr = "WPA2 Enterprise";
-            break;
-        case kCWSecurityWPA3Enterprise:
-            securityStr = "WPA3 Enterprise";
-            break;
-        default:
-            securityStr = "Unknown";
-            break;
-    }
-
-    info.securityType = securityStr;
-
     return info;
 }

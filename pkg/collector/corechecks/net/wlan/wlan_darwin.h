@@ -8,7 +8,6 @@ typedef struct {
     int channel;
     int noise;
     double transmitRate;
-    const char *securityType;
     const char *hardwareAddress;
 } WiFiInfo;
 

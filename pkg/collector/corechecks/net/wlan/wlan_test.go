@@ -25,7 +25,6 @@ func TestWLANOK(t *testing.T) {
 			Channel:         1,
 			Noise:           20,
 			TransmitRate:    4.0,
-			SecurityType:    "WPA/WPA2 Personal",
 			HardwareAddress: "hardware-address",
 		}, nil
 	}
@@ -63,7 +62,6 @@ func TestWLANEmptySSIDandBSSID(t *testing.T) {
 			Channel:         1,
 			Noise:           20,
 			TransmitRate:    4.0,
-			SecurityType:    "WPA/WPA2 Personal",
 			HardwareAddress: "hardware-address",
 		}, nil
 	}
@@ -101,7 +99,6 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 			Channel:         1,
 			Noise:           20,
 			TransmitRate:    4.0,
-			SecurityType:    "WPA/WPA2 Personal",
 			HardwareAddress: "hardware-address",
 		}, nil
 	}
@@ -136,7 +133,6 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 			Channel:         2,
 			Noise:           20,
 			TransmitRate:    4.0,
-			SecurityType:    "WPA/WPA2 Personal",
 			HardwareAddress: "hardware-address",
 		}, nil
 	}
@@ -154,7 +150,6 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 			Channel:         1,
 			Noise:           20,
 			TransmitRate:    4.0,
-			SecurityType:    "WPA/WPA2 Personal",
 			HardwareAddress: "hardware-address",
 		}, nil
 	}

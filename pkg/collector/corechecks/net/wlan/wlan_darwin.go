@@ -27,7 +27,6 @@ func GetWiFiInfo() (WiFiInfo, error) {
 		Channel:         int(info.channel),
 		Noise:           int(info.noise),
 		TransmitRate:    float64(info.transmitRate),
-		SecurityType:    C.GoString(info.securityType),
 		HardwareAddress: C.GoString(info.hardwareAddress),
 	}, nil
 }
