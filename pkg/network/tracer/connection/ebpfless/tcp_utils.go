@@ -135,11 +135,15 @@ func labelForState(tcpState connStatus) string {
 	return "BadState-" + strconv.Itoa(idx)
 }
 
+// ConnDirection represents what the TCPProcessor knows about the direction of a connection.
 type ConnDirection uint8
 
 const (
+	// ConnDirectionUnknown means we don't know the direction (because we missed the SYN)
 	ConnDirectionUnknown ConnDirection = iota
+	// ConnDirectionIncoming means the connection is incoming to the host
 	ConnDirectionIncoming
+	// ConnDirectionOutgoing means the connection is outgoing from the host
 	ConnDirectionOutgoing
 )
 
