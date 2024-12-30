@@ -1271,9 +1271,9 @@ func (e *AcceptEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	// readjust IP size depending on the protocol
 	switch e.AddrFamily {
-	case 0x2: // unix.AF_INET
+	case unix.AF_INET:
 		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[0:4])
-	case 0xa: // unix.AF_INET6
+	case unix.AF_INET6:
 		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[:])
 	}
 
@@ -1299,9 +1299,9 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	// readjust IP size depending on the protocol
 	switch e.AddrFamily {
-	case 0x2: // unix.AF_INET
+	case unix.AF_INET:
 		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[0:4])
-	case 0xa: // unix.AF_INET6
+	case unix.AF_INET6:
 		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[:])
 	}
 
@@ -1327,9 +1327,9 @@ func (e *ConnectEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	// readjust IP size depending on the protocol
 	switch e.AddrFamily {
-	case 0x2: // unix.AF_INET
+	case unix.AF_INET:
 		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[0:4])
-	case 0xa: // unix.AF_INET6
+	case unix.AF_INET6:
 		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[:])
 	}
 

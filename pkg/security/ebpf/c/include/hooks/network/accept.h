@@ -29,14 +29,6 @@ int __attribute__((always_inline)) read_sock_and_send_event(ctx_t * ctx, struct 
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
 
-    // Check if we should sample this event for activity dumps
-    struct activity_dump_config *config = lookup_or_delete_traced_pid(event.process.pid, bpf_ktime_get_ns(), NULL);
-    if (config) {
-      if (mask_has_event(config->event_mask, EVENT_ACCEPT)) {
-          event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
-      }
-    }
-
     send_event(ctx, EVENT_ACCEPT, event);
 
     return 0;
