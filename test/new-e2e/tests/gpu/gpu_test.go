@@ -42,6 +42,8 @@ func dockerImageName() string {
 // TestGPUSuite runs tests for the VM interface to ensure its implementation is correct.
 // Not to be run in parallel, as some tests wait until the checks are available.
 func TestGPUSuite(t *testing.T) {
+	// incident-33572
+	flake.Mark(t)
 	provParams := getDefaultProvisionerParams()
 
 	// Append our vectorAdd image for testing
