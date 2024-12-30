@@ -48,6 +48,10 @@ static __always_inline typeof(name(0)) ____##name(struct pt_regs *ctx, ##args)
 #define BPF_BYPASSABLE_UPROBE(name, args...)  BPF_BYPASSABLE_KPROBE(name, ##args)
 #define BPF_BYPASSABLE_URETPROBE(name, args...)  BPF_BYPASSABLE_KRETPROBE(name, ##args)
 
+/* BPF_BYPASSABLE_PROG is identical to BPF_PROG (bpf_tracing.h), but with a stub (CHECK_BPF_PROGRAM_BYPASSED)
+ * that checks if the program is bypassed. This is useful for testings, as we want to dynamically control
+ * the execution of the program.
+ */
 #define BPF_BYPASSABLE_PROG(name, args...)						    \
 name(unsigned long long *ctx);						    \
 static __always_inline typeof(name(0))					    \
