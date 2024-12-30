@@ -565,7 +565,7 @@ static __always_inline bool pktbuf_find_relevant_frames(pktbuf_t pkt, http2_tail
             iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS);
 }
 
-static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_data_offset, conn_tuple_t *tup) {
+static __always_inline void handle_incomplete_frame(pktbuf_t pkt, __u32 *external_data_offset, conn_tuple_t *tup) {
     const __u32 zero = 0;
     __u32 next_prog = PROG_HTTP2_FRAME_FILTER;
     http2_frame_t current_frame = {};
@@ -605,7 +605,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
             incomplete_frame->type = kIncompleteFramePayload;
             incomplete_frame->incomplete_payload.bytes_left = current_frame.length;
             incomplete_frame->incomplete_payload.header = current_frame;
-            next_prog = PROG_HTTP2_HANDLE_FIRST_FRAME;
+            next_prog = PROG_HTTP2_HANDLE_INCOMPLETE_FRAME;
             goto jump_next_tc;
         }
         // We were not able to fix the incomplete frame header, nothing to do anymore.
@@ -649,8 +649,8 @@ jump_next_tc:
     pktbuf_tail_call_compact(pkt, frame_filter_tail_call_array);
 }
 
-SEC("socket/http2_handle_first_frame")
-int socket__http2_handle_first_frame(struct __sk_buff *skb) {
+SEC("socket/http2_handle_incomplete_frame")
+int socket__http2_handle_incomplete_frame(struct __sk_buff *skb) {
     const __u32 zero = 0;
 
     dispatcher_arguments_t dispatcher_args_copy;
@@ -678,7 +678,7 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
 
     pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
 
-    handle_first_frame(pkt, &args->skb_info.data_off, &dispatcher_args_copy.tup);
+    handle_incomplete_frame(pkt, &args->skb_info.data_off, &dispatcher_args_copy.tup);
     return 0;
 }
 
