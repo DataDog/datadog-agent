@@ -234,6 +234,9 @@ typedef struct {
     http2_frame_t header;
     // The number of bytes left to read in the payload.
     __u32 bytes_left;
+    // A flag indicating if the frame header was already processed or not.
+    // This is used to avoid processing Data frames with EOS flag set multiple times.
+    bool processed;
 } incomplete_frame_payload_t;
 
 typedef struct {

@@ -114,12 +114,14 @@ type FrameType = struct {
 	Pad_cgo_1 [4]byte
 }
 type IncompleteFramePayload = struct {
-	Header FrameType
-	Left   uint32
+	Header    FrameType
+	Left      uint32
+	Processed bool
+	Pad_cgo_0 [3]byte
 }
 type HTTP2IncompleteFrameEntry struct {
 	Header    IncompleteFrameHeader
-	Pad_cgo_0 [6]byte
+	Pad_cgo_0 [10]byte
 	Type      uint8
 	Pad_cgo_1 [3]byte
 }
