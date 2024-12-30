@@ -116,7 +116,7 @@ require (
 	golang.org/x/mod v0.22.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	modernc.org/sqlite v1.34.1 // indirect
+	modernc.org/sqlite v1.34.4 // indirect
 )
 
 require (
