@@ -16,6 +16,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
     follow_workflow_run,
     print_failed_jobs_logs,
     print_workflow_conclusion,
+    trigger_buildenv_workflow,
     trigger_macos_workflow,
 )
 from tasks.libs.common.color import Color, color_message
@@ -23,9 +24,11 @@ from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.utils import get_git_pretty_ref
+from tasks.libs.notify.pipeline_status import send_slack_message
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
+from tasks.libs.releasing.version import current_version
 from tasks.release import _get_release_json_value
 
 ALL_TEAMS = '@datadog/agent-all'
@@ -108,6 +111,56 @@ def trigger_macos(
         raise Exit(f"Unsupported workflow type: {workflow_type}", code=1)
     if conclusion != "success":
         raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
+
+
+def _update_windows_runner_version(new_version=None, buildenv_ref="master"):
+    if new_version is None:
+        raise Exit(message="Buildenv workflow need the 'new_version' field value to be not None")
+
+    run = trigger_buildenv_workflow(
+        workflow_name="runner-bump.yml",
+        github_action_ref=buildenv_ref,
+        new_version=new_version,
+    )
+    # We are only waiting 0.5min between each status check because buildenv is much faster than macOS builds
+    workflow_conclusion, workflow_url = follow_workflow_run(run, "DataDog/buildenv", 0.5)
+
+    if workflow_conclusion != "success":
+        if workflow_conclusion == "failure":
+            print_failed_jobs_logs(run)
+        return workflow_conclusion
+
+    print_workflow_conclusion(workflow_conclusion, workflow_url)
+
+    download_with_retry(download_artifacts, run, ".", 3, 5, "DataDog/buildenv")
+
+    with open("PR_URL_ARTIFACT") as f:
+        PR_URL = f.read().strip()
+
+    if not PR_URL:
+        raise Exit(message="Failed to fetch artifact from the workflow. (Empty artifact)")
+
+    message = f":robobits: A new windows-runner bump PR to {new_version} has been generated. Please take a look :frog-review:\n:pr: {PR_URL} :ty:"
+
+    send_slack_message("ci-infra-support", message)
+    return workflow_conclusion
+
+
+@task
+def update_windows_runner_version(
+    ctx,
+    new_version=None,
+    buildenv_ref="master",
+):
+    """
+    Trigger a workflow on the buildenv repository to bump windows gitlab runner
+    """
+    if new_version is None:
+        new_version = str(current_version(ctx, "7"))
+
+    conclusion = _update_windows_runner_version(new_version, buildenv_ref)
+    if conclusion != "success":
+        raise Exit(message=f"Buildenv workflow {conclusion}", code=1)
 
 
 @task
