@@ -198,7 +198,9 @@ func start(
 
 	// TODO: figure out how to initial.ize checks context
 	// check.InitializeInventoryChecksContext(invChecks)
-	registerCoreChecks()
+
+	// do not register core checks in checks-agent
+	// registerCoreChecks()
 	scheduler := pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, optional.NewNoneOption[integrations.Component](), tagger)
 
 	// // Start the scheduler
@@ -337,6 +339,7 @@ func startScheduler(ctx context.Context, f context.CancelFunc, client core.Agent
 		unscheduleConfigs := []integration.Config{}
 
 		for _, config := range streamConfigs.Configs {
+			log.Infof("received autodiscovery scheduler config event %s for check %s", config.EventType.String(), config.Name)
 			if config.EventType == core.ConfigEventType_SCHEDULE {
 				scheduleConfigs = append(scheduleConfigs, proto.AutodiscoveryConfigFromProtobufConfig(config))
 			} else if config.EventType == core.ConfigEventType_UNSCHEDULE {
