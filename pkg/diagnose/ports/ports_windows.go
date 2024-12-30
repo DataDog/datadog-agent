@@ -18,7 +18,7 @@ type NTSTATUS uint32
 
 // ntSuccess is a helper function to check if a status is a success. 0 is success, all other values are failure.
 func ntSuccess(status NTSTATUS) bool {
-	return status >= 0
+	return int32(status) >= 0
 }
 
 const (
