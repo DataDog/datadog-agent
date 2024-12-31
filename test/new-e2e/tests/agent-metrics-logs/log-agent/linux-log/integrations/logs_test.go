@@ -16,6 +16,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -85,12 +86,10 @@ func (v *IntegrationsLogsSuite) TestWriteTenLogsCheck() {
 func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 	// Since it's not yet possible to write to the integration log file by calling
 	// the agent check command, we can test if the file rotation works using the following method:
-	// 1. Send logs until to the logs from integrations launcher until their
-	// cumulative size is greater than integration_logs_files_max_size (for logs
-	// of size 256kb, this will be four logs given the max size of 1mb)
-	// 2. Put a counter in the logs that starts at 1 and increases by 1 every time
-	// the check is called, then check that a log that contains the increased
-	// count exists in the logs
+
+	// 1. Set the max log file size to 1 MB individual log size to 256 kB.
+	// 2. Send five (or more) logs to the agent, causing the log file to rotate.
+	// 3. Check the logs to ensure that each is unique, ensuring the rotation worked correctly.
 
 	tags := []string{"test:rotate"}
 	yamlData, err := generateYaml("a", true, 1024*230, 1, tags, "rotation_source", "rotation_service")
@@ -104,32 +103,36 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 	// The log file should rotate every four logs, so checking through five
 	// iterations should guarantee a rotation. The counters in the logs should
 	// also contain the numbers 1 through 5
+
+	// Accumulate logs until there are at least 5
+	var receivedLogs []*aggregator.Log
+	assert.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		receivedLogs, err = utils.FetchAndFilterLogs(v.Env().FakeIntake, "rotation_service", ".*counter: \\d+.*")
+		assert.NoError(c, err)
+		assert.GreaterOrEqual(c, len(receivedLogs), 5)
+
+	}, 2*time.Minute, 5*time.Second)
+
+	// Check the logs to ensure they're unique and rotation worked correctly
+
+	// Sort the logs slice in ascending order according to timestamp. This
+	// guarantees that the last written log will be in last position in the
+	// slice. This is needed since FetchAndFilterLogs doesn't guarantee order
+	sort.Slice(receivedLogs, func(j, k int) bool {
+		return receivedLogs[j].Timestamp < receivedLogs[k].Timestamp
+	})
+
+	// Check the contents of each log to ensure their counter was correctly
+	// written
+	regex := regexp.MustCompile(`counter: (\d+)`)
 	for i := 0; i < 5; i++ {
-		logCounter := i + 1
-		assert.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-			logs, err := utils.FetchAndFilterLogs(v.Env().FakeIntake, "rotation_service", ".*counter: \\d+.*")
-			assert.NoError(c, err)
-			assert.GreaterOrEqual(c, len(logs), logCounter, "Fewer logs than expected")
-
-			// Sort the logs slice in ascending order according to timestamp. This
-			// guarantees that the last written log will be in last position in the
-			// slice. This is needed since FetchAndFilterLogs doesn't guarantee order
-			sort.Slice(logs, func(j, k int) bool {
-				return logs[j].Timestamp < logs[k].Timestamp
-			})
-
-			// Search for the next incremented log in the fetched
-			// logs.
-			log := logs[len(logs)-1]
-			regex := regexp.MustCompile(`counter: (\d+)`)
-			matches := regex.FindStringSubmatch(log.Message)
-			assert.Greater(c, len(matches), 1, "Did not find matching \"count\" regular expression in log")
-			number := matches[1]
-			count, err := strconv.Atoi(number)
-			assert.Nil(c, err)
-
-			assert.Equal(c, logCounter, count)
-		}, 2*time.Minute, 5*time.Second)
+		log := receivedLogs[i]
+		matches := regex.FindStringSubmatch(log.Message)
+		assert.Greater(v.T(), len(matches), 1, "Did not find matching \"count\" regular expression in log")
+		number := matches[1]
+		count, err := strconv.Atoi(number)
+		assert.Equal(v.T(), i+1, count)
+		assert.Nil(v.T(), err)
 	}
 }
 
