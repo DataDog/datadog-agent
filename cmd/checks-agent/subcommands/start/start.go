@@ -35,6 +35,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
+	"github.com/DataDog/datadog-agent/comp/core/pid"
+	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -69,7 +71,8 @@ import (
 )
 
 type CLIParams struct {
-	confPath string
+	confPath    string
+	pidfilePath string
 }
 
 // MakeCommand returns the start subcommand for the 'dogstatsd' command.
@@ -86,6 +89,7 @@ func MakeCommand() *cobra.Command {
 
 	// local flags
 	startCmd.PersistentFlags().StringVarP(&cliParams.confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	startCmd.Flags().StringVarP(&cliParams.pidfilePath, "pidfile", "p", "", "path to the pidfile")
 
 	return startCmd
 }
@@ -146,6 +150,9 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 
 		fetchonlyimpl.Module(),
 		haagentfx.Module(),
+
+		pidimpl.Module(),
+		fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 	)
 }
 
@@ -157,6 +164,7 @@ func start(
 	demultiplexer demultiplexer.Component,
 	tagger tagger.Component,
 	authToken authtoken.Component,
+	_ pid.Component,
 ) error {
 
 	// Main context passed to components
