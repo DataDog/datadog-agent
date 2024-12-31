@@ -27,6 +27,7 @@ import (
 
 type localRecommender struct {
 	podWatcher workload.PodWatcher
+	// store     *loadstore.EntityStore
 }
 
 type ValueType float64
@@ -38,6 +39,7 @@ type EntityValue struct {
 	timestamp Timestamp
 }
 
+// Structs from loadstore implementation //
 type PodResult struct {
 	PodName         string
 	ContainerValues map[string][]EntityValue // container name to a time series of entity values, e.g cpu usage from past three collection
@@ -57,7 +59,7 @@ var (
 		corev1.ResourceCPU:    "container.cpu.usage",
 		corev1.ResourceMemory: "container.memory.usage",
 	}
-	// store = loadstore.NewEntityStore(context.Background()) // TODO: move instantiation
+
 	// Example data
 	ev1 = EntityValue{value: 0.1, timestamp: 1}
 	ev2 = EntityValue{value: 0.2, timestamp: 2}
@@ -111,6 +113,18 @@ type ContainerRequests struct {
 	Memory *uint64
 }
 
+type ContainerInfo struct {
+	AveragedMetric          *EntityValue
+	Requests                ContainerRequests
+	Utilization             float64
+	RecommendationTimestamp time.Time
+}
+
+type PodEntitiesRequests struct {
+	PodName    string
+	Containers map[string]ContainerInfo // container name to a time series of entity values, e.g cpu usage from past three collection
+}
+
 func newResourceRecommenderSettings(target datadoghq.DatadogPodAutoscalerTarget) (*resourceRecommenderSettings, error) {
 	if target.Type == datadoghq.DatadogPodAutoscalerContainerResourceTargetType {
 		return getOptionsFromContainerResource(target.ContainerResource)
@@ -162,27 +176,6 @@ func getOptionsFromContainerResource(target *datadoghq.DatadogPodAutoscalerConta
 	return recSettings, nil
 }
 
-func (r resourceRecommenderSettings) recommend(currentTime time.Time, stats QueryResult, currentReplicas float64, pods []*workloadmeta.KubernetesPod) (int32, time.Time, error) {
-	podToResources := processPods(pods, r.ContainerName)
-
-	podData := map[string]map[string]EntityValue{}
-	for _, result := range stats.results {
-		averagedContainers := processAverageContainerMetricValue(result.ContainerValues, currentTime)
-		podData[result.PodName] = averagedContainers
-	}
-
-	podToUtilization, recommendationTimestamp, missingPods := processPodUtilization(podData, podToResources, r)
-	recommendedReplicas := calculateUtilizationRecommendation(podToUtilization, currentReplicas, r)
-
-	// account for missing pods
-	if len(missingPods) > 0 {
-		adjustedPodToUtilization := adjustMissingPods(getScaleDirection(int32(currentReplicas), recommendedReplicas), podToUtilization, missingPods)
-		recommendedReplicas = calculateUtilizationRecommendation(adjustedPodToUtilization, currentReplicas, r)
-	}
-
-	return recommendedReplicas, recommendationTimestamp, nil
-}
-
 // CalculateHorizontalRecommendations is the entrypoint to calculate the horizontal recommendation for a given DatadogPodAutoscaler
 func (l localRecommender) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal) (*model.HorizontalScalingValues, error) {
 	currentTime := time.Now()
@@ -213,9 +206,11 @@ func (l localRecommender) CalculateHorizontalRecommendations(dpai model.PodAutos
 			return nil, fmt.Errorf("Failed to get resource recommender settings: %s", err)
 		}
 
-		// stats := store.GetEntitiesStats(dpai.Namespace(), dpai.Spec().TargetRef.Name, nameToMetric[target.ContainerResource.Name])
+		// queryResult := GetMetricsRaw()
+		podData := processPods(pods, recSettings.ContainerName)
+		podData = processMetricsData(podData, queryResult, currentTime)
 
-		rec, ts, err := recSettings.recommend(currentTime, queryResult, float64(*dpai.CurrentReplicas()), pods)
+		rec, ts, err := recSettings.recommend(podData, float64(*dpai.CurrentReplicas()))
 		if err != nil {
 			log.Debugf("Got error calculating recommendation: %s", err)
 			break
@@ -238,53 +233,95 @@ func (l localRecommender) CalculateHorizontalRecommendations(dpai model.PodAutos
 }
 
 // map of pod -> containerName -> requests
-func processPods(pods []*workloadmeta.KubernetesPod, containerName *string) map[string]map[string]ContainerRequests {
-	podInfo := map[string]map[string]ContainerRequests{}
+func processPods(pods []*workloadmeta.KubernetesPod, containerName *string) map[string]PodEntitiesRequests {
+	podData := map[string]PodEntitiesRequests{}
+
+	// Process podwatcher data
 	for _, pod := range pods {
-		podName := pod.Name
-		if podInfo[podName] == nil {
-			podInfo[podName] = make(map[string]ContainerRequests)
-		}
+		currentPod := PodEntitiesRequests{}
+		currentPod.PodName = pod.Name
+
 		for _, container := range pod.Containers {
-			if containerName != nil && container.Name != *containerName { // ignore all other information if containerName is specified
+			// ignore all other information if containerName is specified
+			if containerName != nil && container.Name != *containerName {
 				continue
 			}
 
-			podInfo[podName][container.Name] = ContainerRequests{
+			c := ContainerInfo{}
+			c.Requests = ContainerRequests{
 				CPU:    container.Resources.CPURequest,
 				Memory: container.Resources.MemoryRequest,
 			}
+			currentPod.Containers[container.Name] = c
+		}
+		podData[pod.Name] = currentPod
+	}
+
+	return podData
+}
+
+func processMetricsData(podData map[string]PodEntitiesRequests, queryResult QueryResult, currentTime time.Time) map[string]PodEntitiesRequests {
+	// Process metrics query
+	for _, result := range queryResult.results {
+		pod, ok := podData[result.PodName]
+		if !ok { // skip; pod does not exist in podWatcher
+			continue
+		}
+
+		for container, series := range result.ContainerValues {
+			containerData, ok := pod.Containers[container]
+			if !ok {
+				continue
+			}
+			// calculate average container metric value
+			averagedMetric, err := processAverageContainerMetricValue(series, currentTime)
+			if err != nil {
+				continue
+			}
+			containerData.AveragedMetric = &averagedMetric
 		}
 	}
-	return podInfo
+	return podData
+
 }
 
 // processAverageContainerMetricValue takes a series of metrics and processes them to return the final metric value and
 // corresponding timestamp to use to generate a recommendation
 // TODO: handle missing containers here?
-func processAverageContainerMetricValue(usageTimeseries map[string][]EntityValue, currentTime time.Time) map[string]EntityValue {
-	containerToAverageMetric := map[string]EntityValue{}
+func processAverageContainerMetricValue(series []EntityValue, currentTime time.Time) (EntityValue, error) {
+	values := []ValueType{}
+	lastTimestamp := Timestamp(0)
 
-	for container, series := range usageTimeseries {
-		values := []ValueType{}
-		for _, entity := range series {
-			// Discard stale metrics
-			if currentTime.Unix()-int64(entity.timestamp) > staleDataThresholdSeconds {
-				continue
-			}
-			values = append(values, entity.value)
+	for _, entity := range series {
+		// Discard stale metrics
+		if currentTime.Unix()-int64(entity.timestamp) > staleDataThresholdSeconds {
+			continue
 		}
-
-		if len(values) == 0 {
-			continue // skip containers with no metrics
-		}
-		containerToAverageMetric[container] = EntityValue{
-			value:     average(values),
-			timestamp: series[len(series)-1].timestamp,
-		}
+		values = append(values, entity.value)
+		lastTimestamp = entity.timestamp
 	}
 
-	return containerToAverageMetric
+	if len(values) == 0 {
+		return EntityValue{}, fmt.Errorf("Missing usage metrics")
+	}
+
+	return EntityValue{
+		value:     average(values),
+		timestamp: lastTimestamp,
+	}, nil
+}
+
+func (r resourceRecommenderSettings) recommend(podData map[string]PodEntitiesRequests, currentReplicas float64) (int32, time.Time, error) {
+	podToUtilization, recommendationTimestamp, missingPods := processPodUtilization(podData, r)
+	recommendedReplicas := calculateUtilizationRecommendation(podToUtilization, currentReplicas, r)
+
+	// account for missing pods
+	if len(missingPods) > 0 {
+		adjustedPodToUtilization := adjustMissingPods(getScaleDirection(int32(currentReplicas), recommendedReplicas), podToUtilization, missingPods)
+		recommendedReplicas = calculateUtilizationRecommendation(adjustedPodToUtilization, currentReplicas, r)
+	}
+
+	return recommendedReplicas, recommendationTimestamp, nil
 }
 
 func calculateUtilizationRecommendation(podToUtilization map[string]float64, currentReplicas float64, recSettings resourceRecommenderSettings) int32 {
@@ -294,45 +331,54 @@ func calculateUtilizationRecommendation(podToUtilization map[string]float64, cur
 	return recommendedReplicas
 }
 
-func processPodUtilization(containerMetrics map[string]map[string]EntityValue, containerRequests map[string]map[string]ContainerRequests, r resourceRecommenderSettings) (map[string]float64, time.Time, []string) {
+func processPodUtilization(podData map[string]PodEntitiesRequests, r resourceRecommenderSettings) (map[string]float64, time.Time, []string) {
 	podToUtilization := map[string]float64{}
 	missingPods := []string{}
 	lastTimestamp := time.Time{}
-	for pod, podData := range containerRequests {
-		metricsData := containerMetrics[pod]
-		if metricsData == nil {
+
+	for pod, data := range podData {
+		isPodProcessed := false // track if metrics were reported for the pod
+		for _, containerData := range data.Containers {
+			utilization, ts, err := calculatePodUtilization(containerData, lastTimestamp, r)
+			if err != nil {
+				continue
+			}
+
+			lastTimestamp = ts
+			podToUtilization[pod] = utilization
+			isPodProcessed = true
+		}
+		if !isPodProcessed {
 			missingPods = append(missingPods, pod)
 		}
-		utilization, ts := calculatePodUtilization(podData, metricsData, lastTimestamp, r)
-		lastTimestamp = ts
-		podToUtilization[pod] = utilization
 	}
 
 	return podToUtilization, lastTimestamp, missingPods
+
 }
 
-func calculatePodUtilization(podData map[string]ContainerRequests, metricsData map[string]EntityValue, lastTime time.Time, r resourceRecommenderSettings) (float64, time.Time) {
-	totalContainerUsage := ValueType(0)
-	totalContainerRequests := 0.0
-
-	for container, requests := range podData {
-		if containerMetric, ok := metricsData[container]; ok {
-			totalContainerUsage += containerMetric.value
-			if r.MetricName == "container.memory.usage" {
-				totalContainerRequests += float64(*requests.Memory)
-			} else {
-				totalContainerRequests += *requests.CPU
-			}
-
-			// update last timestamp
-			metricTime := time.Unix(int64(containerMetric.timestamp), 0)
-			if metricTime.After(lastTime) {
-				lastTime = metricTime
-			}
-		}
+// calculatePodUtilization calculates the utilization of a pod based on data from separate containers
+func calculatePodUtilization(containerData ContainerInfo, lastTimestamp time.Time, r resourceRecommenderSettings) (float64, time.Time, error) {
+	if containerData.AveragedMetric == nil {
+		return 0, lastTimestamp, fmt.Errorf("Missing usage metrics")
 	}
 
-	return (float64(totalContainerUsage) / totalContainerRequests), lastTime
+	totalContainerUsage := containerData.AveragedMetric.value
+	totalContainerRequests := 0.0
+
+	if r.MetricName == "container.memory.usage" {
+		totalContainerRequests += float64(*containerData.Requests.Memory)
+	} else {
+		totalContainerRequests += *containerData.Requests.CPU
+	}
+
+	// update last timestamp
+	metricTime := time.Unix(int64(containerData.AveragedMetric.timestamp), 0)
+	if metricTime.After(lastTimestamp) {
+		lastTimestamp = metricTime
+	}
+
+	return (float64(totalContainerUsage) / totalContainerRequests), lastTimestamp, nil
 }
 
 func findAverageUtilization(podToUtilization map[string]float64) float64 {
@@ -341,11 +387,6 @@ func findAverageUtilization(podToUtilization map[string]float64) float64 {
 		totalUtilization += utilization
 	}
 	return totalUtilization / float64(len(podToUtilization))
-}
-
-// Missing pod handling //
-func findMissingPods() {
-	// loop through and return list of pod ids? that are missing from metrics calculation
 }
 
 func adjustMissingPods(scaleDirection workload.ScaleDirection, podToUtilization map[string]float64, missingPods []string) map[string]float64 {
