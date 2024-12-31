@@ -7,7 +7,7 @@ require (
 	github.com/fatih/color v1.16.0
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
-	golang.org/x/text v0.3.0
+	golang.org/x/text v0.21.0
 )
 
 require (
@@ -19,6 +19,6 @@ require (
 	go.uber.org/dig v1.15.0 // indirect
 	go.uber.org/multierr v1.5.0 // indirect
 	go.uber.org/zap v1.16.0 // indirect
-	golang.org/x/sys v0.14.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

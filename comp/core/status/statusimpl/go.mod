@@ -40,7 +40,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.53.1-rc.4
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
-	golang.org/x/text v0.14.0
+	golang.org/x/text v0.21.0
 )
 
 require (
@@ -93,9 +93,10 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.23.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
-	golang.org/x/mod v0.15.0 // indirect
-	golang.org/x/sys v0.17.0 // indirect
-	golang.org/x/tools v0.18.0 // indirect
+	golang.org/x/mod v0.17.0 // indirect
+	golang.org/x/sync v0.10.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
