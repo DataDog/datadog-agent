@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +25,7 @@ func TestMain(m *testing.M) {
 	if logLevel == "" {
 		logLevel = "warn"
 	}
-	log.SetupLogger(seelog.Default, logLevel)
+	log.SetupLogger(log.Default(), logLevel)
 	os.Exit(m.Run())
 }
 

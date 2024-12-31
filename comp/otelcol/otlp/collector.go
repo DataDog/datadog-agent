@@ -31,7 +31,6 @@ import (
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -71,7 +70,7 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
 	enrichedTags = append(enrichedTags, extraTags...)
 	enrichedTags = append(enrichedTags, dimensions.Tags()...)
-	prefix, id, err := common.ExtractPrefixAndID(dimensions.OriginID())
+	prefix, id, err := types.ExtractPrefixAndID(dimensions.OriginID())
 	if err != nil {
 		entityID := types.NewEntityID(prefix, id)
 		entityTags, err := t.tagger.Tag(entityID, t.cardinality)

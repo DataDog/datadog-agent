@@ -16,15 +16,12 @@ namespace WixSetup.Datadog_Agent
         private const string CompanyFullName = "Datadog, Inc.";
 
         // Product
-        private const string ProductFullName = "Datadog Agent";
-        private const string ProductDescription = "Datadog Agent {0}";
         private const string ProductHelpUrl = @"https://help.datadoghq.com/hc/en-us";
         private const string ProductAboutUrl = @"https://www.datadoghq.com/about/";
         private const string ProductComment = @"Copyright 2015 - Present Datadog";
         private const string ProductContact = @"https://www.datadoghq.com/about/contact/";
 
         // same value for all versions; must not be changed
-        private static readonly Guid ProductUpgradeCode = new("0c50421b-aefb-4f15-a809-7af256d608a5");
         private static readonly string ProductLicenceRtfFilePath = Path.Combine("assets", "LICENSE.rtf");
         private static readonly string ProductIconFilePath = Path.Combine("assets", "project.ico");
         private static readonly string InstallerBackgroundImagePath = Path.Combine("assets", "dialog_background.bmp");
@@ -40,6 +37,7 @@ namespace WixSetup.Datadog_Agent
         private readonly AgentVersion _agentVersion;
         private readonly AgentCustomActions _agentCustomActions = new();
         private readonly AgentInstallerUI _agentInstallerUi;
+        private readonly IAgentFlavor _agentFlavor;
 
         public AgentInstaller()
         : this(null)
@@ -60,11 +58,13 @@ namespace WixSetup.Datadog_Agent
 
             _agentBinaries = new AgentBinaries(BinSource, InstallerSource);
             _agentInstallerUi = new AgentInstallerUI(this, _agentCustomActions);
+            _agentFlavor = AgentFlavorFactory.New(_agentVersion);
         }
 
         public Project Configure()
         {
-            var project = new ManagedProject("Datadog Agent",
+
+            var project = new ManagedProject(_agentFlavor.ProductFullName,
                 // Use 2 LaunchConditions, one for server versions,
                 // one for client versions.
                 MinimumSupportedWindowsVersion.WindowsServer2016 |
@@ -145,9 +145,9 @@ namespace WixSetup.Datadog_Agent
             project
                 .SetCustomActions(_agentCustomActions)
                 .SetProjectInfo(
-                    upgradeCode: ProductUpgradeCode,
-                    name: ProductFullName,
-                    description: string.Format(ProductDescription, _agentVersion.Version),
+                    upgradeCode: _agentFlavor.UpgradeCode,
+                    name: _agentFlavor.ProductFullName,
+                    description: _agentFlavor.ProductDescription,
                     // This version is overridden below because SetProjectInfo throws an Exception if Revision is != 0
                     version: new Version(
                         _agentVersion.Version.Major,
@@ -156,7 +156,7 @@ namespace WixSetup.Datadog_Agent
                         0)
                 )
                 .SetControlPanelInfo(
-                    name: ProductFullName,
+                    name: _agentFlavor.ProductFullName,
                     manufacturer: CompanyFullName,
                     readme: ProductHelpUrl,
                     comment: ProductComment,
@@ -220,7 +220,7 @@ namespace WixSetup.Datadog_Agent
                 // Set custom output directory (WixSharp defaults to current directory)
                 project.OutDir = Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR");
             }
-            project.OutFileName = $"datadog-agent-{_agentVersion.PackageVersion}-1-x86_64";
+            project.OutFileName = _agentFlavor.PackageOutFileName;
             project.Package.AttributesDefinition = $"Comments={ProductComment}";
 
             // clear default media as we will add it via MediaTemplate

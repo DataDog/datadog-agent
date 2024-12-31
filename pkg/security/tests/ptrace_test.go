@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -24,8 +25,16 @@ func TestPTraceEvent(t *testing.T) {
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:         "test_ptrace",
+			ID:         "test_ptrace_cont",
 			Expression: `ptrace.request == PTRACE_CONT && ptrace.tracee.file.name == "syscall_tester"`,
+		},
+		{
+			ID:         "test_ptrace_me",
+			Expression: `ptrace.request == PTRACE_TRACEME && process.file.name == "syscall_tester"`,
+		},
+		{
+			ID:         "test_ptrace_attach",
+			Expression: `ptrace.request == PTRACE_ATTACH && ptrace.tracee.file.name == "syscall_tester"`,
 		},
 	}
 
@@ -40,18 +49,18 @@ func TestPTraceEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "ptrace", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "ptrace-cont", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"ptrace-traceme"}
 		envs := []string{}
 
-		test.WaitSignal(t, func() error {
+		err := test.GetEventSent(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("%s: %w", out, err)
 			}
 
 			return nil
-		}, func(event *model.Event, _ *rules.Rule) {
+		}, func(_ *rules.Rule, event *model.Event) bool {
 			assert.Equal(t, "ptrace", event.GetType(), "wrong event type")
 			assert.Equal(t, uint64(42), event.PTrace.Address, "wrong address")
 
@@ -59,6 +68,63 @@ func TestPTraceEvent(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validatePTraceSchema(t, event)
-		})
+			return true
+		}, time.Second*3, "test_ptrace_cont")
+		if err != nil {
+			t.Error(err)
+		}
+	})
+
+	test.Run(t, "ptrace-me", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{"ptrace-traceme"}
+		envs := []string{}
+
+		err := test.GetEventSent(t, func() error {
+			cmd := cmdFunc(syscallTester, args, envs)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+
+			return nil
+		}, func(_ *rules.Rule, event *model.Event) bool {
+			assert.Equal(t, "ptrace", event.GetType(), "wrong event type")
+			assert.Equal(t, uint64(0), event.PTrace.Address, "wrong address")
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			test.validatePTraceSchema(t, event)
+			return true
+		}, time.Second*3, "test_ptrace_me")
+		if err != nil {
+			t.Error(err)
+		}
+	})
+
+	test.Run(t, "ptrace-attach", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{"sleep", "2", ";", "ptrace-attach"}
+		envs := []string{}
+
+		err := test.GetEventSent(t, func() error {
+			cmd := cmdFunc(syscallTester, args, envs)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+
+			return nil
+		}, func(_ *rules.Rule, event *model.Event) bool {
+			assert.Equal(t, "ptrace", event.GetType(), "wrong event type")
+			assert.Equal(t, uint64(0), event.PTrace.Address, "wrong address")
+			assert.Equal(t, event.PTrace.Tracee.PPid, event.PTrace.Tracee.Parent.Pid, "tracee wrong ppid / parent pid")
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			test.validatePTraceSchema(t, event)
+			return true
+		}, time.Second*6, "test_ptrace_attach")
+		if err != nil {
+			t.Error(err)
+		}
 	})
 }

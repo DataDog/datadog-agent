@@ -63,7 +63,7 @@ const (
 
 var (
 	// signature
-	procmonSignature = ProcmonSignature
+	procmonSignature int64 = ProcmonSignature
 )
 
 // NewWinProcMon creates a new WinProcmon

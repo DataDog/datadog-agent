@@ -48,7 +48,7 @@ type AuthorizedSet map[string]struct{}
 // config API.
 var AuthorizedConfigPathsCore = buildAuthorizedSet(
 	"api_key", "site", "dd_url", "logs_config.dd_url",
-	"additional_endpoints", "logs_config.additional_endpoints",
+	"additional_endpoints", "logs_config.additional_endpoints", "apm_config.additional_endpoints",
 )
 
 func buildAuthorizedSet(paths ...string) AuthorizedSet {

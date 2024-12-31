@@ -176,6 +176,14 @@ var (
 	}
 )
 
+func toMultiValueHeaders(headers map[string]string) map[string][]string {
+	mvh := make(map[string][]string)
+	for k, v := range headers {
+		mvh[k] = []string{v}
+	}
+	return mvh
+}
+
 func TestNilPropagator(t *testing.T) {
 	var extractor Extractor
 	tc, err := extractor.Extract([]byte(`{"headers":` + headersAll + `}`))
@@ -528,6 +536,16 @@ func TestExtractorExtract(t *testing.T) {
 			events: []interface{}{
 				events.ALBTargetGroupRequest{
 					Headers: headersMapAll,
+				},
+			},
+			expCtx:   ddTraceContext,
+			expNoErr: true,
+		},
+		{
+			name: "ALBTargetGroupRequestMultiValueHeaders",
+			events: []interface{}{
+				events.ALBTargetGroupRequest{
+					MultiValueHeaders: toMultiValueHeaders(headersMapAll),
 				},
 			},
 			expCtx:   ddTraceContext,

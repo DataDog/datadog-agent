@@ -17,13 +17,14 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type apmvmSuite struct {
@@ -107,9 +108,7 @@ func (v *apmvmSuite) SetupSuite() {
 	currDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	reporoot, _ := filepath.Abs(filepath.Join(currDir, "..", "..", "..", ".."))
-	kitchenDir := filepath.Join(reporoot, "test", "kitchen", "site-cookbooks")
-	v.testspath = filepath.Join(kitchenDir, "dd-system-probe-check", "files", "default", "tests")
+	v.testspath = filepath.Join(currDir, "artifacts")
 
 	// this creates the VM.
 	v.BaseSuite.SetupSuite()

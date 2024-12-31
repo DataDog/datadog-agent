@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -54,7 +55,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
@@ -91,10 +91,11 @@ func (s *service) Run(svcctx context.Context) error {
 	params := &cliParams{}
 	err := fxutil.OneShot(
 		func(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component,
-			telemetry telemetry.Component, _ workloadmeta.Component, _ *cliParams, statusComponent status.Component, _ autoexit.Component, settings settings.Component, wmeta workloadmeta.Component) error {
+			telemetry telemetry.Component, _ workloadmeta.Component, _ *cliParams, statusComponent status.Component, _ autoexit.Component,
+			settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component) error {
 			defer start.StopAgent(log)
 
-			err := start.RunAgent(log, config, telemetry, statusComponent, settings, wmeta)
+			err := start.RunAgent(log, config, telemetry, statusComponent, settings, wmeta, at)
 			if err != nil {
 				if errors.Is(err, start.ErrAllComponentsDisabled) {
 					// If all components are disabled, we should exit cleanly
@@ -121,17 +122,8 @@ func (s *service) Run(svcctx context.Context) error {
 
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
-		workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
-
-			catalog := workloadmeta.NodeAgent
-
-			if config.GetBool("security_agent.remote_workloadmeta") {
-				catalog = workloadmeta.Remote
-			}
-
-			return workloadmeta.Params{
-				AgentType: catalog,
-			}
+		workloadmetafx.Module(workloadmeta.Params{
+			AgentType: workloadmeta.Remote,
 		}),
 		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, wmeta workloadmeta.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
 			stopper := startstop.NewSerialStopper()
@@ -173,9 +165,9 @@ func (s *service) Run(svcctx context.Context) error {
 		statusimpl.Module(),
 
 		fetchonlyimpl.Module(),
-		configsyncimpl.OptionalModule(),
+		configsyncimpl.Module(),
 		// Force the instantiation of the component
-		fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
+		fx.Invoke(func(_ configsync.Component) {}),
 		autoexitimpl.Module(),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{

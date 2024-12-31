@@ -11,18 +11,18 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
 	"os"
-	"os/exec"
 	"path/filepath"
 
-	fleetEnv "github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	iexec "github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 )
 
-func install(ctx context.Context, env *fleetEnv.Env, url string, experiment bool) error {
+func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
 	err := paths.CreateInstallerDataDir()
 	if err != nil {
 		return fmt.Errorf("failed to create installer data directory: %w", err)
@@ -47,8 +47,8 @@ func install(ctx context.Context, env *fleetEnv.Env, url string, experiment bool
 }
 
 // downloadInstaller downloads the installer package from the registry and returns the path to the executable.
-func downloadInstaller(ctx context.Context, env *fleetEnv.Env, url string, tmpDir string) (*iexec.InstallerExec, error) {
-	downloader := oci.NewDownloader(env, fleetEnv.GetHTTPClient())
+func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir string) (*iexec.InstallerExec, error) {
+	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download installer package: %w", err)
@@ -81,20 +81,19 @@ func downloadInstaller(ctx context.Context, env *fleetEnv.Env, url string, tmpDi
 	} else if len(msis) == 0 {
 		return nil, fmt.Errorf("no MSIs in package")
 	}
-	msiArgs := []string{
-		"/i",
-		msis[0],
-		"/qn",
-		"MSIFASTINSTALL=7",
+
+	cmd, err := msi.Cmd(
+		msi.Install(),
+		msi.WithMsi(msis[0]),
+		msi.WithDdAgentUserName(env.AgentUserName),
+	)
+	var output []byte
+	if err == nil {
+		output, err = cmd.Run()
 	}
-	if env.AgentUserName != "" {
-		msiArgs = append(msiArgs, fmt.Sprintf("DDAGENTUSER_NAME=%s", env.AgentUserName))
-		// don't need to look at the registry here since the installer will read it if the command line
-		// parameter is not provided
-	}
-	err = exec.Command("msiexec", msiArgs...).Run()
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to install the Datadog Installer")
+		return nil, fmt.Errorf("failed to install the Datadog Installer: %w\n%s", err, string(output))
 	}
 	return iexec.NewInstallerExec(env, paths.StableInstallerPath), nil
 }

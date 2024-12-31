@@ -51,19 +51,48 @@ const (
 // ServiceMetadata holds information about a service.
 type ServiceMetadata struct {
 	Name              string
+	Source            ServiceNameSource
 	AdditionalNames   []string
 	DDService         string
 	DDServiceInjected bool
 	// for future usage: we can detect also the type, vendor, frameworks, etc
 }
 
+// ServiceNameSource is a string enum that represents the source of a generated service name
+type ServiceNameSource string
+
+const (
+	// CommandLine indicates that the name comes from the command line
+	CommandLine ServiceNameSource = "command-line"
+	// Laravel indicates that the name comes from the Laravel application name
+	Laravel ServiceNameSource = "laravel"
+	// Python indicates that the name comes from the Python package name
+	Python ServiceNameSource = "python"
+	// Nodejs indicates that the name comes from the Node.js package name
+	Nodejs ServiceNameSource = "nodejs"
+	// Gunicorn indicates that the name comes from the Gunicorn application name
+	Gunicorn ServiceNameSource = "gunicorn"
+	// Rails indicates that the name comes from the Rails application name
+	Rails ServiceNameSource = "rails"
+	// Spring indicates that the name comes from the Spring application name
+	Spring ServiceNameSource = "spring"
+	// JBoss indicates that the name comes from the JBoss application name
+	JBoss ServiceNameSource = "jboss"
+	// Tomcat indicates that the name comes from the Tomcat application name
+	Tomcat ServiceNameSource = "tomcat"
+	// WebLogic indicates that the name comes from the WebLogic application name
+	WebLogic ServiceNameSource = "weblogic"
+	// WebSphere indicates that the name comes from the WebSphere application name
+	WebSphere ServiceNameSource = "websphere"
+)
+
 // NewServiceMetadata initializes ServiceMetadata.
-func NewServiceMetadata(name string, additional ...string) ServiceMetadata {
+func NewServiceMetadata(name string, source ServiceNameSource, additional ...string) ServiceMetadata {
 	if len(additional) > 1 {
 		// names are discovered in unpredictable order. We need to keep them sorted if we're going to join them
 		slices.Sort(additional)
 	}
-	return ServiceMetadata{Name: name, AdditionalNames: additional}
+	return ServiceMetadata{Name: name, Source: source, AdditionalNames: additional}
 }
 
 // SetAdditionalNames set additional names for the service
@@ -76,8 +105,9 @@ func (s *ServiceMetadata) SetAdditionalNames(additional ...string) {
 }
 
 // SetNames sets generated names for the service.
-func (s *ServiceMetadata) SetNames(name string, additional ...string) {
+func (s *ServiceMetadata) SetNames(name string, source ServiceNameSource, additional ...string) {
 	s.Name = name
+	s.Source = source
 	s.SetAdditionalNames(additional...)
 }
 
@@ -260,6 +290,7 @@ func ExtractServiceMetadata(lang language.Language, ctx DetectionContext) (metad
 
 		if ok {
 			metadata.Name = langMeta.Name
+			metadata.Source = langMeta.Source
 			metadata.SetAdditionalNames(langMeta.AdditionalNames...)
 			return
 		}
@@ -271,6 +302,7 @@ func ExtractServiceMetadata(lang language.Language, ctx DetectionContext) (metad
 	}
 
 	metadata.Name = exe
+	metadata.Source = CommandLine
 	return
 }
 
@@ -362,7 +394,7 @@ func (simpleDetector) detect(args []string) (ServiceMetadata, bool) {
 
 		if !shouldSkipArg {
 			if c := trimColonRight(removeFilePath(a)); isRuneLetterAt(c, 0) {
-				return NewServiceMetadata(c), true
+				return NewServiceMetadata(c, CommandLine), true
 			}
 		}
 
@@ -381,7 +413,7 @@ func (dd dotnetDetector) detect(args []string) (ServiceMetadata, bool) {
 		// https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-run#description
 		if strings.HasSuffix(strings.ToLower(a), dllExtension) {
 			file := removeFilePath(a)
-			return NewServiceMetadata(file[:len(file)-len(dllExtension)]), true
+			return NewServiceMetadata(file[:len(file)-len(dllExtension)], CommandLine), true
 		}
 		// dotnet cli syntax is something like `dotnet <cmd> <args> <dll> <prog args>`
 		// if the first non arg (`-v, --something, ...) is not a dll file, exit early since nothing is matching a dll execute case

@@ -377,7 +377,7 @@ func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 	}
 
 	// directory policy provider
-	if provider, err := rules.NewPoliciesDirProvider(e.config.PoliciesDir, e.config.WatchPoliciesDir); err != nil {
+	if provider, err := rules.NewPoliciesDirProvider(e.config.PoliciesDir); err != nil {
 		seclog.Errorf("failed to load local policies: %s", err)
 	} else {
 		policyProviders = append(policyProviders, provider)
@@ -446,7 +446,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		// the container tags might not be resolved yet
 		if time.Unix(0, int64(ev.ContainerContext.CreatedAt)).Add(TagMaxResolutionDelay).After(time.Now()) {
 			extTagsCb = func() []string {
-				return e.probe.GetEventTags(string(containerID))
+				return e.probe.GetEventTags(containerID)
 			}
 		}
 	}

@@ -11,6 +11,7 @@ package admission
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
@@ -27,14 +28,14 @@ import (
 
 // ControllerContext holds necessary context for the admission controllers
 type ControllerContext struct {
-	IsLeaderFunc        func() bool
-	LeaderSubscribeFunc func() <-chan struct{}
-	SecretInformers     informers.SharedInformerFactory
-	ValidatingInformers informers.SharedInformerFactory
-	MutatingInformers   informers.SharedInformerFactory
-	Client              kubernetes.Interface
-	StopCh              chan struct{}
-	ValidatingStopCh    chan struct{}
+	LeadershipStateSubscribeFunc func() (notifChan <-chan struct{}, isLeaderFunc func() bool)
+	SecretInformers              informers.SharedInformerFactory
+	ValidatingInformers          informers.SharedInformerFactory
+	MutatingInformers            informers.SharedInformerFactory
+	Client                       kubernetes.Interface
+	StopCh                       chan struct{}
+	ValidatingStopCh             chan struct{}
+	Demultiplexer                demultiplexer.Component
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -45,6 +46,8 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		log.Info("Admission controller is disabled")
 		return webhooks, nil
 	}
+
+	notifChan, isLeaderFunc := ctx.LeadershipStateSubscribeFunc()
 
 	certConfig := secret.NewCertConfig(
 		datadogConfig.GetDuration("admission_controller.certificate.expiration_threshold")*time.Hour,
@@ -57,12 +60,17 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 	secretController := secret.NewController(
 		ctx.Client,
 		ctx.SecretInformers.Core().V1().Secrets(),
-		ctx.IsLeaderFunc,
-		ctx.LeaderSubscribeFunc(),
+		isLeaderFunc,
+		notifChan,
 		secretConfig,
 	)
 
 	nsSelectorEnabled, err := useNamespaceSelector(ctx.Client.Discovery())
+	if err != nil {
+		return webhooks, err
+	}
+
+	matchConditionsSupported, err := supportsMatchConditions(ctx.Client.Discovery())
 	if err != nil {
 		return webhooks, err
 	}
@@ -72,18 +80,19 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		return webhooks, err
 	}
 
-	webhookConfig := webhook.NewConfig(v1Enabled, nsSelectorEnabled)
+	webhookConfig := webhook.NewConfig(v1Enabled, nsSelectorEnabled, matchConditionsSupported, datadogConfig)
 	webhookController := webhook.NewController(
 		ctx.Client,
 		ctx.SecretInformers.Core().V1().Secrets(),
 		ctx.ValidatingInformers.Admissionregistration(),
 		ctx.MutatingInformers.Admissionregistration(),
-		ctx.IsLeaderFunc,
-		ctx.LeaderSubscribeFunc(),
+		isLeaderFunc,
+		notifChan,
 		webhookConfig,
 		wmeta,
 		pa,
 		datadogConfig,
+		ctx.Demultiplexer,
 	)
 
 	go secretController.Run(ctx.StopCh)

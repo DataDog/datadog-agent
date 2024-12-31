@@ -13,8 +13,10 @@
 #include "ipv6.h"
 #include "sock.h"
 #include "port_range.h"
+#include "pid_tgid.h"
 
 #include "protocols/classification/dispatcher-helpers.h"
+#include "protocols/flush.h"
 #include "protocols/http/buffer.h"
 #include "protocols/http/http.h"
 #include "protocols/http2/decoding.h"
@@ -63,28 +65,13 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
     return 0;
 }
 
-SEC("tracepoint/net/netif_receive_skb")
-int tracepoint__net__netif_receive_skb(void *ctx) {
-    CHECK_BPF_PROGRAM_BYPASSED()
-    log_debug("tracepoint/net/netif_receive_skb");
-    // flush batch to userspace
-    // because perf events can't be sent from socket filter programs
-    http_batch_flush(ctx);
-    http2_batch_flush(ctx);
-    terminated_http2_batch_flush(ctx);
-    kafka_batch_flush(ctx);
-    postgres_batch_flush(ctx);
-    redis_batch_flush(ctx);
-    return 0;
-}
-
 // GO TLS PROBES
 
 // func (c *Conn) Write(b []byte) (int, error)
 SEC("uprobe/crypto/tls.(*Conn).Write")
 int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Write) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 pid = pid_tgid >> 32;
+    u64 pid = GET_USER_MODE_PID(pid_tgid);
     tls_offsets_data_t* od = get_offsets_data();
     if (od == NULL) {
         log_debug("[go-tls-write] no offsets data in map for pid %llu", pid);
@@ -125,7 +112,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Write) {
 SEC("uprobe/crypto/tls.(*Conn).Write/return")
 int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Write__return) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 pid = pid_tgid >> 32;
+    u64 pid = GET_USER_MODE_PID(pid_tgid);
     tls_offsets_data_t* od = get_offsets_data();
     if (od == NULL) {
         log_debug("[go-tls-write-return] no offsets data in map for pid %llu", pid);
@@ -200,10 +187,10 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Write__return) {
 SEC("uprobe/crypto/tls.(*Conn).Read")
 int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 pid = pid_tgid >> 32;
+    u64 pid = GET_USER_MODE_PID(pid_tgid);
     tls_offsets_data_t* od = get_offsets_data();
     if (od == NULL) {
-        log_debug("[go-tls-read] no offsets data in map for pid %llu", pid_tgid >> 32);
+        log_debug("[go-tls-read] no offsets data in map for pid %llu", pid);
         return 0;
     }
 
@@ -211,7 +198,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read) {
     go_tls_function_args_key_t call_key = {0};
     call_key.pid = pid;
     if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id)) {
-        log_debug("[go-tls-read] failed reading go routine id for pid %llu", pid_tgid >> 32);
+        log_debug("[go-tls-read] failed reading go routine id for pid %llu", pid);
         return 0;
     }
 
@@ -219,11 +206,11 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read) {
     // (since the parameters might not be live by the time the return probe is hit).
     go_tls_read_args_data_t call_data = {0};
     if (read_location(ctx, &od->read_conn_pointer, sizeof(call_data.conn_pointer), &call_data.conn_pointer)) {
-        log_debug("[go-tls-read] failed reading conn pointer for pid %llu", pid_tgid >> 32);
+        log_debug("[go-tls-read] failed reading conn pointer for pid %llu", pid);
         return 0;
     }
     if (read_location(ctx, &od->read_buffer.ptr, sizeof(call_data.b_data), &call_data.b_data)) {
-        log_debug("[go-tls-read] failed reading buffer pointer for pid %llu", pid_tgid >> 32);
+        log_debug("[go-tls-read] failed reading buffer pointer for pid %llu", pid);
         return 0;
     }
 
@@ -235,7 +222,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read) {
 SEC("uprobe/crypto/tls.(*Conn).Read/return")
 int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read__return) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 pid = pid_tgid >> 32;
+    u64 pid = GET_USER_MODE_PID(pid_tgid);
     tls_offsets_data_t* od = get_offsets_data();
     if (od == NULL) {
         log_debug("[go-tls-read-return] no offsets data in map for pid %llu", pid);
@@ -305,13 +292,13 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Close) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     tls_offsets_data_t* od = get_offsets_data();
     if (od == NULL) {
-        log_debug("[go-tls-close] no offsets data in map for pid %llu", pid_tgid >> 32);
+        log_debug("[go-tls-close] no offsets data in map for pid %llu", GET_USER_MODE_PID(pid_tgid));
         return 0;
     }
 
     // Read the PID and goroutine ID to make the partial call key
     go_tls_function_args_key_t call_key = {0};
-    call_key.pid = pid_tgid >> 32;
+    call_key.pid = GET_USER_MODE_PID(pid_tgid);
     if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id) == 0) {
         bpf_map_delete_elem(&go_tls_read_args, &call_key);
         bpf_map_delete_elem(&go_tls_write_args, &call_key);
@@ -319,13 +306,13 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Close) {
 
     void* conn_pointer = NULL;
     if (read_location(ctx, &od->close_conn_pointer, sizeof(conn_pointer), &conn_pointer)) {
-        log_debug("[go-tls-close] failed reading close conn pointer for pid %llu", pid_tgid >> 32);
+        log_debug("[go-tls-close] failed reading close conn pointer for pid %llu", GET_USER_MODE_PID(pid_tgid));
         return 0;
     }
 
     conn_tuple_t* t = conn_tup_from_tls_conn(od, conn_pointer, pid_tgid);
     if (t == NULL) {
-        log_debug("[go-tls-close] failed getting conn tup from tls conn for pid %llu", pid_tgid >> 32);
+        log_debug("[go-tls-close] failed getting conn tup from tls conn for pid %llu", GET_USER_MODE_PID(pid_tgid));
         return 0;
     }
 

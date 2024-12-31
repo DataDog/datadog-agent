@@ -75,7 +75,7 @@ func TestMacroMerge(t *testing.T) {
 	event.SetFieldValue("open.file.path", "/tmp/test")
 	event.SetFieldValue("process.comm", "/usr/bin/vi")
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +284,7 @@ func TestActionSetVariable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,7 +340,9 @@ func TestActionSetVariableTTL(t *testing.T) {
 					Name:   "var1",
 					Append: true,
 					Value:  []string{"foo"},
-					TTL:    1 * time.Second,
+					TTL: &HumanReadableDuration{
+						Duration: 1 * time.Second,
+					},
 				},
 			}},
 		}},
@@ -352,7 +354,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -418,7 +420,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -439,7 +441,7 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}

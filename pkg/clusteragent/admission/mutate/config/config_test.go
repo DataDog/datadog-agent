@@ -482,7 +482,7 @@ func TestJSONPatchCorrectness(t *testing.T) {
 			filter, _ := autoinstrumentation.NewInjectionFilter(datadogConfig)
 			webhook := NewWebhook(wmeta, filter, datadogConfig)
 			request := admission.Request{
-				Raw:       podJSON,
+				Object:    podJSON,
 				Namespace: "bar",
 			}
 			admissionResponse := webhook.WebhookFunc()(&request)
@@ -518,7 +518,7 @@ func BenchmarkJSONPatch(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		request := admission.Request{
-			Raw:       podJSON,
+			Object:    podJSON,
 			Namespace: "bar",
 		}
 		admissionResponse := webhook.WebhookFunc()(&request)

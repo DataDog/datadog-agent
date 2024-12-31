@@ -16,15 +16,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/syndtr/gocapability/capability"
 	"golang.org/x/sys/unix"
 
-	"github.com/cihub/seelog"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
-
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
-
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -50,7 +47,7 @@ type Conntracker interface {
 	// Collect returns the current state of all metrics of the collector
 	Collect(metrics chan<- prometheus.Metric)
 	GetTranslationForConn(*network.ConnectionTuple) *network.IPTranslation
-	// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
+	// GetType returns a string describing the conntracker type
 	GetType() string
 	DeleteTranslation(*network.ConnectionTuple)
 	DumpCachedTable(context.Context) (map[uint32][]DebugConntrackEntry, error)
@@ -411,7 +408,7 @@ func (cc *conntrackCache) Add(c Con, orphan bool) (evicts int) {
 		}
 	}
 
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("%s", c)
 	}
 
@@ -433,7 +430,7 @@ func (cc *conntrackCache) removeOrphans(now time.Time) (removed int64) {
 
 		cc.cache.Remove(o.key)
 		removed++
-		if log.ShouldLog(seelog.TraceLvl) {
+		if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("removed orphan %+v", o.key)
 		}
 	}

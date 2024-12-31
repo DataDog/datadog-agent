@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
@@ -23,7 +24,7 @@ type multiVMEnv struct {
 	AppVM  *components.RemoteHost
 }
 
-func multiVMEnvProvisioner() e2e.PulumiEnvRunFunc[multiVMEnv] {
+func multiVMEnvProvisioner() provisioners.PulumiEnvRunFunc[multiVMEnv] {
 	return func(ctx *pulumi.Context, env *multiVMEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {

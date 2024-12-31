@@ -10,44 +10,53 @@ package traceroute
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net/http"
 
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	clientID = "traceroute-agent-windows"
+	clientID                  = "traceroute-agent-windows"
+	udpNotSupportedWindowsMsg = "UDP traceroute is not currently supported on Windows"
 )
 
 // WindowsTraceroute defines a structure for
 // running traceroute from an agent running
 // on Windows
 type WindowsTraceroute struct {
-	cfg config.Config
+	cfg            config.Config
+	sysprobeClient *http.Client
 }
 
 // New creates a new instance of WindowsTraceroute
 // based on an input configuration
 func New(cfg config.Config, _ telemetry.Component) (*WindowsTraceroute, error) {
 	log.Debugf("Creating new traceroute with config: %+v", cfg)
+
+	// UDP is not supported at the moment
+	if cfg.Protocol == payload.ProtocolUDP {
+		return nil, errors.New(udpNotSupportedWindowsMsg)
+	}
+
 	return &WindowsTraceroute{
 		cfg: cfg,
+		sysprobeClient: &http.Client{
+			Transport: &http.Transport{
+				DialContext: sysprobeclient.DialContextFunc(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+			},
+		},
 	}, nil
 }
 
 // Run executes a traceroute
 func (w *WindowsTraceroute) Run(_ context.Context) (payload.NetworkPath, error) {
-	tu, err := net.GetRemoteSystemProbeUtil(
-		pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
-	if err != nil {
-		log.Warnf("could not initialize system-probe connection: %s", err.Error())
-		return payload.NetworkPath{}, err
-	}
-	resp, err := tu.GetTraceroute(clientID, w.cfg.DestHostname, w.cfg.DestPort, w.cfg.Protocol, w.cfg.MaxTTL, w.cfg.Timeout)
+	resp, err := getTraceroute(w.sysprobeClient, clientID, w.cfg.DestHostname, w.cfg.DestPort, w.cfg.Protocol, w.cfg.MaxTTL, w.cfg.Timeout)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}

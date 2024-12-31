@@ -124,9 +124,9 @@ func TestGetHealthy(t *testing.T) {
 	assert.Len(t, status.Unhealthy, 0)
 }
 
-func TestStartupCatalog(t *testing.T) {
-	cat := newStartupCatalog()
-	token := cat.register("test1")
+func TestCatalogWithOnceComponent(t *testing.T) {
+	cat := newCatalog()
+	token := cat.register("test1", Once)
 
 	// Start unhealthy
 	status := cat.getStatus()

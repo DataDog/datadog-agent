@@ -11,3 +11,5 @@ test/new-e2e/tests/containers:
   - TestECSSuite/TestCPU/metric___container.cpu.usage{^ecs_container_name:stress-ng$}
   - TestEKSSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
   - TestKindSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
+  - TestKindSuite/TestAdmissionControllerWithAutoDetectedLanguage
+  - TestEKSSuite/TestAdmissionControllerWithAutoDetectedLanguage

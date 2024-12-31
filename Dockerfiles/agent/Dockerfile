@@ -39,7 +39,7 @@ RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sy
 FROM baseimage AS extract
 ARG TARGETARCH
 ARG WITH_JMX
-ARG PYTHON_VERSION
+ARG WITH_JMX_FIPS
 ARG DD_AGENT_ARTIFACT=datadog-agent*-$TARGETARCH.tar.xz
 ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
 
@@ -75,25 +75,6 @@ RUN find / -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
     opt/datadog-agent/embedded/share/man \
     # self-test certificates that are detected (false positive) as private keys
     opt/datadog-agent/embedded/lib/python*/site-packages/future/backports/test \
- && if [ "$PYTHON_VERSION" = "2" ]; then \
-        rm -rf \
-            opt/datadog-agent/embedded/bin/2to3-3* \
-            opt/datadog-agent/embedded/bin/easy_install-3* \
-            opt/datadog-agent/embedded/bin/idle* \
-            opt/datadog-agent/embedded/bin/pip3* \
-            opt/datadog-agent/embedded/bin/pydoc* \
-            opt/datadog-agent/embedded/bin/python3* \
-            opt/datadog-agent/embedded/bin/pyvenv* \
-            opt/datadog-agent/embedded/include/python3* \
-            opt/datadog-agent/embedded/lib/*python3* || true ;\
-    fi \
- && if [ "$PYTHON_VERSION" = "3" ]; then \
-        rm -rf \
-            opt/datadog-agent/embedded/bin/pip2* \
-            opt/datadog-agent/embedded/bin/python2* \
-            opt/datadog-agent/embedded/include/python2* \
-            opt/datadog-agent/embedded/lib/*python2* || true ;\
-    fi \
  && find opt/datadog-agent/ -iname "*.a" -delete \
  && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
  && mkdir conf.d checks.d
@@ -115,12 +96,12 @@ RUN if [ -n "$WITH_JMX" ]; then cd /opt/bouncycastle-fips && mvn dependency:copy
 
 FROM baseimage AS release
 LABEL maintainer="Datadog <package@datadoghq.com>"
+ARG FIPS_ENABLED=0
 ARG WITH_JMX
-ARG PYTHON_VERSION
+ARG WITH_JMX_FIPS
 ARG DD_GIT_REPOSITORY_URL
 ARG DD_GIT_COMMIT_SHA
 ENV DOCKER_DD_AGENT=true \
-    DD_PYTHON_VERSION=$PYTHON_VERSION \
     PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
     CURL_CA_BUNDLE=/opt/datadog-agent/embedded/ssl/certs/cacert.pem \
     # Pass envvar variables to agents
@@ -202,12 +183,11 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
 # * https://datadoghq.atlassian.net/wiki/spaces/TS/pages/2615709591/Why+the+containerized+Agent+runs+as+root#Agent-user
 RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
 
-# Update links to python binaries
-RUN if [ -n "$PYTHON_VERSION" ]; then \
-  ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/python \
-  && ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION}-config /opt/datadog-agent/embedded/bin/python-config \
-  && ln -sfn /opt/datadog-agent/embedded/bin/pip${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/pip ; \
-  fi
+# Enable FIPS if needed
+RUN if [ -x /opt/datadog-agent/embedded/bin/fipsinstall.sh ]; then \
+  /opt/datadog-agent/embedded/bin/fipsinstall.sh; \
+fi
+ENV GOFIPS=${FIPS_ENABLED}
 
 # Override the exit script by ours to fix --pid=host operations
 RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
@@ -219,6 +199,9 @@ COPY --from=extract /opt/bouncycastle-fips/target/dependency/*.jar /opt/bouncyca
 COPY --chmod=644 bouncycastle-fips/java.security /opt/bouncycastle-fips/
 COPY --chmod=644 bouncycastle-fips/bc-fips.policy /opt/bouncycastle-fips/
 RUN if [ -z "$WITH_JMX" ]; then rm -rf /opt/bouncycastle-fips; fi
+# Configure Java to use BouncyCastle FIPS provider on JMX FIPS images.
+# Double equals sign for java.security.properties istructs java to replace system defaults with the contents of the new file.
+ENV JAVA_TOOL_OPTIONS="${WITH_JMX_FIPS:+--module-path=/opt/bouncycastle-fips -Djava.security.properties==/opt/bouncycastle-fips/java.security -Dpolicy.url.2=file:/opt/bouncycastle-fips/bc-fips.policy}"
 
 # Update if optional OTel Agent process should not run
 RUN if [ ! -f /opt/datadog-agent/embedded/bin/otel-agent ]; then \

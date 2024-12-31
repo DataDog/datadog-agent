@@ -61,11 +61,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
-	ddutil "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -156,7 +155,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		fetchonlyimpl.Module(),
 
 		// Provide configsync module
-		configsyncimpl.OptionalModule(),
+		configsyncimpl.Module(),
 
 		// Provide autoexit module
 		autoexitimpl.Module(),
@@ -215,7 +214,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			_ expvars.Component,
 			_ apiserver.Component,
 			cfg config.Component,
-			_ optional.Option[configsync.Component],
+			_ configsync.Component,
 			// TODO: This is needed by the container-provider which is not currently a component.
 			// We should ensure the tagger is a dependency when converting to a component.
 			_ tagger.Component,
@@ -296,7 +295,7 @@ type miscDeps struct {
 // Todo: (Components) WorkloadMeta, remoteTagger
 // Todo: move metadata/workloadmeta/collector to workloadmeta
 func initMisc(deps miscDeps) error {
-	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
+	if err := coredump.Setup(deps.Config); err != nil {
 		deps.Logger.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 

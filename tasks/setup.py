@@ -17,8 +17,9 @@ from invoke.exceptions import Exit
 
 from tasks import vscode
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.status import Status
-from tasks.libs.common.utils import running_in_pyapp
+from tasks.libs.common.utils import is_linux, is_windows, running_in_pyapp
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -95,7 +96,7 @@ def check_git_repo(ctx) -> SetupResult:
     ctx.run("git fetch", hide=True)
 
     print(color_message("Checking main branch...", Color.BLUE))
-    output = ctx.run('git rev-list "^HEAD" origin/main --count', hide=True)
+    output = ctx.run(f'git rev-list "^HEAD" origin/{get_default_branch()} --count', hide=True)
     count = output.stdout.strip()
 
     message = ""
@@ -103,7 +104,7 @@ def check_git_repo(ctx) -> SetupResult:
 
     if count != "0":
         status = Status.WARN
-        message = f"Your branch is {count} commit(s) behind main. Please update your branch."
+        message = f"Your branch is {count} commit(s) behind {get_default_branch()}. Please update your branch."
 
     return SetupResult("Check git repository", status, message)
 
@@ -144,10 +145,15 @@ def check_python_version(_ctx) -> SetupResult:
     status = Status.OK
     if tuple(sys.version_info)[:2] != tuple(int(d) for d in expected_version.split(".")):
         status = Status.FAIL
-        message = (
-            f"Python version is {sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}. "
-            "Please update your environment: https://datadoghq.dev/datadog-agent/setup/#python-dependencies"
-        )
+        install_message = f"Please install Python {expected_version} with 'brew install python@{expected_version}'"
+        if is_windows():
+            install_message = f"Please install Python {expected_version} from https://www.python.org/downloads/windows/"
+        elif is_linux():
+            install_message = (
+                f"Please install Python {expected_version} with 'sudo apt-get install python{expected_version}-dev'"
+            )
+
+        message = f"Python version out of date, current is {sys.version_info[0]}.{sys.version_info[1]} while expected is {expected_version}.\n{install_message}"
 
     return SetupResult("Check Python version", status, message)
 

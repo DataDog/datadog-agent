@@ -196,4 +196,8 @@ static __attribute__((always_inline)) u64 get_imds_ip() {
 #define CGROUP_MANAGER_CRI 4
 #define CGROUP_MANAGER_SYSTEMD 5
 
+#define CGROUP_MANAGER_MASK 0b111
+#define CGROUP_SYSTEMD_SERVICE (0 << 8)
+#define CGROUP_SYSTEMD_SCOPE   (1 << 8)
+
 #endif

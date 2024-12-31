@@ -4,10 +4,10 @@
 package ditypes
 
 type BaseEvent struct {
-	Probe_id         [304]byte
+	Probe_id         [36]byte
 	Pid              uint32
 	Uid              uint32
 	Program_counters [10]uint64
 }
 
-const SizeofBaseEvent = 0x188
+const SizeofBaseEvent = 0x80

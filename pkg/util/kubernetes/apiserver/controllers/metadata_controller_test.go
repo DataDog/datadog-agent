@@ -9,6 +9,7 @@ package controllers
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,7 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	discv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -41,9 +43,9 @@ import (
 func TestMetadataControllerSyncEndpoints(t *testing.T) {
 	client := fake.NewSimpleClientset()
 
-	metaController, informerFactory := newFakeMetadataController(client, newMockWorkloadMeta(t))
+	metaController, informerFactory := newFakeMetadataController(client, newMockWorkloadMeta(t), false)
 
-	// don't use the global store so we can can inspect the store without
+	// don't use the global store so we can inspect the store without
 	// it being modified by other tests.
 	metaController.store = &metaBundleStore{
 		cache: gocache.New(gocache.NoExpiration, 5*time.Second),
@@ -102,17 +104,17 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 	tests := []struct {
 		desc            string
 		delete          bool // whether to add or delete endpoints
-		endpoints       *v1.Endpoints
+		endpoints       *corev1.Endpoints
 		expectedBundles map[string]apiv1.NamespacesPodsStringsSet
 	}{
 		{
 			"one service on multiple nodes",
 			false,
-			&v1.Endpoints{
+			&corev1.Endpoints{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc1"},
-				Subsets: []v1.EndpointSubset{
+				Subsets: []corev1.EndpointSubset{
 					{
-						Addresses: []v1.EndpointAddress{
+						Addresses: []corev1.EndpointAddress{
 							newFakeEndpointAddress("node1", pod1),
 							newFakeEndpointAddress("node2", pod2),
 						},
@@ -135,11 +137,11 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		{
 			"pod added to service",
 			false,
-			&v1.Endpoints{
+			&corev1.Endpoints{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc1"},
-				Subsets: []v1.EndpointSubset{
+				Subsets: []corev1.EndpointSubset{
 					{
-						Addresses: []v1.EndpointAddress{
+						Addresses: []corev1.EndpointAddress{
 							newFakeEndpointAddress("node1", pod1),
 							newFakeEndpointAddress("node2", pod2),
 							newFakeEndpointAddress("node1", pod3),
@@ -164,11 +166,59 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		{
 			"pod deleted from service",
 			false,
-			&v1.Endpoints{
+			&corev1.Endpoints{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc1"},
-				Subsets: []v1.EndpointSubset{
+				Subsets: []corev1.EndpointSubset{
 					{
-						Addresses: []v1.EndpointAddress{
+						Addresses: []corev1.EndpointAddress{
+							newFakeEndpointAddress("node1", pod1),
+							newFakeEndpointAddress("node2", pod2),
+						},
+					},
+				},
+			},
+			map[string]apiv1.NamespacesPodsStringsSet{
+				"node1": {
+					"default": {
+						"pod1_name": sets.New("svc1"),
+					},
+				},
+				"node2": {
+					"default": {
+						"pod2_name": sets.New("svc1"),
+					},
+				},
+			},
+		},
+		{
+			"pod deleted from service and node clears",
+			false,
+			&corev1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc1"},
+				Subsets: []corev1.EndpointSubset{
+					{
+						Addresses: []corev1.EndpointAddress{
+							newFakeEndpointAddress("node1", pod1),
+						},
+					},
+				},
+			},
+			map[string]apiv1.NamespacesPodsStringsSet{
+				"node1": {
+					"default": {
+						"pod1_name": sets.New("svc1"),
+					},
+				},
+			},
+		},
+		{
+			"pod added back to service",
+			false,
+			&corev1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc1"},
+				Subsets: []corev1.EndpointSubset{
+					{
+						Addresses: []corev1.EndpointAddress{
 							newFakeEndpointAddress("node1", pod1),
 							newFakeEndpointAddress("node2", pod2),
 						},
@@ -191,11 +241,11 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		{
 			"add service for existing pod",
 			false,
-			&v1.Endpoints{
+			&corev1.Endpoints{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc2"},
-				Subsets: []v1.EndpointSubset{
+				Subsets: []corev1.EndpointSubset{
 					{
-						Addresses: []v1.EndpointAddress{
+						Addresses: []corev1.EndpointAddress{
 							newFakeEndpointAddress("node1", pod1),
 						},
 					},
@@ -217,7 +267,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		{
 			"delete service with pods on multiple nodes",
 			true,
-			&v1.Endpoints{
+			&corev1.Endpoints{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc1"},
 			},
 			map[string]apiv1.NamespacesPodsStringsSet{
@@ -231,7 +281,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		{
 			"add endpoints for leader election",
 			false,
-			&v1.Endpoints{
+			&corev1.Endpoints{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "default",
 					Name:      "leader-election",
@@ -251,7 +301,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		{
 			"update endpoints for leader election",
 			false,
-			&v1.Endpoints{
+			&corev1.Endpoints{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "default",
 					Name:      "leader-election",
@@ -271,42 +321,341 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		{
 			"delete every service",
 			true,
-			&v1.Endpoints{
+			&corev1.Endpoints{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc2"},
 			},
 			map[string]apiv1.NamespacesPodsStringsSet{},
 		},
 	}
 
-	for i, tt := range tests {
-		t.Logf("Running step %d %s", i, tt.desc)
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			store := informerFactory.
+				Core().
+				V1().
+				Endpoints().
+				Informer().
+				GetStore()
 
-		store := informerFactory.
-			Core().
-			V1().
-			Endpoints().
-			Informer().
-			GetStore()
+			var err error
+			if tt.delete {
+				err = store.Delete(tt.endpoints)
+			} else {
+				err = store.Add(tt.endpoints)
+			}
+			require.NoError(t, err)
 
-		var err error
-		if tt.delete {
-			err = store.Delete(tt.endpoints)
-		} else {
-			err = store.Add(tt.endpoints)
-		}
+			key, err := cache.MetaNamespaceKeyFunc(tt.endpoints)
+			require.NoError(t, err)
+
+			err = metaController.syncEndpoints(key)
+			require.NoError(t, err)
+
+			nonNilKeys := metaController.countNonNilKeys()
+			assert.Equal(t, len(tt.expectedBundles), nonNilKeys, "Unexpected metaBundles found")
+
+			for nodeName, expectedMapper := range tt.expectedBundles {
+				metaBundle, ok := metaController.store.get(nodeName)
+				require.True(t, ok, "No meta bundle for %s", nodeName)
+				assert.Equal(t, expectedMapper, metaBundle.Services, nodeName)
+			}
+		})
+	}
+}
+
+func TestMetadataControllerSyncEndpointSlices(t *testing.T) {
+	client := fake.NewSimpleClientset()
+
+	metaController, informerFactory := newFakeMetadataController(client, newMockWorkloadMeta(t), true)
+
+	metaController.store = &metaBundleStore{
+		cache: gocache.New(gocache.NoExpiration, 5*time.Second),
+	}
+
+	pod1 := newFakePod(
+		"default",
+		"pod1_name",
+		"1111",
+		"1.1.1.1",
+	)
+
+	pod2 := newFakePod(
+		"default",
+		"pod2_name",
+		"2222",
+		"2.2.2.2",
+	)
+
+	pod3 := newFakePod(
+		"default",
+		"pod3_name",
+		"3333",
+		"3.3.3.3",
+	)
+
+	// Create nodes in workloadmeta
+	for _, nodeName := range []string{"node1", "node2", "node3"} {
+		err := metaController.wmeta.Push(
+			"metadata-controller",
+			workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesMetadata{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesMetadata,
+						ID:   nodeName,
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: nodeName,
+					},
+					GVR: &schema.GroupVersionResource{
+						Version:  "v1",
+						Resource: "nodes",
+					},
+				},
+			},
+		)
 		require.NoError(t, err)
+	}
 
-		key, err := cache.MetaNamespaceKeyFunc(tt.endpoints)
-		require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		return len(metaController.wmeta.ListKubernetesMetadata(workloadmeta.IsNodeMetadata)) == 3
+	}, 5*time.Second, 100*time.Millisecond)
 
-		err = metaController.syncEndpoints(key)
-		require.NoError(t, err)
+	tests := []struct {
+		desc             string
+		delete           bool
+		endpointSlices   []*discv1.EndpointSlice
+		expectedBundles  map[string]apiv1.NamespacesPodsStringsSet
+		expectedCacheLen int
+	}{
+		{
+			"add service with multiple slices",
+			false,
+			[]*discv1.EndpointSlice{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:       "default",
+						Name:            "svc1-slice1",
+						Labels:          map[string]string{"kubernetes.io/service-name": "svc1"},
+						ResourceVersion: "v1",
+					},
+					Endpoints: []discv1.Endpoint{
+						newFakeEndpoint("node1", pod1),
+						newFakeEndpoint("node2", pod2),
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:       "default",
+						Name:            "svc1-slice2",
+						Labels:          map[string]string{"kubernetes.io/service-name": "svc1"},
+						ResourceVersion: "v1",
+					},
+					Endpoints: []discv1.Endpoint{
+						newFakeEndpoint("node3", pod3),
+					},
+				},
+			},
+			map[string]apiv1.NamespacesPodsStringsSet{
+				"node1": {
+					"default": {
+						"pod1_name": sets.New("svc1"),
+					},
+				},
+				"node2": {
+					"default": {
+						"pod2_name": sets.New("svc1"),
+					},
+				},
+				"node3": {
+					"default": {
+						"pod3_name": sets.New("svc1"),
+					},
+				},
+			},
+			2,
+		},
+		{
+			"add new service tied to an existing pod",
+			false,
+			[]*discv1.EndpointSlice{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:       "default",
+						Name:            "svc2-slice1",
+						Labels:          map[string]string{"kubernetes.io/service-name": "svc2"},
+						ResourceVersion: "v1",
+					},
+					Endpoints: []discv1.Endpoint{
+						newFakeEndpoint("node1", pod1),
+					},
+				},
+			},
+			map[string]apiv1.NamespacesPodsStringsSet{
+				"node1": {
+					"default": {
+						"pod1_name": sets.New("svc1", "svc2"),
+					},
+				},
+				"node2": {
+					"default": {
+						"pod2_name": sets.New("svc1"),
+					},
+				},
+				"node3": {
+					"default": {
+						"pod3_name": sets.New("svc1"),
+					},
+				},
+			},
+			3, // Cache length increases by 1 for svc2-slice1
+		},
+		{
+			"update slice to add pod",
+			false,
+			[]*discv1.EndpointSlice{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:       "default",
+						Name:            "svc2-slice1",
+						Labels:          map[string]string{"kubernetes.io/service-name": "svc2"},
+						ResourceVersion: "v2",
+					},
+					Endpoints: []discv1.Endpoint{
+						newFakeEndpoint("node1", pod1),
+						newFakeEndpoint("node2", pod2),
+					},
+				},
+			},
+			map[string]apiv1.NamespacesPodsStringsSet{
+				"node1": {
+					"default": {
+						"pod1_name": sets.New("svc1", "svc2"),
+					},
+				},
+				"node2": {
+					"default": {
+						"pod2_name": sets.New("svc1", "svc2"),
+					},
+				},
+				"node3": {
+					"default": {
+						"pod3_name": sets.New("svc1"),
+					},
+				},
+			},
+			3,
+		},
+		{
+			"update slice to delete pod",
+			false,
+			[]*discv1.EndpointSlice{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:       "default",
+						Name:            "svc2-slice1",
+						Labels:          map[string]string{"kubernetes.io/service-name": "svc2"},
+						ResourceVersion: "v3",
+					},
+					Endpoints: []discv1.Endpoint{
+						newFakeEndpoint("node2", pod2),
+					},
+				},
+			},
+			map[string]apiv1.NamespacesPodsStringsSet{
+				"node1": {
+					"default": {
+						"pod1_name": sets.New("svc1"),
+					},
+				},
+				"node2": {
+					"default": {
+						"pod2_name": sets.New("svc1", "svc2"),
+					},
+				},
+				"node3": {
+					"default": {
+						"pod3_name": sets.New("svc1"),
+					},
+				},
+			},
+			3,
+		},
+		{
+			"delete service with multiple slices",
+			true,
+			[]*discv1.EndpointSlice{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:       "default",
+						Name:            "svc1-slice1",
+						Labels:          map[string]string{"kubernetes.io/service-name": "svc1"},
+						ResourceVersion: "v2",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:       "default",
+						Name:            "svc1-slice2",
+						Labels:          map[string]string{"kubernetes.io/service-name": "svc1"},
+						ResourceVersion: "v2",
+					},
+				},
+			},
+			map[string]apiv1.NamespacesPodsStringsSet{
+				"node2": {
+					"default": {
+						"pod2_name": sets.New("svc2"),
+					},
+				},
+			},
+			1,
+		},
+	}
 
-		for nodeName, expectedMapper := range tt.expectedBundles {
-			metaBundle, ok := metaController.store.get(nodeName)
-			require.True(t, ok, "No meta bundle for %s", nodeName)
-			assert.Equal(t, expectedMapper, metaBundle.Services, nodeName)
-		}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			store := informerFactory.
+				Discovery().
+				V1().
+				EndpointSlices().
+				Informer().
+				GetStore()
+
+			var err error
+			if tt.delete {
+				for _, slice := range tt.endpointSlices {
+					err = store.Delete(slice)
+					require.NoError(t, err)
+				}
+			} else {
+				for _, slice := range tt.endpointSlices {
+					err = store.Add(slice)
+					require.NoError(t, err)
+				}
+			}
+
+			for _, slice := range tt.endpointSlices {
+				key, err := cache.MetaNamespaceKeyFunc(slice)
+				require.NoError(t, err)
+
+				err = metaController.syncEndpointSlices(key)
+				require.NoError(t, err)
+			}
+
+			nonNilKeys := metaController.countNonNilKeys()
+			assert.Equal(t, len(tt.expectedBundles), nonNilKeys, "Unexpected metaBundles found")
+
+			for nodeName, expectedMapper := range tt.expectedBundles {
+				metaBundle, ok := metaController.store.get(nodeName)
+				require.True(t, ok, "No meta bundle for %s", nodeName)
+				assert.Equal(t, expectedMapper, metaBundle.Services, nodeName)
+			}
+
+			cacheLen := len(metaController.sliceServiceCache["default"])
+
+			assert.Equal(t, tt.expectedCacheLen, cacheLen, "Cache length mismatch")
+		})
 	}
 }
 
@@ -320,13 +669,13 @@ func TestMetadataController(t *testing.T) {
 
 	// Create a Ready Schedulable node
 	// As we don't have a controller they don't need to have some heartbeat mechanism
-	node := &v1.Node{
-		Spec: v1.NodeSpec{
+	node := &corev1.Node{
+		Spec: corev1.NodeSpec{
 			PodCIDR:       "192.168.1.0/24",
 			Unschedulable: false,
 		},
-		Status: v1.NodeStatus{
-			Addresses: []v1.NodeAddress{
+		Status: corev1.NodeStatus{
+			Addresses: []corev1.NodeAddress{
 				{
 					Address: "172.31.119.125",
 					Type:    "InternalIP",
@@ -340,7 +689,7 @@ func TestMetadataController(t *testing.T) {
 					Type:    "Hostname",
 				},
 			},
-			Conditions: []v1.NodeCondition{
+			Conditions: []corev1.NodeCondition{
 				{
 					Type:    "Ready",
 					Status:  "True",
@@ -354,13 +703,13 @@ func TestMetadataController(t *testing.T) {
 	_, err := c.Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 	require.NoError(t, err)
 
-	pod := &v1.Pod{
+	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: metav1.NamespaceDefault,
 		},
-		Spec: v1.PodSpec{
+		Spec: corev1.PodSpec{
 			NodeName: node.Name,
-			Containers: []v1.Container{
+			Containers: []corev1.Container{
 				{
 					Name:  "nginx",
 					Image: "nginx:latest",
@@ -373,49 +722,49 @@ func TestMetadataController(t *testing.T) {
 	pendingPod, err := c.Pods("default").Create(context.TODO(), pod, metav1.CreateOptions{})
 	require.NoError(t, err)
 
-	pendingPod.Status = v1.PodStatus{
+	pendingPod.Status = corev1.PodStatus{
 		Phase:  "Running",
 		PodIP:  "172.17.0.1",
 		HostIP: "172.31.119.125",
-		Conditions: []v1.PodCondition{
+		Conditions: []corev1.PodCondition{
 			{
 				Type:   "Ready",
 				Status: "True",
 			},
 		},
 		// mark it ready
-		ContainerStatuses: []v1.ContainerStatus{
+		ContainerStatuses: []corev1.ContainerStatus{
 			{
 				Name:  "nginx",
 				Ready: true,
 				Image: "nginx:latest",
-				State: v1.ContainerState{Running: &v1.ContainerStateRunning{StartedAt: metav1.Now()}},
+				State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{StartedAt: metav1.Now()}},
 			},
 		},
 	}
 	_, err = c.Pods("default").UpdateStatus(context.TODO(), pendingPod, metav1.UpdateOptions{})
 	require.NoError(t, err)
 
-	svc := &v1.Service{
-		Spec: v1.ServiceSpec{
+	svc := &corev1.Service{
+		Spec: corev1.ServiceSpec{
 			Selector: map[string]string{
 				"app": "nginx",
 			},
-			Ports: []v1.ServicePort{{Port: 443}},
+			Ports: []corev1.ServicePort{{Port: 443}},
 		},
 	}
 	svc.Name = "nginx-1"
 	_, err = c.Services("default").Create(context.TODO(), svc, metav1.CreateOptions{})
 	require.NoError(t, err)
 
-	ep := &v1.Endpoints{
-		Subsets: []v1.EndpointSubset{
+	ep := &corev1.Endpoints{
+		Subsets: []corev1.EndpointSubset{
 			{
-				Addresses: []v1.EndpointAddress{
+				Addresses: []corev1.EndpointAddress{
 					{
 						IP:       pendingPod.Status.PodIP,
 						NodeName: &node.Name,
-						TargetRef: &v1.ObjectReference{
+						TargetRef: &corev1.ObjectReference{
 							Kind:      "Pod",
 							Namespace: pendingPod.Namespace,
 							Name:      pendingPod.Name,
@@ -423,7 +772,7 @@ func TestMetadataController(t *testing.T) {
 						},
 					},
 				},
-				Ports: []v1.EndpointPort{
+				Ports: []corev1.EndpointPort{
 					{
 						Name:     "https",
 						Port:     443,
@@ -446,7 +795,7 @@ func TestMetadataController(t *testing.T) {
 	_, err = c.Endpoints("default").Create(context.TODO(), ep, metav1.CreateOptions{})
 	require.NoError(t, err)
 
-	metaController, informerFactory := newFakeMetadataController(client, newMockWorkloadMeta(t))
+	metaController, informerFactory := newFakeMetadataController(client, newMockWorkloadMeta(t), false)
 
 	stop := make(chan struct{})
 	defer close(stop)
@@ -454,7 +803,7 @@ func TestMetadataController(t *testing.T) {
 	go metaController.run(stop)
 
 	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
-		return metaController.endpointsListerSynced()
+		return metaController.listerSynced()
 	})
 
 	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
@@ -498,38 +847,72 @@ func newMockWorkloadMeta(t *testing.T) workloadmeta.Component {
 	)
 }
 
-func newFakeMetadataController(client kubernetes.Interface, wmeta workloadmeta.Component) (*metadataController, informers.SharedInformerFactory) {
+func newFakeMetadataController(client kubernetes.Interface, wmeta workloadmeta.Component, useEndpointSlices bool) (*metadataController, informers.SharedInformerFactory) {
 	informerFactory := informers.NewSharedInformerFactory(client, 1*time.Second)
 
 	metaController := newMetadataController(
-		informerFactory.Core().V1().Endpoints(),
+		informerFactory,
 		wmeta,
+		useEndpointSlices,
 	)
 
 	return metaController, informerFactory
 }
 
-func newFakePod(namespace, name, uid, ip string) v1.Pod {
-	return v1.Pod{
+func newFakePod(namespace, name, uid, ip string) corev1.Pod {
+	return corev1.Pod{
 		TypeMeta: metav1.TypeMeta{Kind: "Pod"},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 			UID:       types.UID(uid),
 		},
-		Status: v1.PodStatus{PodIP: ip},
+		Status: corev1.PodStatus{PodIP: ip},
 	}
 }
 
-func newFakeEndpointAddress(nodeName string, pod v1.Pod) v1.EndpointAddress {
-	return v1.EndpointAddress{
+func newFakeEndpointAddress(nodeName string, pod corev1.Pod) corev1.EndpointAddress {
+	return corev1.EndpointAddress{
 		IP:       pod.Status.PodIP,
 		NodeName: &nodeName,
-		TargetRef: &v1.ObjectReference{
+		TargetRef: &corev1.ObjectReference{
 			Kind:      pod.Kind,
 			Namespace: pod.Namespace,
 			Name:      pod.Name,
 			UID:       pod.UID,
 		},
 	}
+}
+
+func newFakeEndpoint(nodeName string, pod corev1.Pod) discv1.Endpoint {
+	return discv1.Endpoint{
+		Addresses: []string{pod.Status.PodIP},
+		NodeName:  &nodeName,
+		TargetRef: &corev1.ObjectReference{
+			Kind:      pod.Kind,
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+			UID:       pod.UID,
+		},
+	}
+}
+
+func (m *metadataController) countNonNilKeys() int {
+	nonNilKeys := 0
+	for _, key := range m.store.listKeys() {
+		value, _ := m.store.get(key)
+		if value != nil && len(value.Services) > 0 {
+			nonNilKeys++
+		}
+	}
+	return nonNilKeys
+}
+
+func (m *metaBundleStore) listKeys() []string {
+	keys := []string{}
+	for k := range m.cache.Items() {
+		k = strings.TrimPrefix(k, "agent/KubernetesMetadataMapping/")
+		keys = append(keys, k)
+	}
+	return keys
 }

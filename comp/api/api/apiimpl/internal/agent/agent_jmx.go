@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
-	"github.com/DataDog/datadog-agent/pkg/util"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -55,7 +54,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 		}
 
 		c := map[string]interface{}{}
-		c["init_config"] = util.GetJSONSerializableMap(rawInitConfig)
+		c["init_config"] = jmxfetch.GetJSONSerializableMap(rawInitConfig)
 		instances := []integration.JSONMap{}
 		for _, instance := range config.Instances {
 			var rawInstanceConfig integration.JSONMap
@@ -65,7 +64,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			instances = append(instances, util.GetJSONSerializableMap(rawInstanceConfig).(integration.JSONMap))
+			instances = append(instances, jmxfetch.GetJSONSerializableMap(rawInstanceConfig).(integration.JSONMap))
 		}
 
 		c["instances"] = instances
@@ -75,7 +74,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 	}
 	j["configs"] = configs
 	j["timestamp"] = time.Now().Unix()
-	jsonPayload, err := json.Marshal(util.GetJSONSerializableMap(j))
+	jsonPayload, err := json.Marshal(jmxfetch.GetJSONSerializableMap(j))
 	if err != nil {
 		log.Errorf("unable to parse JMX configuration: %s", err)
 		http.Error(w, err.Error(), 500)

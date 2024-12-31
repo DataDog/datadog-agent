@@ -7,7 +7,10 @@
 package rules
 
 import (
+	"fmt"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // MacroID represents the ID of a macro
@@ -60,21 +63,21 @@ type RuleID = string
 
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
-	ID                     RuleID              `yaml:"id,omitempty" json:"id"`
-	Version                string              `yaml:"version,omitempty" json:"version,omitempty"`
-	Expression             string              `yaml:"expression" json:"expression,omitempty"`
-	Description            string              `yaml:"description,omitempty" json:"description,omitempty"`
-	Tags                   map[string]string   `yaml:"tags,omitempty" json:"tags,omitempty"`
-	AgentVersionConstraint string              `yaml:"agent_version,omitempty" json:"agent_version,omitempty"`
-	Filters                []string            `yaml:"filters,omitempty" json:"filters,omitempty"`
-	Disabled               bool                `yaml:"disabled,omitempty" json:"disabled,omitempty"`
-	Combine                CombinePolicy       `yaml:"combine,omitempty" json:"combine,omitempty" jsonschema:"enum=override"`
-	OverrideOptions        OverrideOptions     `yaml:"override_options,omitempty" json:"override_options,omitempty"`
-	Actions                []*ActionDefinition `yaml:"actions,omitempty" json:"actions,omitempty"`
-	Every                  time.Duration       `yaml:"every,omitempty" json:"every,omitempty"`
-	RateLimiterToken       []string            `yaml:"limiter_token,omitempty" json:"limiter_token,omitempty"`
-	Silent                 bool                `yaml:"silent,omitempty" json:"silent,omitempty"`
-	GroupID                string              `yaml:"group_id,omitempty" json:"group_id,omitempty"`
+	ID                     RuleID                 `yaml:"id,omitempty" json:"id"`
+	Version                string                 `yaml:"version,omitempty" json:"version,omitempty"`
+	Expression             string                 `yaml:"expression" json:"expression,omitempty"`
+	Description            string                 `yaml:"description,omitempty" json:"description,omitempty"`
+	Tags                   map[string]string      `yaml:"tags,omitempty" json:"tags,omitempty"`
+	AgentVersionConstraint string                 `yaml:"agent_version,omitempty" json:"agent_version,omitempty"`
+	Filters                []string               `yaml:"filters,omitempty" json:"filters,omitempty"`
+	Disabled               bool                   `yaml:"disabled,omitempty" json:"disabled,omitempty"`
+	Combine                CombinePolicy          `yaml:"combine,omitempty" json:"combine,omitempty" jsonschema:"enum=override"`
+	OverrideOptions        OverrideOptions        `yaml:"override_options,omitempty" json:"override_options,omitempty"`
+	Actions                []*ActionDefinition    `yaml:"actions,omitempty" json:"actions,omitempty"`
+	Every                  *HumanReadableDuration `yaml:"every,omitempty" json:"every,omitempty"`
+	RateLimiterToken       []string               `yaml:"limiter_token,omitempty" json:"limiter_token,omitempty"`
+	Silent                 bool                   `yaml:"silent,omitempty" json:"silent,omitempty"`
+	GroupID                string                 `yaml:"group_id,omitempty" json:"group_id,omitempty"`
 }
 
 // GetTag returns the tag value associated with a tag key
@@ -130,19 +133,19 @@ type Scope string
 
 // SetDefinition describes the 'set' section of a rule action
 type SetDefinition struct {
-	Name   string        `yaml:"name" json:"name"`
-	Value  interface{}   `yaml:"value" json:"value,omitempty" jsonschema:"oneof_required=SetWithValue,oneof_type=string;integer;boolean;array"`
-	Field  string        `yaml:"field" json:"field,omitempty" jsonschema:"oneof_required=SetWithField"`
-	Append bool          `yaml:"append" json:"append,omitempty"`
-	Scope  Scope         `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
-	Size   int           `yaml:"size" json:"size,omitempty"`
-	TTL    time.Duration `yaml:"ttl" json:"ttl,omitempty"`
+	Name   string                 `yaml:"name" json:"name"`
+	Value  interface{}            `yaml:"value" json:"value,omitempty" jsonschema:"oneof_required=SetWithValue,oneof_type=string;integer;boolean;array"`
+	Field  string                 `yaml:"field" json:"field,omitempty" jsonschema:"oneof_required=SetWithField"`
+	Append bool                   `yaml:"append" json:"append,omitempty"`
+	Scope  Scope                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
+	Size   int                    `yaml:"size" json:"size,omitempty"`
+	TTL    *HumanReadableDuration `yaml:"ttl" json:"ttl,omitempty"`
 }
 
 // KillDisarmerParamsDefinition describes the parameters of a kill action disarmer
 type KillDisarmerParamsDefinition struct {
-	MaxAllowed int           `yaml:"max_allowed" json:"max_allowed,omitempty" jsonschema:"description=The maximum number of allowed kill actions within the period,example=5"`
-	Period     time.Duration `yaml:"period" json:"period,omitempty" jsonschema:"description=The period of time during which the maximum number of allowed kill actions is calculated,example=1m"`
+	MaxAllowed int                    `yaml:"max_allowed" json:"max_allowed,omitempty" jsonschema:"description=The maximum number of allowed kill actions within the period,example=5"`
+	Period     *HumanReadableDuration `yaml:"period" json:"period,omitempty" jsonschema:"description=The period of time during which the maximum number of allowed kill actions is calculated,example=1m"`
 }
 
 // KillDisarmerDefinition describes the 'disarmer' section of a kill action
@@ -189,3 +192,47 @@ type PolicyDef struct {
 	Rules              []*RuleDefinition   `yaml:"rules" json:"rules"`
 	OnDemandHookPoints []OnDemandHookPoint `yaml:"hooks,omitempty" json:"hooks,omitempty"`
 }
+
+// HumanReadableDuration represents a duration that can unmarshalled from YAML from a human readable format (like `10m`)
+// or from a regular integer
+type HumanReadableDuration struct {
+	time.Duration
+}
+
+// GetDuration returns the duration embedded in the HumanReadableDuration, or 0 if nil
+func (d *HumanReadableDuration) GetDuration() time.Duration {
+	if d == nil {
+		return 0
+	}
+	return d.Duration
+}
+
+// MarshalYAML marshals a duration to a human readable format
+func (d *HumanReadableDuration) MarshalYAML() (interface{}, error) {
+	return d.String(), nil
+}
+
+// UnmarshalYAML unmarshals a duration from a human readable format or from an integer
+func (d *HumanReadableDuration) UnmarshalYAML(n *yaml.Node) error {
+	var v interface{}
+	if err := n.Decode(&v); err != nil {
+		return err
+	}
+	switch value := v.(type) {
+	case int:
+		d.Duration = time.Duration(value)
+		return nil
+	case string:
+		var err error
+		d.Duration, err = time.ParseDuration(value)
+		if err != nil {
+			return err
+		}
+		return nil
+	default:
+		return fmt.Errorf("invalid duration: (yaml type: %T)", v)
+	}
+}
+
+var _ yaml.Marshaler = (*HumanReadableDuration)(nil)
+var _ yaml.Unmarshaler = (*HumanReadableDuration)(nil)

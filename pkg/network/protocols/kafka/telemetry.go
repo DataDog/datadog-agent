@@ -8,8 +8,6 @@
 package kafka
 
 import (
-	"github.com/cihub/seelog"
-
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -51,7 +49,7 @@ func (t *Telemetry) Count(tx *KafkaTransaction) {
 
 // Log logs the kafka stats summary
 func (t *Telemetry) Log() {
-	if log.ShouldLog(seelog.DebugLvl) {
+	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("kafka stats summary: %s", t.metricGroup.Summary())
 	}
 }

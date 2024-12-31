@@ -57,7 +57,7 @@ type AstFiles struct {
 }
 
 // LookupSymbol lookups symbol
-func (af *AstFiles) LookupSymbol(symbol string) *ast.Object {
+func (af *AstFiles) LookupSymbol(symbol string) *ast.Object { //nolint:staticcheck
 	for _, file := range af.files {
 		if obj := file.Scope.Lookup(symbol); obj != nil {
 			return obj
@@ -708,7 +708,7 @@ func newAstFiles(cfg *packages.Config, files ...string) (*AstFiles, error) {
 func parseFile(modelFile string, typesFile string, pkgName string) (*common.Module, error) {
 	cfg := packages.Config{
 		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=mod", fmt.Sprintf("-tags=%s", buildTags)},
+		BuildFlags: []string{"-mod=readonly", fmt.Sprintf("-tags=%s", buildTags)},
 	}
 
 	astFiles, err := newAstFiles(&cfg, modelFile, typesFile)

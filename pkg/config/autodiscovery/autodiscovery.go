@@ -9,6 +9,8 @@
 package autodiscovery
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -77,7 +79,7 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 	// Auto-activate autodiscovery without listeners: - snmp
 	snmpConfig, err := snmplistener.NewListenerConfig()
 
-	if err != nil {
+	if err != nil && !errors.Is(err, snmplistener.ErrNoConfigGiven) {
 		log.Errorf("Error unmarshalling snmp listener config. Error: %v", err)
 	} else if len(snmpConfig.Configs) > 0 {
 		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "snmp"})

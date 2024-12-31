@@ -89,3 +89,6 @@ apm_config:
     credit_cards:
       enabled: true
       luhn: true
+    cache:
+      enabled: true
+      max_size: 5555555

@@ -51,7 +51,7 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
 
     ctx.run(f"cp {binary} {temp_folder}/test.bin")
 
-    with open(f"{temp_folder}/Dockerfile", 'w') as stream:
+    with open(f"{temp_folder}/Dockerfile", 'w', encoding="utf-8") as stream:
         stream.write(
             """FROM public.ecr.aws/docker/library/ubuntu:20.04
 # Install Docker
@@ -65,11 +65,14 @@ RUN curl -SL "https://github.com/docker/compose/releases/download/v${COMPOSE_VER
 RUN echo "${COMPOSE_SHA256} /usr/bin/compose" | sha256sum --check
 RUN chmod +x /usr/bin/compose
 
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Final settings
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
-CMD /test.bin
 COPY test.bin /test.bin
+ENTRYPOINT ["/entrypoint.sh"]
 """
         )
         # Handle optional testdata folder
@@ -77,16 +80,38 @@ COPY test.bin /test.bin
             ctx.run(f"cp -R testdata {temp_folder}")
             stream.write("COPY testdata /testdata")
 
+    # Create the entrypoint script
+    with open(f"{temp_folder}/entrypoint.sh", 'w', encoding="utf-8") as f:
+        f.write(
+            """#!/bin/sh
+# Authenticate to Docker Hub
+echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USER" --password-stdin "$DOCKER_REGISTRY_URL"
+# Run the tests
+/test.bin
+"""
+        )
+
     test_image, _ = client.images.build(path=temp_folder, rm=True)
 
     scratch_volume = client.volumes.create()
 
+    # Passing Docker user, token and registry to the container to avoid rate limits
+    container_env = [
+        f"SCRATCH_VOLUME_NAME={scratch_volume.name}",
+        "SCRATCH_VOLUME_PATH=/tmp/scratch",
+        f"DOCKER_USER={os.environ.get('DOCKER_USER', '')}",
+        f"DOCKER_TOKEN={os.environ.get('DOCKER_TOKEN', '')}",
+        f"DOCKER_REGISTRY_URL={os.environ.get('DOCKER_REGISTRY_URL', '')}",
+    ]
+
     test_container = client.containers.run(
         test_image.id,
         detach=True,
+        stdout=True,
+        stderr=True,
         pid_mode="host",  # For origin detection
         cgroupns="host",  # To allow proper network mode detection in integration tests
-        environment=["SCRATCH_VOLUME_NAME=" + scratch_volume.name, "SCRATCH_VOLUME_PATH=/tmp/scratch"],
+        environment=container_env,
         volumes={
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'},
             '/proc': {'bind': '/host/proc', 'mode': 'ro'},

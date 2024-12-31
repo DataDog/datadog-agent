@@ -9,8 +9,11 @@
 struct mount;
 
 unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) {
+    u64 inode_ino_offset;
+    LOAD_CONSTANT("inode_ino_offset", inode_ino_offset);
+
     unsigned long ino;
-    bpf_probe_read(&ino, sizeof(inode), &inode->i_ino);
+    bpf_probe_read(&ino, sizeof(inode), (void *)inode + inode_ino_offset);
     return ino;
 }
 
@@ -23,9 +26,12 @@ dev_t __attribute__((always_inline)) get_inode_dev(struct inode *inode) {
 }
 
 dev_t __attribute__((always_inline)) get_dentry_dev(struct dentry *dentry) {
+    u64 offset;
+    LOAD_CONSTANT("dentry_d_sb_offset", offset);
+
     dev_t dev;
     struct super_block *sb;
-    bpf_probe_read(&sb, sizeof(sb), &dentry->d_sb);
+    bpf_probe_read(&sb, sizeof(sb), (char *)dentry + offset);
     bpf_probe_read(&dev, sizeof(dev), &sb->s_dev);
     return dev;
 }

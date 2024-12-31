@@ -120,6 +120,10 @@ func Command() []*cobra.Command {
 
 			// attach mode
 			if n := len(params.PIDs); n > 0 {
+				if params.PIDPerTracer <= 0 {
+					return fmt.Errorf("%s option but be greater or equal to 1", pidPerTracer)
+				}
+
 				if n < params.PIDPerTracer {
 					return ptracer.Attach(params.PIDs, params.ProbeAddr, opts)
 				}
@@ -145,19 +149,17 @@ func Command() []*cobra.Command {
 					go func(set []int) {
 						defer wg.Done()
 
-						args := []string{"trace"}
+						args := []string{
+							"trace",
+							fmt.Sprintf(`--%s`, probeAddrOpt),
+							params.ProbeAddr,
+						}
 
-						if params.ProcScanDisabled {
-							args = append(args, fmt.Sprintf(`--%s`, disableProcScanOpt))
-						}
-						if params.Async {
-							args = append(args, fmt.Sprintf(`--%s`, asyncOpt))
-						}
 						if params.Verbose {
 							args = append(args, fmt.Sprintf(`--%s`, verboseOpt))
 						}
-						if params.StatsDisabled {
-							args = append(args, fmt.Sprintf(`--%s`, disableStatsOpt))
+						if params.Debug {
+							args = append(args, fmt.Sprintf(`--%s`, debugOpt))
 						}
 						if params.UID != -1 {
 							args = append(args, fmt.Sprintf(`--%s`, uidOpt), fmt.Sprintf(`%d`, params.UID))
@@ -165,7 +167,21 @@ func Command() []*cobra.Command {
 						if params.GID != -1 {
 							args = append(args, fmt.Sprintf(`--%s`, gidOpt), fmt.Sprintf(`%d`, params.GID))
 						}
-						args = append(args, fmt.Sprintf(`--%s`, probeAddrOpt), params.ProbeAddr)
+						if params.Async {
+							args = append(args, fmt.Sprintf(`--%s`, asyncOpt))
+						}
+						if params.StatsDisabled {
+							args = append(args, fmt.Sprintf(`--%s`, disableStatsOpt))
+						}
+						if params.ProcScanDisabled {
+							args = append(args, fmt.Sprintf(`--%s`, disableProcScanOpt))
+						}
+						if params.ScanProcEvery != "" {
+							args = append(args, fmt.Sprintf(`--%s`, scanProcEveryOpt), params.ScanProcEvery)
+						}
+						if params.SeccompDisabled {
+							args = append(args, fmt.Sprintf(`--%s`, disableSeccompOpt))
+						}
 
 						for _, pid := range set {
 							args = append(args, fmt.Sprintf(`--%s`, pidOpt), fmt.Sprintf(`%d`, pid))
@@ -185,7 +201,7 @@ func Command() []*cobra.Command {
 						scanner := bufio.NewScanner(stderr)
 						scanner.Split(bufio.ScanLines)
 						for scanner.Scan() {
-							fmt.Println(scanner.Text())
+							_, _ = os.Stderr.Write(scanner.Bytes())
 						}
 
 						if err = cmd.Wait(); err != nil {

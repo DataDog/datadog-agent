@@ -151,7 +151,7 @@ c:
 
 	cfg.SetDefault("a", "apple")
 	cfg.SetDefault("b", 123)
-	cfg.SetDefault("c.d", true)
+	cfg.SetDefault("c.d", 1)
 	cfg.SetDefault("c.e.f", 456)
 
 	cfg.BuildSchema()

@@ -185,6 +185,18 @@ int ptrace_traceme() {
     return EXIT_SUCCESS;
 }
 
+int ptrace_attach() {
+    int child = fork();
+    if (child == 0) {
+        sleep(3);
+    } else {
+        ptrace(PTRACE_ATTACH, child, 0, NULL);
+        wait(NULL);
+        sleep(3); // sleep here to let the agent resolve the pid namespace on procfs
+    }
+    return EXIT_SUCCESS;
+}
+
 int test_signal_sigusr(int child, int sig) {
     int do_fork = child == 0;
     if (do_fork) {
@@ -885,6 +897,8 @@ int main(int argc, char **argv) {
             exit_code = span_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "ptrace-traceme") == 0) {
             exit_code = ptrace_traceme();
+        } else if (strcmp(cmd, "ptrace-attach") == 0) {
+            exit_code = ptrace_attach();
         } else if (strcmp(cmd, "span-open") == 0) {
             exit_code = span_open(sub_argc, sub_argv);
         } else if (strcmp(cmd, "pipe-chown") == 0) {

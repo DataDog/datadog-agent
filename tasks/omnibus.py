@@ -7,6 +7,7 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
+from tasks.libs.common.check_tools_version import expected_go_repo_v
 from tasks.libs.common.omnibus import (
     install_dir_for_project,
     omnibus_compute_cache_key,
@@ -91,6 +92,7 @@ def get_omnibus_env(
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
     custom_config_dir=None,
+    fips_mode=False,
 ):
     env = load_release_versions(ctx, release_version)
 
@@ -132,6 +134,22 @@ def get_omnibus_env(
 
     if custom_config_dir:
         env["OUTPUT_CONFIG_DIR"] = custom_config_dir
+
+    if fips_mode:
+        env['FIPS_MODE'] = 'true'
+        if sys.platform == 'win32' and not os.environ.get('MSGO_ROOT'):
+            # Point omnibus at the msgo root
+            # TODO: idk how to do this in omnibus datadog-agent.rb
+            #       because `File.read` is executed when the script is loaded,
+            #       not when the `command`s are run and the source tree is not
+            #       available at that time.
+            #       Comments from the Linux FIPS PR discussed wanting to centralize
+            #       the msgo root logic, so this can be updated then.
+            go_version = expected_go_repo_v()
+            env['MSGO_ROOT'] = f'C:\\msgo\\{go_version}\\go'
+            gobinpath = f"{env['MSGO_ROOT']}\\bin\\go.exe"
+            if not os.path.exists(gobinpath):
+                raise Exit(f"msgo go.exe not found at {gobinpath}")
 
     # We need to override the workers variable in omnibus build when running on Kubernetes runners,
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
@@ -187,6 +205,7 @@ def build(
     """
 
     flavor = AgentFlavor[flavor]
+    fips_mode = flavor.is_fips()
     durations = {}
     if not skip_deps:
         with timed(quiet=True) as durations['Deps']:
@@ -211,6 +230,7 @@ def build(
         flavor=flavor,
         pip_config_file=pip_config_file,
         custom_config_dir=config_directory,
+        fips_mode=fips_mode,
     )
 
     if not target_project:
@@ -265,10 +285,9 @@ def build(
             if use_remote_cache:
                 cache_state = None
                 cache_key = omnibus_compute_cache_key(ctx)
-                git_cache_url = f"s3://{os.environ['S3_OMNIBUS_CACHE_BUCKET']}/builds/{cache_key}/{remote_cache_name}"
-                bundle_path = (
-                    "/tmp/omnibus-git-cache-bundle" if sys.platform != 'win32' else "C:\\TEMP\\omnibus-git-cache-bundle"
-                )
+                git_cache_url = f"s3://{os.environ['S3_OMNIBUS_GIT_CACHE_BUCKET']}/{cache_key}/{remote_cache_name}"
+                bundle_dir = tempfile.TemporaryDirectory()
+                bundle_path = os.path.join(bundle_dir.name, 'omnibus-git-cache-bundle')
                 with timed(quiet=True) as durations['Restoring omnibus cache']:
                     # Allow failure in case the cache was evicted
                     if ctx.run(f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
@@ -314,6 +333,7 @@ def build(
             if use_remote_cache and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
                 ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
                 ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
+                bundle_dir.cleanup()
 
     # Output duration information for different steps
     print("Build component timing:")

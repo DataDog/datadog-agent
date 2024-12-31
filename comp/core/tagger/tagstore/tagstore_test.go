@@ -88,10 +88,12 @@ func (s *StoreTestSuite) TestLookup() {
 	tagsHigh := s.tagstore.Lookup(entityID, types.HighCardinality)
 	tagsOrch := s.tagstore.Lookup(entityID, types.OrchestratorCardinality)
 	tagsLow := s.tagstore.Lookup(entityID, types.LowCardinality)
+	tagsNone := s.tagstore.Lookup(entityID, types.NoneCardinality)
 
 	assert.Len(s.T(), tagsHigh, 4)
 	assert.Len(s.T(), tagsLow, 2)
 	assert.Len(s.T(), tagsOrch, 3)
+	assert.Nil(s.T(), tagsNone)
 }
 
 func (s *StoreTestSuite) TestLookupHashedWithEntityStr() {
@@ -118,10 +120,12 @@ func (s *StoreTestSuite) TestLookupHashedWithEntityStr() {
 	tagsLow := s.tagstore.LookupHashedWithEntityStr(entityID, types.LowCardinality)
 	tagsOrch := s.tagstore.LookupHashedWithEntityStr(entityID, types.OrchestratorCardinality)
 	tagsHigh := s.tagstore.LookupHashedWithEntityStr(entityID, types.HighCardinality)
+	tagsNone := s.tagstore.LookupHashedWithEntityStr(entityID, types.NoneCardinality)
 
 	assert.ElementsMatch(s.T(), tagsLow.Get(), []string{"low1", "low2"})
 	assert.ElementsMatch(s.T(), tagsOrch.Get(), []string{"low1", "low2", "orchestrator1"})
 	assert.ElementsMatch(s.T(), tagsHigh.Get(), []string{"low1", "low2", "orchestrator1", "high1"})
+	assert.ElementsMatch(s.T(), tagsNone.Get(), []string{})
 }
 
 func (s *StoreTestSuite) TestLookupStandard() {

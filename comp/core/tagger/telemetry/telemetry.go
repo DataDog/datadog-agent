@@ -61,9 +61,14 @@ type Store struct {
 	// notification with a group of events.
 	Receives telemetry.Counter
 
+	// OriginInfoRequests tracks the number of requests to the Tagger
+	// to generate a container ID from Origin Info.
+	OriginInfoRequests telemetry.Counter
+
 	LowCardinalityQueries          CardinalityTelemetry
 	OrchestratorCardinalityQueries CardinalityTelemetry
 	HighCardinalityQueries         CardinalityTelemetry
+	NoneCardinalityQueries         CardinalityTelemetry
 	UnknownCardinalityQueries      CardinalityTelemetry
 }
 
@@ -131,9 +136,16 @@ func NewStore(telemetryComp telemetry.Component) *Store {
 				[]string{}, "Number of of times the tagger has received a notification with a group of events",
 				telemetry.Options{NoDoubleUnderscoreSep: true}),
 
+			// OriginInfoRequests tracks the number of requests to the tagger
+			// to generate a container ID from origin info.
+			OriginInfoRequests: telemetryComp.NewCounterWithOpts(subsystem, "origin_info_requests",
+				[]string{"status"}, "Number of requests to the tagger to generate a container ID from origin info.",
+				telemetry.Options{NoDoubleUnderscoreSep: true}),
+
 			LowCardinalityQueries:          newCardinalityTelemetry(queries, types.LowCardinalityString),
 			OrchestratorCardinalityQueries: newCardinalityTelemetry(queries, types.OrchestratorCardinalityString),
 			HighCardinalityQueries:         newCardinalityTelemetry(queries, types.HighCardinalityString),
+			NoneCardinalityQueries:         newCardinalityTelemetry(queries, types.NoneCardinalityString),
 			UnknownCardinalityQueries:      newCardinalityTelemetry(queries, types.UnknownCardinalityString),
 		}
 	})
@@ -150,6 +162,8 @@ func (s *Store) QueriesByCardinality(card types.TagCardinality) *CardinalityTele
 		return &s.OrchestratorCardinalityQueries
 	case types.HighCardinality:
 		return &s.HighCardinalityQueries
+	case types.NoneCardinality:
+		return &s.NoneCardinalityQueries
 	default:
 		return &s.UnknownCardinalityQueries
 	}

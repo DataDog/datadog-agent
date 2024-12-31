@@ -25,7 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -46,8 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
+	compressionfxzlib "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-zlib"
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
@@ -106,8 +107,20 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			fx.Provide(func() coreconfig.Component {
 				return acfg
 			}),
+			fx.Provide(func(_ coreconfig.Component) log.Params {
+				return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+			}),
+			logfx.Module(),
+			fetchonlyimpl.Module(),
+			// TODO: don't rely on this pattern; remove this `ModuleWithParams` thing
+			//       and instead adapt OptionalModule to allow parameter passing naturally.
+			//       See: https://github.com/DataDog/datadog-agent/pull/28386
+			configsyncimpl.ModuleWithParams(),
+			fx.Provide(func() configsyncimpl.Params {
+				return configsyncimpl.NewParams(params.SyncTimeout, params.SyncDelay, true)
+			}),
 			converterfx.Module(),
-			fx.Provide(func(cp converter.Component) confmap.Converter {
+			fx.Provide(func(cp converter.Component, _ configsync.Component) confmap.Converter {
 				return cp
 			}),
 			collectorcontribFx.Module(),
@@ -138,6 +151,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return acfg, nil
 		}),
 		fxutil.ProvideOptional[coreconfig.Component](),
+		fxutil.ProvideNoneOptional[secrets.Component](),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
@@ -152,11 +166,8 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),
-		// We create strategy.ZlibStrategy directly to avoid build tags
-		fx.Provide(strategy.NewZlibStrategy),
-		fx.Provide(func(s *strategy.ZlibStrategy) compression.Component {
-			return s
-		}),
+		// We directly select fxzlib
+		compressionfxzlib.Module(),
 		fx.Provide(serializer.NewSerializer),
 		// For FX to provide the serializer.MetricSerializer from the serializer.Serializer
 		fx.Provide(func(s *serializer.Serializer) serializer.MetricSerializer {
@@ -180,10 +191,10 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ optional.Option[logsagentpipeline.Component]) {
 		}),
 
-		// TODO: don't rely on this pattern; remove this `OptionalModuleWithParams` thing
+		// TODO: don't rely on this pattern; remove this `ModuleWithParams` thing
 		//       and instead adapt OptionalModule to allow parameter passing naturally.
 		//       See: https://github.com/DataDog/datadog-agent/pull/28386
-		configsyncimpl.OptionalModuleWithParams(),
+		configsyncimpl.ModuleWithParams(),
 		fx.Provide(func() configsyncimpl.Params {
 			return configsyncimpl.NewParams(params.SyncTimeout, params.SyncDelay, true)
 		}),
@@ -207,7 +218,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 
 		// TODO: consider adding configsync.Component as an explicit dependency for traceconfig
 		//       to avoid this sort of dependency tree hack.
-		fx.Provide(func(deps traceconfig.Dependencies, _ optional.Option[configsync.Component]) (traceconfig.Component, error) {
+		fx.Provide(func(deps traceconfig.Dependencies, _ configsync.Component) (traceconfig.Component, error) {
 			// TODO: this would be much better if we could leverage traceconfig.Module
 			//       Must add a new parameter to traconfig.Module to handle this.
 			return traceconfig.NewConfig(deps)
@@ -225,13 +236,13 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 
 // ForwarderBundle returns the fx.Option for the forwarder bundle.
 // TODO: cleanup the forwarder instantiation with fx.
-// This is a bit of a hack because we need to enforce optional.Option[configsync.Component]
+// This is a bit of a hack because we need to enforce configsync.Component
 // is passed to newForwarder to enforce the correct instantiation order. Currently, the
 // new forwarder.BundleWithProvider makes a few assumptions in its generic prototype, and
 // this is the current workaround to leverage it.
 func ForwarderBundle() fx.Option {
 	return defaultforwarder.ModulWithOptionTMP(
-		fx.Provide(func(_ optional.Option[configsync.Component]) defaultforwarder.Params {
+		fx.Provide(func(_ configsync.Component) defaultforwarder.Params {
 			return defaultforwarder.NewParams()
 		}))
 }

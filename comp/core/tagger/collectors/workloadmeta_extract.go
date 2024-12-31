@@ -225,8 +225,10 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	}
 
 	// static tags for ECS and EKS Fargate containers
-	for tag, value := range c.staticTags {
-		tagList.AddLow(tag, value)
+	for tag, valueList := range c.staticTags {
+		for _, value := range valueList {
+			tagList.AddLow(tag, value)
+		}
 	}
 
 	// gpu tags from container resource requests
@@ -399,8 +401,10 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 	}
 
 	// static tags for EKS Fargate pods
-	for tag, value := range c.staticTags {
-		tagList.AddLow(tag, value)
+	for tag, valueList := range c.staticTags {
+		for _, value := range valueList {
+			tagList.AddLow(tag, value)
+		}
 	}
 
 	low, orch, high, standard := tagList.Compute()
@@ -501,7 +505,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		low, orch, high, standard := taskTags.Compute()
 		tagInfos = append(tagInfos, &types.TagInfo{
 			Source:               taskSource,
-			EntityID:             common.GetGlobalEntityID(),
+			EntityID:             types.GetGlobalEntityID(),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,

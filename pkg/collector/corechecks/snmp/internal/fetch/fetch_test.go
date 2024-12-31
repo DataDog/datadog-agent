@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -88,7 +87,7 @@ func Test_fetchColumnOids(t *testing.T) {
 	sess.On("GetBulk", []string{"1.1.1.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
 	sess.On("GetBulk", []string{"1.1.1.5"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
 
-	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
+	oids := []string{"1.1.1", "1.1.2"}
 
 	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 100, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
 	assert.Nil(t, err)
@@ -179,7 +178,7 @@ func Test_fetchColumnOidsBatch_usingGetBulk(t *testing.T) {
 	// Third bulk iteration
 	sess.On("GetBulk", []string{"1.1.1.5"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
 
-	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
+	oids := []string{"1.1.1", "1.1.2"}
 
 	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 2, 10, useGetBulk)
 	assert.Nil(t, err)
@@ -276,7 +275,7 @@ func Test_fetchColumnOidsBatch_usingGetNext(t *testing.T) {
 	sess.On("GetNext", []string{"1.1.3"}).Return(&secondBatchPacket1, nil)
 	sess.On("GetNext", []string{"1.1.3.1"}).Return(&secondBatchPacket2, nil)
 
-	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2", "1.1.3": "1.1.3"}
+	oids := []string{"1.1.1", "1.1.2", "1.1.3"}
 
 	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 2, 10, useGetBulk)
 	assert.Nil(t, err)
@@ -775,7 +774,7 @@ func Test_fetchValues_errors(t *testing.T) {
 func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	require.NoError(t, err)
 	log.SetupLogger(l, "debug")
 
@@ -871,7 +870,7 @@ func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 	sess.On("GetBulk", []string{"1.1.1.3", "1.1.2.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
 	sess.On("GetBulk", []string{"1.1.1.5", "1.1.2.5"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
 
-	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
+	oids := []string{"1.1.1", "1.1.2"}
 
 	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 100, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
 	assert.Nil(t, err)

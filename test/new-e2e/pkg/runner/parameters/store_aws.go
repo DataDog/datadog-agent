@@ -9,8 +9,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmTypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
@@ -59,6 +60,6 @@ func (s awsStore) get(key StoreKey) (string, error) {
 
 // awsOverrides is a map of StoreKey to StoreKey used to override key only in AWS store
 var awsOverrides = map[StoreKey]StoreKey{
-	APIKey: "api_key_2",
+	APIKey: "api_key_3",
 	APPKey: "app_key_2",
 }

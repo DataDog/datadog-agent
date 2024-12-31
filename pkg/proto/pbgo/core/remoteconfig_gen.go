@@ -3069,15 +3069,6 @@ func (z *PackageState) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "ExperimentVersion"
 	o = append(o, 0xb1, 0x45, 0x78, 0x70, 0x65, 0x72, 0x69, 0x6d, 0x65, 0x6e, 0x74, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendString(o, z.ExperimentVersion)
-	// string "StableConfigVersion"
-	o = append(o, 0xb3, 0x53, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
-	o = msgp.AppendString(o, z.StableConfigVersion)
-	// string "ExperimentConfigVersion"
-	o = append(o, 0xb7, 0x45, 0x78, 0x70, 0x65, 0x72, 0x69, 0x6d, 0x65, 0x6e, 0x74, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
-	o = msgp.AppendString(o, z.ExperimentConfigVersion)
-	// string "RemoteConfigVersion"
-	o = append(o, 0xb3, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
-	o = msgp.AppendString(o, z.RemoteConfigVersion)
 	// string "Task"
 	o = append(o, 0xa4, 0x54, 0x61, 0x73, 0x6b)
 	if z.Task == nil {
@@ -3087,6 +3078,54 @@ func (z *PackageState) MarshalMsg(b []byte) (o []byte, err error) {
 		if err != nil {
 			err = msgp.WrapError(err, "Task")
 			return
+		}
+	}
+	// string "StableConfigState"
+	o = append(o, 0xb1, 0x53, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x53, 0x74, 0x61, 0x74, 0x65)
+	if z.StableConfigState == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// map header, size 2
+		// string "Version"
+		o = append(o, 0x82, 0xa7, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+		o = msgp.AppendString(o, z.StableConfigState.Version)
+		// string "MatchedPolicies"
+		o = append(o, 0xaf, 0x4d, 0x61, 0x74, 0x63, 0x68, 0x65, 0x64, 0x50, 0x6f, 0x6c, 0x69, 0x63, 0x69, 0x65, 0x73)
+		o = msgp.AppendArrayHeader(o, uint32(len(z.StableConfigState.MatchedPolicies)))
+		for za0001 := range z.StableConfigState.MatchedPolicies {
+			o = msgp.AppendString(o, z.StableConfigState.MatchedPolicies[za0001])
+		}
+	}
+	// string "ExperimentConfigState"
+	o = append(o, 0xb5, 0x45, 0x78, 0x70, 0x65, 0x72, 0x69, 0x6d, 0x65, 0x6e, 0x74, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x53, 0x74, 0x61, 0x74, 0x65)
+	if z.ExperimentConfigState == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// map header, size 2
+		// string "Version"
+		o = append(o, 0x82, 0xa7, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+		o = msgp.AppendString(o, z.ExperimentConfigState.Version)
+		// string "MatchedPolicies"
+		o = append(o, 0xaf, 0x4d, 0x61, 0x74, 0x63, 0x68, 0x65, 0x64, 0x50, 0x6f, 0x6c, 0x69, 0x63, 0x69, 0x65, 0x73)
+		o = msgp.AppendArrayHeader(o, uint32(len(z.ExperimentConfigState.MatchedPolicies)))
+		for za0002 := range z.ExperimentConfigState.MatchedPolicies {
+			o = msgp.AppendString(o, z.ExperimentConfigState.MatchedPolicies[za0002])
+		}
+	}
+	// string "RemoteConfigState"
+	o = append(o, 0xb1, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x53, 0x74, 0x61, 0x74, 0x65)
+	if z.RemoteConfigState == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// map header, size 2
+		// string "Version"
+		o = append(o, 0x82, 0xa7, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+		o = msgp.AppendString(o, z.RemoteConfigState.Version)
+		// string "MatchedPolicies"
+		o = append(o, 0xaf, 0x4d, 0x61, 0x74, 0x63, 0x68, 0x65, 0x64, 0x50, 0x6f, 0x6c, 0x69, 0x63, 0x69, 0x65, 0x73)
+		o = msgp.AppendArrayHeader(o, uint32(len(z.RemoteConfigState.MatchedPolicies)))
+		for za0003 := range z.RemoteConfigState.MatchedPolicies {
+			o = msgp.AppendString(o, z.RemoteConfigState.MatchedPolicies[za0003])
 		}
 	}
 	return
@@ -3128,24 +3167,6 @@ func (z *PackageState) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "ExperimentVersion")
 				return
 			}
-		case "StableConfigVersion":
-			z.StableConfigVersion, bts, err = msgp.ReadStringBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "StableConfigVersion")
-				return
-			}
-		case "ExperimentConfigVersion":
-			z.ExperimentConfigVersion, bts, err = msgp.ReadStringBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "ExperimentConfigVersion")
-				return
-			}
-		case "RemoteConfigVersion":
-			z.RemoteConfigVersion, bts, err = msgp.ReadStringBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "RemoteConfigVersion")
-				return
-			}
 		case "Task":
 			if msgp.IsNil(bts) {
 				bts, err = msgp.ReadNilBytes(bts)
@@ -3163,6 +3184,183 @@ func (z *PackageState) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 			}
+		case "StableConfigState":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				if err != nil {
+					return
+				}
+				z.StableConfigState = nil
+			} else {
+				if z.StableConfigState == nil {
+					z.StableConfigState = new(PoliciesState)
+				}
+				var zb0002 uint32
+				zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "StableConfigState")
+					return
+				}
+				for zb0002 > 0 {
+					zb0002--
+					field, bts, err = msgp.ReadMapKeyZC(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "StableConfigState")
+						return
+					}
+					switch msgp.UnsafeString(field) {
+					case "Version":
+						z.StableConfigState.Version, bts, err = msgp.ReadStringBytes(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "StableConfigState", "Version")
+							return
+						}
+					case "MatchedPolicies":
+						var zb0003 uint32
+						zb0003, bts, err = msgp.ReadArrayHeaderBytes(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "StableConfigState", "MatchedPolicies")
+							return
+						}
+						if cap(z.StableConfigState.MatchedPolicies) >= int(zb0003) {
+							z.StableConfigState.MatchedPolicies = (z.StableConfigState.MatchedPolicies)[:zb0003]
+						} else {
+							z.StableConfigState.MatchedPolicies = make([]string, zb0003)
+						}
+						for za0001 := range z.StableConfigState.MatchedPolicies {
+							z.StableConfigState.MatchedPolicies[za0001], bts, err = msgp.ReadStringBytes(bts)
+							if err != nil {
+								err = msgp.WrapError(err, "StableConfigState", "MatchedPolicies", za0001)
+								return
+							}
+						}
+					default:
+						bts, err = msgp.Skip(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "StableConfigState")
+							return
+						}
+					}
+				}
+			}
+		case "ExperimentConfigState":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				if err != nil {
+					return
+				}
+				z.ExperimentConfigState = nil
+			} else {
+				if z.ExperimentConfigState == nil {
+					z.ExperimentConfigState = new(PoliciesState)
+				}
+				var zb0004 uint32
+				zb0004, bts, err = msgp.ReadMapHeaderBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "ExperimentConfigState")
+					return
+				}
+				for zb0004 > 0 {
+					zb0004--
+					field, bts, err = msgp.ReadMapKeyZC(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "ExperimentConfigState")
+						return
+					}
+					switch msgp.UnsafeString(field) {
+					case "Version":
+						z.ExperimentConfigState.Version, bts, err = msgp.ReadStringBytes(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "ExperimentConfigState", "Version")
+							return
+						}
+					case "MatchedPolicies":
+						var zb0005 uint32
+						zb0005, bts, err = msgp.ReadArrayHeaderBytes(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "ExperimentConfigState", "MatchedPolicies")
+							return
+						}
+						if cap(z.ExperimentConfigState.MatchedPolicies) >= int(zb0005) {
+							z.ExperimentConfigState.MatchedPolicies = (z.ExperimentConfigState.MatchedPolicies)[:zb0005]
+						} else {
+							z.ExperimentConfigState.MatchedPolicies = make([]string, zb0005)
+						}
+						for za0002 := range z.ExperimentConfigState.MatchedPolicies {
+							z.ExperimentConfigState.MatchedPolicies[za0002], bts, err = msgp.ReadStringBytes(bts)
+							if err != nil {
+								err = msgp.WrapError(err, "ExperimentConfigState", "MatchedPolicies", za0002)
+								return
+							}
+						}
+					default:
+						bts, err = msgp.Skip(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "ExperimentConfigState")
+							return
+						}
+					}
+				}
+			}
+		case "RemoteConfigState":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				if err != nil {
+					return
+				}
+				z.RemoteConfigState = nil
+			} else {
+				if z.RemoteConfigState == nil {
+					z.RemoteConfigState = new(PoliciesState)
+				}
+				var zb0006 uint32
+				zb0006, bts, err = msgp.ReadMapHeaderBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "RemoteConfigState")
+					return
+				}
+				for zb0006 > 0 {
+					zb0006--
+					field, bts, err = msgp.ReadMapKeyZC(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "RemoteConfigState")
+						return
+					}
+					switch msgp.UnsafeString(field) {
+					case "Version":
+						z.RemoteConfigState.Version, bts, err = msgp.ReadStringBytes(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "RemoteConfigState", "Version")
+							return
+						}
+					case "MatchedPolicies":
+						var zb0007 uint32
+						zb0007, bts, err = msgp.ReadArrayHeaderBytes(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "RemoteConfigState", "MatchedPolicies")
+							return
+						}
+						if cap(z.RemoteConfigState.MatchedPolicies) >= int(zb0007) {
+							z.RemoteConfigState.MatchedPolicies = (z.RemoteConfigState.MatchedPolicies)[:zb0007]
+						} else {
+							z.RemoteConfigState.MatchedPolicies = make([]string, zb0007)
+						}
+						for za0003 := range z.RemoteConfigState.MatchedPolicies {
+							z.RemoteConfigState.MatchedPolicies[za0003], bts, err = msgp.ReadStringBytes(bts)
+							if err != nil {
+								err = msgp.WrapError(err, "RemoteConfigState", "MatchedPolicies", za0003)
+								return
+							}
+						}
+					default:
+						bts, err = msgp.Skip(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "RemoteConfigState")
+							return
+						}
+					}
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -3177,11 +3375,38 @@ func (z *PackageState) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *PackageState) Msgsize() (s int) {
-	s = 1 + 8 + msgp.StringPrefixSize + len(z.Package) + 14 + msgp.StringPrefixSize + len(z.StableVersion) + 18 + msgp.StringPrefixSize + len(z.ExperimentVersion) + 20 + msgp.StringPrefixSize + len(z.StableConfigVersion) + 24 + msgp.StringPrefixSize + len(z.ExperimentConfigVersion) + 20 + msgp.StringPrefixSize + len(z.RemoteConfigVersion) + 5
+	s = 1 + 8 + msgp.StringPrefixSize + len(z.Package) + 14 + msgp.StringPrefixSize + len(z.StableVersion) + 18 + msgp.StringPrefixSize + len(z.ExperimentVersion) + 5
 	if z.Task == nil {
 		s += msgp.NilSize
 	} else {
 		s += z.Task.Msgsize()
+	}
+	s += 18
+	if z.StableConfigState == nil {
+		s += msgp.NilSize
+	} else {
+		s += 1 + 8 + msgp.StringPrefixSize + len(z.StableConfigState.Version) + 16 + msgp.ArrayHeaderSize
+		for za0001 := range z.StableConfigState.MatchedPolicies {
+			s += msgp.StringPrefixSize + len(z.StableConfigState.MatchedPolicies[za0001])
+		}
+	}
+	s += 22
+	if z.ExperimentConfigState == nil {
+		s += msgp.NilSize
+	} else {
+		s += 1 + 8 + msgp.StringPrefixSize + len(z.ExperimentConfigState.Version) + 16 + msgp.ArrayHeaderSize
+		for za0002 := range z.ExperimentConfigState.MatchedPolicies {
+			s += msgp.StringPrefixSize + len(z.ExperimentConfigState.MatchedPolicies[za0002])
+		}
+	}
+	s += 18
+	if z.RemoteConfigState == nil {
+		s += msgp.NilSize
+	} else {
+		s += 1 + 8 + msgp.StringPrefixSize + len(z.RemoteConfigState.Version) + 16 + msgp.ArrayHeaderSize
+		for za0003 := range z.RemoteConfigState.MatchedPolicies {
+			s += msgp.StringPrefixSize + len(z.RemoteConfigState.MatchedPolicies[za0003])
+		}
 	}
 	return
 }
@@ -3311,6 +3536,86 @@ func (z *PackageStateTask) Msgsize() (s int) {
 		s += msgp.NilSize
 	} else {
 		s += 1 + 5 + msgp.Uint64Size + 8 + msgp.StringPrefixSize + len(z.Error.Message)
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z *PoliciesState) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	// map header, size 2
+	// string "Version"
+	o = append(o, 0x82, 0xa7, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	o = msgp.AppendString(o, z.Version)
+	// string "MatchedPolicies"
+	o = append(o, 0xaf, 0x4d, 0x61, 0x74, 0x63, 0x68, 0x65, 0x64, 0x50, 0x6f, 0x6c, 0x69, 0x63, 0x69, 0x65, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.MatchedPolicies)))
+	for za0001 := range z.MatchedPolicies {
+		o = msgp.AppendString(o, z.MatchedPolicies[za0001])
+	}
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *PoliciesState) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "Version":
+			z.Version, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Version")
+				return
+			}
+		case "MatchedPolicies":
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "MatchedPolicies")
+				return
+			}
+			if cap(z.MatchedPolicies) >= int(zb0002) {
+				z.MatchedPolicies = (z.MatchedPolicies)[:zb0002]
+			} else {
+				z.MatchedPolicies = make([]string, zb0002)
+			}
+			for za0001 := range z.MatchedPolicies {
+				z.MatchedPolicies[za0001], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "MatchedPolicies", za0001)
+					return
+				}
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z *PoliciesState) Msgsize() (s int) {
+	s = 1 + 8 + msgp.StringPrefixSize + len(z.Version) + 16 + msgp.ArrayHeaderSize
+	for za0001 := range z.MatchedPolicies {
+		s += msgp.StringPrefixSize + len(z.MatchedPolicies[za0001])
 	}
 	return
 }

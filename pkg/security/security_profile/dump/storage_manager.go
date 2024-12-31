@@ -33,12 +33,15 @@ type ActivityDumpStorage interface {
 type ActivityDumpStorageManager struct {
 	statsdClient statsd.ClientInterface
 	storages     map[config.StorageType]ActivityDumpStorage
+	isFowarder   bool
 }
 
 // NewAgentStorageManager returns a new instance of ActivityDumpStorageManager
-func NewAgentStorageManager() (*ActivityDumpStorageManager, error) {
+func NewAgentStorageManager(statsdClient statsd.ClientInterface) (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{
-		storages: make(map[config.StorageType]ActivityDumpStorage),
+		statsdClient: statsdClient,
+		storages:     make(map[config.StorageType]ActivityDumpStorage),
+		isFowarder:   false,
 	}
 
 	// create remote storage
@@ -54,7 +57,8 @@ func NewAgentStorageManager() (*ActivityDumpStorageManager, error) {
 // NewAgentCommandStorageManager returns a new instance of ActivityDumpStorageManager
 func NewAgentCommandStorageManager(cfg *config.Config) (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{
-		storages: make(map[config.StorageType]ActivityDumpStorage),
+		storages:   make(map[config.StorageType]ActivityDumpStorage),
+		isFowarder: false,
 	}
 
 	storage, err := NewActivityDumpLocalStorage(cfg, nil)
@@ -78,6 +82,7 @@ func NewActivityDumpStorageManager(cfg *config.Config, statsdClient statsd.Clien
 	manager := &ActivityDumpStorageManager{
 		storages:     make(map[config.StorageType]ActivityDumpStorage),
 		statsdClient: statsdClient,
+		isFowarder:   true,
 	}
 
 	storage, err := NewActivityDumpLocalStorage(cfg, m)
@@ -133,7 +138,7 @@ func (manager *ActivityDumpStorageManager) PersistRaw(requests []config.StorageR
 		}
 
 		// send dump metric
-		if manager.statsdClient != nil {
+		if manager.statsdClient != nil && manager.isFowarder {
 			if size := len(raw.Bytes()); size > 0 {
 				tags := []string{"format:" + request.Format.String(), "storage_type:" + request.Type.String(), fmt.Sprintf("compression:%v", request.Compression)}
 				if err := manager.statsdClient.Count(metrics.MetricActivityDumpSizeInBytes, int64(size), tags, 1.0); err != nil {

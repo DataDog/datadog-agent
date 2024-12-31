@@ -307,6 +307,7 @@ func TestGoDetector(t *testing.T) {
 		require.NoError(t, cmd.Start())
 		t.Cleanup(func() {
 			_ = cmd.Process.Kill()
+			cmd.Wait()
 		})
 		require.Eventually(t, func() bool {
 			if cmd.Process.Pid == 0 {

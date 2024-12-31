@@ -30,23 +30,6 @@ func parseStackTrace(procInfo *ditypes.ProcessInfo, rawProgramCounters []uint64)
 			break
 		}
 
-		entries, ok := procInfo.TypeMap.InlinedFunctions[rawProgramCounters[i]]
-		if ok {
-			for n := range entries {
-				inlinedFuncInfo, err := pcToLine(procInfo, rawProgramCounters[i])
-				if err != nil {
-					return stackTrace, fmt.Errorf("could not resolve pc to inlined function info: %w", err)
-				}
-
-				symName, lineNumber, err := parseInlinedEntry(procInfo.DwarfData.Reader(), entries[n])
-				if err != nil {
-					return stackTrace, fmt.Errorf("could not get inlined entries: %w", err)
-				}
-				stackFrame := ditypes.StackFrame{Function: fmt.Sprintf("%s [inlined in %s]", symName, inlinedFuncInfo.fn), FileName: inlinedFuncInfo.file, Line: int(lineNumber)}
-				stackTrace = append(stackTrace, stackFrame)
-			}
-		}
-
 		funcInfo, err := pcToLine(procInfo, rawProgramCounters[i])
 		if err != nil {
 			return stackTrace, fmt.Errorf("could not resolve pc to function info: %w", err)
@@ -114,6 +97,9 @@ func pcToLine(procInfo *ditypes.ProcessInfo, pc uint64) (*funcInfo, error) {
 		return nil, fmt.Errorf("invalid file number in dwarf function entry associated with compile unit")
 	}
 
+	if int(fileNumber) >= len(files) || files[fileNumber] == nil {
+		return nil, fmt.Errorf("could not find file")
+	}
 	file = files[fileNumber].Name
 
 	return &funcInfo{
@@ -121,31 +107,4 @@ func pcToLine(procInfo *ditypes.ProcessInfo, pc uint64) (*funcInfo, error) {
 		line: line,
 		fn:   fn,
 	}, nil
-}
-
-func parseInlinedEntry(reader *dwarf.Reader, e *dwarf.Entry) (name string, line int64, err error) {
-
-	var offset dwarf.Offset
-
-	for i := range e.Field {
-		if e.Field[i].Attr == dwarf.AttrAbstractOrigin {
-			offset = e.Field[i].Val.(dwarf.Offset)
-			reader.Seek(offset)
-			entry, err := reader.Next()
-			if err != nil {
-				return "", -1, fmt.Errorf("could not read inlined function origin: %w", err)
-			}
-			for j := range entry.Field {
-				if entry.Field[j].Attr == dwarf.AttrName {
-					name = entry.Field[j].Val.(string)
-				}
-			}
-		}
-
-		if e.Field[i].Attr == dwarf.AttrCallLine {
-			line = e.Field[i].Val.(int64)
-		}
-	}
-
-	return name, line, nil
 }

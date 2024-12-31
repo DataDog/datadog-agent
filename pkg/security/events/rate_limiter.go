@@ -103,8 +103,8 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 	for id, rule := range ruleSet.GetRules() {
 		every, burst := defaultEvery, defaultBurst
 
-		if rule.Def.Every != 0 {
-			every, burst = rule.Def.Every, 1
+		if duration := rule.Def.Every.GetDuration(); duration != 0 {
+			every, burst = duration, 1
 		}
 
 		if len(rule.Def.RateLimiterToken) > 0 {

@@ -28,6 +28,11 @@
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
+          "name": "cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
+        },
+        {
           "name": "container.created_at",
           "definition": "Timestamp of the creation of the container",
           "property_doc_link": "container-created_at-doc"
@@ -141,6 +146,11 @@
           "name": "process.ancestors.cgroup.manager",
           "definition": "Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "process.ancestors.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "process.ancestors.comm",
@@ -553,6 +563,11 @@
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
+          "name": "process.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
+        },
+        {
           "name": "process.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -911,6 +926,11 @@
           "name": "process.parent.cgroup.manager",
           "definition": "Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "process.parent.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "process.parent.comm",
@@ -2019,6 +2039,11 @@
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
+          "name": "exec.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
+        },
+        {
           "name": "exec.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -2441,6 +2466,11 @@
           "name": "exit.cgroup.manager",
           "definition": "Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "exit.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "exit.code",
@@ -3863,6 +3893,11 @@
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -4273,6 +4308,11 @@
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
+          "name": "ptrace.tracee.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
+        },
+        {
           "name": "ptrace.tracee.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -4631,6 +4671,11 @@
           "name": "ptrace.tracee.parent.cgroup.manager",
           "definition": "Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "ptrace.tracee.parent.comm",
@@ -5795,6 +5840,11 @@
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
+          "name": "signal.target.ancestors.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
+        },
+        {
           "name": "signal.target.ancestors.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -6205,6 +6255,11 @@
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
+          "name": "signal.target.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
+        },
+        {
           "name": "signal.target.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -6563,6 +6618,11 @@
           "name": "signal.target.parent.cgroup.manager",
           "definition": "Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "signal.target.parent.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "signal.target.parent.comm",
@@ -9432,6 +9492,29 @@
         "splice.file",
         "unlink.file",
         "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.version",
+      "link": "common-cgroupcontext-version-doc",
+      "type": "int",
+      "definition": "Version of the cgroup API",
+      "prefixes": [
+        "cgroup",
+        "exec.cgroup",
+        "exit.cgroup",
+        "process.ancestors.cgroup",
+        "process.cgroup",
+        "process.parent.cgroup",
+        "ptrace.tracee.ancestors.cgroup",
+        "ptrace.tracee.cgroup",
+        "ptrace.tracee.parent.cgroup",
+        "signal.target.ancestors.cgroup",
+        "signal.target.cgroup",
+        "signal.target.parent.cgroup"
       ],
       "constants": "",
       "constants_link": "",

@@ -9,14 +9,16 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v4/cpu"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -123,6 +125,8 @@ type ProcessCheck struct {
 	serviceExtractor *parser.ServiceExtractor
 
 	wmeta workloadmetacomp.Component
+
+	sysprobeClient *http.Client
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -140,17 +144,11 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 	p.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 
-	var tu net.SysProbeUtil
-
-	if syscfg.NetworkTracerModuleEnabled {
-		// Calling the remote tracer will cause it to initialize and check connectivity
-		tu, err = net.GetRemoteSystemProbeUtil(syscfg.SystemProbeAddress)
-		if err != nil {
-			log.Warnf("could not initiate connection with system probe: %s", err)
-		}
+	if syscfg.NetworkTracerModuleEnabled || syscfg.ProcessModuleEnabled {
+		p.sysprobeClient = client.Get(syscfg.SystemProbeAddress)
 	}
 
-	networkID, err := retryGetNetworkID(tu)
+	networkID, err := retryGetNetworkID(p.sysprobeClient)
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
@@ -271,8 +269,13 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		p.lastPIDs = append(p.lastPIDs, pid)
 	}
 
-	if sysProbeUtil := p.getRemoteSysProbeUtil(); sysProbeUtil != nil {
-		mergeProcWithSysprobeStats(p.lastPIDs, procs, sysProbeUtil)
+	if p.sysprobeClient != nil && p.sysProbeConfig.ProcessModuleEnabled {
+		pStats, err := net.GetProcStats(p.sysprobeClient, p.lastPIDs)
+		if err == nil {
+			mergeProcWithSysprobeStats(procs, pStats)
+		} else {
+			log.Debugf("cannot do GetProcStats from system-probe for process check: %s", err)
+		}
 	}
 
 	var containers []*model.Container
@@ -661,36 +664,16 @@ func skipProcess(
 	return false
 }
 
-func (p *ProcessCheck) getRemoteSysProbeUtil() net.SysProbeUtil {
-	if !p.sysProbeConfig.ProcessModuleEnabled {
-		return nil
-	}
-
-	pu, err := net.GetRemoteSystemProbeUtil(p.sysProbeConfig.SystemProbeAddress)
-	if err != nil {
-		if p.notInitializedLogLimit.ShouldLog() {
-			log.Warnf("could not initialize system-probe connection in process check: %v (will only log every 10 minutes)", err)
-		}
-		return nil
-	}
-	return pu
-}
-
 // mergeProcWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map
-func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process, pu net.SysProbeUtil) {
-	pStats, err := pu.GetProcStats(pids)
-	if err == nil {
-		for pid, proc := range procs {
-			if s, ok := pStats.StatsByPID[pid]; ok {
-				proc.Stats.OpenFdCount = s.OpenFDCount
-				proc.Stats.IOStat.ReadCount = s.ReadCount
-				proc.Stats.IOStat.WriteCount = s.WriteCount
-				proc.Stats.IOStat.ReadBytes = s.ReadBytes
-				proc.Stats.IOStat.WriteBytes = s.WriteBytes
-			}
+func mergeProcWithSysprobeStats(procs map[int32]*procutil.Process, pStats *model.ProcStatsWithPermByPID) {
+	for pid, proc := range procs {
+		if s, ok := pStats.StatsByPID[pid]; ok {
+			proc.Stats.OpenFdCount = s.OpenFDCount
+			proc.Stats.IOStat.ReadCount = s.ReadCount
+			proc.Stats.IOStat.WriteCount = s.WriteCount
+			proc.Stats.IOStat.ReadBytes = s.ReadBytes
+			proc.Stats.IOStat.WriteBytes = s.WriteBytes
 		}
-	} else {
-		log.Debugf("cannot do GetProcStats from system-probe for process check: %s", err)
 	}
 }
 

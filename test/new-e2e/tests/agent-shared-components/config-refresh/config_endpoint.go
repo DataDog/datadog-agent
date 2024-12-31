@@ -20,11 +20,11 @@ type agentConfigEndpointInfo struct {
 }
 
 func traceConfigEndpoint(port int) agentConfigEndpointInfo {
-	return agentConfigEndpointInfo{"trace-agent", "http", port, "/config"}
+	return agentConfigEndpointInfo{"trace-agent", "https", port, "/config"}
 }
 
 func processConfigEndpoint(port int) agentConfigEndpointInfo {
-	return agentConfigEndpointInfo{"process-agent", "http", port, "/config/all"}
+	return agentConfigEndpointInfo{"process-agent", "https", port, "/config/all"}
 }
 
 func securityConfigEndpoint(port int) agentConfigEndpointInfo {

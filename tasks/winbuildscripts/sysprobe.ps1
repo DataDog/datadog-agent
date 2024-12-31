@@ -23,11 +23,11 @@ if ($err -ne 0) {
     [Environment]::Exit($err)
 }
 
-& inv -e system-probe.kitchen-prepare --ci
+& inv -e system-probe.e2e-prepare --ci
 
 $err = $LASTEXITCODE
 if($err -ne 0){
-    Write-Host -ForegroundColor Red "kitchen prepare failed $err"
+    Write-Host -ForegroundColor Red "e2e prepare failed $err"
     [Environment]::Exit($err)
 }
 Write-Host Test passed

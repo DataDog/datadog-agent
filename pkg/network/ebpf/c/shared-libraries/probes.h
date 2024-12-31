@@ -4,6 +4,7 @@
 #include "bpf_telemetry.h"
 #include "bpf_bypass.h"
 
+#include "pid_tgid.h"
 #include "shared-libraries/types.h"
 
 static __always_inline void fill_path_safe(lib_path_t *path, const char *path_argument) {
@@ -23,10 +24,9 @@ static __always_inline void do_sys_open_helper_enter(const char *filename) {
 // Find the null character and clean up the garbage following it
 #pragma unroll
         for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
-            if (path.len) {
-                path.buf[i] = 0;
-            } else if (path.buf[i] == 0) {
+            if (path.buf[i] == 0) {
                 path.len = i;
+                break;
             }
         }
     } else {
@@ -39,7 +39,7 @@ static __always_inline void do_sys_open_helper_enter(const char *filename) {
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    path.pid = pid_tgid >> 32;
+    path.pid = GET_USER_MODE_PID(pid_tgid);
     bpf_map_update_with_telemetry(open_at_args, &pid_tgid, &path, BPF_ANY);
     return;
 }
@@ -102,9 +102,24 @@ cleanup:
     return;
 }
 
+// This definition is the same for all architectures.
+#ifndef O_WRONLY
+#define O_WRONLY        00000001
+#endif
+
+static __always_inline int should_ignore_flags(int flags)
+{
+    return flags & O_WRONLY;
+}
+
 SEC("tracepoint/syscalls/sys_enter_open")
 int tracepoint__syscalls__sys_enter_open(enter_sys_open_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
+
+    if (should_ignore_flags(args->flags)) {
+        return 0;
+    }
+
     do_sys_open_helper_enter(args->filename);
     return 0;
 }
@@ -119,6 +134,11 @@ int tracepoint__syscalls__sys_exit_open(exit_sys_ctx *args) {
 SEC("tracepoint/syscalls/sys_enter_openat")
 int tracepoint__syscalls__sys_enter_openat(enter_sys_openat_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
+
+    if (should_ignore_flags(args->flags)) {
+        return 0;
+    }
+
     do_sys_open_helper_enter(args->filename);
     return 0;
 }
@@ -133,6 +153,8 @@ int tracepoint__syscalls__sys_exit_openat(exit_sys_ctx *args) {
 SEC("tracepoint/syscalls/sys_enter_openat2")
 int tracepoint__syscalls__sys_enter_openat2(enter_sys_openat2_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
+    // Unlike the other variants, openat2(2) has the flags embedded inside the
+    // how argument; we don't bother trying to accessing it for now.
     do_sys_open_helper_enter(args->filename);
     return 0;
 }

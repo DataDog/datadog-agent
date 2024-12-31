@@ -3,6 +3,7 @@
 
 #include "constants/enums.h"
 #include "maps.h"
+#include "rate_limiter.h"
 
 void __attribute__((always_inline)) monitor_event_approved(u64 event_type, u32 approver_type) {
     struct bpf_map_def *approver_stats = select_buffer(&fb_approver_stats, &bb_approver_stats, APPROVER_MONITOR_KEY);
@@ -355,7 +356,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall(struct syscall
         struct activity_dump_config *config = lookup_or_delete_traced_pid(tgid, now, cookie);
         if (config != NULL) {
             // is this event type traced ?
-            if (mask_has_event(config->event_mask, syscall->type) && activity_dump_rate_limiter_allow(config, *cookie, now, 0)) {
+            if (mask_has_event(config->event_mask, syscall->type) && activity_dump_rate_limiter_allow(config->events_rate, *cookie, now, 0)) {
                 if (syscall->state == DISCARDED) {
                     syscall->resolver.flags |= SAVED_BY_ACTIVITY_DUMP;
                 }

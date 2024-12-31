@@ -94,6 +94,12 @@ CSM Threats event for Linux systems have the following JSON schema:
                 },
                 "origin": {
                     "type": "string"
+                },
+                "kernel_version": {
+                    "type": "string"
+                },
+                "distribution": {
+                    "type": "string"
                 }
             },
             "additionalProperties": false,
@@ -1718,9 +1724,6 @@ CSM Threats event for Linux systems have the following JSON schema:
         "container": {
             "$ref": "#/$defs/ContainerContext"
         },
-        "cgroup": {
-            "$ref": "#/$defs/CGroupContext"
-        },
         "network": {
             "$ref": "#/$defs/NetworkContext"
         },
@@ -1729,6 +1732,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         },
         "security_profile": {
             "$ref": "#/$defs/SecurityProfileContext"
+        },
+        "cgroup": {
+            "$ref": "#/$defs/CGroupContext"
         },
         "selinux": {
             "$ref": "#/$defs/SELinuxEvent"
@@ -1802,10 +1808,10 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `exit` | $ref | Please see [ExitEvent](#exitevent) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
-| `cgroup` | $ref | Please see [CGroupContext](#cgroupcontext) |
 | `network` | $ref | Please see [NetworkContext](#networkcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
 | `security_profile` | $ref | Please see [SecurityProfileContext](#securityprofilecontext) |
+| `cgroup` | $ref | Please see [CGroupContext](#cgroupcontext) |
 | `selinux` | $ref | Please see [SELinuxEvent](#selinuxevent) |
 | `bpf` | $ref | Please see [BPFEvent](#bpfevent) |
 | `mmap` | $ref | Please see [MMapEvent](#mmapevent) |
@@ -1940,6 +1946,12 @@ CSM Threats event for Linux systems have the following JSON schema:
             "type": "string"
         },
         "origin": {
+            "type": "string"
+        },
+        "kernel_version": {
+            "type": "string"
+        },
+        "distribution": {
             "type": "string"
         }
     },

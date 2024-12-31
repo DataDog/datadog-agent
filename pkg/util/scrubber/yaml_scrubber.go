@@ -6,10 +6,11 @@
 package scrubber
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 type scrubCallback = func(string, interface{}) (bool, interface{})
@@ -85,6 +86,11 @@ func (c *Scrubber) ScrubDataObj(data *interface{}) {
 			if replacer.YAMLKeyRegex == nil {
 				continue
 			}
+
+			if c.shouldApply != nil && !c.shouldApply(replacer) {
+				continue
+			}
+
 			if replacer.YAMLKeyRegex.Match([]byte(key)) {
 				if replacer.ProcessValue != nil {
 					return true, replacer.ProcessValue(value)
@@ -105,13 +111,16 @@ func (c *Scrubber) ScrubYaml(input []byte) ([]byte, error) {
 	// if we can't load the yaml run the default scrubber on the input
 	if len(input) != 0 && err == nil {
 		c.ScrubDataObj(data)
-		newInput, err := yaml.Marshal(data)
-		if err == nil {
-			input = newInput
-		} else {
-			// Since the scrubber is a dependency of the logger we can use it here.
+
+		var buffer bytes.Buffer
+		encoder := yaml.NewEncoder(&buffer)
+		encoder.SetIndent(2)
+		if err := encoder.Encode(&data); err != nil {
 			fmt.Fprintf(os.Stderr, "error scrubbing YAML, falling back on text scrubber: %s\n", err)
+		} else {
+			input = buffer.Bytes()
 		}
+		encoder.Close()
 	}
 	return c.ScrubBytes(input)
 }

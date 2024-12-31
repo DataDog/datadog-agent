@@ -13,8 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/shirou/gopsutil/v3/process"
-
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -41,11 +39,11 @@ var (
 )
 
 // shouldIgnoreComm returns true if process should be ignored
-func (s *discovery) shouldIgnoreComm(proc *process.Process) bool {
+func (s *discovery) shouldIgnoreComm(pid int32) bool {
 	if s.config.ignoreComms == nil {
 		return false
 	}
-	commPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "comm")
+	commPath := kernel.HostProc(strconv.Itoa(int(pid)), "comm")
 	file, err := os.Open(commPath)
 	if err != nil {
 		return true

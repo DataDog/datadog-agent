@@ -249,26 +249,6 @@ func TestCheckKnownKey(t *testing.T) {
 	assert.Contains(t, config.unknownKeys, "foobar")
 }
 
-func TestCopyConfig(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
-	config.SetDefault("baz", "qux")
-	config.Set("foo", "bar", SourceFile)
-	config.BindEnv("xyz", "XXYYZZ")
-	config.SetKnown("tyu")
-	config.OnUpdate(func(_ string, _, _ any) {})
-
-	backup := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
-	backup.CopyConfig(config)
-
-	assert.Equal(t, "qux", backup.Get("baz"))
-	assert.Equal(t, "bar", backup.Get("foo"))
-	t.Setenv("XXYYZZ", "value")
-	assert.Equal(t, "value", backup.Get("xyz"))
-	assert.True(t, backup.IsKnown("tyu"))
-	// can't compare function pointers directly so just check the number of callbacks
-	assert.Len(t, backup.(*safeConfig).notificationReceivers, 1, "notification receivers should be copied")
-}
-
 func TestExtraConfig(t *testing.T) {
 	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 

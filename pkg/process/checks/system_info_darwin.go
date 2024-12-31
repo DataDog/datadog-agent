@@ -14,8 +14,8 @@ import (
 	// difference between methods for collecting macOS platform, kernel version
 	// between shirou and Datadog psutil
 	"github.com/DataDog/gopsutil/host"
-	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/mem"
 	"golang.org/x/sys/unix"
 )
 

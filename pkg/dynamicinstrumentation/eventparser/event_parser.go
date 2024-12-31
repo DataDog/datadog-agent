@@ -21,74 +21,51 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// MaxBufferSize is the maximum size of the output buffer from bpf which is read by this package
-const MaxBufferSize = 10000
-
 var (
-	byteOrder = binary.LittleEndian
+	byteOrder = binary.NativeEndian
 )
 
 // ParseEvent takes the raw buffer from bpf and parses it into an event. It also potentially
 // applies a rate limit
-func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) *ditypes.DIEvent {
+func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) (*ditypes.DIEvent, error) {
 	event := ditypes.DIEvent{}
 
 	if len(record) < ditypes.SizeofBaseEvent {
-		log.Tracef("malformed event record (length %d)", len(record))
-		return nil
+		return nil, fmt.Errorf("malformed event record (length %d)", len(record))
 	}
 	baseEvent := *(*ditypes.BaseEvent)(unsafe.Pointer(&record[0]))
 	event.ProbeID = unix.ByteSliceToString(baseEvent.Probe_id[:])
 
 	allowed, droppedEvents, successfulEvents := ratelimiters.AllowOneEvent(event.ProbeID)
 	if !allowed {
-		log.Tracef("event dropped by rate limit. Probe %s\t(%d dropped events out of %d)\n",
+		return nil, fmt.Errorf("event dropped by rate limit, probe %s (%d dropped events out of %d)",
 			event.ProbeID, droppedEvents, droppedEvents+successfulEvents)
-		return nil
 	}
 
 	event.PID = baseEvent.Pid
 	event.UID = baseEvent.Uid
 	event.StackPCs = baseEvent.Program_counters[:]
 	event.Argdata = readParams(record[ditypes.SizeofBaseEvent:])
-	return &event
-}
-
-// ParseParams extracts just the parsed parameters from the full event record
-func ParseParams(record []byte) ([]*ditypes.Param, error) {
-	if len(record) < 392 {
-		return nil, fmt.Errorf("malformed event record (length %d)", len(record))
-	}
-	return readParams(record[392:]), nil
+	return &event, nil
 }
 
 func readParams(values []byte) []*ditypes.Param {
+	if len(values) >= 100 {
+		log.Tracef("DI event bytes (0:100): %v", values[0:100])
+	}
 	outputParams := []*ditypes.Param{}
-	for i := 0; i < MaxBufferSize; {
-		if i+3 >= len(values) {
-			break
-		}
+	for i := 0; i+3 < len(values); {
 		paramTypeDefinition := parseTypeDefinition(values[i:])
 		if paramTypeDefinition == nil {
 			break
 		}
-
 		sizeOfTypeDefinition := countBufferUsedByTypeDefinition(paramTypeDefinition)
 		i += sizeOfTypeDefinition
 		val, numBytesRead := parseParamValue(paramTypeDefinition, values[i:])
 		if val == nil {
 			return outputParams
 		}
-		if reflect.Kind(val.Kind) == reflect.Slice {
-			// In BPF we read the slice by reading the maximum size of a slice
-			// that we allow, instead of just the size of the slice (which we
-			// know at runtime). This is to satisfy the verifier. When parsing
-			// here, we read just the actual slice content, but have to move the
-			// buffer index ahead by the amount of space used by the max read.
-			i += ditypes.SliceMaxSize
-		} else {
-			i += numBytesRead
-		}
+		i += numBytesRead
 		outputParams = append(outputParams, val)
 	}
 	return outputParams
@@ -99,44 +76,49 @@ func readParams(values []byte) []*ditypes.Param {
 // from the byte buffer. It returns the resulting parameter and an indication of
 // how many bytes were read from the buffer
 func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, int) {
+	var bufferIndex int
 	// Start by creating a stack with each layer of the definition
 	// which will correspond with the layers of the values read from buffer.
-	// This is done using a temporary stack.
+	// This is done using a temporary stack to reverse the order.
 	tempStack := newParamStack()
 	definitionStack := newParamStack()
 	tempStack.push(definition)
 	for !tempStack.isEmpty() {
 		current := tempStack.pop()
-		definitionStack.push(copyParam(current))
-		for i := 0; i < len(current.Fields); i++ {
-			tempStack.push(current.Fields[i])
+		copiedParam := copyParam(current)
+		definitionStack.push(copiedParam)
+		for n := 0; n < len(current.Fields); n++ {
+			tempStack.push(current.Fields[n])
 		}
 	}
-	var i int
+
 	valueStack := newParamStack()
-	for i = 0; i+3 < len(buffer); {
+	for bufferIndex <= len(buffer) {
 		paramDefinition := definitionStack.pop()
 		if paramDefinition == nil {
 			break
 		}
-		if !isTypeWithHeader(paramDefinition.Kind) {
-			if i+int(paramDefinition.Size) >= len(buffer) {
+		nextIndex := bufferIndex + int(paramDefinition.Size)
+		if reflect.Kind(paramDefinition.Kind) == reflect.String {
+			if nextIndex > len(buffer) {
+				break
+			}
+			paramDefinition.ValueStr = string(buffer[bufferIndex:nextIndex])
+			bufferIndex += int(paramDefinition.Size)
+			valueStack.push(paramDefinition)
+		} else if !isTypeWithHeader(paramDefinition.Kind) {
+			if nextIndex > len(buffer) {
 				break
 			}
 			// This is a regular value (no sub-fields).
 			// We parse the value of it from the buffer and push it to the value stack
-			paramDefinition.ValueStr = parseIndividualValue(paramDefinition.Kind, buffer[i:i+int(paramDefinition.Size)])
-			i += int(paramDefinition.Size)
+			paramDefinition.ValueStr = parseIndividualValue(paramDefinition.Kind, buffer[bufferIndex:nextIndex])
+			bufferIndex += int(paramDefinition.Size)
 			valueStack.push(paramDefinition)
 		} else if reflect.Kind(paramDefinition.Kind) == reflect.Pointer {
-			if i+int(paramDefinition.Size) >= len(buffer) {
+			if nextIndex > len(buffer) {
 				break
 			}
-			// Pointers are unique in that they have their own value, and sub-fields.
-			// We parse the value of it from the buffer, place it in the value for
-			// the pointer itself, then pop the next value and place it as a sub-field.
-			paramDefinition.ValueStr = parseIndividualValue(paramDefinition.Kind, buffer[i:i+int(paramDefinition.Size)])
-			i += int(paramDefinition.Size)
 			paramDefinition.Fields = append(paramDefinition.Fields, valueStack.pop())
 			valueStack.push(paramDefinition)
 		} else {
@@ -151,7 +133,18 @@ func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, 
 			valueStack.push(paramDefinition)
 		}
 	}
-	return valueStack.pop(), i
+	return valueStack.pop(), bufferIndex
+}
+
+func deepCopyParam(dst, src *ditypes.Param) {
+	dst.Type = src.Type
+	dst.Kind = src.Kind
+	dst.Size = src.Size
+	dst.Fields = make([]*ditypes.Param, len(src.Fields))
+	for i, field := range src.Fields {
+		dst.Fields[i] = &ditypes.Param{}
+		deepCopyParam(dst.Fields[i], field)
+	}
 }
 
 func copyParam(p *ditypes.Param) *ditypes.Param {
@@ -183,15 +176,23 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 		if len(b) < 3 {
 			return nil
 		}
+
+		kind := b[i]
 		newParam := &ditypes.Param{
-			Kind: b[i],
-			Size: binary.LittleEndian.Uint16(b[i+1 : i+3]),
-			Type: parseKindToString(b[i]),
+			Kind: kind,
+			Size: byteOrder.Uint16(b[i+1 : i+3]),
+			Type: parseKindToString(kind),
 		}
-		if newParam.Kind == 0 && newParam.Size == 0 {
+		if newParam.Kind == 0 {
 			break
 		}
 		i += 3
+		if newParam.Size == 0 {
+			if reflect.Kind(newParam.Kind) == reflect.Struct {
+				goto stackCheck
+			}
+			break
+		}
 		if isTypeWithHeader(newParam.Kind) {
 			stack.push(newParam)
 			continue
@@ -203,12 +204,27 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 		}
 		top := stack.peek()
 		top.Fields = append(top.Fields, newParam)
+
+		if reflect.Kind(top.Kind) == reflect.Slice {
+			// top.Size is the length of the slice.
+			// We copy+append the type of the slice so we have the correct
+			// number of slice elements to parse values into.
+			if top.Size == 0 {
+				top.Fields = []*ditypes.Param{}
+			} else if top.Size > 1 {
+				for q := 1; q < int(top.Size); q++ {
+					sliceElementTypeCopy := &ditypes.Param{}
+					deepCopyParam(sliceElementTypeCopy, top.Fields[0])
+					top.Fields = append(top.Fields, sliceElementTypeCopy)
+				}
+			}
+		}
+
 		if len(top.Fields) == int(top.Size) ||
 			(reflect.Kind(top.Kind) == reflect.Pointer && len(top.Fields) == 1) {
 			newParam = stack.pop()
 			goto stackCheck
 		}
-
 	}
 	return nil
 }
@@ -224,15 +240,23 @@ func countBufferUsedByTypeDefinition(root *ditypes.Param) int {
 		front := queue[0]
 		queue = queue[1:]
 		counter += 3
-		queue = append(queue, front.Fields...)
+
+		if reflect.Kind(front.Kind) == reflect.Slice && len(front.Fields) > 0 {
+			// The fields of slice elements are amended after the fact to account
+			// for the runtime discovered length. However, only one definition of
+			// the slice element's type is present in the buffer.
+			queue = append(queue, front.Fields[0])
+		} else {
+			queue = append(queue, front.Fields...)
+		}
 	}
 	return counter
 }
 
 func isTypeWithHeader(pieceType byte) bool {
 	return reflect.Kind(pieceType) == reflect.Struct ||
-		reflect.Kind(pieceType) == reflect.Slice ||
 		reflect.Kind(pieceType) == reflect.Array ||
+		reflect.Kind(pieceType) == reflect.Slice ||
 		reflect.Kind(pieceType) == reflect.Pointer
 }
 

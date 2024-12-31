@@ -13,6 +13,7 @@ import (
 	infraaws "github.com/DataDog/test-infra-definitions/resources/aws"
 	infraazure "github.com/DataDog/test-infra-definitions/resources/azure"
 	infragcp "github.com/DataDog/test-infra-definitions/resources/gcp"
+	infralocal "github.com/DataDog/test-infra-definitions/resources/local"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 
@@ -62,6 +63,9 @@ const (
 	GCPPrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infragcp.DDInfraDefaultPrivateKeyPath
 	// GCPPrivateKeyPassword pulumi config paramater name
 	GCPPrivateKeyPassword = commonconfig.DDInfraConfigNamespace + ":" + infragcp.DDInfraDefaultPrivateKeyPassword
+
+	// LocalPublicKeyPath pulumi config paramater name
+	LocalPublicKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infralocal.DDInfraDefaultPublicKeyPath
 )
 
 // ConfigMap type alias to auto.ConfigMap
@@ -123,14 +127,19 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	// Parameters from profile
 	cm.Set(InfraEnvironmentVariables, profile.EnvironmentNames(), false)
 	params := map[parameters.StoreKey][]string{
-		parameters.KeyPairName:        {AWSKeyPairName},
-		parameters.PublicKeyPath:      {AWSPublicKeyPath, AzurePublicKeyPath, GCPPublicKeyPath},
-		parameters.PrivateKeyPath:     {AWSPrivateKeyPath, AzurePrivateKeyPath, GCPPrivateKeyPath},
-		parameters.ExtraResourcesTags: {InfraExtraResourcesTags},
-		parameters.PipelineID:         {AgentPipelineID},
-		parameters.MajorVersion:       {AgentMajorVersion},
-		parameters.CommitSHA:          {AgentCommitSHA},
-		parameters.InitOnly:           {InfraInitOnly},
+		parameters.KeyPairName:         {AWSKeyPairName},
+		parameters.AWSPublicKeyPath:    {AWSPublicKeyPath},
+		parameters.AzurePublicKeyPath:  {AzurePublicKeyPath},
+		parameters.GCPPublicKeyPath:    {GCPPublicKeyPath},
+		parameters.AWSPrivateKeyPath:   {AWSPrivateKeyPath},
+		parameters.AzurePrivateKeyPath: {AzurePrivateKeyPath},
+		parameters.GCPPrivateKeyPath:   {GCPPrivateKeyPath},
+		parameters.LocalPublicKeyPath:  {LocalPublicKeyPath},
+		parameters.ExtraResourcesTags:  {InfraExtraResourcesTags},
+		parameters.PipelineID:          {AgentPipelineID},
+		parameters.MajorVersion:        {AgentMajorVersion},
+		parameters.CommitSHA:           {AgentCommitSHA},
+		parameters.InitOnly:            {InfraInitOnly},
 	}
 
 	for storeKey, configMapKeys := range params {
@@ -145,9 +154,11 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 
 	// Secret parameters from profile store
 	secretParams := map[parameters.StoreKey][]string{
-		parameters.APIKey:             {AgentAPIKey},
-		parameters.APPKey:             {AgentAPPKey},
-		parameters.PrivateKeyPassword: {AWSPrivateKeyPassword, AzurePrivateKeyPassword, GCPPrivateKeyPassword},
+		parameters.APIKey:                  {AgentAPIKey},
+		parameters.APPKey:                  {AgentAPPKey},
+		parameters.AWSPrivateKeyPassword:   {AWSPrivateKeyPassword},
+		parameters.AzurePrivateKeyPassword: {AzurePrivateKeyPassword},
+		parameters.GCPPrivateKeyPassword:   {GCPPrivateKeyPassword},
 	}
 
 	for storeKey, configMapKeys := range secretParams {

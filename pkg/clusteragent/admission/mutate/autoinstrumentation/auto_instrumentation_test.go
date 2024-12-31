@@ -2307,16 +2307,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					"admission.datadoghq.com/enabled": "false",
 				},
 			}.Create(),
-			expectedEnvs: []corev1.EnvVar{
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
-					Value: installTime,
-				},
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
-					Value: uuid,
-				},
-			},
+			expectedEnvs:              nil,
 			expectedInjectedLibraries: map[string]string{},
 			expectedSecurityContext:   &corev1.SecurityContext{},
 			wantErr:                   false,
@@ -2415,16 +2406,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				ParentKind: "replicaset",
 				ParentName: "test-deployment-123",
 			}.Create(),
-			expectedEnvs: []corev1.EnvVar{
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
-					Value: installTime,
-				},
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
-					Value: uuid,
-				},
-			},
+			expectedEnvs:              nil,
 			expectedInjectedLibraries: map[string]string{},
 			expectedSecurityContext:   &corev1.SecurityContext{},
 			wantErr:                   false,
@@ -2495,16 +2477,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				ParentKind: "replicaset",
 				ParentName: "test-deployment-123",
 			}.Create(),
-			expectedEnvs: []corev1.EnvVar{
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
-					Value: installTime,
-				},
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
-					Value: uuid,
-				},
-			},
+			expectedEnvs:              nil,
 			expectedInjectedLibraries: map[string]string{},
 			expectedSecurityContext:   &corev1.SecurityContext{},
 			wantErr:                   false,
@@ -2517,16 +2490,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				ParentKind: "replicaset",
 				ParentName: "test-deployment-123",
 			}.Create(),
-			expectedEnvs: []corev1.EnvVar{
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
-					Value: installTime,
-				},
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
-					Value: uuid,
-				},
-			},
+			expectedEnvs:              nil,
 			expectedInjectedLibraries: map[string]string{},
 			expectedSecurityContext:   &corev1.SecurityContext{},
 			wantErr:                   false,

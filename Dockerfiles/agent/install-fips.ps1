@@ -1,5 +1,16 @@
 $ErrorActionPreference = 'Stop'
 
+# Removes temporary files for FIPS setup
+function Remove-TempFiles {
+    Remove-Item -Force -Recurse \fips-build
+}
+
+if ("$env:WITH_FIPS" -ne "true") {
+    # If FIPS is not enabled, skip the FIPS setup
+    Remove-TempFiles
+    exit 0
+}
+
 $maven_sha512 = '8BEAC8D11EF208F1E2A8DF0682B9448A9A363D2AD13CA74AF43705549E72E74C9378823BF689287801CBBFC2F6EA9596201D19CCACFDFB682EE8A2FF4C4418BA'
 
 if ("$env:WITH_JMX" -ne "false") {
@@ -18,6 +29,10 @@ if ("$env:WITH_JMX" -ne "false") {
     if (!$?) {
         Write-Error ("BouncyCastle self check failed with exit code: {0}" -f $LASTEXITCODE)
     }
+    cd \
 }
-cd \
-Remove-Item -Force -Recurse \fips-build
+
+# TODO: Run openssl fipsinstall command here when embedded Python work is completed
+# HERE
+
+Remove-TempFiles

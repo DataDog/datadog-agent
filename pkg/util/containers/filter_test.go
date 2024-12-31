@@ -30,6 +30,14 @@ func TestFilter(t *testing.T) {
 	}{
 		{
 			c: ctnDef{
+				ID:    "0",
+				Name:  "container-with-sha",
+				Image: "docker-dd-agent@sha256:1892862abcdef61516516",
+			},
+			ns: "default",
+		},
+		{
+			c: ctnDef{
 				ID:    "1",
 				Name:  "secret-container-dd",
 				Image: "docker-dd-agent",
@@ -268,25 +276,33 @@ func TestFilter(t *testing.T) {
 		expectedIDs []string
 	}{
 		{
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+			expectedIDs: []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
-			excludeList: []string{"name:secret"},
+			excludeList: []string{"image:^docker-dd-agent$"},
 			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
+			excludeList: []string{"image:^apache$"},
+			expectedIDs: []string{"0", "1", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+		},
+		{
+			excludeList: []string{"name:secret"},
+			expectedIDs: []string{"0", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+		},
+		{
 			excludeList: []string{"image:secret"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+			expectedIDs: []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
 			includeList: []string{},
 			excludeList: []string{"image:apache", "image:alpine"},
-			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+			expectedIDs: []string{"0", "1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
 			includeList: []string{"name:mysql"},
 			excludeList: []string{"name:dd"},
-			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+			expectedIDs: []string{"0", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
 			excludeList: []string{"kube_namespace:.*"},
@@ -295,7 +311,7 @@ func TestFilter(t *testing.T) {
 		},
 		{
 			excludeList: []string{"kube_namespace:bar"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+			expectedIDs: []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
 			excludeList: []string{"name:.*"},
@@ -305,7 +321,17 @@ func TestFilter(t *testing.T) {
 		{
 			excludeList: []string{"image:.*"},
 			includeList: []string{"image:docker-dd-agent"},
-			expectedIDs: []string{"1", "30"},
+			expectedIDs: []string{"0", "1", "30"},
+		},
+		{
+			excludeList: []string{"image:.*"},
+			includeList: []string{"image:^docker-dd-agent$"},
+			expectedIDs: []string{"0", "1", "30"},
+		},
+		{
+			excludeList: []string{"image:.*"},
+			includeList: []string{"image:^docker-dd-agent$"},
+			expectedIDs: []string{"0", "1", "30"},
 		},
 		// Test kubernetes defaults
 		{
@@ -326,7 +352,7 @@ func TestFilter(t *testing.T) {
 				pauseContainerUpstream,
 				pauseContainerCDK,
 			},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "14", "15", "29", "30", "31"},
+			expectedIDs: []string{"0", "1", "2", "3", "4", "5", "14", "15", "29", "30", "31"},
 		},
 	} {
 		t.Run("", func(t *testing.T) {
@@ -619,6 +645,15 @@ func TestParseFilters(t *testing.T) {
 			desc:             "valid filters",
 			filters:          []string{"image:nginx.*", "name:xyz-.*", "kube_namespace:sandbox.*", "name:abc"},
 			imageFilters:     []*regexp.Regexp{regexp.MustCompile("nginx.*")},
+			nameFilters:      []*regexp.Regexp{regexp.MustCompile("xyz-.*"), regexp.MustCompile("abc")},
+			namespaceFilters: []*regexp.Regexp{regexp.MustCompile("sandbox.*")},
+			expectedErrMsg:   nil,
+			filterErrors:     nil,
+		},
+		{
+			desc:             "valid filters, image filter strict match without tag or digest",
+			filters:          []string{"image:^nginx$", "name:xyz-.*", "kube_namespace:sandbox.*", "name:abc"},
+			imageFilters:     []*regexp.Regexp{regexp.MustCompile("^nginx(@sha256)?:.*")},
 			nameFilters:      []*regexp.Regexp{regexp.MustCompile("xyz-.*"), regexp.MustCompile("abc")},
 			namespaceFilters: []*regexp.Regexp{regexp.MustCompile("sandbox.*")},
 			expectedErrMsg:   nil,

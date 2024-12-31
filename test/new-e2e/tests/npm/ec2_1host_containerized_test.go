@@ -13,7 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
 
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
@@ -30,7 +31,7 @@ type ec2VMContainerizedSuite struct {
 	e2e.BaseSuite[dockerHostNginxEnv]
 }
 
-func dockerHostHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[dockerHostNginxEnv] {
+func dockerHostHttpbinEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerHostNginxEnv] {
 	return func(ctx *pulumi.Context, env *dockerHostNginxEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -76,7 +77,7 @@ func TestEC2VMContainerizedSuite(t *testing.T) {
 	t.Parallel()
 	s := &ec2VMContainerizedSuite{}
 
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("dockerHostHttpbin", dockerHostHttpbinEnvProvisioner(), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("dockerHostHttpbin", dockerHostHttpbinEnvProvisioner(), nil))}
 
 	// Source of our kitchen CI images test/kitchen/platforms.json
 	// Other VM image can be used, our kitchen CI images test/kitchen/platforms.json

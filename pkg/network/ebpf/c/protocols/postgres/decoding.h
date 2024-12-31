@@ -108,6 +108,48 @@ static int __always_inline skip_string(pktbuf_t pkt, int message_len) {
     return SKIP_STRING_FAILED;
 }
 
+// Return a pointer to the postgres telemetry record in the corresponding map.
+static __always_inline void* get_pg_msg_counts_map(pktbuf_t pkt) {
+    const __u32 plain_key = 0;
+    const __u32 tls_key = 1;
+
+    pktbuf_map_lookup_option_t pg_telemetry_lookup_opt[] = {
+        [PKTBUF_SKB] = {
+            .map = &postgres_telemetry,
+            .key = (void*)&plain_key,
+        },
+        [PKTBUF_TLS] = {
+            .map = &postgres_telemetry,
+            .key = (void*)&tls_key,
+        },
+    };
+    return pktbuf_map_lookup(pkt, pg_telemetry_lookup_opt);
+}
+
+// update_msg_count_telemetry increases the corresponding counter of the telemetry bucket.
+static __always_inline void update_msg_count_telemetry(postgres_kernel_msg_count_t* pg_msg_counts, __u8 count) {
+    // This line can be interpreted as a step function of the difference, multiplied by the difference itself.
+    // The step function of the difference returns 0 if the difference is negative and 1 if it is positive.
+    // As a result, if the difference is negative, the output will be 0; if the difference is positive,
+    // the output will equal the difference.
+    count = count < PG_KERNEL_MSG_COUNT_FIRST_BUCKET ? 0 : count - PG_KERNEL_MSG_COUNT_FIRST_BUCKET;
+
+    // This line functions as a ceiling operation, ensuring that if the count is not a multiple of the bucket size,
+    // it is rounded up to the next bucket. Since eBPF does not support floating-point numbers, the implementation
+    // adds (bucket size - 1) to the count and then divides the result by the bucket size.
+    // This effectively simulates the ceiling function.
+    __u8 bucket_idx = (count + PG_KERNEL_MSG_COUNT_BUCKET_SIZE - 1) / PG_KERNEL_MSG_COUNT_BUCKET_SIZE;
+
+    // This line ensures that the bucket index stays within the range of 0 to PG_KERNEL_MSG_COUNT_NUM_BUCKETS.
+    // While not strictly necessary, we include this check to satisfy the verifier and to explicitly define a lower bound.
+    bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
+
+    // This line ensures that the bucket index remains within the range of 0 to PG_KERNEL_MSG_COUNT_NUM_BUCKETS,
+    // preventing any possibility of exceeding the upper bound.
+    bucket_idx = bucket_idx >= PG_KERNEL_MSG_COUNT_NUM_BUCKETS ? PG_KERNEL_MSG_COUNT_NUM_BUCKETS-1 : bucket_idx;
+    __sync_fetch_and_add(&pg_msg_counts->msg_count_buckets[bucket_idx], 1);
+}
+
 // Reads the first message header and decides what to do based on the
 // message tag. If the message is a new query, it stores the query in the in-flight map.
 // If the message is a parse message, we tail call to the dedicated process_parse_message program.
@@ -148,7 +190,7 @@ static __always_inline void postgres_handle_message(pktbuf_t pkt, conn_tuple_t *
         return;
     }
 
-    iteration_value->iteration = 0;
+    iteration_value->total_msg_count = 0;
     iteration_value->data_off = 0;
     pktbuf_tail_call_option_t handle_response_tail_call_array[] = {
         [PKTBUF_SKB] = {
@@ -197,10 +239,10 @@ static __always_inline void postgres_handle_parse_message(pktbuf_t pkt, conn_tup
 
 // Handles Postgres command complete messages by examining packet data for both plaintext and TLS traffic.
 // This function handles multiple messages within a single packet, processing up to POSTGRES_MAX_MESSAGES_PER_TAIL_CALL
-// messages per call. When more messages exist beyond this limit, it uses tail call chaining (up to
-// POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES) to continue processing.
-static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tuple) {
+// messages per call. When more messages exist beyond this limit, it uses tail call chaining to continue processing.
+static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tuple, postgres_kernel_msg_count_t* pg_msg_counts) {
     const __u32 zero = 0;
+    bool read_result = false;
     bool found_command_complete = false;
     struct pg_message_header header;
 
@@ -210,7 +252,7 @@ static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tupl
         return 0;
     }
 
-    if (iteration_value->iteration >= POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES) {
+    if (iteration_value->total_msg_count >= (POSTGRES_MAX_TOTAL_MESSAGES - 1)) {
         return 0;
     }
 
@@ -225,13 +267,14 @@ static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tupl
         return 0;
     }
 
+    __u8 messages_count = 0;
 #pragma unroll(POSTGRES_MAX_MESSAGES_PER_TAIL_CALL)
-    for (__u32 iteration = 0; iteration < POSTGRES_MAX_MESSAGES_PER_TAIL_CALL; ++iteration) {
-        if (!read_message_header(pkt, &header)) {
+    for (; messages_count < POSTGRES_MAX_MESSAGES_PER_TAIL_CALL; ++messages_count) {
+        read_result = read_message_header(pkt, &header);
+        if (read_result != true) {
             break;
         }
         if (header.message_tag == POSTGRES_COMMAND_COMPLETE_MAGIC_BYTE) {
-            handle_command_complete(&conn_tuple, transaction);
             found_command_complete = true;
             break;
         }
@@ -240,19 +283,34 @@ static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tupl
         // the message tag. So we need to add 1 to the message length to jump over the entire message.
         pktbuf_advance(pkt, header.message_len + 1);
     }
+    iteration_value->total_msg_count += messages_count;
 
     if (found_command_complete) {
-        return 0;
-    }
-    // We didn't find a command complete message, so we need to continue processing the packet.
-    // We save the current data offset and increment the iteration counter.
-    iteration_value->iteration += 1;
-    iteration_value->data_off = pktbuf_data_offset(pkt);
+        handle_command_complete(&conn_tuple, transaction);
+        update_msg_count_telemetry(pg_msg_counts, iteration_value->total_msg_count);
 
-    // If the maximum number of tail calls has been reached, we can skip invoking the next tail call.
-    if (iteration_value->iteration >= POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES) {
         return 0;
     }
+
+    if (iteration_value->total_msg_count >= (POSTGRES_MAX_TOTAL_MESSAGES - 1)) {
+        // reached max messages, add counter and stop iterating.
+        __sync_fetch_and_add(&pg_msg_counts->reached_max_messages, 1);
+        return 0;
+    }
+    if (pktbuf_data_offset(pkt) == pktbuf_data_end(pkt)) {
+        // stop the iterator if the end of the TCP packet is reached.
+        update_msg_count_telemetry(pg_msg_counts, iteration_value->total_msg_count);
+        return 0;
+    }
+    if (read_result == false) {
+        // the packet was fragmented, add counter stop iterating.
+        __sync_fetch_and_add(&pg_msg_counts->fragmented_packets, 1);
+        return 0;
+    }
+
+    // We didn't find a command complete message, so we need to continue processing the packet.
+    // We save the current data offset.
+    iteration_value->data_off = pktbuf_data_offset(pkt);
 
     pktbuf_tail_call_option_t handle_response_tail_call_array[] = {
         [PKTBUF_SKB] = {
@@ -315,7 +373,11 @@ int socket__postgres_handle_response(struct __sk_buff* skb) {
     normalize_tuple(&conn_tuple);
 
     pktbuf_t pkt = pktbuf_from_skb(skb, &skb_info);
-    handle_response(pkt, conn_tuple);
+    postgres_kernel_msg_count_t* pg_msg_counts = get_pg_msg_counts_map(pkt);
+    if (pg_msg_counts == NULL) {
+        return 0;
+    }
+    handle_response(pkt, conn_tuple, pg_msg_counts);
     return 0;
 }
 
@@ -406,10 +468,15 @@ int uprobe__postgres_tls_handle_response(struct pt_regs *ctx) {
         return 0;
     }
 
+    pktbuf_t pkt = pktbuf_from_tls(ctx, args);
+    postgres_kernel_msg_count_t* pg_msg_counts = get_pg_msg_counts_map(pkt);
+    if (pg_msg_counts == NULL) {
+        return 0;
+    }
+
     // Copying the tuple to the stack to handle verifier issues on kernel 4.14.
     conn_tuple_t tup = args->tup;
-    pktbuf_t pkt = pktbuf_from_tls(ctx, args);
-    handle_response(pkt, tup);
+    handle_response(pkt, tup, pg_msg_counts);
     return 0;
 }
 

@@ -202,8 +202,9 @@ func TestSubscribe(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.name), func(t *testing.T) {
 			client := fake.NewSimpleClientset()
+			ctx, cancel := context.WithCancel(context.Background())
 			le := &LeaderEngine{
-				ctx:             context.Background(),
+				ctx:             ctx,
 				HolderIdentity:  "foo",
 				LeaseName:       leaseName,
 				LeaderNamespace: "default",
@@ -211,11 +212,11 @@ func TestSubscribe(t *testing.T) {
 				coreClient:      client.CoreV1(),
 				coordClient:     client.CoordinationV1(),
 				leaderMetric:    &dummyGauge{},
-				lockType:        cmLock.ConfigMapsResourceLock,
+				lockType:        tc.lockType,
 			}
 
-			notif1 := le.Subscribe()
-			notif2 := le.Subscribe()
+			notif1, _ := le.Subscribe()
+			notif2, _ := le.Subscribe()
 			require.Len(t, le.subscribers, 2)
 
 			err := tc.getTokenFunc(client)
@@ -227,10 +228,46 @@ func TestSubscribe(t *testing.T) {
 			le.EnsureLeaderElectionRuns()
 			require.True(t, le.IsLeader())
 
+			err = tc.getTokenFunc(client)
+			require.NoError(t, err)
+
 			counter1, counter2 := 0, 0
 			for {
 				select {
 				case <-notif1:
+					counter1++
+					require.Truef(t, le.IsLeader(), "Expected to be leader")
+					if counter1 > 1 {
+						require.Fail(t, "Received too many notifications")
+						break
+					}
+
+				case <-notif2:
+					counter2++
+					require.Truef(t, le.IsLeader(), "Expected to be leader")
+					if counter2 > 1 {
+						require.Fail(t, "Received too many notifications")
+						break
+					}
+
+				case <-time.After(5 * time.Second):
+					require.Fail(t, "Waiting on leader notification timed out")
+					break
+				}
+
+				if counter1 == 1 && counter2 == 1 {
+					break
+				}
+			}
+
+			// simulate leadership lease loss by cancelling leader election context
+			cancel()
+
+			counter1, counter2 = 0, 0
+			for {
+				select {
+				case <-notif1:
+					require.Falsef(t, le.IsLeader(), "Expected to be a follower")
 					counter1++
 					if counter1 > 1 {
 						require.Fail(t, "Received too many notifications")
@@ -238,6 +275,7 @@ func TestSubscribe(t *testing.T) {
 					}
 
 				case <-notif2:
+					require.Falsef(t, le.IsLeader(), "Expected to be a follower")
 					counter2++
 					if counter2 > 1 {
 						require.Fail(t, "Received too many notifications")
@@ -253,6 +291,7 @@ func TestSubscribe(t *testing.T) {
 					break
 				}
 			}
+
 		})
 	}
 

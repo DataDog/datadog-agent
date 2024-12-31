@@ -136,6 +136,37 @@ func TestAddFile(t *testing.T) {
 	assertFileContent(t, fb, "api_key: \"********\"", "test/AddFile_scrubbed_api_key")
 }
 
+func TestAddNonLocalFileFlare(t *testing.T) {
+	fb := getNewBuilder(t)
+	defer fb.clean()
+
+	expectedError := "the destination path is not local to the flare root path"
+
+	err := fb.AddFile(FromSlash("../test/AddFile"), []byte{})
+	assert.ErrorContains(t, err, expectedError)
+
+	err = fb.AddFileWithoutScrubbing(FromSlash("../test/AddFile"), []byte{})
+	assert.ErrorContains(t, err, expectedError)
+
+	err = fb.AddFileFromFunc(FromSlash("../test/AddFile"), func() ([]byte, error) { return []byte{}, nil })
+	assert.ErrorContains(t, err, expectedError)
+
+	path := filepath.Join(t.TempDir(), "test.data")
+	os.WriteFile(path, []byte("some data"), os.ModePerm)
+	err = fb.CopyFileTo(path, FromSlash("../test/AddFile"))
+	assert.ErrorContains(t, err, expectedError)
+
+	root := setupDirWithData(t)
+	err = fb.CopyDirTo(root, "../test", func(string) bool { return true })
+	assert.ErrorContains(t, err, expectedError)
+
+	err = fb.CopyDirToWithoutScrubbing(root, "../test", func(string) bool { return true })
+	assert.ErrorContains(t, err, expectedError)
+
+	_, err = fb.PrepareFilePath("../test")
+	assert.ErrorContains(t, err, expectedError)
+}
+
 func TestAddFileWithoutScrubbing(t *testing.T) {
 	fb := getNewBuilder(t)
 	defer fb.clean()
@@ -182,8 +213,8 @@ func TestAddFileYamlDetection(t *testing.T) {
     - abcdef
     - abcdef`)
 	redacted := `instances:
-- host: 127.0.0.1
-  token: "********"`
+  - host: 127.0.0.1
+    token: "********"`
 
 	fb.AddFile("test.yaml", clear)
 	assertFileContent(t, fb, redacted, "test.yaml")
@@ -266,8 +297,8 @@ func TestCopyFileYamlDetection(t *testing.T) {
     - abcdef
     - abcdef`)
 	redacted := `instances:
-- host: 127.0.0.1
-  token: "********"`
+  - host: 127.0.0.1
+    token: "********"`
 
 	path1 := filepath.Join(t.TempDir(), "test.yaml")
 	os.WriteFile(path1, []byte(input), os.ModePerm)

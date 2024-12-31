@@ -23,7 +23,6 @@ import (
 
 const defaultProfilesFolder = "default_profiles"
 const userProfilesFolder = "profiles"
-const profilesJSONGzipFile = "profiles.json.gz"
 
 var defaultProfilesMu = &sync.Mutex{}
 
@@ -73,6 +72,9 @@ func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileCo
 		if err != nil {
 			log.Warnf("cannot load profile %q: %v", profileName, err)
 			continue
+		}
+		if definition.Name == "" {
+			definition.Name = profileName
 		}
 		profiles[profileName] = ProfileConfig{
 			Definition:    *definition,

@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -192,14 +193,15 @@ func TestSerialization(t *testing.T) {
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
 				{ConnectionTuple: network.ConnectionTuple{
-					Source: util.AddressFromString("10.1.1.1"),
-					Dest:   util.AddressFromString("10.2.2.2"),
-					Pid:    6000,
-					NetNS:  7,
-					SPort:  1000,
-					DPort:  9000,
-					Type:   network.TCP,
-					Family: network.AFINET6,
+					Source:    util.AddressFromString("10.1.1.1"),
+					Dest:      util.AddressFromString("10.2.2.2"),
+					Pid:       6000,
+					NetNS:     7,
+					SPort:     1000,
+					DPort:     9000,
+					Type:      network.TCP,
+					Family:    network.AFINET6,
+					Direction: network.LOCAL,
 				},
 					Monotonic: network.StatCounters{
 						SentBytes:   1,
@@ -222,25 +224,26 @@ func TestSerialization(t *testing.T) {
 						ReplDstPort: 80,
 					},
 
-					Direction: network.LOCAL,
 					Via: &network.Via{
 						Subnet: network.Subnet{
 							Alias: "subnet-foo",
 						},
 					},
 					ProtocolStack: protocols.Stack{Application: protocols.HTTP},
+					TLSTags:       tls.Tags{ChosenVersion: 0, CipherSuite: 0, OfferedVersions: 0},
 				},
 				{ConnectionTuple: network.ConnectionTuple{
-					Source: util.AddressFromString("10.1.1.1"),
-					Dest:   util.AddressFromString("8.8.8.8"),
-					SPort:  1000,
-					DPort:  53,
-					Type:   network.UDP,
-					Family: network.AFINET6,
+					Source:    util.AddressFromString("10.1.1.1"),
+					Dest:      util.AddressFromString("8.8.8.8"),
+					SPort:     1000,
+					DPort:     53,
+					Type:      network.UDP,
+					Family:    network.AFINET6,
+					Direction: network.LOCAL,
 				},
-					Direction:     network.LOCAL,
 					StaticTags:    tagOpenSSL | tagTLS,
 					ProtocolStack: protocols.Stack{Application: protocols.HTTP2},
+					TLSTags:       tls.Tags{ChosenVersion: 0, CipherSuite: 0, OfferedVersions: 0},
 					DNSStats: map[dns.Hostname]map[dns.QueryType]dns.Stats{
 						dns.ToHostname("foo.com"): {
 							dns.TypeA: {

@@ -12,11 +12,10 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/size"
 )
 
 // Entry is used to keep track of tag slices shared by the contexts.
@@ -35,15 +34,15 @@ type Entry struct {
 
 // SizeInBytes returns the size of the Entry in bytes.
 func (e *Entry) SizeInBytes() int {
-	return util.SizeOfStringSlice(e.tags) + 8
+	return size.SizeOfStringSlice(e.tags) + 8
 }
 
 // DataSizeInBytes returns the size of the Entry data in bytes.
 func (e *Entry) DataSizeInBytes() int {
-	return util.DataSizeOfStringSlice(e.tags)
+	return size.DataSizeOfStringSlice(e.tags)
 }
 
-var _ util.HasSizeInBytes = (*Entry)(nil)
+var _ size.HasSizeInBytes = (*Entry)(nil)
 
 // Tags returns the strings stored in the Entry. The slice may be
 // shared with other users and should not be modified. Users can keep
@@ -158,8 +157,8 @@ func (tc *Store) updateTelemetry(s *entryStats) {
 	tlmTagsetMinTags.Set(float64(s.minSize), t.name)
 	tlmTagsetMaxTags.Set(float64(s.maxSize), t.name)
 	tlmTagsetSumTags.Set(float64(s.sumSize), t.name)
-	tlmTagsetSumTagBytes.Set(float64(s.sumSizeBytes), t.name, util.BytesKindStruct)
-	tlmTagsetSumTagBytes.Set(float64(s.sumDataSizeBytes), t.name, util.BytesKindData)
+	tlmTagsetSumTagBytes.Set(float64(s.sumSizeBytes), t.name, BytesKindStruct)
+	tlmTagsetSumTagBytes.Set(float64(s.sumDataSizeBytes), t.name, BytesKindData)
 }
 
 func newCounter(name string, help string, tags ...string) telemetry.Counter {
@@ -173,6 +172,15 @@ func newGauge(name string, help string, tags ...string) telemetry.Gauge {
 }
 
 var (
+	// BytesKindTelemetryKey is the tag key used to identify the kind of telemetry value.
+	BytesKindTelemetryKey = "bytes_kind"
+	// BytesKindStruct is the tag value used to mark bytes as struct.
+	BytesKindStruct = "struct"
+	// BytesKindData is the tag value used to mark bytes as data. Those are likely to be interned strings.
+	BytesKindData = "data"
+)
+
+var (
 	tlmHits              = newCounter("hits_total", "number of times cache already contained the tags")
 	tlmMiss              = newCounter("miss_total", "number of times cache did not contain the tags")
 	tlmEntries           = newGauge("entries", "number of entries in the tags cache")
@@ -181,7 +189,7 @@ var (
 	tlmTagsetMaxTags     = newGauge("tagset_max_tags", "maximum number of tags in a tagset")
 	tlmTagsetSumTags     = newGauge("tagset_sum_tags", "total number of tags stored in all tagsets by the cache")
 	tlmTagsetRefsCnt     = newGauge("tagset_refs_count", "distribution of usage count of tagsets in the cache", "ge")
-	tlmTagsetSumTagBytes = newGauge("tagset_sum_tags_bytes", "total number of bytes stored in all tagsets by the cache", util.BytesKindTelemetryKey)
+	tlmTagsetSumTagBytes = newGauge("tagset_sum_tags_bytes", "total number of bytes stored in all tagsets by the cache", BytesKindTelemetryKey)
 )
 
 type storeTelemetry struct {

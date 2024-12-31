@@ -124,7 +124,7 @@ func runAgent(tagger tagger.Component) {
 	wg.Add(3)
 
 	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon, tagger, rcService)
-	go startOtlpAgent(&wg, metricAgent, serverlessDaemon)
+	go startOtlpAgent(&wg, metricAgent, serverlessDaemon, tagger)
 	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger)
 
 	// start appsec
@@ -330,13 +330,13 @@ func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, 
 	}
 }
 
-func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAgent, serverlessDaemon *daemon.Daemon) {
+func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAgent, serverlessDaemon *daemon.Daemon, tagger tagger.Component) {
 	defer wg.Done()
 	if !otlp.IsEnabled() {
 		log.Debug("otlp endpoint disabled")
 		return
 	}
-	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer())
+	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), tagger)
 	otlpAgent.Start()
 	serverlessDaemon.SetOTLPAgent(otlpAgent)
 
@@ -345,7 +345,7 @@ func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAge
 func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon, tagger tagger.Component, rcService *remoteconfig.CoreAgentService) {
 	defer wg.Done()
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
-		Enabled:         pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
+		Enabled:         configUtils.IsAPMEnabled(pkgconfigsetup.Datadog()),
 		LoadConfig:      &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
 		LambdaSpanChan:  lambdaSpanChan,
 		ColdStartSpanID: coldStartSpanId,

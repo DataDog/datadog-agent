@@ -1,0 +1,6 @@
+instances:
+  - hostname: api.datadoghq.eu
+    protocol: TCP
+    port: 443
+  - hostname: 8.8.8.8
+    protocol: UDP

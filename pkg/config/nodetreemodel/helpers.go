@@ -16,6 +16,17 @@ func splitKey(key string) []string {
 	return strings.Split(strings.ToLower(key), ".")
 }
 
+func joinKey(parts ...string) string {
+	nonEmptyParts := make([]string, 0, len(parts))
+	for idx := range parts {
+		if parts[idx] == "" {
+			continue
+		}
+		nonEmptyParts = append(nonEmptyParts, parts[idx])
+	}
+	return strings.Join(nonEmptyParts, ".")
+}
+
 func safeMul(a, b uint) uint {
 	c := a * b
 	// detect multiplication overflows

@@ -11,6 +11,7 @@ package constantfetch
 import (
 	"errors"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/cilium/ebpf/btf"
@@ -56,9 +57,10 @@ func (f *BTFConstantFetcher) String() string {
 }
 
 type constantRequest struct {
-	id                  string
-	sizeof              bool
-	typeName, fieldName string
+	id         string
+	sizeof     bool
+	typeName   string
+	fieldNames []string
 }
 
 func (f *BTFConstantFetcher) runRequest(r constantRequest) {
@@ -89,7 +91,7 @@ func (f *BTFConstantFetcher) runRequest(r constantRequest) {
 }
 
 // AppendSizeofRequest appends a sizeof request
-func (f *BTFConstantFetcher) AppendSizeofRequest(id, typeName, _ string) {
+func (f *BTFConstantFetcher) AppendSizeofRequest(id, typeName string) {
 	f.runRequest(constantRequest{
 		id:       id,
 		sizeof:   true,
@@ -98,12 +100,12 @@ func (f *BTFConstantFetcher) AppendSizeofRequest(id, typeName, _ string) {
 }
 
 // AppendOffsetofRequest appends an offset request
-func (f *BTFConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, _ string) {
+func (f *BTFConstantFetcher) AppendOffsetofRequest(id, typeName string, fieldNames ...string) {
 	f.runRequest(constantRequest{
-		id:        id,
-		sizeof:    false,
-		typeName:  getActualTypeName(typeName),
-		fieldName: fieldName,
+		id:         id,
+		sizeof:     false,
+		typeName:   getActualTypeName(typeName),
+		fieldNames: fieldNames,
 	})
 }
 
@@ -150,7 +152,7 @@ func runRequestOnBTFTypeStructOrUnion(r constantRequest, size uint32, members []
 			}
 		}
 
-		if m.Name == r.fieldName {
+		if slices.Contains(r.fieldNames, m.Name) {
 			return uint64(m.Offset.Bytes())
 		}
 	}

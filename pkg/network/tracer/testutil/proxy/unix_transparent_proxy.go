@@ -43,6 +43,8 @@ type UnixTransparentProxyServer struct {
 	useTLS bool
 	// useControl indicates whether the proxy should expect control messages on the client socket
 	useControl bool
+	// useSplice indicates whether splice(2) should be used to transfer data between the sockets
+	useSplice bool
 	// isReady is a flag indicating whether the server is ready to accept connections.
 	isReady atomic.Bool
 	// wg is a wait group used to wait for the server to stop.
@@ -52,12 +54,13 @@ type UnixTransparentProxyServer struct {
 }
 
 // NewUnixTransparentProxyServer returns a new instance of a UnixTransparentProxyServer.
-func NewUnixTransparentProxyServer(unixPath, remoteAddr string, useTLS, useControl bool) *UnixTransparentProxyServer {
+func NewUnixTransparentProxyServer(unixPath, remoteAddr string, useTLS, useControl bool, useSplice bool) *UnixTransparentProxyServer {
 	return &UnixTransparentProxyServer{
 		unixPath:   unixPath,
 		remoteAddr: remoteAddr,
 		useTLS:     useTLS,
 		useControl: useControl,
+		useSplice:  useSplice,
 	}
 }
 
@@ -122,6 +125,51 @@ func WaitForConnectionReady(unixSocket string) error {
 	}
 
 	return fmt.Errorf("could not connect %q after %d retries (after %v)", unixSocket, connectionRetries, connectionRetryInterval*connectionRetries)
+}
+
+// copyWithoutSplice is based on io.copyBuffer() in the standard library with
+// the WriteTo/ReadFrom usage removed (to remove the use of splice(2)) and the
+// internal errors replaced (since they are inaccessible from here).
+func copyWithoutSplice(dst io.Writer, src io.Reader, buf []byte) (written int64, err error) {
+	if buf == nil {
+		size := 32 * 1024
+		if l, ok := src.(*io.LimitedReader); ok && int64(size) > l.N {
+			if l.N < 1 {
+				size = 1
+			} else {
+				size = int(l.N)
+			}
+		}
+		buf = make([]byte, size)
+	}
+	for {
+		nr, er := src.Read(buf)
+		if nr > 0 {
+			nw, ew := dst.Write(buf[0:nr])
+			if nw < 0 || nr < nw {
+				nw = 0
+				if ew == nil {
+					ew = errors.New("invalid write result")
+				}
+			}
+			written += int64(nw)
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+	return written, err
 }
 
 // handleConnection handles a new connection, by forwarding all traffic to the remote address.
@@ -219,7 +267,12 @@ func (p *UnixTransparentProxyServer) handleConnection(unixSocketConn net.Conn) {
 			if cleanup != nil {
 				defer cleanup()
 			}
-			_, _ = io.Copy(dst, src)
+
+			if p.useSplice {
+				_, _ = io.Copy(dst, src)
+			} else {
+				_, _ = copyWithoutSplice(dst, src, nil)
+			}
 		}
 
 		// If the unix socket is closed, we can close the remote as well.

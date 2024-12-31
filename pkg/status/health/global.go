@@ -12,21 +12,23 @@ import (
 
 var readinessAndLivenessCatalog = newCatalog()
 var readinessOnlyCatalog = newCatalog()
-var startupOnlyCatalog = newStartupCatalog()
+var startupOnlyCatalog = newCatalog()
 
 // RegisterReadiness registers a component for readiness check with the default 30 seconds timeout, returns a token
-func RegisterReadiness(name string) *Handle {
-	return readinessOnlyCatalog.register(name)
+func RegisterReadiness(name string, options ...Option) *Handle {
+	return readinessOnlyCatalog.register(name, options...)
 }
 
 // RegisterLiveness registers a component for liveness check with the default 30 seconds timeout, returns a token
-func RegisterLiveness(name string) *Handle {
-	return readinessAndLivenessCatalog.register(name)
+func RegisterLiveness(name string, options ...Option) *Handle {
+	return readinessAndLivenessCatalog.register(name, options...)
 }
 
 // RegisterStartup registers a component for startup check, returns a token
-func RegisterStartup(name string) *Handle {
-	return startupOnlyCatalog.register(name)
+func RegisterStartup(name string, options ...Option) *Handle {
+	// Startup health checks are registered with Once option because, by design, they should stop being checked
+	// once they are marked as healthy once
+	return startupOnlyCatalog.register(name, append(options, Once)...)
 }
 
 // Deregister a component from the healthcheck

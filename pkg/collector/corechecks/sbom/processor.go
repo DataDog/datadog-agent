@@ -77,6 +77,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender
 			}
 
 			sender.EventPlatformEvent(encoded, eventplatform.EventTypeContainerSBOM)
+			log.Debugf("SBOM event sent with %d entities", len(entities))
 		}),
 		workloadmetaStore:     workloadmetaStore,
 		tagger:                tagger,
@@ -94,24 +95,39 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 
 	log.Tracef("Processing %d events", len(evBundle.Events))
 
+	// Separate events into images and containers
+	var imageEvents []workloadmeta.Event
+	var containerEvents []workloadmeta.Event
+
 	for _, event := range evBundle.Events {
-		switch event.Entity.GetID().Kind {
+		entityID := event.Entity.GetID()
+		switch entityID.Kind {
 		case workloadmeta.KindContainerImageMetadata:
-			switch event.Type {
-			case workloadmeta.EventTypeSet:
-				p.registerImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
-				p.processImageSBOM(event.Entity.(*workloadmeta.ContainerImageMetadata))
-			case workloadmeta.EventTypeUnset:
-				p.unregisterImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
-				// Let the SBOM expire on back-end side
-			}
+			imageEvents = append(imageEvents, event)
 		case workloadmeta.KindContainer:
-			switch event.Type {
-			case workloadmeta.EventTypeSet:
-				p.registerContainer(event.Entity.(*workloadmeta.Container))
-			case workloadmeta.EventTypeUnset:
-				p.unregisterContainer(event.Entity.(*workloadmeta.Container))
-			}
+			containerEvents = append(containerEvents, event)
+		}
+	}
+
+	// Process all image events first
+	for _, event := range imageEvents {
+		switch event.Type {
+		case workloadmeta.EventTypeSet:
+			p.registerImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
+			p.processImageSBOM(event.Entity.(*workloadmeta.ContainerImageMetadata))
+		case workloadmeta.EventTypeUnset:
+			p.unregisterImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
+			// Let the SBOM expire on back-end side
+		}
+	}
+
+	// Process all container events after images
+	for _, event := range containerEvents {
+		switch event.Type {
+		case workloadmeta.EventTypeSet:
+			p.registerContainer(event.Entity.(*workloadmeta.Container))
+		case workloadmeta.EventTypeUnset:
+			p.unregisterContainer(event.Entity.(*workloadmeta.Container))
 		}
 	}
 }

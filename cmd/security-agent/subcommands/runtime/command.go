@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/reporter"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -463,16 +464,26 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 		return fmt.Errorf("failed to create agent version filter: %w", err)
 	}
 
+	os := runtime.GOOS
+	if args.windowsModel {
+		os = "windows"
+	}
+
+	ruleFilterModel := filtermodel.NewOSOnlyFilterModel(os)
+	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
+
 	loaderOpts := rules.PolicyLoaderOpts{
 		MacroFilters: []rules.MacroFilter{
 			agentVersionFilter,
+			seclRuleFilter,
 		},
 		RuleFilters: []rules.RuleFilter{
 			agentVersionFilter,
+			seclRuleFilter,
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(args.dir, false)
+	provider, err := rules.NewPoliciesDirProvider(args.dir)
 	if err != nil {
 		return err
 	}
@@ -611,7 +622,7 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(policiesDir, false)
+	provider, err := rules.NewPoliciesDirProvider(policiesDir)
 	if err != nil {
 		return err
 	}

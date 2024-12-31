@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/processor/processortest"
 	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
+	conventions22 "go.opentelemetry.io/collector/semconv/v1.22.0"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
@@ -185,11 +186,11 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 			entityIDs: []string{"container_id://container_id_goes_here", "kubernetes_pod_uid://k8s_pod_uid_goes_here"},
 		},
 		{
-			name: "container image ID",
+			name: "image digest",
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					conventions.AttributeContainerImageID: "docker.io/foo@sha256:sha_goes_here",
+					conventions22.AttributeOciManifestDigest: "docker.io/foo@sha256:sha_goes_here",
 				})
 				return attributes
 			}(),

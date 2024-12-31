@@ -1006,8 +1006,9 @@ func TestRegisterPartial(t *testing.T) {
 func TestOptimizer(t *testing.T) {
 	event := &testEvent{
 		process: testProcess{
-			uid: 44,
-			gid: 44,
+			uid:  44,
+			gid:  44,
+			name: "aaa",
 		},
 	}
 
@@ -1018,10 +1019,11 @@ func TestOptimizer(t *testing.T) {
 		Expr      string
 		Evaluated func() bool
 	}{
-		{Expr: `process.list[A].key == 44 && process.gid == 55`, Evaluated: func() bool { return event.listEvaluated }},
+		{Expr: `process.list.key == 44 && process.gid == 55`, Evaluated: func() bool { return event.listEvaluated }},
 		{Expr: `process.gid == 55 && process.list[A].key == 44`, Evaluated: func() bool { return event.listEvaluated }},
 		{Expr: `process.uid in [66, 77, 88] && process.gid == 55`, Evaluated: func() bool { return event.uidEvaluated }},
 		{Expr: `process.gid == 55 && process.uid in [66, 77, 88]`, Evaluated: func() bool { return event.uidEvaluated }},
+		{Expr: `process.list.value == "AA" && process.name == "zzz"`, Evaluated: func() bool { return event.listEvaluated }},
 	}
 
 	for _, test := range tests {

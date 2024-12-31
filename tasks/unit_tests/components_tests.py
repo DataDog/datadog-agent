@@ -214,6 +214,7 @@ class TestComponents(unittest.TestCase):
 
         implfolder = os.path.join(comps[3].path, 'impl')
         newfolder = os.path.join(comps[3].path, 'impl-alt')
+        replace_line(filename, 'package newstyleimpl', 'package altimpl')
         shutil.move(implfolder, newfolder)
 
         comps, _ = components.get_components_and_bundles()

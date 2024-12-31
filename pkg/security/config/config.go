@@ -45,8 +45,6 @@ type RuntimeSecurityConfig struct {
 	RuntimeEnabled bool
 	// PoliciesDir defines the folder in which the policy files are located
 	PoliciesDir string
-	// WatchPoliciesDir activate policy dir inotify
-	WatchPoliciesDir bool
 	// PolicyMonitorEnabled enable policy monitoring
 	PolicyMonitorEnabled bool
 	// PolicyMonitorPerRuleEnabled enabled per-rule policy monitoring
@@ -103,6 +101,9 @@ type RuntimeSecurityConfig struct {
 	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Leave this parameter to 0 to prevent the generation
 	// of activity dumps based on cgroups.
 	ActivityDumpTracedCgroupsCount int
+	// ActivityDumpCgroupsManagers defines the cgroup managers we generate dumps for.
+	ActivityDumpCgroupsManagers []string
+
 	// ActivityDumpTracedEventTypes defines the list of events that should be captured in an activity dump. Leave this
 	// parameter empty to monitor all event types. If not already present, the `exec` event will automatically be added
 	// to this list.
@@ -215,8 +216,6 @@ type RuntimeSecurityConfig struct {
 	HashResolverMaxFileSize int64
 	// HashResolverMaxHashRate defines the rate at which the hash resolver may compute hashes
 	HashResolverMaxHashRate int
-	// HashResolverMaxHashBurst defines the burst of files for which the hash resolver may compute a hash
-	HashResolverMaxHashBurst int
 	// HashResolverHashAlgorithms defines the hashes that hash resolver needs to compute
 	HashResolverHashAlgorithms []model.HashAlgorithm
 	// HashResolverEventTypes defines the list of event which files may be hashed
@@ -355,7 +354,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// policy & ruleset
 		PoliciesDir:                         pkgconfigsetup.SystemProbe().GetString("runtime_security_config.policies.dir"),
-		WatchPoliciesDir:                    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.watch_dir"),
 		PolicyMonitorEnabled:                pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.enabled"),
 		PolicyMonitorPerRuleEnabled:         pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.per_rule_enabled"),
 		PolicyMonitorReportInternalPolicies: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.report_internal_policies"),
@@ -373,6 +371,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpLoadControlPeriod:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.load_controller_period"),
 		ActivityDumpLoadControlMinDumpTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.min_timeout"),
 		ActivityDumpTracedCgroupsCount:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
+		ActivityDumpCgroupsManagers:           pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.cgroup_managers"),
 		ActivityDumpTracedEventTypes:          parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
 		ActivityDumpCgroupDumpTimeout:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.dump_duration"),
 		ActivityDumpRateLimiter:               pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.rate_limiter"),
@@ -407,7 +406,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		HashResolverEventTypes:     parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.hash_resolver.event_types")),
 		HashResolverMaxFileSize:    pkgconfigsetup.SystemProbe().GetInt64("runtime_security_config.hash_resolver.max_file_size"),
 		HashResolverHashAlgorithms: parseHashAlgorithmStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.hash_resolver.hash_algorithms")),
-		HashResolverMaxHashBurst:   pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.max_hash_burst"),
 		HashResolverMaxHashRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.max_hash_rate"),
 		HashResolverCacheSize:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.cache_size"),
 		HashResolverReplace:        pkgconfigsetup.SystemProbe().GetStringMapString("runtime_security_config.hash_resolver.replace"),

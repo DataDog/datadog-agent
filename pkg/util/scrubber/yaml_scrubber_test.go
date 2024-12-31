@@ -6,9 +6,15 @@
 package scrubber
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestScrubDataObj(t *testing.T) {
@@ -61,4 +67,105 @@ func TestScrubDataObj(t *testing.T) {
 			assert.Equal(t, tc.expected, tc.input)
 		})
 	}
+}
+
+func TestConfigScrubbedValidYaml(t *testing.T) {
+	wd, _ := os.Getwd()
+
+	inputConf := filepath.Join(wd, "test", "conf.yaml")
+	inputConfData, err := os.ReadFile(inputConf)
+	require.NoError(t, err)
+
+	outputConf := filepath.Join(wd, "test", "conf_scrubbed.yaml")
+	outputConfData, err := os.ReadFile(outputConf)
+	require.NoError(t, err)
+
+	cleaned, err := ScrubBytes([]byte(inputConfData))
+	require.NoError(t, err)
+
+	// First test that the a scrubbed yaml is still a valid yaml
+	var out interface{}
+	err = yaml.Unmarshal(cleaned, &out)
+	assert.NoError(t, err, "Could not load YAML configuration after being scrubbed")
+
+	// We replace windows line break by linux so the tests pass on every OS
+	trimmedOutput := strings.TrimSpace(strings.Replace(string(outputConfData), "\r\n", "\n", -1))
+	trimmedCleaned := strings.TrimSpace(strings.Replace(string(cleaned), "\r\n", "\n", -1))
+
+	assert.Equal(t, trimmedOutput, trimmedCleaned)
+}
+
+func TestConfigScrubbedYaml(t *testing.T) {
+	wd, _ := os.Getwd()
+
+	inputConf := filepath.Join(wd, "test", "conf_multiline.yaml")
+	inputConfData, err := os.ReadFile(inputConf)
+	require.NoError(t, err)
+
+	outputConf := filepath.Join(wd, "test", "conf_multiline_scrubbed.yaml")
+	outputConfData, err := os.ReadFile(outputConf)
+	require.NoError(t, err)
+
+	cleaned, err := ScrubYaml([]byte(inputConfData))
+	require.NoError(t, err)
+
+	// First test that the a scrubbed yaml is still a valid yaml
+	var out interface{}
+	err = yaml.Unmarshal(cleaned, &out)
+	assert.NoError(t, err, "Could not load YAML configuration after being scrubbed")
+
+	// We replace windows line break by linux so the tests pass on every OS
+	trimmedOutput := strings.TrimSpace(strings.Replace(string(outputConfData), "\r\n", "\n", -1))
+	trimmedCleaned := strings.TrimSpace(strings.Replace(string(cleaned), "\r\n", "\n", -1))
+
+	assert.Equal(t, trimmedOutput, trimmedCleaned)
+}
+
+func TestEmptyYaml(t *testing.T) {
+	cleaned, err := ScrubYaml(nil)
+	require.NoError(t, err)
+	assert.Equal(t, "", string(cleaned))
+
+	cleaned, err = ScrubYaml([]byte(""))
+	require.NoError(t, err)
+	assert.Equal(t, "", string(cleaned))
+}
+
+func TestEmptyYamlString(t *testing.T) {
+	cleaned, err := ScrubYamlString("")
+	require.NoError(t, err)
+	assert.Equal(t, "", string(cleaned))
+}
+
+func TestAddStrippedKeysExceptions(t *testing.T) {
+	t.Run("single key", func(t *testing.T) {
+		contents := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'`
+
+		AddStrippedKeys([]string{"api_key"})
+
+		scrubbed, err := ScrubYamlString(contents)
+		require.Nil(t, err)
+		require.YAMLEq(t, `api_key: '***************************aaaaa'`, scrubbed)
+	})
+
+	t.Run("multiple keys", func(t *testing.T) {
+		contents := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+some_other_key: 'bbbb'
+app_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccc'
+yet_another_key: 'dddd'`
+
+		keys := []string{"api_key", "some_other_key", "app_key"}
+		AddStrippedKeys(keys)
+
+		// check that AddStrippedKeys didn't modify the parameter slice
+		assert.Equal(t, []string{"api_key", "some_other_key", "app_key"}, keys)
+
+		scrubbed, err := ScrubYamlString(contents)
+		require.Nil(t, err)
+		expected := `api_key: '***************************aaaaa'
+some_other_key: '********'
+app_key: '***********************************acccc'
+yet_another_key: 'dddd'`
+		require.YAMLEq(t, expected, scrubbed)
+	})
 }

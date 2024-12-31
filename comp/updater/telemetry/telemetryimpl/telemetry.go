@@ -7,14 +7,17 @@
 package telemetryimpl
 
 import (
+	"context"
+	"net/http"
+
 	"go.uber.org/fx"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	fleettelemetry "github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 type dependencies struct {
@@ -32,17 +35,10 @@ func Module() fxutil.Module {
 }
 
 func newTelemetry(deps dependencies) (telemetry.Component, error) {
-	env := env.FromConfig(deps.Config)
-	telemetry, err := fleettelemetry.NewTelemetry(env.APIKey, env.Site, "datadog-installer",
-		fleettelemetry.WithSamplingRules(
-			tracer.NameServiceRule("cdn.*", "datadog-installer", 0.1),
-			tracer.NameServiceRule("*garbage_collect*", "datadog-installer", 0.05),
-			tracer.NameServiceRule("HTTPClient.*", "datadog-installer", 0.05),
-		),
-	)
-	if err != nil {
-		return nil, err
+	client := &http.Client{
+		Transport: httputils.CreateHTTPTransport(deps.Config),
 	}
-	deps.Lc.Append(fx.Hook{OnStart: telemetry.Start, OnStop: telemetry.Stop})
+	telemetry := fleettelemetry.NewTelemetry(client, utils.SanitizeAPIKey(deps.Config.GetString("api_key")), deps.Config.GetString("site"), "datadog-installer-daemon")
+	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error { telemetry.Stop(); return nil }})
 	return telemetry, nil
 }

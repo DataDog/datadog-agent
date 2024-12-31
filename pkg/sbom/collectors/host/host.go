@@ -16,7 +16,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
@@ -43,11 +42,7 @@ func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmet
 		return err
 	}
 	c.trivyCollector = trivyCollector
-	if flavor.GetFlavor() == flavor.SecurityAgent {
-		c.opts = sbom.ScanOptions{Analyzers: []string{trivy.OSAnalyzers}, Fast: false, CollectFiles: true}
-	} else {
-		c.opts = sbom.ScanOptionsFromConfig(cfg, false)
-	}
+	c.opts = sbom.ScanOptionsFromConfig(cfg, false)
 	return nil
 }
 
@@ -59,7 +54,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	}
 	log.Infof("host scan request [%v]", hostScanRequest.ID())
 
-	report, err := c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.FS, hostScanRequest.Path, c.opts)
+	report, err := c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.Path, c.opts)
 	return sbom.ScanResult{
 		Error:  err,
 		Report: report,

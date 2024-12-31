@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -65,7 +66,6 @@ import (
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
@@ -81,7 +81,7 @@ import (
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -138,7 +138,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				core.Bundle(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
-				compressionimpl.Module(),
+				compressionfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
@@ -241,7 +241,7 @@ func start(log log.Component,
 	// Starting Cluster Agent sequence
 	// Initialization order is important for multiple reasons, see comments
 
-	if err := util.SetupCoreDump(config); err != nil {
+	if err := coredump.Setup(config); err != nil {
 		pkglog.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
@@ -389,7 +389,7 @@ func start(log log.Component,
 
 	if config.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
-		clusterCheckHandler, err := setupClusterCheck(mainCtx, ac)
+		clusterCheckHandler, err := setupClusterCheck(mainCtx, ac, taggerComp)
 		if err == nil {
 			api.ModifyAPIRouter(func(r *mux.Router) {
 				dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
@@ -455,13 +455,12 @@ func start(log log.Component,
 	if config.GetBool("admission_controller.enabled") {
 		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			patchCtx := admissionpatch.ControllerContext{
-				IsLeaderFunc:        le.IsLeader,
-				LeaderSubscribeFunc: le.Subscribe,
-				K8sClient:           apiCl.Cl,
-				RcClient:            rcClient,
-				ClusterName:         clusterName,
-				ClusterID:           clusterID,
-				StopCh:              stopCh,
+				LeadershipStateSubscribeFunc: le.Subscribe,
+				K8sClient:                    apiCl.Cl,
+				RcClient:                     rcClient,
+				ClusterName:                  clusterName,
+				ClusterID:                    clusterID,
+				StopCh:                       stopCh,
 			}
 			if err := admissionpatch.StartControllers(patchCtx); err != nil {
 				log.Errorf("Cannot start auto instrumentation patcher: %v", err)
@@ -471,14 +470,14 @@ func start(log log.Component,
 		}
 
 		admissionCtx := admissionpkg.ControllerContext{
-			IsLeaderFunc:        le.IsLeader,
-			LeaderSubscribeFunc: le.Subscribe,
-			SecretInformers:     apiCl.CertificateSecretInformerFactory,
-			ValidatingInformers: apiCl.WebhookConfigInformerFactory,
-			MutatingInformers:   apiCl.WebhookConfigInformerFactory,
-			Client:              apiCl.Cl,
-			StopCh:              stopCh,
-			ValidatingStopCh:    validatingStopCh,
+			LeadershipStateSubscribeFunc: le.Subscribe,
+			SecretInformers:              apiCl.CertificateSecretInformerFactory,
+			ValidatingInformers:          apiCl.WebhookConfigInformerFactory,
+			MutatingInformers:            apiCl.WebhookConfigInformerFactory,
+			Client:                       apiCl.Cl,
+			StopCh:                       stopCh,
+			ValidatingStopCh:             validatingStopCh,
+			Demultiplexer:                demultiplexer,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, datadogConfig)
@@ -551,8 +550,8 @@ func start(log log.Component,
 	return nil
 }
 
-func setupClusterCheck(ctx context.Context, ac autodiscovery.Component) (*clusterchecks.Handler, error) {
-	handler, err := clusterchecks.NewHandler(ac)
+func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component) (*clusterchecks.Handler, error) {
+	handler, err := clusterchecks.NewHandler(ac, tagger)
 	if err != nil {
 		return nil, err
 	}

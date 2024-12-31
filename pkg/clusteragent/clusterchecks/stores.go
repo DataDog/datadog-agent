@@ -27,7 +27,7 @@ type clusterStore struct {
 	digestToConfig   map[string]integration.Config            // All configurations to dispatch
 	digestToNode     map[string]string                        // Node running a config
 	nodes            map[string]*nodeStore                    // All nodes known to the cluster-agent
-	danglingConfigs  map[string]integration.Config            // Configs we could not dispatch to any node
+	danglingConfigs  map[string]*danglingConfigWrapper        // Configs we could not dispatch to any node
 	endpointsConfigs map[string]map[string]integration.Config // Endpoints configs to be consumed by node agents
 	idToDigest       map[checkid.ID]string                    // link check IDs to check configs
 }
@@ -44,7 +44,7 @@ func (s *clusterStore) reset() {
 	s.digestToConfig = make(map[string]integration.Config)
 	s.digestToNode = make(map[string]string)
 	s.nodes = make(map[string]*nodeStore)
-	s.danglingConfigs = make(map[string]integration.Config)
+	s.danglingConfigs = make(map[string]*danglingConfigWrapper)
 	s.endpointsConfigs = make(map[string]map[string]integration.Config)
 	s.idToDigest = make(map[checkid.ID]string)
 }
@@ -74,7 +74,7 @@ func (s *clusterStore) getOrCreateNodeStore(nodeName, clientIP string) *nodeStor
 
 // clearDangling resets the danglingConfigs map to a new empty one
 func (s *clusterStore) clearDangling() {
-	s.danglingConfigs = make(map[string]integration.Config)
+	s.danglingConfigs = make(map[string]*danglingConfigWrapper)
 }
 
 // nodeStore holds the state store for one node.

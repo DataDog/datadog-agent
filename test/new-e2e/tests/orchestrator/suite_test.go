@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"

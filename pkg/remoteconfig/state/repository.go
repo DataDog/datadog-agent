@@ -67,7 +67,7 @@ type Update struct {
 
 // isEmpty returns whether or not all the fields of `Update` are empty
 func (u *Update) isEmpty() bool {
-	return len(u.TUFRoots) == 0 && len(u.TUFTargets) == 0 && (u.TargetFiles == nil || len(u.TargetFiles) == 0) && len(u.ClientConfigs) == 0
+	return len(u.TUFRoots) == 0 && len(u.TUFTargets) == 0 && len(u.TargetFiles) == 0 && len(u.ClientConfigs) == 0
 }
 
 // Repository is a remote config client used in a downstream process to retrieve
@@ -250,7 +250,7 @@ func (r *Repository) Update(update Update) ([]string, error) {
 	// TUF: Store the updated roots now that everything has validated
 	if r.tufVerificationEnabled {
 		r.tufRootsClient = tmpRootClient
-	} else if update.TUFRoots != nil && len(update.TUFRoots) > 0 {
+	} else if len(update.TUFRoots) > 0 {
 		v, err := extractRootVersion(update.TUFRoots[len(update.TUFRoots)-1])
 		if err != nil {
 			return nil, err

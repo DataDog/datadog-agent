@@ -16,11 +16,11 @@ def add_prelude(ctx, version):
 
 
 @task
-def add_dca_prelude(ctx, agent7_version, agent6_version=""):
+def add_dca_prelude(ctx, version):
     """
     Release of the Cluster Agent should be pinned to a version of the Agent.
     """
-    _add_dca_prelude(ctx, agent7_version, agent6_version)
+    _add_dca_prelude(ctx, version)
 
 
 @task

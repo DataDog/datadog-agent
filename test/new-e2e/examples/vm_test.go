@@ -6,15 +6,12 @@
 package examples
 
 import (
-	"flag"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
-
-var devMode = flag.Bool("devmode", false, "enable dev mode")
 
 type vmSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -23,9 +20,6 @@ type vmSuite struct {
 // TestVMSuite runs tests for the VM interface to ensure its implementation is correct.
 func TestVMSuite(t *testing.T) {
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake())}
-	if *devMode {
-		suiteParams = append(suiteParams, e2e.WithDevMode())
-	}
 
 	e2e.Run(t, &vmSuite{}, suiteParams...)
 }

@@ -293,6 +293,27 @@ func TestGetOTelResource(t *testing.T) {
 			expectedV1: strings.Repeat("a", MaxResourceLen),
 			expectedV2: strings.Repeat("a", MaxResourceLen),
 		},
+		{
+			name:       "GraphQL with no type",
+			sattrs:     map[string]string{"graphql.operation.name": "myQuery"},
+			normalize:  false,
+			expectedV1: "span_name",
+			expectedV2: "span_name",
+		},
+		{
+			name:       "GraphQL with only type",
+			sattrs:     map[string]string{"graphql.operation.type": "query"},
+			normalize:  false,
+			expectedV1: "query",
+			expectedV2: "query",
+		},
+		{
+			name:       "GraphQL with only type",
+			sattrs:     map[string]string{"graphql.operation.type": "query", "graphql.operation.name": "myQuery"},
+			normalize:  false,
+			expectedV1: "query myQuery",
+			expectedV2: "query myQuery",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			span := ptrace.NewSpan()

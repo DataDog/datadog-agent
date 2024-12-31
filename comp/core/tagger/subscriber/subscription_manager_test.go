@@ -109,6 +109,21 @@ func TestSubscriptionManager(t *testing.T) {
 
 	highCardSubscription.Unsubscribe()
 
+	// None Cardinality Subscriber
+	noneCardSubID := "none-card-sub"
+	noneCardSubscription, err := sm.Subscribe(noneCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.NoneCardinality), nil)
+	require.NoError(t, err)
+
+	sm.Notify([]types.EntityEvent{
+		events["added"],
+		events["modified"],
+		events["deleted"],
+		events["added-with-no-id"],
+		events["added-with-unmatched-prefix"],
+	})
+
+	noneCardSubscription.Unsubscribe()
+
 	// Verify low cardinality subscriber received events
 	assertReceivedEvents(t, lowCardSubscription.EventsChan(), []types.EntityEvent{
 		{
@@ -183,6 +198,28 @@ func TestSubscriptionManager(t *testing.T) {
 				OrchestratorCardinalityTags: []string{"t1:v1", "t2:v2"},
 				LowCardinalityTags:          []string{"t1:v1"},
 				StandardTags:                []string{"s1:v1"},
+			},
+		},
+		{
+			EventType: types.EventTypeDeleted,
+			Entity: types.Entity{
+				ID: entityID,
+			},
+		},
+	})
+
+	// Verify none cardinality subscriber received events
+	assertReceivedEvents(t, noneCardSubscription.EventsChan(), []types.EntityEvent{
+		{
+			EventType: types.EventTypeAdded,
+			Entity: types.Entity{
+				ID: entityID,
+			},
+		},
+		{
+			EventType: types.EventTypeModified,
+			Entity: types.Entity{
+				ID: entityID,
 			},
 		},
 		{

@@ -71,7 +71,7 @@ func TraceAgentConfig(config config.Reader) (string, error) {
 	c := util.GetClient(false)
 	c.Timeout = config.GetDuration("server_timeout") * time.Second
 
-	ipcAddressWithPort := fmt.Sprintf("http://127.0.0.1:%d/config", port)
+	ipcAddressWithPort := fmt.Sprintf("https://127.0.0.1:%d/config", port)
 
 	client := settingshttp.NewClient(c, ipcAddressWithPort, "trace-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
 	return client.FullConfig()
@@ -94,7 +94,7 @@ func ProcessAgentConfig(config config.Reader, getEntireConfig bool) (string, err
 		return "", fmt.Errorf("invalid process_config.cmd_port -- %d", port)
 	}
 
-	ipcAddressWithPort := fmt.Sprintf("http://%s:%d/config", ipcAddress, port)
+	ipcAddressWithPort := fmt.Sprintf("https://%s:%d/config", ipcAddress, port)
 	if getEntireConfig {
 		ipcAddressWithPort += "/all"
 	}

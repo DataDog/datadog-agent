@@ -1,4 +1,4 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
+//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=readonly -no_std_marshalers -build_tags linux $GOFILE
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -11,11 +11,15 @@
 package probe
 
 import (
+	coretags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -71,7 +75,7 @@ func (e EBPFLessHelloMsgEvent) ToJSON() ([]byte, error) {
 }
 
 // NewEBPFLessHelloMsgEvent returns a eBPFLess hello custom event
-func NewEBPFLessHelloMsgEvent(acc *events.AgentContainerContext, msg *ebpfless.HelloMsg, scrubber *procutil.DataScrubber) (*rules.Rule, *events.CustomEvent) {
+func NewEBPFLessHelloMsgEvent(acc *events.AgentContainerContext, msg *ebpfless.HelloMsg, scrubber *procutil.DataScrubber, tagger tags.Tagger) (*rules.Rule, *events.CustomEvent) {
 	args := msg.EntrypointArgs
 	if scrubber != nil {
 		args, _ = scrubber.ScrubCommand(msg.EntrypointArgs)
@@ -80,10 +84,19 @@ func NewEBPFLessHelloMsgEvent(acc *events.AgentContainerContext, msg *ebpfless.H
 	evt := EBPFLessHelloMsgEvent{
 		NSID: msg.NSID,
 	}
-	evt.Container.ID = msg.ContainerContext.ID
-	evt.Container.Name = msg.ContainerContext.Name
-	evt.Container.ImageShortName = msg.ContainerContext.ImageShortName
-	evt.Container.ImageTag = msg.ContainerContext.ImageTag
+	evt.Container.ID = string(msg.ContainerContext.ID)
+
+	if tagger != nil {
+		tags, err := tags.GetTagsOfContainer(tagger, containerutils.ContainerID(msg.ContainerContext.ID))
+		if err != nil {
+			seclog.Errorf("Failed to get tags for container %s: %v", msg.ContainerContext.ID, err)
+		} else {
+			evt.Container.Name = utils.GetTagValue(coretags.EcsContainerName, tags)
+			evt.Container.ImageShortName = utils.GetTagValue(coretags.ShortImage, tags)
+			evt.Container.ImageTag = utils.GetTagValue(coretags.ImageTag, tags)
+		}
+	}
+
 	evt.EntrypointArgs = args
 
 	evt.FillCustomEventCommonFields(acc)

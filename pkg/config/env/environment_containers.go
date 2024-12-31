@@ -46,6 +46,7 @@ func init() {
 	registerFeature(ECSOrchestratorExplorer)
 	registerFeature(CloudFoundry)
 	registerFeature(Podman)
+	registerFeature(PodResources)
 }
 
 // IsAnyContainerFeaturePresent checks if any of known container features is present
@@ -69,6 +70,7 @@ func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
 	detectAWSEnvironments(features, cfg)
 	detectCloudFoundry(features, cfg)
 	detectPodman(features, cfg)
+	detectPodResources(features, cfg)
 }
 
 func detectKubernetes(features FeatureMap, cfg model.Reader) {
@@ -96,7 +98,7 @@ func detectDocker(features FeatureMap) {
 
 				// Even though it does not modify configuration, using the OverrideFunc mechanism for uniformity
 				model.AddOverrideFunc(func(model.Config) {
-					os.Setenv("DOCKER_HOST", getDefaultDockerSocketType()+defaultDockerSocketPath)
+					os.Setenv("DOCKER_HOST", getDefaultSocketPrefix()+defaultDockerSocketPath)
 				})
 				break
 			}
@@ -226,6 +228,21 @@ func detectPodman(features FeatureMap, cfg model.Reader) {
 	}
 }
 
+func detectPodResources(features FeatureMap, cfg model.Reader) {
+	// We only check the path from config. Default socket path is defined in the config
+	socketPath := getDefaultSocketPrefix() + cfg.GetString("kubernetes_kubelet_podresources_socket")
+
+	exists, reachable := socket.IsAvailable(socketPath, socketTimeout)
+	if exists && reachable {
+		log.Infof("Agent found PodResources socket at %s", socketPath)
+		features[PodResources] = struct{}{}
+	} else if exists && !reachable {
+		log.Infof("Agent found PodResources socket at %s but socket not reachable (permissions?)", socketPath)
+	} else {
+		log.Infof("Agent did not find PodResources socket at %s", socketPath)
+	}
+}
+
 func getHostMountPrefixes() []string {
 	if IsContainerized() {
 		return []string{"", defaultHostMountPrefix}
@@ -233,7 +250,7 @@ func getHostMountPrefixes() []string {
 	return []string{""}
 }
 
-func getDefaultDockerSocketType() string {
+func getDefaultSocketPrefix() string {
 	if runtime.GOOS == "windows" {
 		return winNamedPipePrefix
 	}

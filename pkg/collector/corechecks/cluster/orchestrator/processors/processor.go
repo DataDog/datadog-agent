@@ -129,6 +129,9 @@ type Handlers interface {
 	// ResourceVersion returns the resource Version.
 	ResourceVersion(ctx ProcessorContext, resource, resourceModel interface{}) string
 
+	// ResourceTaggerTags returns the resource tags.
+	ResourceTaggerTags(ctx ProcessorContext, resource interface{}) []string
+
 	// ScrubBeforeExtraction replaces sensitive information in the resource
 	// before resource extraction.
 	ScrubBeforeExtraction(ctx ProcessorContext, resource interface{})
@@ -231,6 +234,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 			Content:         yaml,
 			Version:         "v1",
 			ContentType:     "json",
+			Tags:            p.h.ResourceTaggerTags(ctx, resource),
 		})
 	}
 

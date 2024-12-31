@@ -24,6 +24,14 @@ include:
     - datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:${VERSION} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${VERSION}.oci.tar
     # This is used for E2E tests. Doesn't cost more than an additional tag to the registry.
     - datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${VERSION}.oci.tar
+    # Used for e2e tests
+    - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_PACKAGE} ${VERSION}
+    - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_PACKAGE} ${CI_COMMIT_SHA}
+    - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_PACKAGE} pipeline-${CI_PIPELINE_ID}
+    # necessary for ddstaging until we deprecate `-dev` packaging 
+    - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_STAGING_PACKAGE} ${VERSION}
+    - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_STAGING_PACKAGE} ${CI_COMMIT_SHA}
+    - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_STAGING_PACKAGE} pipeline-${CI_PIPELINE_ID}
   variables:
     MAJOR_VERSION: 7
 
@@ -32,9 +40,13 @@ deploy_agent_oci:
   needs: [ "agent_oci", "go_tools_deps"]
   variables:
     OCI_PRODUCT: "datadog-agent"
+    S3_PACKAGE: "agent-package"
+    S3_STAGING_PACKAGE: "agent-package-dev"
 
 deploy_installer_oci:
   extends: ".deploy_packages_oci"
   needs: [ "installer_oci", "go_tools_deps" ]
   variables:
     OCI_PRODUCT: "datadog-installer"
+    S3_PACKAGE: "installer-package"
+    S3_STAGING_PACKAGE: "installer-package-dev"

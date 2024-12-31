@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -36,6 +37,7 @@ func TestExternalHostTags(t *testing.T) {
 	c := newCollector(fxutil.Test[dependencies](t,
 		core.MockBundle(),
 		demultiplexerimpl.MockModule(),
+		haagentmock.Module(),
 		fx.Provide(func() optional.Option[serializer.MetricSerializer] {
 			return optional.NewNoneOption[serializer.MetricSerializer]()
 		}),

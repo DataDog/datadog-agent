@@ -3,14 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build gce
-
 package gce
 
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -69,7 +66,7 @@ func mockMetadataRequest(t *testing.T) *httptest.Server {
 		assert.Contains(t, r.URL.String(), "/?recursive=true")
 		assert.Equal(t, "Google", r.Header.Get("Metadata-Flavor"))
 		w.Header().Set("Content-Type", "application/json")
-		io.WriteString(w, string(content))
+		w.Write(content)
 	}))
 	metadataURL = ts.URL
 	return ts

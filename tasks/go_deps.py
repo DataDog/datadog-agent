@@ -1,5 +1,7 @@
 import datetime
 import os
+import shutil
+import tempfile
 from collections.abc import Iterable
 
 from invoke.context import Context
@@ -185,3 +187,108 @@ def show(ctx: Context, build: str, flavor: str = AgentFlavor.base.name, os: str 
 
     for dep in deps:
         print(dep)
+
+
+@task(
+    help={
+        'build': f'The agent build to use, one of {", ".join(BINARIES.keys())}',
+        'flavor': f'The agent flavor to use, one of {", ".join(AgentFlavor.__members__.keys())}. Defaults to base',
+        'os': f'The OS to use, one of {", ".join(GOOS_MAPPING.keys())}. Defaults to host platform',
+        'arch': f'The architecture to use, one of {", ".join(GOARCH_MAPPING.keys())}. Defaults to host architecture',
+        'entrypoint': 'A Go package path, defaults to the entrypoint of the build.',
+        'target': 'A Go package path. If specified, generate a graph from the entrypoint to the target.',
+        'std': 'Whether to include the standard library in the graph',
+        'cluster': 'Whether to group packages by cluster.',
+        'fmt': 'The format of the generated image. Must be accepted by "dot -T". Defaults to "svg".',
+        'auto_open': 'Whether to open the generated graph automatically.',
+    }
+)
+def graph(
+    ctx: Context,
+    build: str,
+    flavor: str = AgentFlavor.base.name,
+    os: str | None = None,
+    arch: str | None = None,
+    entrypoint: str | None = None,
+    target: str | None = None,
+    std: bool = False,
+    cluster: bool = False,
+    fmt: str = "svg",
+    auto_open: bool = True,
+):
+    """
+    Generate a dependency graph of the given build.
+    Requires https://github.com/loov/goda and Graphviz's `dot` tools to be in the PATH.
+
+    Usage:
+        Dependency graph of the trace-agent on Linux
+          inv -e go-deps.graph --build trace-agent --os linux
+        Reachability graph of the process-agent on Linux to k8s.io/... dependencies
+          inv -e go-deps.graph --build process-agent --os linux --target k8s.io/...
+        Dependency graph of workloadmeta on Linux when using the same build tags as the core-agent
+          inv -e go-deps.graph --build agent --os linux --entrypoint github.com/DataDog/datadog-agent/comp/core/workloadmeta/...:all
+    """
+    if shutil.which("goda") is None:
+        raise Exit(
+            code=1,
+            message=color_message(
+                "'goda' not found in PATH. Please install it with `go install github.com/loov/goda@latest`", "red"
+            ),
+        )
+
+    if os is None:
+        goos = ctx.run("go env GOOS", hide=True)
+        assert goos is not None
+        os = goos.stdout.strip()
+    assert os in GOOS_MAPPING.values()
+
+    if arch is None:
+        goarch = ctx.run("go env GOARCH", hide=True)
+        assert goarch is not None
+        arch = goarch.stdout.strip()
+    assert arch in GOARCH_MAPPING.values()
+
+    stdarg = "-std" if std else ""
+    clusterarg = "-cluster" if cluster else ""
+
+    if entrypoint is None:
+        entrypoint = BINARIES[build]["entrypoint"]
+        entrypoint = f"github.com/DataDog/datadog-agent/{entrypoint}:all"
+
+    build_tags = get_default_build_tags(
+        build=build, flavor=AgentFlavor[flavor], platform=key_for_value(GOOS_MAPPING, os)
+    )
+    for tag in build_tags:
+        entrypoint = f"{tag}=1({entrypoint})"
+
+    expr = entrypoint if target is None else f"reach({entrypoint}, {target})"
+
+    cmd = f"goda graph {stdarg} {clusterarg} \"{expr}\""
+
+    env = {"GOOS": os, "GOARCH": arch}
+    res = ctx.run(cmd, env=env, hide='out')
+    assert res
+
+    tmpfile = tempfile.mktemp(prefix="graph-")
+
+    dotfile = tmpfile + ".dot"
+    print("Saving dot file in " + dotfile)
+    with open(dotfile, "w") as f:
+        f.write(res.stdout)
+
+    if shutil.which("dot") is None:
+        raise Exit(
+            code=1,
+            message=color_message(
+                "'dot' not found in PATH. Please follow instructions on https://graphviz.org/download/ to install it.",
+                "red",
+            ),
+        )
+
+    fmtfile = tmpfile + "." + fmt
+    print(f"Rendering {fmt} in {fmtfile}")
+    ctx.run(f"dot -T{fmt} -o {fmtfile} {dotfile}")
+
+    if auto_open:
+        print(f"Opening {fmt} file")
+        ctx.run(f"open {fmtfile}")

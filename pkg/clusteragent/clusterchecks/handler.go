@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -59,7 +60,7 @@ type Handler struct {
 
 // NewHandler returns a populated Handler
 // It will hook on the specified AutoConfig instance at Start
-func NewHandler(ac pluggableAutoConfig) (*Handler, error) {
+func NewHandler(ac pluggableAutoConfig, tagger tagger.Component) (*Handler, error) {
 	if ac == nil {
 		return nil, errors.New("empty autoconfig object")
 	}
@@ -68,7 +69,7 @@ func NewHandler(ac pluggableAutoConfig) (*Handler, error) {
 		leaderStatusFreq: 5 * time.Second,
 		warmupDuration:   pkgconfigsetup.Datadog().GetDuration("cluster_checks.warmup_duration") * time.Second,
 		leadershipChan:   make(chan state, 1),
-		dispatcher:       newDispatcher(),
+		dispatcher:       newDispatcher(tagger),
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("leader_election") {

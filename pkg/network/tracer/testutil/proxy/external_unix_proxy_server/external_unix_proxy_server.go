@@ -22,11 +22,13 @@ func main() {
 	var unixPath string
 	var useTLS bool
 	var useControl bool
+	var useSplice bool
 
 	flag.StringVar(&remoteAddr, "remote", "", "Remote server address to forward connections to")
 	flag.StringVar(&unixPath, "unix", "/tmp/transparent.sock", "A local unix socket to listen on")
 	flag.BoolVar(&useTLS, "tls", false, "Use TLS to connect to the remote server")
 	flag.BoolVar(&useControl, "control", false, "Use control messages")
+	flag.BoolVar(&useSplice, "splice", false, "Use splice(2) to transfer data")
 
 	// Parse command-line flags
 	flag.Parse()
@@ -34,7 +36,7 @@ func main() {
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, syscall.SIGINT)
 
-	srv := proxy.NewUnixTransparentProxyServer(unixPath, remoteAddr, useTLS, useControl)
+	srv := proxy.NewUnixTransparentProxyServer(unixPath, remoteAddr, useTLS, useControl, useSplice)
 	defer srv.Stop()
 
 	if err := srv.Run(); err != nil {

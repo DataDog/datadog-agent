@@ -54,10 +54,12 @@ if ohai["platform"] != "windows"
 
     # Don't forward CC and CXX to python extensions Makefile, it's quite unlikely that any non default
     # compiler we use would end up being available in the system/docker image used by customers
-    if linux_target?
+    if linux_target? && env["CC"]
       command "sed -i \"s/^CC=[[:space:]]*${CC}/CC=gcc/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-*-linux-gnu/Makefile", :env => env
-      command "sed -i \"s/^CXX=[[:space:]]*${CXX}/CC=g++/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-*-linux-gnu/Makefile", :env => env
       command "sed -i \"s/${CC}/gcc/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_*-linux-gnu.py", :env => env
+    end
+    if linux_target? && env["CXX"]
+      command "sed -i \"s/^CXX=[[:space:]]*${CXX}/CC=g++/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-*-linux-gnu/Makefile", :env => env
       command "sed -i \"s/${CXX}/g++/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_*-linux-gnu.py", :env => env
     end
     delete "#{install_dir}/embedded/lib/python#{major}.#{minor}/test"
@@ -79,7 +81,6 @@ else
     license "Python-2.0"
 
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""
-    command "copy /y \"#{windows_safe_path(vcrt140_root)}\\*.dll\" \"#{windows_safe_path(python_3_embedded)}\""
 
     # Install pip
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"

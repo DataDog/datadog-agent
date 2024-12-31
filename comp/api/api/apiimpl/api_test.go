@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -76,7 +76,7 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 		demultiplexerimpl.MockModule(),
 		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
 		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
-		fetchonlyimpl.MockModule(),
+		createandfetchimpl.Module(),
 		fx.Supply(context.Background()),
 		taggermock.Module(),
 		fx.Provide(func(mock taggermock.Mock) tagger.Component {
@@ -166,7 +166,6 @@ func TestStartBothServersWithObservability(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, url, nil)
 			require.NoError(t, err)
 
-			req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", authTokenValue))
 			resp, err := util.GetClient(false).Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()

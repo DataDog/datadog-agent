@@ -35,11 +35,12 @@ func TestNewController(t *testing.T) {
 		factory.Admissionregistration(),
 		factory.Admissionregistration(),
 		func() bool { return true },
-		make(chan struct{}),
-		v1Cfg,
+		make(<-chan struct{}),
+		getV1Cfg(t),
 		wmeta,
 		nil,
 		datadogConfig,
+		nil,
 	)
 
 	assert.IsType(t, &ControllerV1{}, controller)
@@ -51,11 +52,12 @@ func TestNewController(t *testing.T) {
 		factory.Admissionregistration(),
 		factory.Admissionregistration(),
 		func() bool { return true },
-		make(chan struct{}),
-		v1beta1Cfg,
+		make(<-chan struct{}),
+		getV1beta1Cfg(t),
 		wmeta,
 		nil,
 		datadogConfig,
+		nil,
 	)
 
 	assert.IsType(t, &ControllerV1beta1{}, controller)

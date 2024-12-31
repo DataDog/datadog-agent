@@ -48,6 +48,11 @@ type profileFSEntry struct {
 	selector cgroupModel.WorkloadSelector
 }
 
+type existingProfileInfo struct {
+	path     string
+	selector string
+}
+
 // DirectoryProvider is a ProfileProvider that fetches Security Profiles from the filesystem
 type DirectoryProvider struct {
 	sync.Mutex
@@ -213,24 +218,24 @@ func (dp *DirectoryProvider) listProfiles() ([]string, error) {
 	return output, nil
 }
 
-func (dp *DirectoryProvider) loadProfile(profilePath string) error {
+func (dp *DirectoryProvider) loadProfile(profilePath string) (*existingProfileInfo, error) {
 	profile, err := LoadProtoFromFile(profilePath)
 	if err != nil {
-		return fmt.Errorf("couldn't load profile %s: %w", profilePath, err)
+		return nil, fmt.Errorf("couldn't load profile %s: %w", profilePath, err)
 	}
 
 	if len(profile.ProfileContexts) == 0 {
-		return fmt.Errorf("couldn't load profile %s: it did not contains any version", profilePath)
+		return nil, fmt.Errorf("couldn't load profile %s: it did not contains any version", profilePath)
 	}
 
 	imageName, imageTag := profile.Selector.GetImageName(), profile.Selector.GetImageTag()
 	if imageTag == "" || imageName == "" {
-		return fmt.Errorf("couldn't load profile %s: it did not contains any valid image_name (%s) or image_tag (%s)", profilePath, imageName, imageTag)
+		return nil, fmt.Errorf("couldn't load profile %s: it did not contains any valid image_name (%s) or image_tag (%s)", profilePath, imageName, imageTag)
 	}
 
 	workloadSelector, err := cgroupModel.NewWorkloadSelector(imageName, imageTag)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	profileManagerSelector := workloadSelector
 	profileManagerSelector.Tag = "*"
@@ -241,7 +246,7 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 	// prioritize a persited profile over activity dumps
 	if _, ok := dp.profileMapping[profileManagerSelector]; ok {
 		dp.Unlock()
-		return fmt.Errorf("ignoring %s: a persisted profile already exists for workload %s", profilePath, profileManagerSelector.String())
+		return &existingProfileInfo{path: profilePath, selector: profileManagerSelector.String()}, nil
 	}
 
 	// update profile mapping
@@ -260,7 +265,7 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 	seclog.Debugf("security profile %s loaded from file system", workloadSelector)
 
 	if propagateCb == nil {
-		return nil
+		return nil, nil
 	}
 
 	// check if this profile matches a workload selector
@@ -269,7 +274,7 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 			propagateCb(workloadSelector, profile)
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 func (dp *DirectoryProvider) loadProfiles() error {
@@ -279,8 +284,11 @@ func (dp *DirectoryProvider) loadProfiles() error {
 	}
 
 	for _, profilePath := range files {
-		if err = dp.loadProfile(profilePath); err != nil {
+		existingProfile, err := dp.loadProfile(profilePath)
+		if err != nil {
 			seclog.Errorf("couldn't load profile: %v", err)
+		} else if existingProfile != nil {
+			seclog.Debugf("ignoring %s: a persisted profile already exists for workload %s", existingProfile.path, existingProfile.selector)
 		}
 	}
 	return nil
@@ -340,13 +348,16 @@ func (dp *DirectoryProvider) onHandleFilesFromWatcher() {
 
 	var filesToCleanup []string
 	for file := range dp.newFiles {
-		if err := dp.loadProfile(file); err != nil {
+		existingProfile, err := dp.loadProfile(file)
+		if err != nil {
 			if errors.Is(err, cgroupModel.ErrNoImageProvided) {
 				seclog.Debugf("couldn't load new profile %s: %v", file, err)
 			} else {
 				seclog.Warnf("couldn't load new profile %s: %v", file, err)
 			}
-
+			filesToCleanup = append(filesToCleanup, file)
+		} else if existingProfile != nil {
+			seclog.Debugf("ignoring %s: a persisted profile already exists for workload %s", existingProfile.path, existingProfile.selector)
 			filesToCleanup = append(filesToCleanup, file)
 		}
 	}
