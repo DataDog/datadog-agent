@@ -3,58 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package util
+package filesystem
 
 import (
-	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-
-	"gopkg.in/yaml.v2"
 )
-
-func TestJSONConverter(t *testing.T) {
-
-	checks := []string{
-		"cassandra",
-		"kafka",
-		"jmx",
-		"jmx_alt",
-	}
-
-	cache := map[string]integration.RawMap{}
-	for _, c := range checks {
-		var cf integration.RawMap
-
-		// Read file contents
-		yamlFile, err := os.ReadFile(fmt.Sprintf("../jmxfetch/fixtures/%s.yaml", c))
-		assert.NoError(t, err)
-
-		// Parse configuration
-		err = yaml.Unmarshal(yamlFile, &cf)
-		assert.NoError(t, err)
-
-		cache[c] = cf
-	}
-
-	//convert
-	j := map[string]interface{}{}
-	c := map[string]interface{}{}
-	for name, config := range cache {
-		c[name] = GetJSONSerializableMap(config)
-	}
-	j["configurations"] = c
-
-	//json encode
-	_, err := json.Marshal(GetJSONSerializableMap(j))
-	assert.NoError(t, err)
-}
 
 func TestCopyDir(t *testing.T) {
 	assert := assert.New(t)
