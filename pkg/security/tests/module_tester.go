@@ -277,6 +277,9 @@ func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*mod
 		case msg := <-message:
 			switch msg {
 			case Continue:
+				if len(e.Rules) == 0 || tm.statsdClient.Get(fmt.Sprintf("datadog.runtime_security.rules.rate_limiter.allow:%s", e.Rules[0].RuleID)) == 0 {
+					message <- Continue
+				}
 				if err := cb(e, r); err != nil {
 					if errors.Is(err, errSkipEvent) {
 						message <- Continue
@@ -301,6 +304,7 @@ func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*mod
 		message <- Skip
 		return err
 	}
+
 	message <- Continue
 
 	select {
@@ -881,7 +885,6 @@ func (fs *fakeMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.Securit
 	}
 
 	fs.msgs[msgStruct.AgentContext.RuleID] = msg
-	fmt.Println("------------ SEND", msg.RuleID)
 
 }
 
