@@ -16,10 +16,48 @@ import (
 
 	"github.com/google/gopacket/layers"
 
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 const ebpflessModuleName = "ebpfless_network_tracer"
+
+// Ebpfless represents a unique key for an ebpfless tracer connection.
+// It represents a network.Connection with only the fields that are available
+// via packet capture - for example, PID and Direction are removed.
+type EbpflessTuple struct {
+	Source util.Address
+	Dest   util.Address
+	NetNS  uint32
+	SPort  uint16
+	DPort  uint16
+	Type   network.ConnectionType
+	Family network.ConnectionFamily
+}
+
+// ConnDirection represents what the TCPProcessor knows about the direction of a connection.
+type ConnDirection uint8
+
+const (
+	// ConnDirectionUnknown means we don't know the direction (because we missed the SYN)
+	ConnDirectionUnknown ConnDirection = iota
+	// ConnDirectionIncoming means the connection is incoming to the host
+	ConnDirectionIncoming
+	// ConnDirectionOutgoing means the connection is outgoing from the host
+	ConnDirectionOutgoing
+)
+
+func connDirectionFromPktType(pktType uint8) ConnDirection {
+	switch pktType {
+	case unix.PACKET_HOST:
+		return ConnDirectionIncoming
+	case unix.PACKET_OUTGOING:
+		return ConnDirectionOutgoing
+	default:
+		return ConnDirectionUnknown
+	}
+}
 
 // ProcessResult represents what the ebpfless tracer should do with ConnectionStats after processing a packet
 type ProcessResult uint8

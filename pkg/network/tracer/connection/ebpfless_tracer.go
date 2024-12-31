@@ -53,15 +53,14 @@ type ebpfLessTracer struct {
 
 	config *config.Config
 
-	packetSrc   *filter.AFPacketSource
-	exit        chan struct{}
-	scratchConn *network.ConnectionStats
+	packetSrc *filter.AFPacketSource
+	exit      chan struct{}
 
 	udp *udpProcessor
 	tcp *ebpfless.TCPProcessor
 
 	// connection maps
-	conns        map[network.ConnectionTuple]*network.ConnectionStats
+	conns        map[ebpfless.EbpflessTuple]*network.ConnectionStats
 	boundPorts   *ebpfless.BoundPorts
 	cookieHasher *cookieHasher
 
@@ -81,10 +80,9 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 		config:       cfg,
 		packetSrc:    packetSrc,
 		exit:         make(chan struct{}),
-		scratchConn:  &network.ConnectionStats{},
 		udp:          &udpProcessor{},
 		tcp:          ebpfless.NewTCPProcessor(cfg),
-		conns:        make(map[network.ConnectionTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
+		conns:        make(map[ebpfless.EbpflessTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
 		boundPorts:   ebpfless.NewBoundPorts(cfg),
 		cookieHasher: newCookieHasher(),
 	}
@@ -151,54 +149,41 @@ func (t *ebpfLessTracer) processConnection(
 	decoded []gopacket.LayerType,
 	closeCallback func(*network.ConnectionStats),
 ) error {
-	t.scratchConn.Source, t.scratchConn.Dest = util.Address{}, util.Address{}
-	t.scratchConn.SPort, t.scratchConn.DPort = 0, 0
-	t.scratchConn.TCPFailures = make(map[uint16]uint32)
-	var ip4Present, ip6Present, udpPresent, tcpPresent bool
-	for _, layerType := range decoded {
-		switch layerType {
-		case layers.LayerTypeIPv4:
-			t.scratchConn.Source = util.AddressFromNetIP(ip4.SrcIP)
-			t.scratchConn.Dest = util.AddressFromNetIP(ip4.DstIP)
-			t.scratchConn.Family = network.AFINET
-			ip4Present = true
-		case layers.LayerTypeIPv6:
-			t.scratchConn.Source = util.AddressFromNetIP(ip6.SrcIP)
-			t.scratchConn.Dest = util.AddressFromNetIP(ip6.DstIP)
-			t.scratchConn.Family = network.AFINET6
-			ip6Present = true
-		case layers.LayerTypeTCP:
-			t.scratchConn.SPort = uint16(tcp.SrcPort)
-			t.scratchConn.DPort = uint16(tcp.DstPort)
-			t.scratchConn.Type = network.TCP
-			tcpPresent = true
-		case layers.LayerTypeUDP:
-			t.scratchConn.SPort = uint16(udp.SrcPort)
-			t.scratchConn.DPort = uint16(udp.DstPort)
-			t.scratchConn.Type = network.UDP
-			udpPresent = true
-		}
-	}
+	tuple, flags := buildTuple(pktType, ip4, ip6, udp, tcp, decoded)
 
 	// check if we have all the basic pieces
-	if !udpPresent && !tcpPresent {
+	if !flags.udpPresent && !flags.tcpPresent {
 		log.Debugf("ignoring packet since its not udp or tcp")
 		ebpfLessTracerTelemetry.skippedPackets.Inc("not_tcp_udp")
 		return nil
 	}
+	if !flags.ip4Present && !flags.ip6Present {
+		return fmt.Errorf("expected to have an IP layer")
+	}
 
-	t.determineConnectionDirection(t.scratchConn, pktType)
-	flipSourceDest(t.scratchConn, pktType)
+	// don't trace families/protocols that are disabled by configuration
+	switch tuple.Type {
+	case network.UDP:
+		if (flags.ip4Present && !t.config.CollectUDPv4Conns) || (flags.ip6Present && !t.config.CollectUDPv6Conns) {
+			return nil
+		}
+	case network.TCP:
+		if (flags.ip4Present && !t.config.CollectTCPv4Conns) || (flags.ip6Present && !t.config.CollectTCPv6Conns) {
+			return nil
+		}
+	}
 
 	t.m.Lock()
 	defer t.m.Unlock()
 
-	conn := t.conns[t.scratchConn.ConnectionTuple]
-	if conn == nil {
-		conn = &network.ConnectionStats{}
-		*conn = *t.scratchConn
-		t.cookieHasher.Hash(conn)
-		conn.Duration = time.Duration(time.Now().UnixNano())
+	conn, ok := t.conns[tuple]
+	isNewConn := !ok
+	if isNewConn {
+		conn = &network.ConnectionStats{
+			// NOTE: this tuple does not have the connection direction set yet.
+			// That will be set from determineConnectionDirection later
+			ConnectionTuple: ebpfless.MakeConnStatsTuple(tuple),
+		}
 	}
 
 	var ts int64
@@ -208,22 +193,12 @@ func (t *ebpfLessTracer) processConnection(
 	}
 	conn.LastUpdateEpoch = uint64(ts)
 
-	if !ip4Present && !ip6Present {
-		return nil
-	}
-
 	var result ebpfless.ProcessResult
 	switch conn.Type {
 	case network.UDP:
-		if (ip4Present && !t.config.CollectUDPv4Conns) || (ip6Present && !t.config.CollectUDPv6Conns) {
-			return nil
-		}
 		result = ebpfless.ProcessResultStoreConn
 		err = t.udp.process(conn, pktType, udp)
 	case network.TCP:
-		if (ip4Present && !t.config.CollectTCPv4Conns) || (ip6Present && !t.config.CollectTCPv6Conns) {
-			return nil
-		}
 		result, err = t.tcp.Process(conn, uint64(ts), pktType, ip4, ip6, tcp)
 	default:
 		err = fmt.Errorf("unsupported connection type %d", conn.Type)
@@ -240,49 +215,110 @@ func (t *ebpfLessTracer) processConnection(
 	switch result {
 	case ebpfless.ProcessResultNone:
 	case ebpfless.ProcessResultStoreConn:
+		if isNewConn {
+			conn.Duration = time.Duration(time.Now().UnixNano())
+			direction, err := t.determineConnectionDirection(conn, pktType)
+			if err != nil {
+				return err
+			}
+			conn.Direction = direction
+
+			// now that the direction is set, hash the connection
+			t.cookieHasher.Hash(conn)
+		}
 		maxTrackedConns := int(t.config.MaxTrackedConnections)
-		ok := ebpfless.WriteMapWithSizeLimit(t.conns, conn.ConnectionTuple, conn, maxTrackedConns)
+		ok := ebpfless.WriteMapWithSizeLimit(t.conns, tuple, conn, maxTrackedConns)
 		if !ok {
 			// we don't have enough space to add this connection, remove its TCP state tracking
 			if conn.Type == network.TCP {
-				t.tcp.RemoveConn(conn.ConnectionTuple)
+				t.tcp.RemoveConn(tuple)
 			}
 			ebpfLessTracerTelemetry.droppedConnections.Inc()
 		}
 	case ebpfless.ProcessResultCloseConn:
-		delete(t.conns, conn.ConnectionTuple)
+		delete(t.conns, tuple)
 		closeCallback(conn)
 	case ebpfless.ProcessResultMapFull:
-		delete(t.conns, conn.ConnectionTuple)
+		delete(t.conns, tuple)
 		ebpfLessTracerTelemetry.droppedConnections.Inc()
 	}
 
 	return nil
 }
 
-func flipSourceDest(conn *network.ConnectionStats, pktType uint8) {
-	if pktType == unix.PACKET_HOST {
-		conn.Dest, conn.Source = conn.Source, conn.Dest
-		conn.DPort, conn.SPort = conn.SPort, conn.DPort
-	}
+type packetFlags struct {
+	ip4Present, ip6Present, udpPresent, tcpPresent bool
 }
 
-func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionStats, pktType uint8) {
-	t.m.Lock()
-	defer t.m.Unlock()
+// buildTuple converts the packet capture layer info into an EbpflessTuple with flags that indicate which layers were present.
+func buildTuple(pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, udp *layers.UDP, tcp *layers.TCP, decoded []gopacket.LayerType) (ebpfless.EbpflessTuple, packetFlags) {
+	var tuple ebpfless.EbpflessTuple
+	var flags packetFlags
+	for _, layerType := range decoded {
+		switch layerType {
+		case layers.LayerTypeIPv4:
+			tuple.Source = util.AddressFromNetIP(ip4.SrcIP)
+			tuple.Dest = util.AddressFromNetIP(ip4.DstIP)
+			tuple.Family = network.AFINET
+			flags.ip4Present = true
+		case layers.LayerTypeIPv6:
+			tuple.Source = util.AddressFromNetIP(ip6.SrcIP)
+			tuple.Dest = util.AddressFromNetIP(ip6.DstIP)
+			tuple.Family = network.AFINET6
+			flags.ip6Present = true
+		case layers.LayerTypeTCP:
+			tuple.SPort = uint16(tcp.SrcPort)
+			tuple.DPort = uint16(tcp.DstPort)
+			tuple.Type = network.TCP
+			flags.tcpPresent = true
+		case layers.LayerTypeUDP:
+			tuple.SPort = uint16(udp.SrcPort)
+			tuple.DPort = uint16(udp.DstPort)
+			tuple.Type = network.UDP
+			flags.udpPresent = true
+		}
+	}
+
+	if pktType == unix.PACKET_HOST {
+		tuple.Dest, tuple.Source = tuple.Source, tuple.Dest
+		tuple.DPort, tuple.SPort = tuple.SPort, tuple.DPort
+	}
+	return tuple, flags
+}
+
+// determineConnectionDirection returns connection direction using information from the TCP processor.
+// If the TCP processor doesn't know the direction, it will attempt to guess.
+func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionStats, pktType uint8) (network.ConnectionDirection, error) {
+	if conn.Type == network.TCP {
+		tuple := ebpfless.MakeEbpflessTuple(conn.ConnectionTuple)
+		dir, ok := t.tcp.GetConnDirection(tuple)
+		if !ok {
+			return 0, fmt.Errorf("finalizeConnectionDirection: expected to find TCP connection for tuple: %+v", tuple)
+		}
+		switch dir {
+		case ebpfless.ConnDirectionIncoming:
+			return network.INCOMING, nil
+		case ebpfless.ConnDirectionOutgoing:
+			return network.OUTGOING, nil
+		case ebpfless.ConnDirectionUnknown:
+			// This happens when the TCP processor missed the SYN packet.
+			// Fall through and guess the direction.
+		}
+	}
 
 	ok := t.boundPorts.Find(conn.Type, conn.SPort)
 	if ok {
 		// incoming connection
-		conn.Direction = network.INCOMING
-		return
+		return network.INCOMING, nil
 	}
 
 	switch pktType {
 	case unix.PACKET_HOST:
-		conn.Direction = network.INCOMING
+		return network.INCOMING, nil
 	case unix.PACKET_OUTGOING:
-		conn.Direction = network.OUTGOING
+		return network.OUTGOING, nil
+	default:
+		return 0, fmt.Errorf("unknown packet type %d", pktType)
 	}
 }
 
@@ -342,9 +378,10 @@ func (t *ebpfLessTracer) cleanupPendingConns() error {
 func (t *ebpfLessTracer) FlushPending() {}
 
 func (t *ebpfLessTracer) remove(conn *network.ConnectionStats) error {
-	delete(t.conns, conn.ConnectionTuple)
+	tuple := ebpfless.MakeEbpflessTuple(conn.ConnectionTuple)
+	delete(t.conns, tuple)
 	if conn.Type == network.TCP {
-		t.tcp.RemoveConn(conn.ConnectionTuple)
+		t.tcp.RemoveConn(tuple)
 	}
 	return nil
 }
