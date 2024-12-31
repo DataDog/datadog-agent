@@ -15,11 +15,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
 
-func TestWLANOK(t *testing.T) {
-	// reset the global variables
+func resetGlobals() {
 	lastChannelID = -1
 	lastBSSID = ""
 	lastSSID = ""
+}
+
+func TestWLANOK(t *testing.T) {
+	resetGlobals()
 
 	// setup mocks
 	getWifiInfo = func() (WiFiInfo, error) {
@@ -40,6 +43,8 @@ func TestWLANOK(t *testing.T) {
 		setupLocationAccess = SetupLocationAccess
 	}()
 
+	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address"}
+
 	wlanCheck := new(WLANCheck)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
@@ -49,8 +54,6 @@ func TestWLANOK(t *testing.T) {
 
 	wlanCheck.Run()
 
-	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address"}
-
 	mockSender.AssertMetric(t, "Gauge", "wlan.rssi", 10.0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "wlan.noise", 20.0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "wlan.transmit_rate", 4.0, "", expectedTags)
@@ -58,10 +61,7 @@ func TestWLANOK(t *testing.T) {
 }
 
 func TestWLANEmptySSIDisUnknown(t *testing.T) {
-	// reset the global variables
-	lastChannelID = -1
-	lastBSSID = ""
-	lastSSID = ""
+	resetGlobals()
 
 	// setup mocks
 	getWifiInfo = func() (WiFiInfo, error) {
@@ -82,6 +82,8 @@ func TestWLANEmptySSIDisUnknown(t *testing.T) {
 		setupLocationAccess = SetupLocationAccess
 	}()
 
+	expectedTags := []string{"ssid:unknown", "bssid:test-bssid", "mac_address:hardware-address"}
+
 	wlanCheck := new(WLANCheck)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
@@ -91,8 +93,6 @@ func TestWLANEmptySSIDisUnknown(t *testing.T) {
 
 	wlanCheck.Run()
 
-	expectedTags := []string{"ssid:unknown", "bssid:test-bssid", "mac_address:hardware-address"}
-
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "wlan.rssi", expectedTags)
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "wlan.noise", expectedTags)
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "wlan.transmit_rate", expectedTags)
@@ -100,10 +100,7 @@ func TestWLANEmptySSIDisUnknown(t *testing.T) {
 }
 
 func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
-	// reset the global variables
-	lastChannelID = -1
-	lastBSSID = ""
-	lastSSID = ""
+	resetGlobals()
 
 	// setup mocks
 	getWifiInfo = func() (WiFiInfo, error) {
@@ -124,6 +121,8 @@ func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
 		setupLocationAccess = SetupLocationAccess
 	}()
 
+	expectedTags := []string{"ssid:test-ssid", "bssid:unknown", "mac_address:hardware-address"}
+
 	wlanCheck := new(WLANCheck)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
@@ -133,8 +132,6 @@ func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
 
 	wlanCheck.Run()
 
-	expectedTags := []string{"ssid:test-ssid", "bssid:unknown", "mac_address:hardware-address"}
-
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "wlan.rssi", expectedTags)
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "wlan.noise", expectedTags)
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "wlan.transmit_rate", expectedTags)
@@ -142,10 +139,7 @@ func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
 }
 
 func TestWLANEmptySSIDandBSSID(t *testing.T) {
-	// reset the global variables
-	lastChannelID = -1
-	lastBSSID = ""
-	lastSSID = ""
+	resetGlobals()
 
 	// setup mocks
 	getWifiInfo = func() (WiFiInfo, error) {
@@ -166,6 +160,8 @@ func TestWLANEmptySSIDandBSSID(t *testing.T) {
 		setupLocationAccess = SetupLocationAccess
 	}()
 
+	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address"}
+
 	wlanCheck := new(WLANCheck)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
@@ -175,8 +171,6 @@ func TestWLANEmptySSIDandBSSID(t *testing.T) {
 
 	wlanCheck.Run()
 
-	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address"}
-
 	mockSender.AssertMetric(t, "Gauge", "wlan.rssi", 10.0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "wlan.noise", 20.0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "wlan.transmit_rate", 4.0, "", expectedTags)
@@ -184,10 +178,7 @@ func TestWLANEmptySSIDandBSSID(t *testing.T) {
 }
 
 func TestWLANChannelSwapEvents(t *testing.T) {
-	// reset the global variables
-	lastChannelID = -1
-	lastBSSID = ""
-	lastSSID = ""
+	resetGlobals()
 
 	// setup mocks
 	getWifiInfo = func() (WiFiInfo, error) {
@@ -220,7 +211,6 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 
 	// 1st run: initial channel number set to 1
 	wlanCheck.Run()
-
 	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	// change channel number from 1 to 2
@@ -238,7 +228,6 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 
 	// 2nd run: changing the channel number to 2
 	wlanCheck.Run()
-
 	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 1.0, "", expectedTags)
 
 	getWifiInfo = func() (WiFiInfo, error) {
@@ -255,20 +244,15 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 
 	// 3rd run: changing the channel number back to 1
 	wlanCheck.Run()
-
 	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 1.0, "", expectedTags)
 
 	// 4th run: keeping the same channel number
 	wlanCheck.Run()
-
 	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
 }
 
 func TestWLANRoamingEvents(t *testing.T) {
-	// reset the global variables
-	lastChannelID = -1
-	lastBSSID = ""
-	lastSSID = ""
+	resetGlobals()
 
 	// setup mocks
 	getWifiInfo = func() (WiFiInfo, error) {
@@ -301,7 +285,6 @@ func TestWLANRoamingEvents(t *testing.T) {
 
 	// 1st run: initial ssid set to ssid-1
 	wlanCheck.Run()
-
 	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
 
 	getWifiInfo = func() (WiFiInfo, error) {
@@ -320,7 +303,6 @@ func TestWLANRoamingEvents(t *testing.T) {
 
 	// 2nd run: changing the ssid to ssid-2
 	wlanCheck.Run()
-
 	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 1.0, "", expectedTags)
 
 	getWifiInfo = func() (WiFiInfo, error) {
@@ -339,11 +321,9 @@ func TestWLANRoamingEvents(t *testing.T) {
 
 	// 3rd run: changing the ssid back to ssid-1
 	wlanCheck.Run()
-
 	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 1.0, "", expectedTags)
 
 	// 4th run: keeping the same ssid
 	wlanCheck.Run()
-
 	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
 }

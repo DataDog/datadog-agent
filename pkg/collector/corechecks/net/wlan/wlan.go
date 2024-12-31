@@ -9,7 +9,6 @@
 package wlan
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -85,20 +84,21 @@ func (c *WLANCheck) Run() error {
 	sender.Gauge("wlan.transmit_rate", float64(wifiInfo.TransmitRate), "", tags)
 
 	// channel swap events
-	var increment float64 = 0.0
 	if lastChannelID != -1 && lastChannelID != wifiInfo.Channel {
-		increment = 1.0
+		sender.Count("wlan.channel_swap_events", 1.0, "", tags)
+	} else {
+		sender.Count("wlan.channel_swap_events", 0.0, "", tags)
 	}
-	sender.Count("wlan.channel_swap_events", increment, "", tags)
-	lastChannelID = wifiInfo.Channel
 
 	// roaming events / ssid swap events
-	increment = 0.0
 	if lastBSSID != "" && lastSSID != "" && lastBSSID == wifiInfo.Bssid && lastSSID != wifiInfo.Ssid {
-		increment = 1.0
-		fmt.Printf("Roaming event detected: %s, %s and %s, %s\n", lastSSID, wifiInfo.Ssid, lastBSSID, wifiInfo.Bssid)
+		sender.Count("wlan.roaming_events", 1.0, "", tags)
+	} else {
+		sender.Count("wlan.roaming_events", 0.0, "", tags)
 	}
-	sender.Count("wlan.roaming_events", increment, "", tags)
+
+	// update last values
+	lastChannelID = wifiInfo.Channel
 	lastBSSID = wifiInfo.Bssid
 	lastSSID = wifiInfo.Ssid
 
