@@ -364,31 +364,6 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 	}
 }
 
-// WaitForPotentialAbnormalPath waits for potential abnormal_path errors. It is use to check before closing the test module
-func (tm *testModule) WaitForPotentialAbnormalPath(timeout time.Duration) bool {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	message := make(chan string, 1)
-
-	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, _ *events.CustomEvent) {
-		if rule.ID == events.AbnormalPathRuleID {
-			message <- "FOUND"
-			cancel()
-		}
-	})
-	defer tm.RegisterCustomSendEventHandler(nil)
-
-	select {
-	case <-message:
-		return true
-	case <-time.After(timeout):
-		return false
-	case <-ctx.Done():
-		return false
-	}
-}
-
 func (tm *testModule) GetEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *model.Event) bool, timeout time.Duration, ruleID eval.RuleID) error {
 	tb.Helper()
 	ctx, cancel := context.WithCancel(context.Background())

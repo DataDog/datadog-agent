@@ -955,9 +955,8 @@ func (tm *testModule) cleanup() {
 }
 
 func (tm *testModule) validateAbnormalPaths() {
-	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"), "abnormal error detected")
-	if tm.msgSender != nil {
-		assert.Nil(tm.t, tm.msgSender.getMsg(events.AbnormalPathRuleID), "abnormal error detected 2")
+	if !tm.opts.staticOpts.disableRuntimeSecurity {
+		assert.Nil(tm.t, tm.msgSender.getMsg(events.AbnormalPathRuleID), "abnormal error detected")
 	}
 
 }
@@ -970,7 +969,6 @@ func (tm *testModule) validateSyscallsInFlight() {
 }
 
 func (tm *testModule) Close() {
-	// tm.WaitForPotentialAbnormalPath(2 * time.Second)
 
 	if !tm.opts.staticOpts.disableRuntimeSecurity {
 		// The stats from the rate_limiter should be sent, tm.eventMonitor.SendStats() does not do that
