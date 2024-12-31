@@ -16,6 +16,7 @@ import (
 	"slices"
 
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
+	"github.com/kr/pretty"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,7 +39,8 @@ func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]b
 	var funcName string
 
 	var result = ditypes.TypeMap{
-		Functions: make(map[string][]*ditypes.Parameter),
+		Functions:          make(map[string][]*ditypes.Parameter),
+		PreservedFunctions: make(map[string][]*ditypes.Parameter),
 	}
 
 	var (
@@ -160,6 +162,12 @@ entryLoop:
 		return cmp.Compare(b.LowPC, a.LowPC)
 	})
 
+	for k, v := range result.Functions {
+		dst := []*ditypes.Parameter{}
+		copyTree(&dst, &v)
+		result.PreservedFunctions[k] = dst
+	}
+
 	return &result, nil
 }
 
@@ -228,6 +236,9 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[st
 			return nil, fmt.Errorf("could not get length of array: %w", err)
 		}
 		typeHeader.ParameterPieces = arrayElements
+
+		fmt.Println("Array Elements:", pretty.Sprint(typeHeader))
+
 	} else if typeEntry.Tag == dwarf.TagPointerType {
 		pointerElements, err := getPointerLayers(typeEntry.Offset, dwarfData, seenTypes)
 		if err != nil {
@@ -235,7 +246,6 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[st
 		}
 		typeHeader.ParameterPieces = pointerElements
 	}
-
 	return &typeHeader, nil
 }
 
@@ -506,18 +516,19 @@ func correctStructSize(param *ditypes.Parameter) {
 }
 
 func copyTree(dst, src *[]*ditypes.Parameter) {
-	if dst == nil || src == nil || len(*src) == 0 {
+	if src == nil || dst == nil || *src == nil {
 		return
 	}
 	*dst = make([]*ditypes.Parameter, len(*src))
-	copy(*dst, *src)
-	for i := range *src {
-		// elements can be nil if there was a nil element originally in src
-		// that was copied to dst
-		if (*dst)[i] == nil || (*src)[i] == nil {
+	for i, param := range *src {
+		if param == nil {
+			(*dst)[i] = nil
 			continue
 		}
-		copyTree(&((*dst)[i].ParameterPieces), &((*src)[i].ParameterPieces))
+		newParam := &ditypes.Parameter{}
+		*newParam = *param
+		copyTree(&newParam.ParameterPieces, &param.ParameterPieces)
+		(*dst)[i] = newParam
 	}
 }
 

@@ -34,7 +34,7 @@ func NewDILog(procInfo *ditypes.ProcessInfo, event *ditypes.DIEvent) *ditypes.Sn
 	}
 
 	snapshotID, _ := uuid.NewUUID()
-	argDefs := getFunctionArguments(procInfo, probe)
+	argDefs := procInfo.TypeMap.PreservedFunctions[probe.FuncName]
 	var captures ditypes.Captures
 	if probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters {
 		captures = convertCaptures(argDefs, event.Argdata)
@@ -108,17 +108,19 @@ func convertArgs(defs []*ditypes.Parameter, captures []*ditypes.Param) map[strin
 	args := make(map[string]*ditypes.CapturedValue)
 	for idx, capture := range captures {
 		var (
-			argName   string
-			defPieces []*ditypes.Parameter
+			argName    string
+			captureDef *ditypes.Parameter
+			defPieces  []*ditypes.Parameter
 		)
 		if idx < len(defs) {
 			argName = defs[idx].Name
+			captureDef = defs[idx]
 		}
 		if argName == "" {
 			argName = fmt.Sprintf("arg_%d", idx)
 		}
 		if reflect.Kind(capture.Kind) == reflect.Slice {
-			args[argName] = convertSlice(capture)
+			args[argName] = convertSlice(captureDef, capture)
 			continue
 		}
 		if capture == nil {
@@ -141,29 +143,15 @@ func convertArgs(defs []*ditypes.Parameter, captures []*ditypes.Param) map[strin
 	return args
 }
 
-func convertSlice(capture *ditypes.Param) *ditypes.CapturedValue {
-	defs := []*ditypes.Parameter{}
-	for i := range capture.Fields {
-		var (
-			fieldType string
-			fieldKind uint
-			fieldSize int64
-		)
-		if capture.Fields[i] != nil {
-			fieldType = capture.Fields[i].Type
-			fieldKind = uint(capture.Fields[i].Kind)
-			fieldSize = int64(capture.Fields[i].Size)
-		}
-		defs = append(defs, &ditypes.Parameter{
-			Name:      fmt.Sprintf("[%d]%s", i, fieldType),
-			Type:      fieldType,
-			Kind:      fieldKind,
-			TotalSize: fieldSize,
-		})
+func convertSlice(def *ditypes.Parameter, capture *ditypes.Param) *ditypes.CapturedValue {
+	if def == nil || len(def.ParameterPieces) != 2 {
+		// The definition should have two fields, for type, and for length
+		return nil
 	}
 	sliceValue := &ditypes.CapturedValue{
-		Fields: convertArgs(defs, capture.Fields),
+		Fields: map[string]*ditypes.CapturedValue{},
 	}
+	sliceValue.Fields = convertArgs(def.ParameterPieces, capture.Fields)
 	return sliceValue
 }
 
