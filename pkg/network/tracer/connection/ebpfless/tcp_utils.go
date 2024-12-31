@@ -23,10 +23,10 @@ import (
 
 const ebpflessModuleName = "ebpfless_network_tracer"
 
-// EbpflessTuple represents a unique key for an ebpfless tracer connection.
+// PCAPTuple represents a unique key for an ebpfless tracer connection.
 // It represents a network.Connection with only the fields that are available
 // via packet capture - for example, PID and Direction are removed.
-type EbpflessTuple struct {
+type PCAPTuple struct {
 	Source util.Address
 	Dest   util.Address
 	NetNS  uint32

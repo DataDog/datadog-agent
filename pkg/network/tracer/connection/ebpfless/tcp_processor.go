@@ -74,9 +74,9 @@ func (st *connectionState) hasMissedHandshake() bool {
 type TCPProcessor struct {
 	cfg *config.Config
 	// pendingConns contains connections with tcpState == connStatAttempted
-	pendingConns map[EbpflessTuple]*connectionState
+	pendingConns map[PCAPTuple]*connectionState
 	// establishedConns contains connections with tcpState == connStatEstablished
-	establishedConns map[EbpflessTuple]*connectionState
+	establishedConns map[PCAPTuple]*connectionState
 }
 
 // TODO make this into a config value
@@ -87,8 +87,8 @@ const pendingConnTimeoutNs = uint64(5 * time.Second)
 func NewTCPProcessor(cfg *config.Config) *TCPProcessor {
 	return &TCPProcessor{
 		cfg:              cfg,
-		pendingConns:     make(map[EbpflessTuple]*connectionState, maxPendingConns),
-		establishedConns: make(map[EbpflessTuple]*connectionState, cfg.MaxTrackedConnections),
+		pendingConns:     make(map[PCAPTuple]*connectionState, maxPendingConns),
+		establishedConns: make(map[PCAPTuple]*connectionState, cfg.MaxTrackedConnections),
 	}
 }
 
@@ -322,7 +322,7 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64
 	return ProcessResultNone, nil
 }
 
-func (t *TCPProcessor) getConn(tuple EbpflessTuple) (*connectionState, bool) {
+func (t *TCPProcessor) getConn(tuple PCAPTuple) (*connectionState, bool) {
 	if st, ok := t.establishedConns[tuple]; ok {
 		return st, true
 	}
@@ -333,14 +333,14 @@ func (t *TCPProcessor) getConn(tuple EbpflessTuple) (*connectionState, bool) {
 }
 
 // RemoveConn clears a ConnectionTuple from its internal state.
-func (t *TCPProcessor) RemoveConn(tuple EbpflessTuple) {
+func (t *TCPProcessor) RemoveConn(tuple PCAPTuple) {
 	delete(t.pendingConns, tuple)
 	delete(t.establishedConns, tuple)
 }
 
 // moveConn moves a connection to the correct map based on its tcpState.
 // If it had to drop the connection because the target map was full, it returns false.
-func (t *TCPProcessor) moveConn(tuple EbpflessTuple, st *connectionState) bool {
+func (t *TCPProcessor) moveConn(tuple PCAPTuple, st *connectionState) bool {
 	t.RemoveConn(tuple)
 
 	switch st.tcpState {
@@ -383,8 +383,8 @@ func (t *TCPProcessor) CleanupExpiredPendingConns(timestampNs uint64) {
 
 // MakeEbpflessTuple converts a network.ConnectionTuple to an EbpflessTuple.
 // See the EbpflessTuple doc for more information.
-func MakeEbpflessTuple(tuple network.ConnectionTuple) EbpflessTuple {
-	return EbpflessTuple{
+func MakeEbpflessTuple(tuple network.ConnectionTuple) PCAPTuple {
+	return PCAPTuple{
 		Source: tuple.Source,
 		Dest:   tuple.Dest,
 		NetNS:  tuple.NetNS,
@@ -395,7 +395,7 @@ func MakeEbpflessTuple(tuple network.ConnectionTuple) EbpflessTuple {
 	}
 }
 
-func MakeConnStatsTuple(tuple EbpflessTuple) network.ConnectionTuple {
+func MakeConnStatsTuple(tuple PCAPTuple) network.ConnectionTuple {
 	return network.ConnectionTuple{
 		Source: tuple.Source,
 		Dest:   tuple.Dest,
@@ -412,7 +412,7 @@ func MakeConnStatsTuple(tuple EbpflessTuple) network.ConnectionTuple {
 
 // GetConnDirection returns the direction of the connection.
 // If the SYN packet was not seen (for a pre-existing connection), it returns ConnDirUnknown.
-func (t *TCPProcessor) GetConnDirection(tuple EbpflessTuple) (ConnDirection, bool) {
+func (t *TCPProcessor) GetConnDirection(tuple PCAPTuple) (ConnDirection, bool) {
 	conn, ok := t.getConn(tuple)
 	if !ok {
 		return ConnDirectionUnknown, false

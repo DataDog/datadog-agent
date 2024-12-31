@@ -60,7 +60,7 @@ type ebpfLessTracer struct {
 	tcp *ebpfless.TCPProcessor
 
 	// connection maps
-	conns        map[ebpfless.EbpflessTuple]*network.ConnectionStats
+	conns        map[ebpfless.PCAPTuple]*network.ConnectionStats
 	boundPorts   *ebpfless.BoundPorts
 	cookieHasher *cookieHasher
 
@@ -82,7 +82,7 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 		exit:         make(chan struct{}),
 		udp:          &udpProcessor{},
 		tcp:          ebpfless.NewTCPProcessor(cfg),
-		conns:        make(map[ebpfless.EbpflessTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
+		conns:        make(map[ebpfless.PCAPTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
 		boundPorts:   ebpfless.NewBoundPorts(cfg),
 		cookieHasher: newCookieHasher(),
 	}
@@ -251,8 +251,8 @@ type packetFlags struct {
 }
 
 // buildTuple converts the packet capture layer info into an EbpflessTuple with flags that indicate which layers were present.
-func buildTuple(pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, udp *layers.UDP, tcp *layers.TCP, decoded []gopacket.LayerType) (ebpfless.EbpflessTuple, packetFlags) {
-	var tuple ebpfless.EbpflessTuple
+func buildTuple(pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, udp *layers.UDP, tcp *layers.TCP, decoded []gopacket.LayerType) (ebpfless.PCAPTuple, packetFlags) {
+	var tuple ebpfless.PCAPTuple
 	var flags packetFlags
 	for _, layerType := range decoded {
 		switch layerType {
