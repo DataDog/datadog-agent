@@ -422,7 +422,7 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 		// | none                   | empty           || empty                               |
 		// | empty                  | not empty       || container prefix + originFromMsg    |
 		// | none                   | not empty       || container prefix + originFromMsg    |
-		if t.datadogConfig.dogstatsdOptOutEnabled && originInfo.Cardinality == "none" {
+		if t.datadogConfig.dogstatsdOptOutEnabled && originInfo.Cardinality == types.NoneCardinalityString {
 			originInfo.ContainerIDFromSocket = packets.NoOrigin
 			originInfo.PodUID = ""
 			originInfo.ContainerID = ""
@@ -460,8 +460,7 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 		}
 	default:
 		// Disable origin detection if cardinality is none
-		// TODO: The `none` cardinality should be directly supported by the Tagger.
-		if originInfo.Cardinality == "none" {
+		if originInfo.Cardinality == types.NoneCardinalityString {
 			originInfo.ContainerIDFromSocket = packets.NoOrigin
 			originInfo.PodUID = ""
 			originInfo.ContainerID = ""

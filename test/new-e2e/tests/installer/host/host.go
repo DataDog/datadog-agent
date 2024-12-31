@@ -79,7 +79,14 @@ func (h *Host) setSystemdVersion() {
 
 // InstallDocker installs Docker on the host if it is not already installed.
 func (h *Host) InstallDocker() {
-	defer func() { h.remote.MustExecute("sudo systemctl start docker") }()
+	defer func() {
+		_, err := h.remote.Execute("sudo systemctl reset-failed docker")
+		if err != nil {
+			h.t.Logf("warn: failed to reset-failed for docker.d: %v", err)
+		}
+		_, err = h.remote.Execute("sudo systemctl start docker")
+		require.NoErrorf(h.t, err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))
+	}()
 	if _, err := h.remote.Execute("command -v docker"); err == nil {
 		return
 	}

@@ -54,7 +54,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	}
 	log.Infof("host scan request [%v]", hostScanRequest.ID())
 
-	report, err := c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.FS, hostScanRequest.Path, c.opts)
+	report, err := c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.Path, c.opts)
 	return sbom.ScanResult{
 		Error:  err,
 		Report: report,

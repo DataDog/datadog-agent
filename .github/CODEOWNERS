@@ -126,6 +126,7 @@
 /.gitlab/deploy_dca/                                 @DataDog/container-integrations @DataDog/agent-delivery
 
 /.gitlab/deploy_packages/                               @DataDog/agent-delivery
+/.gitlab/deploy_packages/oci.yml                        @DataDog/agent-delivery @DataDog/fleet
 /.gitlab/deploy_packages/windows.yml                    @DataDog/agent-delivery @DataDog/windows-agent
 /.gitlab/deploy_packages/winget.yml                     @DataDog/agent-delivery @DataDog/windows-agent
 /.gitlab/deploy_packages/cluster_agent_cloudfoundry.yml @DataDog/platform-integrations @DataDog/agent-devx-infra
@@ -148,7 +149,6 @@
 /.gitlab/powershell_script_deploy                    @DataDog/agent-delivery @DataDog/windows-agent
 
 /.gitlab/choco_build/choco_build.yml                 @DataDog/agent-delivery @DataDog/windows-agent
-/.gitlab/choco_deploy/choco_deploy.yml               @DataDog/agent-delivery @DataDog/windows-agent
 
 /.gitlab/integration_test/windows.yml                @DataDog/agent-devx-infra @DataDog/windows-agent
 
@@ -176,6 +176,7 @@
 
 /.gitlab/package_build/                              @DataDog/agent-delivery
 /.gitlab/package_build/windows.yml                   @DataDog/agent-delivery @DataDog/windows-agent
+/.gitlab/package_build/installer.yml                 @DataDog/agent-delivery @DataDog/fleet
 /.gitlab/packaging/                                  @DataDog/agent-delivery
 
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
@@ -463,6 +464,7 @@
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-platform @DataDog/container-app
 /pkg/util/podman/                       @DataDog/container-integrations
 /pkg/util/prometheus                    @DataDog/container-integrations
+/pkg/util/tags/                         @DataDog/container-platform
 /pkg/util/trivy/                        @DataDog/container-integrations @DataDog/agent-security
 /pkg/util/uuid/                         @DataDog/agent-shared-components
 /pkg/util/cgroups/                      @DataDog/container-integrations
