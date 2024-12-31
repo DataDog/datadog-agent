@@ -42,4 +42,5 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
 	github.com/tinylib/msgp v1.1.6 // indirect
+	golang.org/x/crypto v0.31.0 // indirect
 )
