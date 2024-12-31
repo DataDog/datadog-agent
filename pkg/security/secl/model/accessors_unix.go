@@ -29188,5703 +29188,2854 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	}
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
-func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
+func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, error) {
 	switch field {
 	case "bind.addr.family":
-		return "bind", nil
+		return "bind", reflect.Int, nil
 	case "bind.addr.ip":
-		return "bind", nil
+		return "bind", reflect.Struct, nil
 	case "bind.addr.is_public":
-		return "bind", nil
+		return "bind", reflect.Bool, nil
 	case "bind.addr.port":
-		return "bind", nil
+		return "bind", reflect.Int, nil
 	case "bind.protocol":
-		return "bind", nil
+		return "bind", reflect.Int, nil
 	case "bind.retval":
-		return "bind", nil
+		return "bind", reflect.Int, nil
 	case "bpf.cmd":
-		return "bpf", nil
+		return "bpf", reflect.Int, nil
 	case "bpf.map.name":
-		return "bpf", nil
+		return "bpf", reflect.String, nil
 	case "bpf.map.type":
-		return "bpf", nil
+		return "bpf", reflect.Int, nil
 	case "bpf.prog.attach_type":
-		return "bpf", nil
+		return "bpf", reflect.Int, nil
 	case "bpf.prog.helpers":
-		return "bpf", nil
+		return "bpf", reflect.Int, nil
 	case "bpf.prog.name":
-		return "bpf", nil
+		return "bpf", reflect.String, nil
 	case "bpf.prog.tag":
-		return "bpf", nil
+		return "bpf", reflect.String, nil
 	case "bpf.prog.type":
-		return "bpf", nil
+		return "bpf", reflect.Int, nil
 	case "bpf.retval":
-		return "bpf", nil
+		return "bpf", reflect.Int, nil
 	case "capset.cap_effective":
-		return "capset", nil
+		return "capset", reflect.Int, nil
 	case "capset.cap_permitted":
-		return "capset", nil
+		return "capset", reflect.Int, nil
 	case "cgroup.file.inode":
-		return "", nil
+		return "", reflect.Int, nil
 	case "cgroup.file.mount_id":
-		return "", nil
+		return "", reflect.Int, nil
 	case "cgroup.id":
-		return "", nil
+		return "", reflect.String, nil
 	case "cgroup.manager":
-		return "", nil
+		return "", reflect.String, nil
 	case "cgroup.version":
-		return "", nil
+		return "", reflect.Int, nil
 	case "chdir.file.change_time":
-		return "chdir", nil
+		return "chdir", reflect.Int, nil
 	case "chdir.file.filesystem":
-		return "chdir", nil
+		return "chdir", reflect.String, nil
 	case "chdir.file.gid":
-		return "chdir", nil
+		return "chdir", reflect.Int, nil
 	case "chdir.file.group":
-		return "chdir", nil
+		return "chdir", reflect.String, nil
 	case "chdir.file.hashes":
-		return "chdir", nil
+		return "chdir", reflect.String, nil
 	case "chdir.file.in_upper_layer":
-		return "chdir", nil
+		return "chdir", reflect.Bool, nil
 	case "chdir.file.inode":
-		return "chdir", nil
+		return "chdir", reflect.Int, nil
 	case "chdir.file.mode":
-		return "chdir", nil
+		return "chdir", reflect.Int, nil
 	case "chdir.file.modification_time":
-		return "chdir", nil
+		return "chdir", reflect.Int, nil
 	case "chdir.file.mount_id":
-		return "chdir", nil
+		return "chdir", reflect.Int, nil
 	case "chdir.file.name":
-		return "chdir", nil
+		return "chdir", reflect.String, nil
 	case "chdir.file.name.length":
-		return "chdir", nil
+		return "chdir", reflect.Int, nil
 	case "chdir.file.package.name":
-		return "chdir", nil
+		return "chdir", reflect.String, nil
 	case "chdir.file.package.source_version":
-		return "chdir", nil
+		return "chdir", reflect.String, nil
 	case "chdir.file.package.version":
-		return "chdir", nil
+		return "chdir", reflect.String, nil
 	case "chdir.file.path":
-		return "chdir", nil
+		return "chdir", reflect.String, nil
 	case "chdir.file.path.length":
-		return "chdir", nil
+		return "chdir", reflect.Int, nil
 	case "chdir.file.rights":
-		return "chdir", nil
+		return "chdir", reflect.Int, nil
 	case "chdir.file.uid":
-		return "chdir", nil
+		return "chdir", reflect.Int, nil
 	case "chdir.file.user":
-		return "chdir", nil
+		return "chdir", reflect.String, nil
 	case "chdir.retval":
-		return "chdir", nil
+		return "chdir", reflect.Int, nil
 	case "chdir.syscall.path":
-		return "chdir", nil
+		return "chdir", reflect.String, nil
 	case "chmod.file.change_time":
-		return "chmod", nil
+		return "chmod", reflect.Int, nil
 	case "chmod.file.destination.mode":
-		return "chmod", nil
+		return "chmod", reflect.Int, nil
 	case "chmod.file.destination.rights":
-		return "chmod", nil
+		return "chmod", reflect.Int, nil
 	case "chmod.file.filesystem":
-		return "chmod", nil
+		return "chmod", reflect.String, nil
 	case "chmod.file.gid":
-		return "chmod", nil
+		return "chmod", reflect.Int, nil
 	case "chmod.file.group":
-		return "chmod", nil
+		return "chmod", reflect.String, nil
 	case "chmod.file.hashes":
-		return "chmod", nil
+		return "chmod", reflect.String, nil
 	case "chmod.file.in_upper_layer":
-		return "chmod", nil
+		return "chmod", reflect.Bool, nil
 	case "chmod.file.inode":
-		return "chmod", nil
+		return "chmod", reflect.Int, nil
 	case "chmod.file.mode":
-		return "chmod", nil
+		return "chmod", reflect.Int, nil
 	case "chmod.file.modification_time":
-		return "chmod", nil
+		return "chmod", reflect.Int, nil
 	case "chmod.file.mount_id":
-		return "chmod", nil
+		return "chmod", reflect.Int, nil
 	case "chmod.file.name":
-		return "chmod", nil
+		return "chmod", reflect.String, nil
 	case "chmod.file.name.length":
-		return "chmod", nil
+		return "chmod", reflect.Int, nil
 	case "chmod.file.package.name":
-		return "chmod", nil
+		return "chmod", reflect.String, nil
 	case "chmod.file.package.source_version":
-		return "chmod", nil
+		return "chmod", reflect.String, nil
 	case "chmod.file.package.version":
-		return "chmod", nil
+		return "chmod", reflect.String, nil
 	case "chmod.file.path":
-		return "chmod", nil
+		return "chmod", reflect.String, nil
 	case "chmod.file.path.length":
-		return "chmod", nil
+		return "chmod", reflect.Int, nil
 	case "chmod.file.rights":
-		return "chmod", nil
+		return "chmod", reflect.Int, nil
 	case "chmod.file.uid":
-		return "chmod", nil
+		return "chmod", reflect.Int, nil
 	case "chmod.file.user":
-		return "chmod", nil
+		return "chmod", reflect.String, nil
 	case "chmod.retval":
-		return "chmod", nil
+		return "chmod", reflect.Int, nil
 	case "chmod.syscall.mode":
-		return "chmod", nil
+		return "chmod", reflect.Int, nil
 	case "chmod.syscall.path":
-		return "chmod", nil
+		return "chmod", reflect.String, nil
 	case "chown.file.change_time":
-		return "chown", nil
+		return "chown", reflect.Int, nil
 	case "chown.file.destination.gid":
-		return "chown", nil
+		return "chown", reflect.Int, nil
 	case "chown.file.destination.group":
-		return "chown", nil
+		return "chown", reflect.String, nil
 	case "chown.file.destination.uid":
-		return "chown", nil
+		return "chown", reflect.Int, nil
 	case "chown.file.destination.user":
-		return "chown", nil
+		return "chown", reflect.String, nil
 	case "chown.file.filesystem":
-		return "chown", nil
+		return "chown", reflect.String, nil
 	case "chown.file.gid":
-		return "chown", nil
+		return "chown", reflect.Int, nil
 	case "chown.file.group":
-		return "chown", nil
+		return "chown", reflect.String, nil
 	case "chown.file.hashes":
-		return "chown", nil
+		return "chown", reflect.String, nil
 	case "chown.file.in_upper_layer":
-		return "chown", nil
+		return "chown", reflect.Bool, nil
 	case "chown.file.inode":
-		return "chown", nil
+		return "chown", reflect.Int, nil
 	case "chown.file.mode":
-		return "chown", nil
+		return "chown", reflect.Int, nil
 	case "chown.file.modification_time":
-		return "chown", nil
+		return "chown", reflect.Int, nil
 	case "chown.file.mount_id":
-		return "chown", nil
+		return "chown", reflect.Int, nil
 	case "chown.file.name":
-		return "chown", nil
+		return "chown", reflect.String, nil
 	case "chown.file.name.length":
-		return "chown", nil
+		return "chown", reflect.Int, nil
 	case "chown.file.package.name":
-		return "chown", nil
+		return "chown", reflect.String, nil
 	case "chown.file.package.source_version":
-		return "chown", nil
+		return "chown", reflect.String, nil
 	case "chown.file.package.version":
-		return "chown", nil
+		return "chown", reflect.String, nil
 	case "chown.file.path":
-		return "chown", nil
+		return "chown", reflect.String, nil
 	case "chown.file.path.length":
-		return "chown", nil
+		return "chown", reflect.Int, nil
 	case "chown.file.rights":
-		return "chown", nil
+		return "chown", reflect.Int, nil
 	case "chown.file.uid":
-		return "chown", nil
+		return "chown", reflect.Int, nil
 	case "chown.file.user":
-		return "chown", nil
+		return "chown", reflect.String, nil
 	case "chown.retval":
-		return "chown", nil
+		return "chown", reflect.Int, nil
 	case "chown.syscall.gid":
-		return "chown", nil
+		return "chown", reflect.Int, nil
 	case "chown.syscall.path":
-		return "chown", nil
+		return "chown", reflect.String, nil
 	case "chown.syscall.uid":
-		return "chown", nil
+		return "chown", reflect.Int, nil
 	case "connect.addr.family":
-		return "connect", nil
+		return "connect", reflect.Int, nil
 	case "connect.addr.ip":
-		return "connect", nil
+		return "connect", reflect.Struct, nil
 	case "connect.addr.is_public":
-		return "connect", nil
+		return "connect", reflect.Bool, nil
 	case "connect.addr.port":
-		return "connect", nil
+		return "connect", reflect.Int, nil
 	case "connect.protocol":
-		return "connect", nil
+		return "connect", reflect.Int, nil
 	case "connect.retval":
-		return "connect", nil
+		return "connect", reflect.Int, nil
 	case "container.created_at":
-		return "", nil
+		return "", reflect.Int, nil
 	case "container.id":
-		return "", nil
+		return "", reflect.String, nil
 	case "container.runtime":
-		return "", nil
+		return "", reflect.String, nil
 	case "container.tags":
-		return "", nil
+		return "", reflect.String, nil
 	case "dns.id":
-		return "dns", nil
+		return "dns", reflect.Int, nil
 	case "dns.question.class":
-		return "dns", nil
+		return "dns", reflect.Int, nil
 	case "dns.question.count":
-		return "dns", nil
+		return "dns", reflect.Int, nil
 	case "dns.question.length":
-		return "dns", nil
+		return "dns", reflect.Int, nil
 	case "dns.question.name":
-		return "dns", nil
+		return "dns", reflect.String, nil
 	case "dns.question.name.length":
-		return "dns", nil
+		return "dns", reflect.Int, nil
 	case "dns.question.type":
-		return "dns", nil
+		return "dns", reflect.Int, nil
 	case "event.async":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "event.hostname":
-		return "", nil
+		return "", reflect.String, nil
 	case "event.origin":
-		return "", nil
+		return "", reflect.String, nil
 	case "event.os":
-		return "", nil
+		return "", reflect.String, nil
 	case "event.service":
-		return "", nil
+		return "", reflect.String, nil
 	case "event.timestamp":
-		return "", nil
+		return "", reflect.Int, nil
 	case "exec.args":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.args_flags":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.args_options":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.args_truncated":
-		return "exec", nil
+		return "exec", reflect.Bool, nil
 	case "exec.argv":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.argv0":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.auid":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.cap_effective":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.cap_permitted":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.cgroup.file.inode":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.cgroup.file.mount_id":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.cgroup.id":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.cgroup.manager":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.cgroup.version":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.comm":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.container.id":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.created_at":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.egid":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.egroup":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.envp":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.envs":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.envs_truncated":
-		return "exec", nil
+		return "exec", reflect.Bool, nil
 	case "exec.euid":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.euser":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.file.change_time":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.file.filesystem":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.file.gid":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.file.group":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.file.hashes":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.file.in_upper_layer":
-		return "exec", nil
+		return "exec", reflect.Bool, nil
 	case "exec.file.inode":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.file.mode":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.file.modification_time":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.file.mount_id":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.file.name":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.file.name.length":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.file.package.name":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.file.package.source_version":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.file.package.version":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.file.path":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.file.path.length":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.file.rights":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.file.uid":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.file.user":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.fsgid":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.fsgroup":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.fsuid":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.fsuser":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.gid":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.group":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.interpreter.file.change_time":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.interpreter.file.filesystem":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.interpreter.file.gid":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.interpreter.file.group":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.interpreter.file.hashes":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.interpreter.file.in_upper_layer":
-		return "exec", nil
+		return "exec", reflect.Bool, nil
 	case "exec.interpreter.file.inode":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.interpreter.file.mode":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.interpreter.file.modification_time":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.interpreter.file.mount_id":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.interpreter.file.name":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.interpreter.file.name.length":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.interpreter.file.package.name":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.interpreter.file.package.source_version":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.interpreter.file.package.version":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.interpreter.file.path":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.interpreter.file.path.length":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.interpreter.file.rights":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.interpreter.file.uid":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.interpreter.file.user":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.is_exec":
-		return "exec", nil
+		return "exec", reflect.Bool, nil
 	case "exec.is_kworker":
-		return "exec", nil
+		return "exec", reflect.Bool, nil
 	case "exec.is_thread":
-		return "exec", nil
+		return "exec", reflect.Bool, nil
 	case "exec.pid":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.ppid":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.syscall.path":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.tid":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.tty_name":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.uid":
-		return "exec", nil
+		return "exec", reflect.Int, nil
 	case "exec.user":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.user_session.k8s_groups":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.user_session.k8s_uid":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exec.user_session.k8s_username":
-		return "exec", nil
+		return "exec", reflect.String, nil
 	case "exit.args":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.args_flags":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.args_options":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.args_truncated":
-		return "exit", nil
+		return "exit", reflect.Bool, nil
 	case "exit.argv":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.argv0":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.auid":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.cap_effective":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.cap_permitted":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.cause":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.cgroup.file.inode":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.cgroup.file.mount_id":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.cgroup.id":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.cgroup.manager":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.cgroup.version":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.code":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.comm":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.container.id":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.created_at":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.egid":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.egroup":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.envp":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.envs":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.envs_truncated":
-		return "exit", nil
+		return "exit", reflect.Bool, nil
 	case "exit.euid":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.euser":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.file.change_time":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.file.filesystem":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.file.gid":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.file.group":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.file.hashes":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.file.in_upper_layer":
-		return "exit", nil
+		return "exit", reflect.Bool, nil
 	case "exit.file.inode":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.file.mode":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.file.modification_time":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.file.mount_id":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.file.name":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.file.name.length":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.file.package.name":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.file.package.source_version":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.file.package.version":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.file.path":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.file.path.length":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.file.rights":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.file.uid":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.file.user":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.fsgid":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.fsgroup":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.fsuid":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.fsuser":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.gid":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.group":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.interpreter.file.change_time":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.interpreter.file.filesystem":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.interpreter.file.gid":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.interpreter.file.group":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.interpreter.file.hashes":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.interpreter.file.in_upper_layer":
-		return "exit", nil
+		return "exit", reflect.Bool, nil
 	case "exit.interpreter.file.inode":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.interpreter.file.mode":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.interpreter.file.modification_time":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.interpreter.file.mount_id":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.interpreter.file.name":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.interpreter.file.name.length":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.interpreter.file.package.name":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.interpreter.file.package.source_version":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.interpreter.file.package.version":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.interpreter.file.path":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.interpreter.file.path.length":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.interpreter.file.rights":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.interpreter.file.uid":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.interpreter.file.user":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.is_exec":
-		return "exit", nil
+		return "exit", reflect.Bool, nil
 	case "exit.is_kworker":
-		return "exit", nil
+		return "exit", reflect.Bool, nil
 	case "exit.is_thread":
-		return "exit", nil
+		return "exit", reflect.Bool, nil
 	case "exit.pid":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.ppid":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.tid":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.tty_name":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.uid":
-		return "exit", nil
+		return "exit", reflect.Int, nil
 	case "exit.user":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.user_session.k8s_groups":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.user_session.k8s_uid":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "exit.user_session.k8s_username":
-		return "exit", nil
+		return "exit", reflect.String, nil
 	case "imds.aws.is_imds_v2":
-		return "imds", nil
+		return "imds", reflect.Bool, nil
 	case "imds.aws.security_credentials.type":
-		return "imds", nil
+		return "imds", reflect.String, nil
 	case "imds.cloud_provider":
-		return "imds", nil
+		return "imds", reflect.String, nil
 	case "imds.host":
-		return "imds", nil
+		return "imds", reflect.String, nil
 	case "imds.server":
-		return "imds", nil
+		return "imds", reflect.String, nil
 	case "imds.type":
-		return "imds", nil
+		return "imds", reflect.String, nil
 	case "imds.url":
-		return "imds", nil
+		return "imds", reflect.String, nil
 	case "imds.user_agent":
-		return "imds", nil
+		return "imds", reflect.String, nil
 	case "link.file.change_time":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.destination.change_time":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.destination.filesystem":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.destination.gid":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.destination.group":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.destination.hashes":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.destination.in_upper_layer":
-		return "link", nil
+		return "link", reflect.Bool, nil
 	case "link.file.destination.inode":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.destination.mode":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.destination.modification_time":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.destination.mount_id":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.destination.name":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.destination.name.length":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.destination.package.name":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.destination.package.source_version":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.destination.package.version":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.destination.path":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.destination.path.length":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.destination.rights":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.destination.uid":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.destination.user":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.filesystem":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.gid":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.group":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.hashes":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.in_upper_layer":
-		return "link", nil
+		return "link", reflect.Bool, nil
 	case "link.file.inode":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.mode":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.modification_time":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.mount_id":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.name":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.name.length":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.package.name":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.package.source_version":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.package.version":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.path":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.file.path.length":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.rights":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.uid":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.file.user":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.retval":
-		return "link", nil
+		return "link", reflect.Int, nil
 	case "link.syscall.destination.path":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "link.syscall.path":
-		return "link", nil
+		return "link", reflect.String, nil
 	case "load_module.args":
-		return "load_module", nil
+		return "load_module", reflect.String, nil
 	case "load_module.args_truncated":
-		return "load_module", nil
+		return "load_module", reflect.Bool, nil
 	case "load_module.argv":
-		return "load_module", nil
+		return "load_module", reflect.String, nil
 	case "load_module.file.change_time":
-		return "load_module", nil
+		return "load_module", reflect.Int, nil
 	case "load_module.file.filesystem":
-		return "load_module", nil
+		return "load_module", reflect.String, nil
 	case "load_module.file.gid":
-		return "load_module", nil
+		return "load_module", reflect.Int, nil
 	case "load_module.file.group":
-		return "load_module", nil
+		return "load_module", reflect.String, nil
 	case "load_module.file.hashes":
-		return "load_module", nil
+		return "load_module", reflect.String, nil
 	case "load_module.file.in_upper_layer":
-		return "load_module", nil
+		return "load_module", reflect.Bool, nil
 	case "load_module.file.inode":
-		return "load_module", nil
+		return "load_module", reflect.Int, nil
 	case "load_module.file.mode":
-		return "load_module", nil
+		return "load_module", reflect.Int, nil
 	case "load_module.file.modification_time":
-		return "load_module", nil
+		return "load_module", reflect.Int, nil
 	case "load_module.file.mount_id":
-		return "load_module", nil
+		return "load_module", reflect.Int, nil
 	case "load_module.file.name":
-		return "load_module", nil
+		return "load_module", reflect.String, nil
 	case "load_module.file.name.length":
-		return "load_module", nil
+		return "load_module", reflect.Int, nil
 	case "load_module.file.package.name":
-		return "load_module", nil
+		return "load_module", reflect.String, nil
 	case "load_module.file.package.source_version":
-		return "load_module", nil
+		return "load_module", reflect.String, nil
 	case "load_module.file.package.version":
-		return "load_module", nil
+		return "load_module", reflect.String, nil
 	case "load_module.file.path":
-		return "load_module", nil
+		return "load_module", reflect.String, nil
 	case "load_module.file.path.length":
-		return "load_module", nil
+		return "load_module", reflect.Int, nil
 	case "load_module.file.rights":
-		return "load_module", nil
+		return "load_module", reflect.Int, nil
 	case "load_module.file.uid":
-		return "load_module", nil
+		return "load_module", reflect.Int, nil
 	case "load_module.file.user":
-		return "load_module", nil
+		return "load_module", reflect.String, nil
 	case "load_module.loaded_from_memory":
-		return "load_module", nil
+		return "load_module", reflect.Bool, nil
 	case "load_module.name":
-		return "load_module", nil
+		return "load_module", reflect.String, nil
 	case "load_module.retval":
-		return "load_module", nil
+		return "load_module", reflect.Int, nil
 	case "mkdir.file.change_time":
-		return "mkdir", nil
+		return "mkdir", reflect.Int, nil
 	case "mkdir.file.destination.mode":
-		return "mkdir", nil
+		return "mkdir", reflect.Int, nil
 	case "mkdir.file.destination.rights":
-		return "mkdir", nil
+		return "mkdir", reflect.Int, nil
 	case "mkdir.file.filesystem":
-		return "mkdir", nil
+		return "mkdir", reflect.String, nil
 	case "mkdir.file.gid":
-		return "mkdir", nil
+		return "mkdir", reflect.Int, nil
 	case "mkdir.file.group":
-		return "mkdir", nil
+		return "mkdir", reflect.String, nil
 	case "mkdir.file.hashes":
-		return "mkdir", nil
+		return "mkdir", reflect.String, nil
 	case "mkdir.file.in_upper_layer":
-		return "mkdir", nil
+		return "mkdir", reflect.Bool, nil
 	case "mkdir.file.inode":
-		return "mkdir", nil
+		return "mkdir", reflect.Int, nil
 	case "mkdir.file.mode":
-		return "mkdir", nil
+		return "mkdir", reflect.Int, nil
 	case "mkdir.file.modification_time":
-		return "mkdir", nil
+		return "mkdir", reflect.Int, nil
 	case "mkdir.file.mount_id":
-		return "mkdir", nil
+		return "mkdir", reflect.Int, nil
 	case "mkdir.file.name":
-		return "mkdir", nil
+		return "mkdir", reflect.String, nil
 	case "mkdir.file.name.length":
-		return "mkdir", nil
+		return "mkdir", reflect.Int, nil
 	case "mkdir.file.package.name":
-		return "mkdir", nil
+		return "mkdir", reflect.String, nil
 	case "mkdir.file.package.source_version":
-		return "mkdir", nil
+		return "mkdir", reflect.String, nil
 	case "mkdir.file.package.version":
-		return "mkdir", nil
+		return "mkdir", reflect.String, nil
 	case "mkdir.file.path":
-		return "mkdir", nil
+		return "mkdir", reflect.String, nil
 	case "mkdir.file.path.length":
-		return "mkdir", nil
+		return "mkdir", reflect.Int, nil
 	case "mkdir.file.rights":
-		return "mkdir", nil
+		return "mkdir", reflect.Int, nil
 	case "mkdir.file.uid":
-		return "mkdir", nil
+		return "mkdir", reflect.Int, nil
 	case "mkdir.file.user":
-		return "mkdir", nil
+		return "mkdir", reflect.String, nil
 	case "mkdir.retval":
-		return "mkdir", nil
+		return "mkdir", reflect.Int, nil
 	case "mmap.file.change_time":
-		return "mmap", nil
+		return "mmap", reflect.Int, nil
 	case "mmap.file.filesystem":
-		return "mmap", nil
+		return "mmap", reflect.String, nil
 	case "mmap.file.gid":
-		return "mmap", nil
+		return "mmap", reflect.Int, nil
 	case "mmap.file.group":
-		return "mmap", nil
+		return "mmap", reflect.String, nil
 	case "mmap.file.hashes":
-		return "mmap", nil
+		return "mmap", reflect.String, nil
 	case "mmap.file.in_upper_layer":
-		return "mmap", nil
+		return "mmap", reflect.Bool, nil
 	case "mmap.file.inode":
-		return "mmap", nil
+		return "mmap", reflect.Int, nil
 	case "mmap.file.mode":
-		return "mmap", nil
+		return "mmap", reflect.Int, nil
 	case "mmap.file.modification_time":
-		return "mmap", nil
+		return "mmap", reflect.Int, nil
 	case "mmap.file.mount_id":
-		return "mmap", nil
+		return "mmap", reflect.Int, nil
 	case "mmap.file.name":
-		return "mmap", nil
+		return "mmap", reflect.String, nil
 	case "mmap.file.name.length":
-		return "mmap", nil
+		return "mmap", reflect.Int, nil
 	case "mmap.file.package.name":
-		return "mmap", nil
+		return "mmap", reflect.String, nil
 	case "mmap.file.package.source_version":
-		return "mmap", nil
+		return "mmap", reflect.String, nil
 	case "mmap.file.package.version":
-		return "mmap", nil
+		return "mmap", reflect.String, nil
 	case "mmap.file.path":
-		return "mmap", nil
+		return "mmap", reflect.String, nil
 	case "mmap.file.path.length":
-		return "mmap", nil
+		return "mmap", reflect.Int, nil
 	case "mmap.file.rights":
-		return "mmap", nil
+		return "mmap", reflect.Int, nil
 	case "mmap.file.uid":
-		return "mmap", nil
+		return "mmap", reflect.Int, nil
 	case "mmap.file.user":
-		return "mmap", nil
+		return "mmap", reflect.String, nil
 	case "mmap.flags":
-		return "mmap", nil
+		return "mmap", reflect.Int, nil
 	case "mmap.protection":
-		return "mmap", nil
+		return "mmap", reflect.Int, nil
 	case "mmap.retval":
-		return "mmap", nil
+		return "mmap", reflect.Int, nil
 	case "mount.fs_type":
-		return "mount", nil
+		return "mount", reflect.String, nil
 	case "mount.mountpoint.path":
-		return "mount", nil
+		return "mount", reflect.String, nil
 	case "mount.retval":
-		return "mount", nil
+		return "mount", reflect.Int, nil
 	case "mount.root.path":
-		return "mount", nil
+		return "mount", reflect.String, nil
 	case "mount.source.path":
-		return "mount", nil
+		return "mount", reflect.String, nil
 	case "mount.syscall.fs_type":
-		return "mount", nil
+		return "mount", reflect.String, nil
 	case "mount.syscall.mountpoint.path":
-		return "mount", nil
+		return "mount", reflect.String, nil
 	case "mount.syscall.source.path":
-		return "mount", nil
+		return "mount", reflect.String, nil
 	case "mprotect.req_protection":
-		return "mprotect", nil
+		return "mprotect", reflect.Int, nil
 	case "mprotect.retval":
-		return "mprotect", nil
+		return "mprotect", reflect.Int, nil
 	case "mprotect.vm_protection":
-		return "mprotect", nil
+		return "mprotect", reflect.Int, nil
 	case "network.destination.ip":
-		return "", nil
+		return "", reflect.Struct, nil
 	case "network.destination.is_public":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "network.destination.port":
-		return "", nil
+		return "", reflect.Int, nil
 	case "network.device.ifname":
-		return "", nil
+		return "", reflect.String, nil
 	case "network.l3_protocol":
-		return "", nil
+		return "", reflect.Int, nil
 	case "network.l4_protocol":
-		return "", nil
+		return "", reflect.Int, nil
 	case "network.size":
-		return "", nil
+		return "", reflect.Int, nil
 	case "network.source.ip":
-		return "", nil
+		return "", reflect.Struct, nil
 	case "network.source.is_public":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "network.source.port":
-		return "", nil
+		return "", reflect.Int, nil
 	case "ondemand.arg1.str":
-		return "ondemand", nil
+		return "ondemand", reflect.String, nil
 	case "ondemand.arg1.uint":
-		return "ondemand", nil
+		return "ondemand", reflect.Int, nil
 	case "ondemand.arg2.str":
-		return "ondemand", nil
+		return "ondemand", reflect.String, nil
 	case "ondemand.arg2.uint":
-		return "ondemand", nil
+		return "ondemand", reflect.Int, nil
 	case "ondemand.arg3.str":
-		return "ondemand", nil
+		return "ondemand", reflect.String, nil
 	case "ondemand.arg3.uint":
-		return "ondemand", nil
+		return "ondemand", reflect.Int, nil
 	case "ondemand.arg4.str":
-		return "ondemand", nil
+		return "ondemand", reflect.String, nil
 	case "ondemand.arg4.uint":
-		return "ondemand", nil
+		return "ondemand", reflect.Int, nil
 	case "ondemand.name":
-		return "ondemand", nil
+		return "ondemand", reflect.String, nil
 	case "open.file.change_time":
-		return "open", nil
+		return "open", reflect.Int, nil
 	case "open.file.destination.mode":
-		return "open", nil
+		return "open", reflect.Int, nil
 	case "open.file.filesystem":
-		return "open", nil
+		return "open", reflect.String, nil
 	case "open.file.gid":
-		return "open", nil
+		return "open", reflect.Int, nil
 	case "open.file.group":
-		return "open", nil
+		return "open", reflect.String, nil
 	case "open.file.hashes":
-		return "open", nil
+		return "open", reflect.String, nil
 	case "open.file.in_upper_layer":
-		return "open", nil
+		return "open", reflect.Bool, nil
 	case "open.file.inode":
-		return "open", nil
+		return "open", reflect.Int, nil
 	case "open.file.mode":
-		return "open", nil
+		return "open", reflect.Int, nil
 	case "open.file.modification_time":
-		return "open", nil
+		return "open", reflect.Int, nil
 	case "open.file.mount_id":
-		return "open", nil
+		return "open", reflect.Int, nil
 	case "open.file.name":
-		return "open", nil
+		return "open", reflect.String, nil
 	case "open.file.name.length":
-		return "open", nil
+		return "open", reflect.Int, nil
 	case "open.file.package.name":
-		return "open", nil
+		return "open", reflect.String, nil
 	case "open.file.package.source_version":
-		return "open", nil
+		return "open", reflect.String, nil
 	case "open.file.package.version":
-		return "open", nil
+		return "open", reflect.String, nil
 	case "open.file.path":
-		return "open", nil
+		return "open", reflect.String, nil
 	case "open.file.path.length":
-		return "open", nil
+		return "open", reflect.Int, nil
 	case "open.file.rights":
-		return "open", nil
+		return "open", reflect.Int, nil
 	case "open.file.uid":
-		return "open", nil
+		return "open", reflect.Int, nil
 	case "open.file.user":
-		return "open", nil
+		return "open", reflect.String, nil
 	case "open.flags":
-		return "open", nil
+		return "open", reflect.Int, nil
 	case "open.retval":
-		return "open", nil
+		return "open", reflect.Int, nil
 	case "open.syscall.flags":
-		return "open", nil
+		return "open", reflect.Int, nil
 	case "open.syscall.mode":
-		return "open", nil
+		return "open", reflect.Int, nil
 	case "open.syscall.path":
-		return "open", nil
+		return "open", reflect.String, nil
 	case "packet.destination.ip":
-		return "packet", nil
+		return "packet", reflect.Struct, nil
 	case "packet.destination.is_public":
-		return "packet", nil
+		return "packet", reflect.Bool, nil
 	case "packet.destination.port":
-		return "packet", nil
+		return "packet", reflect.Int, nil
 	case "packet.device.ifname":
-		return "packet", nil
+		return "packet", reflect.String, nil
 	case "packet.filter":
-		return "packet", nil
+		return "packet", reflect.String, nil
 	case "packet.l3_protocol":
-		return "packet", nil
+		return "packet", reflect.Int, nil
 	case "packet.l4_protocol":
-		return "packet", nil
+		return "packet", reflect.Int, nil
 	case "packet.size":
-		return "packet", nil
+		return "packet", reflect.Int, nil
 	case "packet.source.ip":
-		return "packet", nil
+		return "packet", reflect.Struct, nil
 	case "packet.source.is_public":
-		return "packet", nil
+		return "packet", reflect.Bool, nil
 	case "packet.source.port":
-		return "packet", nil
+		return "packet", reflect.Int, nil
 	case "packet.tls.version":
-		return "packet", nil
+		return "packet", reflect.Int, nil
 	case "process.ancestors.args":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.args_flags":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.args_options":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.args_truncated":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.ancestors.argv":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.argv0":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.auid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.cap_effective":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.cap_permitted":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.cgroup.file.inode":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.cgroup.file.mount_id":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.cgroup.id":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.cgroup.manager":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.cgroup.version":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.comm":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.container.id":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.created_at":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.egid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.egroup":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.envp":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.envs":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.envs_truncated":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.ancestors.euid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.euser":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.file.change_time":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.file.filesystem":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.file.gid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.file.group":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.file.hashes":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.file.in_upper_layer":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.ancestors.file.inode":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.file.mode":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.file.modification_time":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.file.mount_id":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.file.name":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.file.name.length":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.file.package.name":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.file.package.source_version":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.file.package.version":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.file.path":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.file.path.length":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.file.rights":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.file.uid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.file.user":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.fsgid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.fsgroup":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.fsuid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.fsuser":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.gid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.group":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.interpreter.file.change_time":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.interpreter.file.filesystem":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.interpreter.file.gid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.interpreter.file.group":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.interpreter.file.hashes":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.interpreter.file.in_upper_layer":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.ancestors.interpreter.file.inode":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.interpreter.file.mode":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.interpreter.file.modification_time":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.interpreter.file.mount_id":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.interpreter.file.name":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.interpreter.file.name.length":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.interpreter.file.package.name":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.interpreter.file.package.source_version":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.interpreter.file.package.version":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.interpreter.file.path":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.interpreter.file.path.length":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.interpreter.file.rights":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.interpreter.file.uid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.interpreter.file.user":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.is_exec":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.ancestors.is_kworker":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.ancestors.is_thread":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.ancestors.length":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.pid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.ppid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.tid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.tty_name":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.uid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ancestors.user":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.user_session.k8s_groups":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.user_session.k8s_uid":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.ancestors.user_session.k8s_username":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.args":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.args_flags":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.args_options":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.args_truncated":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.argv":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.argv0":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.auid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.cap_effective":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.cap_permitted":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.cgroup.file.inode":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.cgroup.file.mount_id":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.cgroup.id":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.cgroup.manager":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.cgroup.version":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.comm":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.container.id":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.created_at":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.egid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.egroup":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.envp":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.envs":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.envs_truncated":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.euid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.euser":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.file.change_time":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.file.filesystem":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.file.gid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.file.group":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.file.hashes":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.file.in_upper_layer":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.file.inode":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.file.mode":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.file.modification_time":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.file.mount_id":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.file.name":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.file.name.length":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.file.package.name":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.file.package.source_version":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.file.package.version":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.file.path":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.file.path.length":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.file.rights":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.file.uid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.file.user":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.fsgid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.fsgroup":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.fsuid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.fsuser":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.gid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.group":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.interpreter.file.change_time":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.interpreter.file.filesystem":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.interpreter.file.gid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.interpreter.file.group":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.interpreter.file.hashes":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.interpreter.file.in_upper_layer":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.interpreter.file.inode":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.interpreter.file.mode":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.interpreter.file.modification_time":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.interpreter.file.mount_id":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.interpreter.file.name":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.interpreter.file.name.length":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.interpreter.file.package.name":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.interpreter.file.package.source_version":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.interpreter.file.package.version":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.interpreter.file.path":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.interpreter.file.path.length":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.interpreter.file.rights":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.interpreter.file.uid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.interpreter.file.user":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.is_exec":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.is_kworker":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.is_thread":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.parent.args":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.args_flags":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.args_options":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.args_truncated":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.parent.argv":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.argv0":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.auid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.cap_effective":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.cap_permitted":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.cgroup.file.inode":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.cgroup.file.mount_id":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.cgroup.id":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.cgroup.manager":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.cgroup.version":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.comm":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.container.id":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.created_at":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.egid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.egroup":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.envp":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.envs":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.envs_truncated":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.parent.euid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.euser":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.file.change_time":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.file.filesystem":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.file.gid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.file.group":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.file.hashes":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.file.in_upper_layer":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.parent.file.inode":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.file.mode":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.file.modification_time":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.file.mount_id":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.file.name":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.file.name.length":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.file.package.name":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.file.package.source_version":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.file.package.version":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.file.path":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.file.path.length":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.file.rights":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.file.uid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.file.user":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.fsgid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.fsgroup":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.fsuid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.fsuser":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.gid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.group":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.interpreter.file.change_time":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.interpreter.file.filesystem":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.interpreter.file.gid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.interpreter.file.group":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.interpreter.file.hashes":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.interpreter.file.in_upper_layer":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.parent.interpreter.file.inode":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.interpreter.file.mode":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.interpreter.file.modification_time":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.interpreter.file.mount_id":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.interpreter.file.name":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.interpreter.file.name.length":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.interpreter.file.package.name":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.interpreter.file.package.source_version":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.interpreter.file.package.version":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.interpreter.file.path":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.interpreter.file.path.length":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.interpreter.file.rights":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.interpreter.file.uid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.interpreter.file.user":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.is_exec":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.parent.is_kworker":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.parent.is_thread":
-		return "", nil
+		return "", reflect.Bool, nil
 	case "process.parent.pid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.ppid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.tid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.tty_name":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.uid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.parent.user":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.user_session.k8s_groups":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.user_session.k8s_uid":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.parent.user_session.k8s_username":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.pid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.ppid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.tid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.tty_name":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.uid":
-		return "", nil
+		return "", reflect.Int, nil
 	case "process.user":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.user_session.k8s_groups":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.user_session.k8s_uid":
-		return "", nil
+		return "", reflect.String, nil
 	case "process.user_session.k8s_username":
-		return "", nil
+		return "", reflect.String, nil
 	case "ptrace.request":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.retval":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.args":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.args_flags":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.args_options":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.args_truncated":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.ancestors.argv":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.argv0":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.auid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.cap_effective":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.cap_permitted":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.cgroup.file.inode":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.cgroup.file.mount_id":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.cgroup.id":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.cgroup.manager":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.cgroup.version":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.comm":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.container.id":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.created_at":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.egid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.egroup":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.envp":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.envs":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.envs_truncated":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.ancestors.euid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.euser":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.file.change_time":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.filesystem":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.file.gid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.group":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.file.hashes":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.ancestors.file.inode":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.mode":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.modification_time":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.mount_id":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.name":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.file.name.length":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.package.name":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.file.package.source_version":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.file.package.version":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.file.path":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.file.path.length":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.rights":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.uid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.user":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.fsgid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.fsgroup":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.fsuid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.fsuser":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.gid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.group":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.interpreter.file.change_time":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.interpreter.file.filesystem":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.interpreter.file.gid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.interpreter.file.group":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.interpreter.file.hashes":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.ancestors.interpreter.file.inode":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.interpreter.file.mode":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.interpreter.file.modification_time":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.interpreter.file.mount_id":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.interpreter.file.name":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.interpreter.file.name.length":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.interpreter.file.package.name":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.interpreter.file.package.source_version":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.interpreter.file.package.version":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.interpreter.file.path":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.interpreter.file.path.length":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.interpreter.file.rights":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.interpreter.file.uid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.interpreter.file.user":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.is_exec":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.ancestors.is_kworker":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.ancestors.is_thread":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.ancestors.length":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.pid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.ppid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.tid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.tty_name":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.uid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ancestors.user":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.user_session.k8s_groups":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.user_session.k8s_uid":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.ancestors.user_session.k8s_username":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.args":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.args_flags":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.args_options":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.args_truncated":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.argv":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.argv0":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.auid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.cap_effective":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.cap_permitted":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.cgroup.file.inode":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.cgroup.file.mount_id":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.cgroup.id":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.cgroup.manager":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.cgroup.version":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.comm":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.container.id":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.created_at":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.egid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.egroup":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.envp":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.envs":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.envs_truncated":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.euid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.euser":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.file.change_time":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.file.filesystem":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.file.gid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.file.group":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.file.hashes":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.file.in_upper_layer":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.file.inode":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.file.mode":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.file.modification_time":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.file.mount_id":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.file.name":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.file.name.length":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.file.package.name":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.file.package.source_version":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.file.package.version":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.file.path":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.file.path.length":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.file.rights":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.file.uid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.file.user":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.fsgid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.fsgroup":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.fsuid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.fsuser":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.gid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.group":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.interpreter.file.change_time":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.interpreter.file.filesystem":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.interpreter.file.gid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.interpreter.file.group":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.interpreter.file.hashes":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.interpreter.file.in_upper_layer":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.interpreter.file.inode":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.interpreter.file.mode":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.interpreter.file.modification_time":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.interpreter.file.mount_id":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.interpreter.file.name":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.interpreter.file.name.length":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.interpreter.file.package.name":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.interpreter.file.package.source_version":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.interpreter.file.package.version":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.interpreter.file.path":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.interpreter.file.path.length":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.interpreter.file.rights":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.interpreter.file.uid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.interpreter.file.user":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.is_exec":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.is_kworker":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.is_thread":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.parent.args":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.args_flags":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.args_options":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.args_truncated":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.parent.argv":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.argv0":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.auid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.cap_effective":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.cap_permitted":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.cgroup.file.inode":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.cgroup.file.mount_id":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.cgroup.id":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.cgroup.manager":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.cgroup.version":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.comm":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.container.id":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.created_at":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.egid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.egroup":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.envp":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.envs":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.envs_truncated":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.parent.euid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.euser":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.file.change_time":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.file.filesystem":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.file.gid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.file.group":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.file.hashes":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.file.in_upper_layer":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.parent.file.inode":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.file.mode":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.file.modification_time":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.file.mount_id":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.file.name":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.file.name.length":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.file.package.name":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.file.package.source_version":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.file.package.version":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.file.path":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.file.path.length":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.file.rights":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.file.uid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.file.user":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.fsgid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.fsgroup":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.fsuid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.fsuser":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.gid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.group":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.interpreter.file.change_time":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.interpreter.file.filesystem":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.interpreter.file.gid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.interpreter.file.group":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.interpreter.file.hashes":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.interpreter.file.in_upper_layer":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.parent.interpreter.file.inode":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.interpreter.file.mode":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.interpreter.file.modification_time":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.interpreter.file.mount_id":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.interpreter.file.name":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.interpreter.file.name.length":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.interpreter.file.package.name":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.interpreter.file.package.source_version":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.interpreter.file.package.version":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.interpreter.file.path":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.interpreter.file.path.length":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.interpreter.file.rights":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.interpreter.file.uid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.interpreter.file.user":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.is_exec":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.parent.is_kworker":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.parent.is_thread":
-		return "ptrace", nil
+		return "ptrace", reflect.Bool, nil
 	case "ptrace.tracee.parent.pid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.ppid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.tid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.tty_name":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.uid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.parent.user":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.user_session.k8s_groups":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.user_session.k8s_uid":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.parent.user_session.k8s_username":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.pid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.ppid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.tid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.tty_name":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.uid":
-		return "ptrace", nil
+		return "ptrace", reflect.Int, nil
 	case "ptrace.tracee.user":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.user_session.k8s_groups":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.user_session.k8s_uid":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "ptrace.tracee.user_session.k8s_username":
-		return "ptrace", nil
+		return "ptrace", reflect.String, nil
 	case "removexattr.file.change_time":
-		return "removexattr", nil
+		return "removexattr", reflect.Int, nil
 	case "removexattr.file.destination.name":
-		return "removexattr", nil
+		return "removexattr", reflect.String, nil
 	case "removexattr.file.destination.namespace":
-		return "removexattr", nil
+		return "removexattr", reflect.String, nil
 	case "removexattr.file.filesystem":
-		return "removexattr", nil
+		return "removexattr", reflect.String, nil
 	case "removexattr.file.gid":
-		return "removexattr", nil
+		return "removexattr", reflect.Int, nil
 	case "removexattr.file.group":
-		return "removexattr", nil
+		return "removexattr", reflect.String, nil
 	case "removexattr.file.hashes":
-		return "removexattr", nil
+		return "removexattr", reflect.String, nil
 	case "removexattr.file.in_upper_layer":
-		return "removexattr", nil
+		return "removexattr", reflect.Bool, nil
 	case "removexattr.file.inode":
-		return "removexattr", nil
+		return "removexattr", reflect.Int, nil
 	case "removexattr.file.mode":
-		return "removexattr", nil
+		return "removexattr", reflect.Int, nil
 	case "removexattr.file.modification_time":
-		return "removexattr", nil
+		return "removexattr", reflect.Int, nil
 	case "removexattr.file.mount_id":
-		return "removexattr", nil
+		return "removexattr", reflect.Int, nil
 	case "removexattr.file.name":
-		return "removexattr", nil
+		return "removexattr", reflect.String, nil
 	case "removexattr.file.name.length":
-		return "removexattr", nil
+		return "removexattr", reflect.Int, nil
 	case "removexattr.file.package.name":
-		return "removexattr", nil
+		return "removexattr", reflect.String, nil
 	case "removexattr.file.package.source_version":
-		return "removexattr", nil
+		return "removexattr", reflect.String, nil
 	case "removexattr.file.package.version":
-		return "removexattr", nil
+		return "removexattr", reflect.String, nil
 	case "removexattr.file.path":
-		return "removexattr", nil
+		return "removexattr", reflect.String, nil
 	case "removexattr.file.path.length":
-		return "removexattr", nil
+		return "removexattr", reflect.Int, nil
 	case "removexattr.file.rights":
-		return "removexattr", nil
+		return "removexattr", reflect.Int, nil
 	case "removexattr.file.uid":
-		return "removexattr", nil
+		return "removexattr", reflect.Int, nil
 	case "removexattr.file.user":
-		return "removexattr", nil
+		return "removexattr", reflect.String, nil
 	case "removexattr.retval":
-		return "removexattr", nil
+		return "removexattr", reflect.Int, nil
 	case "rename.file.change_time":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.destination.change_time":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.destination.filesystem":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.destination.gid":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.destination.group":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.destination.hashes":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.destination.in_upper_layer":
-		return "rename", nil
+		return "rename", reflect.Bool, nil
 	case "rename.file.destination.inode":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.destination.mode":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.destination.modification_time":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.destination.mount_id":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.destination.name":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.destination.name.length":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.destination.package.name":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.destination.package.source_version":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.destination.package.version":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.destination.path":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.destination.path.length":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.destination.rights":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.destination.uid":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.destination.user":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.filesystem":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.gid":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.group":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.hashes":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.in_upper_layer":
-		return "rename", nil
+		return "rename", reflect.Bool, nil
 	case "rename.file.inode":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.mode":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.modification_time":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.mount_id":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.name":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.name.length":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.package.name":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.package.source_version":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.package.version":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.path":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.file.path.length":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.rights":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.uid":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.file.user":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.retval":
-		return "rename", nil
+		return "rename", reflect.Int, nil
 	case "rename.syscall.destination.path":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rename.syscall.path":
-		return "rename", nil
+		return "rename", reflect.String, nil
 	case "rmdir.file.change_time":
-		return "rmdir", nil
+		return "rmdir", reflect.Int, nil
 	case "rmdir.file.filesystem":
-		return "rmdir", nil
+		return "rmdir", reflect.String, nil
 	case "rmdir.file.gid":
-		return "rmdir", nil
+		return "rmdir", reflect.Int, nil
 	case "rmdir.file.group":
-		return "rmdir", nil
+		return "rmdir", reflect.String, nil
 	case "rmdir.file.hashes":
-		return "rmdir", nil
+		return "rmdir", reflect.String, nil
 	case "rmdir.file.in_upper_layer":
-		return "rmdir", nil
+		return "rmdir", reflect.Bool, nil
 	case "rmdir.file.inode":
-		return "rmdir", nil
+		return "rmdir", reflect.Int, nil
 	case "rmdir.file.mode":
-		return "rmdir", nil
+		return "rmdir", reflect.Int, nil
 	case "rmdir.file.modification_time":
-		return "rmdir", nil
+		return "rmdir", reflect.Int, nil
 	case "rmdir.file.mount_id":
-		return "rmdir", nil
+		return "rmdir", reflect.Int, nil
 	case "rmdir.file.name":
-		return "rmdir", nil
+		return "rmdir", reflect.String, nil
 	case "rmdir.file.name.length":
-		return "rmdir", nil
+		return "rmdir", reflect.Int, nil
 	case "rmdir.file.package.name":
-		return "rmdir", nil
+		return "rmdir", reflect.String, nil
 	case "rmdir.file.package.source_version":
-		return "rmdir", nil
+		return "rmdir", reflect.String, nil
 	case "rmdir.file.package.version":
-		return "rmdir", nil
+		return "rmdir", reflect.String, nil
 	case "rmdir.file.path":
-		return "rmdir", nil
+		return "rmdir", reflect.String, nil
 	case "rmdir.file.path.length":
-		return "rmdir", nil
+		return "rmdir", reflect.Int, nil
 	case "rmdir.file.rights":
-		return "rmdir", nil
+		return "rmdir", reflect.Int, nil
 	case "rmdir.file.uid":
-		return "rmdir", nil
+		return "rmdir", reflect.Int, nil
 	case "rmdir.file.user":
-		return "rmdir", nil
+		return "rmdir", reflect.String, nil
 	case "rmdir.retval":
-		return "rmdir", nil
+		return "rmdir", reflect.Int, nil
 	case "selinux.bool.name":
-		return "selinux", nil
+		return "selinux", reflect.String, nil
 	case "selinux.bool.state":
-		return "selinux", nil
+		return "selinux", reflect.String, nil
 	case "selinux.bool_commit.state":
-		return "selinux", nil
+		return "selinux", reflect.Bool, nil
 	case "selinux.enforce.status":
-		return "selinux", nil
+		return "selinux", reflect.String, nil
 	case "setgid.egid":
-		return "setgid", nil
+		return "setgid", reflect.Int, nil
 	case "setgid.egroup":
-		return "setgid", nil
+		return "setgid", reflect.String, nil
 	case "setgid.fsgid":
-		return "setgid", nil
+		return "setgid", reflect.Int, nil
 	case "setgid.fsgroup":
-		return "setgid", nil
+		return "setgid", reflect.String, nil
 	case "setgid.gid":
-		return "setgid", nil
+		return "setgid", reflect.Int, nil
 	case "setgid.group":
-		return "setgid", nil
+		return "setgid", reflect.String, nil
 	case "setuid.euid":
-		return "setuid", nil
+		return "setuid", reflect.Int, nil
 	case "setuid.euser":
-		return "setuid", nil
+		return "setuid", reflect.String, nil
 	case "setuid.fsuid":
-		return "setuid", nil
+		return "setuid", reflect.Int, nil
 	case "setuid.fsuser":
-		return "setuid", nil
+		return "setuid", reflect.String, nil
 	case "setuid.uid":
-		return "setuid", nil
+		return "setuid", reflect.Int, nil
 	case "setuid.user":
-		return "setuid", nil
+		return "setuid", reflect.String, nil
 	case "setxattr.file.change_time":
-		return "setxattr", nil
+		return "setxattr", reflect.Int, nil
 	case "setxattr.file.destination.name":
-		return "setxattr", nil
+		return "setxattr", reflect.String, nil
 	case "setxattr.file.destination.namespace":
-		return "setxattr", nil
+		return "setxattr", reflect.String, nil
 	case "setxattr.file.filesystem":
-		return "setxattr", nil
+		return "setxattr", reflect.String, nil
 	case "setxattr.file.gid":
-		return "setxattr", nil
+		return "setxattr", reflect.Int, nil
 	case "setxattr.file.group":
-		return "setxattr", nil
+		return "setxattr", reflect.String, nil
 	case "setxattr.file.hashes":
-		return "setxattr", nil
+		return "setxattr", reflect.String, nil
 	case "setxattr.file.in_upper_layer":
-		return "setxattr", nil
+		return "setxattr", reflect.Bool, nil
 	case "setxattr.file.inode":
-		return "setxattr", nil
+		return "setxattr", reflect.Int, nil
 	case "setxattr.file.mode":
-		return "setxattr", nil
+		return "setxattr", reflect.Int, nil
 	case "setxattr.file.modification_time":
-		return "setxattr", nil
+		return "setxattr", reflect.Int, nil
 	case "setxattr.file.mount_id":
-		return "setxattr", nil
+		return "setxattr", reflect.Int, nil
 	case "setxattr.file.name":
-		return "setxattr", nil
+		return "setxattr", reflect.String, nil
 	case "setxattr.file.name.length":
-		return "setxattr", nil
+		return "setxattr", reflect.Int, nil
 	case "setxattr.file.package.name":
-		return "setxattr", nil
+		return "setxattr", reflect.String, nil
 	case "setxattr.file.package.source_version":
-		return "setxattr", nil
+		return "setxattr", reflect.String, nil
 	case "setxattr.file.package.version":
-		return "setxattr", nil
+		return "setxattr", reflect.String, nil
 	case "setxattr.file.path":
-		return "setxattr", nil
+		return "setxattr", reflect.String, nil
 	case "setxattr.file.path.length":
-		return "setxattr", nil
+		return "setxattr", reflect.Int, nil
 	case "setxattr.file.rights":
-		return "setxattr", nil
+		return "setxattr", reflect.Int, nil
 	case "setxattr.file.uid":
-		return "setxattr", nil
+		return "setxattr", reflect.Int, nil
 	case "setxattr.file.user":
-		return "setxattr", nil
+		return "setxattr", reflect.String, nil
 	case "setxattr.retval":
-		return "setxattr", nil
+		return "setxattr", reflect.Int, nil
 	case "signal.pid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.retval":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.args":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.args_flags":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.args_options":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.args_truncated":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.ancestors.argv":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.argv0":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.auid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.cap_effective":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.cap_permitted":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.cgroup.file.inode":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.cgroup.file.mount_id":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.cgroup.id":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.cgroup.manager":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.cgroup.version":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.comm":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.container.id":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.created_at":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.egid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.egroup":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.envp":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.envs":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.envs_truncated":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.ancestors.euid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.euser":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.file.change_time":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.file.filesystem":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.file.gid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.file.group":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.file.hashes":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.file.in_upper_layer":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.ancestors.file.inode":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.file.mode":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.file.modification_time":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.file.mount_id":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.file.name":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.file.name.length":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.file.package.name":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.file.package.source_version":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.file.package.version":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.file.path":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.file.path.length":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.file.rights":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.file.uid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.file.user":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.fsgid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.fsgroup":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.fsuid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.fsuser":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.gid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.group":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.interpreter.file.change_time":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.interpreter.file.filesystem":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.interpreter.file.gid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.interpreter.file.group":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.interpreter.file.hashes":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.interpreter.file.in_upper_layer":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.ancestors.interpreter.file.inode":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.interpreter.file.mode":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.interpreter.file.modification_time":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.interpreter.file.mount_id":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.interpreter.file.name":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.interpreter.file.name.length":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.interpreter.file.package.name":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.interpreter.file.package.source_version":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.interpreter.file.package.version":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.interpreter.file.path":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.interpreter.file.path.length":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.interpreter.file.rights":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.interpreter.file.uid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.interpreter.file.user":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.is_exec":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.ancestors.is_kworker":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.ancestors.is_thread":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.ancestors.length":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.pid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.ppid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.tid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.tty_name":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.uid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ancestors.user":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.user_session.k8s_groups":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.user_session.k8s_uid":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.ancestors.user_session.k8s_username":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.args":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.args_flags":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.args_options":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.args_truncated":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.argv":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.argv0":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.auid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.cap_effective":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.cap_permitted":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.cgroup.file.inode":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.cgroup.file.mount_id":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.cgroup.id":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.cgroup.manager":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.cgroup.version":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.comm":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.container.id":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.created_at":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.egid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.egroup":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.envp":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.envs":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.envs_truncated":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.euid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.euser":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.file.change_time":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.file.filesystem":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.file.gid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.file.group":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.file.hashes":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.file.in_upper_layer":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.file.inode":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.file.mode":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.file.modification_time":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.file.mount_id":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.file.name":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.file.name.length":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.file.package.name":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.file.package.source_version":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.file.package.version":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.file.path":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.file.path.length":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.file.rights":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.file.uid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.file.user":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.fsgid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.fsgroup":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.fsuid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.fsuser":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.gid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.group":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.interpreter.file.change_time":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.interpreter.file.filesystem":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.interpreter.file.gid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.interpreter.file.group":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.interpreter.file.hashes":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.interpreter.file.in_upper_layer":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.interpreter.file.inode":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.interpreter.file.mode":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.interpreter.file.modification_time":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.interpreter.file.mount_id":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.interpreter.file.name":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.interpreter.file.name.length":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.interpreter.file.package.name":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.interpreter.file.package.source_version":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.interpreter.file.package.version":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.interpreter.file.path":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.interpreter.file.path.length":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.interpreter.file.rights":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.interpreter.file.uid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.interpreter.file.user":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.is_exec":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.is_kworker":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.is_thread":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.parent.args":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.args_flags":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.args_options":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.args_truncated":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.parent.argv":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.argv0":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.auid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.cap_effective":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.cap_permitted":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.cgroup.file.inode":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.cgroup.file.mount_id":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.cgroup.id":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.cgroup.manager":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.cgroup.version":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.comm":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.container.id":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.created_at":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.egid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.egroup":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.envp":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.envs":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.envs_truncated":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.parent.euid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.euser":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.file.change_time":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.file.filesystem":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.file.gid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.file.group":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.file.hashes":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.file.in_upper_layer":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.parent.file.inode":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.file.mode":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.file.modification_time":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.file.mount_id":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.file.name":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.file.name.length":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.file.package.name":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.file.package.source_version":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.file.package.version":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.file.path":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.file.path.length":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.file.rights":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.file.uid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.file.user":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.fsgid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.fsgroup":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.fsuid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.fsuser":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.gid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.group":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.interpreter.file.change_time":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.interpreter.file.filesystem":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.interpreter.file.gid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.interpreter.file.group":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.interpreter.file.hashes":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.interpreter.file.in_upper_layer":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.parent.interpreter.file.inode":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.interpreter.file.mode":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.interpreter.file.modification_time":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.interpreter.file.mount_id":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.interpreter.file.name":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.interpreter.file.name.length":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.interpreter.file.package.name":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.interpreter.file.package.source_version":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.interpreter.file.package.version":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.interpreter.file.path":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.interpreter.file.path.length":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.interpreter.file.rights":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.interpreter.file.uid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.interpreter.file.user":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.is_exec":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.parent.is_kworker":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.parent.is_thread":
-		return "signal", nil
+		return "signal", reflect.Bool, nil
 	case "signal.target.parent.pid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.ppid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.tid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.tty_name":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.uid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.parent.user":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.user_session.k8s_groups":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.user_session.k8s_uid":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.parent.user_session.k8s_username":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.pid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.ppid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.tid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.tty_name":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.uid":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "signal.target.user":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.user_session.k8s_groups":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.user_session.k8s_uid":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.target.user_session.k8s_username":
-		return "signal", nil
+		return "signal", reflect.String, nil
 	case "signal.type":
-		return "signal", nil
+		return "signal", reflect.Int, nil
 	case "splice.file.change_time":
-		return "splice", nil
+		return "splice", reflect.Int, nil
 	case "splice.file.filesystem":
-		return "splice", nil
+		return "splice", reflect.String, nil
 	case "splice.file.gid":
-		return "splice", nil
+		return "splice", reflect.Int, nil
 	case "splice.file.group":
-		return "splice", nil
+		return "splice", reflect.String, nil
 	case "splice.file.hashes":
-		return "splice", nil
+		return "splice", reflect.String, nil
 	case "splice.file.in_upper_layer":
-		return "splice", nil
+		return "splice", reflect.Bool, nil
 	case "splice.file.inode":
-		return "splice", nil
+		return "splice", reflect.Int, nil
 	case "splice.file.mode":
-		return "splice", nil
+		return "splice", reflect.Int, nil
 	case "splice.file.modification_time":
-		return "splice", nil
+		return "splice", reflect.Int, nil
 	case "splice.file.mount_id":
-		return "splice", nil
+		return "splice", reflect.Int, nil
 	case "splice.file.name":
-		return "splice", nil
+		return "splice", reflect.String, nil
 	case "splice.file.name.length":
-		return "splice", nil
+		return "splice", reflect.Int, nil
 	case "splice.file.package.name":
-		return "splice", nil
+		return "splice", reflect.String, nil
 	case "splice.file.package.source_version":
-		return "splice", nil
+		return "splice", reflect.String, nil
 	case "splice.file.package.version":
-		return "splice", nil
+		return "splice", reflect.String, nil
 	case "splice.file.path":
-		return "splice", nil
+		return "splice", reflect.String, nil
 	case "splice.file.path.length":
-		return "splice", nil
+		return "splice", reflect.Int, nil
 	case "splice.file.rights":
-		return "splice", nil
+		return "splice", reflect.Int, nil
 	case "splice.file.uid":
-		return "splice", nil
+		return "splice", reflect.Int, nil
 	case "splice.file.user":
-		return "splice", nil
+		return "splice", reflect.String, nil
 	case "splice.pipe_entry_flag":
-		return "splice", nil
+		return "splice", reflect.Int, nil
 	case "splice.pipe_exit_flag":
-		return "splice", nil
+		return "splice", reflect.Int, nil
 	case "splice.retval":
-		return "splice", nil
+		return "splice", reflect.Int, nil
 	case "unlink.file.change_time":
-		return "unlink", nil
+		return "unlink", reflect.Int, nil
 	case "unlink.file.filesystem":
-		return "unlink", nil
+		return "unlink", reflect.String, nil
 	case "unlink.file.gid":
-		return "unlink", nil
+		return "unlink", reflect.Int, nil
 	case "unlink.file.group":
-		return "unlink", nil
+		return "unlink", reflect.String, nil
 	case "unlink.file.hashes":
-		return "unlink", nil
+		return "unlink", reflect.String, nil
 	case "unlink.file.in_upper_layer":
-		return "unlink", nil
+		return "unlink", reflect.Bool, nil
 	case "unlink.file.inode":
-		return "unlink", nil
+		return "unlink", reflect.Int, nil
 	case "unlink.file.mode":
-		return "unlink", nil
+		return "unlink", reflect.Int, nil
 	case "unlink.file.modification_time":
-		return "unlink", nil
+		return "unlink", reflect.Int, nil
 	case "unlink.file.mount_id":
-		return "unlink", nil
+		return "unlink", reflect.Int, nil
 	case "unlink.file.name":
-		return "unlink", nil
+		return "unlink", reflect.String, nil
 	case "unlink.file.name.length":
-		return "unlink", nil
+		return "unlink", reflect.Int, nil
 	case "unlink.file.package.name":
-		return "unlink", nil
+		return "unlink", reflect.String, nil
 	case "unlink.file.package.source_version":
-		return "unlink", nil
+		return "unlink", reflect.String, nil
 	case "unlink.file.package.version":
-		return "unlink", nil
+		return "unlink", reflect.String, nil
 	case "unlink.file.path":
-		return "unlink", nil
+		return "unlink", reflect.String, nil
 	case "unlink.file.path.length":
-		return "unlink", nil
+		return "unlink", reflect.Int, nil
 	case "unlink.file.rights":
-		return "unlink", nil
+		return "unlink", reflect.Int, nil
 	case "unlink.file.uid":
-		return "unlink", nil
+		return "unlink", reflect.Int, nil
 	case "unlink.file.user":
-		return "unlink", nil
+		return "unlink", reflect.String, nil
 	case "unlink.flags":
-		return "unlink", nil
+		return "unlink", reflect.Int, nil
 	case "unlink.retval":
-		return "unlink", nil
+		return "unlink", reflect.Int, nil
 	case "unlink.syscall.dirfd":
-		return "unlink", nil
+		return "unlink", reflect.Int, nil
 	case "unlink.syscall.flags":
-		return "unlink", nil
+		return "unlink", reflect.Int, nil
 	case "unlink.syscall.path":
-		return "unlink", nil
+		return "unlink", reflect.String, nil
 	case "unload_module.name":
-		return "unload_module", nil
+		return "unload_module", reflect.String, nil
 	case "unload_module.retval":
-		return "unload_module", nil
+		return "unload_module", reflect.Int, nil
 	case "utimes.file.change_time":
-		return "utimes", nil
+		return "utimes", reflect.Int, nil
 	case "utimes.file.filesystem":
-		return "utimes", nil
+		return "utimes", reflect.String, nil
 	case "utimes.file.gid":
-		return "utimes", nil
+		return "utimes", reflect.Int, nil
 	case "utimes.file.group":
-		return "utimes", nil
+		return "utimes", reflect.String, nil
 	case "utimes.file.hashes":
-		return "utimes", nil
+		return "utimes", reflect.String, nil
 	case "utimes.file.in_upper_layer":
-		return "utimes", nil
+		return "utimes", reflect.Bool, nil
 	case "utimes.file.inode":
-		return "utimes", nil
+		return "utimes", reflect.Int, nil
 	case "utimes.file.mode":
-		return "utimes", nil
+		return "utimes", reflect.Int, nil
 	case "utimes.file.modification_time":
-		return "utimes", nil
+		return "utimes", reflect.Int, nil
 	case "utimes.file.mount_id":
-		return "utimes", nil
+		return "utimes", reflect.Int, nil
 	case "utimes.file.name":
-		return "utimes", nil
+		return "utimes", reflect.String, nil
 	case "utimes.file.name.length":
-		return "utimes", nil
+		return "utimes", reflect.Int, nil
 	case "utimes.file.package.name":
-		return "utimes", nil
+		return "utimes", reflect.String, nil
 	case "utimes.file.package.source_version":
-		return "utimes", nil
+		return "utimes", reflect.String, nil
 	case "utimes.file.package.version":
-		return "utimes", nil
+		return "utimes", reflect.String, nil
 	case "utimes.file.path":
-		return "utimes", nil
+		return "utimes", reflect.String, nil
 	case "utimes.file.path.length":
-		return "utimes", nil
+		return "utimes", reflect.Int, nil
 	case "utimes.file.rights":
-		return "utimes", nil
+		return "utimes", reflect.Int, nil
 	case "utimes.file.uid":
-		return "utimes", nil
+		return "utimes", reflect.Int, nil
 	case "utimes.file.user":
-		return "utimes", nil
+		return "utimes", reflect.String, nil
 	case "utimes.retval":
-		return "utimes", nil
+		return "utimes", reflect.Int, nil
 	case "utimes.syscall.path":
-		return "utimes", nil
+		return "utimes", reflect.String, nil
 	}
-	return "", &eval.ErrFieldNotFound{Field: field}
-}
-func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
-	switch field {
-	case "bind.addr.family":
-		return reflect.Int, nil
-	case "bind.addr.ip":
-		return reflect.Struct, nil
-	case "bind.addr.is_public":
-		return reflect.Bool, nil
-	case "bind.addr.port":
-		return reflect.Int, nil
-	case "bind.protocol":
-		return reflect.Int, nil
-	case "bind.retval":
-		return reflect.Int, nil
-	case "bpf.cmd":
-		return reflect.Int, nil
-	case "bpf.map.name":
-		return reflect.String, nil
-	case "bpf.map.type":
-		return reflect.Int, nil
-	case "bpf.prog.attach_type":
-		return reflect.Int, nil
-	case "bpf.prog.helpers":
-		return reflect.Int, nil
-	case "bpf.prog.name":
-		return reflect.String, nil
-	case "bpf.prog.tag":
-		return reflect.String, nil
-	case "bpf.prog.type":
-		return reflect.Int, nil
-	case "bpf.retval":
-		return reflect.Int, nil
-	case "capset.cap_effective":
-		return reflect.Int, nil
-	case "capset.cap_permitted":
-		return reflect.Int, nil
-	case "cgroup.file.inode":
-		return reflect.Int, nil
-	case "cgroup.file.mount_id":
-		return reflect.Int, nil
-	case "cgroup.id":
-		return reflect.String, nil
-	case "cgroup.manager":
-		return reflect.String, nil
-	case "cgroup.version":
-		return reflect.Int, nil
-	case "chdir.file.change_time":
-		return reflect.Int, nil
-	case "chdir.file.filesystem":
-		return reflect.String, nil
-	case "chdir.file.gid":
-		return reflect.Int, nil
-	case "chdir.file.group":
-		return reflect.String, nil
-	case "chdir.file.hashes":
-		return reflect.String, nil
-	case "chdir.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "chdir.file.inode":
-		return reflect.Int, nil
-	case "chdir.file.mode":
-		return reflect.Int, nil
-	case "chdir.file.modification_time":
-		return reflect.Int, nil
-	case "chdir.file.mount_id":
-		return reflect.Int, nil
-	case "chdir.file.name":
-		return reflect.String, nil
-	case "chdir.file.name.length":
-		return reflect.Int, nil
-	case "chdir.file.package.name":
-		return reflect.String, nil
-	case "chdir.file.package.source_version":
-		return reflect.String, nil
-	case "chdir.file.package.version":
-		return reflect.String, nil
-	case "chdir.file.path":
-		return reflect.String, nil
-	case "chdir.file.path.length":
-		return reflect.Int, nil
-	case "chdir.file.rights":
-		return reflect.Int, nil
-	case "chdir.file.uid":
-		return reflect.Int, nil
-	case "chdir.file.user":
-		return reflect.String, nil
-	case "chdir.retval":
-		return reflect.Int, nil
-	case "chdir.syscall.path":
-		return reflect.String, nil
-	case "chmod.file.change_time":
-		return reflect.Int, nil
-	case "chmod.file.destination.mode":
-		return reflect.Int, nil
-	case "chmod.file.destination.rights":
-		return reflect.Int, nil
-	case "chmod.file.filesystem":
-		return reflect.String, nil
-	case "chmod.file.gid":
-		return reflect.Int, nil
-	case "chmod.file.group":
-		return reflect.String, nil
-	case "chmod.file.hashes":
-		return reflect.String, nil
-	case "chmod.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "chmod.file.inode":
-		return reflect.Int, nil
-	case "chmod.file.mode":
-		return reflect.Int, nil
-	case "chmod.file.modification_time":
-		return reflect.Int, nil
-	case "chmod.file.mount_id":
-		return reflect.Int, nil
-	case "chmod.file.name":
-		return reflect.String, nil
-	case "chmod.file.name.length":
-		return reflect.Int, nil
-	case "chmod.file.package.name":
-		return reflect.String, nil
-	case "chmod.file.package.source_version":
-		return reflect.String, nil
-	case "chmod.file.package.version":
-		return reflect.String, nil
-	case "chmod.file.path":
-		return reflect.String, nil
-	case "chmod.file.path.length":
-		return reflect.Int, nil
-	case "chmod.file.rights":
-		return reflect.Int, nil
-	case "chmod.file.uid":
-		return reflect.Int, nil
-	case "chmod.file.user":
-		return reflect.String, nil
-	case "chmod.retval":
-		return reflect.Int, nil
-	case "chmod.syscall.mode":
-		return reflect.Int, nil
-	case "chmod.syscall.path":
-		return reflect.String, nil
-	case "chown.file.change_time":
-		return reflect.Int, nil
-	case "chown.file.destination.gid":
-		return reflect.Int, nil
-	case "chown.file.destination.group":
-		return reflect.String, nil
-	case "chown.file.destination.uid":
-		return reflect.Int, nil
-	case "chown.file.destination.user":
-		return reflect.String, nil
-	case "chown.file.filesystem":
-		return reflect.String, nil
-	case "chown.file.gid":
-		return reflect.Int, nil
-	case "chown.file.group":
-		return reflect.String, nil
-	case "chown.file.hashes":
-		return reflect.String, nil
-	case "chown.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "chown.file.inode":
-		return reflect.Int, nil
-	case "chown.file.mode":
-		return reflect.Int, nil
-	case "chown.file.modification_time":
-		return reflect.Int, nil
-	case "chown.file.mount_id":
-		return reflect.Int, nil
-	case "chown.file.name":
-		return reflect.String, nil
-	case "chown.file.name.length":
-		return reflect.Int, nil
-	case "chown.file.package.name":
-		return reflect.String, nil
-	case "chown.file.package.source_version":
-		return reflect.String, nil
-	case "chown.file.package.version":
-		return reflect.String, nil
-	case "chown.file.path":
-		return reflect.String, nil
-	case "chown.file.path.length":
-		return reflect.Int, nil
-	case "chown.file.rights":
-		return reflect.Int, nil
-	case "chown.file.uid":
-		return reflect.Int, nil
-	case "chown.file.user":
-		return reflect.String, nil
-	case "chown.retval":
-		return reflect.Int, nil
-	case "chown.syscall.gid":
-		return reflect.Int, nil
-	case "chown.syscall.path":
-		return reflect.String, nil
-	case "chown.syscall.uid":
-		return reflect.Int, nil
-	case "connect.addr.family":
-		return reflect.Int, nil
-	case "connect.addr.ip":
-		return reflect.Struct, nil
-	case "connect.addr.is_public":
-		return reflect.Bool, nil
-	case "connect.addr.port":
-		return reflect.Int, nil
-	case "connect.protocol":
-		return reflect.Int, nil
-	case "connect.retval":
-		return reflect.Int, nil
-	case "container.created_at":
-		return reflect.Int, nil
-	case "container.id":
-		return reflect.String, nil
-	case "container.runtime":
-		return reflect.String, nil
-	case "container.tags":
-		return reflect.String, nil
-	case "dns.id":
-		return reflect.Int, nil
-	case "dns.question.class":
-		return reflect.Int, nil
-	case "dns.question.count":
-		return reflect.Int, nil
-	case "dns.question.length":
-		return reflect.Int, nil
-	case "dns.question.name":
-		return reflect.String, nil
-	case "dns.question.name.length":
-		return reflect.Int, nil
-	case "dns.question.type":
-		return reflect.Int, nil
-	case "event.async":
-		return reflect.Bool, nil
-	case "event.hostname":
-		return reflect.String, nil
-	case "event.origin":
-		return reflect.String, nil
-	case "event.os":
-		return reflect.String, nil
-	case "event.service":
-		return reflect.String, nil
-	case "event.timestamp":
-		return reflect.Int, nil
-	case "exec.args":
-		return reflect.String, nil
-	case "exec.args_flags":
-		return reflect.String, nil
-	case "exec.args_options":
-		return reflect.String, nil
-	case "exec.args_truncated":
-		return reflect.Bool, nil
-	case "exec.argv":
-		return reflect.String, nil
-	case "exec.argv0":
-		return reflect.String, nil
-	case "exec.auid":
-		return reflect.Int, nil
-	case "exec.cap_effective":
-		return reflect.Int, nil
-	case "exec.cap_permitted":
-		return reflect.Int, nil
-	case "exec.cgroup.file.inode":
-		return reflect.Int, nil
-	case "exec.cgroup.file.mount_id":
-		return reflect.Int, nil
-	case "exec.cgroup.id":
-		return reflect.String, nil
-	case "exec.cgroup.manager":
-		return reflect.String, nil
-	case "exec.cgroup.version":
-		return reflect.Int, nil
-	case "exec.comm":
-		return reflect.String, nil
-	case "exec.container.id":
-		return reflect.String, nil
-	case "exec.created_at":
-		return reflect.Int, nil
-	case "exec.egid":
-		return reflect.Int, nil
-	case "exec.egroup":
-		return reflect.String, nil
-	case "exec.envp":
-		return reflect.String, nil
-	case "exec.envs":
-		return reflect.String, nil
-	case "exec.envs_truncated":
-		return reflect.Bool, nil
-	case "exec.euid":
-		return reflect.Int, nil
-	case "exec.euser":
-		return reflect.String, nil
-	case "exec.file.change_time":
-		return reflect.Int, nil
-	case "exec.file.filesystem":
-		return reflect.String, nil
-	case "exec.file.gid":
-		return reflect.Int, nil
-	case "exec.file.group":
-		return reflect.String, nil
-	case "exec.file.hashes":
-		return reflect.String, nil
-	case "exec.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "exec.file.inode":
-		return reflect.Int, nil
-	case "exec.file.mode":
-		return reflect.Int, nil
-	case "exec.file.modification_time":
-		return reflect.Int, nil
-	case "exec.file.mount_id":
-		return reflect.Int, nil
-	case "exec.file.name":
-		return reflect.String, nil
-	case "exec.file.name.length":
-		return reflect.Int, nil
-	case "exec.file.package.name":
-		return reflect.String, nil
-	case "exec.file.package.source_version":
-		return reflect.String, nil
-	case "exec.file.package.version":
-		return reflect.String, nil
-	case "exec.file.path":
-		return reflect.String, nil
-	case "exec.file.path.length":
-		return reflect.Int, nil
-	case "exec.file.rights":
-		return reflect.Int, nil
-	case "exec.file.uid":
-		return reflect.Int, nil
-	case "exec.file.user":
-		return reflect.String, nil
-	case "exec.fsgid":
-		return reflect.Int, nil
-	case "exec.fsgroup":
-		return reflect.String, nil
-	case "exec.fsuid":
-		return reflect.Int, nil
-	case "exec.fsuser":
-		return reflect.String, nil
-	case "exec.gid":
-		return reflect.Int, nil
-	case "exec.group":
-		return reflect.String, nil
-	case "exec.interpreter.file.change_time":
-		return reflect.Int, nil
-	case "exec.interpreter.file.filesystem":
-		return reflect.String, nil
-	case "exec.interpreter.file.gid":
-		return reflect.Int, nil
-	case "exec.interpreter.file.group":
-		return reflect.String, nil
-	case "exec.interpreter.file.hashes":
-		return reflect.String, nil
-	case "exec.interpreter.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "exec.interpreter.file.inode":
-		return reflect.Int, nil
-	case "exec.interpreter.file.mode":
-		return reflect.Int, nil
-	case "exec.interpreter.file.modification_time":
-		return reflect.Int, nil
-	case "exec.interpreter.file.mount_id":
-		return reflect.Int, nil
-	case "exec.interpreter.file.name":
-		return reflect.String, nil
-	case "exec.interpreter.file.name.length":
-		return reflect.Int, nil
-	case "exec.interpreter.file.package.name":
-		return reflect.String, nil
-	case "exec.interpreter.file.package.source_version":
-		return reflect.String, nil
-	case "exec.interpreter.file.package.version":
-		return reflect.String, nil
-	case "exec.interpreter.file.path":
-		return reflect.String, nil
-	case "exec.interpreter.file.path.length":
-		return reflect.Int, nil
-	case "exec.interpreter.file.rights":
-		return reflect.Int, nil
-	case "exec.interpreter.file.uid":
-		return reflect.Int, nil
-	case "exec.interpreter.file.user":
-		return reflect.String, nil
-	case "exec.is_exec":
-		return reflect.Bool, nil
-	case "exec.is_kworker":
-		return reflect.Bool, nil
-	case "exec.is_thread":
-		return reflect.Bool, nil
-	case "exec.pid":
-		return reflect.Int, nil
-	case "exec.ppid":
-		return reflect.Int, nil
-	case "exec.syscall.path":
-		return reflect.String, nil
-	case "exec.tid":
-		return reflect.Int, nil
-	case "exec.tty_name":
-		return reflect.String, nil
-	case "exec.uid":
-		return reflect.Int, nil
-	case "exec.user":
-		return reflect.String, nil
-	case "exec.user_session.k8s_groups":
-		return reflect.String, nil
-	case "exec.user_session.k8s_uid":
-		return reflect.String, nil
-	case "exec.user_session.k8s_username":
-		return reflect.String, nil
-	case "exit.args":
-		return reflect.String, nil
-	case "exit.args_flags":
-		return reflect.String, nil
-	case "exit.args_options":
-		return reflect.String, nil
-	case "exit.args_truncated":
-		return reflect.Bool, nil
-	case "exit.argv":
-		return reflect.String, nil
-	case "exit.argv0":
-		return reflect.String, nil
-	case "exit.auid":
-		return reflect.Int, nil
-	case "exit.cap_effective":
-		return reflect.Int, nil
-	case "exit.cap_permitted":
-		return reflect.Int, nil
-	case "exit.cause":
-		return reflect.Int, nil
-	case "exit.cgroup.file.inode":
-		return reflect.Int, nil
-	case "exit.cgroup.file.mount_id":
-		return reflect.Int, nil
-	case "exit.cgroup.id":
-		return reflect.String, nil
-	case "exit.cgroup.manager":
-		return reflect.String, nil
-	case "exit.cgroup.version":
-		return reflect.Int, nil
-	case "exit.code":
-		return reflect.Int, nil
-	case "exit.comm":
-		return reflect.String, nil
-	case "exit.container.id":
-		return reflect.String, nil
-	case "exit.created_at":
-		return reflect.Int, nil
-	case "exit.egid":
-		return reflect.Int, nil
-	case "exit.egroup":
-		return reflect.String, nil
-	case "exit.envp":
-		return reflect.String, nil
-	case "exit.envs":
-		return reflect.String, nil
-	case "exit.envs_truncated":
-		return reflect.Bool, nil
-	case "exit.euid":
-		return reflect.Int, nil
-	case "exit.euser":
-		return reflect.String, nil
-	case "exit.file.change_time":
-		return reflect.Int, nil
-	case "exit.file.filesystem":
-		return reflect.String, nil
-	case "exit.file.gid":
-		return reflect.Int, nil
-	case "exit.file.group":
-		return reflect.String, nil
-	case "exit.file.hashes":
-		return reflect.String, nil
-	case "exit.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "exit.file.inode":
-		return reflect.Int, nil
-	case "exit.file.mode":
-		return reflect.Int, nil
-	case "exit.file.modification_time":
-		return reflect.Int, nil
-	case "exit.file.mount_id":
-		return reflect.Int, nil
-	case "exit.file.name":
-		return reflect.String, nil
-	case "exit.file.name.length":
-		return reflect.Int, nil
-	case "exit.file.package.name":
-		return reflect.String, nil
-	case "exit.file.package.source_version":
-		return reflect.String, nil
-	case "exit.file.package.version":
-		return reflect.String, nil
-	case "exit.file.path":
-		return reflect.String, nil
-	case "exit.file.path.length":
-		return reflect.Int, nil
-	case "exit.file.rights":
-		return reflect.Int, nil
-	case "exit.file.uid":
-		return reflect.Int, nil
-	case "exit.file.user":
-		return reflect.String, nil
-	case "exit.fsgid":
-		return reflect.Int, nil
-	case "exit.fsgroup":
-		return reflect.String, nil
-	case "exit.fsuid":
-		return reflect.Int, nil
-	case "exit.fsuser":
-		return reflect.String, nil
-	case "exit.gid":
-		return reflect.Int, nil
-	case "exit.group":
-		return reflect.String, nil
-	case "exit.interpreter.file.change_time":
-		return reflect.Int, nil
-	case "exit.interpreter.file.filesystem":
-		return reflect.String, nil
-	case "exit.interpreter.file.gid":
-		return reflect.Int, nil
-	case "exit.interpreter.file.group":
-		return reflect.String, nil
-	case "exit.interpreter.file.hashes":
-		return reflect.String, nil
-	case "exit.interpreter.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "exit.interpreter.file.inode":
-		return reflect.Int, nil
-	case "exit.interpreter.file.mode":
-		return reflect.Int, nil
-	case "exit.interpreter.file.modification_time":
-		return reflect.Int, nil
-	case "exit.interpreter.file.mount_id":
-		return reflect.Int, nil
-	case "exit.interpreter.file.name":
-		return reflect.String, nil
-	case "exit.interpreter.file.name.length":
-		return reflect.Int, nil
-	case "exit.interpreter.file.package.name":
-		return reflect.String, nil
-	case "exit.interpreter.file.package.source_version":
-		return reflect.String, nil
-	case "exit.interpreter.file.package.version":
-		return reflect.String, nil
-	case "exit.interpreter.file.path":
-		return reflect.String, nil
-	case "exit.interpreter.file.path.length":
-		return reflect.Int, nil
-	case "exit.interpreter.file.rights":
-		return reflect.Int, nil
-	case "exit.interpreter.file.uid":
-		return reflect.Int, nil
-	case "exit.interpreter.file.user":
-		return reflect.String, nil
-	case "exit.is_exec":
-		return reflect.Bool, nil
-	case "exit.is_kworker":
-		return reflect.Bool, nil
-	case "exit.is_thread":
-		return reflect.Bool, nil
-	case "exit.pid":
-		return reflect.Int, nil
-	case "exit.ppid":
-		return reflect.Int, nil
-	case "exit.tid":
-		return reflect.Int, nil
-	case "exit.tty_name":
-		return reflect.String, nil
-	case "exit.uid":
-		return reflect.Int, nil
-	case "exit.user":
-		return reflect.String, nil
-	case "exit.user_session.k8s_groups":
-		return reflect.String, nil
-	case "exit.user_session.k8s_uid":
-		return reflect.String, nil
-	case "exit.user_session.k8s_username":
-		return reflect.String, nil
-	case "imds.aws.is_imds_v2":
-		return reflect.Bool, nil
-	case "imds.aws.security_credentials.type":
-		return reflect.String, nil
-	case "imds.cloud_provider":
-		return reflect.String, nil
-	case "imds.host":
-		return reflect.String, nil
-	case "imds.server":
-		return reflect.String, nil
-	case "imds.type":
-		return reflect.String, nil
-	case "imds.url":
-		return reflect.String, nil
-	case "imds.user_agent":
-		return reflect.String, nil
-	case "link.file.change_time":
-		return reflect.Int, nil
-	case "link.file.destination.change_time":
-		return reflect.Int, nil
-	case "link.file.destination.filesystem":
-		return reflect.String, nil
-	case "link.file.destination.gid":
-		return reflect.Int, nil
-	case "link.file.destination.group":
-		return reflect.String, nil
-	case "link.file.destination.hashes":
-		return reflect.String, nil
-	case "link.file.destination.in_upper_layer":
-		return reflect.Bool, nil
-	case "link.file.destination.inode":
-		return reflect.Int, nil
-	case "link.file.destination.mode":
-		return reflect.Int, nil
-	case "link.file.destination.modification_time":
-		return reflect.Int, nil
-	case "link.file.destination.mount_id":
-		return reflect.Int, nil
-	case "link.file.destination.name":
-		return reflect.String, nil
-	case "link.file.destination.name.length":
-		return reflect.Int, nil
-	case "link.file.destination.package.name":
-		return reflect.String, nil
-	case "link.file.destination.package.source_version":
-		return reflect.String, nil
-	case "link.file.destination.package.version":
-		return reflect.String, nil
-	case "link.file.destination.path":
-		return reflect.String, nil
-	case "link.file.destination.path.length":
-		return reflect.Int, nil
-	case "link.file.destination.rights":
-		return reflect.Int, nil
-	case "link.file.destination.uid":
-		return reflect.Int, nil
-	case "link.file.destination.user":
-		return reflect.String, nil
-	case "link.file.filesystem":
-		return reflect.String, nil
-	case "link.file.gid":
-		return reflect.Int, nil
-	case "link.file.group":
-		return reflect.String, nil
-	case "link.file.hashes":
-		return reflect.String, nil
-	case "link.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "link.file.inode":
-		return reflect.Int, nil
-	case "link.file.mode":
-		return reflect.Int, nil
-	case "link.file.modification_time":
-		return reflect.Int, nil
-	case "link.file.mount_id":
-		return reflect.Int, nil
-	case "link.file.name":
-		return reflect.String, nil
-	case "link.file.name.length":
-		return reflect.Int, nil
-	case "link.file.package.name":
-		return reflect.String, nil
-	case "link.file.package.source_version":
-		return reflect.String, nil
-	case "link.file.package.version":
-		return reflect.String, nil
-	case "link.file.path":
-		return reflect.String, nil
-	case "link.file.path.length":
-		return reflect.Int, nil
-	case "link.file.rights":
-		return reflect.Int, nil
-	case "link.file.uid":
-		return reflect.Int, nil
-	case "link.file.user":
-		return reflect.String, nil
-	case "link.retval":
-		return reflect.Int, nil
-	case "link.syscall.destination.path":
-		return reflect.String, nil
-	case "link.syscall.path":
-		return reflect.String, nil
-	case "load_module.args":
-		return reflect.String, nil
-	case "load_module.args_truncated":
-		return reflect.Bool, nil
-	case "load_module.argv":
-		return reflect.String, nil
-	case "load_module.file.change_time":
-		return reflect.Int, nil
-	case "load_module.file.filesystem":
-		return reflect.String, nil
-	case "load_module.file.gid":
-		return reflect.Int, nil
-	case "load_module.file.group":
-		return reflect.String, nil
-	case "load_module.file.hashes":
-		return reflect.String, nil
-	case "load_module.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "load_module.file.inode":
-		return reflect.Int, nil
-	case "load_module.file.mode":
-		return reflect.Int, nil
-	case "load_module.file.modification_time":
-		return reflect.Int, nil
-	case "load_module.file.mount_id":
-		return reflect.Int, nil
-	case "load_module.file.name":
-		return reflect.String, nil
-	case "load_module.file.name.length":
-		return reflect.Int, nil
-	case "load_module.file.package.name":
-		return reflect.String, nil
-	case "load_module.file.package.source_version":
-		return reflect.String, nil
-	case "load_module.file.package.version":
-		return reflect.String, nil
-	case "load_module.file.path":
-		return reflect.String, nil
-	case "load_module.file.path.length":
-		return reflect.Int, nil
-	case "load_module.file.rights":
-		return reflect.Int, nil
-	case "load_module.file.uid":
-		return reflect.Int, nil
-	case "load_module.file.user":
-		return reflect.String, nil
-	case "load_module.loaded_from_memory":
-		return reflect.Bool, nil
-	case "load_module.name":
-		return reflect.String, nil
-	case "load_module.retval":
-		return reflect.Int, nil
-	case "mkdir.file.change_time":
-		return reflect.Int, nil
-	case "mkdir.file.destination.mode":
-		return reflect.Int, nil
-	case "mkdir.file.destination.rights":
-		return reflect.Int, nil
-	case "mkdir.file.filesystem":
-		return reflect.String, nil
-	case "mkdir.file.gid":
-		return reflect.Int, nil
-	case "mkdir.file.group":
-		return reflect.String, nil
-	case "mkdir.file.hashes":
-		return reflect.String, nil
-	case "mkdir.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "mkdir.file.inode":
-		return reflect.Int, nil
-	case "mkdir.file.mode":
-		return reflect.Int, nil
-	case "mkdir.file.modification_time":
-		return reflect.Int, nil
-	case "mkdir.file.mount_id":
-		return reflect.Int, nil
-	case "mkdir.file.name":
-		return reflect.String, nil
-	case "mkdir.file.name.length":
-		return reflect.Int, nil
-	case "mkdir.file.package.name":
-		return reflect.String, nil
-	case "mkdir.file.package.source_version":
-		return reflect.String, nil
-	case "mkdir.file.package.version":
-		return reflect.String, nil
-	case "mkdir.file.path":
-		return reflect.String, nil
-	case "mkdir.file.path.length":
-		return reflect.Int, nil
-	case "mkdir.file.rights":
-		return reflect.Int, nil
-	case "mkdir.file.uid":
-		return reflect.Int, nil
-	case "mkdir.file.user":
-		return reflect.String, nil
-	case "mkdir.retval":
-		return reflect.Int, nil
-	case "mmap.file.change_time":
-		return reflect.Int, nil
-	case "mmap.file.filesystem":
-		return reflect.String, nil
-	case "mmap.file.gid":
-		return reflect.Int, nil
-	case "mmap.file.group":
-		return reflect.String, nil
-	case "mmap.file.hashes":
-		return reflect.String, nil
-	case "mmap.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "mmap.file.inode":
-		return reflect.Int, nil
-	case "mmap.file.mode":
-		return reflect.Int, nil
-	case "mmap.file.modification_time":
-		return reflect.Int, nil
-	case "mmap.file.mount_id":
-		return reflect.Int, nil
-	case "mmap.file.name":
-		return reflect.String, nil
-	case "mmap.file.name.length":
-		return reflect.Int, nil
-	case "mmap.file.package.name":
-		return reflect.String, nil
-	case "mmap.file.package.source_version":
-		return reflect.String, nil
-	case "mmap.file.package.version":
-		return reflect.String, nil
-	case "mmap.file.path":
-		return reflect.String, nil
-	case "mmap.file.path.length":
-		return reflect.Int, nil
-	case "mmap.file.rights":
-		return reflect.Int, nil
-	case "mmap.file.uid":
-		return reflect.Int, nil
-	case "mmap.file.user":
-		return reflect.String, nil
-	case "mmap.flags":
-		return reflect.Int, nil
-	case "mmap.protection":
-		return reflect.Int, nil
-	case "mmap.retval":
-		return reflect.Int, nil
-	case "mount.fs_type":
-		return reflect.String, nil
-	case "mount.mountpoint.path":
-		return reflect.String, nil
-	case "mount.retval":
-		return reflect.Int, nil
-	case "mount.root.path":
-		return reflect.String, nil
-	case "mount.source.path":
-		return reflect.String, nil
-	case "mount.syscall.fs_type":
-		return reflect.String, nil
-	case "mount.syscall.mountpoint.path":
-		return reflect.String, nil
-	case "mount.syscall.source.path":
-		return reflect.String, nil
-	case "mprotect.req_protection":
-		return reflect.Int, nil
-	case "mprotect.retval":
-		return reflect.Int, nil
-	case "mprotect.vm_protection":
-		return reflect.Int, nil
-	case "network.destination.ip":
-		return reflect.Struct, nil
-	case "network.destination.is_public":
-		return reflect.Bool, nil
-	case "network.destination.port":
-		return reflect.Int, nil
-	case "network.device.ifname":
-		return reflect.String, nil
-	case "network.l3_protocol":
-		return reflect.Int, nil
-	case "network.l4_protocol":
-		return reflect.Int, nil
-	case "network.size":
-		return reflect.Int, nil
-	case "network.source.ip":
-		return reflect.Struct, nil
-	case "network.source.is_public":
-		return reflect.Bool, nil
-	case "network.source.port":
-		return reflect.Int, nil
-	case "ondemand.arg1.str":
-		return reflect.String, nil
-	case "ondemand.arg1.uint":
-		return reflect.Int, nil
-	case "ondemand.arg2.str":
-		return reflect.String, nil
-	case "ondemand.arg2.uint":
-		return reflect.Int, nil
-	case "ondemand.arg3.str":
-		return reflect.String, nil
-	case "ondemand.arg3.uint":
-		return reflect.Int, nil
-	case "ondemand.arg4.str":
-		return reflect.String, nil
-	case "ondemand.arg4.uint":
-		return reflect.Int, nil
-	case "ondemand.name":
-		return reflect.String, nil
-	case "open.file.change_time":
-		return reflect.Int, nil
-	case "open.file.destination.mode":
-		return reflect.Int, nil
-	case "open.file.filesystem":
-		return reflect.String, nil
-	case "open.file.gid":
-		return reflect.Int, nil
-	case "open.file.group":
-		return reflect.String, nil
-	case "open.file.hashes":
-		return reflect.String, nil
-	case "open.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "open.file.inode":
-		return reflect.Int, nil
-	case "open.file.mode":
-		return reflect.Int, nil
-	case "open.file.modification_time":
-		return reflect.Int, nil
-	case "open.file.mount_id":
-		return reflect.Int, nil
-	case "open.file.name":
-		return reflect.String, nil
-	case "open.file.name.length":
-		return reflect.Int, nil
-	case "open.file.package.name":
-		return reflect.String, nil
-	case "open.file.package.source_version":
-		return reflect.String, nil
-	case "open.file.package.version":
-		return reflect.String, nil
-	case "open.file.path":
-		return reflect.String, nil
-	case "open.file.path.length":
-		return reflect.Int, nil
-	case "open.file.rights":
-		return reflect.Int, nil
-	case "open.file.uid":
-		return reflect.Int, nil
-	case "open.file.user":
-		return reflect.String, nil
-	case "open.flags":
-		return reflect.Int, nil
-	case "open.retval":
-		return reflect.Int, nil
-	case "open.syscall.flags":
-		return reflect.Int, nil
-	case "open.syscall.mode":
-		return reflect.Int, nil
-	case "open.syscall.path":
-		return reflect.String, nil
-	case "packet.destination.ip":
-		return reflect.Struct, nil
-	case "packet.destination.is_public":
-		return reflect.Bool, nil
-	case "packet.destination.port":
-		return reflect.Int, nil
-	case "packet.device.ifname":
-		return reflect.String, nil
-	case "packet.filter":
-		return reflect.String, nil
-	case "packet.l3_protocol":
-		return reflect.Int, nil
-	case "packet.l4_protocol":
-		return reflect.Int, nil
-	case "packet.size":
-		return reflect.Int, nil
-	case "packet.source.ip":
-		return reflect.Struct, nil
-	case "packet.source.is_public":
-		return reflect.Bool, nil
-	case "packet.source.port":
-		return reflect.Int, nil
-	case "packet.tls.version":
-		return reflect.Int, nil
-	case "process.ancestors.args":
-		return reflect.String, nil
-	case "process.ancestors.args_flags":
-		return reflect.String, nil
-	case "process.ancestors.args_options":
-		return reflect.String, nil
-	case "process.ancestors.args_truncated":
-		return reflect.Bool, nil
-	case "process.ancestors.argv":
-		return reflect.String, nil
-	case "process.ancestors.argv0":
-		return reflect.String, nil
-	case "process.ancestors.auid":
-		return reflect.Int, nil
-	case "process.ancestors.cap_effective":
-		return reflect.Int, nil
-	case "process.ancestors.cap_permitted":
-		return reflect.Int, nil
-	case "process.ancestors.cgroup.file.inode":
-		return reflect.Int, nil
-	case "process.ancestors.cgroup.file.mount_id":
-		return reflect.Int, nil
-	case "process.ancestors.cgroup.id":
-		return reflect.String, nil
-	case "process.ancestors.cgroup.manager":
-		return reflect.String, nil
-	case "process.ancestors.cgroup.version":
-		return reflect.Int, nil
-	case "process.ancestors.comm":
-		return reflect.String, nil
-	case "process.ancestors.container.id":
-		return reflect.String, nil
-	case "process.ancestors.created_at":
-		return reflect.Int, nil
-	case "process.ancestors.egid":
-		return reflect.Int, nil
-	case "process.ancestors.egroup":
-		return reflect.String, nil
-	case "process.ancestors.envp":
-		return reflect.String, nil
-	case "process.ancestors.envs":
-		return reflect.String, nil
-	case "process.ancestors.envs_truncated":
-		return reflect.Bool, nil
-	case "process.ancestors.euid":
-		return reflect.Int, nil
-	case "process.ancestors.euser":
-		return reflect.String, nil
-	case "process.ancestors.file.change_time":
-		return reflect.Int, nil
-	case "process.ancestors.file.filesystem":
-		return reflect.String, nil
-	case "process.ancestors.file.gid":
-		return reflect.Int, nil
-	case "process.ancestors.file.group":
-		return reflect.String, nil
-	case "process.ancestors.file.hashes":
-		return reflect.String, nil
-	case "process.ancestors.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "process.ancestors.file.inode":
-		return reflect.Int, nil
-	case "process.ancestors.file.mode":
-		return reflect.Int, nil
-	case "process.ancestors.file.modification_time":
-		return reflect.Int, nil
-	case "process.ancestors.file.mount_id":
-		return reflect.Int, nil
-	case "process.ancestors.file.name":
-		return reflect.String, nil
-	case "process.ancestors.file.name.length":
-		return reflect.Int, nil
-	case "process.ancestors.file.package.name":
-		return reflect.String, nil
-	case "process.ancestors.file.package.source_version":
-		return reflect.String, nil
-	case "process.ancestors.file.package.version":
-		return reflect.String, nil
-	case "process.ancestors.file.path":
-		return reflect.String, nil
-	case "process.ancestors.file.path.length":
-		return reflect.Int, nil
-	case "process.ancestors.file.rights":
-		return reflect.Int, nil
-	case "process.ancestors.file.uid":
-		return reflect.Int, nil
-	case "process.ancestors.file.user":
-		return reflect.String, nil
-	case "process.ancestors.fsgid":
-		return reflect.Int, nil
-	case "process.ancestors.fsgroup":
-		return reflect.String, nil
-	case "process.ancestors.fsuid":
-		return reflect.Int, nil
-	case "process.ancestors.fsuser":
-		return reflect.String, nil
-	case "process.ancestors.gid":
-		return reflect.Int, nil
-	case "process.ancestors.group":
-		return reflect.String, nil
-	case "process.ancestors.interpreter.file.change_time":
-		return reflect.Int, nil
-	case "process.ancestors.interpreter.file.filesystem":
-		return reflect.String, nil
-	case "process.ancestors.interpreter.file.gid":
-		return reflect.Int, nil
-	case "process.ancestors.interpreter.file.group":
-		return reflect.String, nil
-	case "process.ancestors.interpreter.file.hashes":
-		return reflect.String, nil
-	case "process.ancestors.interpreter.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "process.ancestors.interpreter.file.inode":
-		return reflect.Int, nil
-	case "process.ancestors.interpreter.file.mode":
-		return reflect.Int, nil
-	case "process.ancestors.interpreter.file.modification_time":
-		return reflect.Int, nil
-	case "process.ancestors.interpreter.file.mount_id":
-		return reflect.Int, nil
-	case "process.ancestors.interpreter.file.name":
-		return reflect.String, nil
-	case "process.ancestors.interpreter.file.name.length":
-		return reflect.Int, nil
-	case "process.ancestors.interpreter.file.package.name":
-		return reflect.String, nil
-	case "process.ancestors.interpreter.file.package.source_version":
-		return reflect.String, nil
-	case "process.ancestors.interpreter.file.package.version":
-		return reflect.String, nil
-	case "process.ancestors.interpreter.file.path":
-		return reflect.String, nil
-	case "process.ancestors.interpreter.file.path.length":
-		return reflect.Int, nil
-	case "process.ancestors.interpreter.file.rights":
-		return reflect.Int, nil
-	case "process.ancestors.interpreter.file.uid":
-		return reflect.Int, nil
-	case "process.ancestors.interpreter.file.user":
-		return reflect.String, nil
-	case "process.ancestors.is_exec":
-		return reflect.Bool, nil
-	case "process.ancestors.is_kworker":
-		return reflect.Bool, nil
-	case "process.ancestors.is_thread":
-		return reflect.Bool, nil
-	case "process.ancestors.length":
-		return reflect.Int, nil
-	case "process.ancestors.pid":
-		return reflect.Int, nil
-	case "process.ancestors.ppid":
-		return reflect.Int, nil
-	case "process.ancestors.tid":
-		return reflect.Int, nil
-	case "process.ancestors.tty_name":
-		return reflect.String, nil
-	case "process.ancestors.uid":
-		return reflect.Int, nil
-	case "process.ancestors.user":
-		return reflect.String, nil
-	case "process.ancestors.user_session.k8s_groups":
-		return reflect.String, nil
-	case "process.ancestors.user_session.k8s_uid":
-		return reflect.String, nil
-	case "process.ancestors.user_session.k8s_username":
-		return reflect.String, nil
-	case "process.args":
-		return reflect.String, nil
-	case "process.args_flags":
-		return reflect.String, nil
-	case "process.args_options":
-		return reflect.String, nil
-	case "process.args_truncated":
-		return reflect.Bool, nil
-	case "process.argv":
-		return reflect.String, nil
-	case "process.argv0":
-		return reflect.String, nil
-	case "process.auid":
-		return reflect.Int, nil
-	case "process.cap_effective":
-		return reflect.Int, nil
-	case "process.cap_permitted":
-		return reflect.Int, nil
-	case "process.cgroup.file.inode":
-		return reflect.Int, nil
-	case "process.cgroup.file.mount_id":
-		return reflect.Int, nil
-	case "process.cgroup.id":
-		return reflect.String, nil
-	case "process.cgroup.manager":
-		return reflect.String, nil
-	case "process.cgroup.version":
-		return reflect.Int, nil
-	case "process.comm":
-		return reflect.String, nil
-	case "process.container.id":
-		return reflect.String, nil
-	case "process.created_at":
-		return reflect.Int, nil
-	case "process.egid":
-		return reflect.Int, nil
-	case "process.egroup":
-		return reflect.String, nil
-	case "process.envp":
-		return reflect.String, nil
-	case "process.envs":
-		return reflect.String, nil
-	case "process.envs_truncated":
-		return reflect.Bool, nil
-	case "process.euid":
-		return reflect.Int, nil
-	case "process.euser":
-		return reflect.String, nil
-	case "process.file.change_time":
-		return reflect.Int, nil
-	case "process.file.filesystem":
-		return reflect.String, nil
-	case "process.file.gid":
-		return reflect.Int, nil
-	case "process.file.group":
-		return reflect.String, nil
-	case "process.file.hashes":
-		return reflect.String, nil
-	case "process.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "process.file.inode":
-		return reflect.Int, nil
-	case "process.file.mode":
-		return reflect.Int, nil
-	case "process.file.modification_time":
-		return reflect.Int, nil
-	case "process.file.mount_id":
-		return reflect.Int, nil
-	case "process.file.name":
-		return reflect.String, nil
-	case "process.file.name.length":
-		return reflect.Int, nil
-	case "process.file.package.name":
-		return reflect.String, nil
-	case "process.file.package.source_version":
-		return reflect.String, nil
-	case "process.file.package.version":
-		return reflect.String, nil
-	case "process.file.path":
-		return reflect.String, nil
-	case "process.file.path.length":
-		return reflect.Int, nil
-	case "process.file.rights":
-		return reflect.Int, nil
-	case "process.file.uid":
-		return reflect.Int, nil
-	case "process.file.user":
-		return reflect.String, nil
-	case "process.fsgid":
-		return reflect.Int, nil
-	case "process.fsgroup":
-		return reflect.String, nil
-	case "process.fsuid":
-		return reflect.Int, nil
-	case "process.fsuser":
-		return reflect.String, nil
-	case "process.gid":
-		return reflect.Int, nil
-	case "process.group":
-		return reflect.String, nil
-	case "process.interpreter.file.change_time":
-		return reflect.Int, nil
-	case "process.interpreter.file.filesystem":
-		return reflect.String, nil
-	case "process.interpreter.file.gid":
-		return reflect.Int, nil
-	case "process.interpreter.file.group":
-		return reflect.String, nil
-	case "process.interpreter.file.hashes":
-		return reflect.String, nil
-	case "process.interpreter.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "process.interpreter.file.inode":
-		return reflect.Int, nil
-	case "process.interpreter.file.mode":
-		return reflect.Int, nil
-	case "process.interpreter.file.modification_time":
-		return reflect.Int, nil
-	case "process.interpreter.file.mount_id":
-		return reflect.Int, nil
-	case "process.interpreter.file.name":
-		return reflect.String, nil
-	case "process.interpreter.file.name.length":
-		return reflect.Int, nil
-	case "process.interpreter.file.package.name":
-		return reflect.String, nil
-	case "process.interpreter.file.package.source_version":
-		return reflect.String, nil
-	case "process.interpreter.file.package.version":
-		return reflect.String, nil
-	case "process.interpreter.file.path":
-		return reflect.String, nil
-	case "process.interpreter.file.path.length":
-		return reflect.Int, nil
-	case "process.interpreter.file.rights":
-		return reflect.Int, nil
-	case "process.interpreter.file.uid":
-		return reflect.Int, nil
-	case "process.interpreter.file.user":
-		return reflect.String, nil
-	case "process.is_exec":
-		return reflect.Bool, nil
-	case "process.is_kworker":
-		return reflect.Bool, nil
-	case "process.is_thread":
-		return reflect.Bool, nil
-	case "process.parent.args":
-		return reflect.String, nil
-	case "process.parent.args_flags":
-		return reflect.String, nil
-	case "process.parent.args_options":
-		return reflect.String, nil
-	case "process.parent.args_truncated":
-		return reflect.Bool, nil
-	case "process.parent.argv":
-		return reflect.String, nil
-	case "process.parent.argv0":
-		return reflect.String, nil
-	case "process.parent.auid":
-		return reflect.Int, nil
-	case "process.parent.cap_effective":
-		return reflect.Int, nil
-	case "process.parent.cap_permitted":
-		return reflect.Int, nil
-	case "process.parent.cgroup.file.inode":
-		return reflect.Int, nil
-	case "process.parent.cgroup.file.mount_id":
-		return reflect.Int, nil
-	case "process.parent.cgroup.id":
-		return reflect.String, nil
-	case "process.parent.cgroup.manager":
-		return reflect.String, nil
-	case "process.parent.cgroup.version":
-		return reflect.Int, nil
-	case "process.parent.comm":
-		return reflect.String, nil
-	case "process.parent.container.id":
-		return reflect.String, nil
-	case "process.parent.created_at":
-		return reflect.Int, nil
-	case "process.parent.egid":
-		return reflect.Int, nil
-	case "process.parent.egroup":
-		return reflect.String, nil
-	case "process.parent.envp":
-		return reflect.String, nil
-	case "process.parent.envs":
-		return reflect.String, nil
-	case "process.parent.envs_truncated":
-		return reflect.Bool, nil
-	case "process.parent.euid":
-		return reflect.Int, nil
-	case "process.parent.euser":
-		return reflect.String, nil
-	case "process.parent.file.change_time":
-		return reflect.Int, nil
-	case "process.parent.file.filesystem":
-		return reflect.String, nil
-	case "process.parent.file.gid":
-		return reflect.Int, nil
-	case "process.parent.file.group":
-		return reflect.String, nil
-	case "process.parent.file.hashes":
-		return reflect.String, nil
-	case "process.parent.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "process.parent.file.inode":
-		return reflect.Int, nil
-	case "process.parent.file.mode":
-		return reflect.Int, nil
-	case "process.parent.file.modification_time":
-		return reflect.Int, nil
-	case "process.parent.file.mount_id":
-		return reflect.Int, nil
-	case "process.parent.file.name":
-		return reflect.String, nil
-	case "process.parent.file.name.length":
-		return reflect.Int, nil
-	case "process.parent.file.package.name":
-		return reflect.String, nil
-	case "process.parent.file.package.source_version":
-		return reflect.String, nil
-	case "process.parent.file.package.version":
-		return reflect.String, nil
-	case "process.parent.file.path":
-		return reflect.String, nil
-	case "process.parent.file.path.length":
-		return reflect.Int, nil
-	case "process.parent.file.rights":
-		return reflect.Int, nil
-	case "process.parent.file.uid":
-		return reflect.Int, nil
-	case "process.parent.file.user":
-		return reflect.String, nil
-	case "process.parent.fsgid":
-		return reflect.Int, nil
-	case "process.parent.fsgroup":
-		return reflect.String, nil
-	case "process.parent.fsuid":
-		return reflect.Int, nil
-	case "process.parent.fsuser":
-		return reflect.String, nil
-	case "process.parent.gid":
-		return reflect.Int, nil
-	case "process.parent.group":
-		return reflect.String, nil
-	case "process.parent.interpreter.file.change_time":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.filesystem":
-		return reflect.String, nil
-	case "process.parent.interpreter.file.gid":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.group":
-		return reflect.String, nil
-	case "process.parent.interpreter.file.hashes":
-		return reflect.String, nil
-	case "process.parent.interpreter.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "process.parent.interpreter.file.inode":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.mode":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.modification_time":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.mount_id":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.name":
-		return reflect.String, nil
-	case "process.parent.interpreter.file.name.length":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.package.name":
-		return reflect.String, nil
-	case "process.parent.interpreter.file.package.source_version":
-		return reflect.String, nil
-	case "process.parent.interpreter.file.package.version":
-		return reflect.String, nil
-	case "process.parent.interpreter.file.path":
-		return reflect.String, nil
-	case "process.parent.interpreter.file.path.length":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.rights":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.uid":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.user":
-		return reflect.String, nil
-	case "process.parent.is_exec":
-		return reflect.Bool, nil
-	case "process.parent.is_kworker":
-		return reflect.Bool, nil
-	case "process.parent.is_thread":
-		return reflect.Bool, nil
-	case "process.parent.pid":
-		return reflect.Int, nil
-	case "process.parent.ppid":
-		return reflect.Int, nil
-	case "process.parent.tid":
-		return reflect.Int, nil
-	case "process.parent.tty_name":
-		return reflect.String, nil
-	case "process.parent.uid":
-		return reflect.Int, nil
-	case "process.parent.user":
-		return reflect.String, nil
-	case "process.parent.user_session.k8s_groups":
-		return reflect.String, nil
-	case "process.parent.user_session.k8s_uid":
-		return reflect.String, nil
-	case "process.parent.user_session.k8s_username":
-		return reflect.String, nil
-	case "process.pid":
-		return reflect.Int, nil
-	case "process.ppid":
-		return reflect.Int, nil
-	case "process.tid":
-		return reflect.Int, nil
-	case "process.tty_name":
-		return reflect.String, nil
-	case "process.uid":
-		return reflect.Int, nil
-	case "process.user":
-		return reflect.String, nil
-	case "process.user_session.k8s_groups":
-		return reflect.String, nil
-	case "process.user_session.k8s_uid":
-		return reflect.String, nil
-	case "process.user_session.k8s_username":
-		return reflect.String, nil
-	case "ptrace.request":
-		return reflect.Int, nil
-	case "ptrace.retval":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.args":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.args_flags":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.args_options":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.args_truncated":
-		return reflect.Bool, nil
-	case "ptrace.tracee.ancestors.argv":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.argv0":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.auid":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.cap_effective":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.cap_permitted":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.cgroup.file.inode":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.cgroup.file.mount_id":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.cgroup.id":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.cgroup.manager":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.cgroup.version":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.comm":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.container.id":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.created_at":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.egid":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.egroup":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.envp":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.envs":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.envs_truncated":
-		return reflect.Bool, nil
-	case "ptrace.tracee.ancestors.euid":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.euser":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.file.change_time":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.file.filesystem":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.file.gid":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.file.group":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.file.hashes":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "ptrace.tracee.ancestors.file.inode":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.file.mode":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.file.modification_time":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.file.mount_id":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.file.name":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.file.name.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.file.package.name":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.file.package.source_version":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.file.package.version":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.file.path":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.file.path.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.file.rights":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.file.uid":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.file.user":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.fsgid":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.fsgroup":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.fsuid":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.fsuser":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.gid":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.group":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.interpreter.file.change_time":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.interpreter.file.filesystem":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.interpreter.file.gid":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.interpreter.file.group":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.interpreter.file.hashes":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "ptrace.tracee.ancestors.interpreter.file.inode":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.interpreter.file.mode":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.interpreter.file.modification_time":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.interpreter.file.mount_id":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.interpreter.file.name":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.interpreter.file.name.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.interpreter.file.package.name":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.interpreter.file.package.source_version":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.interpreter.file.package.version":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.interpreter.file.path":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.interpreter.file.path.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.interpreter.file.rights":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.interpreter.file.uid":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.interpreter.file.user":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.is_exec":
-		return reflect.Bool, nil
-	case "ptrace.tracee.ancestors.is_kworker":
-		return reflect.Bool, nil
-	case "ptrace.tracee.ancestors.is_thread":
-		return reflect.Bool, nil
-	case "ptrace.tracee.ancestors.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.pid":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.ppid":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.tid":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.tty_name":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.uid":
-		return reflect.Int, nil
-	case "ptrace.tracee.ancestors.user":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.user_session.k8s_groups":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.user_session.k8s_uid":
-		return reflect.String, nil
-	case "ptrace.tracee.ancestors.user_session.k8s_username":
-		return reflect.String, nil
-	case "ptrace.tracee.args":
-		return reflect.String, nil
-	case "ptrace.tracee.args_flags":
-		return reflect.String, nil
-	case "ptrace.tracee.args_options":
-		return reflect.String, nil
-	case "ptrace.tracee.args_truncated":
-		return reflect.Bool, nil
-	case "ptrace.tracee.argv":
-		return reflect.String, nil
-	case "ptrace.tracee.argv0":
-		return reflect.String, nil
-	case "ptrace.tracee.auid":
-		return reflect.Int, nil
-	case "ptrace.tracee.cap_effective":
-		return reflect.Int, nil
-	case "ptrace.tracee.cap_permitted":
-		return reflect.Int, nil
-	case "ptrace.tracee.cgroup.file.inode":
-		return reflect.Int, nil
-	case "ptrace.tracee.cgroup.file.mount_id":
-		return reflect.Int, nil
-	case "ptrace.tracee.cgroup.id":
-		return reflect.String, nil
-	case "ptrace.tracee.cgroup.manager":
-		return reflect.String, nil
-	case "ptrace.tracee.cgroup.version":
-		return reflect.Int, nil
-	case "ptrace.tracee.comm":
-		return reflect.String, nil
-	case "ptrace.tracee.container.id":
-		return reflect.String, nil
-	case "ptrace.tracee.created_at":
-		return reflect.Int, nil
-	case "ptrace.tracee.egid":
-		return reflect.Int, nil
-	case "ptrace.tracee.egroup":
-		return reflect.String, nil
-	case "ptrace.tracee.envp":
-		return reflect.String, nil
-	case "ptrace.tracee.envs":
-		return reflect.String, nil
-	case "ptrace.tracee.envs_truncated":
-		return reflect.Bool, nil
-	case "ptrace.tracee.euid":
-		return reflect.Int, nil
-	case "ptrace.tracee.euser":
-		return reflect.String, nil
-	case "ptrace.tracee.file.change_time":
-		return reflect.Int, nil
-	case "ptrace.tracee.file.filesystem":
-		return reflect.String, nil
-	case "ptrace.tracee.file.gid":
-		return reflect.Int, nil
-	case "ptrace.tracee.file.group":
-		return reflect.String, nil
-	case "ptrace.tracee.file.hashes":
-		return reflect.String, nil
-	case "ptrace.tracee.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "ptrace.tracee.file.inode":
-		return reflect.Int, nil
-	case "ptrace.tracee.file.mode":
-		return reflect.Int, nil
-	case "ptrace.tracee.file.modification_time":
-		return reflect.Int, nil
-	case "ptrace.tracee.file.mount_id":
-		return reflect.Int, nil
-	case "ptrace.tracee.file.name":
-		return reflect.String, nil
-	case "ptrace.tracee.file.name.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.file.package.name":
-		return reflect.String, nil
-	case "ptrace.tracee.file.package.source_version":
-		return reflect.String, nil
-	case "ptrace.tracee.file.package.version":
-		return reflect.String, nil
-	case "ptrace.tracee.file.path":
-		return reflect.String, nil
-	case "ptrace.tracee.file.path.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.file.rights":
-		return reflect.Int, nil
-	case "ptrace.tracee.file.uid":
-		return reflect.Int, nil
-	case "ptrace.tracee.file.user":
-		return reflect.String, nil
-	case "ptrace.tracee.fsgid":
-		return reflect.Int, nil
-	case "ptrace.tracee.fsgroup":
-		return reflect.String, nil
-	case "ptrace.tracee.fsuid":
-		return reflect.Int, nil
-	case "ptrace.tracee.fsuser":
-		return reflect.String, nil
-	case "ptrace.tracee.gid":
-		return reflect.Int, nil
-	case "ptrace.tracee.group":
-		return reflect.String, nil
-	case "ptrace.tracee.interpreter.file.change_time":
-		return reflect.Int, nil
-	case "ptrace.tracee.interpreter.file.filesystem":
-		return reflect.String, nil
-	case "ptrace.tracee.interpreter.file.gid":
-		return reflect.Int, nil
-	case "ptrace.tracee.interpreter.file.group":
-		return reflect.String, nil
-	case "ptrace.tracee.interpreter.file.hashes":
-		return reflect.String, nil
-	case "ptrace.tracee.interpreter.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "ptrace.tracee.interpreter.file.inode":
-		return reflect.Int, nil
-	case "ptrace.tracee.interpreter.file.mode":
-		return reflect.Int, nil
-	case "ptrace.tracee.interpreter.file.modification_time":
-		return reflect.Int, nil
-	case "ptrace.tracee.interpreter.file.mount_id":
-		return reflect.Int, nil
-	case "ptrace.tracee.interpreter.file.name":
-		return reflect.String, nil
-	case "ptrace.tracee.interpreter.file.name.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.interpreter.file.package.name":
-		return reflect.String, nil
-	case "ptrace.tracee.interpreter.file.package.source_version":
-		return reflect.String, nil
-	case "ptrace.tracee.interpreter.file.package.version":
-		return reflect.String, nil
-	case "ptrace.tracee.interpreter.file.path":
-		return reflect.String, nil
-	case "ptrace.tracee.interpreter.file.path.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.interpreter.file.rights":
-		return reflect.Int, nil
-	case "ptrace.tracee.interpreter.file.uid":
-		return reflect.Int, nil
-	case "ptrace.tracee.interpreter.file.user":
-		return reflect.String, nil
-	case "ptrace.tracee.is_exec":
-		return reflect.Bool, nil
-	case "ptrace.tracee.is_kworker":
-		return reflect.Bool, nil
-	case "ptrace.tracee.is_thread":
-		return reflect.Bool, nil
-	case "ptrace.tracee.parent.args":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.args_flags":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.args_options":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.args_truncated":
-		return reflect.Bool, nil
-	case "ptrace.tracee.parent.argv":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.argv0":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.auid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.cap_effective":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.cap_permitted":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.cgroup.file.inode":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.cgroup.file.mount_id":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.cgroup.id":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.cgroup.manager":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.cgroup.version":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.comm":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.container.id":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.created_at":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.egid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.egroup":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.envp":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.envs":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.envs_truncated":
-		return reflect.Bool, nil
-	case "ptrace.tracee.parent.euid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.euser":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.file.change_time":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.filesystem":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.file.gid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.group":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.file.hashes":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "ptrace.tracee.parent.file.inode":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.mode":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.modification_time":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.mount_id":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.name":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.file.name.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.package.name":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.file.package.source_version":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.file.package.version":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.file.path":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.file.path.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.rights":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.uid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.user":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.fsgid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.fsgroup":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.fsuid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.fsuser":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.gid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.group":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.interpreter.file.change_time":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.filesystem":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.interpreter.file.gid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.group":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.interpreter.file.hashes":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.interpreter.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "ptrace.tracee.parent.interpreter.file.inode":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.mode":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.modification_time":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.mount_id":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.name":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.interpreter.file.name.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.package.name":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.interpreter.file.package.source_version":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.interpreter.file.package.version":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.interpreter.file.path":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.interpreter.file.path.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.rights":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.uid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.user":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.is_exec":
-		return reflect.Bool, nil
-	case "ptrace.tracee.parent.is_kworker":
-		return reflect.Bool, nil
-	case "ptrace.tracee.parent.is_thread":
-		return reflect.Bool, nil
-	case "ptrace.tracee.parent.pid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.ppid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.tid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.tty_name":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.uid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.user":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.user_session.k8s_groups":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.user_session.k8s_uid":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.user_session.k8s_username":
-		return reflect.String, nil
-	case "ptrace.tracee.pid":
-		return reflect.Int, nil
-	case "ptrace.tracee.ppid":
-		return reflect.Int, nil
-	case "ptrace.tracee.tid":
-		return reflect.Int, nil
-	case "ptrace.tracee.tty_name":
-		return reflect.String, nil
-	case "ptrace.tracee.uid":
-		return reflect.Int, nil
-	case "ptrace.tracee.user":
-		return reflect.String, nil
-	case "ptrace.tracee.user_session.k8s_groups":
-		return reflect.String, nil
-	case "ptrace.tracee.user_session.k8s_uid":
-		return reflect.String, nil
-	case "ptrace.tracee.user_session.k8s_username":
-		return reflect.String, nil
-	case "removexattr.file.change_time":
-		return reflect.Int, nil
-	case "removexattr.file.destination.name":
-		return reflect.String, nil
-	case "removexattr.file.destination.namespace":
-		return reflect.String, nil
-	case "removexattr.file.filesystem":
-		return reflect.String, nil
-	case "removexattr.file.gid":
-		return reflect.Int, nil
-	case "removexattr.file.group":
-		return reflect.String, nil
-	case "removexattr.file.hashes":
-		return reflect.String, nil
-	case "removexattr.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "removexattr.file.inode":
-		return reflect.Int, nil
-	case "removexattr.file.mode":
-		return reflect.Int, nil
-	case "removexattr.file.modification_time":
-		return reflect.Int, nil
-	case "removexattr.file.mount_id":
-		return reflect.Int, nil
-	case "removexattr.file.name":
-		return reflect.String, nil
-	case "removexattr.file.name.length":
-		return reflect.Int, nil
-	case "removexattr.file.package.name":
-		return reflect.String, nil
-	case "removexattr.file.package.source_version":
-		return reflect.String, nil
-	case "removexattr.file.package.version":
-		return reflect.String, nil
-	case "removexattr.file.path":
-		return reflect.String, nil
-	case "removexattr.file.path.length":
-		return reflect.Int, nil
-	case "removexattr.file.rights":
-		return reflect.Int, nil
-	case "removexattr.file.uid":
-		return reflect.Int, nil
-	case "removexattr.file.user":
-		return reflect.String, nil
-	case "removexattr.retval":
-		return reflect.Int, nil
-	case "rename.file.change_time":
-		return reflect.Int, nil
-	case "rename.file.destination.change_time":
-		return reflect.Int, nil
-	case "rename.file.destination.filesystem":
-		return reflect.String, nil
-	case "rename.file.destination.gid":
-		return reflect.Int, nil
-	case "rename.file.destination.group":
-		return reflect.String, nil
-	case "rename.file.destination.hashes":
-		return reflect.String, nil
-	case "rename.file.destination.in_upper_layer":
-		return reflect.Bool, nil
-	case "rename.file.destination.inode":
-		return reflect.Int, nil
-	case "rename.file.destination.mode":
-		return reflect.Int, nil
-	case "rename.file.destination.modification_time":
-		return reflect.Int, nil
-	case "rename.file.destination.mount_id":
-		return reflect.Int, nil
-	case "rename.file.destination.name":
-		return reflect.String, nil
-	case "rename.file.destination.name.length":
-		return reflect.Int, nil
-	case "rename.file.destination.package.name":
-		return reflect.String, nil
-	case "rename.file.destination.package.source_version":
-		return reflect.String, nil
-	case "rename.file.destination.package.version":
-		return reflect.String, nil
-	case "rename.file.destination.path":
-		return reflect.String, nil
-	case "rename.file.destination.path.length":
-		return reflect.Int, nil
-	case "rename.file.destination.rights":
-		return reflect.Int, nil
-	case "rename.file.destination.uid":
-		return reflect.Int, nil
-	case "rename.file.destination.user":
-		return reflect.String, nil
-	case "rename.file.filesystem":
-		return reflect.String, nil
-	case "rename.file.gid":
-		return reflect.Int, nil
-	case "rename.file.group":
-		return reflect.String, nil
-	case "rename.file.hashes":
-		return reflect.String, nil
-	case "rename.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "rename.file.inode":
-		return reflect.Int, nil
-	case "rename.file.mode":
-		return reflect.Int, nil
-	case "rename.file.modification_time":
-		return reflect.Int, nil
-	case "rename.file.mount_id":
-		return reflect.Int, nil
-	case "rename.file.name":
-		return reflect.String, nil
-	case "rename.file.name.length":
-		return reflect.Int, nil
-	case "rename.file.package.name":
-		return reflect.String, nil
-	case "rename.file.package.source_version":
-		return reflect.String, nil
-	case "rename.file.package.version":
-		return reflect.String, nil
-	case "rename.file.path":
-		return reflect.String, nil
-	case "rename.file.path.length":
-		return reflect.Int, nil
-	case "rename.file.rights":
-		return reflect.Int, nil
-	case "rename.file.uid":
-		return reflect.Int, nil
-	case "rename.file.user":
-		return reflect.String, nil
-	case "rename.retval":
-		return reflect.Int, nil
-	case "rename.syscall.destination.path":
-		return reflect.String, nil
-	case "rename.syscall.path":
-		return reflect.String, nil
-	case "rmdir.file.change_time":
-		return reflect.Int, nil
-	case "rmdir.file.filesystem":
-		return reflect.String, nil
-	case "rmdir.file.gid":
-		return reflect.Int, nil
-	case "rmdir.file.group":
-		return reflect.String, nil
-	case "rmdir.file.hashes":
-		return reflect.String, nil
-	case "rmdir.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "rmdir.file.inode":
-		return reflect.Int, nil
-	case "rmdir.file.mode":
-		return reflect.Int, nil
-	case "rmdir.file.modification_time":
-		return reflect.Int, nil
-	case "rmdir.file.mount_id":
-		return reflect.Int, nil
-	case "rmdir.file.name":
-		return reflect.String, nil
-	case "rmdir.file.name.length":
-		return reflect.Int, nil
-	case "rmdir.file.package.name":
-		return reflect.String, nil
-	case "rmdir.file.package.source_version":
-		return reflect.String, nil
-	case "rmdir.file.package.version":
-		return reflect.String, nil
-	case "rmdir.file.path":
-		return reflect.String, nil
-	case "rmdir.file.path.length":
-		return reflect.Int, nil
-	case "rmdir.file.rights":
-		return reflect.Int, nil
-	case "rmdir.file.uid":
-		return reflect.Int, nil
-	case "rmdir.file.user":
-		return reflect.String, nil
-	case "rmdir.retval":
-		return reflect.Int, nil
-	case "selinux.bool.name":
-		return reflect.String, nil
-	case "selinux.bool.state":
-		return reflect.String, nil
-	case "selinux.bool_commit.state":
-		return reflect.Bool, nil
-	case "selinux.enforce.status":
-		return reflect.String, nil
-	case "setgid.egid":
-		return reflect.Int, nil
-	case "setgid.egroup":
-		return reflect.String, nil
-	case "setgid.fsgid":
-		return reflect.Int, nil
-	case "setgid.fsgroup":
-		return reflect.String, nil
-	case "setgid.gid":
-		return reflect.Int, nil
-	case "setgid.group":
-		return reflect.String, nil
-	case "setuid.euid":
-		return reflect.Int, nil
-	case "setuid.euser":
-		return reflect.String, nil
-	case "setuid.fsuid":
-		return reflect.Int, nil
-	case "setuid.fsuser":
-		return reflect.String, nil
-	case "setuid.uid":
-		return reflect.Int, nil
-	case "setuid.user":
-		return reflect.String, nil
-	case "setxattr.file.change_time":
-		return reflect.Int, nil
-	case "setxattr.file.destination.name":
-		return reflect.String, nil
-	case "setxattr.file.destination.namespace":
-		return reflect.String, nil
-	case "setxattr.file.filesystem":
-		return reflect.String, nil
-	case "setxattr.file.gid":
-		return reflect.Int, nil
-	case "setxattr.file.group":
-		return reflect.String, nil
-	case "setxattr.file.hashes":
-		return reflect.String, nil
-	case "setxattr.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "setxattr.file.inode":
-		return reflect.Int, nil
-	case "setxattr.file.mode":
-		return reflect.Int, nil
-	case "setxattr.file.modification_time":
-		return reflect.Int, nil
-	case "setxattr.file.mount_id":
-		return reflect.Int, nil
-	case "setxattr.file.name":
-		return reflect.String, nil
-	case "setxattr.file.name.length":
-		return reflect.Int, nil
-	case "setxattr.file.package.name":
-		return reflect.String, nil
-	case "setxattr.file.package.source_version":
-		return reflect.String, nil
-	case "setxattr.file.package.version":
-		return reflect.String, nil
-	case "setxattr.file.path":
-		return reflect.String, nil
-	case "setxattr.file.path.length":
-		return reflect.Int, nil
-	case "setxattr.file.rights":
-		return reflect.Int, nil
-	case "setxattr.file.uid":
-		return reflect.Int, nil
-	case "setxattr.file.user":
-		return reflect.String, nil
-	case "setxattr.retval":
-		return reflect.Int, nil
-	case "signal.pid":
-		return reflect.Int, nil
-	case "signal.retval":
-		return reflect.Int, nil
-	case "signal.target.ancestors.args":
-		return reflect.String, nil
-	case "signal.target.ancestors.args_flags":
-		return reflect.String, nil
-	case "signal.target.ancestors.args_options":
-		return reflect.String, nil
-	case "signal.target.ancestors.args_truncated":
-		return reflect.Bool, nil
-	case "signal.target.ancestors.argv":
-		return reflect.String, nil
-	case "signal.target.ancestors.argv0":
-		return reflect.String, nil
-	case "signal.target.ancestors.auid":
-		return reflect.Int, nil
-	case "signal.target.ancestors.cap_effective":
-		return reflect.Int, nil
-	case "signal.target.ancestors.cap_permitted":
-		return reflect.Int, nil
-	case "signal.target.ancestors.cgroup.file.inode":
-		return reflect.Int, nil
-	case "signal.target.ancestors.cgroup.file.mount_id":
-		return reflect.Int, nil
-	case "signal.target.ancestors.cgroup.id":
-		return reflect.String, nil
-	case "signal.target.ancestors.cgroup.manager":
-		return reflect.String, nil
-	case "signal.target.ancestors.cgroup.version":
-		return reflect.Int, nil
-	case "signal.target.ancestors.comm":
-		return reflect.String, nil
-	case "signal.target.ancestors.container.id":
-		return reflect.String, nil
-	case "signal.target.ancestors.created_at":
-		return reflect.Int, nil
-	case "signal.target.ancestors.egid":
-		return reflect.Int, nil
-	case "signal.target.ancestors.egroup":
-		return reflect.String, nil
-	case "signal.target.ancestors.envp":
-		return reflect.String, nil
-	case "signal.target.ancestors.envs":
-		return reflect.String, nil
-	case "signal.target.ancestors.envs_truncated":
-		return reflect.Bool, nil
-	case "signal.target.ancestors.euid":
-		return reflect.Int, nil
-	case "signal.target.ancestors.euser":
-		return reflect.String, nil
-	case "signal.target.ancestors.file.change_time":
-		return reflect.Int, nil
-	case "signal.target.ancestors.file.filesystem":
-		return reflect.String, nil
-	case "signal.target.ancestors.file.gid":
-		return reflect.Int, nil
-	case "signal.target.ancestors.file.group":
-		return reflect.String, nil
-	case "signal.target.ancestors.file.hashes":
-		return reflect.String, nil
-	case "signal.target.ancestors.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "signal.target.ancestors.file.inode":
-		return reflect.Int, nil
-	case "signal.target.ancestors.file.mode":
-		return reflect.Int, nil
-	case "signal.target.ancestors.file.modification_time":
-		return reflect.Int, nil
-	case "signal.target.ancestors.file.mount_id":
-		return reflect.Int, nil
-	case "signal.target.ancestors.file.name":
-		return reflect.String, nil
-	case "signal.target.ancestors.file.name.length":
-		return reflect.Int, nil
-	case "signal.target.ancestors.file.package.name":
-		return reflect.String, nil
-	case "signal.target.ancestors.file.package.source_version":
-		return reflect.String, nil
-	case "signal.target.ancestors.file.package.version":
-		return reflect.String, nil
-	case "signal.target.ancestors.file.path":
-		return reflect.String, nil
-	case "signal.target.ancestors.file.path.length":
-		return reflect.Int, nil
-	case "signal.target.ancestors.file.rights":
-		return reflect.Int, nil
-	case "signal.target.ancestors.file.uid":
-		return reflect.Int, nil
-	case "signal.target.ancestors.file.user":
-		return reflect.String, nil
-	case "signal.target.ancestors.fsgid":
-		return reflect.Int, nil
-	case "signal.target.ancestors.fsgroup":
-		return reflect.String, nil
-	case "signal.target.ancestors.fsuid":
-		return reflect.Int, nil
-	case "signal.target.ancestors.fsuser":
-		return reflect.String, nil
-	case "signal.target.ancestors.gid":
-		return reflect.Int, nil
-	case "signal.target.ancestors.group":
-		return reflect.String, nil
-	case "signal.target.ancestors.interpreter.file.change_time":
-		return reflect.Int, nil
-	case "signal.target.ancestors.interpreter.file.filesystem":
-		return reflect.String, nil
-	case "signal.target.ancestors.interpreter.file.gid":
-		return reflect.Int, nil
-	case "signal.target.ancestors.interpreter.file.group":
-		return reflect.String, nil
-	case "signal.target.ancestors.interpreter.file.hashes":
-		return reflect.String, nil
-	case "signal.target.ancestors.interpreter.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "signal.target.ancestors.interpreter.file.inode":
-		return reflect.Int, nil
-	case "signal.target.ancestors.interpreter.file.mode":
-		return reflect.Int, nil
-	case "signal.target.ancestors.interpreter.file.modification_time":
-		return reflect.Int, nil
-	case "signal.target.ancestors.interpreter.file.mount_id":
-		return reflect.Int, nil
-	case "signal.target.ancestors.interpreter.file.name":
-		return reflect.String, nil
-	case "signal.target.ancestors.interpreter.file.name.length":
-		return reflect.Int, nil
-	case "signal.target.ancestors.interpreter.file.package.name":
-		return reflect.String, nil
-	case "signal.target.ancestors.interpreter.file.package.source_version":
-		return reflect.String, nil
-	case "signal.target.ancestors.interpreter.file.package.version":
-		return reflect.String, nil
-	case "signal.target.ancestors.interpreter.file.path":
-		return reflect.String, nil
-	case "signal.target.ancestors.interpreter.file.path.length":
-		return reflect.Int, nil
-	case "signal.target.ancestors.interpreter.file.rights":
-		return reflect.Int, nil
-	case "signal.target.ancestors.interpreter.file.uid":
-		return reflect.Int, nil
-	case "signal.target.ancestors.interpreter.file.user":
-		return reflect.String, nil
-	case "signal.target.ancestors.is_exec":
-		return reflect.Bool, nil
-	case "signal.target.ancestors.is_kworker":
-		return reflect.Bool, nil
-	case "signal.target.ancestors.is_thread":
-		return reflect.Bool, nil
-	case "signal.target.ancestors.length":
-		return reflect.Int, nil
-	case "signal.target.ancestors.pid":
-		return reflect.Int, nil
-	case "signal.target.ancestors.ppid":
-		return reflect.Int, nil
-	case "signal.target.ancestors.tid":
-		return reflect.Int, nil
-	case "signal.target.ancestors.tty_name":
-		return reflect.String, nil
-	case "signal.target.ancestors.uid":
-		return reflect.Int, nil
-	case "signal.target.ancestors.user":
-		return reflect.String, nil
-	case "signal.target.ancestors.user_session.k8s_groups":
-		return reflect.String, nil
-	case "signal.target.ancestors.user_session.k8s_uid":
-		return reflect.String, nil
-	case "signal.target.ancestors.user_session.k8s_username":
-		return reflect.String, nil
-	case "signal.target.args":
-		return reflect.String, nil
-	case "signal.target.args_flags":
-		return reflect.String, nil
-	case "signal.target.args_options":
-		return reflect.String, nil
-	case "signal.target.args_truncated":
-		return reflect.Bool, nil
-	case "signal.target.argv":
-		return reflect.String, nil
-	case "signal.target.argv0":
-		return reflect.String, nil
-	case "signal.target.auid":
-		return reflect.Int, nil
-	case "signal.target.cap_effective":
-		return reflect.Int, nil
-	case "signal.target.cap_permitted":
-		return reflect.Int, nil
-	case "signal.target.cgroup.file.inode":
-		return reflect.Int, nil
-	case "signal.target.cgroup.file.mount_id":
-		return reflect.Int, nil
-	case "signal.target.cgroup.id":
-		return reflect.String, nil
-	case "signal.target.cgroup.manager":
-		return reflect.String, nil
-	case "signal.target.cgroup.version":
-		return reflect.Int, nil
-	case "signal.target.comm":
-		return reflect.String, nil
-	case "signal.target.container.id":
-		return reflect.String, nil
-	case "signal.target.created_at":
-		return reflect.Int, nil
-	case "signal.target.egid":
-		return reflect.Int, nil
-	case "signal.target.egroup":
-		return reflect.String, nil
-	case "signal.target.envp":
-		return reflect.String, nil
-	case "signal.target.envs":
-		return reflect.String, nil
-	case "signal.target.envs_truncated":
-		return reflect.Bool, nil
-	case "signal.target.euid":
-		return reflect.Int, nil
-	case "signal.target.euser":
-		return reflect.String, nil
-	case "signal.target.file.change_time":
-		return reflect.Int, nil
-	case "signal.target.file.filesystem":
-		return reflect.String, nil
-	case "signal.target.file.gid":
-		return reflect.Int, nil
-	case "signal.target.file.group":
-		return reflect.String, nil
-	case "signal.target.file.hashes":
-		return reflect.String, nil
-	case "signal.target.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "signal.target.file.inode":
-		return reflect.Int, nil
-	case "signal.target.file.mode":
-		return reflect.Int, nil
-	case "signal.target.file.modification_time":
-		return reflect.Int, nil
-	case "signal.target.file.mount_id":
-		return reflect.Int, nil
-	case "signal.target.file.name":
-		return reflect.String, nil
-	case "signal.target.file.name.length":
-		return reflect.Int, nil
-	case "signal.target.file.package.name":
-		return reflect.String, nil
-	case "signal.target.file.package.source_version":
-		return reflect.String, nil
-	case "signal.target.file.package.version":
-		return reflect.String, nil
-	case "signal.target.file.path":
-		return reflect.String, nil
-	case "signal.target.file.path.length":
-		return reflect.Int, nil
-	case "signal.target.file.rights":
-		return reflect.Int, nil
-	case "signal.target.file.uid":
-		return reflect.Int, nil
-	case "signal.target.file.user":
-		return reflect.String, nil
-	case "signal.target.fsgid":
-		return reflect.Int, nil
-	case "signal.target.fsgroup":
-		return reflect.String, nil
-	case "signal.target.fsuid":
-		return reflect.Int, nil
-	case "signal.target.fsuser":
-		return reflect.String, nil
-	case "signal.target.gid":
-		return reflect.Int, nil
-	case "signal.target.group":
-		return reflect.String, nil
-	case "signal.target.interpreter.file.change_time":
-		return reflect.Int, nil
-	case "signal.target.interpreter.file.filesystem":
-		return reflect.String, nil
-	case "signal.target.interpreter.file.gid":
-		return reflect.Int, nil
-	case "signal.target.interpreter.file.group":
-		return reflect.String, nil
-	case "signal.target.interpreter.file.hashes":
-		return reflect.String, nil
-	case "signal.target.interpreter.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "signal.target.interpreter.file.inode":
-		return reflect.Int, nil
-	case "signal.target.interpreter.file.mode":
-		return reflect.Int, nil
-	case "signal.target.interpreter.file.modification_time":
-		return reflect.Int, nil
-	case "signal.target.interpreter.file.mount_id":
-		return reflect.Int, nil
-	case "signal.target.interpreter.file.name":
-		return reflect.String, nil
-	case "signal.target.interpreter.file.name.length":
-		return reflect.Int, nil
-	case "signal.target.interpreter.file.package.name":
-		return reflect.String, nil
-	case "signal.target.interpreter.file.package.source_version":
-		return reflect.String, nil
-	case "signal.target.interpreter.file.package.version":
-		return reflect.String, nil
-	case "signal.target.interpreter.file.path":
-		return reflect.String, nil
-	case "signal.target.interpreter.file.path.length":
-		return reflect.Int, nil
-	case "signal.target.interpreter.file.rights":
-		return reflect.Int, nil
-	case "signal.target.interpreter.file.uid":
-		return reflect.Int, nil
-	case "signal.target.interpreter.file.user":
-		return reflect.String, nil
-	case "signal.target.is_exec":
-		return reflect.Bool, nil
-	case "signal.target.is_kworker":
-		return reflect.Bool, nil
-	case "signal.target.is_thread":
-		return reflect.Bool, nil
-	case "signal.target.parent.args":
-		return reflect.String, nil
-	case "signal.target.parent.args_flags":
-		return reflect.String, nil
-	case "signal.target.parent.args_options":
-		return reflect.String, nil
-	case "signal.target.parent.args_truncated":
-		return reflect.Bool, nil
-	case "signal.target.parent.argv":
-		return reflect.String, nil
-	case "signal.target.parent.argv0":
-		return reflect.String, nil
-	case "signal.target.parent.auid":
-		return reflect.Int, nil
-	case "signal.target.parent.cap_effective":
-		return reflect.Int, nil
-	case "signal.target.parent.cap_permitted":
-		return reflect.Int, nil
-	case "signal.target.parent.cgroup.file.inode":
-		return reflect.Int, nil
-	case "signal.target.parent.cgroup.file.mount_id":
-		return reflect.Int, nil
-	case "signal.target.parent.cgroup.id":
-		return reflect.String, nil
-	case "signal.target.parent.cgroup.manager":
-		return reflect.String, nil
-	case "signal.target.parent.cgroup.version":
-		return reflect.Int, nil
-	case "signal.target.parent.comm":
-		return reflect.String, nil
-	case "signal.target.parent.container.id":
-		return reflect.String, nil
-	case "signal.target.parent.created_at":
-		return reflect.Int, nil
-	case "signal.target.parent.egid":
-		return reflect.Int, nil
-	case "signal.target.parent.egroup":
-		return reflect.String, nil
-	case "signal.target.parent.envp":
-		return reflect.String, nil
-	case "signal.target.parent.envs":
-		return reflect.String, nil
-	case "signal.target.parent.envs_truncated":
-		return reflect.Bool, nil
-	case "signal.target.parent.euid":
-		return reflect.Int, nil
-	case "signal.target.parent.euser":
-		return reflect.String, nil
-	case "signal.target.parent.file.change_time":
-		return reflect.Int, nil
-	case "signal.target.parent.file.filesystem":
-		return reflect.String, nil
-	case "signal.target.parent.file.gid":
-		return reflect.Int, nil
-	case "signal.target.parent.file.group":
-		return reflect.String, nil
-	case "signal.target.parent.file.hashes":
-		return reflect.String, nil
-	case "signal.target.parent.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "signal.target.parent.file.inode":
-		return reflect.Int, nil
-	case "signal.target.parent.file.mode":
-		return reflect.Int, nil
-	case "signal.target.parent.file.modification_time":
-		return reflect.Int, nil
-	case "signal.target.parent.file.mount_id":
-		return reflect.Int, nil
-	case "signal.target.parent.file.name":
-		return reflect.String, nil
-	case "signal.target.parent.file.name.length":
-		return reflect.Int, nil
-	case "signal.target.parent.file.package.name":
-		return reflect.String, nil
-	case "signal.target.parent.file.package.source_version":
-		return reflect.String, nil
-	case "signal.target.parent.file.package.version":
-		return reflect.String, nil
-	case "signal.target.parent.file.path":
-		return reflect.String, nil
-	case "signal.target.parent.file.path.length":
-		return reflect.Int, nil
-	case "signal.target.parent.file.rights":
-		return reflect.Int, nil
-	case "signal.target.parent.file.uid":
-		return reflect.Int, nil
-	case "signal.target.parent.file.user":
-		return reflect.String, nil
-	case "signal.target.parent.fsgid":
-		return reflect.Int, nil
-	case "signal.target.parent.fsgroup":
-		return reflect.String, nil
-	case "signal.target.parent.fsuid":
-		return reflect.Int, nil
-	case "signal.target.parent.fsuser":
-		return reflect.String, nil
-	case "signal.target.parent.gid":
-		return reflect.Int, nil
-	case "signal.target.parent.group":
-		return reflect.String, nil
-	case "signal.target.parent.interpreter.file.change_time":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.filesystem":
-		return reflect.String, nil
-	case "signal.target.parent.interpreter.file.gid":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.group":
-		return reflect.String, nil
-	case "signal.target.parent.interpreter.file.hashes":
-		return reflect.String, nil
-	case "signal.target.parent.interpreter.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "signal.target.parent.interpreter.file.inode":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.mode":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.modification_time":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.mount_id":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.name":
-		return reflect.String, nil
-	case "signal.target.parent.interpreter.file.name.length":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.package.name":
-		return reflect.String, nil
-	case "signal.target.parent.interpreter.file.package.source_version":
-		return reflect.String, nil
-	case "signal.target.parent.interpreter.file.package.version":
-		return reflect.String, nil
-	case "signal.target.parent.interpreter.file.path":
-		return reflect.String, nil
-	case "signal.target.parent.interpreter.file.path.length":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.rights":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.uid":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.user":
-		return reflect.String, nil
-	case "signal.target.parent.is_exec":
-		return reflect.Bool, nil
-	case "signal.target.parent.is_kworker":
-		return reflect.Bool, nil
-	case "signal.target.parent.is_thread":
-		return reflect.Bool, nil
-	case "signal.target.parent.pid":
-		return reflect.Int, nil
-	case "signal.target.parent.ppid":
-		return reflect.Int, nil
-	case "signal.target.parent.tid":
-		return reflect.Int, nil
-	case "signal.target.parent.tty_name":
-		return reflect.String, nil
-	case "signal.target.parent.uid":
-		return reflect.Int, nil
-	case "signal.target.parent.user":
-		return reflect.String, nil
-	case "signal.target.parent.user_session.k8s_groups":
-		return reflect.String, nil
-	case "signal.target.parent.user_session.k8s_uid":
-		return reflect.String, nil
-	case "signal.target.parent.user_session.k8s_username":
-		return reflect.String, nil
-	case "signal.target.pid":
-		return reflect.Int, nil
-	case "signal.target.ppid":
-		return reflect.Int, nil
-	case "signal.target.tid":
-		return reflect.Int, nil
-	case "signal.target.tty_name":
-		return reflect.String, nil
-	case "signal.target.uid":
-		return reflect.Int, nil
-	case "signal.target.user":
-		return reflect.String, nil
-	case "signal.target.user_session.k8s_groups":
-		return reflect.String, nil
-	case "signal.target.user_session.k8s_uid":
-		return reflect.String, nil
-	case "signal.target.user_session.k8s_username":
-		return reflect.String, nil
-	case "signal.type":
-		return reflect.Int, nil
-	case "splice.file.change_time":
-		return reflect.Int, nil
-	case "splice.file.filesystem":
-		return reflect.String, nil
-	case "splice.file.gid":
-		return reflect.Int, nil
-	case "splice.file.group":
-		return reflect.String, nil
-	case "splice.file.hashes":
-		return reflect.String, nil
-	case "splice.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "splice.file.inode":
-		return reflect.Int, nil
-	case "splice.file.mode":
-		return reflect.Int, nil
-	case "splice.file.modification_time":
-		return reflect.Int, nil
-	case "splice.file.mount_id":
-		return reflect.Int, nil
-	case "splice.file.name":
-		return reflect.String, nil
-	case "splice.file.name.length":
-		return reflect.Int, nil
-	case "splice.file.package.name":
-		return reflect.String, nil
-	case "splice.file.package.source_version":
-		return reflect.String, nil
-	case "splice.file.package.version":
-		return reflect.String, nil
-	case "splice.file.path":
-		return reflect.String, nil
-	case "splice.file.path.length":
-		return reflect.Int, nil
-	case "splice.file.rights":
-		return reflect.Int, nil
-	case "splice.file.uid":
-		return reflect.Int, nil
-	case "splice.file.user":
-		return reflect.String, nil
-	case "splice.pipe_entry_flag":
-		return reflect.Int, nil
-	case "splice.pipe_exit_flag":
-		return reflect.Int, nil
-	case "splice.retval":
-		return reflect.Int, nil
-	case "unlink.file.change_time":
-		return reflect.Int, nil
-	case "unlink.file.filesystem":
-		return reflect.String, nil
-	case "unlink.file.gid":
-		return reflect.Int, nil
-	case "unlink.file.group":
-		return reflect.String, nil
-	case "unlink.file.hashes":
-		return reflect.String, nil
-	case "unlink.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "unlink.file.inode":
-		return reflect.Int, nil
-	case "unlink.file.mode":
-		return reflect.Int, nil
-	case "unlink.file.modification_time":
-		return reflect.Int, nil
-	case "unlink.file.mount_id":
-		return reflect.Int, nil
-	case "unlink.file.name":
-		return reflect.String, nil
-	case "unlink.file.name.length":
-		return reflect.Int, nil
-	case "unlink.file.package.name":
-		return reflect.String, nil
-	case "unlink.file.package.source_version":
-		return reflect.String, nil
-	case "unlink.file.package.version":
-		return reflect.String, nil
-	case "unlink.file.path":
-		return reflect.String, nil
-	case "unlink.file.path.length":
-		return reflect.Int, nil
-	case "unlink.file.rights":
-		return reflect.Int, nil
-	case "unlink.file.uid":
-		return reflect.Int, nil
-	case "unlink.file.user":
-		return reflect.String, nil
-	case "unlink.flags":
-		return reflect.Int, nil
-	case "unlink.retval":
-		return reflect.Int, nil
-	case "unlink.syscall.dirfd":
-		return reflect.Int, nil
-	case "unlink.syscall.flags":
-		return reflect.Int, nil
-	case "unlink.syscall.path":
-		return reflect.String, nil
-	case "unload_module.name":
-		return reflect.String, nil
-	case "unload_module.retval":
-		return reflect.Int, nil
-	case "utimes.file.change_time":
-		return reflect.Int, nil
-	case "utimes.file.filesystem":
-		return reflect.String, nil
-	case "utimes.file.gid":
-		return reflect.Int, nil
-	case "utimes.file.group":
-		return reflect.String, nil
-	case "utimes.file.hashes":
-		return reflect.String, nil
-	case "utimes.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "utimes.file.inode":
-		return reflect.Int, nil
-	case "utimes.file.mode":
-		return reflect.Int, nil
-	case "utimes.file.modification_time":
-		return reflect.Int, nil
-	case "utimes.file.mount_id":
-		return reflect.Int, nil
-	case "utimes.file.name":
-		return reflect.String, nil
-	case "utimes.file.name.length":
-		return reflect.Int, nil
-	case "utimes.file.package.name":
-		return reflect.String, nil
-	case "utimes.file.package.source_version":
-		return reflect.String, nil
-	case "utimes.file.package.version":
-		return reflect.String, nil
-	case "utimes.file.path":
-		return reflect.String, nil
-	case "utimes.file.path.length":
-		return reflect.Int, nil
-	case "utimes.file.rights":
-		return reflect.Int, nil
-	case "utimes.file.uid":
-		return reflect.Int, nil
-	case "utimes.file.user":
-		return reflect.String, nil
-	case "utimes.retval":
-		return reflect.Int, nil
-	case "utimes.syscall.path":
-		return reflect.String, nil
-	}
-	return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
