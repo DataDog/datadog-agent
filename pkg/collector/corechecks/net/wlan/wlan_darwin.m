@@ -11,7 +11,6 @@
 
 @interface LocationManager : NSObject <CLLocationManagerDelegate>
 @property (nonatomic, strong) CLLocationManager *locationManager;
-@property (nonatomic, strong) CWWiFiClient *wifiClient;
 @property (nonatomic, assign) BOOL isRunning;
 @end
 
@@ -22,7 +21,6 @@
     if (self) {
         self.isRunning = YES;
         [self setupLocationServices];
-        [self setupWiFiClient];
     }
     return self;
 }
@@ -32,29 +30,7 @@
     self.locationManager.delegate = self;
     
     if (self.locationManager.authorizationStatus == kCLAuthorizationStatusNotDetermined) {
-        [self.locationManager requestAlwaysAuthorization];
-    }
-}
-
-- (void)setupWiFiClient {
-    self.wifiClient = [CWWiFiClient sharedWiFiClient];
-}
-
-- (void)printCurrentWiFiInfo {
-    NSError *error = nil;
-    CWInterface *interface = [CWWiFiClient sharedWiFiClient].interface;
-    
-    if (!interface) {
-        NSLog(@"Error getting WiFi interface");
-        return;
-    }
-    
-    if (interface.ssid) {
-        NSLog(@"Connected to WiFi network: %@", interface.ssid);
-        NSLog(@"BSSID: %@", interface.bssid);
-        NSLog(@"Signal Strength (RSSI): %ld dBm", (long)interface.rssiValue);
-    } else {
-        NSLog(@"Not connected to any WiFi network");
+        [self.locationManager requestWhenIsUseAuthorization];
     }
 }
 
@@ -67,7 +43,6 @@
         case kCLAuthorizationStatusAuthorizedAlways:
             NSLog(@"Location services authorized!");
             [self.locationManager startUpdatingLocation];
-            [self printCurrentWiFiInfo];
             break;
             
         case kCLAuthorizationStatusDenied:
