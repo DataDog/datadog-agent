@@ -29,41 +29,48 @@
     self.locationManager = [[CLLocationManager alloc] init];
     self.locationManager.delegate = self;
     
-    if (self.locationManager.authorizationStatus == kCLAuthorizationStatusNotDetermined) {
-        [self.locationManager requestWhenIsUseAuthorization];
+    if (@available(macOS 10.15, *)) {
+        if (self.locationManager.authorizationStatus == kCLAuthorizationStatusNotDetermined) {
+            [self.locationManager requestWhenInUseAuthorization];
+        }
+    } else {
+        NSLog(@"Location services not available on this OS version");
     }
 }
 
 #pragma mark - CLLocationManagerDelegate
 
 - (void)locationManagerDidChangeAuthorization:(CLLocationManager *)manager {
-    CLAuthorizationStatus status = manager.authorizationStatus;
-    
-    switch (status) {
-        case kCLAuthorizationStatusAuthorizedAlways:
-            NSLog(@"Location services authorized!");
-            [self.locationManager startUpdatingLocation];
-            break;
-            
-        case kCLAuthorizationStatusDenied:
-            NSLog(@"Location services denied by user");
-            self.isRunning = NO;
-            break;
-            
-        case kCLAuthorizationStatusRestricted:
-            NSLog(@"Location services restricted");
-            self.isRunning = NO;
-            break;
-        default:
-            NSLog(@"Location services status undetermined: %d", status);
-            break;
+    if (@available(macOS 10.15, *)) {
+        CLAuthorizationStatus status = manager.authorizationStatus;
+        
+        switch (status) {
+            case kCLAuthorizationStatusAuthorizedAlways:
+                NSLog(@"Location services authorized!");
+                [self.locationManager startUpdatingLocation];
+                break;
+                
+            case kCLAuthorizationStatusDenied:
+                NSLog(@"Location services denied by user");
+                self.isRunning = NO;
+                break;
+                
+            case kCLAuthorizationStatusRestricted:
+                NSLog(@"Location services restricted");
+                self.isRunning = NO;
+                break;
+            default:
+                NSLog(@"Location services status undetermined: %d", status);
+                break;
+        }
+    } else {
+        NSLog(@"Location services not available on this OS version");
     }
 }
 
 - (void)locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray<CLLocation *> *)locations {
     CLLocation *location = [locations lastObject];
     NSLog(@"Location updated: %@", location);
-    [self printCurrentWiFiInfo];
 }
 
 - (void)locationManager:(CLLocationManager *)manager didFailWithError:(NSError *)error {
