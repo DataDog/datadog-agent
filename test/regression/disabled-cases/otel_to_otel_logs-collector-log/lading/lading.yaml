@@ -10,7 +10,7 @@ generator:
       method:
         post:
           maximum_prebuild_cache_size_bytes: "512 Mb"
-          variant: "opentelemetry_log"
+          variant: "opentelemetry_logs"
 
 blackhole:
   - http:
