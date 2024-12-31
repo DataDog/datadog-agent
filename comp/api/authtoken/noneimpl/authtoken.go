@@ -12,14 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 )
 
-// // Module defines the fx options for this component.
-// func Module() fxutil.Module {
-// 	return fxutil.Component(
-// 		fx.Provide(newAuthToken),
-// 		fxutil.ProvideOptional[authtoken.Component](),
-// 	)
-// }
-
 type authToken struct {
 }
 

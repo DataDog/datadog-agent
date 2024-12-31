@@ -21,6 +21,7 @@ func (cs *configSync) updater() {
 	authToken, err := cs.Authtoken.Get()
 	if err != nil {
 		cs.Log.Errorf("Failed to fetch config from core agent: unable to retrieve auth_token: %v", err.Error())
+		return
 	}
 
 	cfg, err := fetchConfig(cs.ctx, cs.client, authToken, cs.url.String())
