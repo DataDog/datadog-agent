@@ -19,6 +19,9 @@ import (
 )
 
 func GetWiFiInfo() (WiFiInfo, error) {
+	C.InitLocationServices()
+	log.Info("Initialized Location Manager")
+
 	info := C.GetWiFiInformation()
 	return WiFiInfo{
 		Rssi:            int(info.rssi),
@@ -29,9 +32,4 @@ func GetWiFiInfo() (WiFiInfo, error) {
 		TransmitRate:    float64(info.transmitRate),
 		HardwareAddress: C.GoString(info.hardwareAddress),
 	}, nil
-}
-
-func SetupLocationAccess() {
-	C.InitLocationServices()
-	log.Info("Initialized Location Manager")
 }

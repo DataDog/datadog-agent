@@ -25,7 +25,7 @@ func TestWLANOK(t *testing.T) {
 	resetGlobals()
 
 	// setup mocks
-	getWifiInfo = func() (WiFiInfo, error) {
+	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
 			Rssi:            10,
 			Ssid:            "test-ssid",
@@ -36,11 +36,9 @@ func TestWLANOK(t *testing.T) {
 			HardwareAddress: "hardware-address",
 		}, nil
 	}
-	setupLocationAccess = func() {
-	}
+
 	defer func() {
-		getWifiInfo = GetWiFiInfo
-		setupLocationAccess = SetupLocationAccess
+		getWiFiInfo = GetWiFiInfo
 	}()
 
 	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address"}
@@ -64,7 +62,7 @@ func TestWLANEmptySSIDisUnknown(t *testing.T) {
 	resetGlobals()
 
 	// setup mocks
-	getWifiInfo = func() (WiFiInfo, error) {
+	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
 			Rssi:            10,
 			Ssid:            "",
@@ -75,11 +73,9 @@ func TestWLANEmptySSIDisUnknown(t *testing.T) {
 			HardwareAddress: "hardware-address",
 		}, nil
 	}
-	setupLocationAccess = func() {
-	}
+
 	defer func() {
-		getWifiInfo = GetWiFiInfo
-		setupLocationAccess = SetupLocationAccess
+		getWiFiInfo = GetWiFiInfo
 	}()
 
 	expectedTags := []string{"ssid:unknown", "bssid:test-bssid", "mac_address:hardware-address"}
@@ -103,7 +99,7 @@ func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
 	resetGlobals()
 
 	// setup mocks
-	getWifiInfo = func() (WiFiInfo, error) {
+	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
 			Rssi:            10,
 			Ssid:            "test-ssid",
@@ -114,11 +110,9 @@ func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
 			HardwareAddress: "hardware-address",
 		}, nil
 	}
-	setupLocationAccess = func() {
-	}
+
 	defer func() {
-		getWifiInfo = GetWiFiInfo
-		setupLocationAccess = SetupLocationAccess
+		getWiFiInfo = GetWiFiInfo
 	}()
 
 	expectedTags := []string{"ssid:test-ssid", "bssid:unknown", "mac_address:hardware-address"}
@@ -142,7 +136,7 @@ func TestWLANEmptySSIDandBSSID(t *testing.T) {
 	resetGlobals()
 
 	// setup mocks
-	getWifiInfo = func() (WiFiInfo, error) {
+	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
 			Rssi:            10,
 			Ssid:            "test-ssid",
@@ -153,11 +147,9 @@ func TestWLANEmptySSIDandBSSID(t *testing.T) {
 			HardwareAddress: "hardware-address",
 		}, nil
 	}
-	setupLocationAccess = func() {
-	}
+
 	defer func() {
-		getWifiInfo = GetWiFiInfo
-		setupLocationAccess = SetupLocationAccess
+		getWiFiInfo = GetWiFiInfo
 	}()
 
 	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address"}
@@ -181,7 +173,7 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 	resetGlobals()
 
 	// setup mocks
-	getWifiInfo = func() (WiFiInfo, error) {
+	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
 			Rssi:            10,
 			Ssid:            "test-ssid",
@@ -192,11 +184,9 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 			HardwareAddress: "hardware-address",
 		}, nil
 	}
-	setupLocationAccess = func() {
-	}
+
 	defer func() {
-		getWifiInfo = GetWiFiInfo
-		setupLocationAccess = SetupLocationAccess
+		getWiFiInfo = GetWiFiInfo
 	}()
 
 	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address"}
@@ -214,7 +204,7 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	// change channel number from 1 to 2
-	getWifiInfo = func() (WiFiInfo, error) {
+	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
 			Rssi:            10,
 			Ssid:            "test-ssid",
@@ -230,7 +220,7 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 1.0, "", expectedTags)
 
-	getWifiInfo = func() (WiFiInfo, error) {
+	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
 			Rssi:            10,
 			Ssid:            "test-ssid",
@@ -255,7 +245,7 @@ func TestWLANRoamingEvents(t *testing.T) {
 	resetGlobals()
 
 	// setup mocks
-	getWifiInfo = func() (WiFiInfo, error) {
+	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
 			Rssi:            10,
 			Ssid:            "ssid-1",
@@ -266,11 +256,9 @@ func TestWLANRoamingEvents(t *testing.T) {
 			HardwareAddress: "hardware-address",
 		}, nil
 	}
-	setupLocationAccess = func() {
-	}
+
 	defer func() {
-		getWifiInfo = GetWiFiInfo
-		setupLocationAccess = SetupLocationAccess
+		getWiFiInfo = GetWiFiInfo
 	}()
 
 	expectedTags := []string{"ssid:ssid-1", "bssid:test-bssid", "mac_address:hardware-address"}
@@ -287,7 +275,7 @@ func TestWLANRoamingEvents(t *testing.T) {
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
 
-	getWifiInfo = func() (WiFiInfo, error) {
+	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
 			Rssi:            10,
 			Ssid:            "ssid-2",
@@ -305,7 +293,7 @@ func TestWLANRoamingEvents(t *testing.T) {
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 1.0, "", expectedTags)
 
-	getWifiInfo = func() (WiFiInfo, error) {
+	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
 			Rssi:            10,
 			Ssid:            "ssid-1",

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+//go:build darwin
 
 //nolint:revive // TODO(PLINT) Fix revive linter
 package wlan
@@ -23,8 +23,7 @@ const (
 	defaultMinCollectionInterval = 15
 )
 
-var getWifiInfo = GetWiFiInfo
-var setupLocationAccess = SetupLocationAccess
+var getWiFiInfo = GetWiFiInfo
 
 var lastChannelID int = -1
 var lastBSSID string = ""
@@ -56,8 +55,7 @@ func (c *WLANCheck) Run() error {
 	if err != nil {
 		return err
 	}
-	setupLocationAccess()
-	wifiInfo, err := getWifiInfo()
+	wifiInfo, err := getWiFiInfo()
 	if err != nil {
 		log.Error(err)
 		sender.Commit()
