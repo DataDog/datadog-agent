@@ -138,7 +138,8 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     // We support non empty TCP payloads for classification at the moment.
-    if (!is_tcp(&skb_tup) || is_payload_empty(&skb_info)) {
+    bool tcp_termination = is_tcp_termination(&skb_info);
+    if (!is_tcp(&skb_tup) || (is_payload_empty(&skb_info) && !tcp_termination)) {
         return;
     }
 
@@ -147,7 +148,15 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&usm_ctx->tuple);
+    conn_tuple_t normalized_tup = usm_ctx->tuple;
+    normalize_tuple(&normalized_tup);
+
+    protocol_stack_t *protocol_stack = __get_protocol_stack_if_exists(&normalized_tup);
+
+    if (tcp_termination && protocol_stack) {
+        delete_protocol_stack(&normalized_tup, protocol_stack, FLAG_SOCKET_FILTER_DELETION);
+        return;
+    }
 
     if (is_fully_classified(protocol_stack) || is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION)) {
         return;
