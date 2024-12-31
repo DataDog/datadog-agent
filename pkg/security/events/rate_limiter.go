@@ -38,7 +38,7 @@ var (
 	defaultPerRuleLimiters = map[eval.RuleID]rate.Limit{
 		RulesetLoadedRuleID:             rate.Inf, // No limit on ruleset loaded
 		HeartbeatRuleID:                 rate.Inf, // No limit on heartbeat
-		AbnormalPathRuleID:              rate.Every(30 * time.Second),
+		AbnormalPathRuleID:              rate.Every(1 * time.Millisecond),
 		NoProcessContextErrorRuleID:     rate.Every(30 * time.Second),
 		BrokenProcessLineageErrorRuleID: rate.Every(30 * time.Second),
 		EBPFLessHelloMessageRuleID:      rate.Inf, // No limit on hello message

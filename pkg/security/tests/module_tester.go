@@ -906,6 +906,8 @@ func (fs *fakeMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.Securit
 	}
 
 	fs.msgs[msgStruct.AgentContext.RuleID] = msg
+	fmt.Println("------------ SEND", msg.RuleID)
+
 }
 
 func (fs *fakeMsgSender) getMsg(ruleID eval.RuleID) *api.SecurityEventMessage {
