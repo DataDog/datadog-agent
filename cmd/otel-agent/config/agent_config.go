@@ -117,7 +117,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			return nil, err
 		}
 		var ok bool
-		activeLogLevel, ok = logLevelMap[pkgconfig.GetString("log_level")]
+		activeLogLevel, ok = logLevelMap[strings.ToLower(pkgconfig.GetString("log_level"))]
 		if !ok {
 			return nil, fmt.Errorf("invalid log level (%v) set in the Datadog Agent configuration", pkgconfig.GetString("log_level"))
 		}
@@ -125,7 +125,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 
 	// Set the right log level. The most verbose setting takes precedence.
 	telemetryLogLevel := sc.Telemetry.Logs.Level
-	telemetryLogMapping, ok := logLevelMap[telemetryLogLevel.String()]
+	telemetryLogMapping, ok := logLevelMap[strings.ToLower(telemetryLogLevel.String())]
 	if !ok {
 		return nil, fmt.Errorf("invalid log level (%v) set in the OTel Telemetry configuration", telemetryLogLevel.String())
 	}
