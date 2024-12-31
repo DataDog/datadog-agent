@@ -2802,6 +2802,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	return "", reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
+	sanitizeProcessContext := func() {
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+	}
 	switch field {
 	case "change_permission.new_sd":
 		rv, ok := value.(string)
@@ -3352,12 +3360,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "open_key.registry.key_path.length":
 		return &eval.ErrFieldReadOnly{Field: "open_key.registry.key_path.length"}
 	case "process.ancestors.cmdline":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Ancestor == nil {
-			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.cmdline"}
@@ -3365,12 +3368,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CmdLine = rv
 		return nil
 	case "process.ancestors.container.id":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Ancestor == nil {
-			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.container.id"}
@@ -3378,12 +3376,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID = rv
 		return nil
 	case "process.ancestors.created_at":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Ancestor == nil {
-			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.created_at"}
@@ -3391,12 +3384,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CreatedAt = uint64(rv)
 		return nil
 	case "process.ancestors.envp":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Ancestor == nil {
-			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
+		sanitizeProcessContext()
 		switch rv := value.(type) {
 		case string:
 			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envp = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envp, rv)
@@ -3407,12 +3395,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "process.ancestors.envs":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Ancestor == nil {
-			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
+		sanitizeProcessContext()
 		switch rv := value.(type) {
 		case string:
 			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envs = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envs, rv)
@@ -3423,12 +3406,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "process.ancestors.file.name":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Ancestor == nil {
-			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.file.name"}
@@ -3436,20 +3414,10 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = rv
 		return nil
 	case "process.ancestors.file.name.length":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Ancestor == nil {
-			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
+		sanitizeProcessContext()
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.file.name.length"}
 	case "process.ancestors.file.path":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Ancestor == nil {
-			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.file.path"}
@@ -3457,28 +3425,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = rv
 		return nil
 	case "process.ancestors.file.path.length":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Ancestor == nil {
-			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
+		sanitizeProcessContext()
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.file.path.length"}
 	case "process.ancestors.length":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Ancestor == nil {
-			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
+		sanitizeProcessContext()
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.length"}
 	case "process.ancestors.pid":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Ancestor == nil {
-			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.pid"}
@@ -3486,12 +3439,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Pid = uint32(rv)
 		return nil
 	case "process.ancestors.ppid":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Ancestor == nil {
-			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.ppid"}
@@ -3499,12 +3447,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PPid = uint32(rv)
 		return nil
 	case "process.ancestors.user":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Ancestor == nil {
-			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.user"}
@@ -3512,12 +3455,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.User = rv
 		return nil
 	case "process.ancestors.user_sid":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Ancestor == nil {
-			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.user_sid"}
@@ -3525,9 +3463,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.OwnerSidString = rv
 		return nil
 	case "process.cmdline":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.cmdline"}
@@ -3535,9 +3471,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Process.CmdLine = rv
 		return nil
 	case "process.container.id":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.container.id"}
@@ -3545,9 +3479,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Process.ContainerID = rv
 		return nil
 	case "process.created_at":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.created_at"}
@@ -3555,9 +3487,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Process.CreatedAt = uint64(rv)
 		return nil
 	case "process.envp":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
+		sanitizeProcessContext()
 		switch rv := value.(type) {
 		case string:
 			ev.BaseEvent.ProcessContext.Process.Envp = append(ev.BaseEvent.ProcessContext.Process.Envp, rv)
@@ -3568,9 +3498,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "process.envs":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
+		sanitizeProcessContext()
 		switch rv := value.(type) {
 		case string:
 			ev.BaseEvent.ProcessContext.Process.Envs = append(ev.BaseEvent.ProcessContext.Process.Envs, rv)
@@ -3581,9 +3509,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "process.file.name":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.file.name"}
@@ -3591,14 +3517,10 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Process.FileEvent.BasenameStr = rv
 		return nil
 	case "process.file.name.length":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
+		sanitizeProcessContext()
 		return &eval.ErrFieldReadOnly{Field: "process.file.name.length"}
 	case "process.file.path":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.file.path"}
@@ -3606,17 +3528,10 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Process.FileEvent.PathnameStr = rv
 		return nil
 	case "process.file.path.length":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
+		sanitizeProcessContext()
 		return &eval.ErrFieldReadOnly{Field: "process.file.path.length"}
 	case "process.parent.cmdline":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Parent == nil {
-			ev.BaseEvent.ProcessContext.Parent = &Process{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.parent.cmdline"}
@@ -3624,12 +3539,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Parent.CmdLine = rv
 		return nil
 	case "process.parent.container.id":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Parent == nil {
-			ev.BaseEvent.ProcessContext.Parent = &Process{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.parent.container.id"}
@@ -3637,12 +3547,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Parent.ContainerID = rv
 		return nil
 	case "process.parent.created_at":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Parent == nil {
-			ev.BaseEvent.ProcessContext.Parent = &Process{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.parent.created_at"}
@@ -3650,12 +3555,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Parent.CreatedAt = uint64(rv)
 		return nil
 	case "process.parent.envp":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Parent == nil {
-			ev.BaseEvent.ProcessContext.Parent = &Process{}
-		}
+		sanitizeProcessContext()
 		switch rv := value.(type) {
 		case string:
 			ev.BaseEvent.ProcessContext.Parent.Envp = append(ev.BaseEvent.ProcessContext.Parent.Envp, rv)
@@ -3666,12 +3566,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "process.parent.envs":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Parent == nil {
-			ev.BaseEvent.ProcessContext.Parent = &Process{}
-		}
+		sanitizeProcessContext()
 		switch rv := value.(type) {
 		case string:
 			ev.BaseEvent.ProcessContext.Parent.Envs = append(ev.BaseEvent.ProcessContext.Parent.Envs, rv)
@@ -3682,12 +3577,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "process.parent.file.name":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Parent == nil {
-			ev.BaseEvent.ProcessContext.Parent = &Process{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.parent.file.name"}
@@ -3695,20 +3585,10 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Parent.FileEvent.BasenameStr = rv
 		return nil
 	case "process.parent.file.name.length":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Parent == nil {
-			ev.BaseEvent.ProcessContext.Parent = &Process{}
-		}
+		sanitizeProcessContext()
 		return &eval.ErrFieldReadOnly{Field: "process.parent.file.name.length"}
 	case "process.parent.file.path":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Parent == nil {
-			ev.BaseEvent.ProcessContext.Parent = &Process{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.parent.file.path"}
@@ -3716,20 +3596,10 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Parent.FileEvent.PathnameStr = rv
 		return nil
 	case "process.parent.file.path.length":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Parent == nil {
-			ev.BaseEvent.ProcessContext.Parent = &Process{}
-		}
+		sanitizeProcessContext()
 		return &eval.ErrFieldReadOnly{Field: "process.parent.file.path.length"}
 	case "process.parent.pid":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Parent == nil {
-			ev.BaseEvent.ProcessContext.Parent = &Process{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.parent.pid"}
@@ -3737,12 +3607,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Parent.PIDContext.Pid = uint32(rv)
 		return nil
 	case "process.parent.ppid":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Parent == nil {
-			ev.BaseEvent.ProcessContext.Parent = &Process{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.parent.ppid"}
@@ -3750,12 +3615,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Parent.PPid = uint32(rv)
 		return nil
 	case "process.parent.user":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Parent == nil {
-			ev.BaseEvent.ProcessContext.Parent = &Process{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.parent.user"}
@@ -3763,12 +3623,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Parent.User = rv
 		return nil
 	case "process.parent.user_sid":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Parent == nil {
-			ev.BaseEvent.ProcessContext.Parent = &Process{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.parent.user_sid"}
@@ -3776,9 +3631,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Parent.OwnerSidString = rv
 		return nil
 	case "process.pid":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.pid"}
@@ -3786,9 +3639,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Process.PIDContext.Pid = uint32(rv)
 		return nil
 	case "process.ppid":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.ppid"}
@@ -3796,9 +3647,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Process.PPid = uint32(rv)
 		return nil
 	case "process.user":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.user"}
@@ -3806,9 +3655,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.BaseEvent.ProcessContext.Process.User = rv
 		return nil
 	case "process.user_sid":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
+		sanitizeProcessContext()
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.user_sid"}

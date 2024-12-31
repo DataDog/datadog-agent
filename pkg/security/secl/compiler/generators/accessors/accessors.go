@@ -757,7 +757,11 @@ func formatBuildTags(buildTags string) []string {
 }
 
 func newField(allFields map[string]*common.StructField, field *common.StructField) string {
-	var fieldPath, result string
+	var (
+		fieldPath, result       string
+		processContextSanitized bool
+	)
+
 	for _, node := range strings.Split(field.Name, ".") {
 		if fieldPath != "" {
 			fieldPath += "." + node
@@ -767,7 +771,14 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 
 		if field, ok := allFields[fieldPath]; ok {
 			if field.IsOrigTypePtr {
-				result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
+				if strings.HasPrefix(field.Name, "BaseEvent.ProcessContext") {
+					if !processContextSanitized {
+						result += "sanitizeProcessContext()\n"
+						processContextSanitized = true
+					}
+				} else {
+					result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
+				}
 			}
 		}
 	}
