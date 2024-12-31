@@ -1,0 +1,6 @@
+{
+    "include": ["python_type_check.py"],
+    "extraPaths": [".."],
+    "typeCheckingMode": "strict",
+    "reportUnknownVariableType": false
+}
