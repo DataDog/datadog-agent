@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package util
+package procfilestats
 
 import (
 	"os"
