@@ -9,6 +9,7 @@
 package wlan
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -27,6 +28,8 @@ var getWifiInfo = GetWiFiInfo
 var setupLocationAccess = SetupLocationAccess
 
 var lastChannelID int = -1
+var lastBSSID string = ""
+var lastSSID string = ""
 
 // WiFiInfo contains information about the WiFi connection as defined in wlan_darwin.h
 type WiFiInfo struct {
@@ -88,6 +91,16 @@ func (c *WLANCheck) Run() error {
 	}
 	sender.Count("wlan.channel_swap_events", increment, "", tags)
 	lastChannelID = wifiInfo.Channel
+
+	// roaming events / ssid swap events
+	increment = 0.0
+	if lastBSSID != "" && lastSSID != "" && lastBSSID == wifiInfo.Bssid && lastSSID != wifiInfo.Ssid {
+		increment = 1.0
+		fmt.Printf("Roaming event detected: %s, %s and %s, %s\n", lastSSID, wifiInfo.Ssid, lastBSSID, wifiInfo.Bssid)
+	}
+	sender.Count("wlan.roaming_events", increment, "", tags)
+	lastBSSID = wifiInfo.Bssid
+	lastSSID = wifiInfo.Ssid
 
 	sender.Commit()
 	return nil
