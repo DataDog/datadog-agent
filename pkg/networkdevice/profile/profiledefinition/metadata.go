@@ -18,6 +18,16 @@ func (mc MetadataConfig) JSONSchema() *jsonschema.Schema {
 	return ListMap[MetadataResourceConfig](mc).JSONSchema()
 }
 
+// MarshalJSON marshals the metadata config
+func (mc MetadataConfig) MarshalJSON() ([]byte, error) {
+	return ListMap[MetadataResourceConfig](mc).MarshalJSON()
+}
+
+// UnmarshalJSON unmarshals the metadata config
+func (mc *MetadataConfig) UnmarshalJSON(data []byte) error {
+	return (*ListMap[MetadataResourceConfig])(mc).UnmarshalJSON(data)
+}
+
 // MetadataResourceConfig holds configs for a metadata resource
 type MetadataResourceConfig struct {
 	Fields ListMap[MetadataField] `yaml:"fields" json:"fields"`
