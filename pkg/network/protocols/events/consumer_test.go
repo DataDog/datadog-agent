@@ -15,12 +15,12 @@ import (
 	"time"
 	"unsafe"
 
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -109,7 +109,7 @@ type eventGenerator struct {
 	testFile *os.File
 }
 
-func newEventGenerator(program *manager.Manager, t *testing.T) *eventGenerator {
+func newEventGenerator(program *ddebpf.Manager, t *testing.T) *eventGenerator {
 	m, _, _ := program.GetMap("test")
 	require.NotNilf(t, m, "couldn't find test map")
 
