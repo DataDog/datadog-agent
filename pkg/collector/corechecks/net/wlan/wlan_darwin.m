@@ -11,7 +11,6 @@
 
 @interface LocationManager : NSObject <CLLocationManagerDelegate>
 @property (nonatomic, strong) CLLocationManager *locationManager;
-@property (nonatomic, assign) BOOL isRunning;
 @end
 
 @implementation LocationManager
@@ -19,7 +18,6 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        self.isRunning = YES;
         [self setupLocationServices];
     }
     return self;
@@ -52,12 +50,10 @@
                 
             case kCLAuthorizationStatusDenied:
                 NSLog(@"Location services denied by user");
-                self.isRunning = NO;
                 break;
                 
             case kCLAuthorizationStatusRestricted:
                 NSLog(@"Location services restricted");
-                self.isRunning = NO;
                 break;
             default:
                 NSLog(@"Location services status undetermined: %d", status);
