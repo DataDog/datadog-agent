@@ -171,15 +171,10 @@ func (s *Tracker) InfoKey() string {
 
 // Info returns the Tracker as a formatted string slice.
 func (s *Tracker) Info() []string {
-	AllTimeAvgLatency := s.AllTimeAvg() / int64(time.Millisecond)
-	AllTimePeakLatency := s.AllTimePeak() / int64(time.Millisecond)
-	RecentAvgLatency := s.MovingAvg() / int64(time.Millisecond)
-	RecentPeakLatency := s.MovingPeak() / int64(time.Millisecond)
-
 	return []string{
-		fmt.Sprintf("Average Latency (ms): %d", AllTimeAvgLatency),
-		fmt.Sprintf("24h Average Latency (ms): %d", RecentAvgLatency),
-		fmt.Sprintf("Peak Latency (ms): %d", AllTimePeakLatency),
-		fmt.Sprintf("24h Peak Latency (ms): %d", RecentPeakLatency),
+		fmt.Sprintf("Average Latency: %s", time.Duration(s.AllTimeAvg())),
+		fmt.Sprintf("24h Average Latency: %s", time.Duration(s.MovingAvg())),
+		fmt.Sprintf("Peak Latency: %s", time.Duration(s.AllTimePeak())),
+		fmt.Sprintf("24h Peak Latency: %s", time.Duration(s.MovingPeak())),
 	}
 }

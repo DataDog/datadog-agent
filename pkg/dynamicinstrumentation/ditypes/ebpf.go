@@ -8,7 +8,7 @@
 package ditypes
 
 /*
-#include "../codegen/c/types.h"
+#include "../codegen/c/base_event.h"
 */
 import "C"
 
