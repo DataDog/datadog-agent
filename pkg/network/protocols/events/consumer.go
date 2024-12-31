@@ -25,7 +25,7 @@ import (
 const (
 	batchMapSuffix  = "_batches"
 	eventsMapSuffix = "_batch_events"
-	sizeOfBatch     = int(unsafe.Sizeof(batch{}))
+	sizeOfBatch     = int(unsafe.Sizeof(Batch{}))
 )
 
 var errInvalidPerfEvent = errors.New("invalid perf event")
@@ -59,7 +59,7 @@ type Consumer[V any] struct {
 // 2) be thread-safe, as the callback may be executed concurrently from multiple go-routines;
 func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V)) (*Consumer[V], error) {
 	batchMapName := proto + batchMapSuffix
-	batchMap, err := maps.GetMap[batchKey, batch](ebpf, batchMapName)
+	batchMap, err := maps.GetMap[batchKey, Batch](ebpf, batchMapName)
 	if err != nil {
 		return nil, fmt.Errorf("unable to find map %s: %s", batchMapName, err)
 	}
@@ -164,7 +164,7 @@ func (c *Consumer[V]) Start() {
 					return
 				}
 
-				c.batchReader.ReadAll(func(_ int, b *batch) {
+				c.batchReader.ReadAll(func(_ int, b *Batch) {
 					c.process(b, true)
 				})
 				if log.ShouldLog(log.DebugLvl) {
@@ -209,7 +209,7 @@ func (c *Consumer[V]) Stop() {
 	close(c.syncRequest)
 }
 
-func (c *Consumer[V]) process(b *batch, syncing bool) {
+func (c *Consumer[V]) process(b *Batch, syncing bool) {
 	cpu := int(b.Cpu)
 
 	// Determine the subset of data we're interested in as we might have read
@@ -246,7 +246,7 @@ func (c *Consumer[V]) process(b *batch, syncing bool) {
 	c.callback(events)
 }
 
-func batchFromEventData(data []byte) (*batch, error) {
+func batchFromEventData(data []byte) (*Batch, error) {
 	if len(data) < sizeOfBatch {
 		// For some reason the eBPF program sent us a perf event with a size
 		// different from what we're expecting.
@@ -260,10 +260,10 @@ func batchFromEventData(data []byte) (*batch, error) {
 		return nil, errInvalidPerfEvent
 	}
 
-	return (*batch)(unsafe.Pointer(&data[0])), nil
+	return (*Batch)(unsafe.Pointer(&data[0])), nil
 }
 
-func pointerToElement[V any](b *batch, elementIdx int) *V {
+func pointerToElement[V any](b *Batch, elementIdx int) *V {
 	offset := elementIdx * int(b.Event_size)
 	return (*V)(unsafe.Pointer(uintptr(unsafe.Pointer(&b.Data[0])) + uintptr(offset)))
 }

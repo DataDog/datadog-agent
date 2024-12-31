@@ -59,7 +59,6 @@ type BaseInstallerSuite struct {
 	currentAgentVersion    agentVersion.Version
 	stableInstallerVersion PackageVersion
 	stableAgentVersion     PackageVersion
-	outputDir              string
 }
 
 // Installer the Datadog Installer for testing.
@@ -109,12 +108,7 @@ func (s *BaseInstallerSuite) SetupSuite() {
 // BeforeTest creates a new Datadog Installer and sets the output logs directory for each tests
 func (s *BaseInstallerSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
-
-	var err error
-	s.outputDir, err = s.CreateTestOutputDir()
-	s.Require().NoError(err, "should get output dir")
-	s.T().Logf("Output dir: %s", s.outputDir)
-	s.installer = NewDatadogInstaller(s.Env(), s.outputDir)
+	s.installer = NewDatadogInstaller(s.Env(), s.SessionOutputDir())
 }
 
 // Require instantiates a suiteAssertions for the current suite.
@@ -127,9 +121,4 @@ func (s *BaseInstallerSuite) BeforeTest(suiteName, testName string) {
 // on the Windows Datadog installer `BaseInstallerSuite` object.
 func (s *BaseInstallerSuite) Require() *suiteasserts.SuiteAssertions {
 	return suiteasserts.New(s.BaseSuite.Require(), s)
-}
-
-// OutputDir returns the output directory for the test
-func (s *BaseInstallerSuite) OutputDir() string {
-	return s.outputDir
 }

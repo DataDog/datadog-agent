@@ -80,6 +80,7 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 	// Use the result from InspectWithDWARF to populate the locations of parameters
 	for functionName, functionMetadata := range r.Functions {
 		putLocationsInParams(functionMetadata.Parameters, r.StructOffsets, procInfo.TypeMap.Functions, functionName)
+		populateLocationExpressionsForFunction(r.Functions, procInfo, functionName)
 		correctStructSizes(procInfo.TypeMap.Functions[functionName])
 	}
 
@@ -88,15 +89,15 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 
 // collectFieldIDs returns all struct fields if there are any amongst types of parameters
 // including if there's structs that are nested deep within complex types
-func collectFieldIDs(param ditypes.Parameter) []bininspect.FieldIdentifier {
+func collectFieldIDs(param *ditypes.Parameter) []bininspect.FieldIdentifier {
 	fieldIDs := []bininspect.FieldIdentifier{}
-	stack := append([]ditypes.Parameter{param}, param.ParameterPieces...)
+	stack := append([]*ditypes.Parameter{param}, param.ParameterPieces...)
 
 	for len(stack) != 0 {
 
 		current := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		if !kindIsSupported(reflect.Kind(current.Kind)) {
+		if current == nil || !kindIsSupported(reflect.Kind(current.Kind)) {
 			continue
 		}
 		if len(current.ParameterPieces) != 0 {
@@ -125,10 +126,45 @@ func collectFieldIDs(param ditypes.Parameter) []bininspect.FieldIdentifier {
 	return fieldIDs
 }
 
+func populateLocationExpressionsForFunction(
+	metadata map[string]bininspect.FunctionMetadata,
+	procInfo *ditypes.ProcessInfo,
+	functionName string,
+) {
+	log.Tracef("Populating location expressions for %s", functionName)
+	functions := procInfo.TypeMap.Functions
+	parameters := functions[functionName]
+	probes := procInfo.GetProbes()
+	funcNamesToLimits := map[string]*ditypes.InstrumentationInfo{}
+	for i := range probes {
+		funcNamesToLimits[probes[i].FuncName] = probes[i].InstrumentationInfo
+	}
+
+	funcMetadata, ok := metadata[functionName]
+	if !ok {
+		log.Warnf("no function metadata for function %s", functionName)
+		return
+	}
+	limitInfo, ok := funcNamesToLimits[functionName]
+	if !ok || limitInfo == nil {
+		log.Warnf("no limit info available for function %s", functionName)
+		return
+	}
+	for i := range parameters {
+		if i >= len(funcMetadata.Parameters) {
+			log.Warnf("parameter metadata does not line up with parameter itself (not found in metadata: %v)", parameters[i])
+			break
+		}
+		GenerateLocationExpression(limitInfo, parameters[i])
+	}
+}
+
+// putLocationsInParams collects parameter locations from metadata which is retrieved
+// from the bininspect package, and assigns it in the Parameter representation.
 func putLocationsInParams(
 	paramMetadatas []bininspect.ParameterMetadata,
 	fieldLocations map[bininspect.FieldIdentifier]uint64,
-	funcMap map[string][]ditypes.Parameter,
+	funcMap map[string][]*ditypes.Parameter,
 	funcName string) {
 
 	params := funcMap[funcName]
@@ -146,18 +182,24 @@ func putLocationsInParams(
 	}
 
 	assignLocationsInOrder(params, locations)
-	correctTypeSpecificLocations(params, fieldLocations)
-
+	for i := range params {
+		correctStructLocations(params[i], fieldLocations)
+	}
 	funcMap[funcName] = params
 }
 
-func assignLocationsInOrder(params []ditypes.Parameter, locations []ditypes.Location) {
+// assignLocationsInOrder takes a slice of locations and a slice of parameters and assigns
+// the locations  in the intended order according to how they were retrieved from DWARF.
+// The locations convey where in memory the parameter will be at function entry, such
+// as specific registers or stack offsets. Logic such as assigning locations to individual
+// array elements or types that are pointed to is handled.
+func assignLocationsInOrder(params []*ditypes.Parameter, locations []ditypes.Location) {
 	stack := []*ditypes.Parameter{}
 	locationCounter := 0
 
 	// Start by pushing addresses of all parameters to stack
 	for i := range params {
-		stack = append(stack, &params[len(params)-1-i])
+		stack = append(stack, params[len(params)-1-i])
 	}
 
 	for {
@@ -168,124 +210,40 @@ func assignLocationsInOrder(params []ditypes.Parameter, locations []ditypes.Loca
 		stack = stack[:len(stack)-1]
 		if len(current.ParameterPieces) != 0 &&
 			current.Kind != uint(reflect.Array) &&
-			current.Kind != uint(reflect.Pointer) &&
-			current.Kind != uint(reflect.Slice) &&
-			current.Kind != uint(reflect.String) {
-
+			current.Kind != uint(reflect.Pointer) {
 			for i := range current.ParameterPieces {
-				stack = append(stack, &current.ParameterPieces[len(current.ParameterPieces)-1-i])
+				stack = append(stack, current.ParameterPieces[len(current.ParameterPieces)-1-i])
 			}
 		} else {
 			// Location fields are directly assigned instead of setting the whole
 			// location field to preserve other fields
 			locationToAssign := locations[locationCounter]
+			if current.Location == nil {
+				current.Location = &ditypes.Location{}
+			}
 			current.Location.InReg = locationToAssign.InReg
 			current.Location.Register = locationToAssign.Register
 			current.Location.StackOffset = locationToAssign.StackOffset
-
-			if reflect.Kind(current.Kind) == reflect.String {
-				// Strings actually have two locations (pointer, length)
-				// but are shortened to a single one for parsing. The location
-				// of the length is stored as a piece of the overall string
-				// which contains the location of the string's address.
-				if len(locations) <= locationCounter+1 ||
-					len(current.ParameterPieces) != 2 {
-					return
-				}
-				stringLengthLocation := locations[locationCounter+1]
-				current.ParameterPieces[1].Location.InReg = stringLengthLocation.InReg
-				current.ParameterPieces[1].Location.Register = stringLengthLocation.Register
-				current.ParameterPieces[1].Location.StackOffset = stringLengthLocation.StackOffset
-				locationCounter++
-			} else if reflect.Kind(current.Kind) == reflect.Slice {
-				// Slices actually have three locations (array, length, capacity)
-				// but are shortened to a single one for parsing. The location
-				// of the length is stored as a piece of the overall slice
-				// which contains the location of the slice's address.
-				// The capacity slice field is ignored.
-				if len(locations) <= locationCounter+1 {
-					return
-				}
-				sliceLength := ditypes.Parameter{}
-				sliceLengthLocation := locations[locationCounter+1]
-				sliceLength.Location.InReg = sliceLengthLocation.InReg
-				sliceLength.Location.Register = sliceLengthLocation.Register
-				sliceLength.Location.StackOffset = sliceLengthLocation.StackOffset
-				current.ParameterPieces = append(current.ParameterPieces, sliceLength)
-				locationCounter += 2
-			}
 			locationCounter++
 		}
 	}
 }
 
-func correctTypeSpecificLocations(params []ditypes.Parameter, fieldLocations map[bininspect.FieldIdentifier]uint64) {
-	for i := range params {
-		if params[i].Kind == uint(reflect.Array) {
-			correctArrayLocations(&params[i], fieldLocations)
-		} else if params[i].Kind == uint(reflect.Pointer) {
-			correctPointerLocations(&params[i], fieldLocations)
-		} else if params[i].Kind == uint(reflect.Struct) || params[i].Kind == uint(reflect.String) {
-			correctStructLocations(&params[i], fieldLocations)
-		}
-	}
-}
-
-// correctStructLocations sets pointer and stack offsets for struct fields from
-// bininspect results
+// correctStructLocations finds structs in the passed parameter tree (`structParam`) and sets the FieldOffset
+// field in individual fields which convey the offset of the field within the struct when the struct is stored
+// on the stack or heap.
 func correctStructLocations(structParam *ditypes.Parameter, fieldLocations map[bininspect.FieldIdentifier]uint64) {
 	for i := range structParam.ParameterPieces {
+		if structParam.ParameterPieces[i] == nil {
+			continue
+		}
+
 		fieldID := bininspect.FieldIdentifier{
 			StructName: structParam.Type,
 			FieldName:  structParam.ParameterPieces[i].Name,
 		}
-		offset, ok := fieldLocations[fieldID]
-		if !ok {
-			log.Infof("no field location available for %s.%s\n", fieldID.StructName, fieldID.FieldName)
-			structParam.ParameterPieces[i].NotCaptureReason = ditypes.NoFieldLocation
-			continue
-		}
-
-		fieldLocationsHaveAlreadyBeenDirectlyAssigned := isLocationSet(structParam.ParameterPieces[i].Location)
-		if fieldLocationsHaveAlreadyBeenDirectlyAssigned {
-			// The location would be set if it was directly assigned to (i.e. has its own register instead of needing
-			// to dereference a pointer or get the element from a slice)
-			structParam.ParameterPieces[i].Location = structParam.Location
-			structParam.ParameterPieces[i].Location.StackOffset = int64(offset) + structParam.Location.StackOffset
-		}
-
-		structParam.ParameterPieces[i].Location.PointerOffset = offset
-		structParam.ParameterPieces[i].Location.StackOffset = structParam.ParameterPieces[0].Location.StackOffset + int64(offset)
-
-		correctTypeSpecificLocations([]ditypes.Parameter{structParam.ParameterPieces[i]}, fieldLocations)
-	}
-}
-
-func isLocationSet(l ditypes.Location) bool {
-	return reflect.DeepEqual(l, ditypes.Location{})
-}
-
-// correctPointerLocations takes a parameters location and copies it to the underlying
-// type that's pointed to. It sets `NeedsDereference` to true
-// then calls the top level function on each element of the array to ensure all
-// element's have corrected locations
-func correctPointerLocations(pointerParam *ditypes.Parameter, fieldLocations map[bininspect.FieldIdentifier]uint64) {
-	// Pointers should have exactly one entry in ParameterPieces that correspond to the underlying type
-	if len(pointerParam.ParameterPieces) != 1 {
-		return
-	}
-	pointerParam.ParameterPieces[0].Location = pointerParam.Location
-	pointerParam.ParameterPieces[0].Location.NeedsDereference = true
-	correctTypeSpecificLocations([]ditypes.Parameter{pointerParam.ParameterPieces[0]}, fieldLocations)
-}
-
-// correctArrayLocations takes a parameter's location, and distribute it to each element
-// by using `stack offset + (size*index)` then calls the top level function on each element
-// of the array to ensure all element's have corrected locations
-func correctArrayLocations(arrayParam *ditypes.Parameter, fieldLocations map[bininspect.FieldIdentifier]uint64) {
-	initialOffset := arrayParam.Location.StackOffset
-	for i := range arrayParam.ParameterPieces {
-		arrayParam.ParameterPieces[i].Location.StackOffset = initialOffset + (arrayParam.ParameterPieces[i].TotalSize * int64(i))
-		correctTypeSpecificLocations([]ditypes.Parameter{arrayParam.ParameterPieces[i]}, fieldLocations)
+		offset := fieldLocations[fieldID]
+		structParam.ParameterPieces[i].FieldOffset = offset
+		correctStructLocations(structParam.ParameterPieces[i], fieldLocations)
 	}
 }

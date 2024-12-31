@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package util
+//go:build serverless
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/util/sort"
-)
+package net
 
-// SortUniqInPlace alias
-var SortUniqInPlace = sort.UniqInPlace
+// Fqdn returns the FQDN for the host if any
+func Fqdn(hostname string) string {
+	return ""
+}
