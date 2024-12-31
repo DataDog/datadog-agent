@@ -838,8 +838,6 @@ func TestTCPProcessorConnDirection(t *testing.T) {
 		f.runPkts(capture)
 
 		require.Equal(t, ConnDirectionOutgoing, f.getConnectionState().connDirection)
-
-		// only connection stat
 	})
 	t.Run("incoming", func(t *testing.T) {
 		f := newTCPTestFixture(t)
