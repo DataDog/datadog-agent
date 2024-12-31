@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 )
 
@@ -460,8 +459,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.RequestedMetrics = append(c.RequestedMetrics, uptimeMetricConfig)
 	profiledefinition.NormalizeMetrics(c.RequestedMetrics)
 	c.RequestedMetricTags = instance.MetricTags
-	errors := configvalidation.ValidateEnrichMetrics(c.RequestedMetrics)
-	errors = append(errors, configvalidation.ValidateEnrichMetricTags(c.RequestedMetricTags)...)
+	errors := profiledefinition.ValidateEnrichMetrics(c.RequestedMetrics)
+	errors = append(errors, profiledefinition.ValidateEnrichMetricTags(c.RequestedMetricTags)...)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 	}
