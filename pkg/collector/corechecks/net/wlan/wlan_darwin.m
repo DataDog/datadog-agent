@@ -29,7 +29,7 @@
     self.locationManager = [[CLLocationManager alloc] init];
     self.locationManager.delegate = self;
     
-    if (@available(macOS 10.15, *)) {
+    if (@available(macOS 11.0, *)) {
         if (self.locationManager.authorizationStatus == kCLAuthorizationStatusNotDetermined) {
             [self.locationManager requestWhenInUseAuthorization];
         }
@@ -41,7 +41,7 @@
 #pragma mark - CLLocationManagerDelegate
 
 - (void)locationManagerDidChangeAuthorization:(CLLocationManager *)manager {
-    if (@available(macOS 10.15, *)) {
+    if (@available(macOS 11.0, *)) {
         CLAuthorizationStatus status = manager.authorizationStatus;
         
         switch (status) {
