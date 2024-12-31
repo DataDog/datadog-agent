@@ -16,8 +16,8 @@ import (
 func TestIsNodeMetadata(t *testing.T) {
 
 	tests := []struct {
-		name                 string
 		metadataEntity       KubernetesMetadata
+		name                 string
 		shouldBeNodeMetadata bool
 	}{
 		{
@@ -61,9 +61,9 @@ func TestFilterBuilder_Build(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
 		builderFunc    func() *FilterBuilder
 		expectedFilter *Filter
+		name           string
 	}{
 		{
 			name:        "filter with default options",
@@ -158,8 +158,8 @@ func TestFilter_MatchSource(t *testing.T) {
 
 func TestFilter_MatchEventType(t *testing.T) {
 	tests := []struct {
-		name                 string
 		filter               *Filter
+		name                 string
 		eventType            EventType
 		expectMatchEventType bool
 	}{
@@ -254,9 +254,9 @@ func TestFilter_MatchKind(t *testing.T) {
 
 func TestFilter_MatchEntity(t *testing.T) {
 	tests := []struct {
-		name        string
-		filter      *Filter
 		entity      Entity
+		filter      *Filter
+		name        string
 		expectMatch bool
 	}{
 		{
