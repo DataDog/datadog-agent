@@ -126,6 +126,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryIgnoreWrite() {
 
 	tests := []struct {
 		syscallType string
+		skipFunc    func(t *testing.T)
 	}{
 		{
 			syscallType: "open",
@@ -135,10 +136,18 @@ func (s *SharedLibrarySuite) TestSharedLibraryIgnoreWrite() {
 		},
 		{
 			syscallType: "openat2",
+			skipFunc: func(t *testing.T) {
+				if !sysOpenAt2Supported() {
+					t.Skip("openat2 not supported")
+				}
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.syscallType, func(t *testing.T) {
+			if tt.skipFunc != nil {
+				tt.skipFunc(t)
+			}
 			// Since we want to detect that the write _hasn't_ been detected, verify the
 			// read too to try to ensure that test isn't broken and failing to detect
 			// the write due to some bug in the test itself.
