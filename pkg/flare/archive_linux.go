@@ -40,7 +40,7 @@ func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 }
 
 // only used in tests when running on linux
-var linuxKernelSymbols = getLinuxKernelSymbols //nolint:unused
+var linuxKernelSymbols = getLinuxKernelSymbols
 
 func addSecurityAgentPlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 	linuxKernelSymbols(fb)                      //nolint:errcheck

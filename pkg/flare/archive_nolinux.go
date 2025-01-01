@@ -18,6 +18,6 @@ func addSecurityAgentPlatformSpecificEntries(_ flaretypes.FlareBuilder) {}
 // only used in tests when running on linux
 var linuxKernelSymbols = getLinuxKernelSymbols //nolint:unused
 
-func getLinuxKernelSymbols(_ flaretypes.FlareBuilder) error {
+func getLinuxKernelSymbols(_ flaretypes.FlareBuilder) error { //nolint:unused
 	return nil
 }
