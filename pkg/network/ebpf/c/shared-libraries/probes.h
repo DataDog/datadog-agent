@@ -155,8 +155,12 @@ SEC("tracepoint/syscalls/sys_enter_openat2")
 int tracepoint__syscalls__sys_enter_openat2(enter_sys_openat2_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
 
-    if (args->how != NULL && should_ignore_flags(args->how->flags)) {
-        return 0;
+    if (args->how != NULL) {
+        __u64 flags = 0;
+        bpf_probe_read_user(&flags, sizeof(flags), &args->how->flags);
+        if (should_ignore_flags(flags)) {
+            return 0;
+        }
     }
 
     do_sys_open_helper_enter(args->filename);
