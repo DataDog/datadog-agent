@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// SetUpLaunchers creates intializes the launcher. The launchers schedule the tailers to read the log files provided by the analyze-logs command
+// SetUpLaunchers intializes the launcher. The launchers schedule the tailers to read the log files provided by the analyze-logs command
 func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.ConfigSources) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
 	processingRules, err := config.GlobalProcessingRules(conf)
 	if err != nil {
