@@ -7,6 +7,7 @@
 package analyzelogs
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -17,11 +18,15 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
+	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -67,6 +72,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(),
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				autodiscoveryimpl.Module(),
 			)
 		},
 	}
@@ -80,8 +86,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // runAnalyzeLogs initializes the launcher and sends the log config file path to the source provider.
-func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
-	outputChan, launchers, pipelineProvider := runAnalyzeLogsHelper(cliParams, config)
+func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscovery.Component) error {
+	outputChan, launchers, pipelineProvider := runAnalyzeLogsHelper(cliParams, config, ac)
+
 	// Set up an inactivity timeout
 	inactivityTimeout := time.Duration(cliParams.inactivityTimeout) * time.Second
 	idleTimer := time.NewTimer(inactivityTimeout)
@@ -113,34 +120,54 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 }
 
 // Used to make testing easier
-func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
+func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
 	configSource := sources.NewConfigSources()
-	wd, err := os.Getwd()
-	if err != nil {
-		fmt.Println("Cannot get working directory")
-		return nil, nil, nil
-	}
-	absolutePath := wd + "/" + cliParams.LogConfigPath
-	data, err := os.ReadFile(absolutePath)
-	if err != nil {
-		fmt.Println("Cannot read file path of logs config")
-		return nil, nil, nil
-	}
-	sources, err := ad.CreateSources(integration.Config{
-		Provider:   names.File,
-		LogsConfig: data,
-	})
 
+	waitCtx, cancelTimeout := context.WithTimeout(
+		context.Background(), time.Duration(cliParams.inactivityTimeout)*time.Second)
+
+	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.LogConfigPath}, int(cliParams.inactivityTimeout), "", ac)
+	cancelTimeout()
 	if err != nil {
-		fmt.Println("Cannot create source")
 		return nil, nil, nil
 	}
 
-	for _, source := range sources {
-		if source.Config.TailingMode == "" {
-			source.Config.TailingMode = "beginning"
+	cs := pkgcollector.GetChecksByNameForConfigs(cliParams.LogConfigPath, allConfigs)
+
+	if len(cs) != 0 { // User input is a check
+		for _, c := range cs {
+
 		}
-		configSource.AddSource(source)
+		return nil, nil, nil
+	} else { // User input is a file path
+
+		wd, err := os.Getwd()
+		if err != nil {
+			fmt.Println("Cannot get working directory")
+			return nil, nil, nil
+		}
+		absolutePath := wd + "/" + cliParams.LogConfigPath
+		data, err := os.ReadFile(absolutePath)
+		if err != nil {
+			fmt.Println("Cannot read file path of logs config")
+			return nil, nil, nil
+		}
+		sources, err := ad.CreateSources(integration.Config{
+			Provider:   names.File,
+			LogsConfig: data,
+		})
+
+		if err != nil {
+			fmt.Println("Cannot create source")
+			return nil, nil, nil
+		}
+
+		for _, source := range sources {
+			if source.Config.TailingMode == "" {
+				source.Config.TailingMode = "beginning"
+			}
+			configSource.AddSource(source)
+		}
+		return agentimpl.SetUpLaunchers(config, configSource)
 	}
-	return agentimpl.SetUpLaunchers(config, configSource)
 }
