@@ -15,6 +15,9 @@ func addSystemProbePlatformSpecificEntries(_ flaretypes.FlareBuilder) {}
 
 func addSecurityAgentPlatformSpecificEntries(_ flaretypes.FlareBuilder) {}
 
+// for testing purpose
+var linuxKernelSymbols = getLinuxKernelSymbols //nolint:unused
+
 func getLinuxKernelSymbols(_ flaretypes.FlareBuilder) error {
 	return nil
 }
