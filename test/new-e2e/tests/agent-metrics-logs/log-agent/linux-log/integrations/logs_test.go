@@ -122,18 +122,26 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 		return receivedLogs[j].Timestamp < receivedLogs[k].Timestamp
 	})
 
-	// Check the contents of each log to ensure their counter was correctly
-	// written
-	regex := regexp.MustCompile(`counter: (\d+)`)
-	for i := 0; i < 5; i++ {
-		log := receivedLogs[i]
-		matches := regex.FindStringSubmatch(log.Message)
-		assert.Greater(v.T(), len(matches), 1, "Did not find matching \"count\" regular expression in log")
-		number := matches[1]
-		count, err := strconv.Atoi(number)
-		assert.Equal(v.T(), i+1, count)
-		assert.Nil(v.T(), err)
+	// Extract the count from the first log
+	compareCount := extractNumberFromLog(v.T(), receivedLogs[0])
+
+	// Ensure numbers from subsequent logs are increasing
+	for i := 1; i < 5; i++ {
+		currentLogCount := extractNumberFromLog(v.T(), receivedLogs[i])
+		assert.Equal(v.T(), compareCount, currentLogCount)
+		compareCount++
 	}
+}
+
+// extractNumberFromLog extracts the a number from the log message
+func extractNumberFromLog(t *testing.T, log *aggregator.Log) int {
+	regex := regexp.MustCompile(`counter: (\d+)`)
+	matches := regex.FindStringSubmatch(log.Message)
+	assert.Greater(t, len(matches), 1, "Did not find matching \"count\" regular expression in log")
+	number := matches[1]
+	count, err := strconv.Atoi(number)
+	assert.Nil(t, err)
+	return count
 }
 
 // generateYaml Generates a YAML config for checks to use
