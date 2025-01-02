@@ -411,7 +411,8 @@
           "type": "string",
           "enum": [
             "process",
-            "container"
+            "container",
+            "cgroup"
           ]
         },
         "size": {
