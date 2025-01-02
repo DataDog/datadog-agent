@@ -443,12 +443,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 						case []string:
 							{{$FieldName}} = append({{$FieldName}}, rv...)
 						default:
-							return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+							return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
 				{{else}}
 					rv, ok := value.(string)
 					if !ok {
-						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+						return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
 					{{- if ne $Field.OrigType "string" }}
 					{{$FieldName}} = {{$Field.OrigType}}(rv)
@@ -467,16 +467,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 								{{$FieldName}} = append({{$FieldName}}, {{$Field.OrigType}}(i))
 							}
 						default:
-							return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+							return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
 				{{else}}
 					rv, ok := value.(int)
 					if !ok {
-						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+						return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
 					{{- if eq $Field.OrigType "uint16" }}
 					if rv < 0 || rv > math.MaxUint16 {
-						return &eval.ErrValueOutOfRange{Field: "{{$Field.Name}}"}
+						return &eval.ErrValueOutOfRange{Field: "{{$Name}}"}
 					}
 					{{- end }}
 					{{$FieldName}} = {{$Field.OrigType}}(rv)
@@ -490,12 +490,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 						case []bool:
 							{{$FieldName}} = append({{$FieldName}}, rv...)
 						default:
-							return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+							return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
 				{{else}}
 					rv, ok := value.(bool)
 					if !ok {
-						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+						return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
 					{{$FieldName}} = rv
 				{{end}}
@@ -508,12 +508,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 						case []net.IPNet:
 							{{$FieldName}} = append({{$FieldName}}, rv...)
 						default:
-							return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+							return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
 				{{else}}
 					rv, ok := value.(net.IPNet)
 					if !ok {
-						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+						return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
 					{{$FieldName}} = rv
 				{{end}}
