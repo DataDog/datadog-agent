@@ -16,7 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 )
 
-// UnaryServerInterceptor validates the signature
+// GetUnaryServerInterceptor returns a new unary server interceptor that performs
+// authorization using the provided Authorizer. The interceptor retrieves metadata
+// from the incoming context and verifies it using the Authorizer's VerifyGRPC method.
+// If the metadata is missing or verification fails, the interceptor returns an
+// Unauthenticated status error. Otherwise, it proceeds to call the handler.
 func GetUnaryServerInterceptor(a auth.Authorizer) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
@@ -41,6 +45,10 @@ func GetUnaryServerInterceptor(a auth.Authorizer) grpc.UnaryServerInterceptor {
 }
 
 // GetStreamServerInterceptor validates the signature for streaming RPCs
+// GetStreamServerInterceptor returns a new grpc.StreamServerInterceptor that uses the provided
+// auth.Authorizer to verify the metadata of incoming gRPC stream requests. If the metadata is
+// missing or the authorization fails, it returns an Unauthenticated status error. Otherwise,
+// it proceeds with the provided handler.
 func GetStreamServerInterceptor(a auth.Authorizer) grpc.StreamServerInterceptor {
 	return func(
 		srv interface{},
@@ -63,7 +71,10 @@ func GetStreamServerInterceptor(a auth.Authorizer) grpc.StreamServerInterceptor 
 	}
 }
 
-// UnaryInterceptor adds the signature to the request
+// GetUnaryClientInterceptor returns a grpc.UnaryClientInterceptor that adds
+// authorization metadata to outgoing gRPC requests. The interceptor uses the
+// provided auth.Authorizer to generate a signature and timestamp, which are
+// then added to the request metadata.
 func GetUnaryClientInterceptor(a auth.Authorizer) grpc.UnaryClientInterceptor {
 	return func(
 		ctx context.Context,
