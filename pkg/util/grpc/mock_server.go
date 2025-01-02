@@ -18,9 +18,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
@@ -44,9 +43,11 @@ func NewMockGrpcSecureServer(port string) (*grpc.Server, string, error) {
 		return nil, "", err
 	}
 
+	authorizer := auth.NewStaticAuthTokenSigner(authToken)
+
 	serverOpts := []grpc.ServerOption{
 		grpc.Creds(credentials.NewServerTLSFromCert(tlsKeyPair)),
-		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(StaticAuthInterceptor(authToken))),
+		grpc.UnaryInterceptor(GetUnaryServerInterceptor(authorizer)),
 	}
 
 	// Start dummy gRPc server mocking the core agent
