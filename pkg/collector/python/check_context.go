@@ -15,7 +15,7 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var checkCtx *checkContext
@@ -27,7 +27,7 @@ var checkContextMutex = sync.Mutex{}
 // per dependency used inside SubmitMetric like methods.
 type checkContext struct {
 	senderManager sender.SenderManager
-	logReceiver   optional.Option[integrations.Component]
+	logReceiver   option.Option[integrations.Component]
 	tagger        tagger.Component
 }
 
@@ -41,7 +41,7 @@ func getCheckContext() (*checkContext, error) {
 	return checkCtx, nil
 }
 
-func initializeCheckContext(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component], tagger tagger.Component) {
+func initializeCheckContext(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) {
 	checkContextMutex.Lock()
 	if checkCtx == nil {
 		checkCtx = &checkContext{

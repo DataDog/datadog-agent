@@ -8,9 +8,6 @@ package client
 import (
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -44,7 +41,7 @@ func NewHostAgentClient(context common.Context, hostOutput remote.HostOutput, wa
 	commandRunner := newAgentCommandRunner(context.T(), ae)
 
 	if params.ShouldWaitForReady {
-		if err := waitForReadyTimeout(context, host, commandRunner, agentReadyTimeout); err != nil {
+		if err := waitForReadyTimeout(commandRunner, agentReadyTimeout); err != nil {
 			return nil, err
 		}
 	}
@@ -65,7 +62,7 @@ func NewHostAgentClientWithParams(context common.Context, hostOutput remote.Host
 	commandRunner := newAgentCommandRunner(context.T(), ae)
 
 	if params.ShouldWaitForReady {
-		if err := waitForReadyTimeout(context, host, commandRunner, agentReadyTimeout); err != nil {
+		if err := waitForReadyTimeout(commandRunner, agentReadyTimeout); err != nil {
 			return nil, err
 		}
 	}
@@ -182,97 +179,6 @@ func fetchAuthTokenCommand(authTokenPath string, osFamily osComp.Family) string 
 	return fmt.Sprintf("sudo cat %s", authTokenPath)
 }
 
-func waitForReadyTimeout(ctx common.Context, host *Host, commandRunner *agentCommandRunner, timeout time.Duration) error {
-	err := commandRunner.waitForReadyTimeout(timeout)
-
-	if err != nil {
-		// Propagate the original error if we have another error here
-		localErr := generateAndDownloadFlare(ctx, commandRunner, host)
-
-		if localErr != nil {
-			ctx.T().Errorf("Could not generate and get a flare: %v", localErr)
-		}
-	}
-
-	return err
-}
-
-func generateAndDownloadFlare(ctx common.Context, commandRunner *agentCommandRunner, host *Host) error {
-	testPart := common.SanitizeDirectoryName(ctx.T().Name())
-	outputDir := filepath.Join(ctx.SessionOutputDir(), testPart)
-	err := os.MkdirAll(outputDir, 0755)
-	if err != nil {
-		return fmt.Errorf("could not create output directory: %w", err)
-	}
-	flareFound := false
-	t := ctx.T()
-
-	_, err = commandRunner.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send", "--local"}))
-	if err != nil {
-		t.Errorf("Error while generating the flare: %v.", err)
-		// Do not return now, the flare may be generated locally but was not uploaded because there's no fake intake
-	}
-
-	flareRegex, err := regexp.Compile(`datadog-agent-.*\.zip`)
-	if err != nil {
-		return fmt.Errorf("could not compile regex: %w", err)
-	}
-
-	tmpFolder, err := host.GetTmpFolder()
-	if err != nil {
-		return fmt.Errorf("could not get tmp folder: %w", err)
-	}
-
-	entries, err := host.ReadDir(tmpFolder)
-	if err != nil {
-		return fmt.Errorf("could not read directory: %w", err)
-	}
-
-	for _, entry := range entries {
-		if flareRegex.MatchString(entry.Name()) {
-			t.Logf("Found flare file: %s", entry.Name())
-
-			if host.osFamily != osComp.WindowsFamily {
-				_, err = host.Execute(fmt.Sprintf("sudo chmod 744 %s/%s", tmpFolder, entry.Name()))
-				if err != nil {
-					return fmt.Errorf("could not update permission of flare file %s/%s : %w", tmpFolder, entry.Name(), err)
-				}
-			}
-
-			t.Logf("Downloading flare file in: %s", outputDir)
-			err = host.GetFile(fmt.Sprintf("%s/%s", tmpFolder, entry.Name()), fmt.Sprintf("%s/%s", outputDir, entry.Name()))
-
-			if err != nil {
-				return fmt.Errorf("could not download flare file from %s/%s : %w", tmpFolder, entry.Name(), err)
-			}
-
-			flareFound = true
-		}
-	}
-
-	if !flareFound {
-		t.Errorf("Could not find a flare. Retrieving logs directly instead...")
-
-		logsFolder, err := host.GetLogsFolder()
-		if err != nil {
-			return fmt.Errorf("could not get logs folder: %w", err)
-		}
-
-		entries, err = host.ReadDir(logsFolder)
-
-		if err != nil {
-			return fmt.Errorf("could not read directory: %w", err)
-		}
-
-		for _, entry := range entries {
-			t.Logf("Found log file: %s. Downloading file in: %s", entry.Name(), outputDir)
-
-			err = host.GetFile(fmt.Sprintf("%s/%s", logsFolder, entry.Name()), fmt.Sprintf("%s/%s", outputDir, entry.Name()))
-			if err != nil {
-				return fmt.Errorf("could not download log file from %s/%s : %w", logsFolder, entry.Name(), err)
-			}
-		}
-	}
-
-	return nil
+func waitForReadyTimeout(commandRunner *agentCommandRunner, timeout time.Duration) error {
+	return commandRunner.waitForReadyTimeout(timeout)
 }

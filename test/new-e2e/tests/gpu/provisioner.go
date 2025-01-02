@@ -11,8 +11,6 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
-
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/command"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
@@ -154,7 +152,7 @@ func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner 
 			return fmt.Errorf("validateDockerCuda failed: %w", err)
 		}
 		// incident-33572: log the output of the CUDA validation command
-		pulumi.All(dockerCudaValidateCmd.Stdout, dockerCudaValidateCmd.Stderr).ApplyT(func(args []interface{}) error {
+		pulumi.All(dockerCudaValidateCmd.StdoutOutput(), dockerCudaValidateCmd.StderrOutput()).ApplyT(func(args []interface{}) error {
 			stdout := args[0].(string)
 			stderr := args[1].(string)
 			err := ctx.Log.Info(fmt.Sprintf("Docker CUDA validation stdout: %s", stdout), nil)
@@ -240,7 +238,7 @@ func downloadDockerImages(e aws.Environment, vm *componentsremote.Host, images [
 	return cmds, nil
 }
 
-func validateDockerCuda(e aws.Environment, vm *componentsremote.Host, dependsOn ...pulumi.Resource) (*remote.Command, error) {
+func validateDockerCuda(e aws.Environment, vm *componentsremote.Host, dependsOn ...pulumi.Resource) (command.Command, error) {
 	return vm.OS.Runner().Command(
 		e.CommonNamer().ResourceName("docker-cuda-validate"),
 		&command.Args{

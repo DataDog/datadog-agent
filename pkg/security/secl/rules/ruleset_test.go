@@ -1079,7 +1079,7 @@ func TestGetRuleEventType(t *testing.T) {
 		}
 
 		event := model.NewFakeEvent()
-		fieldEventType, err := event.GetFieldEventType("open.file.name")
+		fieldEventType, _, err := event.GetFieldMetadata("open.file.name")
 		if err != nil {
 			t.Fatal("should get a field event type")
 		}

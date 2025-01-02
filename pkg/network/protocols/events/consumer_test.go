@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -46,7 +47,7 @@ func TestConsumer(t *testing.T) {
 		}
 	}
 
-	consumer, err := NewConsumer("test", program, callback)
+	consumer, err := NewConsumer("test", program.Manager, callback)
 	require.NoError(t, err)
 	consumer.Start()
 
@@ -85,7 +86,7 @@ func TestInvalidBatchCountMetric(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { program.Stop(manager.CleanAll) })
 
-	consumer, err := NewConsumer("test", program, func([]uint64) {})
+	consumer, err := NewConsumer("test", program.Manager, func([]uint64) {})
 	require.NoError(t, err)
 
 	// We are creating a raw sample with a data length of 4, which is smaller than sizeOfBatch
@@ -108,7 +109,7 @@ type eventGenerator struct {
 	testFile *os.File
 }
 
-func newEventGenerator(program *manager.Manager, t *testing.T) *eventGenerator {
+func newEventGenerator(program *ddebpf.Manager, t *testing.T) *eventGenerator {
 	m, _, _ := program.GetMap("test")
 	require.NotNilf(t, m, "couldn't find test map")
 
