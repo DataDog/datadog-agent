@@ -13,6 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -22,11 +25,10 @@ import (
 	util "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/util"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 // Requires defines the dependencies for the remoteagentregistry component
@@ -356,9 +358,12 @@ func newRemoteAgentClient(registration *remoteagentregistry.RegistrationData) (p
 		InsecureSkipVerify: true,
 	})
 
+	// Initialize an authorizer that checks the authorization header of requests.
+	autorizer := auth.NewStaticAuthTokenSigner(registration.AuthToken)
+
 	conn, err := grpc.NewClient(registration.APIEndpoint,
 		grpc.WithTransportCredentials(tlsCreds),
-		grpc.WithPerRPCCredentials(ddgrpc.NewBearerTokenAuth(registration.AuthToken)),
+		grpc.WithUnaryInterceptor(ddgrpc.GetUnaryClientInterceptor(autorizer)),
 		// Set on the higher side to account for the fact that flare file data could be larger than the default 4MB limit.
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(64*1024*1024)),
 	)

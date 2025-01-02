@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -139,9 +139,16 @@ func (c *cfg) SetHandler() http.Handler {
 			httpError(w, http.StatusMethodNotAllowed, fmt.Errorf("%s method not allowed, only %s", req.Method, http.MethodPost))
 			return
 		}
-		if apiutil.Validate(w, req) != nil {
+		// Initialize an authorizer that checks the authorization header of requests.
+		authorizer := auth.NewAuthTokenSigner(c.at.Get)
+		statusCode, err := authorizer.VerifyREST(req.Method, req.Header, req.Body, req.ContentLength)
+
+		if err != nil {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
+			http.Error(w, err.Error(), statusCode)
 			return
 		}
+
 		for key, values := range req.URL.Query() {
 			if len(values) == 0 {
 				continue
@@ -176,7 +183,13 @@ func (c *cfg) GetConfigHandler() http.Handler {
 			return
 		}
 
-		if apiutil.Validate(w, req) != nil {
+		// Initialize an authorizer that checks the authorization header of requests.
+		authorizer := auth.NewAuthTokenSigner(c.at.Get)
+		statusCode, err := authorizer.VerifyREST(req.Method, req.Header, req.Body, req.ContentLength)
+
+		if err != nil {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
+			http.Error(w, err.Error(), statusCode)
 			return
 		}
 

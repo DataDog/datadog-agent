@@ -11,6 +11,7 @@ import (
 
 	configendpoint "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/config"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
+	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
@@ -23,8 +24,11 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 		return err
 	}
 
+	// Initialize an authorizer that checks the authorization header of requests.
+	authorizer := auth.NewAuthTokenSigner(server.authToken.Get)
+
 	configEndpointMux := configendpoint.GetConfigEndpointMuxCore()
-	configEndpointMux.Use(validateToken)
+	configEndpointMux.Use(auth.GetHTTPGuardMiddleware(authorizer))
 
 	ipcMux := http.NewServeMux()
 	ipcMux.Handle(

@@ -15,7 +15,7 @@ import (
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -79,7 +79,13 @@ func runAgentSidekicks(ag component) error {
 		// TODO - components: the secrets comp already export a route but it requires the API component which is not
 		// used by the trace agent. This should be removed once the trace-agent is fully componentize.
 		ag.Agent.DebugServer.AddRoute("/secret/refresh", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			if apiutil.Validate(w, req) != nil {
+			// Initialize an authorizer that checks the authorization header of requests.
+			authorizer := auth.NewAuthTokenSigner(ag.at.Get)
+			statusCode, err := authorizer.VerifyREST(req.Method, req.Header, req.Body, req.ContentLength)
+
+			if err != nil {
+				w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
+				http.Error(w, err.Error(), statusCode)
 				return
 			}
 

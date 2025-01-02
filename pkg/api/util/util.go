@@ -12,8 +12,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net"
-	"net/http"
-	"strings"
 	"sync"
 
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
@@ -190,63 +188,6 @@ func GetDCAAuthToken() string {
 	tokenLock.RLock()
 	defer tokenLock.RUnlock()
 	return dcaToken
-}
-
-// Validate validates an http request
-func Validate(w http.ResponseWriter, r *http.Request) error {
-	var err error
-	auth := r.Header.Get("Authorization")
-	if auth == "" {
-		w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
-		err = fmt.Errorf("no session token provided")
-		http.Error(w, err.Error(), 401)
-		return err
-	}
-
-	tok := strings.Split(auth, " ")
-	if tok[0] != "Bearer" {
-		w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
-		err = fmt.Errorf("unsupported authorization scheme: %s", tok[0])
-		http.Error(w, err.Error(), 401)
-		return err
-	}
-
-	// The following comparison must be evaluated in constant time
-	if len(tok) < 2 || !constantCompareStrings(tok[1], GetAuthToken()) {
-		err = fmt.Errorf("invalid session token")
-		http.Error(w, err.Error(), 403)
-	}
-
-	return err
-}
-
-// ValidateDCARequest is used for the exposed endpoints of the DCA.
-// It is different from Validate as we want to have different validations.
-func ValidateDCARequest(w http.ResponseWriter, r *http.Request) error {
-	var err error
-	auth := r.Header.Get("Authorization")
-	if auth == "" {
-		w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
-		err = fmt.Errorf("no session token provided")
-		http.Error(w, err.Error(), 401)
-		return err
-	}
-
-	tok := strings.Split(auth, " ")
-	if tok[0] != "Bearer" {
-		w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
-		err = fmt.Errorf("unsupported authorization scheme: %s", tok[0])
-		http.Error(w, err.Error(), 401)
-		return err
-	}
-
-	// The following comparison must be evaluated in constant time
-	if len(tok) != 2 || !constantCompareStrings(tok[1], GetDCAAuthToken()) {
-		err = fmt.Errorf("invalid session token")
-		http.Error(w, err.Error(), 403)
-	}
-
-	return err
 }
 
 // constantCompareStrings compares two strings in constant time.

@@ -12,11 +12,9 @@ package api
 
 import (
 	"context"
-	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	stdLog "log"
 	"net"
@@ -27,7 +25,6 @@ import (
 	languagedetection "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection"
 
 	"github.com/gorilla/mux"
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
@@ -40,6 +37,7 @@ import (
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -116,18 +114,12 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 	logWriter, _ := pkglogsetup.NewTLSHandshakeErrorWriter(4, log.WarnLvl)
 
-	authInterceptor := grpcutil.AuthInterceptor(func(token string) (interface{}, error) {
-		if subtle.ConstantTimeCompare([]byte(token), []byte(util.GetDCAAuthToken())) == 0 {
-			return struct{}{}, errors.New("Invalid session token")
-		}
-
-		return struct{}{}, nil
-	})
+	authenticator := auth.NewAuthTokenSigner(func() (string, error) { return util.GetDCAAuthToken(), nil })
 
 	maxMessageSize := cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 	opts := []grpc.ServerOption{
-		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
-		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
+		grpc.StreamInterceptor(grpcutil.GetStreamServerInterceptor(authenticator)),
+		grpc.UnaryInterceptor(grpcutil.GetUnaryServerInterceptor(authenticator)),
 		grpc.MaxSendMsgSize(maxMessageSize),
 		grpc.MaxRecvMsgSize(maxMessageSize),
 	}
@@ -172,17 +164,31 @@ func StopServer() {
 func validateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.String()
-		var isValid bool
+		var err error
+		statusCode := http.StatusOK
+
+		var internalGetter func() string
+		tokenGetter := func() (string, error) {
+			return internalGetter(), nil
+		}
+		// Initialize an authorizer that checks the authorization header of requests.
+		authorizer := auth.NewAuthTokenSigner(tokenGetter)
+
 		if !isExternalPath(path) {
-			if err := util.Validate(w, r); err == nil {
-				isValid = true
-			}
+			internalGetter = util.GetAuthToken
+			statusCode, err = authorizer.VerifyREST(r.Method, r.Header, r.Body, r.ContentLength)
 		}
-		if !isValid {
-			if err := util.ValidateDCARequest(w, r); err != nil {
-				return
-			}
+		if err != nil {
+			internalGetter = util.GetDCAAuthToken
+			statusCode, err = authorizer.VerifyREST(r.Method, r.Header, r.Body, r.ContentLength)
 		}
+
+		if err != nil {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
+			http.Error(w, err.Error(), statusCode)
+			return
+		}
+
 		next.ServeHTTP(w, r)
 	})
 }

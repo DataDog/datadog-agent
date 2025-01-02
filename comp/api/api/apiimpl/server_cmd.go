@@ -12,7 +12,6 @@ import (
 	"time"
 
 	gorilla "github.com/gorilla/mux"
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -23,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
+	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -44,15 +44,15 @@ func (server *apiServer) startCMDServer(
 		return fmt.Errorf("unable to listen to the given address: %v", err)
 	}
 
-	// gRPC server
-	authInterceptor := grpcutil.AuthInterceptor(parseToken)
+	// Initialize an authorizer that checks the authorization header of requests.
+	authorizer := auth.NewAuthTokenSigner(server.authToken.Get)
 
 	maxMessageSize := cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
 	opts := []grpc.ServerOption{
 		grpc.Creds(credentials.NewTLS(server.authToken.GetTLSServerConfig())),
-		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
-		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
+		grpc.StreamInterceptor(grpcutil.GetStreamServerInterceptor(authorizer)),
+		grpc.UnaryInterceptor(grpcutil.GetUnaryServerInterceptor(authorizer)),
 		grpc.MaxRecvMsgSize(maxMessageSize),
 		grpc.MaxSendMsgSize(maxMessageSize),
 	}
@@ -98,8 +98,8 @@ func (server *apiServer) startCMDServer(
 	checkMux := gorilla.NewRouter()
 
 	// Validate token for every request
-	agentMux.Use(validateToken)
-	checkMux.Use(validateToken)
+	agentMux.Use(auth.GetHTTPGuardMiddleware(authorizer))
+	checkMux.Use(auth.GetHTTPGuardMiddleware(authorizer))
 
 	cmdMux := http.NewServeMux()
 	cmdMux.Handle(

@@ -24,6 +24,7 @@ import (
 	v1 "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi/v1"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,8 +46,11 @@ func StartCLCRunnerServer(extraHandlers map[string]http.Handler, ac autodiscover
 		r.Handle(path, handler)
 	}
 
+	// Initialize an authorizer that checks the authorization header of requests.
+	authorizer := auth.NewAuthTokenSigner(func() (string, error) { return util.GetDCAAuthToken(), nil })
+
 	// Validate token for every request
-	r.Use(validateCLCRunnerToken)
+	r.Use(auth.GetHTTPGuardMiddleware(authorizer))
 
 	// get the transport we're going to use under HTTP
 	var err error
@@ -106,13 +110,4 @@ func StopCLCRunnerServer() {
 	if clcListener != nil {
 		clcListener.Close()
 	}
-}
-
-func validateCLCRunnerToken(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := util.ValidateDCARequest(w, r); err != nil {
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }

@@ -22,22 +22,13 @@ import (
 
 	"github.com/gorilla/mux"
 
+	apiauth "github.com/DataDog/datadog-agent/pkg/api/security/auth"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 )
 
 type server struct {
 	srv      *http.Server
 	listener net.Listener
-}
-
-// validateToken - validates token for legacy API
-func validateToken(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := util.Validate(w, r); err != nil {
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 func newServer(endpoint string, handler http.Handler, auth bool) (*server, error) {
@@ -117,7 +108,9 @@ func newServer(endpoint string, handler http.Handler, auth bool) (*server, error
 	// skip the validation if running inside a separate collector
 	// TODO: determine way to allow OSS collector to authenticate with agent, OTEL-2226
 	if auth && util.GetAuthToken() != "" {
-		r.Use(validateToken)
+		// Initialize an authorizer that checks the authorization header of requests.
+		authorizer := apiauth.NewAuthTokenSigner(func() (string, error) { return util.GetAuthToken(), nil })
+		r.Use(apiauth.GetHTTPGuardMiddleware(authorizer))
 	}
 
 	s := &http.Server{

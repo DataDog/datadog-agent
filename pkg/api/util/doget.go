@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 )
 
 // ShouldCloseConnection is an option to DoGet to indicate whether to close the underlying
@@ -62,12 +64,17 @@ func (i *ipcRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 // verify the server TLS client (false should only be used on localhost
 // trusted endpoints).
 func GetClientWithTimeout(to time.Duration, _ bool) *http.Client {
-	transport := ipcRoundTripper{
+	// Setting the IPC transport which is in charge of verifying server certificate
+	var transport http.RoundTripper = &ipcRoundTripper{
 		tr: http.Transport{},
 	}
 
+	// Setting the auth transport wrapper, which is in charge of setting the correct authorization header based on requests values
+	authorizer := auth.NewAuthTokenSigner(func() (string, error) { return GetAuthToken(), nil })
+	transport = auth.GetSecureRoundTripper(authorizer, transport)
+
 	return &http.Client{
-		Transport: &transport,
+		Transport: transport,
 		Timeout:   to,
 	}
 }
@@ -92,7 +99,6 @@ func DoGetWithOptions(c *http.Client, url string, options *ReqOptions) (body []b
 		return body, e
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+options.Authtoken)
 	if options.Conn == CloseConnection {
 		req.Close = true
 	}
@@ -119,7 +125,6 @@ func DoPost(c *http.Client, url string, contentType string, body io.Reader) (res
 		return resp, e
 	}
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("Authorization", "Bearer "+GetAuthToken())
 
 	r, e := c.Do(req)
 	if e != nil {
@@ -143,7 +148,6 @@ func DoPostChunked(c *http.Client, url string, contentType string, body io.Reade
 		return e
 	}
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("Authorization", "Bearer "+GetAuthToken())
 
 	r, e := c.Do(req)
 	if e != nil {
