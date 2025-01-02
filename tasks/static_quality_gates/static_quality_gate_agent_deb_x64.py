@@ -6,7 +6,7 @@ from tasks.static_quality_gates.lib.gates_lib import argument_extractor, find_pa
 
 
 def entrypoint(**kwargs):
-    arguments = argument_extractor(kwargs, ctx=None, max_on_wire_size=None, max_on_disk_size=None)
+    arguments = argument_extractor(kwargs, max_on_wire_size=None, max_on_disk_size=None, ctx=None)
     ctx = arguments.ctx
     package_os = "debian"
     package_path = find_package_path("datadog-agent", package_os, "amd64")
