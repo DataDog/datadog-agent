@@ -44,6 +44,7 @@ DATADOG_AGENT_MSI_ALLOW_LIST = [
     "APPLICATIONDATADIRECTORY",
     "EXAMPLECONFSLOCATION",
     "checks.d",
+    "protected",
     "run",
     "logs",
     "ProgramMenuDatadog",
@@ -278,7 +279,9 @@ def _msi_output_name(env):
 
 
 @task
-def build(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
+def build(
+    ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False, build_upgrade=False
+):
     """
     Build the MSI installer for the agent
     """
@@ -294,6 +297,17 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', release_version
         configuration=configuration,
         vstudio_root=vstudio_root,
     )
+
+    if build_upgrade:
+        print("Building optional upgrade test helper")
+        # Build the optional upgrade test helper
+        env['PACKAGE_VERSION'] = '7.99.0'
+        _build(
+            ctx,
+            env,
+            configuration=configuration,
+            vstudio_root=vstudio_root,
+        )
 
     # sign build output that will be included in the installer MSI
     sign_file(ctx, os.path.join(build_outdir, 'CustomActions.dll'))
@@ -321,7 +335,9 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', release_version
         shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
 
     # if the optional upgrade test helper exists then build that too
-    optional_name = "datadog-agent-7.43.0~rc.3+git.485.14b9337-1-x86_64"
+    print("Building optional MSI")
+    optional_name = "datadog-agent-7.99.0-1-x86_64"
+    print(os.path.join(build_outdir, optional_name + ".wxs"))
     if os.path.exists(os.path.join(build_outdir, optional_name + ".wxs")):
         with timed("Building optional MSI"):
             _build_msi(ctx, env, build_outdir, optional_name, DATADOG_AGENT_MSI_ALLOW_LIST)

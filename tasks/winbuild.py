@@ -21,6 +21,7 @@ def agent_package(
     flavor=AgentFlavor.base.name,
     release_version="nightly-a7",
     skip_deps=False,
+    build_upgrade=False,
 ):
     # Build agent
     omnibus_build(
@@ -31,7 +32,7 @@ def agent_package(
     )
 
     # Package Agent into MSI
-    build_agent_msi(ctx, release_version=release_version)
+    build_agent_msi(ctx, release_version=release_version, build_upgrade=build_upgrade)
 
     # Package MSI into OCI
     if AgentFlavor[flavor] == AgentFlavor.base:
