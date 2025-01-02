@@ -129,9 +129,9 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 
 	// Ensure numbers from subsequent logs are increasing
 	for i := 1; i < 5; i++ {
+		compareCount++
 		currentLogCount := extractNumberFromLog(v.T(), receivedLogs[i])
 		assert.Equal(v.T(), compareCount, currentLogCount)
-		compareCount++
 	}
 }
 
