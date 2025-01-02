@@ -24,7 +24,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/tinylib/msgp v1.2.4
 	google.golang.org/protobuf v1.35.2
-	modernc.org/sqlite v1.34.1
+	modernc.org/sqlite v1.34.4
 )
 
 require (
