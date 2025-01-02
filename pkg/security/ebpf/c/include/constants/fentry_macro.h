@@ -36,23 +36,20 @@ typedef unsigned long long ctx_t;
 u64 __attribute__((always_inline)) CTX_PARMRET(ctx_t *ctx) {
 	u64 argc;
 	LOAD_CONSTANT("fentry_func_argc", argc);
+
+	u64 ret = 0;
+#define CTX_PARMRET_CASE(n) case n: asm("%0 = *(u64 *)(%1 +%2)" : "=r"(ret) : "r"(ctx), "i"(n * 8)); break;
 	switch (argc) {
-	case 0:
-		return ctx[0];
-	case 1:
-		return ctx[1];
-	case 2:
-		return ctx[2];
-	case 3:
-		return ctx[3];
-	case 4:
-		return ctx[4];
-	case 5:
-		return ctx[5];
-	case 6:
-		return ctx[6];
+	CTX_PARMRET_CASE(0)
+	CTX_PARMRET_CASE(1)
+	CTX_PARMRET_CASE(2)
+	CTX_PARMRET_CASE(3)
+	CTX_PARMRET_CASE(4)
+	CTX_PARMRET_CASE(5)
+	CTX_PARMRET_CASE(6)
 	}
-    return 0;
+	return ret;
+#undef CTX_PARMRET_CASE
 }
 
 #define SYSCALL_PARMRET(ctx) CTX_PARMRET(ctx)
