@@ -42,7 +42,11 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	// critical part. Arguably it could also be plugged to the destination.
 	auditorTTL := time.Duration(a.config.GetInt("logs_config.auditor_ttl")) * time.Hour
 	auditor := auditor.New(a.config.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
+
 	destinationsCtx := client.NewDestinationsContext()
+	destinationsCtx.WithTracing = true
+	destinationsCtx.Start()
+
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname)
 
 	// setup the pipeline provider that provides pairs of processor and sender
