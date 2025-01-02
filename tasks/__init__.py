@@ -51,6 +51,7 @@ from tasks import (
     pipeline,
     pre_commit,
     process_agent,
+    quality_gates,
     release,
     rtloader,
     sds,
@@ -184,6 +185,7 @@ ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
 ns.add_collection(package)
 ns.add_collection(pipeline)
+ns.add_collection(quality_gates)
 ns.add_collection(notes)
 ns.add_collection(notify)
 ns.add_collection(oracle)

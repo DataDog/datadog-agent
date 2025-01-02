@@ -1,0 +1,3 @@
+static_quality_gate_agent_deb_x64:
+  max_on_wire_size: 100
+  max_on_disk_size: 100

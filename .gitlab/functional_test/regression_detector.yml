@@ -9,6 +9,8 @@ single-machine-performance-regression_detector:
   needs:
     - job: single_machine_performance-amd64-a7
       artifacts: false
+    - job: agent_deb-x64-a7
+      artifacts: true
   artifacts:
     expire_in: 1 weeks
     paths:
@@ -26,6 +28,7 @@ single-machine-performance-regression_detector:
   # See 'decision_record.md' for the determination of whether this job passes or fails.
   allow_failure: false
   script:
+    - inv quality-gates.parse-and-trigger-gates
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     # Start by tagging the failure mode as `unknown`. At each smp command we will catch any failure exit codes and update this tag properly.
