@@ -136,7 +136,7 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 
 	if len(cs) != 0 { // User input is a check
 		for _, c := range cs {
-
+			c.Run()
 		}
 		return nil, nil, nil
 	} else { // User input is a file path
