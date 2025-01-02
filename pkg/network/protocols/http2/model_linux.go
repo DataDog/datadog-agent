@@ -112,8 +112,6 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 			}
 			return nil, false
 		}
-
-		res = tx.Stream.Path.Raw_buffer[:tx.Stream.Path.Length]
 	}
 
 	// Ignore query parameters
