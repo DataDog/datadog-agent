@@ -14,20 +14,20 @@ import (
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
-var batchPool = ddsync.NewDefaultTypedPool[batch]()
+var batchPool = ddsync.NewDefaultTypedPool[Batch]()
 
 type batchReader struct {
 	sync.Mutex
 	numCPUs    int
-	batchMap   *maps.GenericMap[batchKey, batch]
+	batchMap   *maps.GenericMap[batchKey, Batch]
 	offsets    *offsetManager
 	workerPool *workerPool
 	stopped    bool
 }
 
-func newBatchReader(offsetManager *offsetManager, batchMap *maps.GenericMap[batchKey, batch], numCPUs int) (*batchReader, error) {
+func newBatchReader(offsetManager *offsetManager, batchMap *maps.GenericMap[batchKey, Batch], numCPUs int) (*batchReader, error) {
 	// initialize eBPF maps
-	batch := new(batch)
+	batch := new(Batch)
 	for i := 0; i < numCPUs; i++ {
 		// Ring buffer events don't have CPU information, so we associate each
 		// batch entry with a CPU during startup. This information is used by
@@ -57,7 +57,7 @@ func newBatchReader(offsetManager *offsetManager, batchMap *maps.GenericMap[batc
 
 // ReadAll batches from eBPF (concurrently) and execute the given
 // callback function for each batch
-func (r *batchReader) ReadAll(f func(cpu int, b *batch)) {
+func (r *batchReader) ReadAll(f func(cpu int, b *Batch)) {
 	// This lock is used only for the purposes of synchronizing termination
 	// and it's only held while *enqueing* the jobs.
 	r.Lock()
@@ -77,7 +77,7 @@ func (r *batchReader) ReadAll(f func(cpu int, b *batch)) {
 
 			b := batchPool.Get()
 			defer func() {
-				*b = batch{}
+				*b = Batch{}
 				batchPool.Put(b)
 			}()
 
