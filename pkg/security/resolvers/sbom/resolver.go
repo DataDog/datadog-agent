@@ -38,7 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
@@ -144,7 +144,7 @@ type Resolver struct {
 
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	sbomScanner, err := sbomscanner.CreateGlobalScanner(pkgconfigsetup.SystemProbe(), optional.NewNoneOption[workloadmeta.Component]())
+	sbomScanner, err := sbomscanner.CreateGlobalScanner(pkgconfigsetup.SystemProbe(), option.None[workloadmeta.Component]())
 	if err != nil {
 		return nil, err
 	}
