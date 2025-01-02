@@ -16,7 +16,8 @@ import (
 
 // Requires contains the compression level for zstd compression
 type Requires struct {
-	Level int
+	Level   int
+	NewKind func(string, int) compression.Component
 }
 
 // Provides contains the compression component
@@ -26,14 +27,16 @@ type Provides struct {
 
 // ZstdStrategy is the strategy for when serializer_compressor_kind is zstd
 type ZstdStrategy struct {
-	level int
+	level   int
+	newKind func(string, int) compression.Component
 }
 
 // NewComponent returns a new ZstdStrategy
 func NewComponent(reqs Requires) Provides {
 	return Provides{
 		Comp: &ZstdStrategy{
-			level: reqs.Level,
+			level:   reqs.Level,
+			newKind: reqs.NewKind,
 		},
 	}
 }
@@ -61,4 +64,9 @@ func (s *ZstdStrategy) ContentEncoding() string {
 // NewStreamCompressor returns a new zstd Writer
 func (s *ZstdStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
 	return zstd.NewWriterLevel(output, s.level)
+}
+
+// WithKindAndLevel returns a new strategy of the given kind and level
+func (s *ZstdStrategy) WithKindAndLevel(kind string, level int) compression.Component {
+	return s.newKind(kind, level)
 }

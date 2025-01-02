@@ -19,8 +19,12 @@ const ZlibEncoding = "deflate"
 // ZstdEncoding is the content-encoding value for Zstd
 const ZstdEncoding = "zstd"
 
+// GzipEncoding is the content-encoding value for Gzip
+const GzipEncoding = "gzip"
+
 // Component is the component type.
 type Component interface {
+	WithKindAndLevel(kind string, level int) Component
 	Compress(src []byte) ([]byte, error)
 	Decompress(src []byte) ([]byte, error)
 	CompressBound(sourceLen int) int

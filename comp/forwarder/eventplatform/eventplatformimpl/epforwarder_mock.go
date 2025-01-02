@@ -10,6 +10,7 @@ package eventplatformimpl
 import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
@@ -22,6 +23,6 @@ func MockModule() fxutil.Module {
 	)
 }
 
-func newMockComponent(hostname hostname.Component) eventplatform.Component {
-	return optional.NewOptionPtr[eventplatform.Forwarder](NewNoopEventPlatformForwarder(hostname))
+func newMockComponent(hostname hostname.Component, compression compression.Component) eventplatform.Component {
+	return optional.NewOptionPtr[eventplatform.Forwarder](NewNoopEventPlatformForwarder(hostname, compression))
 }

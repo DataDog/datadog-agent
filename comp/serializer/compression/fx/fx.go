@@ -19,3 +19,11 @@ func Module() fxutil.Module {
 		),
 	)
 }
+
+func NoopModule() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(
+			selector.NewNoopCompressorReq,
+		),
+	)
+}

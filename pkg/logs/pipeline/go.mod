@@ -13,6 +13,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../comp/logs/agent/config
+	github.com/DataDog/datadog-agent/comp/serializer/compression => ../../../comp/serializer/compression
+	github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl => ../../../comp/serializer/compression/compressionimpl
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../config/env
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../config/mock
@@ -37,6 +39,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/status/health => ../../status/health
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../telemetry
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../util/backoff
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../util/fxutil
@@ -59,6 +62,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/serializer/compression v0.60.1
 	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.56.0-rc.3
