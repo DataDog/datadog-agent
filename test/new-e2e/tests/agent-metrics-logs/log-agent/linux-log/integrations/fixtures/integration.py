@@ -24,8 +24,5 @@ class HelloCheck(AgentCheck):
 
         num_logs = instance['log_count']
 
-        if num_logs != 1:
-            for _ in range(num_logs):
-                self.send_log(data)
-        else:
+        for _ in range(num_logs):
             self.send_log(data)

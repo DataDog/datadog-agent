@@ -87,7 +87,9 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 	// Since it's not yet possible to write to the integration log file by calling
 	// the agent check command, we can test if the file rotation works using the following method:
 
-	// 1. Set the max log file size to 1 MB individual log size to 256 kB.
+	// 1. Set the max log file size to 1 MB and individual log size to a size
+	// large enough to cause rotations every 4 logs. 230 KB was chosen as an
+	// arbitrarily large number.
 	// 2. Send five (or more) logs to the agent, causing the log file to rotate.
 	// 3. Check the logs to ensure that each is unique, ensuring the rotation worked correctly.
 
