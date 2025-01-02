@@ -134,11 +134,17 @@ func Test_parseTCP(t *testing.T) {
 			errMsg:      "invalid IP header for TCP packet",
 		},
 		{
+			description: "nil TCP layer should return an error",
+			inHeader:    ipv4Header,
+			expected:    nil,
+			errMsg:      "received empty TCP payload",
+		},
+		{
 			description: "missing TCP layer should return an error",
 			inHeader:    ipv4Header,
 			inPayload:   []byte{},
 			expected:    nil,
-			errMsg:      "failed to decode TCP packet",
+			errMsg:      "received empty TCP payload",
 		},
 		{
 			description: "full TCP packet should create tcpResponse",
