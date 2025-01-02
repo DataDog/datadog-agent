@@ -93,6 +93,7 @@ func (s *SBOM) reset() {
 	s.ContainerID = ""
 	s.cgroup = nil
 	s.deleted.Store(true)
+	s.files.clear()
 	if s.refresh != nil {
 		s.refresh.Stop()
 		s.refresh = nil
