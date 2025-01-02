@@ -16,7 +16,6 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
@@ -27,7 +26,6 @@ import (
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	metadata "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	pkgCollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
@@ -131,8 +129,6 @@ func newCollector(deps dependencies) *collectorImpl {
 		cancelCheckTimeout: deps.Config.GetDuration("check_cancel_timeout"),
 		createdAt:          time.Now(),
 	}
-
-	pkgCollector.InitPython(common.GetPythonPaths()...)
 
 	deps.Lc.Append(fx.Hook{
 		OnStart: c.start,

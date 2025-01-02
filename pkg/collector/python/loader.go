@@ -17,6 +17,7 @@ import (
 
 	"github.com/mohae/deepcopy"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -49,6 +50,7 @@ var (
 	py3LintedLock    sync.Mutex
 	linterLock       sync.Mutex
 	agentVersionTags []string
+	pythonOnce       sync.Once
 )
 
 const (
@@ -115,6 +117,10 @@ func (cl *PythonCheckLoader) Name() string {
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
 func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+	pythonOnce.Do(func() {
+		InitPython(common.GetPythonPaths()...)
+	})
+
 	if rtloader == nil {
 		return nil, fmt.Errorf("python is not initialized")
 	}

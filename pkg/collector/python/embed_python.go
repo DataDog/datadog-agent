@@ -5,10 +5,9 @@
 
 //go:build python
 
-package collector
+package python
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,16 +30,16 @@ func InitPython(paths ...string) {
 }
 
 func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
-	if err := python.Initialize(paths...); err != nil {
+	if err := Initialize(paths...); err != nil {
 		log.Errorf("Could not initialize Python: %s", err)
 	}
-	return python.PythonVersion, python.PythonHome, python.PythonPath
+	return PythonVersion, PythonHome, PythonPath
 }
 
 func pyPrepareEnv() error {
 	if pkgconfigsetup.Datadog().IsSet("procfs_path") {
 		procfsPath := pkgconfigsetup.Datadog().GetString("procfs_path")
-		return python.SetPythonPsutilProcPath(procfsPath)
+		return SetPythonPsutilProcPath(procfsPath)
 	}
 	return nil
 }
