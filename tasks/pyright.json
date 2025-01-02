@@ -1,5 +1,5 @@
 {
-    "include": ["python_type_check.py"],
+    "include": ["junit_tasks.py"],
     "extraPaths": [".."],
     "typeCheckingMode": "strict",
     "reportUnknownVariableType": false

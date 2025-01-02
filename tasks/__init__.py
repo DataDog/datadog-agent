@@ -51,7 +51,6 @@ from tasks import (
     pipeline,
     pre_commit,
     process_agent,
-    python_type_check,
     release,
     rtloader,
     sds,
@@ -216,8 +215,6 @@ ns.add_collection(invoke_unit_tests)
 ns.add_collection(debug)
 ns.add_collection(winbuild)
 ns.add_collection(worktree)
-ns.add_collection(python_type_check)
-
 ns.configure(
     {
         "run": {

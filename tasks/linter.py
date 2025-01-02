@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import sys
 from collections import defaultdict
 from fnmatch import fnmatch
@@ -9,6 +10,7 @@ from glob import glob
 
 import yaml
 from invoke import Exit, task
+from invoke.context import Context
 
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.devcontainer import run_on_devcontainer
@@ -845,3 +847,17 @@ def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_fil
     gitlab_owners = CodeOwners('\n'.join(parsed_owners))
 
     _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners)
+
+
+@task
+def python_type_check(ctx: Context):
+    """
+    Run type checking for files defined in pyright.json
+    """
+
+    pyright = "pyright"
+    if shutil.which(pyright) is None:
+        raise Exit(
+            message=color_message(f"'{pyright}' not found in PATH. Please install it with `inv setup`", "red"),
+        )
+    ctx.run("pyright -p ./tasks/pyright.json")

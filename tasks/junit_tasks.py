@@ -1,10 +1,10 @@
-from invoke import task
+from invoke.tasks import task
 
 from tasks.libs.common.junit_upload_core import junit_upload_from_tgz
 
 
-@task()
-def junit_upload(_, tgz_path):
+@task
+def junit_upload(_, tgz_path: str):
     """
     Uploads JUnit XML files from an archive produced by the `test` task.
     """
