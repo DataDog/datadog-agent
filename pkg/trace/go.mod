@@ -26,7 +26,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/golang/mock v1.6.0
+	github.com/golang/mock v1.7.0-rc.1
 	github.com/golang/protobuf v1.5.4
 	github.com/google/go-cmp v0.6.0
 	github.com/google/gofuzz v1.2.0
@@ -45,7 +45,7 @@ require (
 	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.28.0
 	golang.org/x/time v0.8.0
-	google.golang.org/grpc v1.67.1
+	google.golang.org/grpc v1.69.2
 	google.golang.org/protobuf v1.35.2
 	gopkg.in/ini.v1 v1.67.0
 	k8s.io/apimachinery v0.31.2
