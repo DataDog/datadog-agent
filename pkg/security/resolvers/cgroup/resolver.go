@@ -47,7 +47,6 @@ type ResolverInterface interface {
 	AddPID(*model.ProcessCacheEntry)
 	GetWorkload(containerutils.ContainerID) (*cgroupModel.CacheEntry, bool)
 	DelPID(uint32)
-	DelPIDWithID(containerutils.ContainerID, uint32)
 	Len() int
 	RegisterListener(Event, utils.Listener[*cgroupModel.CacheEntry]) error
 }
