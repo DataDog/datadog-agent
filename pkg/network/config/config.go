@@ -288,6 +288,9 @@ type Config struct {
 	// EnableUSMEventStream enables USM to use the event stream instead
 	// of netlink for receiving process events.
 	EnableUSMEventStream bool
+
+	// EnableKprobeDataHooks enables USM to use Kprobes to get packet data.
+	EnableUSMKprobeDataHooks bool
 }
 
 // New creates a config for the network tracer
@@ -392,6 +395,7 @@ func New() *Config {
 		EnableUSMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_connection_rollup")),
 		EnableUSMRingBuffers:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_ring_buffers")),
 		EnableUSMEventStream:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
+		EnableUSMKprobeDataHooks:  cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_kprobe_data_hooks")),
 	}
 
 	httpRRKey := sysconfig.FullKeyPath(smNS, "http_replace_rules")

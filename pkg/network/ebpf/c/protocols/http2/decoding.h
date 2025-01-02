@@ -113,6 +113,10 @@ static __always_inline void* get_telemetry(pktbuf_t pkt) {
             .map = &http2_telemetry,
             .key = (void*)&tls_key,
         },
+        [PKTBUF_KPROBE] = {
+            .map = &http2_telemetry,
+            .key = (void*)&plaintext_ey,
+        },
     };
     return pktbuf_map_lookup(pkt, map_lookup_telemetry_array);
 }
@@ -688,6 +692,10 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
             .prog_array_map = &tls_process_progs,
             .index = PROG_HTTP2_FRAME_FILTER,
         },
+        [PKTBUF_KPROBE] = {
+            .prog_array_map = &kprobe_protocols_progs,
+            .index = PROG_HTTP2_FRAME_FILTER,
+        },
     };
     pktbuf_tail_call_compact(pkt, frame_filter_tail_call_array);
 }
@@ -764,6 +772,10 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
                 .prog_array_map = &tls_process_progs,
                 .index = PROG_HTTP2_FRAME_FILTER,
             },
+            [PKTBUF_KPROBE] = {
+                .prog_array_map = &kprobe_protocols_progs,
+                .index = PROG_HTTP2_FRAME_FILTER,
+            },
         };
         pktbuf_tail_call_compact(pkt, frame_filter_tail_call_array);
     }
@@ -809,6 +821,12 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
             .value = iteration_value,
             .flags = BPF_NOEXIST,
         },
+        [PKTBUF_KPROBE] = {
+            .map = &kprobe_http2_iterations,
+            .key = map_key,
+            .value = iteration_value,
+            .flags = BPF_NOEXIST,
+        },
     };
     // We have couple of interesting headers, launching tail calls to handle them.
     if (pktbuf_map_update(pkt, http2_iterations_map_update_array) >= 0) {
@@ -820,6 +838,10 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
             },
             [PKTBUF_TLS] = {
                 .prog_array_map = &tls_process_progs,
+                .index = PROG_HTTP2_HEADERS_PARSER,
+            },
+            [PKTBUF_KPROBE] = {
+                .prog_array_map = &kprobe_protocols_progs,
                 .index = PROG_HTTP2_HEADERS_PARSER,
             },
         };
@@ -858,6 +880,10 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         },
         [PKTBUF_TLS] = {
             .map = &tls_http2_iterations,
+            .key = map_key,
+        },
+        [PKTBUF_KPROBE] = {
+            .map = &kprobe_http2_iterations,
             .key = map_key,
         },
     };
@@ -943,6 +969,10 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
                 .prog_array_map = &tls_process_progs,
                 .index = PROG_HTTP2_HEADERS_PARSER,
             },
+            [PKTBUF_KPROBE] = {
+                .prog_array_map = &kprobe_protocols_progs,
+                .index = PROG_HTTP2_HEADERS_PARSER,
+            },
         };
         pktbuf_tail_call_compact(pkt, tail_call_arr);
     }
@@ -955,6 +985,10 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         },
         [PKTBUF_TLS] = {
             .prog_array_map = &tls_process_progs,
+            .index = PROG_HTTP2_DYNAMIC_TABLE_CLEANER,
+        },
+        [PKTBUF_KPROBE] = {
+            .prog_array_map = &kprobe_protocols_progs,
             .index = PROG_HTTP2_DYNAMIC_TABLE_CLEANER,
         },
     };
@@ -995,6 +1029,10 @@ static __always_inline void dynamic_table_cleaner(pktbuf_t pkt, conn_tuple_t *tu
         },
         [PKTBUF_TLS] = {
             .prog_array_map = &tls_process_progs,
+            .index = PROG_HTTP2_EOS_PARSER,
+        },
+        [PKTBUF_KPROBE] = {
+            .prog_array_map = &kprobe_protocols_progs,
             .index = PROG_HTTP2_EOS_PARSER,
         },
     };
@@ -1060,6 +1098,10 @@ static __always_inline void eos_parser(pktbuf_t pkt, void *map_key, conn_tuple_t
         },
         [PKTBUF_TLS] = {
             .map = &tls_http2_iterations,
+            .key = map_key,
+        },
+        [PKTBUF_KPROBE] = {
+            .map = &kprobe_http2_iterations,
             .key = map_key,
         },
     };
@@ -1153,6 +1195,10 @@ static __always_inline void eos_parser(pktbuf_t pkt, void *map_key, conn_tuple_t
             },
             [PKTBUF_TLS] = {
                 .prog_array_map = &tls_process_progs,
+                .index = PROG_HTTP2_EOS_PARSER,
+            },
+            [PKTBUF_KPROBE] = {
+                .prog_array_map = &kprobe_protocols_progs,
                 .index = PROG_HTTP2_EOS_PARSER,
             },
         };

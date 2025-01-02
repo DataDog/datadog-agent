@@ -7,6 +7,7 @@
 enum pktbuf_type {
     PKTBUF_SKB,
     PKTBUF_TLS,
+    PKTBUF_KPROBE,
 };
 
 struct pktbuf {
@@ -19,6 +20,10 @@ struct pktbuf {
         struct {
             struct pt_regs *ctx;
             tls_dispatcher_arguments_t *tls;
+        };
+        struct {
+            struct pt_regs *kctx;
+            kprobe_dispatcher_arguments_t *kprobe;
         };
     };
 };
@@ -37,6 +42,9 @@ static __always_inline __maybe_unused void pktbuf_set_offset(pktbuf_t pkt, u32 o
     case PKTBUF_TLS:
         pkt.tls->data_off = offset;
         return;
+    case PKTBUF_KPROBE:
+        pkt.kprobe->data_off = offset;
+        return;
     }
 
     pktbuf_invalid_operation();
@@ -51,18 +59,23 @@ static __always_inline __maybe_unused void pktbuf_advance(pktbuf_t pkt, u32 offs
     case PKTBUF_TLS:
         pkt.tls->data_off += offset;
         return;
+    case PKTBUF_KPROBE:
+        pkt.kprobe->data_off += offset;
+        return;
     }
 
     pktbuf_invalid_operation();
 }
 
-static __always_inline __maybe_unused u32 pktbuf_data_offset(pktbuf_t pkt)
+static __always_inline __maybe_unused u64 pktbuf_data_offset(pktbuf_t pkt)
 {
     switch (pkt.type) {
     case PKTBUF_SKB:
         return pkt.skb_info->data_off;
     case PKTBUF_TLS:
         return pkt.tls->data_off;
+    case PKTBUF_KPROBE:
+        return pkt.kprobe->data_off;
     }
 
     pktbuf_invalid_operation();
@@ -76,6 +89,8 @@ static __always_inline __maybe_unused u32 pktbuf_data_end(pktbuf_t pkt)
         return pkt.skb_info->data_end;
     case PKTBUF_TLS:
         return pkt.tls->data_end;
+    case PKTBUF_KPROBE:
+        return pkt.kprobe->data_end;
     }
 
     pktbuf_invalid_operation();
@@ -89,6 +104,8 @@ static __always_inline long pktbuf_load_bytes_with_telemetry(pktbuf_t pkt, u32 o
         return bpf_skb_load_bytes_with_telemetry(pkt.skb, offset, to, len);
     case PKTBUF_TLS:
         return bpf_probe_read_user_with_telemetry(to, len, pkt.tls->buffer_ptr + offset);
+    case PKTBUF_KPROBE:
+        return bpf_probe_read_user_with_telemetry(to, len, pkt.kprobe->buffer_ptr + offset);
     }
 
     pktbuf_invalid_operation();
@@ -107,6 +124,8 @@ static __always_inline __maybe_unused long pktbuf_load_bytes(pktbuf_t pkt, u32 o
         return bpf_skb_load_bytes(pkt.skb, offset, to, len);
     case PKTBUF_TLS:
         return bpf_probe_read_user(to, len, pkt.tls->buffer_ptr + offset);
+    case PKTBUF_KPROBE:
+        return bpf_probe_read_user(to, len, pkt.kprobe->buffer_ptr + offset);
     }
 
     pktbuf_invalid_operation();
@@ -130,6 +149,8 @@ static __always_inline __maybe_unused long pktbuf_tail_call_compact(pktbuf_t pkt
         return bpf_tail_call_compat(pkt.skb, options[PKTBUF_SKB].prog_array_map, options[PKTBUF_SKB].index);
     case PKTBUF_TLS:
         return bpf_tail_call_compat(pkt.ctx, options[PKTBUF_TLS].prog_array_map, options[PKTBUF_TLS].index);
+    case PKTBUF_KPROBE:
+        return bpf_tail_call_compat(pkt.kctx, options[PKTBUF_KPROBE].prog_array_map, options[PKTBUF_KPROBE].index);
     }
 
     pktbuf_invalid_operation();
@@ -183,6 +204,15 @@ static __always_inline __maybe_unused pktbuf_t pktbuf_from_tls(struct pt_regs *c
     };
 }
 
+static __always_inline __maybe_unused pktbuf_t pktbuf_from_kprobe(struct pt_regs *ctx, kprobe_dispatcher_arguments_t *kprobe)
+{
+    return (pktbuf_t) {
+        .type = PKTBUF_KPROBE,
+        .kprobe = kprobe,
+        .kctx = ctx,
+    };
+}
+
 #define PKTBUF_READ_BIG_ENDIAN(type_)                                                                                 \
     static __always_inline __maybe_unused bool pktbuf_read_big_endian_##type_(pktbuf_t pkt, u32 offset, type_ *out) { \
         switch (pkt.type) {                                                                                           \
@@ -190,6 +220,8 @@ static __always_inline __maybe_unused pktbuf_t pktbuf_from_tls(struct pt_regs *c
             return read_big_endian_##type_(pkt.skb, offset, out);                                                     \
         case PKTBUF_TLS:                                                                                              \
             return read_big_endian_user_##type_(pkt.tls->buffer_ptr, pkt.tls->data_end, offset, out);                 \
+        case PKTBUF_KPROBE:                                                                                              \
+            return read_big_endian_user_##type_(pkt.kprobe->buffer_ptr, pkt.kprobe->data_end, offset, out);                 \
         }                                                                                                             \
         pktbuf_invalid_operation();                                                                                   \
         return false;                                                                                                 \
@@ -201,17 +233,20 @@ PKTBUF_READ_BIG_ENDIAN(s8)
 
 // Wraps the mechanism of reading `total_size` bytes from the packet (starting from `offset`), into the given buffer.
 // An internal macro to reduce duplication between PKTBUF_READ_INTO_BUFFER and PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY.
-#define PKTBUF_READ_INTO_BUFFER_INTERNAL(name, total_size)                                                  \
-    static __always_inline void pktbuf_read_into_buffer_##name(char *buffer, pktbuf_t pkt, u32 offset) {    \
-        switch (pkt.type) {                                                                                 \
-        case PKTBUF_SKB:                                                                                    \
-            read_into_buffer_##name(buffer, pkt.skb, offset);                                               \
-            return;                                                                                         \
-        case PKTBUF_TLS:                                                                                    \
-            read_into_user_buffer_##name(buffer, pkt.tls->buffer_ptr + offset);                             \
-            return;                                                                                         \
-        }                                                                                                   \
-        pktbuf_invalid_operation();                                                                         \
+#define PKTBUF_READ_INTO_BUFFER_INTERNAL(name, total_size)                                               \
+    static __always_inline void pktbuf_read_into_buffer_##name(char *buffer, pktbuf_t pkt, u32 offset) { \
+        switch (pkt.type) {                                                                              \
+        case PKTBUF_SKB:                                                                                 \
+            read_into_buffer_##name(buffer, pkt.skb, offset);                                            \
+            return;                                                                                      \
+        case PKTBUF_TLS:                                                                                 \
+            read_into_user_buffer_##name(buffer, pkt.tls->buffer_ptr + offset);                          \
+            return;                                                                                      \
+        case PKTBUF_KPROBE:                                                                              \
+            read_into_user_buffer_##name(buffer, pkt.kprobe->buffer_ptr + offset);                       \
+            return;                                                                                      \
+        }                                                                                                \
+        pktbuf_invalid_operation();                                                                      \
     }
 
 // Reads `total_size` bytes from the packet (starting from `offset`), into the given buffer. Every read operation is

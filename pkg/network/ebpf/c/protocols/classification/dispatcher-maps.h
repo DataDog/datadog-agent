@@ -20,11 +20,15 @@ BPF_PROG_ARRAY(protocols_progs, PROG_MAX)
 // traffic, after getting plain data from our TLS implementations
 BPF_PROG_ARRAY(tls_process_progs, PROG_MAX)
 
+BPF_PROG_ARRAY(kprobe_protocols_progs, PROG_MAX)
+
 // This program array is needed to bypass a memory limit on socket filters.
 // There is a limitation on number of instructions can be attached to a socket filter,
 // as we dispatching more protocols, we reached that limit, thus we workaround it
 // by using tail call.
 BPF_PROG_ARRAY(dispatcher_classification_progs, DISPATCHER_PROG_MAX)
+
+BPF_PROG_ARRAY(kprobe_dispatcher_classification_progs, DISPATCHER_PROG_MAX)
 
 // Similar to the above, this array is used to keep some dispatcher functions
 // in a separate tail call to avoid hitting limits. Specifically, putting Kafka
@@ -35,6 +39,18 @@ BPF_PROG_ARRAY(tls_dispatcher_classification_progs, DISPATCHER_PROG_MAX)
 // A per-cpu array to share conn_tuple and skb_info between the dispatcher and the tail-calls.
 BPF_PERCPU_ARRAY_MAP(dispatcher_arguments, dispatcher_arguments_t, 1)
 
+BPF_PERCPU_ARRAY_MAP(kprobe_dispatcher_arguments, kprobe_dispatcher_arguments_t, 1)
+
 BPF_PERCPU_ARRAY_MAP(tls_dispatcher_arguments, tls_dispatcher_arguments_t, 1)
+
+struct sock;
+
+typedef struct {
+    struct sock *sock;
+    const void *buffer;
+} tcp_kprobe_state_t;
+
+BPF_HASH_MAP(tcp_kprobe_state, __u64, tcp_kprobe_state_t, 2048)
+BPF_HASH_MAP(tcp_splicing, __u64, __u32, 2048)
 
 #endif

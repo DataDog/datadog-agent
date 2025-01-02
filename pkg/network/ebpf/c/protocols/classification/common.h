@@ -31,5 +31,7 @@ static __always_inline bool is_payload_empty(skb_info_t *skb_info) {
 }
 
 READ_INTO_BUFFER(for_classification, CLASSIFICATION_MAX_BUFFER, BLK_SIZE)
+READ_INTO_USER_BUFFER(for_classification, CLASSIFICATION_MAX_BUFFER)
+READ_INTO_KERNEL_BUFFER(for_classification, CLASSIFICATION_MAX_BUFFER)
 
 #endif
