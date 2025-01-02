@@ -242,6 +242,8 @@ instances:
       ## @param collect_comments - boolean - optional - default: true
       ## Set to `false` to disable the collection of comments in your SQL statements.
       ## Requires `collect_metadata: true`.
+      ## Note: This option must be `true` in order to correlate Database Monitoring samples and APM traces.
+      ## See https://docs.datadoghq.com/database_monitoring/connect_dbm_and_apm
       #
       # collect_comments: true
 
