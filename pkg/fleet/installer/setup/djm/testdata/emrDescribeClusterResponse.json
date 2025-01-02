@@ -1,0 +1,167 @@
+{
+    "Cluster": {
+        "Id": "j-456",
+        "Name": "TestCluster",
+        "Status": {
+            "State": "WAITING",
+            "StateChangeReason": {
+                "Message": "Cluster ready to run steps."
+            },
+            "Timeline": {
+                "CreationDateTime": "2024-12-19T12:33:52.519000+00:00",
+                "ReadyDateTime": "2024-12-19T12:39:40.738000+00:00"
+            }
+        },
+        "Ec2InstanceAttributes": {
+            "Ec2KeyName": "name-key",
+            "Ec2SubnetId": "subnet-123",
+            "RequestedEc2SubnetIds": [
+                "subnet-a75bb2c3"
+            ],
+            "Ec2AvailabilityZone": "us-east-1a",
+            "RequestedEc2AvailabilityZones": [],
+            "IamInstanceProfile": "IamInstanceProfile",
+            "EmrManagedMasterSecurityGroup": "sg-EmrManagedMasterSecurityGroup",
+            "EmrManagedSlaveSecurityGroup": "sg-EmrManagedSlaveSecurityGroup",
+            "AdditionalMasterSecurityGroups": [
+                "sg-0348948a9f025a14e",
+                "sg-0cca41352bd4bf322"
+            ],
+            "AdditionalSlaveSecurityGroups": [
+                "sg-1",
+                "sg-2"
+            ]
+        },
+        "InstanceCollectionType": "INSTANCE_GROUP",
+        "LogUri": "s3n://bucket/emr_logs/",
+        "ReleaseLabel": "emr-7.2.0",
+        "AutoTerminate": false,
+        "TerminationProtected": false,
+        "UnhealthyNodeReplacement": true,
+        "VisibleToAllUsers": true,
+        "Applications": [
+            {
+                "Name": "Hadoop",
+                "Version": "3.3.6"
+            },
+            {
+                "Name": "Hive",
+                "Version": "3.1.3"
+            },
+            {
+                "Name": "JupyterEnterpriseGateway",
+                "Version": "2.6.0"
+            },
+            {
+                "Name": "Livy",
+                "Version": "0.8.0"
+            },
+            {
+                "Name": "Spark",
+                "Version": "3.5.1"
+            }
+        ],
+        "Tags": [
+            {
+                "Key": "emr_env",
+                "Value": "sandbox"
+            }
+        ],
+        "ServiceRole": "arn:aws:iam::123456:role/EMR_DefaultRole",
+        "NormalizedInstanceHours": 16,
+        "NormalizedInstanceHours": 16,
+        "MasterPublicDnsName": "ec2-1-2-3-4.compute-1.amazonaws.com",
+        "Configurations": [],
+        "ScaleDownBehavior": "TERMINATE_AT_TASK_COMPLETION",
+        "KerberosAttributes": {},
+        "ClusterArn": "arn:aws:elasticmapreduce:us-east-1:601427279990:cluster/j-456",
+        "StepConcurrencyLevel": 2,
+        "PlacementGroups": [],
+        "OSReleaseLabel": "2023.6.20241121.0",
+        "BootstrapActions": [],
+        "InstanceGroups": [
+            {
+                "Id": "ig-123",
+                "Name": "Primary",
+                "Market": "ON_DEMAND",
+                "InstanceGroupType": "MASTER",
+                "InstanceType": "m4.xlarge",
+                "RequestedInstanceCount": 1,
+                "RunningInstanceCount": 1,
+                "Status": {
+                    "State": "RUNNING",
+                    "StateChangeReason": {
+                        "Message": ""
+                    },
+                    "Timeline": {
+                        "CreationDateTime": "2024-12-19T12:33:52.539000+00:00",
+                        "ReadyDateTime": "2024-12-19T12:39:11.301000+00:00"
+                    }
+                },
+                "Configurations": [],
+                "ConfigurationsVersion": 0,
+                "LastSuccessfullyAppliedConfigurations": [],
+                "LastSuccessfullyAppliedConfigurationsVersion": 0,
+                "EbsBlockDevices": [
+                    {
+                        "VolumeSpecification": {
+                            "VolumeType": "gp2",
+                            "SizeInGB": 32
+                        },
+                        "Device": "/dev/sdb"
+                    },
+                    {
+                        "VolumeSpecification": {
+                            "VolumeType": "gp2",
+                            "SizeInGB": 32
+                        },
+                        "Device": "/dev/sdc"
+                    }
+                ],
+                "EbsOptimized": true,
+                "ShrinkPolicy": {}
+            },
+            {
+                "Id": "ig-124",
+                "Name": "Core",
+                "Market": "ON_DEMAND",
+                "InstanceGroupType": "CORE",
+                "InstanceType": "m4.xlarge",
+                "RequestedInstanceCount": 1,
+                "RunningInstanceCount": 1,
+                "Status": {
+                    "State": "RUNNING",
+                    "StateChangeReason": {
+                        "Message": ""
+                    },
+                    "Timeline": {
+                        "CreationDateTime": "2024-12-19T12:33:52.539000+00:00",
+                        "ReadyDateTime": "2024-12-19T12:39:40.738000+00:00"
+                    }
+                },
+                "Configurations": [],
+                "ConfigurationsVersion": 0,
+                "LastSuccessfullyAppliedConfigurations": [],
+                "LastSuccessfullyAppliedConfigurationsVersion": 0,
+                "EbsBlockDevices": [
+                    {
+                        "VolumeSpecification": {
+                            "VolumeType": "gp2",
+                            "SizeInGB": 32
+                        },
+                        "Device": "/dev/sdb"
+                    },
+                    {
+                        "VolumeSpecification": {
+                            "VolumeType": "gp2",
+                            "SizeInGB": 32
+                        },
+                        "Device": "/dev/sdc"
+                    }
+                ],
+                "EbsOptimized": true,
+                "ShrinkPolicy": {}
+            }
+        ]
+    }
+}

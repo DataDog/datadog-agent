@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/serverless/streamlogs"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Note: Building the logs-agent for serverless separately removes the
@@ -37,7 +37,7 @@ import (
 // It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
 func (a *logAgent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
-	wmeta optional.Option[workloadmeta.Component],
+	wmeta option.Option[workloadmeta.Component],
 	_ integrations.Component,
 ) {
 	health := health.RegisterLiveness("logs-agent")

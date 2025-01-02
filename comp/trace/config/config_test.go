@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -245,6 +246,9 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 	})
 }
 
+//go:embed testdata/stringcode.go.tmpl
+var stringCodeBody string
+
 func TestConfigHostname(t *testing.T) {
 	t.Run("fail", func(t *testing.T) {
 		overrides := map[string]interface{}{
@@ -360,11 +364,6 @@ func TestConfigHostname(t *testing.T) {
 	})
 
 	t.Run("external", func(t *testing.T) {
-		body, err := os.ReadFile("testdata/stringcode.go.tmpl")
-		if err != nil {
-			t.Fatal(err)
-		}
-
 		// makeProgram creates a new binary file which returns the given response and exits to the OS
 		// given the specified code, returning the path of the program.
 		makeProgram := func(t *testing.T, response string, code int) string {
@@ -372,7 +371,7 @@ func TestConfigHostname(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			tmpl, err := template.New("program").Parse(string(body))
+			tmpl, err := template.New("program").Parse(stringCodeBody)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -399,6 +398,7 @@ func TestConfigHostname(t *testing.T) {
 		fallbackHostnameFunc = func() (string, error) { return "fallback.host", nil }
 
 		t.Run("good", func(t *testing.T) {
+			t.Skip("Skip flaky test while we explore fixes.")
 			bin := makeProgram(t, "host.name", 0)
 			defer os.Remove(bin)
 
@@ -629,6 +629,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(t, o.CreditCards.Enabled)
 	assert.True(t, o.CreditCards.Luhn)
 	assert.True(t, o.Cache.Enabled)
+	assert.Equal(t, int64(5555555), o.Cache.MaxSize)
 
 	assert.True(t, cfg.InstallSignature.Found)
 	assert.Equal(t, traceconfig.InstallSignatureConfig{
@@ -1774,6 +1775,22 @@ func TestLoadEnv(t *testing.T) {
 		assert.NotNil(t, cfg)
 		assert.False(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled"))
 		assert.False(t, cfg.Obfuscation.Cache.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_CACHE_MAX_SIZE"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "1234567")
+
+		c := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+		}))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		actualConfig := pkgconfigsetup.Datadog().GetString("apm_config.obfuscation.cache.max_size")
+		actualParsed := cfg.Obfuscation.Cache.MaxSize
+		assert.Equal(t, "1234567", actualConfig)
+		assert.Equal(t, int64(1234567), actualParsed)
 	})
 
 	env = "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"

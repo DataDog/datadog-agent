@@ -203,7 +203,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 					variableValue = actionDef.Set.Value
 				} else if actionDef.Set.Field != "" {
-					kind, err := rs.eventCtor().GetFieldType(actionDef.Set.Field)
+					_, kind, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
 					if err != nil {
 						errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", actionDef.Set.Field, err))
 						continue
@@ -498,7 +498,7 @@ func IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rule) (bool, erro
 
 // IsDiscarder partially evaluates an Event against a field
 func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error) {
-	eventType, err := event.GetFieldEventType(field)
+	eventType, _, err := event.GetFieldMetadata(field)
 	if err != nil {
 		return false, err
 	}

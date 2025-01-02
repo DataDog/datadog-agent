@@ -16,9 +16,43 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
+
+func newFakeForkEvent(ppid, pid int, inode uint64, resolver *EBPFResolver) *model.Event {
+	e := model.NewFakeEvent()
+	e.Type = uint32(model.ForkEventType)
+	e.ProcessCacheEntry = resolver.NewProcessCacheEntry(model.PIDContext{Pid: uint32(pid), Tid: uint32(pid)})
+	e.PIDContext = e.ProcessCacheEntry.PIDContext
+	e.ProcessContext = &e.ProcessCacheEntry.ProcessContext
+	e.ProcessCacheEntry.ForkTime = time.Now()
+	e.ProcessCacheEntry.PPid = uint32(ppid)
+	e.ProcessCacheEntry.Pid = uint32(pid)
+	e.ProcessCacheEntry.FileEvent.Inode = inode
+	return e
+}
+
+func newFakeExecEvent(ppid, pid int, inode uint64, resolver *EBPFResolver) *model.Event {
+	e := model.NewFakeEvent()
+	e.Type = uint32(model.ExecEventType)
+	e.ProcessCacheEntry = resolver.NewProcessCacheEntry(model.PIDContext{Pid: uint32(pid), Tid: uint32(pid)})
+	e.PIDContext = e.ProcessCacheEntry.PIDContext
+	e.ProcessContext = &e.ProcessCacheEntry.ProcessContext
+	e.ProcessCacheEntry.ExecTime = time.Now()
+	e.ProcessCacheEntry.PPid = uint32(ppid)
+	e.ProcessCacheEntry.Pid = uint32(pid)
+	e.ProcessCacheEntry.FileEvent.Inode = inode
+	return e
+}
+
+func exit(event *model.Event) {
+	event.Type = uint32(model.ExitEventType)
+}
 
 func testCacheSize(t *testing.T, resolver *EBPFResolver) {
 	err := retry.Do(
@@ -33,701 +67,717 @@ func testCacheSize(t *testing.T, resolver *EBPFResolver) {
 	assert.NoError(t, err)
 }
 
-func TestFork1st(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+func newResolver() (*EBPFResolver, error) {
+	timeResolver, err := ktime.NewResolver()
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
-	parent.ForkTime = time.Now()
+	cgroupsResolver, err := cgroup.NewResolver(nil)
+	if err != nil {
+		return nil, err
+	}
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
-	child.PPid = parent.Pid
-	child.ForkTime = time.Now()
+	userGroupResolver, err := usergroup.NewResolver(cgroupsResolver)
+	if err != nil {
+		return nil, err
+	}
 
-	// parent
-	resolver.AddForkEntry(parent, 0, nil)
-	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
+	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, cgroupsResolver, userGroupResolver, timeResolver, &path.NoOpResolver{}, nil, NewResolverOpts())
+	if err != nil {
+		return nil, err
+	}
+
+	return resolver, nil
+}
+
+func TestFork1st(t *testing.T) {
+
+	resolver, err := newResolver()
+	if err != nil {
+		t.Fatal()
+	}
+
+	parent := newFakeForkEvent(0, 3, 123, resolver)
+	child := newFakeForkEvent(3, 4, 123, resolver)
+
+	// X(pid:3)
+	resolver.AddForkEntry(parent, nil)
+	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
-	// parent
-	//     \ child
-	resolver.AddForkEntry(child, 0, nil)
-	assert.Equal(t, child, resolver.entryCache[child.Pid])
+	// X(pid:3)
+	//    |
+	// X(pid:4)
+	resolver.AddForkEntry(child, nil)
+	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
-	assert.Equal(t, parent, child.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
-	// parent
-	resolver.DeleteEntry(child.Pid, time.Now())
-	assert.Nil(t, resolver.entryCache[child.Pid])
+	// X(pid:3)
+	exit(child)
+	resolver.ApplyExitEntry(child, nil)
+	resolver.DeleteEntry(child.ProcessCacheEntry.Pid, child.ResolveEventTime())
+
+	assert.Nil(t, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 
-	// nothing
-	resolver.DeleteEntry(parent.Pid, time.Now())
-	assert.Zero(t, len(resolver.entryCache))
-
+	// nothing in the entryCache
+	exit(parent)
+	resolver.ApplyExitEntry(parent, nil)
+	resolver.DeleteEntry(parent.ProcessCacheEntry.Pid, parent.ResolveEventTime())
+	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
+	assert.Equal(t, 0, len(resolver.entryCache))
 	testCacheSize(t, resolver)
 }
 
 func TestFork2nd(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+
+	resolver, err := newResolver()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal()
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
-	parent.ForkTime = time.Now()
+	parent := newFakeForkEvent(0, 3, 123, resolver)
+	child := newFakeForkEvent(3, 4, 123, resolver)
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
-	child.PPid = parent.Pid
-	child.ForkTime = time.Now()
-
-	// parent
-	resolver.AddForkEntry(parent, 0, nil)
-	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
+	// X(pid:3)
+	resolver.AddForkEntry(parent, nil)
+	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
-	// parent
-	//     \ child
-	resolver.AddForkEntry(child, 0, nil)
-	assert.Equal(t, child, resolver.entryCache[child.Pid])
+	// X(pid:3)
+	//    |
+	// X(pid:4)
+	resolver.AddForkEntry(child, nil)
+	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
-	assert.Equal(t, parent, child.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
-	// [parent]
-	//     \ child
-	resolver.DeleteEntry(parent.Pid, time.Now())
-	assert.Nil(t, resolver.entryCache[parent.Pid])
+	// [X(pid:3)]
+	//    |
+	// X(pid:4)
+	exit(parent)
+	resolver.ApplyExitEntry(parent, nil)
+	resolver.DeleteEntry(parent.ProcessContext.Pid, parent.ResolveEventTime())
+	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.Equal(t, parent, child.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 
-	// nothing
-	resolver.DeleteEntry(child.Pid, time.Now())
-	assert.Zero(t, len(resolver.entryCache))
+	// nothing in the entryCache
+	exit(child)
+	resolver.ApplyExitEntry(child, nil)
+	resolver.DeleteEntry(child.ProcessContext.Pid, child.ResolveEventTime())
+	assert.Nil(t, resolver.entryCache[child.ProcessCacheEntry.Pid])
+	assert.Equal(t, 0, len(resolver.entryCache))
 
 	testCacheSize(t, resolver)
 }
 
 func TestForkExec(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := newResolver()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal()
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
-	parent.ForkTime = time.Now()
+	parent := newFakeForkEvent(0, 3, 123, resolver)
+	child := newFakeForkEvent(3, 4, 123, resolver)
+	exec := newFakeExecEvent(3, 4, 456, resolver)
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
-	child.PPid = parent.Pid
-	child.ForkTime = time.Now()
-
-	exec := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
-	exec.PPid = child.PPid
-	exec.FileEvent.Inode = 123
-	exec.ExecTime = time.Now()
-
-	// parent
-	resolver.AddForkEntry(parent, 0, nil)
-	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
+	// X(pid:3)
+	resolver.AddForkEntry(parent, nil)
+	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
-	// parent
-	//     \ child
-	resolver.AddForkEntry(child, 0, nil)
-	assert.Equal(t, child, resolver.entryCache[child.Pid])
+	// X(pid:3)
+	//    |
+	// X(pid:4)
+	resolver.AddForkEntry(child, nil)
+	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
-	assert.Equal(t, parent, child.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
-	// parent
-	//     \ [child] -> exec
-	resolver.AddExecEntry(exec, 0)
-	assert.Equal(t, exec, resolver.entryCache[exec.Pid])
+	// X(pid:3)
+	//    |
+	// X(pid:4) -- Y(pid:4)
+	resolver.AddExecEntry(exec)
+	assert.Equal(t, exec.ProcessCacheEntry, resolver.entryCache[exec.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
-	assert.Equal(t, child, exec.Ancestor)
-	assert.Equal(t, parent, exec.Ancestor.Ancestor)
+	assert.Equal(t, child.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor.Ancestor)
 	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
-	// [parent]
-	//     \ [child] -> exec
-	resolver.DeleteEntry(parent.Pid, time.Now())
-	assert.Nil(t, resolver.entryCache[parent.Pid])
+	// [X(pid:3)]
+	//    |
+	// X(pid:4) -- Y(pid:4)
+	exit(parent)
+	resolver.ApplyExitEntry(parent, nil)
+	resolver.DeleteEntry(parent.ProcessContext.Pid, parent.ResolveEventTime())
+	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.Equal(t, child, exec.Ancestor)
-	assert.Equal(t, parent, exec.Ancestor.Ancestor)
+	assert.Equal(t, child.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor.Ancestor)
 
-	// nothing
-	resolver.DeleteEntry(exec.Pid, time.Now())
+	// nothing in the entryCache
+	exit(child)
+	resolver.ApplyExitEntry(child, nil)
+	resolver.DeleteEntry(child.ProcessContext.Pid, child.ResolveEventTime())
 	assert.Zero(t, len(resolver.entryCache))
-
 	testCacheSize(t, resolver)
 }
 
 func TestOrphanExec(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := newResolver()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal()
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
-	parent.ForkTime = time.Now()
+	parent := newFakeForkEvent(0, 3, 123, resolver)
+	child := newFakeForkEvent(3, 4, 123, resolver)
+	exec := newFakeExecEvent(3, 4, 456, resolver)
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
-	child.PPid = parent.Pid
-	child.ForkTime = time.Now()
-
-	exec := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
-	exec.Pid = child.Pid
-	exec.PPid = child.PPid
-	exec.FileEvent.Inode = 123
-	exec.ExecTime = time.Now()
-
-	// parent
-	resolver.AddForkEntry(parent, 0, nil)
-	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
+	// X(pid:3)
+	resolver.AddForkEntry(parent, nil)
+	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
-	// parent
-	//     \ child
-	resolver.AddForkEntry(child, 0, nil)
-	assert.Equal(t, child, resolver.entryCache[child.Pid])
+	// X(pid:3)
+	//    |
+	// X(pid:4)
+	resolver.AddForkEntry(child, nil)
+	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
-	assert.Equal(t, parent, child.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
-	// [parent]
-	//     \ child
-	resolver.DeleteEntry(parent.Pid, time.Now())
-	assert.Nil(t, resolver.entryCache[parent.Pid])
+	// [X(pid:3)]
+	//    |
+	//  X(pid:4)
+	exit(parent)
+	resolver.ApplyExitEntry(parent, nil)
+	resolver.DeleteEntry(parent.ProcessContext.Pid, parent.ResolveEventTime())
+	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.Equal(t, parent, child.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 
-	// [parent]
-	//     \ [child] -> exec
-	resolver.AddExecEntry(exec, 0)
-	assert.Equal(t, exec, resolver.entryCache[exec.Pid])
+	// [X(pid:3)]
+	//    |
+	//  X(pid:4) --> Y(pid:4)
+	resolver.AddExecEntry(exec)
+	assert.Equal(t, exec.ProcessCacheEntry, resolver.entryCache[exec.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.Equal(t, child, exec.Ancestor)
-	assert.Equal(t, parent, exec.Ancestor.Ancestor)
+	assert.Equal(t, child.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor.Ancestor)
 	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
-	// nothing
-	resolver.DeleteEntry(exec.Pid, time.Now())
+	// nothing in the entryCache
+	exit(exec)
+	resolver.ApplyExitEntry(exec, nil)
+	resolver.DeleteEntry(exec.ProcessCacheEntry.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
 
 	testCacheSize(t, resolver)
 }
 
 func TestForkExecExec(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := newResolver()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal()
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
-	parent.ForkTime = time.Now()
+	parent := newFakeForkEvent(0, 3, 123, resolver)
+	child := newFakeForkEvent(3, 4, 123, resolver)
+	exec1 := newFakeExecEvent(3, 4, 456, resolver)
+	exec2 := newFakeExecEvent(3, 4, 789, resolver)
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
-	child.PPid = parent.Pid
-	child.ForkTime = time.Now()
-
-	exec1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
-	exec1.PPid = child.PPid
-	exec1.FileEvent.Inode = 123
-	exec1.ExecTime = time.Now()
-
-	exec2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
-	exec2.Pid = child.Pid
-	exec2.PPid = child.PPid
-	exec2.FileEvent.Inode = 456
-	exec2.ExecTime = time.Now()
-
-	// parent
-	resolver.AddForkEntry(parent, 0, nil)
-	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
+	// X(pid:3)
+	resolver.AddForkEntry(parent, nil)
+	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
-	// parent
-	//     \ child
-	resolver.AddForkEntry(child, 0, nil)
-	assert.Equal(t, child, resolver.entryCache[child.Pid])
+	// X(pid:3)
+	//    |
+	// X(pid:4)
+	resolver.AddForkEntry(child, nil)
+	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
-	assert.Equal(t, parent, child.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
-	// [parent]
-	//     \ child
-	resolver.DeleteEntry(parent.Pid, time.Now())
-	assert.Nil(t, resolver.entryCache[parent.Pid])
+	// [X(pid:3)]
+	//    |
+	//  X(pid:4)
+	exit(parent)
+	resolver.ApplyExitEntry(parent, nil)
+	resolver.DeleteEntry(parent.ProcessContext.Pid, parent.ResolveEventTime())
+	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.Equal(t, parent, child.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 
-	// [parent]
-	//     \ [child] -> exec1
-	resolver.AddExecEntry(exec1, 0)
-	assert.Equal(t, exec1, resolver.entryCache[exec1.Pid])
+	// [X(pid:3)]
+	//    |
+	// X(pid:4) -- Y(pid:4)
+	resolver.AddExecEntry(exec1)
+	assert.Equal(t, exec1.ProcessCacheEntry, resolver.entryCache[exec1.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.Equal(t, child, exec1.Ancestor)
-	assert.Equal(t, parent, exec1.Ancestor.Ancestor)
+	assert.Equal(t, child.ProcessCacheEntry, exec1.ProcessCacheEntry.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, exec1.ProcessCacheEntry.Ancestor.Ancestor)
 	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
-	// [parent]
-	//     \ [child] -> [exec1] -> exec2
-	resolver.AddExecEntry(exec2, 0)
-	assert.Equal(t, exec2, resolver.entryCache[exec2.Pid])
+	// [X(pid:3)]
+	//    |
+	//  X(pid:4) -- Y(pid:4) -- Z(pid:4)
+	resolver.AddExecEntry(exec2)
+	assert.Equal(t, exec2.ProcessCacheEntry, resolver.entryCache[exec2.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.Equal(t, exec1, exec2.Ancestor)
-	assert.Equal(t, child, exec2.Ancestor.Ancestor)
-	assert.Equal(t, parent, exec2.Ancestor.Ancestor.Ancestor)
+	assert.Equal(t, exec1.ProcessCacheEntry, exec2.ProcessCacheEntry.Ancestor)
+	assert.Equal(t, child.ProcessCacheEntry, exec2.ProcessCacheEntry.Ancestor.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, exec2.ProcessCacheEntry.Ancestor.Ancestor.Ancestor)
 	assert.EqualValues(t, 4, resolver.cacheSize.Load())
 
-	// nothing
-	resolver.DeleteEntry(exec2.Pid, time.Now())
+	// nothing in the entryCache in the entryCache
+	exit(exec2)
+	resolver.ApplyExitEntry(exec2, nil)
+	resolver.DeleteEntry(exec1.ProcessCacheEntry.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
 
 	testCacheSize(t, resolver)
 }
 
 func TestForkReuse(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := newResolver()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal()
 	}
 
-	parent1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
-	parent1.ForkTime = time.Now()
+	parent1 := newFakeForkEvent(0, 3, 123, resolver)
+	child1 := newFakeForkEvent(3, 4, 123, resolver)
+	exec1 := newFakeExecEvent(3, 4, 456, resolver)
+	parent2 := newFakeForkEvent(0, 3, 123, resolver)
+	child2 := newFakeForkEvent(3, 5, 123, resolver)
 
-	child1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
-	child1.PPid = parent1.Pid
-	child1.ForkTime = time.Now()
-
-	exec1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child1.Pid, Tid: child1.Pid})
-	exec1.PPid = child1.PPid
-	exec1.FileEvent.Inode = 123
-	exec1.ExecTime = time.Now()
-
-	parent2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
-	parent2.ForkTime = time.Now()
-
-	child2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 3, Tid: 3})
-	child2.PPid = parent2.Pid
-	child2.ForkTime = time.Now()
-
-	// parent1
-	resolver.AddForkEntry(parent1, 0, nil)
-	assert.Equal(t, parent1, resolver.entryCache[parent1.Pid])
+	// X(pid:3)
+	resolver.AddForkEntry(parent1, nil)
+	assert.Equal(t, parent1.ProcessCacheEntry, resolver.entryCache[parent1.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
-	// parent1
-	//     \ child1
-	resolver.AddForkEntry(child1, 0, nil)
-	assert.Equal(t, child1, resolver.entryCache[child1.Pid])
+	// X(pid:3)
+	//    |
+	// X(pid:4)
+	resolver.AddForkEntry(child1, nil)
+	assert.Equal(t, child1.ProcessCacheEntry, resolver.entryCache[child1.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
-	assert.Equal(t, parent1, child1.Ancestor)
+	assert.Equal(t, parent1.ProcessCacheEntry, child1.ProcessCacheEntry.Ancestor)
 	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
-	// [parent1]
-	//     \ child1
-	resolver.DeleteEntry(parent1.Pid, time.Now())
-	assert.Nil(t, resolver.entryCache[parent1.Pid])
+	// [X(pid:3)]
+	//    |
+	//  X(pid:4)
+	exit(parent1)
+	resolver.ApplyExitEntry(parent1, nil)
+	resolver.DeleteEntry(parent1.ProcessContext.Pid, parent1.ResolveEventTime())
+	assert.Nil(t, resolver.entryCache[parent1.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.Equal(t, parent1, child1.Ancestor)
+	assert.Equal(t, parent1.ProcessCacheEntry, child1.ProcessCacheEntry.Ancestor)
 
-	// [parent1]
-	//     \ [child1] -> exec1
-	resolver.AddExecEntry(exec1, 0)
-	assert.Equal(t, exec1, resolver.entryCache[exec1.Pid])
+	// [X(pid:3)]
+	//    |
+	// X(pid:4) -- Y(pid:4)
+	resolver.AddExecEntry(exec1)
+	assert.Equal(t, exec1.ProcessCacheEntry, resolver.entryCache[exec1.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.Equal(t, child1, exec1.Ancestor)
-	assert.Equal(t, parent1, exec1.Ancestor.Ancestor)
+	assert.Equal(t, child1.ProcessCacheEntry, exec1.ProcessCacheEntry.Ancestor)
+	assert.Equal(t, parent1.ProcessCacheEntry, exec1.ProcessCacheEntry.Ancestor.Ancestor)
 	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
-	// [parent1:pid1]
-	//     \ [child1] -> exec1
+	// [X(pid:3)]
+	//    |
+	//  X(pid:4) -- Y(pid:4)
 	//
-	// parent2:pid1
-	resolver.AddForkEntry(parent2, 0, nil)
-	assert.Equal(t, parent2, resolver.entryCache[parent2.Pid])
+	// Z(pid:3)
+	resolver.AddForkEntry(parent2, nil)
+	assert.Equal(t, parent2.ProcessCacheEntry, resolver.entryCache[parent2.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.EqualValues(t, 4, resolver.cacheSize.Load())
 
-	// [parent1:pid1]
-	//     \ [child1] -> exec1
+	// [X(pid:3)]
+	//    |
+	//  X(pid:4) -- Y(pid:4)
 	//
-	// parent2:pid1
-	//     \ child2
-	resolver.AddForkEntry(child2, 0, nil)
-	assert.Equal(t, child2, resolver.entryCache[child2.Pid])
+	// Z(pid:3)
+	//    |
+	// T(pid:5)
+	resolver.AddForkEntry(child2, nil)
+	assert.Equal(t, child2.ProcessCacheEntry, resolver.entryCache[child2.ProcessCacheEntry.Pid])
 	assert.Equal(t, 3, len(resolver.entryCache))
-	assert.Equal(t, parent2, child2.Ancestor)
+	assert.Equal(t, parent2.ProcessCacheEntry, child2.ProcessCacheEntry.Ancestor)
 	assert.EqualValues(t, 5, resolver.cacheSize.Load())
 
-	// parent2:pid1
-	//     \ child2
-	resolver.DeleteEntry(exec1.Pid, time.Now())
-	assert.Nil(t, resolver.entryCache[exec1.Pid])
+	// Z(pid:3)
+	//    |
+	// T(pid:5)
+	exit(exec1)
+	resolver.ApplyExitEntry(exec1, nil)
+	resolver.DeleteEntry(exec1.ProcessContext.Pid, exec1.ResolveEventTime())
+	assert.Nil(t, resolver.entryCache[exec1.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 
-	// [parent2:pid1]
-	//     \ child2
-	resolver.DeleteEntry(parent2.Pid, time.Now())
-	assert.Nil(t, resolver.entryCache[parent2.Pid])
+	// [Z(pid:3)]
+	//    |
+	// T(pid:5)
+	exit(parent2)
+	resolver.ApplyExitEntry(parent2, nil)
+	resolver.DeleteEntry(parent2.ProcessContext.Pid, parent2.ResolveEventTime())
+	assert.Nil(t, resolver.entryCache[parent2.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.Equal(t, parent2, child2.Ancestor)
+	assert.Equal(t, parent2.ProcessCacheEntry, child2.ProcessCacheEntry.Ancestor)
 
-	// nothing
-	resolver.DeleteEntry(child2.Pid, time.Now())
+	// nothing in the entryCache
+	exit(child2)
+	resolver.ApplyExitEntry(child2, nil)
+	resolver.DeleteEntry(child2.ProcessCacheEntry.Pid, child2.ResolveEventTime())
 	assert.Zero(t, len(resolver.entryCache))
 
 	testCacheSize(t, resolver)
 }
 
 func TestForkForkExec(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := newResolver()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal()
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
-	parent.ForkTime = time.Now()
+	parent := newFakeForkEvent(0, 3, 123, resolver)
+	child := newFakeForkEvent(3, 4, 123, resolver)
+	grandChild := newFakeForkEvent(4, 5, 123, resolver)
+	childExec := newFakeExecEvent(3, 4, 456, resolver)
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
-	child.PPid = parent.Pid
-	child.ForkTime = time.Now()
-
-	grandChild := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 3, Tid: 3})
-	grandChild.PPid = child.Pid
-	grandChild.ForkTime = time.Now()
-
-	childExec := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
-	childExec.Pid = child.Pid
-	childExec.PPid = child.PPid
-	childExec.FileEvent.Inode = 123
-	childExec.ExecTime = time.Now()
-
-	// parent
-	resolver.AddForkEntry(parent, 0, nil)
-	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
+	// X(pid:3)
+	resolver.AddForkEntry(parent, nil)
+	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 
-	// parent
-	//     \ child
-	resolver.AddForkEntry(child, 0, nil)
-	assert.Equal(t, child, resolver.entryCache[child.Pid])
+	// X(pid:3)
+	//    |
+	// X(pid:4)
+	resolver.AddForkEntry(child, nil)
+	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
-	assert.Equal(t, parent, child.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 
-	// parent
-	//     \ child
-	//          \ grandChild
-	resolver.AddForkEntry(grandChild, 0, nil)
-	assert.Equal(t, grandChild, resolver.entryCache[grandChild.Pid])
+	// X(pid:3)
+	//    |
+	// X(pid:4)
+	//    |
+	// X(pid:5)
+	resolver.AddForkEntry(grandChild, nil)
+	assert.Equal(t, grandChild.ProcessCacheEntry, resolver.entryCache[grandChild.ProcessCacheEntry.Pid])
 	assert.Equal(t, 3, len(resolver.entryCache))
-	assert.Equal(t, child, grandChild.Ancestor)
-	assert.Equal(t, parent, grandChild.Ancestor.Ancestor)
+	assert.Equal(t, child.ProcessCacheEntry, grandChild.ProcessCacheEntry.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, grandChild.ProcessCacheEntry.Ancestor.Ancestor)
 
-	// parent
-	//     \ [child] -> childExec
-	//          \ grandChild
-	resolver.AddExecEntry(childExec, 0)
-	assert.Equal(t, childExec, resolver.entryCache[childExec.Pid])
+	// X(pid:3)
+	//    |
+	// X(pid:4) -- Y(pid:4)
+	//    |
+	// X(pid:5)
+	resolver.AddExecEntry(childExec)
+	assert.Equal(t, childExec.ProcessCacheEntry, resolver.entryCache[childExec.ProcessCacheEntry.Pid])
 	assert.Equal(t, 3, len(resolver.entryCache))
-	assert.Equal(t, child, childExec.Ancestor)
-	assert.Equal(t, parent, childExec.Ancestor.Ancestor)
-	assert.Equal(t, child, grandChild.Ancestor)
-	assert.Equal(t, parent, grandChild.Ancestor.Ancestor)
+	assert.Equal(t, child.ProcessCacheEntry, childExec.ProcessCacheEntry.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, childExec.ProcessCacheEntry.Ancestor.Ancestor)
+	assert.Equal(t, child.ProcessCacheEntry, grandChild.ProcessCacheEntry.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, grandChild.ProcessCacheEntry.Ancestor.Ancestor)
 
 	// [parent]
 	//     \ [child] -> childExec
 	//          \ grandChild
-	resolver.DeleteEntry(parent.Pid, time.Now())
-	assert.Nil(t, resolver.entryCache[parent.Pid])
+
+	// [X(pid:3)]
+	//    |
+	// X(pid:4) -- Y(pid:4)
+	//    |
+	// X(pid:5)
+	exit(parent)
+	resolver.ApplyExitEntry(parent, nil)
+	resolver.DeleteEntry(parent.ProcessContext.Pid, parent.ResolveEventTime())
+	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
+	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 
-	// [parent]
-	//     \ [child]
-	//          \ grandChild
-	resolver.DeleteEntry(childExec.Pid, time.Now())
-	assert.Nil(t, resolver.entryCache[childExec.Pid])
+	// [X(pid:3)]
+	//    |
+	// X(pid:4)
+	//    |
+	// X(pid:5)
+	exit(childExec)
+	resolver.ApplyExitEntry(childExec, nil)
+	resolver.DeleteEntry(childExec.ProcessContext.Pid, childExec.ResolveEventTime())
+	assert.Nil(t, resolver.entryCache[childExec.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 
-	// nothing
-	resolver.DeleteEntry(grandChild.Pid, time.Now())
+	// nothing in the entryCache
+	exit(grandChild)
+	resolver.ApplyExitEntry(grandChild, nil)
+	resolver.DeleteEntry(grandChild.ProcessContext.Pid, grandChild.ResolveEventTime())
 	assert.Zero(t, len(resolver.entryCache))
 
 	testCacheSize(t, resolver)
 }
 
 func TestExecBomb(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+
+	resolver, err := newResolver()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal()
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
-	parent.ForkTime = time.Now()
+	parent := newFakeForkEvent(0, 3, 123, resolver)
+	child := newFakeForkEvent(3, 4, 123, resolver)
+	exec1 := newFakeExecEvent(3, 4, 456, resolver)
+	exec2 := newFakeExecEvent(3, 4, 456, resolver)
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
-	child.PPid = parent.Pid
-	child.ForkTime = time.Now()
-
-	exec1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
-	exec1.PPid = child.PPid
-	exec1.FileEvent.Inode = 123
-	exec1.ExecTime = time.Now()
-
-	exec2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
-	exec2.Pid = child.Pid
-	exec2.PPid = child.PPid
-	exec2.FileEvent.Inode = 123
-	exec2.ExecTime = time.Now()
-
-	// parent
-	resolver.AddForkEntry(parent, 0, nil)
-	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
+	// X(pid:3)
+	resolver.AddForkEntry(parent, nil)
+	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
-	// parent
-	//     \ child
-	resolver.AddForkEntry(child, 0, nil)
-	assert.Equal(t, child, resolver.entryCache[child.Pid])
+	// X(pid:3)
+	//    |
+	// X(pid:4)
+	resolver.AddForkEntry(child, nil)
+	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
-	assert.Equal(t, parent, child.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
-	// [parent]
-	//     \ child
-	resolver.DeleteEntry(parent.Pid, time.Now())
-	assert.Nil(t, resolver.entryCache[parent.Pid])
+	// [X(pid:3)]
+	//    |
+	// X(pid:4)
+	exit(parent)
+	resolver.ApplyExitEntry(parent, nil)
+	resolver.DeleteEntry(parent.ProcessContext.Pid, parent.ResolveEventTime())
+	assert.Nil(t, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.Equal(t, parent, child.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 
-	// [parent]
-	//     \ [child] -> exec1
-	resolver.AddExecEntry(exec1, 0)
-	assert.Equal(t, exec1, resolver.entryCache[exec1.Pid])
+	// [X(pid:3)]
+	//    |
+	// X(pid:4) -- Y(pid:4)
+	resolver.AddExecEntry(exec1)
+	assert.Equal(t, exec1.ProcessCacheEntry, resolver.entryCache[exec1.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.Equal(t, child, exec1.Ancestor)
-	assert.Equal(t, parent, exec1.Ancestor.Ancestor)
+	assert.Equal(t, child.ProcessCacheEntry, exec1.ProcessCacheEntry.Ancestor)
+	assert.Equal(t, parent.ProcessCacheEntry, exec1.ProcessCacheEntry.Ancestor.Ancestor)
 	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
-	// [parent]
-	//     \ [child] -> [exec1] -> exec2
-	resolver.AddExecEntry(exec2, 0)
-	assert.Equal(t, exec1, resolver.entryCache[exec2.Pid])
+	// [X(pid:3)]
+	//    |
+	// X(pid:4) -- Y(pid:4) -- Y(pid:4)
+	resolver.AddExecEntry(exec2)
+	assert.Equal(t, exec1.ProcessCacheEntry, resolver.entryCache[exec2.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.Equal(t, exec1.ExecTime, exec2.ExecTime)
+	assert.Equal(t, exec1.ProcessCacheEntry.ExecTime, exec2.ProcessCacheEntry.ExecTime)
 	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
-	// nothing
-	resolver.DeleteEntry(exec1.Pid, time.Now())
+	// nothing in the entryCache
+	exit(exec1)
+	resolver.ApplyExitEntry(exec1, nil)
+	resolver.DeleteEntry(exec1.ProcessContext.Pid, exec1.ResolveEventTime())
 	assert.Zero(t, len(resolver.entryCache))
 
 	testCacheSize(t, resolver)
 }
 
 func TestExecLostFork(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+
+	resolver, err := newResolver()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal()
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 11, Tid: 11})
-	parent.FileEvent.BasenameStr = "agent"
-	parent.ForkTime = time.Now()
-	parent.FileEvent.Inode = 1
-	parent.ExecInode = 1
+	parent := newFakeForkEvent(0, 3, 123, resolver)
+	parent.ProcessCacheEntry.FileEvent.BasenameStr = "agent"
+	child := newFakeForkEvent(3, 4, 123, resolver)
+	child.PIDContext.ExecInode = 123 // ExecInode == Inode Parent
+	child1 := newFakeForkEvent(4, 5, 123, resolver)
+	child1.ProcessCacheEntry.FileEvent.BasenameStr = "sh"
+	child1.PIDContext.ExecInode = 456 // ExecInode != Inode parent
 
-	// parent
-	resolver.AddForkEntry(parent, 0, nil)
+	// X(pid:3)
+	resolver.AddForkEntry(parent, nil)
+	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 22, Tid: 22})
-	child.PPid = parent.Pid
-	child.FileEvent.Inode = 1
+	// X(pid:3)
+	//    |
+	// X(pid:4)
+	resolver.AddForkEntry(child, nil)
+	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
+	assert.Equal(t, 2, len(resolver.entryCache))
+	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
+	assert.Equal(t, "agent", child.ProcessCacheEntry.FileEvent.BasenameStr)
+	assert.False(t, child.ProcessCacheEntry.IsParentMissing)
 
-	// parent
-	//     \ child
-	resolver.AddForkEntry(child, parent.ExecInode, nil)
-
-	assert.Equal(t, "agent", child.FileEvent.BasenameStr)
-	assert.False(t, child.IsParentMissing)
-
-	// exec loss with inode 2
-
-	child1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 33, Tid: 33})
-	child1.FileEvent.BasenameStr = "sh"
-	child1.PPid = child.Pid
-	child1.ExecInode = 2
-
-	// parent
-	//     \ child
-	//		\ child1
-	resolver.AddForkEntry(child1, child1.ExecInode, nil)
-
-	assert.Equal(t, "agent", child1.FileEvent.BasenameStr)
-	assert.True(t, child1.IsParentMissing)
+	// X(pid:3)
+	//    |
+	// X(pid:4)
+	//   {|}
+	// X(pid:5)
+	resolver.AddForkEntry(child1, nil)
+	assert.Equal(t, "agent", child1.ProcessCacheEntry.FileEvent.BasenameStr)
+	assert.True(t, child1.ProcessCacheEntry.IsParentMissing)
 }
 
 func TestExecLostExec(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+
+	resolver, err := newResolver()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal()
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 11, Tid: 11})
-	parent.FileEvent.BasenameStr = "agent"
-	parent.ForkTime = time.Now()
-	parent.FileEvent.Inode = 1
-	parent.ExecInode = 1
+	parent := newFakeForkEvent(0, 3, 123, resolver)
+	parent.ProcessCacheEntry.FileEvent.BasenameStr = "agent"
+	child1 := newFakeForkEvent(3, 4, 123, resolver)
+	child1.PIDContext.ExecInode = 123 // ExecInode == Inode Parent
+	child2 := newFakeExecEvent(3, 4, 456, resolver)
+	child2.ProcessCacheEntry.FileEvent.BasenameStr = "sh"
+	child2.PIDContext.ExecInode = 456 // ExecInode != Inode Ancestor
 
-	// parent
-	resolver.AddForkEntry(parent, 0, nil)
+	// X(pid:3)
+	resolver.AddForkEntry(parent, nil)
+	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
 
-	child1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 22, Tid: 22})
-	child1.PPid = parent.Pid
-	child1.FileEvent.Inode = 1
-	child1.ExecInode = 1
+	// X(pid:3)
+	//    |
+	// X(pid:4)
+	resolver.AddForkEntry(child1, nil)
+	assert.Equal(t, child1.ProcessCacheEntry, resolver.entryCache[child1.ProcessCacheEntry.Pid])
+	assert.Equal(t, 2, len(resolver.entryCache))
+	assert.Equal(t, parent.ProcessCacheEntry, child1.ProcessCacheEntry.Ancestor)
+	assert.Equal(t, "agent", child1.ProcessCacheEntry.FileEvent.BasenameStr)
+	assert.False(t, child1.ProcessCacheEntry.IsParentMissing)
 
-	// parent
-	//     \ child1
-	resolver.AddForkEntry(child1, parent.ExecInode, nil)
-
-	assert.Equal(t, "agent", child1.FileEvent.BasenameStr)
-	assert.False(t, child1.IsParentMissing)
-
-	// exec loss with inode 2 and pid 22
-
-	child2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 33, Tid: 33})
-	child2.FileEvent.BasenameStr = "sh"
-	child2.PPid = child1.Pid
-	child2.ExecInode = 2
-
-	// parent
-	//     \ child1
-	//		\ child2
-	resolver.AddForkEntry(child2, child2.ExecInode, nil)
-
-	assert.Equal(t, "agent", child2.FileEvent.BasenameStr)
-	assert.True(t, child2.IsParentMissing)
+	// X(pid:3)
+	//    |
+	// X(pid:4) -**- Y(pid:4)
+	resolver.AddExecEntry(child2)
+	assert.NotEqual(t, "agent", child2.ProcessCacheEntry.FileEvent.BasenameStr)
+	assert.True(t, child2.ProcessCacheEntry.IsParentMissing)
 }
 
 func TestIsExecExecRuntime(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := newResolver()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal()
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
-	parent.ForkTime = time.Now()
-	parent.FileEvent.Inode = 1
+	parent := newFakeForkEvent(0, 3, 123, resolver)
+	child := newFakeForkEvent(3, 4, 123, resolver)
+	child2 := newFakeExecEvent(3, 4, 456, resolver)
+	child3 := newFakeExecEvent(3, 4, 789, resolver)
+	child4 := newFakeExecEvent(3, 4, 101112, resolver)
 
-	// parent
-	resolver.AddForkEntry(parent, 0, nil)
+	// X(pid:3)
+	resolver.AddForkEntry(parent, nil)
+	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
-	child.PPid = parent.Pid
-	child.FileEvent.Inode = 1
+	// X(pid:3)
+	//    |
+	// X(pid:4)
+	resolver.AddForkEntry(child, nil)
+	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
+	assert.Equal(t, 2, len(resolver.entryCache))
+	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 
-	// parent
-	//     \ child
-	resolver.AddForkEntry(child, 0, nil)
+	// X(pid:3)
+	//    |
+	// X(pid:4) -- Y(pid:4)
+	resolver.AddExecEntry(child2)
 
-	// parent
-	//     \ child
-	//      \ child2
+	// X(pid:3)
+	//    |
+	// X(pid:4) -- Y(pid:4)  -- Z(pid:4)
+	resolver.AddExecEntry(child3)
 
-	child2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
-	child2.FileEvent.Inode = 2
-	child2.PPid = child.Pid
-	resolver.AddExecEntry(child2, 0)
+	// X(pid:3)
+	//    |
+	// X(pid:4) -- Y(pid:4)  -- Z(pid:4) -- T(pid:4)
+	resolver.AddExecEntry(child4)
 
-	// parent
-	//     \ child
-	//      \ child2
-	//       \ child3
+	assert.False(t, parent.ProcessCacheEntry.IsExecExec)
+	assert.False(t, parent.ProcessCacheEntry.IsExec)
 
-	child3 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
-	child3.FileEvent.Inode = 3
-	child3.PPid = child2.Pid
-	resolver.AddExecEntry(child3, 0)
+	assert.False(t, child.ProcessCacheEntry.IsExecExec)
+	assert.False(t, child.ProcessCacheEntry.IsExec)
 
-	assert.False(t, parent.IsExecExec)
-	assert.False(t, parent.IsExec)
+	assert.False(t, child2.ProcessCacheEntry.IsExecExec)
+	assert.True(t, child2.ProcessCacheEntry.IsExec)
 
-	assert.False(t, child.IsExecExec)
-	assert.False(t, child.IsExec)
+	assert.True(t, child3.ProcessCacheEntry.IsExecExec)
+	assert.True(t, child3.ProcessCacheEntry.IsExec)
 
-	assert.False(t, child2.IsExecExec)
-	assert.True(t, child2.IsExec)
+	assert.True(t, child4.ProcessCacheEntry.IsExecExec)
+	assert.True(t, child4.ProcessCacheEntry.IsExec)
 
-	assert.True(t, child3.IsExecExec)
-	assert.True(t, child3.IsExec)
-
-	child4 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
-	child4.FileEvent.Inode = 3
-	child4.PPid = child3.Pid
-	resolver.AddExecEntry(child4, 0)
-
-	assert.True(t, child3.IsExecExec)
-	assert.True(t, child3.IsExec)
 }
 
 func TestIsExecExecSnapshot(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+
+	resolver, err := newResolver()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal()
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
-	parent.ForkTime = time.Now()
-	parent.FileEvent.Inode = 1
+	parent := newFakeForkEvent(0, 3, 123, resolver)
+	child := newFakeForkEvent(3, 4, 123, resolver)
+	child2 := newFakeExecEvent(3, 4, 456, resolver)
+	child3 := newFakeExecEvent(3, 4, 769, resolver)
 
-	// parent
-	resolver.insertEntry(parent, nil, model.ProcessCacheEntryFromSnapshot)
+	// X(pid:3)
+	resolver.insertEntry(parent.ProcessCacheEntry, nil, model.ProcessCacheEntryFromSnapshot)
+	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
-	child.PPid = parent.Pid
-	child.FileEvent.Inode = 2
+	// X(pid:3)
+	//    |
+	// X(pid:4)
+	resolver.setAncestor(child.ProcessCacheEntry)
+	resolver.insertEntry(child.ProcessCacheEntry, nil, model.ProcessCacheEntryFromSnapshot)
+	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
+	assert.Equal(t, 2, len(resolver.entryCache))
+	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 
-	// parent
-	//     \ child
+	assert.False(t, parent.ProcessCacheEntry.IsExecExec)
+	assert.False(t, parent.ProcessCacheEntry.IsExec)
 
-	resolver.setAncestor(child)
-	resolver.insertEntry(child, nil, model.ProcessCacheEntryFromSnapshot)
+	assert.False(t, child.ProcessCacheEntry.IsExecExec)
+	assert.False(t, child.ProcessCacheEntry.IsExec)
 
-	assert.False(t, parent.IsExecExec)
-	assert.False(t, parent.IsExec)
+	// X(pid:3)
+	//    |
+	// X(pid:4) -- Y(pid:4)
+	resolver.AddExecEntry(child2)
 
-	assert.False(t, child.IsExecExec)
-	assert.False(t, child.IsExec)
+	assert.False(t, child2.ProcessCacheEntry.IsExecExec)
+	assert.True(t, child2.ProcessCacheEntry.IsExec)
 
-	// parent
-	//     \ child
-	//      \ child2
+	// X(pid:3)
+	//    |
+	// X(pid:4) -- Y(pid:4)  -- Z(pid:4)
+	resolver.AddExecEntry(child3)
 
-	child2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
-	child2.FileEvent.Inode = 3
-	child2.PPid = child.Pid
-	resolver.AddExecEntry(child2, 0)
-
-	assert.False(t, child2.IsExecExec)
-	assert.True(t, child2.IsExec)
-
-	child3 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
-	child3.FileEvent.Inode = 4
-	child3.PPid = child2.Pid
-	resolver.AddExecEntry(child3, 0)
-
-	assert.True(t, child3.IsExecExec)
-	assert.True(t, child3.IsExec)
+	assert.True(t, child3.ProcessCacheEntry.IsExecExec)
+	assert.True(t, child3.ProcessCacheEntry.IsExec)
 }

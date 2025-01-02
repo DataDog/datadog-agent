@@ -87,7 +87,7 @@ func UnprivilegedCommands(_ *command.GlobalParams) []*cobra.Command {
 type cmd struct {
 	t    *telemetry.Telemetry
 	ctx  context.Context
-	span telemetry.Span
+	span *telemetry.Span
 	env  *env.Env
 }
 
@@ -107,10 +107,7 @@ func newCmd(operation string) *cmd {
 func (c *cmd) Stop(err error) {
 	c.span.Finish(err)
 	if c.t != nil {
-		err := c.t.Stop(context.Background())
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to stop telemetry: %v\n", err)
-		}
+		c.t.Stop()
 	}
 }
 
@@ -225,11 +222,6 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 		site = config.Site
 	}
 	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
-	err := t.Start(context.Background())
-	if err != nil {
-		fmt.Printf("failed to start telemetry: %v\n", err)
-		return nil
-	}
 	return t
 }
 
