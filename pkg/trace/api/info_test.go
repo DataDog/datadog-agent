@@ -300,6 +300,7 @@ func TestInfoHandler(t *testing.T) {
 		"client_drop_p0s":           nil,
 		"span_meta_structs":         nil,
 		"long_running_spans":        nil,
+		"span_events":               nil,
 		"evp_proxy_allowed_headers": nil,
 		"peer_tags":                 nil,
 		"span_kinds_stats_computed": nil,
