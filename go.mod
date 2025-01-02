@@ -580,7 +580,7 @@ require (
 )
 
 require (
-	github.com/shirou/gopsutil/v4 v4.24.11
+	github.com/shirou/gopsutil/v4 v4.24.12
 	go.opentelemetry.io/collector/component/componenttest v0.115.0
 )
 
