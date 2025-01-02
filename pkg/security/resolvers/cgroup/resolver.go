@@ -176,17 +176,6 @@ func (cr *Resolver) DelPID(pid uint32) {
 	}
 }
 
-// DelPIDWithID removes a PID from the cgroup cache entry referenced by the provided ID
-func (cr *Resolver) DelPIDWithID(id containerutils.ContainerID, pid uint32) {
-	cr.Lock()
-	defer cr.Unlock()
-
-	entry, exists := cr.containerWorkloads.Get(id)
-	if exists {
-		cr.deleteWorkloadPID(pid, entry)
-	}
-}
-
 // deleteWorkloadPID removes a PID from a workload
 func (cr *Resolver) deleteWorkloadPID(pid uint32, workload *cgroupModel.CacheEntry) {
 	workload.Lock()
