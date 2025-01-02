@@ -311,6 +311,13 @@ func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionSt
 		// incoming connection
 		return network.INCOMING, nil
 	}
+	// for local connections - the destination could be a bound port
+	if conn.Dest.Addr.IsLoopback() {
+		ok := t.boundPorts.Find(conn.Type, conn.DPort)
+		if ok {
+			return network.OUTGOING, nil
+		}
+	}
 
 	switch pktType {
 	case unix.PACKET_HOST:
