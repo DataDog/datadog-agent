@@ -8,9 +8,8 @@ from tasks.libs.common.color import color_message
 
 
 def argument_extractor(entry_args, **kwargs):
-    args_values = list(entry_args.values())
-    for k, key in enumerate(kwargs.keys()):
-        kwargs[key] = args_values[k]
+    for key in kwargs.keys():
+        kwargs[key] = entry_args[key]
     return SimpleNamespace(**kwargs)
 
 

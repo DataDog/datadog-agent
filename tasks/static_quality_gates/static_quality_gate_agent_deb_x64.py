@@ -8,10 +8,11 @@ from tasks.static_quality_gates.lib.gates_lib import argument_extractor, find_pa
 def entrypoint(**kwargs):
     arguments = argument_extractor(kwargs, max_on_wire_size=None, max_on_disk_size=None, ctx=None)
     ctx = arguments.ctx
-    package_os = "debian"
-    package_path = find_package_path("datadog-agent", package_os, "amd64")
     max_on_wire_size = arguments.max_on_wire_size
     max_on_disk_size = arguments.max_on_disk_size
+
+    package_os = "debian"
+    package_path = find_package_path("datadog-agent", package_os, "amd64")
 
     with tempfile.TemporaryDirectory() as extract_dir:
         extract_package(ctx=ctx, package_os=package_os, package_path=package_path, extract_dir=extract_dir)
