@@ -1,11 +1,14 @@
 version: 2
 updates:
   - package-ecosystem: gomod
-    directory: /
+    directories:
+      - /
+      - /comp/*
+      - /pkg/*
+      - /test/*
     labels:
       - dependencies
       - dependencies-go
-      - team/triage
       - changelog/no-changelog
     ignore:
       # These dependencies are replaced in the main go.mod file.
@@ -16,11 +19,20 @@ updates:
       # We only replace github.com/docker/distribution but we ignore all Docker dependencies.
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
+      # See https://github.com/DataDog/datadog-agent/pull/10112
+      - dependency-name: github.com/mailru/easyjson
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
       # OpenTelemetry collector packages need to be updated with inv rather than dependabot
       - dependency-name: go.opentelemetry.io/collector/*
       - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
+      # Ignore test-infra-definitions because bumping the GO package inside `go.mod`
+      # requires to also bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` inside `.gitlab/common/test_infra_version.yml`
+      # and dependabot isn’t able to keep those two synchronized.
+      - dependency-name: github.com/DataDog/test-infra-definitions
+      # Do not bump dependencies that come from test-infra-definitions, they will be bumped when we'll bump the version
+      # https://datadoghq.atlassian.net/browse/ADXT-375
+      - dependency-name: github.com/pulumi*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -37,77 +49,6 @@ updates:
       k8s-io:
         patterns:
           - "k8s.io/*"
-        update-types:
-          - patch
-  - package-ecosystem: gomod
-    directory: /pkg/trace
-    labels:
-      - dependencies
-      - dependencies-go
-      - team/agent-apm
-      - changelog/no-changelog
-    ignore:
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-      # See https://github.com/DataDog/datadog-agent/pull/10112
-      - dependency-name: github.com/mailru/easyjson
-      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
-      - dependency-name: golang.org/x/*
-      # OpenTelemetry collector packages need to be updated with inv rather than dependabot
-      - dependency-name: go.opentelemetry.io/collector/*
-      - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 100
-  - package-ecosystem: gomod
-    directory: /pkg/gohai
-    labels:
-      - dependencies
-      - dependencies-go
-      - team/agent-shared-components
-      - changelog/no-changelog
-    ignore:
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-      # See https://github.com/DataDog/datadog-agent/pull/10112
-      - dependency-name: github.com/mailru/easyjson
-      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
-      - dependency-name: golang.org/x/*
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 100
-  - package-ecosystem: gomod
-    directory: /pkg/obfuscate
-    labels:
-      - dependencies
-      - dependencies-go
-      - team/agent-apm
-      - changelog/no-changelog
-    ignore:
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-      # See https://github.com/DataDog/datadog-agent/pull/10112
-      - dependency-name: github.com/mailru/easyjson
-      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
-      - dependency-name: golang.org/x/*
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 100
-  - package-ecosystem: gomod
-    directory: /pkg/security/secl
-    labels:
-      - dependencies
-      - dependencies-go
-      - team/agent-security
-      - changelog/no-changelog
-    ignore:
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
-      - dependency-name: golang.org/x/*
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /internal/tools
     labels:
@@ -118,7 +59,6 @@ updates:
                               # publish a new version exploiting that it runs automatically after it
                               # is updated to write to our repo.
       - dev/tooling
-      - team/agent-delivery
       - changelog/no-changelog
       - qa/no-code-change
     schedule:
@@ -127,66 +67,7 @@ updates:
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
     open-pull-requests-limit: 100
-  - package-ecosystem: gomod
-    directory: /pkg/networkdevice/profile
-    labels:
-      - dependencies
-      - dependencies-go
-      - team/network-device-monitoring
-      - changelog/no-changelog
-    ignore:
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
-      - dependency-name: golang.org/x/*
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 100
-  - package-ecosystem: gomod
-    directory: /test/new-e2e
-    labels:
-      - dependencies
-      - dependencies-go
-      - team/agent-e2e-test
-      - changelog/no-changelog
-      - qa/no-code-change
-      - dev/testing
-    ignore:
-      # Ignore test-infra-definitions because bumping the GO package inside `go.mod`
-      # requires to also bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` inside `.gitlab/common/test_infra_version.yml`
-      # and dependabot isn’t able to keep those two synchronized.
-      - dependency-name: github.com/DataDog/test-infra-definitions
-      # Do not bump dependencies that come from test-infra-definitions, they will be bumped when we'll bump the version
-      # https://datadoghq.atlassian.net/browse/ADXT-375
-      - dependency-name: github.com/pulumi*
-      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
-      - dependency-name: golang.org/x/*
-    groups:
-      aws-sdk-go-v2:
-        patterns:
-          - "github.com/aws/aws-sdk-go-v2*"
-      k8s-io:
-        patterns:
-          - "k8s.io/*"
 
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 100
-  - package-ecosystem: gomod
-    directory: /test/fakeintake
-    labels:
-      - dependencies
-      - dependencies-go
-      - team/agent-e2e-test
-      - changelog/no-changelog
-      - qa/no-code-change
-      - dev/testing
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 100
-    ignore:
-      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
-      - dependency-name: golang.org/x/*
   - package-ecosystem: docker
     directory: /test/fakeintake
     labels:
@@ -198,6 +79,7 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
+
   - package-ecosystem: github-actions
     directory: /
     labels:
@@ -210,6 +92,7 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
+
   - package-ecosystem: maven
     directory: Dockerfiles/agent/bouncycastle-fips
     labels:
