@@ -42,7 +42,8 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.pipelines.get.return_value.source = "push"
         list_mock = repo_mock.pipelines.get.return_value.jobs.list
         list_mock.side_effect = [get_fake_jobs(), []]
-        notify.send_message(MockContext(), "42", dry_run=True)
+        with patch.dict('os.environ', {}, clear=True):
+            notify.send_message(MockContext(), "42", dry_run=True)
         list_mock.assert_called()
         repo_mock.pipelines.get.assert_called_with("42")
         self.assertTrue("merge" in print_mock.mock_calls[0].args[0])
@@ -121,7 +122,8 @@ class TestSendMessage(unittest.TestCase):
             )
         )
         get_failed_jobs_mock.return_value = failed
-        notify.send_message(MockContext(), "42", dry_run=True)
+        with patch.dict('os.environ', {}, clear=True):
+            notify.send_message(MockContext(), "42", dry_run=True)
         self.assertTrue("merge" in print_mock.mock_calls[0].args[0])
         get_failed_jobs_mock.assert_called()
         repo_mock.jobs.get.assert_called()
@@ -213,7 +215,8 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.pipelines.get.return_value.ref = "test"
         repo_mock.pipelines.get.return_value.source = "push"
 
-        notify.send_message(MockContext(), "42", dry_run=True)
+        with patch.dict('os.environ', {}, clear=True):
+            notify.send_message(MockContext(), "42", dry_run=True)
         self.assertTrue("merge" in print_mock.mock_calls[0].args[0])
         trace_mock.assert_called()
         list_mock.assert_called()
@@ -254,13 +257,14 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.pipelines.get.return_value.ref = "test"
         repo_mock.pipelines.get.return_value.source = "api"
 
-        notify.send_message(MockContext(), "42", dry_run=True)
+        with patch.dict('os.environ', {}, clear=True):
+            notify.send_message(MockContext(), "42", dry_run=True)
         self.assertTrue("arrow_forward" in print_mock.mock_calls[0].args[0])
         trace_mock.assert_called()
         list_mock.assert_called()
         repo_mock.jobs.get.assert_called()
 
-    @patch.dict('os.environ', {'DDR': 'true', 'DDR_WORKFLOW_ID': '1337'})
+    @patch.dict('os.environ', {'DDR': 'true', 'DDR_WORKFLOW_ID': '1337', 'DEPLOY_AGENT': 'false'})
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch('builtins.print')
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
@@ -282,12 +286,15 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.assert_called()
 
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
-    def test_dismiss_notification(self, api_mock):
+    @patch('builtins.print')
+    def test_dismiss_notification(self, print_mock, api_mock):
         repo_mock = api_mock.return_value.projects.get.return_value
         repo_mock.pipelines.get.return_value.source = "pipeline"
 
-        notify.send_message(MockContext(), "42", dry_run=True)
+        with patch.dict('os.environ', {}, clear=True):
+            notify.send_message(MockContext(), "42", dry_run=True)
         repo_mock.jobs.get.assert_not_called()
+        print_mock.assert_called_with("This pipeline is a non-conductor downstream pipeline, skipping notifications")
 
     def test_post_to_channel1(self):
         self.assertFalse(pipeline_status.should_send_message_to_author("main", default_branch="main"))
