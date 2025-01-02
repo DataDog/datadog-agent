@@ -33,10 +33,10 @@ typedef unsigned long long ctx_t;
 #define CTX_PARM4(ctx) (u64)(ctx[3])
 #define CTX_PARM5(ctx) (u64)(ctx[4])
 
-u64 __attribute__((always_inline)) CTX_PARMRET(ctx_t *ctx, int argc) {
-	u64 argc_const;
-	LOAD_CONSTANT("fentry_func_argc", argc_const);
-	switch (argc_const) {
+u64 __attribute__((always_inline)) CTX_PARMRET(ctx_t *ctx) {
+	u64 argc;
+	LOAD_CONSTANT("fentry_func_argc", argc);
+	switch (argc) {
 	case 0:
 		return ctx[0];
 	case 1:
@@ -55,7 +55,7 @@ u64 __attribute__((always_inline)) CTX_PARMRET(ctx_t *ctx, int argc) {
     return 0;
 }
 
-#define SYSCALL_PARMRET(ctx) CTX_PARMRET(ctx, 1)
+#define SYSCALL_PARMRET(ctx) CTX_PARMRET(ctx)
 
 #else
 
@@ -89,11 +89,11 @@ typedef struct pt_regs ctx_t;
 #define CTX_PARM4(ctx) PT_REGS_PARM4(ctx)
 #define CTX_PARM5(ctx) PT_REGS_PARM5(ctx)
 
-u64 __attribute__((always_inline)) CTX_PARMRET(ctx_t *ctx, int _argc) {
+u64 __attribute__((always_inline)) CTX_PARMRET(ctx_t *ctx) {
     return PT_REGS_RC(ctx);
 }
 
-#define SYSCALL_PARMRET(ctx) CTX_PARMRET(ctx, -1)
+#define SYSCALL_PARMRET(ctx) CTX_PARMRET(ctx)
 
 #endif
 
