@@ -730,7 +730,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("clc_runner_remote_tagger_enabled", false)
 
 	// Remote tagger
-	config.BindEnvAndSetDefault("remote_tagger.max_concurrent_sync", 4)
+	config.BindEnvAndSetDefault("remote_tagger.max_concurrent_sync", 3)
 
 	// Admission controller
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)

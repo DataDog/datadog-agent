@@ -6,27 +6,27 @@
 package server
 
 import (
+	"sync"
 	"testing"
 	"time"
 )
 
 func TestSyncThrottler(_ *testing.T) {
+
 	throtler := NewSyncThrottler(3)
 
-	t1 := throtler.RequestToken()
-	t2 := throtler.RequestToken()
-	t3 := throtler.RequestToken()
+	var wg sync.WaitGroup
 
-	go func() {
-		time.Sleep(1 * time.Second)
-		throtler.Release(t3)
-	}()
+	for i := 0; i < 30; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			t := throtler.RequestToken()
+			time.Sleep(200 * time.Millisecond)
+			throtler.Release(t)
+			throtler.Release(t) // Release method should be idempotent
+		}()
+	}
 
-	t4 := throtler.RequestToken() // this should block until token t3 is released
-	throtler.Release(t4)
-
-	throtler.Release(t4) // releasing a token that was already released should be ok (idempotent)
-
-	throtler.Release(t1)
-	throtler.Release(t2)
+	wg.Wait()
 }

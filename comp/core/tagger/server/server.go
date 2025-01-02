@@ -104,6 +104,9 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 	}
 	subscriptionID := fmt.Sprintf("streaming-client-%s", streamingID)
 
+	// initBurst is a flag indicating if the initial sync is still in progress or not
+	// true means the sync hasn't yet been finalised
+	// false means the streaming client has already caught up with the server
 	initBurst := true
 	log.Debugf("requesting token from server throttler for streaming id: %q", streamingID)
 	tk := s.throttler.RequestToken()
