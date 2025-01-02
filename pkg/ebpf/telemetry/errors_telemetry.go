@@ -119,6 +119,8 @@ func (e *ebpfTelemetry) fill(maps []names.MapName, mn names.ModuleName, mapErrMa
 }
 
 func (e *ebpfTelemetry) cleanup(maps []names.MapName, mn names.ModuleName, mapErrMap *maps.GenericMap[uint64, mapErrTelemetry], helperErrMap *maps.GenericMap[uint64, helperErrTelemetry]) error {
+	var errs error
+
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
@@ -127,7 +129,10 @@ func (e *ebpfTelemetry) cleanup(maps []names.MapName, mn names.ModuleName, mapEr
 	for _, mapName := range maps {
 		delete(e.mapKeys, mapTelemetryKey(mapName, mn))
 		key := eBPFMapErrorKey(h, mapTelemetryKey(mapName, mn))
-		mapErrMap.Delete(&key)
+		err := mapErrMap.Delete(&key)
+		if err != nil {
+			errs = errors.Join(errs, fmt.Errorf("failed to delete telemetry struct for map %s: %w", mapName, err))
+		}
 	}
 
 	// Cleanup helper keys
@@ -135,14 +140,17 @@ func (e *ebpfTelemetry) cleanup(maps []names.MapName, mn names.ModuleName, mapEr
 		if p.moduleName != mn {
 			continue
 		}
-		helperErrMap.Delete(&key)
+		err := helperErrMap.Delete(&key)
+		if err != nil {
+			errs = errors.Join(errs, fmt.Errorf("failed to delete telemetry struct for probe %s: %w", p.String(), err))
+		}
 		delete(e.probeKeys, p)
 	}
 
 	delete(e.mapErrMapsByModule, mn)
 	delete(e.helperErrMapsByModule, mn)
 
-	return nil
+	return errs
 }
 
 func (e *ebpfTelemetry) setProbe(key telemetryKey, hash uint64) {
