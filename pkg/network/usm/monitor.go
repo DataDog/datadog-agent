@@ -20,7 +20,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -198,9 +197,9 @@ func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 }
 
 // ReleaseProtocolStats release stats related objects.
-func (m *Monitor) ReleaseProtocolStats(conns *network.Connections) {
-	if m.ebpfProgram != nil {
-		m.ebpfProgram.releaseProtocolStats(conns)
+func (m *Monitor) ReleaseProtocolStats(stats map[protocols.ProtocolType]interface{}) {
+	if m != nil && m.ebpfProgram != nil {
+		m.ebpfProgram.releaseProtocolStats(stats)
 	}
 }
 

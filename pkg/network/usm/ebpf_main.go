@@ -545,12 +545,14 @@ func (e *ebpfProgram) getProtocolStats() map[protocols.ProtocolType]interface{} 
 }
 
 // releaseProtocolStats release stats objects for enabled protocols.
-func (e *ebpfProgram) releaseProtocolStats(conns *network.Connections) {
+func (e *ebpfProgram) releaseProtocolStats(stats map[protocols.ProtocolType]interface{}) {
 	for _, protocol := range e.enabledProtocols {
 		switch protocol.Instance.Type() {
 		case protocols.HTTP:
-			for _, rs := range conns.HTTP {
-				rs.ReleaseStats()
+			if httpStats, ok := stats[protocols.HTTP]; ok {
+				for _, rs := range httpStats.(map[http.Key]*http.RequestStats) {
+					rs.ReleaseStats()
+				}
 			}
 		}
 	}

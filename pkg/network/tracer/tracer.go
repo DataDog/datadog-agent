@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
@@ -463,7 +464,14 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 // ReleaseProtocolStats releases usm stats objects.
 func (t *Tracer) ReleaseProtocolStats(conn *network.Connections) {
 	if t.usmMonitor != nil {
-		t.usmMonitor.ReleaseProtocolStats(conn)
+		stats := make(map[protocols.ProtocolType]interface{}, 5)
+		stats[protocols.HTTP] = conn.HTTP
+		stats[protocols.HTTP2] = conn.HTTP2
+		stats[protocols.Kafka] = conn.Kafka
+		stats[protocols.Postgres] = conn.Postgres
+		stats[protocols.Redis] = conn.Redis
+
+		t.usmMonitor.ReleaseProtocolStats(stats)
 	}
 }
 
