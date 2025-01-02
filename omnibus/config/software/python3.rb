@@ -24,9 +24,13 @@ if ohai["platform"] != "windows"
     "--with-ensurepip=yes" # We upgrade pip later, in the pip3 software definition
   ]
 
-  if mac_os_x?
+  if mac_os_x? && !arm_target?
     python_configure_options.push("--enable-ipv6",
                           "--with-universal-archs=intel",
+                          "--enable-shared")
+  elsif mac_os_x?
+    python_configure_options.push("--enable-ipv6",
+                          "--with-universal-archs=64-bit",
                           "--enable-shared")
   elsif linux_target?
     python_configure_options.push("--enable-shared",
