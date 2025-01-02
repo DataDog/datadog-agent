@@ -7,6 +7,7 @@
 package stream
 
 import (
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/proto"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -60,6 +62,8 @@ func (s *scheduler) Stop() {
 }
 
 func (s *scheduler) handleEvent(configs []integration.Config, eventType pb.ConfigEventType) {
+	configs = filterOutGoConfigs(configs)
+
 	protobufConfigs := protobufConfigFromAutodiscoveryConfigs(configs, eventType)
 
 	err := grpc.DoWithTimeout(func() error {
@@ -76,6 +80,17 @@ func (s *scheduler) handleEvent(configs []integration.Config, eventType pb.Confi
 		default:
 		}
 	}
+}
+
+func filterOutGoConfigs(configs []integration.Config) []integration.Config {
+	goChecksNames := corechecks.GetRegisteredFactoryKeys()
+	res := make([]integration.Config, 0, len(configs))
+	for _, c := range configs {
+		if !slices.Contains(goChecksNames, c.Name) {
+			res = append(res, c)
+		}
+	}
+	return res
 }
 
 func protobufConfigFromAutodiscoveryConfigs(config []integration.Config, eventType pb.ConfigEventType) []*pb.Config {
