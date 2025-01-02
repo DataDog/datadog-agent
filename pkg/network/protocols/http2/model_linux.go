@@ -82,6 +82,9 @@ func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8, output []byte) ([]b
 		return nil, err
 	}
 
+	if n > len(output) {
+		n = len(output)
+	}
 	copy(output[:n], tmpBuffer.Bytes())
 	return output[:n], nil
 }
