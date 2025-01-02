@@ -7,7 +7,6 @@
 package util
 
 import (
-	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -188,14 +187,6 @@ func GetDCAAuthToken() string {
 	tokenLock.RLock()
 	defer tokenLock.RUnlock()
 	return dcaToken
-}
-
-// constantCompareStrings compares two strings in constant time.
-// It uses the subtle.ConstantTimeCompare function from the crypto/subtle package
-// to compare the byte slices of the input strings.
-// Returns true if the strings are equal, false otherwise.
-func constantCompareStrings(src, tgt string) bool {
-	return subtle.ConstantTimeCompare([]byte(src), []byte(tgt)) == 1
 }
 
 // IsForbidden returns whether the cluster check runner server is allowed to listen on a given ip

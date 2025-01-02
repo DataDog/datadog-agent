@@ -29,9 +29,8 @@ const (
 
 // ReqOptions are options when making a request
 type ReqOptions struct {
-	Conn      ShouldCloseConnection
-	Ctx       context.Context
-	Authtoken string
+	Conn ShouldCloseConnection
+	Ctx  context.Context
 }
 
 // GetClient is a convenience function returning an http client
@@ -69,8 +68,9 @@ func GetClientWithTimeout(to time.Duration, _ bool) *http.Client {
 		tr: http.Transport{},
 	}
 
-	// Setting the auth transport wrapper, which is in charge of setting the correct authorization header based on requests values
+	// Initialize an authorizer that checks the authorization header of requests.
 	authorizer := auth.NewAuthTokenSigner(func() (string, error) { return GetAuthToken(), nil })
+	// Setting the auth transport wrapper, which is in charge of setting the correct authorization header based on requests values
 	transport = auth.GetSecureRoundTripper(authorizer, transport)
 
 	return &http.Client{
@@ -86,10 +86,6 @@ func DoGet(c *http.Client, url string, conn ShouldCloseConnection) (body []byte,
 
 // DoGetWithOptions is a wrapper around performing HTTP GET requests
 func DoGetWithOptions(c *http.Client, url string, options *ReqOptions) (body []byte, e error) {
-	if options.Authtoken == "" {
-		options.Authtoken = GetAuthToken()
-	}
-
 	if options.Ctx == nil {
 		options.Ctx = context.Background()
 	}

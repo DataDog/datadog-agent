@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -56,22 +57,12 @@ func TestDoGet(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("check auth token", func(t *testing.T) {
-		handler := func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, "Bearer mytoken", r.Header.Get("Authorization"))
-			w.WriteHeader(http.StatusOK)
-		}
-		server := makeTestServer(t, http.HandlerFunc(handler))
-
-		options := &ReqOptions{Authtoken: "mytoken"}
-		data, err := DoGetWithOptions(server.Client(), server.URL, options)
-		require.NoError(t, err)
-		require.Empty(t, data)
-	})
-
 	t.Run("check global auth token", func(t *testing.T) {
 		handler := func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, "Bearer 0123456789abcdef0123456789abcdef", r.Header.Get("Authorization"))
+			authorizer := auth.NewStaticAuthTokenSigner("0123456789abcdef0123456789abcdef")
+			err := authorizer.VerifyREST(r.Method, r.Header, r.Body, r.ContentLength)
+
+			require.NoError(t, err)
 			w.WriteHeader(http.StatusOK)
 		}
 		server := makeTestServer(t, http.HandlerFunc(handler))
@@ -84,8 +75,10 @@ func TestDoGet(t *testing.T) {
 		cfg.SetWithoutSource("auth_token_file_path", authTokenPath)
 		SetAuthToken(cfg)
 
+		client := GetClient(false)
+
 		options := &ReqOptions{}
-		data, err := DoGetWithOptions(server.Client(), server.URL, options)
+		data, err := DoGetWithOptions(client, server.URL, options)
 		require.NoError(t, err)
 		require.Empty(t, data)
 	})
