@@ -381,8 +381,8 @@ func (t *TCPProcessor) CleanupExpiredPendingConns(timestampNs uint64) {
 	}
 }
 
-// MakeEbpflessTuple converts a network.ConnectionTuple to an EbpflessTuple.
-// See the EbpflessTuple doc for more information.
+// MakeEbpflessTuple converts a network.ConnectionTuple to a PCAPTuple.
+// See the PCAPTuple doc for more information.
 func MakeEbpflessTuple(tuple network.ConnectionTuple) PCAPTuple {
 	return PCAPTuple{
 		Source: tuple.Source,
@@ -395,6 +395,7 @@ func MakeEbpflessTuple(tuple network.ConnectionTuple) PCAPTuple {
 	}
 }
 
+// MakeConnStatsTuple converts a PCAPTuple to a network.ConnectionTuple.
 func MakeConnStatsTuple(tuple PCAPTuple) network.ConnectionTuple {
 	return network.ConnectionTuple{
 		Source: tuple.Source,
