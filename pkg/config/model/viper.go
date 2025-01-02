@@ -12,17 +12,16 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"path/filepath"
-
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

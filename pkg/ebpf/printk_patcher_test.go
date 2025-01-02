@@ -9,7 +9,6 @@ package ebpf
 
 import (
 	"bufio"
-	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,7 +19,6 @@ import (
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -64,11 +62,8 @@ func TestPatchPrintkNewline(t *testing.T) {
 	}
 
 	opts := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		MapEditors: make(map[string]*ebpf.Map),
+		RemoveRlimit: true,
+		MapEditors:   make(map[string]*ebpf.Map),
 	}
 	mgr.InstructionPatchers = append(mgr.InstructionPatchers, patchPrintkNewline)
 

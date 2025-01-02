@@ -10,7 +10,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../def
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
-	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../pkg/util/optional
+	github.com/DataDog/datadog-agent/pkg/util/option => ../../../pkg/util/option
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
 
@@ -27,7 +27,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.23.0
-	golang.org/x/exp v0.0.0-20241210194714-1829a127f884
+	golang.org/x/exp v0.0.0-20241217172543-b2144cdd0a67
 	golang.org/x/sys v0.28.0
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -35,7 +35,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.55.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.59.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -55,7 +55,7 @@ require (
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	google.golang.org/protobuf v1.35.2 // indirect
+	google.golang.org/protobuf v1.36.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
