@@ -194,6 +194,8 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 		}
 		stats.Count += newRequests.Count
 	}
+	// release statistics that are no longer referenced.
+	newStats.ReleaseStats()
 }
 
 // AddRequest takes information about a HTTP transaction and adds it to the request stats
@@ -243,5 +245,12 @@ func (r *RequestStats) HalfAllCounts() {
 		if stats != nil {
 			stats.Count = stats.Count / 2
 		}
+	}
+}
+
+// ReleaseStats deletes all requests from the map.
+func (r *RequestStats) ReleaseStats() {
+	for statusCode := range r.Data {
+		delete(r.Data, statusCode)
 	}
 }
