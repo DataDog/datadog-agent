@@ -31,6 +31,10 @@ const (
 	CGroupCreated
 	// CGroupMaxEvent is used cap the event ID
 	CGroupMaxEvent
+
+	maxhostWorkloadEntries      = 1024
+	maxContainerWorkloadEntries = 1024
+	maxCgroupEntries            = 2048
 )
 
 // ResolverInterface defines the interface implemented by a cgroup resolver
@@ -67,21 +71,21 @@ func NewResolver() (*Resolver, error) {
 	}
 
 	var err error
-	cr.hostWorkloads, err = simplelru.NewLRU(1024, func(_ containerutils.CGroupID, value *cgroupModel.CacheEntry) {
+	cr.hostWorkloads, err = simplelru.NewLRU(maxhostWorkloadEntries, func(_ containerutils.CGroupID, value *cgroupModel.CacheEntry) {
 		cleanup(value)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	cr.containerWorkloads, err = simplelru.NewLRU(1024, func(_ containerutils.ContainerID, value *cgroupModel.CacheEntry) {
+	cr.containerWorkloads, err = simplelru.NewLRU(maxContainerWorkloadEntries, func(_ containerutils.ContainerID, value *cgroupModel.CacheEntry) {
 		cleanup(value)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	cr.cgroups, err = simplelru.NewLRU(2048, func(_ model.PathKey, _ *model.CGroupContext) {})
+	cr.cgroups, err = simplelru.NewLRU(maxCgroupEntries, func(_ model.PathKey, _ *model.CGroupContext) {})
 	if err != nil {
 		return nil, err
 	}
