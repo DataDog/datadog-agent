@@ -153,20 +153,18 @@ func (t *ErrorsTelemetryModifier) AfterInit(m *manager.Manager, module names.Mod
 
 // BeforeStop stops the perf collector from telemetry and removes the modules from the telemetry maps.
 func (t *ErrorsTelemetryModifier) BeforeStop(m *manager.Manager, module names.ModuleName) error {
-	if perfCollector != nil {
-		perfCollector.unregisterTelemetry(m)
+	if errorsTelemetry == nil {
+		return nil
 	}
 
-	if errorsTelemetry != nil {
-		mapNames := getMapNames(m)
-		genericMapErrMap, genericHelperErrMap, err := getErrMaps(m)
-		if err != nil {
-			return err
-		}
+	mapNames := getMapNames(m)
+	genericMapErrMap, genericHelperErrMap, err := getErrMaps(m)
+	if err != nil {
+		return err
+	}
 
-		if err := errorsTelemetry.cleanup(mapNames, module, genericMapErrMap, genericHelperErrMap); err != nil {
-			return err
-		}
+	if err := errorsTelemetry.cleanup(mapNames, module, genericMapErrMap, genericHelperErrMap); err != nil {
+		return err
 	}
 
 	return nil
