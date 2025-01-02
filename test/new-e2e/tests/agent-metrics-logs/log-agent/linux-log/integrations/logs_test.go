@@ -88,13 +88,14 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 	// the agent check command, we can test if the file rotation works using the following method:
 
 	// 1. Set the max log file size to 1 MB and individual log size to a size
-	// large enough to cause rotations every 4 logs. 230 KB was chosen as an
-	// arbitrarily large number.
+	// large enough to cause rotations every 4 logs. 255 KB was chosen since the
+	// log is JSON formatted and includes information such as tags, service,
+	// source, and other information in the log.
 	// 2. Send five (or more) logs to the agent, causing the log file to rotate.
 	// 3. Check the logs to ensure that each is unique, ensuring the rotation worked correctly.
 
 	tags := []string{"test:rotate"}
-	yamlData, err := generateYaml("a", true, 1024*230, 1, tags, "rotation_source", "rotation_service")
+	yamlData, err := generateYaml("a", true, 1024*255, 1, tags, "rotation_source", "rotation_service")
 	assert.NoError(v.T(), err)
 
 	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
