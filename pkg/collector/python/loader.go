@@ -65,7 +65,7 @@ func init() {
 	factory := func(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
 		return NewPythonCheckLoader(senderManager, logReceiver, tagger)
 	}
-	loaders.RegisterLoader(20, factory)
+	loaders.RegisterLoader(30, factory)
 
 	configureErrors = map[string][]string{}
 	py3Linted = map[string]struct{}{}
