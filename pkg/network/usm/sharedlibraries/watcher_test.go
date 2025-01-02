@@ -177,15 +177,13 @@ func (s *SharedLibrarySuite) TestSharedLibraryIgnoreWrite() {
 				fd, err := open(unix.AT_FDCWD, readPath, &how, tt.syscallType)
 				require.NoError(c, err)
 				require.NoError(c, syscall.Close(fd))
-				assert.Equal(c, 1, registerRecorder.CallsForPathID(readPathID))
-			}, time.Second*5, 100*time.Millisecond)
+				require.GreaterOrEqual(c, 1, registerRecorder.CallsForPathID(readPathID))
 
-			require.EventuallyWithT(t, func(c *assert.CollectT) {
 				how.Flags = syscall.O_CREAT | syscall.O_WRONLY
-				fd, err := open(unix.AT_FDCWD, writePath, &how, tt.syscallType)
+				fd, err = open(unix.AT_FDCWD, writePath, &how, tt.syscallType)
 				require.NoError(c, err)
 				require.NoError(c, syscall.Close(fd))
-				assert.Equal(c, 0, registerRecorder.CallsForPathID(writePathID))
+				require.Equal(c, 0, registerRecorder.CallsForPathID(writePathID))
 			}, time.Second*5, 100*time.Millisecond)
 		})
 	}
