@@ -11,6 +11,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../../../core/log/mock
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../../core/secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../../../core/status
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection => ../../../../../core/tagger/origindetection
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../../core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../../../../def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../../forwarder/defaultforwarder
@@ -237,6 +238,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.1 // indirect
 	github.com/ebitengine/purego v0.8.1 // indirect
 	github.com/knadh/koanf/maps v0.1.1 // indirect
 	github.com/knadh/koanf/providers/confmap v0.1.0 // indirect
