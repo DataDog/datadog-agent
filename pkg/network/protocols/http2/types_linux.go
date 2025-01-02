@@ -4,7 +4,7 @@
 package http2
 
 const (
-	maxHTTP2Path     = 0xa0
+	maxHTTP2Path     = 0xb4
 	http2PathBuckets = 0x7
 
 	HTTP2TerminatedBatchSize = 0x55
@@ -30,11 +30,11 @@ type HTTP2DynamicTableIndex struct {
 	Tup   ConnTuple
 }
 type HTTP2DynamicTableEntry struct {
-	Buffer             [160]int8
+	Buffer             [180]int8
 	Original_index     uint32
 	String_len         uint8
 	Is_huffman_encoded bool
-	Pad_cgo_0          [2]byte
+	Pad_cgo_0          [6]byte
 }
 type HTTP2StreamKey struct {
 	Tup       ConnTuple
@@ -55,7 +55,7 @@ type http2requestMethod struct {
 	Finalized          bool
 }
 type http2Path struct {
-	Raw_buffer         [160]uint8
+	Raw_buffer         [180]uint8
 	Is_huffman_encoded bool
 	Static_table_entry uint8
 	Length             uint8
@@ -69,7 +69,7 @@ type HTTP2Stream struct {
 	Request_method     http2requestMethod
 	Path               http2Path
 	End_of_stream_seen bool
-	Pad_cgo_0          [1]byte
+	Pad_cgo_0          [5]byte
 }
 type EbpfTx struct {
 	Tuple  ConnTuple

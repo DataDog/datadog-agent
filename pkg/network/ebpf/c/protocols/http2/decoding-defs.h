@@ -53,10 +53,10 @@
 #define HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING 2
 
 // Maximum size for the path buffer.
-#define HTTP2_MAX_PATH_LEN 160
+#define HTTP2_MAX_PATH_LEN 180
 
 // Maximum size for the path buffer for telemetry.
-#define HTTP2_TELEMETRY_MAX_PATH_LEN 120
+#define HTTP2_TELEMETRY_MAX_PATH_LEN 150
 
 // The amount of buckets we have for the path size telemetry.
 #define HTTP2_TELEMETRY_PATH_BUCKETS 7
