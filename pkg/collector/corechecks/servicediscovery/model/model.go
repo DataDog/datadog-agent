@@ -20,11 +20,13 @@ type Service struct {
 	Ports                      []uint16 `json:"ports"`
 	APMInstrumentation         string   `json:"apm_instrumentation"`
 	Language                   string   `json:"language"`
+	Type                       string   `json:"service_type"`
 	RSS                        uint64   `json:"rss"`
 	CommandLine                []string `json:"cmdline"`
 	StartTimeMilli             uint64   `json:"start_time"`
 	CPUCores                   float64  `json:"cpu_cores"`
 	ContainerID                string   `json:"container_id"`
+	LastHeartbeat              int64    `json:"last_heartbeat"`
 }
 
 // ServicesResponse is the response for the system-probe /discovery/services endpoint.
