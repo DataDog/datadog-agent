@@ -281,6 +281,7 @@ func (e *ebpfProgram) Start() error {
 
 // Close stops the ebpf program and cleans up all resources.
 func (e *ebpfProgram) Close() error {
+	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
 	var err error
 	// We need to stop the perf maps and ring buffers before stopping the protocols, as we need to stop sending events
 	// to them. If we don't do this, we might send events on closed channels which will panic.
