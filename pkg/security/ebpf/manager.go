@@ -17,9 +17,6 @@ import (
 // NewDefaultOptions returns a new instance of the default runtime security manager options
 func NewDefaultOptions() manager.Options {
 	return manager.Options{
-		// DefaultKProbeMaxActive is the maximum number of active kretprobe at a given time
-		DefaultKProbeMaxActive: 512,
-
 		DefaultPerfRingBufferSize: probes.EventsPerfRingBufferSize,
 
 		RemoveRlimit: true,
