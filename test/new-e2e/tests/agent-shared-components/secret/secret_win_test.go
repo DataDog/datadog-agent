@@ -7,6 +7,7 @@
 package secret
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -32,18 +33,22 @@ func TestWindowsRuntimeSecretSuite(t *testing.T) {
 	)))
 }
 
-func (v *windowsRuntimeSecretSuite) TestSecretRuntimeHostname() {
-	config := `secret_backend_command: C:\TestFolder\wrapper.bat
+func (v *windowsRuntimeSecretSuite) testSecretRuntimeHostname(wrapperDirectory string) {
+	config := `secret_backend_command: ` + wrapperDirectory + `\wrapper.bat
 secret_backend_arguments:
-  - 'C:\TestFolder'
+  - '` + wrapperDirectory + `'
 hostname: ENC[hostname]`
 
 	agentParams := []func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(config),
 	}
-	agentParams = append(agentParams, secrets.WithWindowsSecretSetupScript("C:/TestFolder/wrapper.bat", false)...)
+	if strings.Contains(wrapperDirectory, "ProgramData") {
+		agentParams = append(agentParams, secrets.WithWindowsSecretSetupScriptNoPerms(wrapperDirectory+"/wrapper.bat")...)
+	} else {
+		agentParams = append(agentParams, secrets.WithWindowsSecretSetupScript(wrapperDirectory+"/wrapper.bat", false)...)
+	}
 
-	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, "C:/TestFolder")
+	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, wrapperDirectory)
 	secretClient.SetSecret("hostname", "e2e.test")
 
 	v.UpdateEnv(
@@ -60,4 +65,12 @@ hostname: ENC[hostname]`
 			assert.Equal(t, "e2e.test", checks[len(checks)-1].HostName)
 		}
 	}, 30*time.Second, 2*time.Second)
+}
+
+func (v *windowsRuntimeSecretSuite) TestSecretRuntimeHostname() {
+	v.testSecretRuntimeHostname(`C:/TestFolder`)
+}
+
+func (v *windowsRuntimeSecretSuite) TestSecretRuntimeHostnameProgramData() {
+	v.testSecretRuntimeHostname(`C:/ProgramData/DataDog/Test`)
 }
