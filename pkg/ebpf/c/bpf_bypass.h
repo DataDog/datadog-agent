@@ -12,6 +12,10 @@ BPF_ARRAY_MAP(program_bypassed, u32, 1)
     unsigned long bypass_program; \
     asm("%0 = " "bypass_program" " ll" : "=r"(bypass_program) :: "memory");
 
+/* BPF_BYPASSABLE_KPROBE is identical to BPF_KPROBE (bpf_tracing.h), but with a stub (CHECK_BPF_PROGRAM_BYPASSED)
+ * that checks if the program is bypassed. This is useful for testing, as we want to dynamically control
+ * the execution of the program.
+ */
 #define BPF_BYPASSABLE_KPROBE(name, args...)					    \
 name(struct pt_regs *ctx);						    \
 static __always_inline typeof(name(0))					    \
@@ -27,6 +31,10 @@ typeof(name(0)) name(struct pt_regs *ctx)				    \
 static __always_inline typeof(name(0))					    \
 ____##name(struct pt_regs *ctx, ##args)
 
+/* BPF_BYPASSABLE_KRETPROBE is identical to BPF_KRETPROBE (bpf_tracing.h), but with a stub (CHECK_BPF_PROGRAM_BYPASSED)
+ * that checks if the program is bypassed. This is useful for testing, as we want to dynamically control
+ * the execution of the program.
+ */
 #define BPF_BYPASSABLE_KRETPROBE(name, args...)					    \
 name(struct pt_regs *ctx);						    \
 static __always_inline typeof(name(0))					    \
@@ -49,7 +57,7 @@ static __always_inline typeof(name(0)) ____##name(struct pt_regs *ctx, ##args)
 #define BPF_BYPASSABLE_URETPROBE(name, args...)  BPF_BYPASSABLE_KRETPROBE(name, ##args)
 
 /* BPF_BYPASSABLE_PROG is identical to BPF_PROG (bpf_tracing.h), but with a stub (CHECK_BPF_PROGRAM_BYPASSED)
- * that checks if the program is bypassed. This is useful for testings, as we want to dynamically control
+ * that checks if the program is bypassed. This is useful for testing, as we want to dynamically control
  * the execution of the program.
  */
 #define BPF_BYPASSABLE_PROG(name, args...)						    \
