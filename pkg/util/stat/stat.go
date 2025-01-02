@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package util
+// Package stat implements a simple stats aggregator.
+package stat
 
 import (
 	"expvar"
