@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
@@ -33,6 +34,7 @@ type dependencies struct {
 	Forwarder     forwarder.Component
 	Hostname      hostname.Component
 	RDNSQuerier   rdnsquerier.Component
+	HaAgent       haagent.Component
 }
 
 type provides struct {
@@ -63,7 +65,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
 		deps.Logger.Infof("Reverse DNS Enrichment is disabled for NDM NetFlow")
 	}
 
-	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier)
+	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier, deps.HaAgent)
 
 	server := &Server{
 		config:  conf,
