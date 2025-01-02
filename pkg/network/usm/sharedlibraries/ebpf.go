@@ -472,8 +472,10 @@ func (e *EbpfProgram) Stop() {
 
 func (e *EbpfProgram) stopImpl() {
 	if e.Manager != nil {
-		_ = e.Manager.Stop(manager.CleanAll)
-		ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
+		err := e.Manager.Stop(manager.CleanAll)
+		if err != nil {
+			log.Errorf("error stopping manager: %s", err)
+		}
 	}
 
 	for _, handler := range e.libsets {
