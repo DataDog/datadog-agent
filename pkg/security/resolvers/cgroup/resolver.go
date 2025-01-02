@@ -10,10 +10,14 @@ package cgroup
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -48,15 +52,17 @@ type ResolverInterface interface {
 type Resolver struct {
 	*utils.Notifier[Event, *cgroupModel.CacheEntry]
 	sync.Mutex
+	statsdClient       statsd.ClientInterface
 	cgroups            *simplelru.LRU[model.PathKey, *model.CGroupContext]
 	hostWorkloads      *simplelru.LRU[containerutils.CGroupID, *cgroupModel.CacheEntry]
 	containerWorkloads *simplelru.LRU[containerutils.ContainerID, *cgroupModel.CacheEntry]
 }
 
 // NewResolver returns a new cgroups monitor
-func NewResolver() (*Resolver, error) {
+func NewResolver(statsdClient statsd.ClientInterface) (*Resolver, error) {
 	cr := &Resolver{
-		Notifier: utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
+		Notifier:     utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
+		statsdClient: statsdClient,
 	}
 
 	cleanup := func(value *cgroupModel.CacheEntry) {
@@ -200,4 +206,30 @@ func (cr *Resolver) Len() int {
 	defer cr.Unlock()
 
 	return cr.cgroups.Len()
+}
+
+// SendStats sends stats
+func (cr *Resolver) SendStats() error {
+	cr.Lock()
+	defer cr.Unlock()
+
+	if val := float64(cr.containerWorkloads.Len()); val > 0 {
+		if err := cr.statsdClient.Gauge(metrics.MetricCGroupResolverActiveContainerWorkloads, val, []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricCGroupResolverActiveContainerWorkloads: %w", err)
+		}
+	}
+
+	if val := float64(cr.hostWorkloads.Len()); val > 0 {
+		if err := cr.statsdClient.Gauge(metrics.MetricCGroupResolverActiveHostWorkloads, val, []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricCGroupResolverActiveHostWorkloads: %w", err)
+		}
+	}
+
+	if val := float64(cr.cgroups.Len()); val > 0 {
+		if err := cr.statsdClient.Gauge(metrics.MetricCGroupResolverActiveCGroups, val, []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricCGroupResolverActiveCGroups: %w", err)
+		}
+	}
+
+	return nil
 }
