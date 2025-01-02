@@ -29,13 +29,13 @@ import (
 var oversizedLogLimit = log.NewLogLimit(10, time.Minute*10)
 
 // validatePath validates the given path.
-func validatePath(str string) error {
+func validatePath(str []byte) error {
 	if len(str) == 0 {
 		return errors.New("decoded path is empty")
 	}
 	// ensure we found a '/' at the beginning of the path
 	if str[0] != '/' {
-		return fmt.Errorf("decoded path '%s' doesn't start with '/'", str)
+		return fmt.Errorf("decoded path (%#v) doesn't start with '/'", str)
 	}
 	return nil
 }
@@ -67,7 +67,7 @@ func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8) ([]byte, error) {
 		return nil, err
 	}
 
-	if err = validatePath(str); err != nil {
+	if err = validatePath([]byte(str)); err != nil {
 		return nil, err
 	}
 
@@ -106,9 +106,10 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 		}
 
 		res = tx.Stream.Path.Raw_buffer[:tx.Stream.Path.Length]
-		if err = validatePath(string(res)); err != nil {
+		if err = validatePath(res); err != nil {
 			if oversizedLogLimit.ShouldLog() {
-				log.Warnf("path %s is invalid due to: %s", string(res), err)
+				// The error already contains the path, so we don't need to log it again.
+				log.Warn(err)
 			}
 			return nil, false
 		}
