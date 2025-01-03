@@ -412,6 +412,26 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers2(i
 				}
 				(*out.Mount).UnmarshalEasyJSON(in)
 			}
+		case "mkdir":
+			if in.IsNull() {
+				in.Skip()
+				out.Mkdir = nil
+			} else {
+				if out.Mkdir == nil {
+					out.Mkdir = new(SyscallArgsSerializer)
+				}
+				(*out.Mkdir).UnmarshalEasyJSON(in)
+			}
+		case "rmdir":
+			if in.IsNull() {
+				in.Skip()
+				out.Rmdir = nil
+			} else {
+				if out.Rmdir == nil {
+					out.Rmdir = new(SyscallArgsSerializer)
+				}
+				(*out.Rmdir).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -521,6 +541,26 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers2(o
 			out.RawString(prefix)
 		}
 		(*in.Mount).MarshalEasyJSON(out)
+	}
+	if in.Mkdir != nil {
+		const prefix string = ",\"mkdir\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.Mkdir).MarshalEasyJSON(out)
+	}
+	if in.Rmdir != nil {
+		const prefix string = ",\"rmdir\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.Rmdir).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }

@@ -654,3 +654,9 @@ Make sure that milestone is open before trying again.""",
     print(color_message(f"Done creating new PR. Link: {updated_pr.html_url}", "bold"))
 
     return updated_pr.html_url
+
+
+def ask_review_actor(pr):
+    for event in pr.get_issue_events():
+        if event.event == "labeled" and event.label.name == "ask-review":
+            return event.actor.name or event.actor.login
