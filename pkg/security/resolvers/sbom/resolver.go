@@ -50,6 +50,7 @@ const (
 	// state of the sboms
 	pendingState int64 = iota + 1
 	computedState
+	deletedState
 
 	maxSBOMGenerationRetries = 3
 	maxSBOMEntries           = 1024
@@ -610,6 +611,9 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 	if sbom.refresher != nil {
 		sbom.refresher.Stop()
 	}
+
+	// change the state so that already queued sbom won't be handled
+	sbom.state.Store(deletedState)
 
 	r.sboms.Remove(sbom.ContainerID)
 }
