@@ -206,6 +206,28 @@ func (suite *ConfigTestSuite) TestEnvBadLogLevel() {
 	assert.Error(t, err)
 }
 
+func (suite *ConfigTestSuite) TestEnvUpperCaseLogLevel() {
+	t := suite.T()
+	oldval, exists := os.LookupEnv("DD_LOG_LEVEL")
+	os.Setenv("DD_LOG_LEVEL", "INFO")
+	defer func() {
+		if !exists {
+			os.Unsetenv("DD_LOG_LEVEL")
+		} else {
+			os.Setenv("DD_LOG_LEVEL", oldval)
+		}
+	}()
+	fileName := "testdata/config_default.yaml"
+	ddFileName := "testdata/datadog_low_log_level.yaml"
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	if err != nil {
+		t.Errorf("Failed to load agent config: %v", err)
+	}
+
+	// log_level will be mapped to lowercase by code and set accordingly
+	assert.Equal(t, "info", c.Get("log_level"))
+}
+
 func (suite *ConfigTestSuite) TestBadDDConfigFile() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
