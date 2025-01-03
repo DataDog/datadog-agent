@@ -376,6 +376,10 @@ type MkdirEvent struct {
 	SyscallContext
 	File FileEvent `field:"file"`
 	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`Mode of the new directory` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`Rights of the new directory` Constants:`File mode constants`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:mkdir.syscall.str1"` // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallMode uint32 `field:"syscall.mode,ref:mkdir.syscall.int2"` // SECLDoc[syscall.mode] Definition:`Mode of the new directory`
 }
 
 // ArgsEnvsEvent defines a args/envs event
@@ -482,6 +486,9 @@ type RmdirEvent struct {
 	SyscallEvent
 	SyscallContext
 	File FileEvent `field:"file"`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:rmdir.syscall.str1"` // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
 }
 
 // SetXAttrEvent represents an extended attributes event

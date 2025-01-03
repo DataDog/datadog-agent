@@ -4181,6 +4181,22 @@ func (ev *Event) GetMkdirSyscallInt3() int {
 	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Mkdir.SyscallContext)
 }
 
+// GetMkdirSyscallMode returns the value of the field, resolving if necessary
+func (ev *Event) GetMkdirSyscallMode() int {
+	if ev.GetEventType().String() != "mkdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Mkdir.SyscallContext)
+}
+
+// GetMkdirSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetMkdirSyscallPath() string {
+	if ev.GetEventType().String() != "mkdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mkdir.SyscallContext)
+}
+
 // GetMkdirSyscallStr1 returns the value of the field, resolving if necessary
 func (ev *Event) GetMkdirSyscallStr1() string {
 	if ev.GetEventType().String() != "mkdir" {
@@ -14350,6 +14366,14 @@ func (ev *Event) GetRmdirSyscallInt3() int {
 		return 0
 	}
 	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Rmdir.SyscallContext)
+}
+
+// GetRmdirSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetRmdirSyscallPath() string {
+	if ev.GetEventType().String() != "rmdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rmdir.SyscallContext)
 }
 
 // GetRmdirSyscallStr1 returns the value of the field, resolving if necessary
