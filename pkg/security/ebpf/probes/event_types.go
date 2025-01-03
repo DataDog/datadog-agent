@@ -40,6 +40,7 @@ func NetworkSelectors() []manager.ProbesSelector {
 	return []manager.ProbesSelector{
 		// flow classification probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			kprobeOrFentry("accept"),
 			kprobeOrFentry("security_socket_bind"),
 			kprobeOrFentry("security_socket_connect"),
 			kprobeOrFentry("security_sk_classify_flow"),
@@ -442,6 +443,12 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kretprobeOrFexit("get_pipe_info"),
 			}}},
 
+		// List of probes required to capture accept events
+		"accept": {
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("accept"),
+			}},
+		},
 		// List of probes required to capture bind events
 		"bind": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{

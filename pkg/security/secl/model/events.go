@@ -83,6 +83,8 @@ const (
 	NetDeviceEventType
 	// VethPairEventType is sent when a new veth pair is created
 	VethPairEventType
+	// AcceptEventType Accept event
+	AcceptEventType
 	// BindEventType Bind event
 	BindEventType
 	// ConnectEventType Connect event
@@ -219,6 +221,8 @@ func (t EventType) String() string {
 		return "veth_pair"
 	case BindEventType:
 		return "bind"
+	case AcceptEventType:
+		return "accept"
 	case ConnectEventType:
 		return "connect"
 	case UnshareMountNsEventType:
