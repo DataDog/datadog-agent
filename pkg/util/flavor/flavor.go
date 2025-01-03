@@ -29,6 +29,8 @@ const (
 	TraceAgent = "trace_agent"
 	// OTelAgent is the OpenTelemetry Collector flavor
 	OTelAgent = "otel_agent"
+	// ChecksAgent is the Checks Agent flavor
+	ChecksAgent = "checks_agent"
 )
 
 var agentFlavors = map[string]string{
@@ -42,6 +44,7 @@ var agentFlavors = map[string]string{
 	ProcessAgent:    "Process Agent",
 	TraceAgent:      "Trace Agent",
 	OTelAgent:       "OpenTelemetry Collector",
+	ChecksAgent:     "Checks Agent",
 }
 
 const unknownAgent = "Unknown Agent"
