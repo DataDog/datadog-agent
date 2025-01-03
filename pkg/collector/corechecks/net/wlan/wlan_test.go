@@ -362,3 +362,34 @@ func TestWLANRoamingEvents(t *testing.T) {
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
 }
+
+func TestWLANNoMetricsWhenWiFiInterfaceInactive(t *testing.T) {
+	// setup mocks
+	getWiFiInfo = func() (WiFiInfo, error) {
+		return WiFiInfo{
+			Rssi:            10,
+			Ssid:            "ssid-1",
+			Bssid:           "test-bssid",
+			Channel:         1,
+			Noise:           20,
+			TransmitRate:    4.0,
+			HardwareAddress: "hardware-address",
+		}, nil
+	}
+
+	defer func() {
+		getWiFiInfo = GetWiFiInfo
+	}()
+
+	wlanCheck := new(WLANCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	wlanCheck.Run()
+
+	mockSender.AssertNumberOfCalls(t, "Gauge", 0)
+	mockSender.AssertNumberOfCalls(t, "Count", 0)
+}
