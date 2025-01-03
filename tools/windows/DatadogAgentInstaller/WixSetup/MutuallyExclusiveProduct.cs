@@ -25,6 +25,8 @@ namespace WixSetup
         /// Adds elements to the WiX XML to enforce that the product cannot be installed at the same time as another product.
         /// </summary>
         /// <remarks>
+        /// The FindRelatedProducts action will set a property if a product matching the provided UpgradeCode
+        /// is found on the system. We check this property in a LaunchCondition to prevent installation.
         /// See https://learn.microsoft.com/en-us/windows/win32/msi/findrelatedproducts-action
         ///
         /// Example WiX XML:
