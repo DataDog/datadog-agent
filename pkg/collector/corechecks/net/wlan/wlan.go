@@ -42,7 +42,7 @@ type WLANCheck struct {
 	lastChannelID int
 	lastBSSID     string
 	lastSSID      string
-	warmedUp      bool
+	isWarmedUp    bool
 }
 
 func (c *WLANCheck) String() string {
@@ -86,14 +86,14 @@ func (c *WLANCheck) Run() error {
 	sender.Gauge("wlan.transmit_rate", float64(wifiInfo.TransmitRate), "", tags)
 
 	// channel swap events
-	if c.warmedUp && c.lastChannelID != wifiInfo.Channel {
+	if c.isWarmedUp && c.lastChannelID != wifiInfo.Channel {
 		sender.Count("wlan.channel_swap_events", 1.0, "", tags)
 	} else {
 		sender.Count("wlan.channel_swap_events", 0.0, "", tags)
 	}
 
 	// roaming events / ssid swap events
-	if c.warmedUp && c.lastBSSID != "" && c.lastSSID != "" && c.lastBSSID == wifiInfo.Bssid && c.lastSSID != wifiInfo.Ssid {
+	if c.isWarmedUp && c.lastBSSID != "" && c.lastSSID != "" && c.lastBSSID == wifiInfo.Bssid && c.lastSSID != wifiInfo.Ssid {
 		sender.Count("wlan.roaming_events", 1.0, "", tags)
 	} else {
 		sender.Count("wlan.roaming_events", 0.0, "", tags)
@@ -103,7 +103,7 @@ func (c *WLANCheck) Run() error {
 	c.lastChannelID = wifiInfo.Channel
 	c.lastBSSID = wifiInfo.Bssid
 	c.lastSSID = wifiInfo.Ssid
-	c.warmedUp = true
+	c.isWarmedUp = true
 
 	sender.Commit()
 	return nil
