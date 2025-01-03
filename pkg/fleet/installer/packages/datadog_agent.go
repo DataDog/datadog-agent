@@ -17,7 +17,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -142,12 +141,6 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
 
-	// write installinfo before start, or the agent could write it
-	// TODO: add installer version properly
-	if err = installinfo.WriteInstallInfo("installer_package", "manual_update"); err != nil {
-		return fmt.Errorf("failed to write install info: %v", err)
-	}
-
 	_, err = os.Stat("/etc/datadog-agent/datadog.yaml")
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to check if /etc/datadog-agent/datadog.yaml exists: %v", err)
@@ -204,8 +197,6 @@ func RemoveAgent(ctx context.Context) error {
 		log.Warnf("Failed to remove agent symlink: %s", err)
 		spanErr = err
 	}
-	installinfo.RmInstallInfo()
-	// TODO: Return error to caller?
 	return nil
 }
 

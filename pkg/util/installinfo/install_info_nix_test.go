@@ -74,32 +74,13 @@ func TestDoubleWrite(t *testing.T) {
 	s, _ := getFromPath(installInfoFile)
 	assert.Nil(t, s)
 
-	assert.NoError(t, WriteInstallInfo("v1", ""))
+	assert.NoError(t, WriteInstallInfo("dpkg", "v1", ""))
 	v1, err := getFromPath(installInfoFile)
 	assert.NoError(t, err)
 
-	assert.NoError(t, WriteInstallInfo("v2", ""))
+	assert.NoError(t, WriteInstallInfo("dpkg", "v2", ""))
 	v2, err := getFromPath(installInfoFile)
 	assert.NoError(t, err)
 
 	assert.Equal(t, v1, v2)
-}
-
-func TestRmInstallInfo(t *testing.T) {
-	tmpDir := t.TempDir()
-	installInfoFile = filepath.Join(tmpDir, "install_info")
-	installSigFile = filepath.Join(tmpDir, "install.json")
-	assert.NoError(t, WriteInstallInfo("v1", ""))
-
-	assert.True(t, fileExists(installInfoFile))
-	assert.True(t, fileExists(installSigFile))
-
-	RmInstallInfo()
-	assert.False(t, fileExists(installInfoFile))
-	assert.False(t, fileExists(installSigFile))
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
