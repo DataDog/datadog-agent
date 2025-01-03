@@ -5,7 +5,7 @@ build_windows_container_entrypoint:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: binary_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  extends: .windows_docker_default
   needs: ["lint_windows-x64"]
   variables:
     ARCH: "x64"
@@ -23,7 +23,7 @@ build_windows_container_entrypoint:
       -e WINDOWS_BUILDER=true
       -e AWS_NETWORKING=true
       -e TARGET_ARCH="$ARCH"
-      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      ${WINBUILDIMAGE}
       c:\mnt\Dockerfiles\agent\windows\entrypoint\build.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - get-childitem build-out\${CI_JOB_ID}
