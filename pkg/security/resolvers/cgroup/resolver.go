@@ -47,7 +47,6 @@ type ResolverInterface interface {
 	AddPID(*model.ProcessCacheEntry)
 	GetWorkload(containerutils.ContainerID) (*cgroupModel.CacheEntry, bool)
 	DelPID(uint32)
-	DelPIDWithID(containerutils.ContainerID, uint32)
 	Len() int
 	RegisterListener(Event, utils.Listener[*cgroupModel.CacheEntry]) error
 }
@@ -173,17 +172,6 @@ func (cr *Resolver) DelPID(pid uint32) {
 
 	for _, workload := range cr.hostWorkloads.Values() {
 		cr.deleteWorkloadPID(pid, workload)
-	}
-}
-
-// DelPIDWithID removes a PID from the cgroup cache entry referenced by the provided ID
-func (cr *Resolver) DelPIDWithID(id containerutils.ContainerID, pid uint32) {
-	cr.Lock()
-	defer cr.Unlock()
-
-	entry, exists := cr.containerWorkloads.Get(id)
-	if exists {
-		cr.deleteWorkloadPID(pid, entry)
 	}
 }
 
