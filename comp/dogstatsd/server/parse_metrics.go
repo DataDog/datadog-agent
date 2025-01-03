@@ -8,6 +8,7 @@ package server
 import (
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"time"
 )
 
@@ -49,7 +50,7 @@ type dogstatsdMetricSample struct {
 	// containerID represents the container ID of the sender (optional).
 	containerID []byte
 	// externalData is used for Origin Detection
-	externalData string
+	externalData origindetection.ExternalData
 	// timestamp read in the message if any
 	ts time.Time
 }
