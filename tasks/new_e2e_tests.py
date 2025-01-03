@@ -176,6 +176,9 @@ def run(
 
     if logs_post_processing:
         if len(test_res) == 1:
+            print(test_res[0].result_json_path)
+            with open(test_res[0].result_json_path) as f:
+                print(f.read())
             post_processed_output = post_process_output(
                 test_res[0].result_json_path, test_depth=logs_post_processing_test_depth
             )
