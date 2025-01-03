@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -42,7 +43,7 @@ func TestConnecitivityDiagnoseNoBlock(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		CheckConnectivityDiagnose(endpoint)
+		CheckConnectivityDiagnose(endpoint, 1)
 		close(done)
 	}()
 
@@ -53,36 +54,12 @@ func TestConnecitivityDiagnoseNoBlock(t *testing.T) {
 	}
 }
 
-func StartTestTCPServer(t *testing.T) (string, func()) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
-
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				if _, ok := err.(net.Error); ok {
-					continue
-				}
-				break // Exit the loop if the listener is closed
-			}
-
-			defer conn.Close()
-		}
-	}()
-
-	// Return the server address and a cleanup function
-	return listener.Addr().String(), func() {
-		_ = listener.Close()
-	}
-}
-
-// TestConnectivityDiagnoseFails ensures the connectivity diagnosis operates
-// correctly
-func TestConnectivityDiagnoseOperation(t *testing.T) {
+// TestConnectivityDiagnoseFails ensures the connectivity diagnosis connects
+// successfully
+func TestConnectivityDiagnoseOperationSuccess(t *testing.T) {
 	// Start the test TCP server
-	serverAddr, cleanup := StartTestTCPServer(t)
-	defer cleanup()
+	intake := mock.NewMockLogsIntake(t)
+	serverAddr := intake.Addr().String()
 
 	// Simulate a client connecting to the server
 	conn, err := net.Dial("tcp", serverAddr)
@@ -91,23 +68,49 @@ func TestConnectivityDiagnoseOperation(t *testing.T) {
 	}
 	defer conn.Close()
 
-	testFailEndpoint := config.NewEndpoint("api-key", "failhost", 1234, true)
-	connManager := NewConnectionManager(testFailEndpoint, statusinterface.NewNoopStatusProvider())
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	host, port, err := net.SplitHostPort(serverAddr)
+	assert.Nil(t, err)
+	portInt, err := strconv.Atoi(port)
+	assert.Nil(t, err)
+
+	testSuccessEndpoint := config.NewEndpoint("api-key", host, portInt, false)
+	connManager := NewConnectionManager(testSuccessEndpoint, statusinterface.NewNoopStatusProvider())
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	_, err = connManager.NewConnection(ctx)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
+}
+
+// TestConnectivityDiagnoseOperationFail ensure the connectivity diagnosis fails
+// when provided with incorrect information
+func TestConnectivityDiagnoseOperationFail(t *testing.T) {
+	// Start the test TCP server
+	intake := mock.NewMockLogsIntake(t)
+	serverAddr := intake.Addr().String()
+
+	// Simulate a client connecting to the server
+	conn, err := net.Dial("tcp", serverAddr)
+	if err != nil {
+		t.Fatalf("Failed to connect to test TCP server: %v", err)
+	}
+	defer conn.Close()
 
 	host, port, err := net.SplitHostPort(serverAddr)
 	assert.Nil(t, err)
 	portInt, err := strconv.Atoi(port)
 	assert.Nil(t, err)
-	testSuccessEndpoint := config.NewEndpoint("api-key", host, portInt, false)
-	connManager = NewConnectionManager(testSuccessEndpoint, statusinterface.NewNoopStatusProvider())
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+
+	testFailEndpointWrongAddress := config.NewEndpoint("api-key", "failhost", portInt, false)
+	connManager := NewConnectionManager(testFailEndpointWrongAddress, statusinterface.NewNoopStatusProvider())
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	testFailEndpointWrongPort := config.NewEndpoint("api-key", host, portInt+1, false)
+	connManager = NewConnectionManager(testFailEndpointWrongPort, statusinterface.NewNoopStatusProvider())
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	_, err = connManager.NewConnection(ctx)
-	assert.Nil(t, err)
+	assert.NotNil(t, err)
 }

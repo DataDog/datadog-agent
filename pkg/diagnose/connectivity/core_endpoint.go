@@ -85,7 +85,7 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 			connType := "HTTPS"
 			if useTCP {
 				connType = "TCP"
-				url, err = logstcp.CheckConnectivityDiagnose(endpoints.Main)
+				url, err = logstcp.CheckConnectivityDiagnose(endpoints.Main, 5)
 			} else {
 				url, err = logshttp.CheckConnectivityDiagnose(endpoints.Main, pkgconfigsetup.Datadog())
 			}

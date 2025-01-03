@@ -162,8 +162,8 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) {
 }
 
 // CheckConnectivityDiagnose is a diagnosis for TCP connections
-func CheckConnectivityDiagnose(endpoint config.Endpoint) (url string, err error) {
-	const operationTimeout = 5 * time.Second
+func CheckConnectivityDiagnose(endpoint config.Endpoint, timeoutSeconds int) (url string, err error) {
+	operationTimeout := time.Second * time.Duration(timeoutSeconds)
 	connManager := NewConnectionManager(endpoint, statusinterface.NewNoopStatusProvider())
 	ctx, cancel := context.WithTimeout(context.Background(), operationTimeout)
 	defer cancel()
