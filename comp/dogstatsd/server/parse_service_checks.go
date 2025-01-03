@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,7 +33,7 @@ type dogstatsdServiceCheck struct {
 	// containerID represents the container ID of the sender (optional).
 	containerID []byte
 	// externalData is used for Origin Detection
-	externalData string
+	externalData origindetection.ExternalData
 }
 
 var (
@@ -102,7 +103,7 @@ func (p *parser) applyServiceCheckOptionalField(serviceCheck dogstatsdServiceChe
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, localDataPrefix):
 		newServiceCheck.containerID = p.resolveContainerIDFromLocalData(optionalField)
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, externalDataPrefix):
-		newServiceCheck.externalData = string(optionalField[len(externalDataPrefix):])
+		newServiceCheck.externalData, err = origindetection.ParseExternalData(string(optionalField[len(externalDataPrefix):]))
 	}
 	if err != nil {
 		return serviceCheck, err
