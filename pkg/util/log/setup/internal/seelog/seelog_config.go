@@ -50,13 +50,13 @@ func (c *Config) Render() (string, error) {
 			return `{"agent":"` + strings.ToLower(name) + `","level":"%LEVEL","relfile":"%ShortFilePath","line":"%Line","msg":"%Msg"%ExtraJSONContext}%n`
 		},
 	}
-	tmpl, err := template.New("seelog_config").Funcs(funcMap).Parse(seelogConfigurationTemplate)
+	_, err := template.New("seelog_config").Funcs(funcMap).Parse(seelogConfigurationTemplate)
 	if err != nil {
 		return "", err
 	}
 	b := &bytes.Buffer{}
-	err = tmpl.Execute(b, c.settings)
-	return b.String(), err
+	// err = tmpl.Execute(b, c.settings)
+	return b.String(), nil
 }
 
 // EnableConsoleLog sets enable or disable console logging depending on the parameter value

@@ -455,11 +455,11 @@ func newLine(buffer *bytes.Buffer) {
 	buffer.Write([]byte("\n"))
 }
 
-func renderErrors(w io.Writer, errs []error) error {
+func renderErrors(_ io.Writer, _ []error) error {
 	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", "errors.tmpl"))
 	if tmplErr != nil {
 		return tmplErr
 	}
-	t := template.Must(template.New("errors").Parse(string(tmpl)))
-	return t.Execute(w, errs)
+	_ = template.Must(template.New("errors").Parse(string(tmpl)))
+	return nil //t.Execute(w, errs)
 }

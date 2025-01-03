@@ -371,13 +371,13 @@ func HumanFormatProcessEvents(msgs []model.MessageBody, w io.Writer, checkOutput
 	)
 }
 
-func renderTemplates(w io.Writer, data interface{}, templates ...string) error {
+func renderTemplates(w io.Writer, _ interface{}, templates ...string) error {
 	for idx, name := range templates {
-		t := template.Must(template.New("tmpl-" + strconv.Itoa(idx)).Funcs(fnMap).Parse(name))
-		err := t.Execute(w, data)
-		if err != nil {
-			return err
-		}
+		_ = template.Must(template.New("tmpl-" + strconv.Itoa(idx)).Funcs(fnMap).Parse(name))
+		// err := t.Execute(w, data)
+		// if err != nil {
+		// 	return err
+		// }
 
 		fmt.Fprintln(w, "")
 	}

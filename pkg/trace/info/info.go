@@ -246,54 +246,57 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 		// so we can assume it's not even running, or at least, not with
 		// these parameters. We display the port as a hint on where to
 		// debug further, this is where the expvar JSON should come from.
-		program, banner := getProgramBanner(conf.AgentVersion)
-		_ = notRunningTmpl.Execute(w, struct {
-			Banner    string
-			Program   string
-			DebugPort int
-		}{
-			Banner:    banner,
-			Program:   program,
-			DebugPort: conf.DebugServerPort,
-		})
-		return err
+		_, _ = getProgramBanner(conf.AgentVersion)
+		_ = notRunningTmpl
+		// _ = notRunningTmpl.Execute(w, struct {
+		// 	Banner    string
+		// 	Program   string
+		// 	DebugPort int
+		// }{
+		// 	Banner:    banner,
+		// 	Program:   program,
+		// 	DebugPort: conf.DebugServerPort,
+		// })
+		// return err
 	}
 
 	defer resp.Body.Close()
 
 	var info StatusInfo
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		program, banner := getProgramBanner(conf.AgentVersion)
-		_ = errorTmpl.Execute(w, struct {
-			Banner  string
-			Program string
-			Error   error
-			URL     string
-		}{
-			Banner:  banner,
-			Program: program,
-			Error:   err,
-			URL:     url,
-		})
-		return err
+		_, _ = getProgramBanner(conf.AgentVersion)
+		_ = errorTmpl
+		// _ = errorTmpl.Execute(w, struct {
+		// 	Banner  string
+		// 	Program string
+		// 	Error   error
+		// 	URL     string
+		// }{
+		// 	Banner:  banner,
+		// 	Program: program,
+		// 	Error:   err,
+		// 	URL:     url,
+		// })
+		// return err
 	}
 
 	// display the remote program version, now that we know it
-	program, banner := getProgramBanner(info.Version.Version)
+	_, _ = getProgramBanner(info.Version.Version)
 
 	var buffer bytes.Buffer
-	err = infoTmpl.Execute(&buffer, struct {
-		Banner  string
-		Program string
-		Status  *StatusInfo
-	}{
-		Banner:  banner,
-		Program: program,
-		Status:  &info,
-	})
-	if err != nil {
-		return err
-	}
+	_ = infoTmpl
+	// err = infoTmpl.Execute(&buffer, struct {
+	// 	Banner  string
+	// 	Program string
+	// 	Status  *StatusInfo
+	// }{
+	// 	Banner:  banner,
+	// 	Program: program,
+	// 	Status:  &info,
+	// })
+	// if err != nil {
+	// 	return err
+	// }
 
 	cleanInfo := CleanInfoExtraLines(buffer.String())
 
