@@ -25,4 +25,36 @@ def entrypoint(**kwargs):
         + url
         + " | grep size | awk -F ':' '{sum+=$NF} END {print sum}'"
     )
-    print(image_on_wire_size, max_on_wire_size, max_on_disk_size)
+    # Pull image locally to get on disk size
+    pull_stdout = ctx.run(f"docker pull {url}")
+    local_docker_name = pull_stdout.split("\n")[-1].strip()
+    image_on_disk_size = ctx.run("docker inspect -f \"{{ .Size }}\" " + local_docker_name)
+
+    error_message = ""
+    if image_on_wire_size > max_on_wire_size:
+        error_message += color_message(
+            f"Image size on wire (compressed image size) {image_on_wire_size} is higher than the maximum allowed {max_on_wire_size} by the gate !\n",
+            "red",
+        )
+    else:
+        print(
+            color_message(
+                f"image_on_wire_size <= max_on_wire_size, ({image_on_wire_size}) <= ({max_on_wire_size})",
+                "green",
+            )
+        )
+    if image_on_disk_size > max_on_disk_size:
+        error_message += color_message(
+            f"Image size on disk (uncompressed image size) {image_on_disk_size} is higher than the maximum allowed {max_on_disk_size} by the gate !\n",
+            "red",
+        )
+    else:
+        print(
+            color_message(
+                f"image_on_disk_size <= max_on_wire_size, ({image_on_disk_size}) <= ({max_on_disk_size})",
+                "green",
+            )
+        )
+    if error_message != "":
+        raise AssertionError(error_message)
+
