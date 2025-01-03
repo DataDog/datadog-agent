@@ -7,9 +7,11 @@
 #include "map-defs.h"
 #include "bpf_tracing.h"
 #include "bpf_telemetry.h"
+#include <uapi/linux/ptrace.h>
 
 BPF_HASH_MAP(error_map, u32, u32, 2);
 BPF_HASH_MAP(suppress_map, u32, u32, 2);
+BPF_HASH_MAP(shared_map, u32, u32, 1);
 
 #define E2BIG 7
 
@@ -30,6 +32,29 @@ int kprobe__vfs_open(int *ctx) {
 
     char buf[16];
     bpf_probe_read_with_telemetry(&buf, 16, (void *)0xdeadbeef);
+
+    return 0;
+}
+
+static int __always_inline is_telemetry_call(struct pt_regs *ctx) {
+    u32 cmd = PT_REGS_PARM3(ctx);
+    return cmd == 0xfafadead;
+};
+
+SEC("kprobe/do_vfs_ioctl")
+int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
+    if (!is_telemetry_call(ctx)) {
+        return 0;
+    }
+
+    u32 i = 0;
+    bpf_map_update_with_telemetry(shared_map, &i, &i, BPF_ANY);
+    i++;
+    bpf_map_update_with_telemetry(shared_map, &i, &i, BPF_ANY);
+    i++;
+    bpf_map_update_with_telemetry(shared_map, &i, &i, BPF_ANY);
+
+    // 2 E2BIG errors
 
     return 0;
 }
