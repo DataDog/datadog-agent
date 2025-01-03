@@ -158,7 +158,7 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
 
 HOOK_EXIT("do_rmdir")
 int rethook_do_rmdir(ctx_t *ctx) {
-    int retval = CTX_PARMRET(ctx, 2);
+    int retval = CTX_PARMRET(ctx);
     return sys_rmdir_ret(ctx, retval);
 }
 
