@@ -40,11 +40,11 @@ const (
 	pullImageGrpcMethod = "PullImage"
 	cacheValidity       = 2 * time.Second
 
-	ImageSizeQueryInterval = 10 * time.Minute
-	ImageCreateEvent       = "/images/create"
-	ImageUpdateEvent       = "/images/update"
-	ImageDeleteEvent       = "/images/delete"
-	ImageWildcardEvent     = "/images/*"
+	imageSizeQueryInterval = 10 * time.Minute
+	imageCreateEvent       = "/images/create"
+	imageUpdateEvent       = "/images/update"
+	imageDeleteEvent       = "/images/delete"
+	imageWildcardEvent     = "/images/*"
 )
 
 var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
@@ -299,14 +299,14 @@ func (c *ContainerdCheck) isEventConfigValid() bool {
 	}
 
 	hasImageEvents := map[string]bool{
-		ImageCreateEvent: false,
-		ImageUpdateEvent: false,
-		ImageDeleteEvent: false,
+		imageCreateEvent: false,
+		imageUpdateEvent: false,
+		imageDeleteEvent: false,
 	}
 
 	for _, filter := range c.instance.ContainerdFilters {
 		strippedFilter := strings.Trim(strings.TrimPrefix(filter, "topic=="), `"`)
-		if strippedFilter == ImageWildcardEvent {
+		if strippedFilter == imageWildcardEvent {
 			return true
 		}
 		if _, ok := hasImageEvents[strippedFilter]; ok {
@@ -322,7 +322,7 @@ func (c *ContainerdCheck) isEventConfigValid() bool {
 }
 
 func (c *ContainerdCheck) periodicImageSizeQuery() {
-	ticker := time.NewTicker(ImageSizeQueryInterval)
+	ticker := time.NewTicker(imageSizeQueryInterval)
 	defer ticker.Stop()
 
 	for range ticker.C {
