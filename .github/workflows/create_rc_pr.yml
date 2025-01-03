@@ -107,7 +107,7 @@ jobs:
                 MATRIX: ${{ matrix.value }}
               run: |
                 if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
-                  inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }} --patch-version
+                  inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT6_RELEASE_SLACK_WEBHOOK }} --patch-version
                 else
                   inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }}
                 fi
