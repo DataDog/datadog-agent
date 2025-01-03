@@ -125,6 +125,12 @@ func (fq *fileQuerier) len() int {
 	return len(fq.files)
 }
 
+func (fq *fileQuerier) clear() {
+	fq.files = nil
+	fq.pkgs = nil
+	fq.lastNegativeCache = nil
+}
+
 type fixedSizeQueue[T comparable] struct {
 	queue   []T
 	maxSize int
