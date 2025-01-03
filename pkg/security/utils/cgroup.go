@@ -68,7 +68,6 @@ func parseCgroupLine(line string) (string, string, string, error) {
 	return id, ctrl, path, nil
 }
 
-// parseProcControlGroupsData returns the cgroup membership with index 0 of the specified task.
 func parseProcControlGroupsData(data []byte, fnc func(string, string, string) bool) error {
 	data = bytes.TrimSpace(data)
 
@@ -113,7 +112,6 @@ func parseProcControlGroupsData(data []byte, fnc func(string, string, string) bo
 	return nil
 }
 
-// parseProcControlGroupsFunc returns the cgroup membership with index 0 of the specified task.
 func parseProcControlGroups(tgid, pid uint32, fnc func(string, string, string) bool) error {
 	data, err := os.ReadFile(CgroupTaskPath(tgid, pid))
 	if err != nil {
