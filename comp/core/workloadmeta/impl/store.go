@@ -502,6 +502,11 @@ func (w *workloadmeta) Reset(newEntities []wmdef.Entity, source wmdef.Source) {
 	w.Notify(events)
 }
 
+// IsInitialzed: If startCandidates is run at least once, return true.
+func (w *workloadmeta) IsInitialzed() bool {
+	return w.candidatesInited
+}
+
 func (w *workloadmeta) validatePushEvents(events []wmdef.Event) error {
 	for _, event := range events {
 		if event.Type != wmdef.EventTypeSet && event.Type != wmdef.EventTypeUnset {
@@ -584,7 +589,7 @@ func (w *workloadmeta) startCandidates(ctx context.Context) bool {
 		// next tick
 		delete(w.candidates, id)
 	}
-
+	w.candidatesInited = true
 	return len(w.candidates) == 0
 }
 
