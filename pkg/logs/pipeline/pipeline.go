@@ -13,8 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/compression/logs/def"
-	compressioncommon "github.com/DataDog/datadog-agent/pkg/compression"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"

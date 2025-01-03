@@ -15,13 +15,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
+	"github.com/DataDog/datadog-agent/comp/serializer/compressionfactory/selector"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -55,8 +55,8 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: common.ZlibKind},
-		"zstd": {kind: common.ZstdKind},
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -194,8 +194,8 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: common.ZlibKind},
-		"zstd": {kind: common.ZstdKind},
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -275,8 +275,8 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: common.ZlibKind},
-		"zstd": {kind: common.ZstdKind},
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

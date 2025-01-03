@@ -21,12 +21,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
+	"github.com/DataDog/datadog-agent/comp/serializer/compressionfactory/selector"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
 func TestMarshal(t *testing.T) {
@@ -173,8 +173,8 @@ func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: common.ZlibKind},
-		"zstd": {kind: common.ZstdKind},
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -197,8 +197,8 @@ func TestEventsSeveralPayloadsCreateMarshalersBySourceType(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: common.ZlibKind},
-		"zstd": {kind: common.ZstdKind},
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -259,8 +259,8 @@ func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: common.ZlibKind},
-		"zstd": {kind: common.ZstdKind},
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

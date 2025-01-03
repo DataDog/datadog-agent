@@ -12,12 +12,12 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
+	"github.com/DataDog/datadog-agent/comp/serializer/compressionfactory/selector"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -93,8 +93,8 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: common.ZlibKind},
-		"zstd": {kind: common.ZstdKind},
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -122,8 +122,8 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 		kind                string
 		maxUncompressedSize int
 	}{
-		"zlib": {kind: common.ZlibKind, maxUncompressedSize: 100},
-		"zstd": {kind: common.ZstdKind, maxUncompressedSize: 200},
+		"zlib": {kind: compression.ZlibKind, maxUncompressedSize: 100},
+		"zstd": {kind: compression.ZstdKind, maxUncompressedSize: 200},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -170,8 +170,8 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: common.ZlibKind},
-		"zstd": {kind: common.ZstdKind},
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -226,8 +226,8 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 		kind                string
 		maxUncompressedSize int
 	}{
-		"zlib": {kind: common.ZlibKind, maxUncompressedSize: 2000},
-		"zstd": {kind: common.ZstdKind, maxUncompressedSize: 2000},
+		"zlib": {kind: compression.ZlibKind, maxUncompressedSize: 2000},
+		"zstd": {kind: compression.ZstdKind, maxUncompressedSize: 2000},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -293,8 +293,8 @@ func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: common.ZlibKind},
-		"zstd": {kind: common.ZstdKind},
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

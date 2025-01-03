@@ -16,7 +16,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/compression/logs/def"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"

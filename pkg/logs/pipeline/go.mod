@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/logs/pipeline
 
-go 1.22.0
+go 1.23.3
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
@@ -13,8 +13,9 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../comp/logs/agent/config
-	github.com/DataDog/datadog-agent/comp/serializer/compression => ../../../comp/serializer/compression
-	github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl => ../../../comp/serializer/compression/compressionimpl
+	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory => ../../../comp/serializer/compressionfactory
+	github.com/DataDog/datadog-agent/comp/serializer/logscompression => ../../../comp/serializer/logscompression
+	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ../../../comp/serializer/metricscompression
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../config/env
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../config/mock
@@ -39,6 +40,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/status/health => ../../status/health
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../telemetry
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../util/backoff
+	github.com/DataDog/datadog-agent/pkg/util/compression => ../../util/compression
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../util/filesystem
@@ -62,7 +64,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/serializer/compression v0.60.1
+	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.56.0-rc.3
@@ -75,6 +77,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/status/health v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.56.0-rc.3
 	github.com/hashicorp/go-multierror v1.1.1
@@ -87,6 +90,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.59.0 // indirect

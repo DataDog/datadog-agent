@@ -31,9 +31,9 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/factory/fx"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/compression/logs/def"
-	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/logs/fx"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compressionfactory/fx"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"

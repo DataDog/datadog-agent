@@ -12,10 +12,10 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,7 +35,7 @@ type batchStrategy struct {
 	pipelineName string
 	serializer   Serializer
 	batchWait    time.Duration
-	compression  compression.Component
+	compression  compression.Compressor
 	stopChan     chan struct{} // closed when the goroutine has finished
 	clock        clock.Clock
 
@@ -55,7 +55,7 @@ func NewBatchStrategy(inputChan chan *message.Message,
 	maxBatchSize int,
 	maxContentSize int,
 	pipelineName string,
-	compression compression.Component,
+	compression compression.Compressor,
 	pipelineMonitor metrics.PipelineMonitor) Strategy {
 	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverless, flushWg, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), compression, pipelineMonitor)
 }
@@ -71,7 +71,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	maxContentSize int,
 	pipelineName string,
 	clock clock.Clock,
-	compression compression.Component,
+	compression compression.Compressor,
 	pipelineMonitor metrics.PipelineMonitor) Strategy {
 
 	return &batchStrategy{

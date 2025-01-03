@@ -17,10 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
+	"github.com/DataDog/datadog-agent/comp/serializer/compressionfactory/selector"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
 func payloadToString(payload []byte, cfg config.Component) string {
@@ -36,8 +36,8 @@ func TestCompressorSimple(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: common.ZlibKind},
-		"zstd": {kind: common.ZstdKind},
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -70,8 +70,8 @@ func TestCompressorAddItemErrCodeWithEmptyCompressor(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: common.ZlibKind},
-		"zstd": {kind: common.ZstdKind},
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -115,8 +115,8 @@ func TestOnePayloadSimple(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: common.ZlibKind},
-		"zstd": {kind: common.ZstdKind},
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -143,8 +143,8 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 		kind           string
 		maxPayloadSize int
 	}{
-		"zlib": {kind: common.ZlibKind, maxPayloadSize: 22},
-		"zstd": {kind: common.ZstdKind, maxPayloadSize: 90},
+		"zlib": {kind: compression.ZlibKind, maxPayloadSize: 22},
+		"zstd": {kind: compression.ZstdKind, maxPayloadSize: 90},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -196,8 +196,8 @@ func TestTwoPayload(t *testing.T) {
 		kind           string
 		maxPayloadSize int
 	}{
-		"zlib": {kind: common.ZlibKind, maxPayloadSize: 22},
-		"zstd": {kind: common.ZstdKind, maxPayloadSize: 70},
+		"zlib": {kind: compression.ZlibKind, maxPayloadSize: 22},
+		"zstd": {kind: compression.ZstdKind, maxPayloadSize: 70},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -225,8 +225,8 @@ func TestLockedCompressorProducesSamePayloads(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: common.ZlibKind},
-		"zstd": {kind: common.ZstdKind},
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -255,8 +255,8 @@ func TestBuildWithOnErrItemTooBigPolicyMetadata(t *testing.T) {
 		kind                       string
 		maxUncompressedPayloadSize int
 	}{
-		"zlib": {kind: common.ZlibKind, maxUncompressedPayloadSize: 40},
-		"zstd": {kind: common.ZstdKind, maxUncompressedPayloadSize: 170},
+		"zlib": {kind: compression.ZlibKind, maxUncompressedPayloadSize: 40},
+		"zstd": {kind: compression.ZstdKind, maxUncompressedPayloadSize: 170},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
