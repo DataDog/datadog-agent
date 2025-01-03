@@ -1286,6 +1286,7 @@ func telemetry(config pkgconfigmodel.Setup) {
 
 	// Agent Telemetry
 	config.BindEnvAndSetDefault("agent_telemetry.enabled", true)
+	config.BindEnvAndSetDefault("agent_telemetry.compression_level", 1)
 	bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
 }
 
