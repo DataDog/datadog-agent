@@ -5,16 +5,33 @@
 
 package profiledefinition
 
+import "github.com/invopop/jsonschema"
+
 // MetadataDeviceResource is the device resource name
 const MetadataDeviceResource = "device"
 
 // MetadataConfig holds configs per resource type
-type MetadataConfig map[string]MetadataResourceConfig
+type MetadataConfig ListMap[MetadataResourceConfig]
+
+// JSONSchema defines the JSON schema for MetadataConfig
+func (mc MetadataConfig) JSONSchema() *jsonschema.Schema {
+	return ListMap[MetadataResourceConfig](mc).JSONSchema()
+}
+
+// MarshalJSON marshals the metadata config
+func (mc MetadataConfig) MarshalJSON() ([]byte, error) {
+	return ListMap[MetadataResourceConfig](mc).MarshalJSON()
+}
+
+// UnmarshalJSON unmarshals the metadata config
+func (mc *MetadataConfig) UnmarshalJSON(data []byte) error {
+	return (*ListMap[MetadataResourceConfig])(mc).UnmarshalJSON(data)
+}
 
 // MetadataResourceConfig holds configs for a metadata resource
 type MetadataResourceConfig struct {
-	Fields map[string]MetadataField `yaml:"fields" json:"fields"`
-	IDTags MetricTagConfigList      `yaml:"id_tags,omitempty" json:"id_tags,omitempty"`
+	Fields ListMap[MetadataField] `yaml:"fields" json:"fields"`
+	IDTags MetricTagConfigList    `yaml:"id_tags,omitempty" json:"id_tags,omitempty"`
 }
 
 // MetadataField holds configs for a metadata field
