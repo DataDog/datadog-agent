@@ -272,7 +272,7 @@ def _build_msi(ctx, env, outdir, name, allowlist):
 
 
 def _msi_output_name(env, testing=False):
-    testing_suffix = "testing-" if testing else ""
+    testing_suffix = "upgrade-test-" if testing else ""
     if _is_fips_mode(env):
         return f"datadog-fips-agent-{testing_suffix}{env['PACKAGE_VERSION']}-1-x86_64"
     else:
