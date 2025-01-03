@@ -164,14 +164,14 @@ func (c *ntmConfig) getTreeBySource(source model.Source) (InnerNode, error) {
 	case model.SourceCLI:
 		return c.cli, nil
 	}
-	return nil, fmt.Errorf("unknown source tree: %s", source)
+	return nil, fmt.Errorf("invalid source tree: %s", source)
 }
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	tree, err := c.getTreeBySource(source)
 	if err != nil {
-		log.Errorf("unknown source: %s", source)
+		log.Errorf("Set invalid source: %s", source)
 		return
 	}
 
@@ -621,6 +621,10 @@ func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
 
+	if !c.isReady() {
+		return fmt.Errorf("attempt to MergeConfig before config is constructed")
+	}
+
 	content, err := io.ReadAll(in)
 	if err != nil {
 		return err
@@ -781,11 +785,6 @@ func (c *ntmConfig) ConfigFileUsed() string {
 	c.RLock()
 	defer c.RUnlock()
 	return c.configFile
-}
-
-// SetTypeByDefaultValue is a no-op
-func (c *ntmConfig) SetTypeByDefaultValue(_in bool) {
-	// do nothing: nodetreemodel always does this conversion
 }
 
 // BindEnvAndSetDefault binds an environment variable and sets a default for the given key
