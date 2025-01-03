@@ -106,7 +106,7 @@ int hook_do_mkdirat(ctx_t *ctx) {
 
 HOOK_EXIT("do_mkdirat")
 int rethook_do_mkdirat(ctx_t *ctx) {
-    int retval = CTX_PARMRET(ctx, 3);
+    int retval = CTX_PARMRET(ctx);
     return sys_mkdir_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
