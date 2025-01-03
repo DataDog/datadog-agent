@@ -26,6 +26,7 @@ func TestWLANOK(t *testing.T) {
 			Noise:           20,
 			TransmitRate:    4.0,
 			HardwareAddress: "hardware-address",
+			ActivePHYMode:   6,
 		}, nil
 	}
 
@@ -61,6 +62,7 @@ func TestWLANEmptySSIDisUnknown(t *testing.T) {
 			Noise:           20,
 			TransmitRate:    4.0,
 			HardwareAddress: "hardware-address",
+			ActivePHYMode:   6,
 		}, nil
 	}
 
@@ -96,6 +98,7 @@ func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
 			Noise:           20,
 			TransmitRate:    4.0,
 			HardwareAddress: "hardware-address",
+			ActivePHYMode:   6,
 		}, nil
 	}
 
@@ -131,6 +134,7 @@ func TestWLANEmptySSIDandBSSID(t *testing.T) {
 			Noise:           20,
 			TransmitRate:    4.0,
 			HardwareAddress: "hardware-address",
+			ActivePHYMode:   6,
 		}, nil
 	}
 
@@ -166,6 +170,7 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 			Noise:           20,
 			TransmitRate:    4.0,
 			HardwareAddress: "hardware-address",
+			ActivePHYMode:   6,
 		}, nil
 	}
 
@@ -197,6 +202,7 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 			Noise:           20,
 			TransmitRate:    4.0,
 			HardwareAddress: "hardware-address",
+			ActivePHYMode:   6,
 		}, nil
 	}
 
@@ -213,6 +219,7 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 			Noise:           20,
 			TransmitRate:    4.0,
 			HardwareAddress: "hardware-address",
+			ActivePHYMode:   6,
 		}, nil
 	}
 
@@ -236,6 +243,7 @@ func TestWLANChannelSwapEventsChannelZero(t *testing.T) {
 			Noise:           20,
 			TransmitRate:    4.0,
 			HardwareAddress: "hardware-address",
+			ActivePHYMode:   6,
 		}, nil
 	}
 
@@ -266,6 +274,7 @@ func TestWLANChannelSwapEventsChannelZero(t *testing.T) {
 			Noise:           20,
 			TransmitRate:    4.0,
 			HardwareAddress: "hardware-address",
+			ActivePHYMode:   6,
 		}, nil
 	}
 
@@ -282,6 +291,7 @@ func TestWLANChannelSwapEventsChannelZero(t *testing.T) {
 			Noise:           20,
 			TransmitRate:    4.0,
 			HardwareAddress: "hardware-address",
+			ActivePHYMode:   6,
 		}, nil
 	}
 
@@ -301,6 +311,7 @@ func TestWLANRoamingEvents(t *testing.T) {
 			Noise:           20,
 			TransmitRate:    4.0,
 			HardwareAddress: "hardware-address",
+			ActivePHYMode:   6,
 		}, nil
 	}
 
@@ -331,6 +342,7 @@ func TestWLANRoamingEvents(t *testing.T) {
 			Noise:           20,
 			TransmitRate:    4.0,
 			HardwareAddress: "hardware-address",
+			ActivePHYMode:   6,
 		}, nil
 	}
 
@@ -349,6 +361,7 @@ func TestWLANRoamingEvents(t *testing.T) {
 			Noise:           20,
 			TransmitRate:    4.0,
 			HardwareAddress: "hardware-address",
+			ActivePHYMode:   6,
 		}, nil
 	}
 
@@ -374,6 +387,7 @@ func TestWLANNoMetricsWhenWiFiInterfaceInactive(t *testing.T) {
 			Noise:           20,
 			TransmitRate:    4.0,
 			HardwareAddress: "hardware-address",
+			ActivePHYMode:   0,
 		}, nil
 	}
 

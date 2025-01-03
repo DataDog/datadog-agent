@@ -31,5 +31,6 @@ func GetWiFiInfo() (WiFiInfo, error) {
 		Noise:           int(info.noise),
 		TransmitRate:    float64(info.transmitRate),
 		HardwareAddress: C.GoString(info.hardwareAddress),
+		ActivePHYMode:   int(info.activePHYMode),
 	}, nil
 }

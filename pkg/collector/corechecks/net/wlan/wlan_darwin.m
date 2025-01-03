@@ -93,6 +93,7 @@ WiFiInfo GetWiFiInformation() {
     info.noise = (int)wifiInterface.noiseMeasurement;
     info.transmitRate = wifiInterface.transmitRate;
     info.hardwareAddress = [[wifiInterface hardwareAddress] UTF8String];
-
+    info.activePHYMode = (int)wifiInterface.activePHYMode;
+    
     return info;
 }

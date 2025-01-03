@@ -32,6 +32,8 @@ type WiFiInfo struct {
 	Noise           int
 	TransmitRate    float64
 	HardwareAddress string
+	// See: https://developer.apple.com/documentation/corewlan/cwphymode?language=objc
+	ActivePHYMode int
 }
 
 // WLANCheck monitors the status of the WLAN interface
@@ -56,8 +58,12 @@ func (c *WLANCheck) Run() error {
 	wifiInfo, err := getWiFiInfo()
 	if err != nil {
 		log.Error(err)
-		sender.Commit()
 		return err
+	}
+
+	if wifiInfo.ActivePHYMode == 0 {
+		log.Warn("No active Wi-Fi interface detected: ActivePHYMode is none.")
+		return nil
 	}
 
 	ssid := wifiInfo.Ssid
