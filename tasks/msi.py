@@ -271,11 +271,12 @@ def _build_msi(ctx, env, outdir, name, allowlist):
     sign_file(ctx, out_file)
 
 
-def _msi_output_name(env):
+def _msi_output_name(env, testing=False):
+    testing_suffix = "testing-" if testing else ""
     if _is_fips_mode(env):
-        return f"datadog-fips-agent-{env['PACKAGE_VERSION']}-1-x86_64"
+        return f"datadog-fips-agent-{testing_suffix}{env['PACKAGE_VERSION']}-1-x86_64"
     else:
-        return f"datadog-agent-{env['PACKAGE_VERSION']}-1-x86_64"
+        return f"datadog-agent-{testing_suffix}{env['PACKAGE_VERSION']}-1-x86_64"
 
 
 @task
@@ -326,20 +327,18 @@ def build(
     # if the optional upgrade test helper exists then build that too
     if build_upgrade:
         print("Building optional upgrade test helper")
-
         # Build the optional upgrade test helper
         upgrade_env = env.copy()
         version = _create_version_from_match(VERSION_RE.search(env['PACKAGE_VERSION']))
         next_version = version.next_version(bump_patch=True)
         upgrade_env['PACKAGE_VERSION'] = upgrade_env['PACKAGE_VERSION'].replace(str(version), str(next_version))
-
         _build_wxs(
             ctx,
             upgrade_env,
             build_outdir,
             'AgentCustomActions.CA.dll',
         )
-        msi_name = _msi_output_name(upgrade_env)
+        msi_name = _msi_output_name(upgrade_env, True)
         print(os.path.join(build_outdir, msi_name + ".wxs"))
         with timed("Building optional MSI"):
             _build_msi(ctx, env, build_outdir, msi_name, DATADOG_AGENT_MSI_ALLOW_LIST)
