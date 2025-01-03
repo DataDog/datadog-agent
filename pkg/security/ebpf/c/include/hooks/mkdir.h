@@ -75,6 +75,10 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_t
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sure we grab it now
     set_file_inode(syscall->mkdir.dentry, &syscall->mkdir.file, 0);
 
+    if (retval && !syscall->mkdir.file.path_key.ino) {
+        syscall->mkdir.file.path_key.mount_id = 0; // do not try resolving the path
+    }
+
     syscall->resolver.key = syscall->mkdir.file.path_key;
     syscall->resolver.dentry = syscall->mkdir.dentry;
     syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
@@ -102,7 +106,7 @@ int hook_do_mkdirat(ctx_t *ctx) {
 
 HOOK_EXIT("do_mkdirat")
 int rethook_do_mkdirat(ctx_t *ctx) {
-    int retval = CTX_PARMRET(ctx, 3);
+    int retval = CTX_PARMRET(ctx);
     return sys_mkdir_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
