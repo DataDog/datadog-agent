@@ -15,47 +15,27 @@ int __attribute__((always_inline)) read_sock_and_send_event(ctx_t * ctx, struct 
     }
 
     // Read the listening port and source address
+    bpf_probe_read(&event.port, sizeof(event.port), &sockcommon->skc_num);
+    event.port = htons(event.port);
+
     if (event.family == AF_INET) {
-        bpf_probe_read(&event.port, sizeof(event.port), &sockcommon->skc_num);
         bpf_probe_read(&event.addr[0], sizeof(event.addr[0]), &sockcommon->skc_daddr);
     } else if (event.family == AF_INET6) {
-        bpf_probe_read(&event.port, sizeof(event.port), &sockcommon->skc_num);
         bpf_probe_read((void*)&event.addr, sizeof(sockcommon->skc_v6_daddr), &sockcommon->skc_v6_daddr);
     }
-
-    event.port = htons(event.port);
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
-
     send_event(ctx, EVENT_ACCEPT, event);
 
     return 0;
 }
 
-#ifdef USE_FENTRY
-
-HOOK_EXIT("inet_accept")
-int hook_accept(ctx_t *ctx) {
-    struct file * f = (struct file *)CTX_PARMRET(ctx, 3);
-
-    if(IS_ERR(f)) {
-        return 0;
-    }
-
-    struct socket *sck = (struct socket*)CTX_PARM2(ctx);
-    struct sock *sock = get_sock_from_socket(sck);
-    return read_sock_and_send_event(ctx, sock);
-}
-
-#else
-
 HOOK_EXIT("inet_csk_accept")
 int hook_accept(ctx_t *ctx) {
-    struct sock *sock = (struct sock*)PT_REGS_RC(ctx);
+    struct sock *sock = (struct sock*)CTX_PARMRET(ctx);
     return read_sock_and_send_event(ctx, sock);
 }
 
-#endif /* USE_FENTRY */
 #endif /* _HOOKS_ACCEPT_H_ */

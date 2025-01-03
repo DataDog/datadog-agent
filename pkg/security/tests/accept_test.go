@@ -10,17 +10,14 @@ package tests
 
 import (
 	"context"
-	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/nettest"
 	"golang.org/x/sys/unix"
 	"math/rand/v2"
-	"net"
 	"strconv"
 	"testing"
-	"time"
 )
 
 func TestAcceptEvent(t *testing.T) {
@@ -52,14 +49,9 @@ func TestAcceptEvent(t *testing.T) {
 
 	t.Run("accept-af-inet-any-tcp-success", func(t *testing.T) {
 		port := rand.IntN(MAX-MIX) + MIX
-		go func() {
-			err := connectTo("AF_INET", "127.0.0.1", strconv.Itoa(port))
-			if err != nil {
-				t.Error(err)
-			}
-		}()
+
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET", "0.0.0.0", strconv.Itoa(port))
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET", "0.0.0.0", "127.0.0.1", strconv.Itoa(port))
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_accept_af_inet")
 			assert.Equal(t, "accept", event.GetType(), "wrong event type")
@@ -77,14 +69,9 @@ func TestAcceptEvent(t *testing.T) {
 		}
 
 		port := rand.IntN(MAX-MIX) + MIX
-		go func() {
-			err := connectTo("AF_INET6", "::1", strconv.Itoa(port))
-			if err != nil {
-				t.Error(err)
-			}
-		}()
+
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET6", "::", strconv.Itoa(port))
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET6", "::", "::1", strconv.Itoa(port))
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_accept_af_inet6")
 			assert.Equal(t, "accept", event.GetType(), "wrong event type")
@@ -95,34 +82,4 @@ func TestAcceptEvent(t *testing.T) {
 			test.validateAcceptSchema(t, event)
 		})
 	})
-}
-
-func connectTo(af string, address string, port string) error {
-	MAXRetries := 10
-	var conn net.Conn
-
-	fmt.Printf("Connecting to: %s %s %s\n", af, address, port)
-
-	if af == "AF_INET6" {
-		address = "[" + address + "]"
-	} else if af != "AF_INET" {
-		return fmt.Errorf("unknown address family %s", af)
-	}
-
-	attempts := 0
-	for ; attempts < MAXRetries; attempts++ {
-		var err error
-		conn, err = net.DialTimeout("tcp", address+":"+port, 1000*time.Millisecond)
-		time.Sleep(100 * (time.Duration(attempts) + 1) * time.Millisecond)
-		if err == nil {
-			break
-		}
-	}
-	if attempts == MAXRetries {
-		return fmt.Errorf("timed out waiting for connection to %s", address+":"+port)
-	}
-	if conn != nil {
-		_ = conn.Close()
-	}
-	return nil
 }
