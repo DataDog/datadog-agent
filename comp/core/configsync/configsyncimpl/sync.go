@@ -17,16 +17,17 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func (cs *configSync) updater() {
+func (cs *configSync) updater() error {
+	cs.Log.Debugf("Pulling new configuration from agent-core at '%s'", cs.url.String())
 	cfg, err := fetchConfig(cs.ctx, cs.client, cs.Authtoken.Get(), cs.url.String())
 	if err != nil {
 		if cs.connected {
-			cs.Log.Warnf("Failed to fetch config from core agent: %v", err)
+			cs.Log.Warnf("Loosed connectivity to core-agent to fetch config: %v", err)
 			cs.connected = false
 		} else {
 			cs.Log.Debugf("Failed to fetch config from core agent: %v", err)
 		}
-		return
+		return err
 	}
 
 	if cs.connected {
@@ -62,6 +63,7 @@ func (cs *configSync) updater() {
 			updateConfig(cs.Config, key, value)
 		}
 	}
+	return nil
 }
 
 func (cs *configSync) runWithInterval(refreshInterval time.Duration) {
@@ -80,7 +82,7 @@ func (cs *configSync) runWithChan(ch <-chan time.Time) {
 		case <-cs.ctx.Done():
 			return
 		case <-ch:
-			cs.updater()
+			_ = cs.updater()
 		}
 	}
 }
