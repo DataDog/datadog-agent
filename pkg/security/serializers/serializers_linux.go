@@ -586,6 +586,18 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 			DestinationPath: &mountPointPath,
 			FSType:          &fstype,
 		}
+	case model.FileMkdirEventType:
+		path := e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc)
+		mode := e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc)
+		return &SyscallArgsSerializer{
+			Path: &path,
+			Mode: &mode,
+		}
+	case model.FileRmdirEventType:
+		path := e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc)
+		return &SyscallArgsSerializer{
+			Path: &path,
+		}
 	}
 
 	return nil
@@ -604,6 +616,8 @@ type SyscallContextSerializer struct {
 	Rename *SyscallArgsSerializer `json:"rename,omitempty"`
 	Utimes *SyscallArgsSerializer `json:"utimes,omitempty"`
 	Mount  *SyscallArgsSerializer `json:"mount,omitempty"`
+	Mkdir  *SyscallArgsSerializer `json:"mkdir,omitempty"`
+	Rmdir  *SyscallArgsSerializer `json:"rmdir,omitempty"`
 }
 
 func newSyscallContextSerializer(sc *model.SyscallContext, e *model.Event, attachEventypeCb func(*SyscallContextSerializer, *SyscallArgsSerializer)) *SyscallContextSerializer {
@@ -1279,11 +1293,18 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Mkdir.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Mkdir.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
+			ctx.Mkdir = args
+		})
+
 	case model.FileRmdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Rmdir.File, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Rmdir.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Rmdir.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
+			ctx.Rmdir = args
+		})
 	case model.FileChdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Chdir.File, event),
