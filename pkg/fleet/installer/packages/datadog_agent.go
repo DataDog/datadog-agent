@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -143,8 +144,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	}
 
 	// write installinfo before start, or the agent could write it
-	// TODO: add installer version properly
-	if err = installinfo.WriteInstallInfo("installer_package", "manual_update"); err != nil {
+	if err = installinfo.WriteInstallInfo("installer", fmt.Sprintf("installer-%s", version.AgentVersion), "manual_update"); err != nil {
 		return fmt.Errorf("failed to write install info: %v", err)
 	}
 
