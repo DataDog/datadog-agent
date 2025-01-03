@@ -91,7 +91,7 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
         ]
         print(f"Pulumi output:\n============\n{connection_message}\n============\n")
         # extract username and address from connection message
-        host = connection_message.split(" ")[0]
+        host = connection_message.split()[0]
 
     # add host to known hosts
     ctx.run(f"ssh-keyscan -H {host} >> ~/.ssh/known_hosts")
