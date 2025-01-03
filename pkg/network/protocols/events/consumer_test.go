@@ -8,7 +8,6 @@
 package events
 
 import (
-	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -18,13 +17,10 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/ringbuf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -38,7 +34,7 @@ func TestConsumer(t *testing.T) {
 
 	const numEvents = 100
 	c := config.New()
-	program, err := newEBPFProgram(c)
+	program, err := NewEBPFProgram(c)
 	require.NoError(t, err)
 
 	var mux sync.Mutex
@@ -51,7 +47,7 @@ func TestConsumer(t *testing.T) {
 		}
 	}
 
-	consumer, err := NewConsumer("test", program, callback)
+	consumer, err := NewConsumer("test", program.Manager, callback)
 	require.NoError(t, err)
 	consumer.Start()
 
@@ -78,6 +74,33 @@ func TestConsumer(t *testing.T) {
 	}
 }
 
+func TestInvalidBatchCountMetric(t *testing.T) {
+	kversion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if minVersion := kernel.VersionCode(4, 14, 0); kversion < minVersion {
+		t.Skipf("package not supported by kernels < %s", minVersion)
+	}
+
+	c := config.New()
+	program, err := NewEBPFProgram(c)
+	require.NoError(t, err)
+	t.Cleanup(func() { program.Stop(manager.CleanAll) })
+
+	consumer, err := NewConsumer("test", program.Manager, func([]uint64) {})
+	require.NoError(t, err)
+
+	// We are creating a raw sample with a data length of 4, which is smaller than sizeOfBatch
+	// and would be considered an invalid batch.
+	RecordSample(c, consumer, []byte("test"))
+
+	consumer.Start()
+	t.Cleanup(func() { consumer.Stop() })
+	require.Eventually(t, func() bool {
+		// Wait for the consumer to process the invalid batch.
+		return consumer.invalidBatchCount.Get() == 1
+	}, 5*time.Second, 100*time.Millisecond)
+}
+
 type eventGenerator struct {
 	// map used for coordinating test with eBPF program space
 	testMap *ebpf.Map
@@ -86,7 +109,7 @@ type eventGenerator struct {
 	testFile *os.File
 }
 
-func newEventGenerator(program *manager.Manager, t *testing.T) *eventGenerator {
+func newEventGenerator(program *ddebpf.Manager, t *testing.T) *eventGenerator {
 	m, _, _ := program.GetMap("test")
 	require.NotNilf(t, m, "couldn't find test map")
 
@@ -125,75 +148,4 @@ func (e *eventGenerator) Generate(eventID uint64) error {
 
 func (e *eventGenerator) Stop() {
 	e.testFile.Close()
-}
-
-func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
-	bc, err := bytecode.GetReader(c.BPFDir, "usm_events_test-debug.o")
-	if err != nil {
-		return nil, err
-	}
-	defer bc.Close()
-
-	m := &manager.Manager{
-		Probes: []*manager.Probe{
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tracepoint__syscalls__sys_enter_write",
-				},
-			},
-		},
-	}
-	options := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		ActivatedProbes: []manager.ProbesSelector{
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tracepoint__syscalls__sys_enter_write",
-				},
-			},
-		},
-		ConstantEditors: []manager.ConstantEditor{
-			{
-				Name:  "test_monitoring_enabled",
-				Value: uint64(1),
-			},
-		},
-	}
-
-	Configure(config.New(), "test", m, &options)
-	err = m.InitWithOptions(bc, options)
-	if err != nil {
-		return nil, err
-	}
-
-	return m, nil
-}
-
-func TestInvalidBatchCountMetric(t *testing.T) {
-	kversion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if minVersion := kernel.VersionCode(4, 14, 0); kversion < minVersion {
-		t.Skipf("package not supported by kernels < %s", minVersion)
-	}
-
-	program, err := newEBPFProgram(config.New())
-	require.NoError(t, err)
-
-	ringBufferHandler := ddebpf.NewRingBufferHandler(1)
-	ringBufferHandler.RecordHandler(&ringbuf.Record{
-		RawSample: []byte("test"),
-	}, nil, nil)
-
-	consumer, err := NewConsumer("test", program, func(_ []uint64) {})
-	require.NoError(t, err)
-	consumer.handler = ringBufferHandler
-
-	consumer.Start()
-	program.Stop(manager.CleanAll)
-	consumer.Stop()
-
-	require.Equalf(t, int(consumer.invalidBatchCount.Get()), 1, "invalidBatchCount should be greater than 0")
 }

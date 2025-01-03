@@ -7,14 +7,23 @@ package nodetreemodel
 
 import (
 	"maps"
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mohae/deepcopy"
 	"github.com/spf13/cast"
-	"golang.org/x/exp/slices"
 )
+
+func (c *ntmConfig) leafAtPath(key string) LeafNode {
+	if !c.isReady() {
+		log.Errorf("attempt to read key before config is constructed: %s", key)
+		return missingLeaf
+	}
+
+	return c.leafAtPathFromNode(key, c.root)
+}
 
 // GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
 // 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
@@ -71,16 +80,50 @@ func (c *ntmConfig) GetProxies() *model.Proxy {
 	return c.proxies
 }
 
+func (c *ntmConfig) inferTypeFromDefault(key string, value interface{}) (interface{}, error) {
+	// Viper infer the type from the default value for Get. This reproduce the same behavior.
+	// Once all settings have a default value we could move this logic where we load data into the config rather
+	// than out.
+	defaultNode := c.leafAtPathFromNode(key, c.defaults)
+	if defaultNode != missingLeaf {
+		switch defaultNode.Get().(type) {
+		case bool:
+			return cast.ToBoolE(value)
+		case string:
+			return cast.ToStringE(value)
+		case int32, int16, int8, int:
+			return cast.ToIntE(value)
+		case int64:
+			return cast.ToInt64E(value)
+		case float64, float32:
+			return cast.ToFloat64E(value)
+		case time.Time:
+			return cast.ToTimeE(value)
+		case time.Duration:
+			return cast.ToDurationE(value)
+		case []string:
+			return cast.ToStringSliceE(value)
+		}
+	}
+
+	// NOTE: should only need to deepcopy for `Get`, because it can be an arbitrary value,
+	// and we shouldn't ever return complex types like maps and slices that could be modified
+	// by callers accidentally or on purpose. By copying, the caller may modify the result safetly
+	return deepcopy.Copy(value), nil
+}
+
 // Get returns a copy of the value for the given key
 func (c *ntmConfig) Get(key string) interface{} {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
 	val := c.leafAtPath(key).Get()
-	// NOTE: should only need to deepcopy for `Get`, because it can be an arbitrary value,
-	// and we shouldn't ever return complex types like maps and slices that could be modified
-	// by callers accidentally or on purpose. By copying, the caller may modify the result safetly
-	return deepcopy.Copy(val)
+
+	val, err := c.inferTypeFromDefault(key, val)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
 }
 
 // GetAllSources returns all values for a key for each source in sorted from lower to higher priority

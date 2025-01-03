@@ -21,9 +21,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
 )
 
 type ECSEC2Suite struct {
@@ -34,7 +35,7 @@ type ecsCPUStressEnv struct {
 	environments.ECS
 }
 
-func ecsEC2CPUStressProvisioner(runInCoreAgent bool) e2e.PulumiEnvRunFunc[ecsCPUStressEnv] {
+func ecsEC2CPUStressProvisioner(runInCoreAgent bool) provisioners.PulumiEnvRunFunc[ecsCPUStressEnv] {
 	return func(ctx *pulumi.Context, env *ecsCPUStressEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -65,7 +66,7 @@ func TestECSEC2TestSuite(t *testing.T) {
 	t.Parallel()
 	s := ECSEC2Suite{}
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
-		e2e.NewTypedPulumiProvisioner("ecsEC2CPUStress", ecsEC2CPUStressProvisioner(false), nil))}
+		provisioners.NewTypedPulumiProvisioner("ecsEC2CPUStress", ecsEC2CPUStressProvisioner(false), nil))}
 
 	e2e.Run(t, &s, e2eParams...)
 }
@@ -91,14 +92,14 @@ func (s *ECSEC2Suite) TestProcessCheck() {
 // This is duplicated as the tests have been flaky. This may be due to how pulumi is handling the provisioning of
 // ecs tasks.
 type ECSEC2CoreAgentSuite struct {
-	ECSEC2Suite
+	e2e.BaseSuite[ecsCPUStressEnv]
 }
 
 func TestECSEC2CoreAgentSuite(t *testing.T) {
 	t.Parallel()
 	s := ECSEC2CoreAgentSuite{}
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
-		e2e.NewTypedPulumiProvisioner("ecsEC2CoreAgentCPUStress", ecsEC2CPUStressProvisioner(true), nil))}
+		provisioners.NewTypedPulumiProvisioner("ecsEC2CoreAgentCPUStress", ecsEC2CPUStressProvisioner(true), nil))}
 
 	e2e.Run(t, &s, e2eParams...)
 }

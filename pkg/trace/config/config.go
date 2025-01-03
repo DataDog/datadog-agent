@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -445,6 +446,9 @@ type AgentConfig struct {
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
 
+	// ContainerIDFromOriginInfo ...
+	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-"`
+
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
 
@@ -460,6 +464,10 @@ type AgentConfig struct {
 	// Azure container apps tags, in the form of a comma-separated list of
 	// key-value pairs, starting with a comma
 	AzureContainerAppTags string
+
+	// GetAgentAuthToken retrieves an auth token to communicate with other agent processes
+	// Function will be nil if in an environment without an auth token
+	GetAgentAuthToken func() string `json:"-"`
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.

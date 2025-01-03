@@ -11,15 +11,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
@@ -27,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -44,6 +44,7 @@ type Check struct {
 	discovery                  *discovery.Discovery
 	sessionFactory             session.Factory
 	workerRunDeviceCheckErrors *atomic.Uint64
+	agentConfig                config.Component
 }
 
 // Run executes the check
@@ -155,10 +156,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	}
 
 	if c.config.IsDiscovery() {
-		c.discovery = discovery.NewDiscovery(c.config, c.sessionFactory)
+		c.discovery = discovery.NewDiscovery(c.config, c.sessionFactory, c.agentConfig)
 		c.discovery.Start()
 	} else {
-		c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress, c.sessionFactory)
+		c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress, c.sessionFactory, c.agentConfig)
 		if err != nil {
 			return fmt.Errorf("failed to create device check: %s", err)
 		}
@@ -196,14 +197,17 @@ func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory(agentConfig config.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
+		return newCheck(agentConfig)
+	})
 }
 
-func newCheck() check.Check {
+func newCheck(agentConfig config.Component) check.Check {
 	return &Check{
 		CheckBase:                  core.NewCheckBase(common.SnmpIntegrationName),
 		sessionFactory:             session.NewGosnmpSession,
 		workerRunDeviceCheckErrors: atomic.NewUint64(0),
+		agentConfig:                agentConfig,
 	}
 }

@@ -9,8 +9,8 @@ import (
 	"context"
 	"strconv"
 
-	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -66,7 +66,7 @@ func (f *FakeTagger) SetTags(entityID types.EntityID, source string, low, orch, 
 
 // SetGlobalTags allows to set tags in store for the global entity
 func (f *FakeTagger) SetGlobalTags(low, orch, high, std []string) {
-	f.SetTags(taggercommon.GetGlobalEntityID(), "static", low, orch, high, std)
+	f.SetTags(types.GetGlobalEntityID(), "static", low, orch, high, std)
 }
 
 // Tagger interface
@@ -110,7 +110,7 @@ func (f *FakeTagger) Tag(entityID types.EntityID, cardinality types.TagCardinali
 // This function exists in order not to break backward compatibility with rtloader and python
 // integrations using the tagger
 func (f *FakeTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
-	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	prefix, id, err := types.ExtractPrefixAndID(entity)
 	if err != nil {
 		return nil, err
 	}
@@ -119,9 +119,14 @@ func (f *FakeTagger) LegacyTag(entity string, cardinality types.TagCardinality) 
 	return f.Tag(entityID, cardinality)
 }
 
+// GenerateContainerIDFromOriginInfo fake implementation
+func (f *FakeTagger) GenerateContainerIDFromOriginInfo(origindetection.OriginInfo) (string, error) {
+	return "", nil
+}
+
 // GlobalTags fake implementation
 func (f *FakeTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
-	return f.Tag(taggercommon.GetGlobalEntityID(), cardinality)
+	return f.Tag(types.GetGlobalEntityID(), cardinality)
 }
 
 // AccumulateTagsFor fake implementation

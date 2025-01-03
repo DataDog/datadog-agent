@@ -131,10 +131,11 @@ type TopologyLinkSide struct {
 
 // TopologyLinkMetadata contains topology interface to interface links metadata
 type TopologyLinkMetadata struct {
-	ID         string            `json:"id"`
-	SourceType string            `json:"source_type"`
-	Local      *TopologyLinkSide `json:"local"`
-	Remote     *TopologyLinkSide `json:"remote"`
+	ID          string            `json:"id"`
+	SourceType  string            `json:"source_type"`
+	Integration string            `json:"integration,omitempty"`
+	Local       *TopologyLinkSide `json:"local"`
+	Remote      *TopologyLinkSide `json:"remote"`
 }
 
 // NetflowExporter contains netflow exporters info

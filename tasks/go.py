@@ -78,11 +78,16 @@ def run_golangci_lint(
             concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
             tags_arg = " ".join(sorted(set(tags)))
             timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
-            return ctx.run(
+            res = ctx.run(
                 f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
                 env=env,
                 warn=True,
             )
+            # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
+            # for some reason this becomes -2 here
+            if res is not None and (res.exited == -2 or res.exited == 130):
+                raise KeyboardInterrupt()
+            return res
 
         target_path = Path(module_path) / target
         result, time_result = TimedOperationResult.run(
@@ -217,6 +222,7 @@ def generate_protobuf(ctx):
         'workloadmeta': (False, False),
         'languagedetection': (False, False),
         'remoteagent': (False, False),
+        'autodiscovery': (False, False),
     }
 
     # maybe put this in a separate function
@@ -410,6 +416,11 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
     check_valid_mods(ctx)
     with generate_dummy_package(ctx, test_folder) as dummy_folder:
         errors_found = []
+        ctx.run("go work sync")
+        res = ctx.run("git diff --exit-code **/go.mod **/go.sum", warn=True)
+        if res.exited is None or res.exited > 0:
+            errors_found.append("modules dependencies are out of sync, please run go work sync")
+
         for mod in get_default_modules().values():
             with ctx.cd(mod.full_path()):
                 ctx.run("go mod tidy")
@@ -476,7 +487,7 @@ def tidy(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.22.8 linux/amd64"
+    # result is like "go version go1.23.3 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

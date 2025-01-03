@@ -8,14 +8,12 @@
 package server
 
 import (
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"go.uber.org/fx"
 
@@ -40,7 +38,7 @@ import (
 	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // This is a copy of the serverDeps struct, but without the server field.
@@ -54,7 +52,7 @@ type depsWithoutServer struct {
 	Replay        replay.Component
 	PidMap        pidmap.Component
 	Debug         serverdebug.Component
-	WMeta         optional.Option[workloadmeta.Component]
+	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
 }
 
@@ -67,7 +65,7 @@ type serverDeps struct {
 	Replay        replay.Component
 	PidMap        pidmap.Component
 	Debug         serverdebug.Component
-	WMeta         optional.Option[workloadmeta.Component]
+	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
 	Server        Component
 }
@@ -77,10 +75,6 @@ func fulfillDeps(t testing.TB) serverDeps {
 }
 
 func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{}) serverDeps {
-	// TODO: https://datadoghq.atlassian.net/browse/AMLII-1948
-	if runtime.GOOS == "darwin" {
-		flake.Mark(t)
-	}
 	return fxutil.Test[serverDeps](t, fx.Options(
 		core.MockBundle(),
 		serverdebugimpl.MockModule(),

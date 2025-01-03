@@ -249,12 +249,15 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 			assert.Equal(t, eventType, kubernetesAuditWebhook.name)
 
 			// Emit the event
+			start := time.Now()
 			mockSender.On("Event", mock.AnythingOfType("event.Event")).Return().Once()
 			validated, err := kubernetesAuditWebhook.emitEvent(&tt.request, "", nil)
+			// Force flush to serializer to ensure the event is emitted and received.
+			demultiplexerMock.ForceFlushToSerializer(start, true)
 			assert.NoError(t, err)
 			assert.True(t, validated)
 			if tt.expectedEmitted {
-				mockSender.AssertCalled(t, "Event", tt.expectedEvent)
+				mockSender.AssertEvent(t, tt.expectedEvent, 1*time.Second)
 			} else {
 				mockSender.AssertNotCalled(t, "Event")
 			}

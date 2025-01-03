@@ -64,11 +64,13 @@ class GithubAPI:
                 return None
             raise e
 
-    def create_pr(self, pr_title, pr_body, base_branch, target_branch):
+    def create_pr(self, pr_title, pr_body, base_branch, target_branch, draft=False):
         """
         Creates a PR in the given Github repository.
         """
-        return self._repository.create_pull(title=pr_title, body=pr_body, base=base_branch, head=target_branch)
+        return self._repository.create_pull(
+            title=pr_title, body=pr_body, base=base_branch, head=target_branch, draft=draft
+        )
 
     def update_pr(self, pull_number, milestone_number, labels):
         """
@@ -330,9 +332,14 @@ class GithubAPI:
 
         return sorted(recent_runs, key=lambda run: run.created_at, reverse=True)
 
-    def latest_release(self) -> str:
+    def latest_release(self, major_version=7) -> str:
+        if major_version == 6:
+            return max((r for r in self.get_releases() if r.title.startswith('6.53')), key=lambda r: r.created_at).title
         release = self._repository.get_latest_release()
         return release.title
+
+    def get_releases(self):
+        return self._repository.get_releases()
 
     def latest_unreleased_release_branches(self):
         """
@@ -518,6 +525,9 @@ class GithubAPI:
         """
         return self._repository.create_label(name, color, description)
 
+    def create_milestone(self, title):
+        self._repository.create_milestone(title)
+
     def create_release(self, tag, message, draft=True):
         return self._repository.create_git_release(
             tag=tag,
@@ -644,3 +654,9 @@ Make sure that milestone is open before trying again.""",
     print(color_message(f"Done creating new PR. Link: {updated_pr.html_url}", "bold"))
 
     return updated_pr.html_url
+
+
+def ask_review_actor(pr):
+    for event in pr.get_issue_events():
+        if event.event == "labeled" and event.label.name == "ask-review":
+            return event.actor.name or event.actor.login

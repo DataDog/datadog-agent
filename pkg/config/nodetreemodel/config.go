@@ -11,15 +11,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 
-	"path/filepath"
-
 	"github.com/DataDog/viper"
 	"go.uber.org/atomic"
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -50,6 +49,18 @@ type ntmConfig struct {
 
 	// Bellow are all the different configuration layers. Each layers represents a source for our configuration.
 	// They are merge into the 'root' tree following order of importance (see pkg/model/viper.go:sourcesPriority).
+
+	// schema holds all the settings with or without value. Settings are added to the schema through BindEnv and
+	// SetDefault.
+	//
+	// This solved the difference between 'AllKeysLowercased' which returns the configuration schema and
+	// 'AllSettings' which only returns settings with a value.
+	//
+	// A setting register with BindEnv without default might not have a value depending on the environment. Such
+	// settings are part of the schema but won't appear in the configuration (through Get, AllSettings, ...). This
+	// mimic the behavior from Viper. Once we enfore a default value for all settings we will be able to merge
+	// 'schema' and 'defaults' fields.
+	schema InnerNode
 
 	// defaults contains the settings with a default value
 	defaults InnerNode
@@ -116,12 +127,6 @@ type NodeTreeConfig interface {
 	GetNode(string) (Node, error)
 }
 
-func (c *ntmConfig) logErrorNotImplemented(method string) error {
-	err := fmt.Errorf("not implemented: %s", method)
-	log.Error(err)
-	return err
-}
-
 // OnUpdate adds a callback to the list of receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
 // Callbacks are only called if the value is effectively changed.
@@ -131,11 +136,11 @@ func (c *ntmConfig) OnUpdate(callback model.NotificationReceiver) {
 	c.notificationReceivers = append(c.notificationReceivers, callback)
 }
 
-func (c *ntmConfig) setDefault(key string, value interface{}) {
+func (c *ntmConfig) addToSchema(key string, source model.Source) {
 	parts := splitKey(key)
-	// TODO: Ensure that for default tree, setting nil to a node will not override
-	// an existing value
-	_, _ = c.defaults.SetAt(parts, value, model.SourceDefault)
+	_, _ = c.schema.SetAt(parts, nil, source)
+
+	c.addToKnownKeys(key)
 }
 
 func (c *ntmConfig) getTreeBySource(source model.Source) (InnerNode, error) {
@@ -179,7 +184,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	key = strings.ToLower(key)
 
 	c.Lock()
-	previousValue := c.leafAtPath(key).Get()
+	previousValue := c.leafAtPathFromNode(key, c.root).Get()
 
 	parts := splitKey(key)
 
@@ -221,18 +226,106 @@ func (c *ntmConfig) SetDefault(key string, value interface{}) {
 		panic("cannot SetDefault() once the config has been marked as ready for use")
 	}
 	key = strings.ToLower(key)
-	c.knownKeys[key] = struct{}{}
-	c.setDefault(key, value)
+	c.addToSchema(key, model.SourceDefault)
+
+	parts := splitKey(key)
+	// TODO: Ensure that for default tree, setting nil to a node will not override
+	// an existing value
+	_, _ = c.defaults.SetAt(parts, value, model.SourceDefault)
+}
+
+func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (Node, error) {
+	iter := source
+	for iter != model.SourceDefault {
+		iter = iter.PreviousSource()
+		tree, err := c.getTreeBySource(iter)
+		if err != nil {
+			return nil, err
+		}
+		node := c.leafAtPathFromNode(key, tree)
+		if _, isMissing := node.(*missingLeafImpl); !isMissing {
+			return node, nil
+		}
+	}
+	return nil, ErrNotFound
 }
 
 // UnsetForSource unsets a config entry for a given source
-func (c *ntmConfig) UnsetForSource(_key string, _source model.Source) {
+func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	c.Lock()
-	c.logErrorNotImplemented("UnsetForSource")
-	c.Unlock()
+	defer c.Unlock()
+
+	// Remove it from the original source tree
+	tree, err := c.getTreeBySource(source)
+	if err != nil {
+		log.Errorf("%s", err)
+		return
+	}
+	parentNode, childName, err := c.parentOfNode(tree, key)
+	if err != nil {
+		return
+	}
+	// Only remove if the setting is a leaf
+	if child, err := parentNode.GetChild(childName); err == nil {
+		if _, ok := child.(LeafNode); ok {
+			parentNode.RemoveChild(childName)
+		} else {
+			log.Errorf("cannot remove setting %q, not a leaf", key)
+			return
+		}
+	}
+
+	// If the node in the merged tree doesn't match the source we expect, we're done
+	if c.leafAtPathFromNode(key, c.root).Source() != source {
+		return
+	}
+
+	// Find what the previous value used to be, based upon the previous source
+	prevNode, err := c.findPreviousSourceNode(key, source)
+	if err != nil {
+		return
+	}
+
+	// Get the parent node of the leaf we're unsetting
+	parentNode, childName, err = c.parentOfNode(c.root, key)
+	if err != nil {
+		return
+	}
+	// Replace the child with the node from the previous layer
+	parentNode.InsertChildNode(childName, prevNode.Clone())
 }
 
-// SetKnown adds a key to the set of known valid config keys
+func (c *ntmConfig) parentOfNode(node Node, key string) (InnerNode, string, error) {
+	parts := splitKey(key)
+	lastPart := parts[len(parts)-1]
+	parts = parts[:len(parts)-1]
+	var err error
+	for _, p := range parts {
+		node, err = node.GetChild(p)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+	innerNode, ok := node.(InnerNode)
+	if !ok {
+		return nil, "", ErrNotFound
+	}
+	return innerNode, lastPart, nil
+}
+
+func (c *ntmConfig) addToKnownKeys(key string) {
+	base := ""
+	keyParts := splitKey(key)
+	for _, part := range keyParts {
+		base = joinKey(base, part)
+		c.knownKeys[base] = struct{}{}
+	}
+}
+
+// SetKnown adds a key to the set of known valid config keys.
+//
+// Important: this doesn't add the key to the schema. The "known keys" are a legacy feature we inherited from our Viper
+// wrapper. Once all settings have a default we'll be able to remove this concept entirely.
 func (c *ntmConfig) SetKnown(key string) {
 	c.Lock()
 	defer c.Unlock()
@@ -240,8 +333,7 @@ func (c *ntmConfig) SetKnown(key string) {
 		panic("cannot SetKnown() once the config has been marked as ready for use")
 	}
 
-	key = strings.ToLower(key)
-	c.knownKeys[key] = struct{}{}
+	c.addToKnownKeys(key)
 }
 
 // IsKnown returns whether a key is known
@@ -273,6 +365,7 @@ func (c *ntmConfig) checkKnownKey(key string) {
 }
 
 func (c *ntmConfig) mergeAllLayers() error {
+	// We intentionally don't merge the schema layer as it hold no values
 	treeList := []InnerNode{
 		c.defaults,
 		c.unknown,
@@ -324,7 +417,7 @@ func (c *ntmConfig) BuildSchema() {
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err.Error())
 	}
-	c.allSettings = computeAllSettings(c.defaults, "")
+	c.allSettings = computeAllSettings(c.schema, "")
 }
 
 // Stringify stringifies the config, but only with the test build tag
@@ -409,7 +502,21 @@ func (c *ntmConfig) IsSet(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
 
-	return c.IsKnown(key)
+	if !c.isReady() {
+		log.Errorf("attempt to read key before config is constructed: %s", key)
+		return false
+	}
+
+	pathParts := splitKey(key)
+	var curr Node = c.root
+	for _, part := range pathParts {
+		next, err := curr.GetChild(part)
+		if err != nil {
+			return false
+		}
+		curr = next
+	}
+	return true
 }
 
 // AllKeysLowercased returns all keys lower-cased from the default tree, but not keys that are merely marked as known
@@ -420,16 +527,7 @@ func (c *ntmConfig) AllKeysLowercased() []string {
 	return slices.Clone(c.allSettings)
 }
 
-func (c *ntmConfig) leafAtPath(key string) LeafNode {
-	return c.leafAtPathFromNode(key, c.root)
-}
-
 func (c *ntmConfig) leafAtPathFromNode(key string, curr Node) LeafNode {
-	if !c.isReady() {
-		log.Errorf("attempt to read key before config is constructed: %s", key)
-		return missingLeaf
-	}
-
 	pathParts := splitKey(key)
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
@@ -496,8 +594,7 @@ func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 		c.configEnvVars[envvar] = key
 	}
 
-	c.knownKeys[key] = struct{}{}
-	c.setDefault(key, nil)
+	c.addToSchema(key, model.SourceEnvVar)
 }
 
 // SetEnvKeyReplacer binds a replacer function for keys
@@ -530,7 +627,7 @@ func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	}
 
 	other := newInnerNode(nil)
-	if err = c.readConfigurationContent(other, content); err != nil {
+	if err = c.readConfigurationContent(other, model.SourceFile, content); err != nil {
 		return err
 	}
 
@@ -559,8 +656,17 @@ func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 	}
 	defer in.Close()
 
-	// TODO: Implement merging, merge in the policy that was read
-	return c.logErrorNotImplemented("MergeFleetPolicy")
+	content, err := io.ReadAll(in)
+	if err != nil {
+		return err
+	}
+
+	other := newInnerNode(nil)
+	if err = c.readConfigurationContent(other, model.SourceFleetPolicies, content); err != nil {
+		return err
+	}
+
+	return c.root.Merge(other)
 }
 
 // AllSettings returns all settings from the config
@@ -577,7 +683,7 @@ func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	defer c.RUnlock()
 
 	// We only want to include leaf with a source higher than SourceDefault
-	return c.root.DumpSettings(func(source model.Source) bool { return source.IsGreaterOrEqualThan(model.SourceUnknown) })
+	return c.root.DumpSettings(func(source model.Source) bool { return source.IsGreaterThan(model.SourceDefault) })
 }
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
@@ -706,6 +812,7 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 		knownKeys:          map[string]struct{}{},
 		allSettings:        []string{},
 		unknownKeys:        map[string]struct{}{},
+		schema:             newInnerNode(nil),
 		defaults:           newInnerNode(nil),
 		file:               newInnerNode(nil),
 		unknown:            newInnerNode(nil),
@@ -716,6 +823,7 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 		fleetPolicies:      newInnerNode(nil),
 		cli:                newInnerNode(nil),
 		envTransform:       make(map[string]func(string) interface{}),
+		configName:         "datadog",
 	}
 
 	config.SetConfigName(name)
