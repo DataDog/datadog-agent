@@ -1046,6 +1046,9 @@ def create_schedule(_, version, cutoff_date):
 
 @task
 def chase_release_managers(_, version):
+    from slack_sdk import WebClient
+    print('ok')
+    exit()
     url, missing_teams = get_release_page_info(version)
     github_slack_map = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
     channels = set()
