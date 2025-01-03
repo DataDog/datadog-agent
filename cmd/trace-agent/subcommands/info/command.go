@@ -14,7 +14,10 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
@@ -42,14 +45,14 @@ func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 	return fxutil.OneShot(fct,
 		config.Module(),
 		fx.Supply(coreconfig.NewAgentParams(params.ConfPath, coreconfig.WithFleetPoliciesDirPath(params.FleetPoliciesDirPath))),
+		fx.Supply(log.ForOneShot(params.LoggerName, "off", true)),
 		fx.Supply(option.None[secrets.Component]()),
 		fx.Supply(secrets.NewEnabledParams()),
 		coreconfig.Module(),
 		secretsimpl.Module(),
 		nooptagger.Module(),
-		// TODO: (component)
-		// fx.Supply(logimpl.ForOneShot(params.LoggerName, "off", true)),
-		// log.Module(),
+		fetchonlyimpl.Module(),
+		logfx.Module(),
 	)
 }
 
