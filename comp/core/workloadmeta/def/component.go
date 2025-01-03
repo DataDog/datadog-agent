@@ -131,4 +131,7 @@ type Component interface {
 	// Push allows external sources to push events to the metadata store.
 	// Only EventTypeSet and EventTypeUnset event types are allowed.
 	Push(source Source, events ...Event) error
+
+	// IsInitialzed: If startCandidates is run at least once, return true.
+	IsInitialzed() bool
 }
