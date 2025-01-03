@@ -19,7 +19,7 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 /*
@@ -41,7 +41,7 @@ import "C"
 
 func testTags(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
-	logReceiver := optional.NewNoneOption[integrations.Component]()
+	logReceiver := option.None[integrations.Component]()
 	tagger := mock.SetupFakeTagger(t)
 	tagger.SetTags(types.NewEntityID(types.ContainerID, "test"), "foo", []string{"tag1", "tag2", "tag3"}, nil, nil, nil)
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
@@ -64,7 +64,7 @@ func testTags(t *testing.T) {
 
 func testTagsNull(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
-	logReceiver := optional.NewNoneOption[integrations.Component]()
+	logReceiver := option.None[integrations.Component]()
 	tagger := mock.SetupFakeTagger(t)
 	tagger.SetTags(types.NewEntityID(types.ContainerID, "test"), "foo", nil, nil, nil, nil)
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
@@ -79,7 +79,7 @@ func testTagsNull(t *testing.T) {
 
 func testTagsEmpty(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
-	logReceiver := optional.NewNoneOption[integrations.Component]()
+	logReceiver := option.None[integrations.Component]()
 	tagger := mock.SetupFakeTagger(t)
 	tagger.SetTags(types.NewEntityID(types.ContainerID, "test"), "foo", []string{}, nil, nil, nil)
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
