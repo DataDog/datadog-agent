@@ -105,6 +105,10 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		marshaler := marshal.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
 
+		// the statistics can be safely released at this point
+		for _, httpStats := range cs.HTTP {
+			httpStats.ReleaseStats()
+		}
 		if nt.restartTimer != nil {
 			nt.restartTimer.Reset(inactivityRestartDuration)
 		}

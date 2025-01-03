@@ -698,6 +698,7 @@ func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats)
 			prevStats, ok := client.httpStatsDelta[key]
 			if !ok && len(client.httpStatsDelta) >= ns.maxHTTPStats {
 				stateTelemetry.httpStatsDropped.Inc()
+				stats.ReleaseStats()
 				continue
 			}
 
