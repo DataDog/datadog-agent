@@ -10,19 +10,18 @@ package rules
 
 import (
 	"errors"
+	"slices"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
-
-const maxFieldWeight = 999
 
 type EventCollector struct {
 	sync.Mutex
 	eventsCollected []CollectedEvent
 }
 
-func (ec *EventCollector) CollectEvent(rs *RuleSet, event eval.Event, result bool) {
+func (ec *EventCollector) CollectEvent(rs *RuleSet, ctx *eval.Context, event eval.Event, result bool) {
 	ec.Lock()
 	defer ec.Unlock()
 	var fieldNotSupportedError *eval.ErrNotSupported
@@ -34,22 +33,21 @@ func (ec *EventCollector) CollectEvent(rs *RuleSet, event eval.Event, result boo
 		Fields:     make(map[string]interface{}, len(rs.fields)),
 	}
 
+	resolvedFields := ctx.GetResolvedFields()
+
 	for _, field := range rs.fields {
-		fieldEventType, err := event.GetFieldEventType(field)
+		// skip fields that have not been resolved
+		if !slices.Contains(resolvedFields, field) {
+			continue
+		}
+
+		fieldEventType, _, err := event.GetFieldMetadata(field)
 		if err != nil {
 			rs.logger.Errorf("failed to get event type for field %s: %v", field, err)
 		}
 
 		if fieldEventType != "" && fieldEventType != eventType {
 			continue
-		}
-
-		// for non-matching events, we want to avoid resolving costly fields (e.g. file hashes)
-		// to avoid impacting events that should be matching
-		if !result {
-			if evaluator, err := rs.model.GetEvaluator(field, ""); err == nil && evaluator.GetWeight() > maxFieldWeight {
-				continue
-			}
 		}
 
 		value, err := event.GetFieldValue(field)

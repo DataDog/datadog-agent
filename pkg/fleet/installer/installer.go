@@ -19,21 +19,22 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 
-	fleetEnv "github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
 	packageDatadogAgent     = "datadog-agent"
 	packageAPMInjector      = "datadog-apm-inject"
+	packageAPMLibraries     = "datadog-apm-libraries"
 	packageDatadogInstaller = "datadog-installer"
 )
 
@@ -71,8 +72,8 @@ type Installer interface {
 type installerImpl struct {
 	m sync.Mutex
 
-	env        *fleetEnv.Env
-	cdn        cdn.CDN
+	env        *env.Env
+	cdn        *cdn.CDN
 	db         *db.PackagesDB
 	downloader *oci.Downloader
 	packages   *repository.Repositories
@@ -83,7 +84,7 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(env *fleetEnv.Env) (Installer, error) {
+func NewInstaller(env *env.Env) (Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
@@ -100,7 +101,7 @@ func NewInstaller(env *fleetEnv.Env) (Installer, error) {
 		env:        env,
 		cdn:        cdn,
 		db:         db,
-		downloader: oci.NewDownloader(env, fleetEnv.GetHTTPClient()),
+		downloader: oci.NewDownloader(env, env.HTTPClient()),
 		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
 		configs:    repository.NewRepositories(paths.ConfigsPath, paths.LocksPath),
 
@@ -159,14 +160,18 @@ func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error)
 func (i *installerImpl) Install(ctx context.Context, url string, args []string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	pkg, err := i.downloader.Download(ctx, url)
+	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
 	}
-	span, ok := tracer.SpanFromContext(ctx)
+	span, ok := telemetry.SpanFromContext(ctx)
 	if ok {
-		span.SetTag(ext.ResourceName, pkg.Name)
+		span.SetResourceName(pkg.Name)
 		span.SetTag("package_version", pkg.Version)
+	}
+	err = i.preparePackage(ctx, pkg.Name, args) // Preinst
+	if err != nil {
+		return fmt.Errorf("could not prepare package: %w", err)
 	}
 	dbPkg, err := i.db.GetPackage(pkg.Name)
 	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
@@ -202,11 +207,21 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
-	err = i.configurePackage(ctx, pkg.Name)
+	err = i.configurePackage(ctx, pkg.Name) // Config
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
 	}
-	err = i.setupPackage(ctx, pkg.Name, args)
+	if pkg.Name == packageDatadogInstaller {
+		// We must handle the configuration of some packages that are not
+		// don't have an OCI. To properly configure their configuration repositories,
+		// we call configurePackage when setting up the installer; which is the only
+		// package that is always installed.
+		err = i.configurePackage(ctx, packageAPMLibraries)
+		if err != nil {
+			return fmt.Errorf("could not configure package: %w", err)
+		}
+	}
+	err = i.setupPackage(ctx, pkg.Name, args) // Postinst
 	if err != nil {
 		return fmt.Errorf("could not setup package: %w", err)
 	}
@@ -227,30 +242,48 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 	defer i.m.Unlock()
 	pkg, err := i.downloader.Download(ctx, url)
 	if err != nil {
-		return fmt.Errorf("could not download package: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not download package: %w", err),
+		)
 	}
 	err = checkAvailableDiskSpace(i.packages, pkg)
 	if err != nil {
-		return fmt.Errorf("not enough disk space: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrNotEnoughDiskSpace,
+			fmt.Errorf("not enough disk space: %w", err),
+		)
 	}
 	tmpDir, err := i.packages.MkdirTemp()
 	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could create temporary directory: %w", err),
+		)
 	}
 	defer os.RemoveAll(tmpDir)
 	configDir := filepath.Join(i.userConfigsDir, pkg.Name)
 	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
-		return fmt.Errorf("could not extract package layers: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not extract package layer: %w", err),
+		)
 	}
 	err = pkg.ExtractLayers(oci.DatadogPackageConfigLayerMediaType, configDir)
 	if err != nil {
-		return fmt.Errorf("could not extract package config layer: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not extract package config layer: %w", err),
+		)
 	}
 	repository := i.packages.Get(pkg.Name)
 	err = repository.SetExperiment(pkg.Version, tmpDir)
 	if err != nil {
-		return fmt.Errorf("could not set experiment: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not set experiment: %w", err),
+		)
 	}
 
 	return i.startExperiment(ctx, pkg.Name)
@@ -267,7 +300,10 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 		// will kill the current process, delete the experiment first.
 		err := repository.DeleteExperiment()
 		if err != nil {
-			return fmt.Errorf("could not delete experiment: %w", err)
+			return installerErrors.Wrap(
+				installerErrors.ErrFilesystemIssue,
+				fmt.Errorf("could not delete experiment: %w", err),
+			)
 		}
 		err = i.stopExperiment(ctx, pkg)
 		if err != nil {
@@ -280,7 +316,10 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 		}
 		err = repository.DeleteExperiment()
 		if err != nil {
-			return fmt.Errorf("could not delete experiment: %w", err)
+			return installerErrors.Wrap(
+				installerErrors.ErrFilesystemIssue,
+				fmt.Errorf("could not delete experiment: %w", err),
+			)
 		}
 	}
 	return nil
@@ -306,27 +345,42 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 
 	config, err := i.cdn.Get(ctx, pkg)
 	if err != nil {
-		return fmt.Errorf("could not get cdn config: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not get cdn config: %w", err),
+		)
 	}
-	if config.Version() != version {
-		return fmt.Errorf("version mismatch: expected %s, got %s", config.Version(), version)
+	if config.State().GetVersion() != version {
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("version mismatch: expected %s, got %s", config.State().GetVersion(), version),
+		)
 	}
 
 	tmpDir, err := i.packages.MkdirTemp()
 	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not create temporary directory: %w", err),
+		)
 	}
 	defer os.RemoveAll(tmpDir)
 
 	err = config.Write(tmpDir)
 	if err != nil {
-		return fmt.Errorf("could not write agent config: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not write agent config: %w", err),
+		)
 	}
 
 	configRepo := i.configs.Get(pkg)
 	err = configRepo.SetExperiment(version, tmpDir)
 	if err != nil {
-		return fmt.Errorf("could not set experiment: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not set experiment: %w", err),
+		)
 	}
 
 	switch runtime.GOOS {
@@ -349,7 +403,10 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 	repository := i.configs.Get(pkg)
 	err = repository.DeleteExperiment()
 	if err != nil {
-		return fmt.Errorf("could not delete experiment: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not delete experiment: %w", err),
+		)
 	}
 	return nil
 }
@@ -362,7 +419,10 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 	repository := i.configs.Get(pkg)
 	err := repository.PromoteExperiment()
 	if err != nil {
-		return fmt.Errorf("could not promote experiment: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not promote experiment: %w", err),
+		)
 	}
 	return i.promoteExperiment(ctx, pkg)
 }
@@ -421,9 +481,9 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	}
 
 	// remove all from disk
-	span, _ := tracer.StartSpanFromContext(ctx, "remove_all")
+	span, _ := telemetry.StartSpanFromContext(ctx, "remove_all")
 	err = os.RemoveAll(i.packagesDir)
-	defer span.Finish(tracer.WithError(err))
+	defer span.Finish(err)
 	if err != nil {
 		log.Warnf("could not delete packages dir: %v", err)
 	}
@@ -476,7 +536,7 @@ func (i *installerImpl) InstrumentAPMInjector(ctx context.Context, method string
 		return fmt.Errorf("APM injector is not installed")
 	}
 
-	err = service.InstrumentAPMInjector(ctx, method)
+	err = packages.InstrumentAPMInjector(ctx, method)
 	if err != nil {
 		return fmt.Errorf("could not instrument APM: %w", err)
 	}
@@ -496,7 +556,7 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 		return fmt.Errorf("APM injector is not installed")
 	}
 
-	err = service.UninstrumentAPMInjector(ctx, method)
+	err = packages.UninstrumentAPMInjector(ctx, method)
 	if err != nil {
 		return fmt.Errorf("could not instrument APM: %w", err)
 	}
@@ -539,9 +599,9 @@ func (i *installerImpl) Close() error {
 func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
-		return service.StartAgentExperiment(ctx)
+		return packages.StartAgentExperiment(ctx)
 	case packageDatadogInstaller:
-		return service.StartInstallerExperiment(ctx)
+		return packages.StartInstallerExperiment(ctx)
 	default:
 		return nil
 	}
@@ -550,9 +610,9 @@ func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
 func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
-		return service.StopAgentExperiment(ctx)
+		return packages.StopAgentExperiment(ctx)
 	case packageDatadogInstaller:
-		return service.StopInstallerExperiment(ctx)
+		return packages.StopInstallerExperiment(ctx)
 	default:
 		return nil
 	}
@@ -561,9 +621,20 @@ func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
 func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
-		return service.PromoteAgentExperiment(ctx)
+		return packages.PromoteAgentExperiment(ctx)
 	case packageDatadogInstaller:
-		return service.PromoteInstallerExperiment(ctx)
+		return packages.PromoteInstallerExperiment(ctx)
+	default:
+		return nil
+	}
+}
+
+func (i *installerImpl) preparePackage(ctx context.Context, pkg string, _ []string) error {
+	switch pkg {
+	case packageDatadogInstaller:
+		return packages.PrepareInstaller(ctx)
+	case packageDatadogAgent:
+		return packages.PrepareAgent(ctx)
 	default:
 		return nil
 	}
@@ -572,11 +643,11 @@ func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error
 func (i *installerImpl) setupPackage(ctx context.Context, pkg string, args []string) error {
 	switch pkg {
 	case packageDatadogInstaller:
-		return service.SetupInstaller(ctx)
+		return packages.SetupInstaller(ctx)
 	case packageDatadogAgent:
-		return service.SetupAgent(ctx, args)
+		return packages.SetupAgent(ctx, args)
 	case packageAPMInjector:
-		return service.SetupAPMInjector(ctx)
+		return packages.SetupAPMInjector(ctx)
 	default:
 		return nil
 	}
@@ -585,11 +656,11 @@ func (i *installerImpl) setupPackage(ctx context.Context, pkg string, args []str
 func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
-		return service.RemoveAgent(ctx)
+		return packages.RemoveAgent(ctx)
 	case packageAPMInjector:
-		return service.RemoveAPMInjector(ctx)
+		return packages.RemoveAPMInjector(ctx)
 	case packageDatadogInstaller:
-		return service.RemoveInstaller(ctx)
+		return packages.RemoveInstaller(ctx)
 	default:
 		return nil
 	}
@@ -600,11 +671,11 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 		return nil
 	}
 
-	span, _ := tracer.StartSpanFromContext(ctx, "configure_package")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "configure_package")
+	defer func() { span.Finish(err) }()
 
 	switch pkg {
-	case packageDatadogAgent, packageAPMInjector:
+	case packageDatadogAgent, packageAPMInjector, packageAPMLibraries:
 		config, err := i.cdn.Get(ctx, pkg)
 		if err != nil {
 			return fmt.Errorf("could not get %s CDN config: %w", pkg, err)
@@ -619,7 +690,7 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 		if err != nil {
 			return fmt.Errorf("could not write %s config: %w", pkg, err)
 		}
-		err = i.configs.Create(pkg, config.Version(), tmpDir)
+		err = i.configs.Create(pkg, config.State().GetVersion(), tmpDir)
 		if err != nil {
 			return fmt.Errorf("could not create %s repository: %w", pkg, err)
 		}

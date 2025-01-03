@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // ScanType defines the scan type of the collector
@@ -25,6 +25,8 @@ const (
 	HostScanType ScanType = "host"
 	// ContainerdCollector is the name of the containerd collector
 	ContainerdCollector = "containerd"
+	// CrioCollector is the name of the containerd collector
+	CrioCollector = "crio"
 	// DockerCollector is the name of the docker collector
 	DockerCollector = "docker"
 	// HostCollector is the name of the host collector
@@ -38,7 +40,7 @@ type Collector interface {
 	// CleanCache cleans the collector cache
 	CleanCache() error
 	// Init initializes the collector
-	Init(config.Component, optional.Option[workloadmeta.Component]) error
+	Init(config.Component, option.Option[workloadmeta.Component]) error
 	// Scan performs a scan
 	Scan(context.Context, sbom.ScanRequest) sbom.ScanResult
 	// Channel returns the channel to send scan results
@@ -69,6 +71,11 @@ func GetDockerScanner() Collector {
 // GetContainerdScanner returns the containerd scanner
 func GetContainerdScanner() Collector {
 	return Collectors[ContainerdCollector]
+}
+
+// GetCrioScanner returns the crio scanner
+func GetCrioScanner() Collector {
+	return Collectors[CrioCollector]
 }
 
 // GetHostScanner returns the host scanner

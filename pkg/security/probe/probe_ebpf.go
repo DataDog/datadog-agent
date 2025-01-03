@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,7 +33,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -195,11 +195,31 @@ func (p *EBPFProbe) selectFentryMode() {
 		return
 	}
 
-	supported := p.kernelVersion.HaveFentrySupport()
-	if !supported {
-		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
+	if p.kernelVersion.Code < kernel.Kernel6_1 {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not fully supported on this kernel version (< 6.1), falling back to kprobe mode")
+		return
 	}
-	p.useFentry = supported
+
+	if !p.kernelVersion.HaveFentrySupport() {
+		p.useFentry = false
+		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
+		return
+	}
+
+	if !p.kernelVersion.HaveFentrySupportWithStructArgs() {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not supported with struct args, falling back to kprobe mode")
+		return
+	}
+
+	if !p.kernelVersion.HaveFentryNoDuplicatedWeakSymbols() {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not supported with duplicated weak symbols, falling back to kprobe mode")
+		return
+	}
+
+	p.useFentry = true
 }
 
 func (p *EBPFProbe) isNetworkNotSupported() bool {
@@ -480,7 +500,6 @@ func (p *EBPFProbe) Setup() error {
 	if err := p.Manager.Start(); err != nil {
 		return err
 	}
-	ddebpf.AddNameMappings(p.Manager, "cws")
 
 	p.applyDefaultFilterPolicies()
 
@@ -535,7 +554,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
-	tags := p.probe.GetEventTags(string(event.ContainerContext.ContainerID))
+	tags := p.probe.GetEventTags(event.ContainerContext.ContainerID)
 	if service := p.probe.GetService(event); service != "" {
 		tags = append(tags, "service:"+service)
 	}
@@ -553,10 +572,7 @@ func (p *EBPFProbe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
-	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := serializers.MarshalEvent(event, nil)
-		return eventJSON, event.GetEventType(), err
-	})
+	logTraceEvent(event.GetEventType(), event)
 
 	// filter out event if already present on a profile
 	if p.config.RuntimeSecurity.SecurityProfileEnabled {
@@ -626,9 +642,6 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 		return 0, err
 	}
 
-	// TODO(lebauce): fix this
-	event.CGroupContext.CGroupID, event.ContainerContext.ContainerID = containerutils.GetCGroupContext(event.ContainerContext.ContainerID, event.CGroupContext.CGroupFlags)
-
 	return read, nil
 }
 
@@ -657,9 +670,12 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 		return n, err
 	}
 
-	entry.Process.CGroup.CGroupID, entry.Process.ContainerID = containerutils.GetCGroupContext(ev.ContainerContext.ContainerID, ev.CGroupContext.CGroupFlags)
-	entry.Process.CGroup.CGroupFlags = ev.CGroupContext.CGroupFlags
-	entry.Process.CGroup.CGroupFile = ev.CGroupContext.CGroupFile
+	entry.Process.ContainerID = ev.ContainerContext.ContainerID
+	entry.ContainerID = ev.ContainerContext.ContainerID
+
+	entry.Process.CGroup.Merge(&ev.CGroupContext)
+	entry.CGroup.Merge(&ev.CGroupContext)
+
 	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil
@@ -685,6 +701,9 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	if event.ProcessContext == nil {
 		panic("should always return a process context")
 	}
+
+	// do the same with cgroup context
+	event.CGroupContext = event.ProcessCacheEntry.CGroup
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
@@ -797,7 +816,14 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
+		cgroupContext, err := p.Resolvers.ResolveCGroupContext(event.CgroupTracing.CGroupContext.CGroupFile, containerutils.CGroupFlags(event.CgroupTracing.CGroupContext.CGroupFlags))
+		if err != nil {
+			seclog.Debugf("Failed to resolve cgroup: %s", err)
+		} else {
+			event.CgroupTracing.CGroupContext = *cgroupContext
+			p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
+		}
+
 		return
 	case model.CgroupWriteEventType:
 		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
@@ -807,25 +833,21 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 		pce := p.Resolvers.ProcessResolver.Resolve(event.CgroupWrite.Pid, event.CgroupWrite.Pid, 0, false, newEntryCb)
 		if pce != nil {
-			path, err := p.Resolvers.DentryResolver.Resolve(event.CgroupWrite.File.PathKey, true)
-			if err == nil && path != "" {
-				path = filepath.Dir(string(path))
-				pce.CGroup.CGroupID = containerutils.CGroupID(path)
-				pce.Process.CGroup.CGroupID = containerutils.CGroupID(path)
-				cgroupFlags := containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags)
-				if cgroupFlags.IsContainer() {
-					containerID, _ := containerutils.GetContainerFromCgroup(path)
-					pce.ContainerID = containerutils.ContainerID(containerID)
-					pce.Process.ContainerID = containerutils.ContainerID(containerID)
-				}
-				pce.CGroup.CGroupFlags = cgroupFlags
-				pce.Process.CGroup = pce.CGroup
+			cgroupContext, err := p.Resolvers.ResolveCGroupContext(event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags))
+			if err != nil {
+				seclog.Debugf("Failed to resolve cgroup: %s", err)
 			} else {
-				seclog.Debugf("failed to resolve cgroup file %v", event.CgroupWrite.File)
+				pce.Process.CGroup = *cgroupContext
+				pce.CGroup = *cgroupContext
+
+				if cgroupContext.CGroupFlags.IsContainer() {
+					containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
+					pce.ContainerID = containerID
+					pce.Process.ContainerID = containerID
+				}
 			}
-		} else {
-			seclog.Debugf("failed to resolve process of cgroup write event: %s", err)
 		}
+
 		return
 	case model.UnshareMountNsEventType:
 		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
@@ -858,14 +880,10 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		if process.IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
+		if err := p.Resolvers.ProcessResolver.AddForkEntry(event, newEntryCb); err != nil {
+			seclog.Errorf("failed to insert fork event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
 			return
 		}
-
-		p.Resolvers.ProcessResolver.ApplyBootTime(event.ProcessCacheEntry)
-		event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
-
-		p.Resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode, newEntryCb)
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
 		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
@@ -873,18 +891,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		if err = p.Resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, event.ContainerContext); err != nil {
-			seclog.Debugf("failed to resolve new process cache entry context for pid %d: %s", event.PIDContext.Pid, err)
-
-			var errResolution *path.ErrPathResolution
-			if errors.As(err, &errResolution) {
-				event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
-			}
-		} else {
-			p.Resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode)
+		err = p.Resolvers.ProcessResolver.AddExecEntry(event)
+		if err != nil {
+			seclog.Errorf("failed to insert exec event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
+			return
 		}
 
-		event.Exec.Process = &event.ProcessCacheEntry.Process
 	}
 
 	if !p.setProcessContext(eventType, event, newEntryCb) {
@@ -906,7 +918,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootPathKey.Inode)
-			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, string(event.ContainerContext.ContainerID))
+			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, event.ContainerContext.ContainerID)
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
@@ -922,7 +934,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
-		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, string(event.ContainerContext.ContainerID))
+		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, event.ContainerContext.ContainerID)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootPathKey.Inode)
 			if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
@@ -995,26 +1007,13 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode exit event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-
-		var exists bool
-		event.ProcessCacheEntry, exists = p.fieldHandlers.GetProcessCacheEntry(event, newEntryCb)
-		if !exists {
-			// no need to dispatch an exit event that don't have the corresponding cache entry
-			return
+		exists := p.Resolvers.ProcessResolver.ApplyExitEntry(event, newEntryCb)
+		if exists {
+			p.Resolvers.MountResolver.DelPid(event.Exit.Pid)
+			// update action reports
+			p.processKiller.HandleProcessExited(event)
+			p.fileHasher.HandleProcessExited(event)
 		}
-
-		// Use the event timestamp as exit time
-		// The local process cache hasn't been updated yet with the exit time when the exit event is first seen
-		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
-		event.ProcessCacheEntry.Process.ExitTime = p.fieldHandlers.ResolveEventTime(event, &event.BaseEvent)
-		event.Exit.Process = &event.ProcessCacheEntry.Process
-
-		// update mount pid mapping
-		p.Resolvers.MountResolver.DelPid(event.Exit.Pid)
-
-		// update action reports
-		p.processKiller.HandleProcessExited(event)
-		p.fileHasher.HandleProcessExited(event)
 	case model.SetuidEventType:
 		// the process context may be incorrect, do not modify it
 		if event.Error != nil {
@@ -1073,14 +1072,42 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode ptrace event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+
 		// resolve tracee process context
 		var pce *model.ProcessCacheEntry
-		if event.PTrace.PID == 0 { // pid can be 0 for a PTRACE_TRACEME request
+		if event.PTrace.Request == unix.PTRACE_TRACEME { // pid can be 0 for a PTRACE_TRACEME request
 			pce = newPlaceholderProcessCacheEntryPTraceMe()
+		} else if event.PTrace.PID == 0 && event.PTrace.NSPID == 0 {
+			seclog.Errorf("ptrace event without any PID to resolve")
+			return
 		} else {
-			pce = p.Resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0, false, newEntryCb)
+			pidToResolve := event.PTrace.PID
+
+			if pidToResolve == 0 { // resolve the PID given as argument instead
+				containerID := p.fieldHandlers.ResolveContainerID(event, event.ContainerContext)
+				if containerID == "" && event.PTrace.Request != unix.PTRACE_ATTACH {
+					pidToResolve = event.PTrace.NSPID
+				} else {
+					nsid, err := p.fieldHandlers.ResolveProcessNSID(event)
+					if err != nil {
+						seclog.Debugf("PTrace NSID resolution error for process %s in container %s: %v",
+							event.ProcessContext.Process.FileEvent.PathnameStr, containerID, err)
+						return
+					}
+
+					pid, err := utils.TryToResolveTraceePid(event.ProcessContext.Process.Pid, nsid, event.PTrace.NSPID)
+					if err != nil {
+						seclog.Debugf("PTrace tracee resolution error for process %s in container %s: %v",
+							event.ProcessContext.Process.FileEvent.PathnameStr, containerID, err)
+						return
+					}
+					pidToResolve = pid
+				}
+			}
+
+			pce = p.Resolvers.ProcessResolver.Resolve(pidToResolve, pidToResolve, 0, false, newEntryCb)
 			if pce == nil {
-				pce = model.NewPlaceholderProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
+				pce = model.NewPlaceholderProcessCacheEntry(pidToResolve, pidToResolve, false)
 			}
 		}
 		event.PTrace.Tracee = &pce.ProcessContext
@@ -1114,6 +1141,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	case model.UnloadModuleEventType:
 		if _, err = event.UnloadModule.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode unload_module event: %s (offset %d, len %d)", err, offset, len(data))
+			return
 		}
 	case model.SignalEventType:
 		if _, err = event.Signal.UnmarshalBinary(data[offset:]); err != nil {
@@ -1149,6 +1177,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	case model.DNSEventType:
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
+			return
 		}
 		offset += read
 
@@ -1166,12 +1195,15 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	case model.IMDSEventType:
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
+			return
 		}
 		offset += read
 
 		if _, err = event.IMDS.UnmarshalBinary(data[offset:]); err != nil {
-			// it's very possible we can't parse the IMDS body, as such let's put it as debug for now
-			seclog.Debugf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
+			if err != model.ErrNoUsefulData {
+				// it's very possible we can't parse the IMDS body, as such let's put it as debug for now
+				seclog.Debugf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
+			}
 			return
 		}
 		defer p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
@@ -1238,7 +1270,7 @@ func (p *EBPFProbe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
 }
 
 // GetEventTags returns the event tags
-func (p *EBPFProbe) GetEventTags(containerID string) []string {
+func (p *EBPFProbe) GetEventTags(containerID containerutils.ContainerID) []string {
 	return p.Resolvers.TagsResolver.Resolve(containerID)
 }
 
@@ -1381,7 +1413,7 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 	case "dns":
 		return p.probe.IsNetworkEnabled()
 	case "imds":
-		return p.probe.IsNetworkEnabled() && p.config.Probe.NetworkIngressEnabled
+		return p.probe.IsNetworkEnabled()
 	case "packet":
 		return p.probe.IsNetworkRawPacketEnabled()
 	}
@@ -1495,7 +1527,52 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		return fmt.Errorf("failed to set enabled events: %w", err)
 	}
 
-	return p.Manager.UpdateActivatedProbes(activatedProbes)
+	previousProbes := p.computeProbesIDs()
+	if err = p.Manager.UpdateActivatedProbes(activatedProbes); err != nil {
+		return err
+	}
+	newProbes := p.computeProbesIDs()
+
+	p.computeProbesDiffAndRemoveMapping(previousProbes, newProbes)
+	return nil
+}
+
+func (p *EBPFProbe) computeProbesIDs() map[string]lib.ProgramID {
+	out := make(map[string]lib.ProgramID)
+	progList, err := p.Manager.GetPrograms()
+	if err != nil {
+		return out
+	}
+	for funcName, prog := range progList {
+		programInfo, err := prog.Info()
+		if err != nil {
+			continue
+		}
+
+		programID, isAvailable := programInfo.ID()
+		if isAvailable {
+			out[funcName] = programID
+		}
+	}
+
+	return out
+}
+
+func (p *EBPFProbe) computeProbesDiffAndRemoveMapping(previousProbes map[string]lib.ProgramID, newProbes map[string]lib.ProgramID) {
+	// Compute the list of programs that need to be deleted from the ddebpf mapping
+	var toDelete []lib.ProgramID
+	for previousProbeFuncName, programID := range previousProbes {
+		if _, ok := newProbes[previousProbeFuncName]; !ok {
+			toDelete = append(toDelete, programID)
+		}
+	}
+
+	for _, id := range toDelete {
+		ddebpf.RemoveProgramID(uint32(id), "cws")
+	}
+
+	// new programs could have been introduced during the update, add them now
+	ddebpf.AddNameMappings(p.Manager, "cws")
 }
 
 // GetDiscarders retrieve the discarders
@@ -1558,7 +1635,7 @@ func (p *EBPFProbe) FlushDiscarders() error {
 }
 
 // RefreshUserCache refreshes the user cache
-func (p *EBPFProbe) RefreshUserCache(containerID string) error {
+func (p *EBPFProbe) RefreshUserCache(containerID containerutils.ContainerID) error {
 	return p.Resolvers.UserGroupResolver.RefreshCache(containerID)
 }
 
@@ -1852,7 +1929,7 @@ func (p *EBPFProbe) EnableEnforcement(state bool) {
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe
-func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*EBPFProbe, error) {
+func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, error) {
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
@@ -1914,8 +1991,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 	p.Manager = ebpf.NewRuntimeSecurityManager(useRingBuffers, p.useFentry)
 
 	p.supportsBPFSendSignal = p.kernelVersion.SupportBPFSendSignal()
-
-	p.ensureConfigDefaults()
 
 	p.monitors = NewEBPFMonitors(p)
 
@@ -2085,6 +2160,16 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 		)
 	}
 
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+		manager.ConstantEditor{
+			Name: "fentry_func_argc",
+			ValueCallback: func(prog *lib.ProgramSpec) interface{} {
+				// use a separate function to make sure we always return a uint64
+				return getFuncArgCount(prog)
+			},
+		},
+	)
+
 	// tail calls
 	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, config.Probe.NetworkRawPacketEnabled, useMmapableMaps)
 	if !config.Probe.ERPCDentryResolutionEnabled || useMmapableMaps {
@@ -2116,7 +2201,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 		TTYFallbackEnabled:       probe.Opts.TTYFallbackEnabled,
 	}
 
-	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts, telemetry)
+	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -2168,16 +2253,23 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 	return p, nil
 }
 
+func getFuncArgCount(prog *lib.ProgramSpec) uint64 {
+	if !strings.HasPrefix(prog.SectionName, "fexit/") {
+		return 0 // this value should never be used
+	}
+
+	argc, err := constantfetch.GetBTFFunctionArgCount(prog.AttachTo)
+	if err != nil {
+		seclog.Errorf("failed to get function argument count for %s: %v", prog.AttachTo, err)
+		return 0
+	}
+
+	return uint64(argc)
+}
+
 // GetProfileManagers returns the security profile managers
 func (p *EBPFProbe) GetProfileManagers() *SecurityProfileManagers {
 	return p.profileManagers
-}
-
-func (p *EBPFProbe) ensureConfigDefaults() {
-	// enable runtime compiled constants on COS by default
-	if !p.config.Probe.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
-		p.config.Probe.RuntimeCompiledConstantsEnabled = true
-	}
 }
 
 const (
@@ -2262,6 +2354,10 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 		return 2
 	}
 
+	if kernelVersion.IsInRangeCloseOpen(kernel.Kernel5_14, kernel.Kernel5_15) && kernelVersion.IsRH9_4Kernel() {
+		return 2
+	}
+
 	// https://github.com/torvalds/linux/commit/ffa5723c6d259b3191f851a50a98d0352b345b39
 	// changes a bit how the lower dentry/inode is stored in `ovl_inode`. To check if we
 	// are in this configuration we first probe the kernel version, then we check for the
@@ -2304,123 +2400,131 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 
 // GetOffsetConstants returns the offsets and struct sizes constants
 func (p *EBPFProbe) GetOffsetConstants() (map[string]uint64, error) {
-	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config.Probe, p.kernelVersion, p.statsdClient))
+	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config.Probe, p.kernelVersion))
 	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetResults()
 }
 
 // GetConstantFetcherStatus returns the status of the constant fetcher associated with this probe
 func (p *EBPFProbe) GetConstantFetcherStatus() (*constantfetch.ConstantFetcherStatus, error) {
-	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config.Probe, p.kernelVersion, p.statsdClient))
+	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config.Probe, p.kernelVersion))
 	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetStatus()
 }
 
 // AppendProbeRequestsToFetcher returns the offsets and struct sizes constants, from a constant fetcher
 func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher, kv *kernel.Version) {
-	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfInode, "struct inode", "linux/fs.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSuperBlockStructSFlags, "struct super_block", "s_flags", "linux/fs.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSuperBlockStructSMagic, "struct super_block", "s_magic", "linux/fs.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDentryStructDSB, "struct dentry", "d_sb", "linux/dcache.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSignalStructStructTTY, "struct signal_struct", "tty", "linux/sched/signal.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name", "linux/tty.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameCredStructUID, "struct cred", "uid", "linux/cred.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameCredStructCapInheritable, "struct cred", "cap_inheritable", "linux/cred.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p", "linux/binfmts.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc", "linux/binfmts.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc", "linux/binfmts.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags", "linux/mm_types.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFinode, "struct file", "f_inode", "linux/fs.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFpath, "struct file", "f_path", "linux/fs.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameMountMntID, "struct mount", "mnt_id", "")
+	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfInode, "struct inode")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSuperBlockStructSFlags, "struct super_block", "s_flags")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSuperBlockStructSMagic, "struct super_block", "s_magic")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDentryStructDSB, "struct dentry", "d_sb")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSignalStructStructTTY, "struct signal_struct", "tty")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameCredStructUID, "struct cred", "uid")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameCredStructCapInheritable, "struct cred", "cap_inheritable")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFinode, "struct file", "f_inode")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFpath, "struct file", "f_path")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDentryDSb, "struct dentry", "d_sb")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameMountMntID, "struct mount", "mnt_id")
 	if kv.Code >= kernel.Kernel5_3 {
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal", "linux/sched/task.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal")
 	}
 
 	// inode time offsets
 	// no runtime compilation for those, we expect them to default to 0 if not there and use the fallback
 	// in the eBPF code itself in that case
 	if kv.Code >= kernel.Kernel6_11 {
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeCtimeSec, "struct inode", "i_ctime_sec", "")
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeCtimeNsec, "struct inode", "i_ctime_nsec", "")
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeMtimeSec, "struct inode", "i_mtime_sec", "")
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeMtimeNsec, "struct inode", "i_mtime_nsec", "")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeCtimeSec, "struct inode", "i_ctime_sec")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeCtimeNsec, "struct inode", "i_ctime_nsec")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeMtimeSec, "struct inode", "i_mtime_sec")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeMtimeNsec, "struct inode", "i_mtime_nsec")
 	}
 
 	// rename offsets
 	if kv.Code >= kernel.Kernel5_12 || (kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && kv.Code.Patch() >= 220) {
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameRenameStructOldDentry, "struct renamedata", "old_dentry", "linux/fs.h")
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameRenameStructNewDentry, "struct renamedata", "new_dentry", "linux/fs.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameRenameStructOldDentry, "struct renamedata", "old_dentry")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameRenameStructNewDentry, "struct renamedata", "new_dentry")
 	}
 
 	// bpf offsets
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructID, "struct bpf_map", "id", "linux/bpf.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructID, "struct bpf_map", "id")
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructName, "struct bpf_map", "name", "linux/bpf.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructName, "struct bpf_map", "name")
 	}
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructMapType, "struct bpf_map", "map_type", "linux/bpf.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgAuxStructID, "struct bpf_prog_aux", "id", "linux/bpf.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructMapType, "struct bpf_map", "map_type")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgAuxStructID, "struct bpf_prog_aux", "id")
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgAuxStructName, "struct bpf_prog_aux", "name", "linux/bpf.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgAuxStructName, "struct bpf_prog_aux", "name")
 	}
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgStructTag, "struct bpf_prog", "tag", "linux/filter.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgStructAux, "struct bpf_prog", "aux", "linux/filter.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgStructType, "struct bpf_prog", "type", "linux/filter.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgStructTag, "struct bpf_prog", "tag")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgStructAux, "struct bpf_prog", "aux")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgStructType, "struct bpf_prog", "type")
 
 	if kv.Code != 0 && (kv.Code > kernel.Kernel4_16 || kv.IsSuse12Kernel() || kv.IsSuse15Kernel()) {
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgStructExpectedAttachType, "struct bpf_prog", "expected_attach_type", "linux/filter.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgStructExpectedAttachType, "struct bpf_prog", "expected_attach_type")
 	}
 	// namespace nr offsets
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePIDStructLevel, "struct pid", "level", "linux/pid.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePIDStructNumbers, "struct pid", "numbers", "linux/pid.h")
-	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfUPID, "struct upid", "linux/pid.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePIDStructLevel, "struct pid", "level")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePIDStructNumbers, "struct pid", "numbers")
+	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfUPID, "struct upid")
 	if kv.HavePIDLinkStruct() {
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameTaskStructPIDLink, "struct task_struct", "pids", "linux/sched.h")
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePIDLinkStructPID, "struct pid_link", "pid", "linux/pid.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameTaskStructPIDLink, "struct task_struct", "pids")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePIDLinkStructPID, "struct pid_link", "pid")
 	} else {
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid", "linux/sched.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
 	}
 
 	// splice event
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructBufs, "struct pipe_inode_info", "bufs", "linux/pipe_fs_i.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructBufs, "struct pipe_inode_info", "bufs")
 	if kv.HaveLegacyPipeInodeInfoStruct() {
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructNrbufs, "struct pipe_inode_info", "nrbufs", "linux/pipe_fs_i.h")
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructCurbuf, "struct pipe_inode_info", "curbuf", "linux/pipe_fs_i.h")
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructBuffers, "struct pipe_inode_info", "buffers", "linux/pipe_fs_i.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructNrbufs, "struct pipe_inode_info", "nrbufs")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructCurbuf, "struct pipe_inode_info", "curbuf")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructBuffers, "struct pipe_inode_info", "buffers")
 	} else {
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructHead, "struct pipe_inode_info", "head", "linux/pipe_fs_i.h")
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructRingsize, "struct pipe_inode_info", "ring_size", "linux/pipe_fs_i.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructHead, "struct pipe_inode_info", "head")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructRingsize, "struct pipe_inode_info", "ring_size")
 	}
 
 	// network related constants
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetDeviceStructIfIndex, "struct net_device", "ifindex", "linux/netdevice.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetDeviceStructName, "struct net_device", "name", "linux/netdevice.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDeviceStructNdNet, "struct net_device", "nd_net", "linux/netdevice.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockCommonStructSKCNet, "struct sock_common", "skc_net", "net/sock.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockCommonStructSKCFamily, "struct sock_common", "skc_family", "net/sock.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI4StructSADDR, "struct flowi4", "saddr", "net/flow.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI4StructULI, "struct flowi4", "uli", "net/flow.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructSADDR, "struct flowi6", "saddr", "net/flow.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructULI, "struct flowi6", "uli", "net/flow.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSocketStructSK, "struct socket", "sk", "linux/net.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetDeviceStructIfIndex, "struct net_device", "ifindex")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetDeviceStructName, "struct net_device", "name")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDeviceStructNdNet, "struct net_device", "nd_net")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockCommonStructSKCNet, "struct sock_common", "skc_net")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockCommonStructSKCFamily, "struct sock_common", "skc_family")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI4StructSADDR, "struct flowi4", "saddr")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI4StructULI, "struct flowi4", "uli")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructSADDR, "struct flowi6", "saddr")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructULI, "struct flowi6", "uli")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSocketStructSK, "struct socket", "sk")
 
 	// Interpreter constants
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmStructFile, "struct linux_binprm", "file", "linux/binfmts.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmStructFile, "struct linux_binprm", "file")
 
 	if !kv.IsRH7Kernel() {
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNFConnStructCTNet, "struct nf_conn", "ct_net", "net/netfilter/nf_conntrack.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNFConnStructCTNet, "struct nf_conn", "ct_net")
 	}
 
 	if getNetStructType(kv) == netStructHasProcINum {
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetStructProcInum, "struct net", "proc_inum", "net/net_namespace.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetStructProcInum, "struct net", "proc_inum")
 	} else {
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetStructNS, "struct net", "ns", "net/net_namespace.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetStructNS, "struct net", "ns")
 	}
 
 	// iouring
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
-		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx", "")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx")
 	}
+
+	// inode
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeIno, "struct inode", "i_ino")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeGid, "struct inode", "i_gid")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeNlink, "struct inode", "i_nlink")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeMtime, "struct inode", "i_mtime", "__i_mtime")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeCtime, "struct inode", "i_ctime", "__i_ctime")
 }
 
 // HandleActions handles the rule actions
@@ -2434,10 +2538,10 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 		switch {
 		case action.InternalCallback != nil && rule.ID == bundled.RefreshUserCacheRuleID:
-			_ = p.RefreshUserCache(string(ev.ContainerContext.ContainerID))
+			_ = p.RefreshUserCache(ev.ContainerContext.ContainerID)
 
 		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ContainerContext.ContainerID) > 0:
-			if err := p.Resolvers.SBOMResolver.RefreshSBOM(string(ev.ContainerContext.ContainerID)); err != nil {
+			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ContainerContext.ContainerID); err != nil {
 				seclog.Warnf("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
 			}
 

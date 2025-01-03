@@ -19,7 +19,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
@@ -37,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -243,16 +243,36 @@ func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 			case <-p.done:
 				return
 			case <-processSync.C:
-				processSet := p.registry.GetRegisteredProcesses()
-				deletedPids := monitor.FindDeletedProcesses(processSet)
-				for deletedPid := range deletedPids {
-					_ = p.registry.Unregister(deletedPid)
-				}
+				p.sync()
+				p.registry.Log()
 			}
 		}
 	}()
 
 	return nil
+}
+
+func (p *goTLSProgram) sync() {
+	deletionCandidates := p.registry.GetRegisteredProcesses()
+
+	_ = kernel.WithAllProcs(p.procRoot, func(pid int) error {
+		if _, ok := deletionCandidates[uint32(pid)]; ok {
+			// We have previously hooked into this process and it remains active,
+			// so we remove it from the deletionCandidates list, and move on to the next PID
+			delete(deletionCandidates, uint32(pid))
+			return nil
+		}
+
+		// This is a new PID so we attempt to attach SSL probes to it
+		_ = p.AttachPID(uint32(pid))
+		return nil
+	})
+
+	// At this point all entries from deletionCandidates are no longer alive, so
+	// we should detach our SSL probes from them
+	for pid := range deletionCandidates {
+		p.handleProcessExit(pid)
+	}
 }
 
 // PostStart registers the goTLS program to the attacher list.
@@ -334,7 +354,7 @@ func (p *goTLSProgram) AttachPID(pid uint32) error {
 
 	// Check if the process is datadog's internal process, if so, we don't want to hook the process.
 	if internalProcessRegex.MatchString(binPath) {
-		if log.ShouldLog(seelog.DebugLvl) {
+		if log.ShouldLog(log.DebugLvl) {
 			log.Debugf("ignoring pid %d, as it is an internal datadog component (%q)", pid, binPath)
 		}
 		return ErrInternalDDogProcessRejected
@@ -367,7 +387,7 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 			if errors.Is(err, safeelf.ErrNoSymbols) {
 				binNoSymbolsMetric.Add(1)
 			}
-			return fmt.Errorf("error extracting inspectoin data from %s: %w", filePath.HostPath, err)
+			return fmt.Errorf("error extracting inspection data from %s: %w", filePath.HostPath, err)
 		}
 
 		if err := addInspectionResultToMap(offsetsDataMap, filePath.ID, inspectionResult); err != nil {

@@ -33,17 +33,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
-// SBOMSource defines is the default log source for the SBOM events
-const SBOMSource = "runtime-security-agent"
+const (
+	// SBOMSource defines is the default log source for the SBOM events
+	SBOMSource = "runtime-security-agent"
 
-const maxSBOMGenerationRetries = 3
+	maxSBOMGenerationRetries = 3
+	maxSBOMEntries           = 1024
+)
 
 var errNoProcessForContainerID = errors.New("found no running process matching the given container ID")
 
@@ -57,7 +62,7 @@ type SBOM struct {
 	Host        string
 	Source      string
 	Service     string
-	ContainerID string
+	ContainerID containerutils.ContainerID
 	workloadKey string
 
 	deleted        *atomic.Bool
@@ -98,7 +103,7 @@ func (s *SBOM) reset() {
 }
 
 // NewSBOM returns a new empty instance of SBOM
-func NewSBOM(host string, source string, id string, cgroup *cgroupModel.CacheEntry, workloadKey string) (*SBOM, error) {
+func NewSBOM(host string, source string, id containerutils.ContainerID, cgroup *cgroupModel.CacheEntry, workloadKey string) (*SBOM, error) {
 	sbom := &SBOM{
 		files:          fileQuerier{},
 		Host:           host,
@@ -117,7 +122,7 @@ func NewSBOM(host string, source string, id string, cgroup *cgroupModel.CacheEnt
 type Resolver struct {
 	cfg            *config.RuntimeSecurityConfig
 	sbomsLock      sync.RWMutex
-	sboms          map[string]*SBOM
+	sboms          *simplelru.LRU[containerutils.ContainerID, *SBOM]
 	sbomsCacheLock sync.RWMutex
 	sbomsCache     *simplelru.LRU[string, *SBOM]
 	scannerChan    chan *SBOM
@@ -139,12 +144,17 @@ type Resolver struct {
 
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	sbomScanner, err := sbomscanner.CreateGlobalScanner(pkgconfigsetup.SystemProbe(), optional.NewNoneOption[workloadmeta.Component]())
+	sbomScanner, err := sbomscanner.CreateGlobalScanner(pkgconfigsetup.SystemProbe(), option.None[workloadmeta.Component]())
 	if err != nil {
 		return nil, err
 	}
 	if sbomScanner == nil {
 		return nil, errors.New("sbom is disabled")
+	}
+
+	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](maxSBOMEntries, nil)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
 	}
 
 	sbomsCache, err := simplelru.NewLRU[string, *SBOM](c.SBOMResolverWorkloadsCacheSize, nil)
@@ -165,7 +175,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 	resolver := &Resolver{
 		cfg:                   c,
 		statsdClient:          statsdClient,
-		sboms:                 make(map[string]*SBOM),
+		sboms:                 sboms,
 		sbomsCache:            sbomsCache,
 		scannerChan:           make(chan *SBOM, 100),
 		sbomScanner:           sbomScanner,
@@ -258,7 +268,7 @@ func (r *Resolver) Start(ctx context.Context) error {
 }
 
 // RefreshSBOM regenerates a SBOM for a container
-func (r *Resolver) RefreshSBOM(containerID string) error {
+func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 	if sbom := r.getSBOM(containerID); sbom != nil {
 		seclog.Debugf("Refreshing SBOM for container %s", containerID)
 		sbom.refresh.Call()
@@ -272,7 +282,7 @@ func (r *Resolver) generateSBOM(root string) (report *trivy.Report, err error) {
 	seclog.Infof("Generating SBOM for %s", root)
 	r.sbomGenerations.Inc()
 
-	scanRequest := host.NewScanRequest(root, os.DirFS("/"))
+	scanRequest := host.NewScanRequest(root)
 	ch := collectors.GetHostScanner().Channel()
 	if ch == nil {
 		return nil, fmt.Errorf("couldn't retrieve global host scanner result channel")
@@ -318,7 +328,7 @@ func (r *Resolver) doScan(sbom *SBOM) (*trivy.Report, error) {
 			sbom.cgroup.RemovePID(rootCandidatePID)
 			continue
 		}
-		if string(computedID) != sbom.ContainerID {
+		if computedID != sbom.ContainerID {
 			sbom.cgroup.RemovePID(rootCandidatePID)
 			continue
 		}
@@ -403,20 +413,20 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	return nil
 }
 
-func (r *Resolver) getSBOM(containerID string) *SBOM {
+func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()
 
 	sbom := r.hostSBOM
 	if containerID != "" {
-		sbom = r.sboms[containerID]
+		sbom, _ = r.sboms.Get(containerID)
 	}
 	return sbom
 }
 
 // ResolvePackage returns the Package that owns the provided file. Make sure the internal fields of "file" are properly
 // resolved.
-func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Package {
+func (r *Resolver) ResolvePackage(containerID containerutils.ContainerID, file *model.FileEvent) *Package {
 	sbom := r.getSBOM(containerID)
 	if sbom == nil {
 		return nil
@@ -430,7 +440,7 @@ func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Pa
 
 // newWorkloadEntry (thread unsafe) creates a new SBOM entry for the sbom designated by the provided process cache
 // entry
-func (r *Resolver) newWorkloadEntry(id string, cgroup *cgroupModel.CacheEntry, workloadKey string) (*SBOM, error) {
+func (r *Resolver) newWorkloadEntry(id containerutils.ContainerID, cgroup *cgroupModel.CacheEntry, workloadKey string) (*SBOM, error) {
 	sbom, err := NewSBOM(r.hostname, r.source, id, cgroup, workloadKey)
 	if err != nil {
 		return nil, err
@@ -442,7 +452,7 @@ func (r *Resolver) newWorkloadEntry(id string, cgroup *cgroupModel.CacheEntry, w
 			r.triggerScan(sbom)
 		},
 	)
-	r.sboms[id] = sbom
+	r.sboms.Add(id, sbom)
 	sbom.refresh.Start()
 
 	return sbom, nil
@@ -485,24 +495,24 @@ func (r *Resolver) triggerScan(sbom *SBOM) {
 }
 
 // OnWorkloadSelectorResolvedEvent is used to handle the creation of a new cgroup with its resolved tags
-func (r *Resolver) OnWorkloadSelectorResolvedEvent(cgroup *cgroupModel.CacheEntry) {
+func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 	r.sbomsLock.Lock()
 	defer r.sbomsLock.Unlock()
 
-	if cgroup == nil {
+	if workload == nil {
 		return
 	}
 
-	id := string(cgroup.ContainerID)
+	id := workload.ContainerID
 	// We don't scan hosts for now
 	if len(id) == 0 {
 		return
 	}
 
-	_, ok := r.sboms[id]
+	_, ok := r.sboms.Get(id)
 	if !ok {
-		workloadKey := getWorkloadKey(cgroup.GetWorkloadSelectorCopy())
-		sbom, err := r.newWorkloadEntry(id, cgroup, workloadKey)
+		workloadKey := getWorkloadKey(workload.Selector.Copy())
+		sbom, err := r.newWorkloadEntry(id, workload.CacheEntry, workloadKey)
 		if err != nil {
 			seclog.Errorf("couldn't create new SBOM entry for sbom '%s': %v", id, err)
 		}
@@ -511,7 +521,7 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(cgroup *cgroupModel.CacheEntr
 }
 
 // GetWorkload returns the sbom of a provided ID
-func (r *Resolver) GetWorkload(id string) *SBOM {
+func (r *Resolver) GetWorkload(id containerutils.ContainerID) *SBOM {
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()
 
@@ -519,16 +529,17 @@ func (r *Resolver) GetWorkload(id string) *SBOM {
 		return r.hostSBOM
 	}
 
-	return r.sboms[id]
+	sbom, _ := r.sboms.Get(id)
+	return sbom
 }
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (r *Resolver) OnCGroupDeletedEvent(cgroup *cgroupModel.CacheEntry) {
-	r.Delete(string(cgroup.CGroupID))
+	r.Delete(cgroup.ContainerID)
 }
 
 // Delete removes the SBOM of the provided cgroup id
-func (r *Resolver) Delete(id string) {
+func (r *Resolver) Delete(id containerutils.ContainerID) {
 	sbom := r.GetWorkload(id)
 	if sbom == nil {
 		return
@@ -547,7 +558,7 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 
 	seclog.Infof("deleting SBOM entry for '%s'", sbom.ContainerID)
 	// remove SBOM entry
-	delete(r.sboms, sbom.ContainerID)
+	r.sboms.Remove(sbom.ContainerID)
 
 	// check if the scan was successful
 	if !sbom.scanSuccessful.Load() {
@@ -571,7 +582,7 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 func (r *Resolver) SendStats() error {
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()
-	if val := float64(len(r.sboms)); val > 0 {
+	if val := float64(r.sboms.Len()); val > 0 {
 		if err := r.statsdClient.Gauge(metrics.MetricSBOMResolverActiveSBOMs, val, []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSBOMResolverActiveSBOMs: %w", err)
 		}

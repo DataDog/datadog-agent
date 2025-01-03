@@ -92,6 +92,35 @@ installer_rpm-amd64:
     # explicitly disable the check
     PACKAGE_REQUIRED_FILES_LIST: ""
 
+agent_rpm-x64-a7-fips:
+  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  tags: ["arch:amd64"]
+  needs: ["datadog-agent-7-x64-fips"]
+  variables:
+    OMNIBUS_EXTRA_ARGS: "--flavor fips"
+    DD_PROJECT: agent
+
+agent_rpm-arm64-a7-fips:
+  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
+  needs: ["datadog-agent-7-arm64-fips"]
+  variables:
+    OMNIBUS_EXTRA_ARGS: "--flavor fips"
+    DD_PROJECT: agent
+
+agent_suse-x64-a7-fips:
+  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  needs: ["datadog-agent-7-x64-fips"]
+  variables:
+    OMNIBUS_EXTRA_ARGS: "--host-distribution=suse --flavor fips"
+    DD_PROJECT: agent
+
+agent_suse-arm64-a7-fips:
+  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
+  needs: ["datadog-agent-7-arm64-fips"]
+  variables:
+    OMNIBUS_EXTRA_ARGS: "--host-distribution=suse --flavor fips"
+    DD_PROJECT: agent
+
 installer_rpm-arm64:
   extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
   needs: ["installer-arm64"]

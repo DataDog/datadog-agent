@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -31,7 +31,7 @@ jobs:
       - name: Setup Python3
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: "3.12.6"
+          python-version-file: .python-version
           cache: "pip"
       - run: pip3 install -r requirements.txt
 
@@ -40,12 +40,12 @@ jobs:
           echo "CGO_LDFLAGS= -L${GITHUB_WORKSPACE}/rtloader/build/rtloader -ldl " >> $GITHUB_ENV
           echo "CGO_CFLAGS= -I${GITHUB_WORKSPACE}/rtloader/include  -I${GITHUB_WORKSPACE}/rtloader/common " >> $GITHUB_ENV
 
-      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
         with:
           go-version-file: ".go-version"
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@4f3212b61783c3c68e8309a0f18a699764811cda # v3.27.1
+        uses: github/codeql-action/init@df409f7d9260372bd5f19e5b04e83cb3c43714ae # v3.27.9
         with:
           languages: ${{ matrix.language }}
           config: |
@@ -67,4 +67,4 @@ jobs:
           invoke agent.build --build-exclude=systemd
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@4f3212b61783c3c68e8309a0f18a699764811cda # v3.27.1
+        uses: github/codeql-action/analyze@df409f7d9260372bd5f19e5b04e83cb3c43714ae # v3.27.9

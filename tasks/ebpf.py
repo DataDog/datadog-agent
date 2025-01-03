@@ -804,6 +804,7 @@ def generate_complexity_summary_for_pr(
     max_complexity_abs_change = -9e9
     threshold_for_max_limit = 0.85
     programs_now_below_limit, programs_now_above_limit = 0, 0
+    has_programs_with_changes = False
     for program, entries in sorted(program_complexity.items(), key=lambda x: max(e[2] for e in x[1])):
         avg_new_complexity, avg_old_complexity = 0, 0
         highest_new_complexity, highest_old_complexity = 0, 0
@@ -833,8 +834,11 @@ def generate_complexity_summary_for_pr(
                 programs_now_above_limit += 1
 
             abs_change = new_complexity - old_complexity
-            max_complexity_rel_change = max(max_complexity_rel_change, abs_change / old_complexity)
-            max_complexity_abs_change = max(max_complexity_abs_change, abs_change)
+
+            if abs_change != 0:
+                max_complexity_rel_change = max(max_complexity_rel_change, abs_change / old_complexity)
+                max_complexity_abs_change = max(max_complexity_abs_change, abs_change)
+                has_programs_with_changes = True
 
         avg_new_complexity /= len(entries)
         avg_old_complexity /= len(entries)
@@ -853,6 +857,12 @@ def generate_complexity_summary_for_pr(
             has_changes,
         ]
         summarized_complexity_changes.append(row)
+
+    # Reset the max values if we have no programs with changes, as we don't want the -9e9 values
+    # which are used as the initial values
+    if not has_programs_with_changes:
+        max_complexity_abs_change = 0
+        max_complexity_rel_change = 0
 
     headers = ["Program", "Avg. complexity", "Distro with highest complexity", "Distro with lowest complexity"]
     summarized_complexity_changes = sorted(summarized_complexity_changes, key=lambda x: x[0])

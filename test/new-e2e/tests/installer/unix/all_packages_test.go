@@ -12,15 +12,15 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
@@ -39,7 +39,7 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
-		e2eos.FedoraDefault,
+		// e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
 		e2eos.CentOS7,
 		e2eos.Suse15,
 	}
@@ -107,11 +107,6 @@ func TestPackages(t *testing.T) {
 			suite := test.t(flavor, flavor.Architecture, method)
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
-				// FIXME: Fedora currently has DNS issues
-				if flavor.Flavor == e2eos.Fedora {
-					flake.Mark(t)
-				}
-
 				opts := []awshost.ProvisionerOption{
 					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
 					awshost.WithoutAgent(),
@@ -198,9 +193,18 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"))
 	case InstallMethodAnsible:
 		// Install ansible then install the agent
-		ansiblePrefix := s.installAnsible(s.os)
-
-		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+		var ansiblePrefix string
+		for i := 0; i < 3; i++ {
+			ansiblePrefix = s.installAnsible(s.os)
+			_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+			if err == nil {
+				break
+			}
+			if i == 2 {
+				s.T().Fatal("failed to install ansible-galaxy collection after 3 attempts")
+			}
+			time.Sleep(time.Second)
+		}
 
 		// Write the playbook
 		env := InstallScriptEnv(s.arch)

@@ -7,21 +7,24 @@ package domain
 
 import (
 	"fmt"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
-	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/DataDog/test-infra-definitions/components/activedirectory"
+
+	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	platformCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test"
-	"github.com/stretchr/testify/assert"
+	installtest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test"
 )
 
 const (
@@ -32,8 +35,9 @@ const (
 
 func TestInstallsOnDomainController(t *testing.T) {
 	suites := []e2e.Suite[environments.WindowsHost]{
-		&testInstallSuite{},
+		&testBasicInstallSuite{},
 		&testUpgradeSuite{},
+		&testInstallUserSyntaxSuite{},
 	}
 
 	for _, suite := range suites {
@@ -53,16 +57,16 @@ type testInstallSuite struct {
 	windows.BaseAgentInstallerSuite[environments.WindowsHost]
 }
 
-func (suite *testInstallSuite) TestGivenDomainUserCanInstallAgent() {
+func (suite *testInstallSuite) testGivenDomainUserCanInstallAgent(username string) {
 	host := suite.Env().RemoteHost
 
 	_, err := suite.InstallAgent(host,
 		windowsAgent.WithPackage(suite.AgentPackage),
-		windowsAgent.WithAgentUser(fmt.Sprintf("%s\\%s", TestDomain, TestUser)),
+		windowsAgent.WithAgentUser(username),
 		windowsAgent.WithAgentUserPassword(fmt.Sprintf("\"%s\"", TestPassword)),
 		windowsAgent.WithValidAPIKey(),
 		windowsAgent.WithFakeIntake(suite.Env().FakeIntake),
-		windowsAgent.WithInstallLogFile(filepath.Join(suite.OutputDir, "TC-INS-DC-006_install.log")))
+		windowsAgent.WithInstallLogFile(filepath.Join(suite.SessionOutputDir(), "TC-INS-DC-006_install.log")))
 
 	suite.Require().NoError(err, "should succeed to install Agent on a Domain Controller with a valid domain account & password")
 
@@ -81,6 +85,22 @@ func (suite *testInstallSuite) TestGivenDomainUserCanInstallAgent() {
 	}, 5*time.Minute, 10*time.Second)
 }
 
+type testBasicInstallSuite struct {
+	testInstallSuite
+}
+
+func (suite *testBasicInstallSuite) TestGivenDomainUserCanInstallAgent() {
+	suite.testGivenDomainUserCanInstallAgent(fmt.Sprintf("%s\\%s", TestDomain, TestUser))
+}
+
+type testInstallUserSyntaxSuite struct {
+	testInstallSuite
+}
+
+func (suite *testInstallUserSyntaxSuite) TestGivenDomainUserCanInstallAgent() {
+	suite.testGivenDomainUserCanInstallAgent(fmt.Sprintf("%s@%s", TestUser, TestDomain))
+}
+
 type testUpgradeSuite struct {
 	windows.BaseAgentInstallerSuite[environments.WindowsHost]
 }
@@ -94,7 +114,7 @@ func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
 		windowsAgent.WithAgentUserPassword(fmt.Sprintf("\"%s\"", TestPassword)),
 		windowsAgent.WithValidAPIKey(),
 		windowsAgent.WithFakeIntake(suite.Env().FakeIntake),
-		windowsAgent.WithInstallLogFile(filepath.Join(suite.OutputDir, "TC-UPG-DC-001_install_last_stable.log")))
+		windowsAgent.WithInstallLogFile(filepath.Join(suite.SessionOutputDir(), "TC-UPG-DC-001_install_last_stable.log")))
 
 	suite.Require().NoError(err, "should succeed to install Agent on a Domain Controller with a valid domain account & password")
 
@@ -103,7 +123,7 @@ func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
 
 	_, err = suite.InstallAgent(host,
 		windowsAgent.WithPackage(suite.AgentPackage),
-		windowsAgent.WithInstallLogFile(filepath.Join(suite.OutputDir, "TC-UPG-DC-001_upgrade.log")))
+		windowsAgent.WithInstallLogFile(filepath.Join(suite.SessionOutputDir(), "TC-UPG-DC-001_upgrade.log")))
 	suite.Require().NoError(err, "should succeed to upgrade an Agent on a Domain Controller")
 
 	tc.CheckAgentVersion(suite.T(), suite.AgentPackage.AgentVersion())

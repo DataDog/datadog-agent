@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -686,18 +687,20 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 
 							if tt == dumpTree {
 								dump := dump.NewEmptyActivityDump(nil)
-								dump.Metadata.ContainerID = contID
+								dump.Metadata.ContainerID = containerutils.ContainerID(contID)
 								at = dump.ActivityTree
 							} else /* profileTree */ {
 								profile := profile.NewSecurityProfile(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, []model.EventType{model.ExecEventType, model.DNSEventType}, nil)
 								at = activity_tree.NewActivityTree(profile, nil, "profile")
 								profile.ActivityTree = at
-								profile.Instances = append(profile.Instances, &cgroupModel.CacheEntry{
-									ContainerContext: model.ContainerContext{
-										ContainerID: containerutils.ContainerID(contID),
+								profile.Instances = append(profile.Instances, &tags.Workload{
+									CacheEntry: &cgroupModel.CacheEntry{
+										ContainerContext: model.ContainerContext{
+											ContainerID: containerutils.ContainerID(contID),
+										},
+										CGroupContext: model.CGroupContext{CGroupID: containerutils.CGroupID(contID)},
 									},
-									CGroupContext:    model.CGroupContext{CGroupID: containerutils.CGroupID(contID)},
-									WorkloadSelector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
+									Selector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
 								})
 							}
 						} else { // retrieve last saved tree state

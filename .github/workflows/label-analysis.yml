@@ -23,13 +23,13 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
       - name: Setup python
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: 3.11
+          python-version-file: .python-version
           cache: 'pip'
           cache-dependency-path: '**/requirements*.txt'
       - name: Install dependencies
@@ -43,14 +43,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Setup python
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: 3.11
+          python-version-file: .python-version
           cache: 'pip'
           cache-dependency-path: '**/requirements*.txt'
       - name: Install dependencies
@@ -102,40 +102,60 @@ jobs:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          persist-credentials: false
+      - name: Setup Python3
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version-file: .python-version
+          cache: "pip"
+          cache-dependency-path: '**/requirements*.txt'
+      - name: Install python dependencies
+        run: pip3 install -r requirements.txt
       - name: Check qa/[done|no-code-change] labels are not set together
-        run: |
-          is_qa_done=1
-          is_qa_no_code_change=1
-          for label in $LABELS; do
-            if [[ "$label" == "qa/done" ]]; then
-              is_qa_done=0
-            fi
-            if [[ "$label" == "qa/no-code-change" ]]; then
-              is_qa_no_code_change=0
-            fi
-          done
-          if [ $is_qa_done -eq 0 ] && [ $is_qa_no_code_change -eq 0 ]; then
-            echo "Both 'qa/done' and 'qa/no-code-change' labels are set -- only one of them should be set"
-            exit 1
-          fi
-          echo "No issue with 'qa/done' and 'qa/no-code-change' labels"
         env:
           LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
+        run: |
+          inv -e github.check-qa-labels --labels "${LABELS[@]}"
+
   agenttelemetry-list-change-ack-check:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.head_ref }}
       - name: Setup python
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: 3.11
+          python-version-file: .python-version
           cache: 'pip'
           cache-dependency-path: '**/requirements*.txt'
       - name: Install dependencies
         run: pip install -r requirements.txt -r tasks/requirements.txt
       - name: Check agent telemetry metric list
         run: inv -e github.agenttelemetry-list-change-ack-check --pr-id=${{ github.event.pull_request.number }}
+
+  ask-reviews:
+    if: github.triggering_actor != 'dd-devflow[bot]' && github.event.action == 'labeled' && github.event.label.name == 'ask-review'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Setup python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version-file: .python-version
+          cache: 'pip'
+          cache-dependency-path: '**/requirements*.txt'
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r tasks/requirements.txt --break-system-packages
+      - name: Ask for code reviews
+        env:
+          SLACK_API_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+        run: inv -e issue.ask-reviews -p ${{ github.event.pull_request.number }}

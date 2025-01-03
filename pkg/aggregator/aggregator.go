@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
@@ -160,13 +159,13 @@ var (
 	tlmDogstatsdContextsByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_by_mtype",
 		[]string{"shard", "metric_type"}, "Count the number of dogstatsd contexts in the aggregator, by metric type")
 	tlmDogstatsdContextsBytesByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_bytes_by_mtype",
-		[]string{"shard", "metric_type", util.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the aggregator, by metric type")
+		[]string{"shard", "metric_type", tags.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the aggregator, by metric type")
 	tlmChecksContexts = telemetry.NewGauge("aggregator", "checks_contexts",
 		[]string{"shard"}, "Count the number of checks contexts in the check aggregator")
 	tlmChecksContextsByMtype = telemetry.NewGauge("aggregator", "checks_contexts_by_mtype",
 		[]string{"shard", "metric_type"}, "Count the number of checks contexts in the check aggregator, by metric type")
 	tlmChecksContextsBytesByMtype = telemetry.NewGauge("aggregator", "checks_contexts_bytes_by_mtype",
-		[]string{"shard", "metric_type", util.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the check aggregator, by metric type")
+		[]string{"shard", "metric_type", tags.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the check aggregator, by metric type")
 
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series
@@ -610,6 +609,19 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 		SourceTypeName: "System",
 	})
 
+	if agg.haAgent.Enabled() {
+		haAgentTags := append(agg.tags(false), "agent_state:"+string(agg.haAgent.GetState()))
+		// Send along a metric to show if HA Agent is running with agent_state tag.
+		series.Append(&metrics.Serie{
+			Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
+			Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
+			Tags:           tagset.CompositeTagsFromSlice(haAgentTags),
+			Host:           agg.hostname,
+			MType:          metrics.APIGaugeType,
+			SourceTypeName: "System",
+		})
+	}
+
 	// Send along a metric that counts the number of times we dropped some payloads because we couldn't split them.
 	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
@@ -863,9 +875,6 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		if version.AgentPackageVersion != "" {
 			tags = append(tags, "package_version:"+version.AgentPackageVersion)
 		}
-	}
-	if agg.haAgent.Enabled() {
-		tags = append(tags, "agent_group:"+agg.haAgent.GetGroup())
 	}
 	// nil to empty string
 	// This is expected by other components/tests

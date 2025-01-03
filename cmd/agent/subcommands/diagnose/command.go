@@ -29,14 +29,13 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -102,10 +101,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					AgentType:  workloadmeta.NodeAgent,
 					InitHelper: common.GetWorkloadmetaInit(),
 				}),
-				fx.Supply(optional.NewNoneOption[collector.Component]()),
+				fx.Supply(option.None[collector.Component]()),
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				autodiscoveryimpl.Module(),
-				compressionimpl.Module(),
+				compressionfx.Module(),
 				diagnosesendermanagerimpl.Module(),
 				haagentfx.Module(),
 			)
@@ -301,7 +300,7 @@ This command print the security-agent metadata payload. This payload is used by 
 
 func cmdDiagnose(cliParams *cliParams,
 	senderManager diagnosesendermanager.Component,
-	wmeta optional.Option[workloadmeta.Component],
+	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
 	_ log.Component,

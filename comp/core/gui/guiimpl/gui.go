@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+
 	"path/filepath"
 	"strconv"
 	"time"
@@ -25,6 +26,8 @@ import (
 
 	"github.com/dvsekhvalnov/jose2go/base64url"
 	"github.com/gorilla/mux"
+
+	securejoin "github.com/cyphar/filepath-securejoin"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -36,8 +39,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
@@ -62,8 +66,8 @@ type gui struct {
 	startTimestamp int64
 }
 
-//go:embed views
-var viewsFS embed.FS
+//go:embed views/templates
+var templatesFS embed.FS
 
 // Payload struct is for the JSON messages received from a client POST request
 type Payload struct {
@@ -87,7 +91,7 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp     optional.Option[guicomp.Component]
+	Comp     option.Option[guicomp.Component]
 	Endpoint api.AgentEndpointProvider
 }
 
@@ -97,7 +101,7 @@ type provides struct {
 func newGui(deps dependencies) provides {
 
 	p := provides{
-		Comp: optional.NewNoneOption[guicomp.Component](),
+		Comp: option.None[guicomp.Component](),
 	}
 	guiPort := deps.Config.GetString("GUI_port")
 
@@ -154,7 +158,7 @@ func newGui(deps dependencies) provides {
 		OnStart: g.start,
 		OnStop:  g.stop})
 
-	p.Comp = optional.NewOption[guicomp.Component](g)
+	p.Comp = option.New[guicomp.Component](g)
 	p.Endpoint = api.NewAgentEndpointProvider(g.getIntentToken, "/gui/intent", "GET")
 
 	return p
@@ -198,7 +202,7 @@ func (g *gui) getIntentToken(w http.ResponseWriter, _ *http.Request) {
 }
 
 func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
-	data, err := viewsFS.ReadFile("views/templates/index.tmpl")
+	data, err := templatesFS.ReadFile("views/templates/index.tmpl")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -229,8 +233,15 @@ func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 }
 
 func serveAssets(w http.ResponseWriter, req *http.Request) {
-	path := path.Join("views", "private", req.URL.Path)
-	data, err := viewsFS.ReadFile(path)
+	staticFilePath := path.Join(setup.InstallPath, "bin", "agent", "dist", "views")
+
+	// checking against path traversal
+	path, err := securejoin.SecureJoin(staticFilePath, req.URL.Path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			http.Error(w, err.Error(), http.StatusNotFound)

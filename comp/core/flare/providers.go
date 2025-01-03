@@ -53,6 +53,7 @@ func (f *flare) collectLogsFiles(fb types.FlareBuilder) error {
 func (f *flare) collectConfigFiles(fb types.FlareBuilder) error {
 	confSearchPaths := map[string]string{
 		"":        f.config.GetString("confd_path"),
+		"fleet":   filepath.Join(f.config.GetString("fleet_policies_dir"), "conf.d"),
 		"dist":    filepath.Join(f.params.distPath, "conf.d"),
 		"checksd": f.params.pythonChecksPath,
 	}

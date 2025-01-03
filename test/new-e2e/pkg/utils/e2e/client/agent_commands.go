@@ -113,11 +113,7 @@ func (agent *agentCommandRunner) Flare(commandArgs ...agentclient.AgentArgsOptio
 
 // FlareWithError runs flare command and returns the output or an error. You should use the FakeIntake client to fetch the flare archive
 func (agent *agentCommandRunner) FlareWithError(commandArgs ...agentclient.AgentArgsOption) (string, error) {
-	args, err := optional.MakeParams(commandArgs...)
-	require.NoError(agent.t, err)
-
-	arguments := append([]string{"flare"}, args.Args...)
-	return agent.executor.execute(arguments)
+	return agent.executeCommandWithError("flare", commandArgs...)
 }
 
 // Health runs health command and returns the runtime agent health
@@ -169,6 +165,15 @@ func (agent *agentCommandRunner) Status(commandArgs ...agentclient.AgentArgsOpti
 // StatusWithError runs status command and returns a Status struct and error
 func (agent *agentCommandRunner) StatusWithError(commandArgs ...agentclient.AgentArgsOption) (*agentclient.Status, error) {
 	status, err := agent.executeCommandWithError("status", commandArgs...)
+
+	return &agentclient.Status{
+		Content: status,
+	}, err
+}
+
+// JMX run the jmx command and returns a Status struct and error
+func (agent *agentCommandRunner) JMX(commandArgs ...agentclient.AgentArgsOption) (*agentclient.Status, error) {
+	status, err := agent.executeCommandWithError("jmx", commandArgs...)
 
 	return &agentclient.Status{
 		Content: status,

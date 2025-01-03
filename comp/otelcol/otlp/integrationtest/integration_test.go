@@ -63,8 +63,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	implzlib "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zlib"
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
@@ -75,7 +75,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) error {
@@ -112,16 +112,16 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			return h.Get
 		}),
 		hostnameinterface.MockModule(),
-		fx.Supply(optional.NewNoneOption[secrets.Component]()),
+		fx.Supply(option.None[secrets.Component]()),
 
 		fx.Provide(func(_ coreconfig.Component) logdef.Params {
 			return logdef.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),
 		// We create strategy.ZlibStrategy directly to avoid build tags
-		fx.Provide(strategy.NewZlibStrategy),
-		fx.Provide(func(s *strategy.ZlibStrategy) compression.Component {
-			return s
+		fx.Provide(implzlib.NewComponent),
+		fx.Provide(func(s implzlib.Provides) compression.Component {
+			return s.Comp
 		}),
 		fx.Provide(serializer.NewSerializer),
 		// For FX to provide the serializer.MetricSerializer from the serializer.Serializer
@@ -133,7 +133,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			return defaultforwarder.Forwarder(c), nil
 		}),
 		orchestratorimpl.MockModule(),
-		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ optional.Option[logsagentpipeline.Component]) {
+		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component]) {
 		}),
 		taggerfx.Module(tagger.Params{}),
 		noopsimpl.Module(),

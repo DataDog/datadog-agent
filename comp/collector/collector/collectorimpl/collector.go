@@ -24,6 +24,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	metadata "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgCollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -37,7 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -48,20 +49,22 @@ const (
 type dependencies struct {
 	fx.In
 
-	Lc     fx.Lifecycle
-	Config config.Component
-	Log    log.Component
+	Lc      fx.Lifecycle
+	Config  config.Component
+	Log     log.Component
+	HaAgent haagent.Component
 
 	SenderManager    sender.SenderManager
-	MetricSerializer optional.Option[serializer.MetricSerializer]
+	MetricSerializer option.Option[serializer.MetricSerializer]
 }
 
 type collectorImpl struct {
-	log    log.Component
-	config config.Component
+	log     log.Component
+	config  config.Component
+	haAgent haagent.Component
 
 	senderManager    sender.SenderManager
-	metricSerializer optional.Option[serializer.MetricSerializer]
+	metricSerializer option.Option[serializer.MetricSerializer]
 	checkInstances   int64
 
 	// state is 'started' or 'stopped'
@@ -92,8 +95,8 @@ type provides struct {
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newProvides),
-		fx.Provide(func(c collector.Component) optional.Option[collector.Component] {
-			return optional.NewOption[collector.Component](c)
+		fx.Provide(func(c collector.Component) option.Option[collector.Component] {
+			return option.New[collector.Component](c)
 		}),
 	)
 }
@@ -119,6 +122,7 @@ func newCollector(deps dependencies) *collectorImpl {
 	c := &collectorImpl{
 		log:                deps.Log,
 		config:             deps.Config,
+		haAgent:            deps.HaAgent,
 		senderManager:      deps.SenderManager,
 		metricSerializer:   deps.MetricSerializer,
 		checks:             make(map[checkid.ID]*middleware.CheckWrapper),
@@ -186,7 +190,7 @@ func (c *collectorImpl) start(_ context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	run := runner.NewRunner(c.senderManager)
+	run := runner.NewRunner(c.senderManager, c.haAgent)
 	sched := scheduler.NewScheduler(run.GetChan())
 
 	// let the runner some visibility into the scheduler

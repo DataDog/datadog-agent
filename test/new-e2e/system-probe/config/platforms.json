@@ -257,6 +257,14 @@
       "alt_version_names": [
         "oracular"
       ]
+    },
+    "rocky_9.4": {
+      "os_name": "Rocky Linux",
+      "os_id": "rocky",
+      "kernel": "5.14.0-503.15.1.el9_5",
+      "os_version": "9.4",
+      "image": "rocky-9.4-x86_64.qcow2.xz",
+      "image_version": "20241209_f6a14db0"
     }
   },
   "arm64": {
@@ -486,6 +494,14 @@
       "alt_version_names": [
         "oracular"
       ]
+    },
+    "rocky_9.4": {
+      "os_name": "Rocky Linux",
+      "os_id": "rocky",
+      "kernel": "5.14.0-503.15.1.el9_5",
+      "os_version": "9.4",
+      "image": "rocky-9.4-arm64.qcow2.xz",
+      "image_version": "20241209_f6a14db0"
     }
   }
 }

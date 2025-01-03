@@ -68,7 +68,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -82,7 +82,7 @@ import (
 	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -183,7 +183,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				collector.NoneModule(),
 				fx.Supply(status.NewInformationProvider(statuscollector.Provider{})),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
-				compressionimpl.Module(),
+				compressionfx.Module(),
 				// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithFlushInterval(0))),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewNoopParams()),
@@ -202,10 +202,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
 				// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
 				// in others commands such as run.
-				fx.Supply(optional.NewNoneOption[rcservice.Component]()),
-				fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
-				fx.Supply(optional.NewNoneOption[logagent.Component]()),
-				fx.Supply(optional.NewNoneOption[integrations.Component]()),
+				fx.Supply(option.None[rcservice.Component]()),
+				fx.Supply(option.None[rcservicemrf.Component]()),
+				fx.Supply(option.None[logagent.Component]()),
+				fx.Supply(option.None[integrations.Component]()),
 				fx.Provide(func() server.Component { return nil }),
 				fx.Provide(func() replay.Component { return nil }),
 				fx.Provide(func() pidmap.Component { return nil }),
@@ -263,10 +263,10 @@ func run(
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
 	statusComponent status.Component,
-	collector optional.Option[collector.Component],
+	collector option.Option[collector.Component],
 	jmxLogger jmxlogger.Component,
 	telemetry telemetry.Component,
-	logReceiver optional.Option[integrations.Component],
+	logReceiver option.Option[integrations.Component],
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false

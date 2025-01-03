@@ -7,6 +7,7 @@ Utilities to manage build tags
 # so we only need to check that we don't run this code with old Python versions.
 from __future__ import annotations
 
+import os
 import sys
 
 from invoke import task
@@ -16,7 +17,6 @@ from tasks.flavor import AgentFlavor
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
 ALL_TAGS = {
-    "apm",
     "clusterchecks",
     "consul",
     "containerd",
@@ -27,7 +27,6 @@ ALL_TAGS = {
     "ec2",
     "etcd",
     "fargateprocess",
-    "gce",
     "jmx",
     "jetson",
     "kubeapiserver",
@@ -40,9 +39,7 @@ ALL_TAGS = {
     "otlp",
     "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
-    "process",
     "python",
-    "remotewmonly",  # used when you want to use only the remote workloadmeta store without importing all dependencies of local collectors
     "sds",
     "serverless",
     "systemd",
@@ -52,13 +49,13 @@ ALL_TAGS = {
     "zlib",
     "zstd",
     "test",  # used for unit-tests
+    "goexperiment.systemcrypto",  # used for FIPS mode
 }
 
 ### Tag inclusion lists
 
 # AGENT_TAGS lists the tags needed when building the agent.
 AGENT_TAGS = {
-    "apm",
     "consul",
     "containerd",
     "cri",
@@ -67,7 +64,6 @@ AGENT_TAGS = {
     "docker",
     "ec2",
     "etcd",
-    "gce",
     "jetson",
     "jmx",
     "kubeapiserver",
@@ -77,7 +73,6 @@ AGENT_TAGS = {
     "orchestrator",
     "otlp",
     "podman",
-    "process",
     "python",
     "systemd",
     "trivy",
@@ -105,8 +100,10 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     }
 )
 
+FIPS_AGENT_TAGS = AGENT_TAGS.union({"goexperiment.systemcrypto"})
+
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
-CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2", "gce"}
+CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2"}
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
 CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks"}
@@ -118,7 +115,7 @@ DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"}
 IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib", "zstd"}
 
 # INSTALLER_TAGS lists the tags needed when building the installer
-INSTALLER_TAGS = {"docker", "ec2", "gce", "kubelet"}
+INSTALLER_TAGS = {"docker", "ec2", "kubelet"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess"}).difference({"otlp", "python", "trivy"})
@@ -158,7 +155,17 @@ SECURITY_AGENT_TAGS = {
 SERVERLESS_TAGS = {"serverless", "otlp"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"linux_bpf", "npm", "pcap", "remotewmonly"}).difference({"python", "systemd"})
+SYSTEM_PROBE_TAGS = {
+    "datadog.no_waf",
+    "ec2",
+    "linux_bpf",
+    "netcgo",
+    "npm",
+    "pcap",
+    "trivy",
+    "zlib",
+    "zstd",
+}
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
 TRACE_AGENT_TAGS = {"docker", "containerd", "datadog.no_waf", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman"}
@@ -234,6 +241,11 @@ build_tags = {
         "system-tests": AGENT_TAGS,
         "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+    },
+    AgentFlavor.fips: {
+        "agent": FIPS_AGENT_TAGS,
+        "lint": FIPS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": FIPS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
 }
 
@@ -316,7 +328,7 @@ def filter_incompatible_tags(include, platform=sys.platform):
     if not platform.startswith("linux"):
         exclude = exclude.union(LINUX_ONLY_TAGS)
 
-    if platform == "win32":
+    if platform == "win32" or os.getenv("GOOS") == "windows":
         include = include.union(["wmi"])
         exclude = exclude.union(WINDOWS_EXCLUDE_TAGS)
 
@@ -414,3 +426,9 @@ def compute_config_build_tags(targets="all", build_include=None, build_exclude=N
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     use_tags = get_build_tags(build_include, build_exclude)
     return use_tags
+
+
+def add_fips_tags(tags: list[str], fips_mode: bool) -> list[str]:
+    if fips_mode:
+        tags.append("goexperiment.systemcrypto")
+    return tags

@@ -20,11 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Module defines the fx options for this component.
@@ -44,7 +44,7 @@ type dependencies struct {
 }
 
 type diagnoseSenderManager struct {
-	senderManager optional.Option[sender.SenderManager]
+	senderManager option.Option[sender.SenderManager]
 	deps          dependencies
 }
 
@@ -73,8 +73,8 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 	config := sender.deps.Config
 	haAgent := sender.deps.HaAgent
 	forwarder := defaultforwarder.NewDefaultForwarder(config, log, defaultforwarder.NewOptions(config, log, nil))
-	orchestratorForwarder := optional.NewOptionPtr[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(sender.deps.Hostname))
+	orchestratorForwarder := option.NewPtr[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(sender.deps.Hostname))
 	senderManager = aggregator.InitAndStartAgentDemultiplexer(
 		log,
 		forwarder,

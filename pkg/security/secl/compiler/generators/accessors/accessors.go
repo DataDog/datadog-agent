@@ -57,7 +57,7 @@ type AstFiles struct {
 }
 
 // LookupSymbol lookups symbol
-func (af *AstFiles) LookupSymbol(symbol string) *ast.Object {
+func (af *AstFiles) LookupSymbol(symbol string) *ast.Object { //nolint:staticcheck
 	for _, file := range af.files {
 		if obj := file.Scope.Lookup(symbol); obj != nil {
 			return obj
@@ -708,7 +708,7 @@ func newAstFiles(cfg *packages.Config, files ...string) (*AstFiles, error) {
 func parseFile(modelFile string, typesFile string, pkgName string) (*common.Module, error) {
 	cfg := packages.Config{
 		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=mod", fmt.Sprintf("-tags=%s", buildTags)},
+		BuildFlags: []string{"-mod=readonly", fmt.Sprintf("-tags=%s", buildTags)},
 	}
 
 	astFiles, err := newAstFiles(&cfg, modelFile, typesFile)
@@ -990,6 +990,20 @@ func getFieldRestrictions(field *common.StructField) string {
 	return fmt.Sprintf(`[]eval.EventType{"%s"}`, strings.Join(field.RestrictedTo, `", "`))
 }
 
+func getFieldReflectType(field *common.StructField) string {
+	switch field.ReturnType {
+	case "string":
+		return "reflect.String"
+	case "int":
+		return "reflect.Int"
+	case "bool":
+		return "reflect.Bool"
+	case "net.IPNet":
+		return "reflect.Struct"
+	}
+	return ""
+}
+
 var funcMap = map[string]interface{}{
 	"TrimPrefix":               strings.TrimPrefix,
 	"TrimSuffix":               strings.TrimSuffix,
@@ -1005,6 +1019,7 @@ var funcMap = map[string]interface{}{
 	"NeedScrubbed":             needScrubbed,
 	"AddSuffixToFuncPrototype": addSuffixToFuncPrototype,
 	"GetFieldRestrictions":     getFieldRestrictions,
+	"GetFieldReflectType":      getFieldReflectType,
 }
 
 //go:embed accessors.tmpl
