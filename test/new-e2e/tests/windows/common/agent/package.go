@@ -86,7 +86,7 @@ func GetMSIURL(channel string, version string, arch string, flavor string) (stri
 		return "", err
 	}
 
-	productName, err := GetFlavorProductName(flavor)
+	productName, err := GetFlavorProductName(flavor, false)
 	if err != nil {
 		return "", err
 	}
@@ -97,14 +97,18 @@ func GetMSIURL(channel string, version string, arch string, flavor string) (stri
 // GetFlavorProductName returns the product name for the flavor
 //
 // flavor: base, fips
-func GetFlavorProductName(flavor string) (string, error) {
+func GetFlavorProductName(flavor string, upgradeTest bool) (string, error) {
+	upgradeSufix := ""
+	if upgradeTest {
+		upgradeSufix = "-testing"
+	}
 	switch flavor {
 	case "":
-		return "datadog-agent", nil
+		return fmt.Sprintf("datadog-agent%s", upgradeSufix), nil
 	case "base":
-		return "datadog-agent", nil
+		return fmt.Sprintf("datadog-agent%s", upgradeSufix), nil
 	case "fips":
-		return "datadog-fips-agent", nil
+		return fmt.Sprintf("datadog-fips-agent%s", upgradeSufix), nil
 	default:
 		return "", fmt.Errorf("unknown flavor %v", flavor)
 	}
@@ -132,7 +136,7 @@ func GetLatestMSIURL(majorVersion string, arch string, flavor string) (string, e
 	if arch == "x86_64" {
 		arch = "amd64"
 	}
-	productName, err := GetFlavorProductName(flavor)
+	productName, err := GetFlavorProductName(flavor, false)
 	if err != nil {
 		return "", err
 	}
@@ -145,8 +149,8 @@ func GetLatestMSIURL(majorVersion string, arch string, flavor string) (string, e
 // majorVersion: 6, 7
 // arch: x86_64
 // flavor: base, fips
-func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string, flavor string) (string, error) {
-	productName, err := GetFlavorProductName(flavor)
+func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string, flavor string, upgradeTest bool) (string, error) {
+	productName, err := GetFlavorProductName(flavor, upgradeTest)
 	if err != nil {
 		return "", err
 	}
@@ -337,7 +341,7 @@ func GetPackageFromEnv() (*Package, error) {
 
 	// check if we should use the URL from a specific CI pipeline
 	if pipelineIDFound {
-		url, err := GetPipelineMSIURL(pipelineID, majorVersion, arch, flavor)
+		url, err := GetPipelineMSIURL(pipelineID, majorVersion, arch, flavor, false)
 		if err != nil {
 			return nil, err
 		}
@@ -361,7 +365,7 @@ func GetPackageFromEnv() (*Package, error) {
 			}
 		}
 		// Get MSI URL
-		productName, err := GetFlavorProductName(flavor)
+		productName, err := GetFlavorProductName(flavor, false)
 		if err != nil {
 			return nil, err
 		}
@@ -430,4 +434,47 @@ func GetLastStablePackageFromEnv() (*Package, error) {
 		URL:     url,
 		Flavor:  flavor,
 	}, nil
+}
+
+// GetUpgradeTestPackageFromEnv returns the upgrade test package to use in upgrade test
+//
+// UPGRADABLE_WINDOWS_AGENT_MSI_URL: manually provided URL (all other parameters are informational only)
+func GetUpgradeTestPackageFromEnv() (*Package, error) {
+	// Collect env opts
+	version, _ := LookupVersionFromEnv()
+	arch, _ := LookupArchFromEnv()
+	flavor, _ := LookupFlavorFromEnv()
+	pipelineID, pipelineIDFound := os.LookupEnv("E2E_PIPELINE_ID")
+
+	majorVersion := strings.Split(version, ".")[0]
+
+	// if UPGRADABLE_WINDOWS_AGENT_MSI_URL provided use it
+	url := os.Getenv("UPGRADABLE_WINDOWS_AGENT_MSI_URL")
+	if url != "" {
+		return &Package{
+			Channel: stableChannel,
+			Version: version,
+			Arch:    arch,
+			URL:     url,
+			Flavor:  flavor,
+		}, nil
+	}
+
+	// check if we should use the URL from a specific CI pipeline
+	if pipelineIDFound {
+		url, err := GetPipelineMSIURL(pipelineID, majorVersion, arch, flavor, true)
+		if err != nil {
+			return nil, err
+		}
+		return &Package{
+			PipelineID: pipelineID,
+			Version:    version,
+			Arch:       arch,
+			URL:        url,
+			Flavor:     flavor,
+		}, nil
+	}
+
+	// if not in pipeline or provided in env, then fail
+	return nil, fmt.Errorf("no upgradable package found")
 }

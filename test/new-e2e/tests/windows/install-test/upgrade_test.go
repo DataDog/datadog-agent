@@ -73,6 +73,59 @@ func (s *testUpgradeSuite) TestUpgrade() {
 	s.uninstallAgentAndRunUninstallTests(t)
 }
 
+// TestUpgrade tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+func TestUpgradeFromLatest(t *testing.T) {
+	s := &testUpgradeFromLatestSuite{}
+	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
+	require.NoError(t, err, "should get last stable agent package from env")
+	s.upgradeAgentPackge = upgradeAgentPackge
+	run(t, s)
+}
+
+type testUpgradeFromLatestSuite struct {
+	baseAgentMSISuite
+	upgradeAgentPackge *windowsAgent.Package
+}
+
+func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
+	vm := s.Env().RemoteHost
+
+	// install current version
+	if !s.Run(fmt.Sprintf("install %s", s.AgentPackage.AgentVersion()), func() {
+		_, err := s.InstallAgent(vm,
+			windowsAgent.WithPackage(s.AgentPackage),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
+		)
+		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	// upgrade to test agent
+	if !s.Run(fmt.Sprintf("upgrade to %s", s.upgradeAgentPackge.AgentVersion()), func() {
+		_, err := s.InstallAgent(vm,
+			windowsAgent.WithPackage(s.upgradeAgentPackge),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
+		)
+		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	// run tests
+	testerOptions := []TesterOption{
+		WithAgentPackage(s.upgradeAgentPackge),
+	}
+	t, err := NewTester(s, vm, testerOptions...)
+	s.Require().NoError(err, "should create tester")
+	if !t.TestInstallExpectations(s.T()) {
+		s.T().FailNow()
+	}
+
+	s.uninstallAgentAndRunUninstallTests(t)
+
+}
+
 func TestUpgradeRollback(t *testing.T) {
 	s := &testUpgradeRollbackSuite{}
 	run(t, s)
