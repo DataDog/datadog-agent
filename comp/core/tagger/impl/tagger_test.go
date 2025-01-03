@@ -18,6 +18,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -110,7 +111,7 @@ func TestEnrichTags(t *testing.T) {
 		},
 		{
 			name:         "with local data (podUID, containerIDFromSocket) and high cardinality, APM origin",
-			originInfo:   taggertypes.OriginInfo{PodUID: podUID, Cardinality: "high", ContainerIDFromSocket: fmt.Sprintf("container_id://%s", containerID), ProductOrigin: taggertypes.ProductOriginAPM},
+			originInfo:   taggertypes.OriginInfo{PodUID: podUID, Cardinality: "high", ContainerIDFromSocket: fmt.Sprintf("container_id://%s", containerID), ProductOrigin: origindetection.ProductOriginAPM},
 			expectedTags: []string{"container-low", "container-orch", "container-high", "pod-low", "pod-orch", "pod-high"},
 		},
 	} {
@@ -138,31 +139,31 @@ func TestEnrichTags(t *testing.T) {
 	}{
 		{
 			name:         "with external data (containerName) and high cardinality",
-			originInfo:   taggertypes.OriginInfo{ProductOrigin: taggertypes.ProductOriginAPM, ExternalData: fmt.Sprintf("cn-%s,it-false", containerName), Cardinality: "high"},
+			originInfo:   taggertypes.OriginInfo{ProductOrigin: origindetection.ProductOriginAPM, ExternalData: fmt.Sprintf("cn-%s,it-false", containerName), Cardinality: "high"},
 			expectedTags: []string{},
 			setup:        func() { mockMetricsProvider.RegisterMetaCollector(&containerMetaCollector) },
 		},
 		{
 			name:         "with external data (containerName, podUID) and low cardinality",
-			originInfo:   taggertypes.OriginInfo{ProductOrigin: taggertypes.ProductOriginAPM, ExternalData: fmt.Sprintf("it-invalid,cn-%s,pu-%s", containerName, podUID), Cardinality: "low"},
+			originInfo:   taggertypes.OriginInfo{ProductOrigin: origindetection.ProductOriginAPM, ExternalData: fmt.Sprintf("it-invalid,cn-%s,pu-%s", containerName, podUID), Cardinality: "low"},
 			expectedTags: []string{"pod-low", "container-low"},
 			setup:        func() { mockMetricsProvider.RegisterMetaCollector(&containerMetaCollector) },
 		},
 		{
 			name:         "with external data (podUID) and high cardinality",
-			originInfo:   taggertypes.OriginInfo{ProductOrigin: taggertypes.ProductOriginAPM, ExternalData: fmt.Sprintf("pu-%s,it-false", podUID), Cardinality: "high"},
+			originInfo:   taggertypes.OriginInfo{ProductOrigin: origindetection.ProductOriginAPM, ExternalData: fmt.Sprintf("pu-%s,it-false", podUID), Cardinality: "high"},
 			expectedTags: []string{"pod-low", "pod-orch", "pod-high"},
 			setup:        func() { mockMetricsProvider.RegisterMetaCollector(&containerMetaCollector) },
 		},
 		{
 			name:         "with external data (containerName, podUID) and high cardinality",
-			originInfo:   taggertypes.OriginInfo{ProductOrigin: taggertypes.ProductOriginAPM, ExternalData: fmt.Sprintf("pu-%s,it-false,cn-%s", podUID, containerName), Cardinality: "high"},
+			originInfo:   taggertypes.OriginInfo{ProductOrigin: origindetection.ProductOriginAPM, ExternalData: fmt.Sprintf("pu-%s,it-false,cn-%s", podUID, containerName), Cardinality: "high"},
 			expectedTags: []string{"pod-low", "pod-orch", "pod-high", "container-low", "container-orch", "container-high"},
 			setup:        func() { mockMetricsProvider.RegisterMetaCollector(&containerMetaCollector) },
 		},
 		{
 			name:         "with external data (containerName, podUID, initContainer) and low cardinality",
-			originInfo:   taggertypes.OriginInfo{ProductOrigin: taggertypes.ProductOriginAPM, ExternalData: fmt.Sprintf("pu-%s,cn-%s,it-true", podUID, initContainerName), Cardinality: "low"},
+			originInfo:   taggertypes.OriginInfo{ProductOrigin: origindetection.ProductOriginAPM, ExternalData: fmt.Sprintf("pu-%s,cn-%s,it-true", podUID, initContainerName), Cardinality: "low"},
 			expectedTags: []string{"pod-low", "init-container-low"},
 			setup:        func() { mockMetricsProvider.RegisterMetaCollector(&initContainerMetaCollector) },
 		},
@@ -223,11 +224,11 @@ func TestEnrichTagsOptOut(t *testing.T) {
 
 	tb := tagset.NewHashingTagsAccumulator()
 	// Test with none cardinality
-	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", ContainerID: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
+	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", ContainerID: "container-id", Cardinality: "none", ProductOrigin: origindetection.ProductOriginDogStatsD})
 	assert.Equal(t, []string{}, tb.Get())
 
 	// Test without none cardinality
-	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", PodUID: "pod-uid", ContainerID: "container-id", Cardinality: "low", ProductOrigin: taggertypes.ProductOriginDogStatsD})
+	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", PodUID: "pod-uid", ContainerID: "container-id", Cardinality: "low", ProductOrigin: origindetection.ProductOriginDogStatsD})
 	assert.Equal(t, []string{"container-low"}, tb.Get())
 }
 
