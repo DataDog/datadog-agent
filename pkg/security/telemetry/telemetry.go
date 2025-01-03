@@ -19,6 +19,8 @@ import (
 type ContainersTelemetry struct {
 	TelemetrySender SimpleTelemetrySender
 	MetadataStore   workloadmeta.Component
+
+	previousContainerIDs map[string]struct{}
 }
 
 // NewContainersTelemetry returns a new ContainersTelemetry based on default/global objects
@@ -38,6 +40,7 @@ func (c *ContainersTelemetry) ListRunningContainers() []*workloadmeta.Container 
 // This function is critical for CWS/CSPM metering. Please tread carefully.
 func (c *ContainersTelemetry) ReportContainers(metricName string) {
 	containers := c.ListRunningContainers()
+	newContainerIDs := make(map[string]struct{})
 
 	for _, container := range containers {
 		// ignore DD agent containers
@@ -49,7 +52,15 @@ func (c *ContainersTelemetry) ReportContainers(metricName string) {
 		}
 
 		c.TelemetrySender.Gauge(metricName, 1.0, []string{"container_id:" + container.ID, constants.CardinalityTagPrefix + "orch"})
+		newContainerIDs[container.ID] = struct{}{}
+		delete(c.previousContainerIDs, container.ID)
 	}
+
+	for containerID := range c.previousContainerIDs {
+		c.TelemetrySender.Gauge(metricName, 0.0, []string{"container_id:" + containerID, constants.CardinalityTagPrefix + "orch"})
+	}
+
+	c.previousContainerIDs = newContainerIDs
 	c.TelemetrySender.Commit()
 }
 
