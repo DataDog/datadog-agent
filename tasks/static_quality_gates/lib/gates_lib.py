@@ -14,10 +14,10 @@ def argument_extractor(entry_args, **kwargs):
 
 
 def find_package_path(flavor, package_os, arch):
-    dir = os.environ['OMNIBUS_PACKAGE_DIR']
+    package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
     separator = '_' if package_os == 'debian' else '-'
     extension = "deb" if package_os == 'debian' else "rpm"
-    glob_pattern = f'{dir}/{flavor}{separator}7*{arch}.{extension}'
+    glob_pattern = f'{package_dir}/{flavor}{separator}7*{arch}.{extension}'
     package_paths = glob.glob(glob_pattern)
     if len(package_paths) > 1:
         raise Exit(code=1, message=color_message(f"Too many files matching {glob_pattern}: {package_paths}", "red"))
