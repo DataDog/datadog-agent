@@ -609,6 +609,7 @@
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-shared-components
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
 /test/new-e2e/tests/discovery                 @DataDog/universal-service-monitoring
+/test/new-e2e/tests/fips-compliance           @DataDog/agent-shared-components
 /test/new-e2e/tests/ha-agent                  @DataDog/ndm-core
 /test/new-e2e/tests/language-detection        @DataDog/container-intake
 /test/new-e2e/tests/ndm                       @DataDog/ndm-core
