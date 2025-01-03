@@ -7,13 +7,13 @@ package nodetreemodel
 
 import (
 	"maps"
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mohae/deepcopy"
 	"github.com/spf13/cast"
-	"golang.org/x/exp/slices"
 )
 
 func (c *ntmConfig) leafAtPath(key string) LeafNode {

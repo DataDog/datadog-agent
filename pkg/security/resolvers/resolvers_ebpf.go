@@ -93,7 +93,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
-	cgroupsResolver, err := cgroup.NewResolver()
+	cgroupsResolver, err := cgroup.NewResolver(statsdClient)
 	if err != nil {
 		return nil, err
 	}

@@ -123,7 +123,7 @@ func TestSetFieldValue(t *testing.T) {
 
 	event := NewFakeEvent()
 	for _, field := range event.GetFields() {
-		kind, err := event.GetFieldType(field)
+		_, kind, err := event.GetFieldMetadata(field)
 		if err != nil {
 			t.Fatal(err)
 		}

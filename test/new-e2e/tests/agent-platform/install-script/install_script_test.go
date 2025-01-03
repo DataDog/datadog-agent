@@ -34,7 +34,7 @@ var (
 	platform              = flag.String("platform", "", "platform to test")
 	cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
 	architecture          = flag.String("arch", "x86_64", "architecture to test (x86_64, arm64))")
-	flavor                = flag.String("flavor", "datadog-agent", "flavor to test (datadog-agent, datadog-iot-agent, datadog-dogstatsd, datadog-fips-proxy, datadog-heroku-agent)")
+	flavor                = flag.String("flavor", "datadog-agent", "flavor to test (datadog-agent, datadog-iot-agent, datadog-dogstatsd, datadog-fips-agent, datadog-fips-proxy, datadog-heroku-agent)")
 	majorVersion          = flag.String("major-version", "7", "major version to test (6, 7)")
 )
 
@@ -124,6 +124,8 @@ func (is *installScriptSuite) TestInstallAgent() {
 		is.IotAgentTest()
 	case "datadog-dogstatsd":
 		is.DogstatsdAgentTest()
+	case "datadog-fips-agent":
+		is.AgentTest("datadog-fips-agent")
 	}
 }
 

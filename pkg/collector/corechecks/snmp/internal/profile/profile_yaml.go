@@ -73,6 +73,9 @@ func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileCo
 			log.Warnf("cannot load profile %q: %v", profileName, err)
 			continue
 		}
+		if definition.Name == "" {
+			definition.Name = profileName
+		}
 		profiles[profileName] = ProfileConfig{
 			Definition:    *definition,
 			IsUserProfile: isUserProfile,

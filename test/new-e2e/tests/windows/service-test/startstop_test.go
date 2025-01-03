@@ -499,14 +499,8 @@ func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 	s.BaseSuite.AfterTest(suiteName, testName)
 
-	outputDir, err := s.CreateTestOutputDir()
-	if err != nil {
-		s.T().Fatalf("should get output dir")
-	}
-	s.T().Logf("Output dir: %s", outputDir)
-
 	// look for and download crashdumps
-	dumps, err := windowsCommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, outputDir)
+	dumps, err := windowsCommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir())
 	s.Assert().NoError(err, "should download crash dumps")
 	if !s.Assert().Empty(dumps, "should not have crash dumps") {
 		s.T().Logf("Found crash dumps:")
@@ -521,7 +515,7 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 		for _, logName := range []string{"System", "Application"} {
 			// collect the full event log as an evtx file
 			s.T().Logf("Exporting %s event log", logName)
-			outputPath := filepath.Join(outputDir, fmt.Sprintf("%s.evtx", logName))
+			outputPath := filepath.Join(s.SessionOutputDir(), fmt.Sprintf("%s.evtx", logName))
 			err := windowsCommon.ExportEventLog(host, logName, outputPath)
 			s.Assert().NoError(err, "should export %s event log", logName)
 			// Log errors and warnings to the screen for easy access
@@ -537,10 +531,6 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 
 func (s *baseStartStopSuite) collectAgentLogs() {
 	host := s.Env().RemoteHost
-	outputDir, err := s.CreateTestOutputDir()
-	if err != nil {
-		s.T().Fatalf("should get output dir")
-	}
 
 	s.T().Logf("Collecting agent logs")
 	logsFolder, err := host.GetLogsFolder()
@@ -555,7 +545,7 @@ func (s *baseStartStopSuite) collectAgentLogs() {
 		s.T().Logf("Found log file: %s", entry.Name())
 		err = host.GetFile(
 			filepath.Join(logsFolder, entry.Name()),
-			filepath.Join(outputDir, entry.Name()),
+			filepath.Join(s.SessionOutputDir(), entry.Name()),
 		)
 		s.Assert().NoError(err, "should download %s", entry.Name())
 	}

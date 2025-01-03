@@ -53,7 +53,13 @@ def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False)
             decision = "⚠️ Warning"
         else:
             decision = "✅ Passed"
-        display_message(ctx, ancestor, size_message, decision)
+        # Try to display the message on the PR when a PR exists
+        if os.environ.get("CI_COMMIT_BRANCH"):
+            try:
+                display_message(ctx, ancestor, size_message, decision)
+            # PR commenter asserts on the numbers of PR's, this will raise if there's no PR
+            except AssertionError as exc:
+                print(f"Got `{exc}` while trying to comment on PR, we'll assume that this is not a PR.")
         if "Failed" in decision:
             raise Exit(code=1)
 

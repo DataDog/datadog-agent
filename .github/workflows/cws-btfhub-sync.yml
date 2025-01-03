@@ -68,7 +68,7 @@ jobs:
       - name: Install python
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: 3.11
+          python-version-file: .python-version
           cache: 'pip'
       - run: pip install -r requirements.txt
 
@@ -117,7 +117,7 @@ jobs:
       - name: Install python
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: 3.11
+          python-version-file: .python-version
           cache: 'pip'
       - run: pip install -r requirements.txt
 

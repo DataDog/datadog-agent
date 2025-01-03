@@ -629,6 +629,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(t, o.CreditCards.Enabled)
 	assert.True(t, o.CreditCards.Luhn)
 	assert.True(t, o.Cache.Enabled)
+	assert.Equal(t, int64(5555555), o.Cache.MaxSize)
 
 	assert.True(t, cfg.InstallSignature.Found)
 	assert.Equal(t, traceconfig.InstallSignatureConfig{
@@ -1774,6 +1775,22 @@ func TestLoadEnv(t *testing.T) {
 		assert.NotNil(t, cfg)
 		assert.False(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled"))
 		assert.False(t, cfg.Obfuscation.Cache.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_CACHE_MAX_SIZE"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "1234567")
+
+		c := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+		}))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		actualConfig := pkgconfigsetup.Datadog().GetString("apm_config.obfuscation.cache.max_size")
+		actualParsed := cfg.Obfuscation.Cache.MaxSize
+		assert.Equal(t, "1234567", actualConfig)
+		assert.Equal(t, int64(1234567), actualParsed)
 	})
 
 	env = "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"

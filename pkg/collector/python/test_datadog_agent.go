@@ -23,7 +23,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -62,7 +61,7 @@ func testHeaders(t *testing.T) {
 	Headers(&headers)
 	require.NotNil(t, headers)
 
-	h := util.HTTPHeaders()
+	h := httpHeaders()
 	yamlPayload, _ := yaml.Marshal(h)
 	assert.Equal(t, string(yamlPayload), C.GoString(headers))
 }
@@ -166,6 +165,7 @@ func testObfuscaterConfig(t *testing.T) {
 		},
 		Cache: obfuscate.CacheConfig{
 			Enabled: true,
+			MaxSize: 5000000,
 		},
 	}
 	assert.Equal(t, expected, obfuscaterConfig)

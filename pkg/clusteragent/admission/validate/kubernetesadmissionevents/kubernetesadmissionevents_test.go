@@ -257,7 +257,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, validated)
 			if tt.expectedEmitted {
-				mockSender.AssertCalled(t, "Event", tt.expectedEvent)
+				mockSender.AssertEvent(t, tt.expectedEvent, 1*time.Second)
 			} else {
 				mockSender.AssertNotCalled(t, "Event")
 			}

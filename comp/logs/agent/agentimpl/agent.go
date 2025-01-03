@@ -46,9 +46,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/goroutinesdump"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -79,7 +79,7 @@ type dependencies struct {
 	Config             configComponent.Component
 	InventoryAgent     inventoryagent.Component
 	Hostname           hostname.Component
-	WMeta              optional.Option[workloadmeta.Component]
+	WMeta              option.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
 }
@@ -87,11 +87,11 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp           optional.Option[agent.Component]
+	Comp           option.Option[agent.Component]
 	FlareProvider  flaretypes.Provider
 	StatusProvider statusComponent.InformationProvider
 	RCListener     rctypes.ListenerProvider
-	LogsReciever   optional.Option[integrations.Component]
+	LogsReciever   option.Option[integrations.Component]
 }
 
 // logAgent represents the data pipeline that collects, decodes,
@@ -116,7 +116,7 @@ type logAgent struct {
 	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
 	flarecontroller           *flareController.FlareController
-	wmeta                     optional.Option[workloadmeta.Component]
+	wmeta                     option.Option[workloadmeta.Component]
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
 
@@ -165,19 +165,19 @@ func newLogsAgent(deps dependencies) provides {
 		}
 
 		return provides{
-			Comp:           optional.NewOption[agent.Component](logsAgent),
+			Comp:           option.New[agent.Component](logsAgent),
 			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
 			RCListener:     rcListener,
-			LogsReciever:   optional.NewOption[integrations.Component](integrationsLogs),
+			LogsReciever:   option.New[integrations.Component](integrationsLogs),
 		}
 	}
 
 	deps.Log.Info("logs-agent disabled")
 	return provides{
-		Comp:           optional.NewNoneOption[agent.Component](),
+		Comp:           option.None[agent.Component](),
 		StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
-		LogsReciever:   optional.NewNoneOption[integrations.Component](),
+		LogsReciever:   option.None[integrations.Component](),
 	}
 }
 
@@ -318,7 +318,7 @@ func (a *logAgent) stop(context.Context) error {
 		case <-c:
 		case <-timeout.C:
 			a.log.Warn("Force close of the Logs Agent, dumping the Go routines.")
-			if stack, err := util.GetGoRoutinesDump(); err != nil {
+			if stack, err := goroutinesdump.Get(); err != nil {
 				a.log.Warnf("can't get the Go routines dump: %s\n", err)
 			} else {
 				a.log.Warn(stack)

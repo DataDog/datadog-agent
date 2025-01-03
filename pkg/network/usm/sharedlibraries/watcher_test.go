@@ -17,12 +17,14 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
@@ -104,40 +106,87 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	}, time.Second*10, 100*time.Millisecond)
 }
 
+// open abstracts open, openat, and openat2
+func open(dirfd int, pathname string, how *unix.OpenHow, syscallType string) (int, error) {
+	switch syscallType {
+	case "open":
+		return unix.Open(pathname, int(how.Flags), uint32(how.Mode))
+	case "openat":
+		return unix.Openat(dirfd, pathname, int(how.Flags), uint32(how.Mode))
+	case "openat2":
+		return unix.Openat2(dirfd, pathname, how)
+	default:
+		return -1, fmt.Errorf("unsupported syscall type: %s", syscallType)
+	}
+}
+
 // Test that shared library files opened for writing only are ignored.
 func (s *SharedLibrarySuite) TestSharedLibraryIgnoreWrite() {
 	t := s.T()
 
-	// Since we want to detect that the write _hasn't_ been detected, verify the
-	// read too to try to ensure that test isn't broken and failing to detect
-	// the write due to some bug in the test itself.
-	readPath, readPathID := createTempTestFile(t, "read-foo-libssl.so")
-	writePath, writePathID := createTempTestFile(t, "write-foo-libssl.so")
-
-	registerRecorder := new(utils.CallbackRecorder)
-	unregisterRecorder := new(utils.CallbackRecorder)
-
-	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
-		Rule{
-			Re:           regexp.MustCompile(`foo-libssl.so`),
-			RegisterCB:   registerRecorder.Callback(),
-			UnregisterCB: unregisterRecorder.Callback(),
+	tests := []struct {
+		syscallType string
+		skipFunc    func(t *testing.T)
+	}{
+		{
+			syscallType: "open",
 		},
-	)
-	require.NoError(t, err)
-	watcher.Start()
-	t.Cleanup(watcher.Stop)
+		{
+			syscallType: "openat",
+		},
+		{
+			syscallType: "openat2",
+			skipFunc: func(t *testing.T) {
+				if !sysOpenAt2Supported() {
+					t.Skip("openat2 not supported")
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.syscallType, func(t *testing.T) {
+			if tt.skipFunc != nil {
+				tt.skipFunc(t)
+			}
+			// Since we want to detect that the write _hasn't_ been detected, verify the
+			// read too to try to ensure that test isn't broken and failing to detect
+			// the write due to some bug in the test itself.
+			readPath, readPathID := createTempTestFile(t, "read-foo-libssl.so")
+			writePath, writePathID := createTempTestFile(t, "write-foo-libssl.so")
 
-	// Use a sleep 1 as in TestSharedLibraryDetectionWithPIDAndRootNamespace
-	// below to give the watcher a chance to detect the process.
-	_, err = exec.Command("sh", "-c",
-		fmt.Sprintf("sleep 1 < %s > %s", readPath, writePath)).CombinedOutput()
-	require.NoError(t, err)
+			registerRecorder := new(utils.CallbackRecorder)
+			unregisterRecorder := new(utils.CallbackRecorder)
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.Equal(c, 1, registerRecorder.CallsForPathID(readPathID))
-		assert.Equal(c, 0, registerRecorder.CallsForPathID(writePathID))
-	}, time.Second*5, 10*time.Millisecond)
+			watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+				Rule{
+					Re:           regexp.MustCompile(`foo-libssl.so`),
+					RegisterCB:   registerRecorder.Callback(),
+					UnregisterCB: unregisterRecorder.Callback(),
+				},
+			)
+			require.NoError(t, err)
+			watcher.Start()
+			t.Cleanup(watcher.Stop)
+			// Overriding PID, to allow the watcher to watch the test process
+			watcher.thisPID = 0
+
+			how := unix.OpenHow{Mode: 0644}
+
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				how.Flags = syscall.O_CREAT | syscall.O_RDONLY
+				fd, err := open(unix.AT_FDCWD, readPath, &how, tt.syscallType)
+				require.NoError(c, err)
+				require.NoError(c, syscall.Close(fd))
+				require.GreaterOrEqual(c, 1, registerRecorder.CallsForPathID(readPathID))
+
+				how.Flags = syscall.O_CREAT | syscall.O_WRONLY
+				fd, err = open(unix.AT_FDCWD, writePath, &how, tt.syscallType)
+				require.NoError(c, err)
+				require.NoError(c, syscall.Close(fd))
+				require.Equal(c, 0, registerRecorder.CallsForPathID(writePathID))
+			}, time.Second*5, 100*time.Millisecond)
+		})
+	}
 }
 
 func (s *SharedLibrarySuite) TestLongPath() {

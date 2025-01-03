@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/teeconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -708,8 +708,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.support_hybrid_ignore_ad_tags", false) // TODO(CINT)(Agent 7.53+) Remove this flag when hybrid ignore_ad_tags is fully deprecated
 	config.BindEnvAndSetDefault("cluster_checks.enabled", false)
-	config.BindEnvAndSetDefault("cluster_checks.node_expiration_timeout", 30) // value in seconds
-	config.BindEnvAndSetDefault("cluster_checks.warmup_duration", 30)         // value in seconds
+	config.BindEnvAndSetDefault("cluster_checks.node_expiration_timeout", 30)     // value in seconds
+	config.BindEnvAndSetDefault("cluster_checks.warmup_duration", 30)             // value in seconds
+	config.BindEnvAndSetDefault("cluster_checks.unscheduled_check_threshold", 60) // value in seconds
 	config.BindEnvAndSetDefault("cluster_checks.cluster_tag_name", "cluster_name")
 	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", false)
@@ -1789,12 +1790,12 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
 func LoadWithoutSecret(config pkgconfigmodel.Config, additionalEnvVars []string) (*pkgconfigmodel.Warnings, error) {
-	return LoadDatadogCustom(config, "datadog.yaml", optional.NewNoneOption[secrets.Component](), additionalEnvVars)
+	return LoadDatadogCustom(config, "datadog.yaml", option.None[secrets.Component](), additionalEnvVars)
 }
 
 // LoadWithSecret reads config files and initializes config with decrypted secrets
 func LoadWithSecret(config pkgconfigmodel.Config, secretResolver secrets.Component, additionalEnvVars []string) (*pkgconfigmodel.Warnings, error) {
-	return LoadDatadogCustom(config, "datadog.yaml", optional.NewOption[secrets.Component](secretResolver), additionalEnvVars)
+	return LoadDatadogCustom(config, "datadog.yaml", option.New[secrets.Component](secretResolver), additionalEnvVars)
 }
 
 // Merge will merge additional configuration into an existing configuration
@@ -1977,7 +1978,7 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 }
 
 // LoadDatadogCustom loads the datadog config in the given config
-func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
+func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolver option.Option[secrets.Component], additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {

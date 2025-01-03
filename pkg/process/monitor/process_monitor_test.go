@@ -21,7 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -74,7 +74,7 @@ func getTestBinaryPath(t *testing.T) string {
 	t.Cleanup(func() {
 		os.Remove(tmpFile.Name())
 	})
-	require.NoError(t, util.CopyFile("/bin/echo", tmpFile.Name()))
+	require.NoError(t, filesystem.CopyFile("/bin/echo", tmpFile.Name()))
 
 	return tmpFile.Name()
 }

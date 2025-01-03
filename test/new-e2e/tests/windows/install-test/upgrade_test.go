@@ -57,7 +57,7 @@ func (s *testUpgradeSuite) TestUpgrade() {
 	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.AgentPackage.AgentVersion())
 	}) {
@@ -94,7 +94,7 @@ func (s *testUpgradeRollbackSuite) TestUpgradeRollback() {
 		_, err := windowsAgent.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithWixFailWhenDeferred(),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
 		)
 		s.Require().Error(err, "should fail to install agent %s", s.AgentPackage.AgentVersion())
 	}) {
@@ -157,7 +157,7 @@ func (s *testUpgradeRollbackWithoutCWSSuite) TestUpgradeRollbackWithoutCWS() {
 		_, err := windowsAgent.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithWixFailWhenDeferred(),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
 		)
 		s.Require().Error(err, "should fail to install agent %s", s.AgentPackage.AgentVersion())
 	}) {
@@ -215,7 +215,7 @@ func (s *testUpgradeChangeUserSuite) TestUpgradeChangeUser() {
 	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {
 		_, err := s.InstallAgent(host,
 			windowsAgent.WithPackage(s.AgentPackage),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
 			windowsAgent.WithAgentUser(newUserName),
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.AgentPackage.AgentVersion())
@@ -302,7 +302,7 @@ func (s *testUpgradeFromV5Suite) TestUpgrade5() {
 	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {
 		_, err := s.InstallAgent(host,
 			windowsAgent.WithPackage(s.AgentPackage),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.AgentPackage.AgentVersion())
 	}) {
@@ -324,7 +324,7 @@ func (s *testUpgradeFromV5Suite) installAgent5() {
 	host := s.Env().RemoteHost
 	agentPackage := s.agent5Package
 
-	logFile := filepath.Join(s.OutputDir, "install-agent5.log")
+	logFile := filepath.Join(s.SessionOutputDir(), "install-agent5.log")
 	_, err := s.InstallAgent(host,
 		windowsAgent.WithPackage(agentPackage),
 		windowsAgent.WithValidAPIKey(),

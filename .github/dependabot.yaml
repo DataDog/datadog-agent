@@ -24,7 +24,6 @@ updates:
       - dependency-name: github.com/mholt/archiver
       - dependency-name: github.com/prometheus/client_golang
       - dependency-name: github.com/spf13/cast
-      - dependency-name: github.com/ugorji/go
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly

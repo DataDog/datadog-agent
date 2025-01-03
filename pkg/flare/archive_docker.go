@@ -21,13 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/docker/docker/api/types/container"
 )
 
 const dockerCommandMaxLength = 29
 
-func getDockerSelfInspect(wmeta optional.Option[workloadmeta.Component]) ([]byte, error) {
+func getDockerSelfInspect(wmeta option.Option[workloadmeta.Component]) ([]byte, error) {
 	if !env.IsContainerized() {
 		return nil, fmt.Errorf("The Agent is not containerized")
 	}

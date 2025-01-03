@@ -133,9 +133,26 @@ function Expand-ModCache() {
 
 function Install-Deps() {
     Write-Host "Installing python requirements"
-    pip3.exe install -r .\requirements.txt
+    pip3.exe install -r .\requirements.txt -r .\tasks\libs\requirements-github.txt
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to install python requirements"
+        exit 1
+    }
     Write-Host "Installing go dependencies"
     inv -e deps
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to install dependencies"
+        exit 1
+    }
+}
+
+function Install-TestingDeps() {
+    Write-Host "Installing testing dependencies"
+    inv -e install-tools
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to install testing dependencies"
+        exit 1
+    }
 }
 
 function Enable-DevEnv() {
@@ -146,8 +163,62 @@ function Enable-DevEnv() {
     }
     $env:PATH = "$env:GOPATH\bin;$env:PATH"
 
+    # Add clang-format to PATH for rtloader linting
+    if (-Not (Get-Command clang-format.exe -ErrorAction SilentlyContinue)) {
+        # Included by default in Visual Studio
+        $env:PATH = "$(Get-VisualStudioRoot)\VC\Tools\Llvm\bin;$env:PATH"
+    }
+
     # Enable ruby/msys environment, for mingw, make, etc.
     ridk enable
+}
+
+function Get-VisualStudioRoot() {
+    # VSINSTALLDIR is set in the Visual Studio Developer Command Prompt
+    if (![string]::IsNullOrEmpty($env:VSINSTALLDIR)) {
+        return $env:VSINSTALLDIR
+    }
+    # VSTUDIO_ROOT is set in build container
+    if (![string]::IsNullOrEmpty($env:VSTUDIO_ROOT)) {
+        return $env:VSTUDIO_ROOT
+    }
+    # Return a reasonable default
+    return "C:\Program Files\Microsoft Visual Studio\2022\Professional"
+}
+
+<#
+.SYNOPSIS
+Fetches a secret
+
+.PARAMETER parameterName
+The name of the secret to fetch
+
+.PARAMETER parameterField
+The field of the secret to fetch. Only used with vault secrets.
+
+.EXAMPLE
+$Env:CODECOV_TOKEN=$(Get-VaultSecret -parameterName "$Env:CODECOV_TOKEN")
+
+Fetch a secret and store it in an environment variable
+
+#>
+function Get-VaultSecret() {
+    param(
+        [string]$parameterName,
+        [string]$parameterField
+    )
+    $tmpFile = [System.IO.Path]::GetTempFileName()
+    try {
+        # Use Out-Null to suppress the output of the fetch_secret script
+        & "$PSScriptRoot\..\..\tools\ci\fetch_secret.ps1" -parameterName $parameterName -tempFile "$tmpfile" | Out-Null
+        $err = $LASTEXITCODE
+        If ($LASTEXITCODE -ne "0") {
+            throw "Failed to fetch ${parameterName}: $err"
+        }
+        Get-Content -Encoding ASCII -Raw -Path $tmpFile -ErrorAction Stop
+    } finally {
+        Remove-Item -Force $tmpFile -ErrorAction Continue | Out-Null
+    }
 }
 
 <#
@@ -215,6 +286,7 @@ function Invoke-BuildScript {
         [string] $buildroot = "c:\buildroot",
         [bool] $BuildOutOfSource = $false,
         [bool] $InstallDeps = $true,
+        [bool] $InstallTestingDeps = $false,
         [nullable[bool]] $CheckGoVersion,
         [ScriptBlock] $Command = {$null}
     )
@@ -230,12 +302,24 @@ function Invoke-BuildScript {
             Enter-RepoRoot
         }
 
-        Expand-ModCache -modcache modcache
-
         Enable-DevEnv
 
+        # Expand modcache
+        # TODO: Can these be moved inside the Install-Deps/Install-TestingDeps functions,
+        #       or is it important that they both be run before `inv deps` ?
+        if ($InstallDeps) {
+            Expand-ModCache -modcache modcache
+        }
+        if ($InstallTestingDeps) {
+            Expand-ModCache -modcache modcache_tools
+        }
+
+        # Install deps
         if ($InstallDeps) {
             Install-Deps
+        }
+        if ($InstallTestingDeps) {
+            Install-TestingDeps
         }
 
         if ($CheckGoVersion) {

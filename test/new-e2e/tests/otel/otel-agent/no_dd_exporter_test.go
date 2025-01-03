@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
@@ -32,6 +33,7 @@ var noDDExporterProvidedConfig string
 var noDDExporterFullConfig string
 
 func TestOTelAgentWithNoDDExporter(t *testing.T) {
+	flake.Mark(t) // incident-33599
 	values := `
 datadog:
   logs:

@@ -8,6 +8,8 @@ package awskubernetes
 
 import (
 	"fmt"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentwithoperatorparams"
+	"github.com/DataDog/test-infra-definitions/components/datadog/operatorparams"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
@@ -25,13 +27,15 @@ import (
 
 // ProvisionerParams contains all the parameters needed to create the environment
 type ProvisionerParams struct {
-	name              string
-	vmOptions         []ec2.VMOption
-	agentOptions      []kubernetesagentparams.Option
-	fakeintakeOptions []fakeintake.Option
-	eksOptions        []eks.Option
-	extraConfigParams runner.ConfigMap
-	workloadAppFuncs  []WorkloadAppFunc
+	name               string
+	vmOptions          []ec2.VMOption
+	agentOptions       []kubernetesagentparams.Option
+	fakeintakeOptions  []fakeintake.Option
+	eksOptions         []eks.Option
+	extraConfigParams  runner.ConfigMap
+	workloadAppFuncs   []WorkloadAppFunc
+	operatorOptions    []operatorparams.Option
+	operatorDDAOptions []agentwithoperatorparams.Option
 
 	eksLinuxNodeGroup        bool
 	eksLinuxARMNodeGroup     bool
@@ -40,23 +44,27 @@ type ProvisionerParams struct {
 	awsEnv                   *aws.Environment
 	deployDogstatsd          bool
 	deployTestWorkload       bool
+	deployOperator           bool
 }
 
 func newProvisionerParams() *ProvisionerParams {
 	return &ProvisionerParams{
-		name:              defaultVMName,
-		vmOptions:         []ec2.VMOption{},
-		agentOptions:      []kubernetesagentparams.Option{},
-		fakeintakeOptions: []fakeintake.Option{},
-		eksOptions:        []eks.Option{},
-		extraConfigParams: runner.ConfigMap{},
-		workloadAppFuncs:  []WorkloadAppFunc{},
+		name:               defaultVMName,
+		vmOptions:          []ec2.VMOption{},
+		agentOptions:       []kubernetesagentparams.Option{},
+		fakeintakeOptions:  []fakeintake.Option{},
+		eksOptions:         []eks.Option{},
+		extraConfigParams:  runner.ConfigMap{},
+		workloadAppFuncs:   []WorkloadAppFunc{},
+		operatorOptions:    []operatorparams.Option{},
+		operatorDDAOptions: []agentwithoperatorparams.Option{},
 
 		eksLinuxNodeGroup:        false,
 		eksLinuxARMNodeGroup:     false,
 		eksBottlerocketNodeGroup: false,
 		eksWindowsNodeGroup:      false,
 		deployDogstatsd:          false,
+		deployOperator:           false,
 	}
 }
 
@@ -168,6 +176,39 @@ func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
 func WithAwsEnv(env *aws.Environment) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.awsEnv = env
+		return nil
+	}
+}
+
+// WithOperator Deploys the Datadog Operator
+func WithOperator() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.deployOperator = true
+		return nil
+	}
+}
+
+// WithOperatorOptions Configures the Datadog Operator
+func WithOperatorOptions(opts ...operatorparams.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.operatorOptions = opts
+		return nil
+	}
+}
+
+// WithOperatorDDAOptions Configures the DatadogAgent custom resource
+func WithOperatorDDAOptions(opts ...agentwithoperatorparams.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.operatorDDAOptions = opts
+		return nil
+	}
+}
+
+// WithoutDDA removes the DatadogAgent custom resource
+func WithoutDDA() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.operatorDDAOptions = nil
+		params.agentOptions = nil
 		return nil
 	}
 }

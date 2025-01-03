@@ -61,7 +61,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -125,8 +125,8 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			defaultConfPath,
 			configOptions...,
 		)),
-		fx.Provide(func(comp secrets.Component) optional.Option[secrets.Component] {
-			return optional.NewOption[secrets.Component](comp)
+		fx.Provide(func(comp secrets.Component) option.Option[secrets.Component] {
+			return option.New[secrets.Component](comp)
 		}),
 		fx.Supply(secrets.NewEnabledParams()),
 		telemetryimpl.Module(),

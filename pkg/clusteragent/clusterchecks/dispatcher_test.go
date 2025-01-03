@@ -10,6 +10,7 @@ package clusterchecks
 import (
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -348,9 +349,10 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 
 	// Ensure we have 1 dangling to schedule, as new available node is registered
 	assert.True(t, dispatcher.shouldDispatchDangling())
-	configs := dispatcher.retrieveAndClearDangling()
+	configs := dispatcher.retrieveDangling()
 	// Assert the check is scheduled
-	dispatcher.reschedule(configs)
+	scheduledIDs := dispatcher.reschedule(configs)
+	dispatcher.deleteDangling(scheduledIDs)
 	danglingConfig, err := dispatcher.getAllConfigs()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(danglingConfig))
@@ -401,6 +403,9 @@ func TestDispatchFourConfigsTwoNodes(t *testing.T) {
 }
 
 func TestDanglingConfig(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("cluster_checks.unscheduled_check_threshold", 1)
+	mockConfig.SetWithoutSource("cluster_checks.node_expiration_timeout", 1)
 	fakeTagger := mock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 	config := integration.Config{
@@ -418,12 +423,20 @@ func TestDanglingConfig(t *testing.T) {
 	// shouldDispatchDangling is still false because no node is available
 	assert.False(t, dispatcher.shouldDispatchDangling())
 
+	// force config to dangle long enough to be classified as unscheduled check
+	assert.False(t, dispatcher.store.danglingConfigs[config.Digest()].unscheduledCheck)
+	require.Eventually(t, func() bool {
+		dispatcher.scanUnscheduledChecks()
+		return dispatcher.store.danglingConfigs[config.Digest()].unscheduledCheck
+	}, 2*time.Second, 250*time.Millisecond)
+
 	// register a node, shouldDispatchDangling will become true
 	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
 	assert.True(t, dispatcher.shouldDispatchDangling())
 
 	// get the danglings and make sure they are removed from the store
-	configs := dispatcher.retrieveAndClearDangling()
+	configs := dispatcher.retrieveDangling()
+	dispatcher.deleteDangling([]string{config.Digest()})
 	assert.Len(t, configs, 1)
 	assert.Equal(t, 0, len(dispatcher.store.danglingConfigs))
 }

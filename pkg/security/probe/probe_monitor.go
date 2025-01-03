@@ -102,6 +102,10 @@ func (m *EBPFMonitors) SendStats() error {
 			return fmt.Errorf("failed to send mount_resolver stats: %w", err)
 		}
 
+		if err := resolvers.CGroupResolver.SendStats(); err != nil {
+			return fmt.Errorf("failed to send cgroup_resolver stats: %w", err)
+		}
+
 		if resolvers.SBOMResolver != nil {
 			if err := resolvers.SBOMResolver.SendStats(); err != nil {
 				return fmt.Errorf("failed to send sbom_resolver stats: %w", err)

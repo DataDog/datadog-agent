@@ -79,7 +79,7 @@ func (s *testAgentInstallSuite) uninstallAgentWithMSI() {
 
 	// Act
 	err := windowsAgent.UninstallAgent(s.Env().RemoteHost,
-		filepath.Join(s.OutputDir(), "uninstall.log"),
+		filepath.Join(s.SessionOutputDir(), "uninstall.log"),
 	)
 
 	// Assert

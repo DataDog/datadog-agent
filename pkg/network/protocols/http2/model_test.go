@@ -9,13 +9,86 @@ package http2
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2/hpack"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
+
+func TestHTTP2LongPath(t *testing.T) {
+	tests := []struct {
+		name           string
+		rawPath        string
+		expectedPath   string
+		huffmanEnabled bool
+		outBufSize     int
+	}{
+		{
+			name:           "Long path with huffman with bigger out buffer",
+			rawPath:        fmt.Sprintf("/%s", strings.Repeat("a", maxHTTP2Path+1)),
+			huffmanEnabled: true,
+		},
+		{
+			name:           "Long path with huffman with shorter out buffer",
+			rawPath:        fmt.Sprintf("/%s", strings.Repeat("a", maxHTTP2Path+1)),
+			expectedPath:   fmt.Sprintf("/%s", strings.Repeat("a", 19)),
+			huffmanEnabled: true,
+			outBufSize:     20,
+		},
+		{
+			name:    "Long path without huffman with bigger out buffer",
+			rawPath: fmt.Sprintf("/%s", strings.Repeat("a", maxHTTP2Path+1)),
+			// The path is truncated to maxHTTP2Path (including the leading '/')
+			expectedPath: fmt.Sprintf("/%s", strings.Repeat("a", maxHTTP2Path-1)),
+		},
+		{
+			name:         "Long path without huffman with shorter out buffer",
+			rawPath:      fmt.Sprintf("/%s", strings.Repeat("a", maxHTTP2Path+1)),
+			expectedPath: fmt.Sprintf("/%s", strings.Repeat("a", 19)),
+			outBufSize:   20,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf []byte
+			var arr [maxHTTP2Path]uint8
+			if tt.huffmanEnabled {
+				buf = hpack.AppendHuffmanString(buf, tt.rawPath)
+			} else {
+				buf = append(buf, tt.rawPath...)
+			}
+			copy(arr[:], buf)
+
+			request := &EbpfTx{
+				Stream: HTTP2Stream{
+					Path: http2Path{
+						Is_huffman_encoded: tt.huffmanEnabled,
+						Raw_buffer:         arr,
+						Length:             uint8(len(buf)),
+					},
+				},
+			}
+
+			if tt.outBufSize == 0 {
+				tt.outBufSize = http.BufferSize
+			}
+			outBuf := make([]byte, tt.outBufSize)
+
+			path, ok := request.Path(outBuf)
+			require.True(t, ok)
+			expectedPath := tt.rawPath
+			if tt.expectedPath != "" {
+				expectedPath = tt.expectedPath
+			}
+			assert.Equal(t, expectedPath, string(path))
+		})
+	}
+}
 
 func TestHTTP2Path(t *testing.T) {
 	tests := []struct {
@@ -25,12 +98,8 @@ func TestHTTP2Path(t *testing.T) {
 		expectedErr  bool
 	}{
 		{
-			name:    "Short path",
+			name:    "Sanity",
 			rawPath: "/hello.HelloService/SayHello",
-		},
-		{
-			name:    "Long path",
-			rawPath: "/resourcespb.ResourceTagging/GetResourceTags",
 		},
 		{
 			name:        "Path does not start with /",

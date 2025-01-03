@@ -74,6 +74,9 @@ func getProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (st
 			matchedOids = append(matchedOids, oidPattern)
 		}
 	}
+	if len(matchedOids) == 0 {
+		return "", fmt.Errorf("no profiles found for sysObjectID %q", sysObjectID)
+	}
 	oid, err := getMostSpecificOid(matchedOids)
 	if err != nil {
 		return "", fmt.Errorf("failed to get most specific profile for sysObjectID %q, for matched oids %v: %w", sysObjectID, matchedOids, err)

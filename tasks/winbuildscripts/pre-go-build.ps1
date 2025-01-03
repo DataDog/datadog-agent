@@ -13,6 +13,9 @@ Default: 3
 
 $ErrorActionPreference = "Stop"
 
+# Run clean to avoid issues with CMakeCache.txt due to moving build roots
+& inv -e rtloader.clean
+
 & inv -e rtloader.make --install-prefix="$(Get-Location)\dev" --cmake-options='-G \"Unix Makefiles\"'
 $err = $LASTEXITCODE
 Write-Host Build result is $err

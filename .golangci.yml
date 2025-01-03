@@ -605,6 +605,8 @@ linters-settings:
             desc: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert, and confusing since it actually has the behavior of github.com/stretchr/testify/require"
           - pkg: "debug/elf"
             desc: "prefer pkg/util/safeelf to prevent panics during parsing"
+          - pkg: "golang.org/x/exp/slices"
+            desc: "use the std slices package instead"
       logger:
         files:
           - "!**/pkg/util/log/**"

@@ -38,14 +38,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
-// SBOMSource defines is the default log source for the SBOM events
-const SBOMSource = "runtime-security-agent"
+const (
+	// SBOMSource defines is the default log source for the SBOM events
+	SBOMSource = "runtime-security-agent"
 
-const maxSBOMGenerationRetries = 3
+	maxSBOMGenerationRetries = 3
+	maxSBOMEntries           = 1024
+)
 
 var errNoProcessForContainerID = errors.New("found no running process matching the given container ID")
 
@@ -119,7 +122,7 @@ func NewSBOM(host string, source string, id containerutils.ContainerID, cgroup *
 type Resolver struct {
 	cfg            *config.RuntimeSecurityConfig
 	sbomsLock      sync.RWMutex
-	sboms          map[containerutils.ContainerID]*SBOM
+	sboms          *simplelru.LRU[containerutils.ContainerID, *SBOM]
 	sbomsCacheLock sync.RWMutex
 	sbomsCache     *simplelru.LRU[string, *SBOM]
 	scannerChan    chan *SBOM
@@ -141,12 +144,17 @@ type Resolver struct {
 
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	sbomScanner, err := sbomscanner.CreateGlobalScanner(pkgconfigsetup.SystemProbe(), optional.NewNoneOption[workloadmeta.Component]())
+	sbomScanner, err := sbomscanner.CreateGlobalScanner(pkgconfigsetup.SystemProbe(), option.None[workloadmeta.Component]())
 	if err != nil {
 		return nil, err
 	}
 	if sbomScanner == nil {
 		return nil, errors.New("sbom is disabled")
+	}
+
+	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](maxSBOMEntries, nil)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
 	}
 
 	sbomsCache, err := simplelru.NewLRU[string, *SBOM](c.SBOMResolverWorkloadsCacheSize, nil)
@@ -167,7 +175,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 	resolver := &Resolver{
 		cfg:                   c,
 		statsdClient:          statsdClient,
-		sboms:                 make(map[containerutils.ContainerID]*SBOM),
+		sboms:                 sboms,
 		sbomsCache:            sbomsCache,
 		scannerChan:           make(chan *SBOM, 100),
 		sbomScanner:           sbomScanner,
@@ -411,7 +419,7 @@ func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 
 	sbom := r.hostSBOM
 	if containerID != "" {
-		sbom = r.sboms[containerID]
+		sbom, _ = r.sboms.Get(containerID)
 	}
 	return sbom
 }
@@ -444,7 +452,7 @@ func (r *Resolver) newWorkloadEntry(id containerutils.ContainerID, cgroup *cgrou
 			r.triggerScan(sbom)
 		},
 	)
-	r.sboms[id] = sbom
+	r.sboms.Add(id, sbom)
 	sbom.refresh.Start()
 
 	return sbom, nil
@@ -501,7 +509,7 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 		return
 	}
 
-	_, ok := r.sboms[id]
+	_, ok := r.sboms.Get(id)
 	if !ok {
 		workloadKey := getWorkloadKey(workload.Selector.Copy())
 		sbom, err := r.newWorkloadEntry(id, workload.CacheEntry, workloadKey)
@@ -521,7 +529,8 @@ func (r *Resolver) GetWorkload(id containerutils.ContainerID) *SBOM {
 		return r.hostSBOM
 	}
 
-	return r.sboms[id]
+	sbom, _ := r.sboms.Get(id)
+	return sbom
 }
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
@@ -549,7 +558,7 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 
 	seclog.Infof("deleting SBOM entry for '%s'", sbom.ContainerID)
 	// remove SBOM entry
-	delete(r.sboms, sbom.ContainerID)
+	r.sboms.Remove(sbom.ContainerID)
 
 	// check if the scan was successful
 	if !sbom.scanSuccessful.Load() {
@@ -573,7 +582,7 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 func (r *Resolver) SendStats() error {
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()
-	if val := float64(len(r.sboms)); val > 0 {
+	if val := float64(r.sboms.Len()); val > 0 {
 		if err := r.statsdClient.Gauge(metrics.MetricSBOMResolverActiveSBOMs, val, []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSBOMResolverActiveSBOMs: %w", err)
 		}

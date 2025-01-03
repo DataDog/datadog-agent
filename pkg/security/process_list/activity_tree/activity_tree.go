@@ -9,8 +9,9 @@
 package activitytree
 
 import (
+	"slices"
+
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"golang.org/x/exp/slices"
 
 	processlist "github.com/DataDog/datadog-agent/pkg/security/process_list"
 	processresolver "github.com/DataDog/datadog-agent/pkg/security/process_list/process_resolver"

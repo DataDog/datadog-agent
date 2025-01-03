@@ -331,7 +331,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			profiles:        mockProfilesWithInvalidPatternError,
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.5.11",
 			expectedProfile: "",
-			expectedError:   "failed to get most specific profile for sysObjectID \"1.3.6.1.4.1.3375.2.1.3.4.5.11\", for matched oids []: cannot get most specific oid from empty list of oids",
+			expectedError:   "no profiles found for sysObjectID \"1.3.6.1.4.1.3375.2.1.3.4.5.11\"",
 		},
 		{
 			name:            "duplicate sysobjectid",
