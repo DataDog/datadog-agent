@@ -18,7 +18,7 @@ fi
 
 # Match the key gpu_monitoring.enabled: true using Python's YAML parser, which is included in the base image
 # and is more robust than using regexes.
-gpu_monitoring_enabled=$(python -c "import yaml, sys; data=yaml.safe_load(sys.stdin); print(bool(data.get('gpu_monitoring', {}).get('enabled')))" < $sysprobe_cfg)
+gpu_monitoring_enabled=$(python3 -c "import yaml, sys; data=yaml.safe_load(sys.stdin); print(bool(data.get('gpu_monitoring', {}).get('enabled')))" < $sysprobe_cfg)
 
 # Note gpu_monitoring_enabled is a Python boolean, so casing is important
 if [[ "$gpu_monitoring_enabled" == "True" ]] || [[ "$DD_GPU_MONITORING_ENABLED" == "true" ]]; then
