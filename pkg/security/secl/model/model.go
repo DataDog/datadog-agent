@@ -72,12 +72,11 @@ func (r *Releasable) AppendReleaseCallback(callback func()) {
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
 	Releasable
-	ContainerID  containerutils.ContainerID `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
-	CreatedAt    uint64                     `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
-	Tags         []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
-	TagsResolved bool                       `field:"-"`
-	Resolved     bool                       `field:"-"`
-	Runtime      string                     `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
+	ContainerID containerutils.ContainerID `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt   uint64                     `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	Resolved    bool                       `field:"-"`
+	Runtime     string                     `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
 }
 
 // SecurityProfileContext holds the security context of the profile
@@ -330,7 +329,7 @@ type MatchedRule struct {
 type ActionReport interface {
 	ToJSON() ([]byte, error)
 	IsMatchingRule(ruleID eval.RuleID) bool
-	IsResolved() bool
+	IsResolved() error
 }
 
 // NewMatchedRule return a new MatchedRule instance

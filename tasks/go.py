@@ -127,8 +127,10 @@ def deps_vendored(ctx, verbose=False):
     with timed("go mod vendor"):
         verbosity = ' -v' if verbose else ''
 
-        ctx.run(f"go mod vendor{verbosity}")
-        ctx.run(f"go mod tidy{verbosity}")
+        # We need to set GOWORK=off to avoid the go command to use the go.work directory
+        # It is needed because it does not work very well with vendoring, we should no longer need it when we get rid of vendoring. ADXR-766
+        ctx.run(f"go mod vendor{verbosity}", env={"GOWORK": "off"})
+        ctx.run(f"go mod tidy{verbosity}", env={"GOWORK": "off"})
 
         # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
         # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
@@ -447,6 +449,8 @@ def tidy_all(ctx):
 @task
 def tidy(ctx):
     check_valid_mods(ctx)
+
+    ctx.run("go work sync")
 
     if os.name != 'nt':  # not windows
         import resource

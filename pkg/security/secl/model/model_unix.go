@@ -538,6 +538,7 @@ type PTraceEvent struct {
 
 	Request uint32          `field:"request"` // SECLDoc[request] Definition:`ptrace request` Constants:`Ptrace constants`
 	PID     uint32          `field:"-"`
+	NSPID   uint32          `field:"-"`
 	Address uint64          `field:"-"`
 	Tracee  *ProcessContext `field:"tracee"` // process context of the tracee
 }

@@ -326,6 +326,7 @@ func TestMonitor(t *testing.T) {
 
 	// Tell mockRegistry to return on any calls, we will check the values later
 	mockRegistry.On("Clear").Return()
+	mockRegistry.On("Log").Return()
 	mockRegistry.On("Unregister", mock.Anything).Return(nil)
 	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	lib := getLibSSLPath(t)
@@ -872,6 +873,7 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 
 	// Tell mockRegistry to return on any calls, we will check the values later
 	mockRegistry.On("Clear").Return()
+	mockRegistry.On("Log").Return()
 	mockRegistry.On("Unregister", mock.Anything).Return(nil)
 	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
@@ -950,6 +952,7 @@ func (s *SharedLibrarySuite) TestDetectionWithPIDAndRootNamespace() {
 
 	// Tell mockRegistry to return on any calls, we will check the values later
 	mockRegistry.On("Clear").Return()
+	mockRegistry.On("Log").Return()
 	mockRegistry.On("Unregister", mock.Anything).Return(nil)
 	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 

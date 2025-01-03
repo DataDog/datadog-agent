@@ -91,6 +91,7 @@ def get_omnibus_env(
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
     custom_config_dir=None,
+    fips_mode=False,
 ):
     env = load_release_versions(ctx, release_version)
 
@@ -132,6 +133,9 @@ def get_omnibus_env(
 
     if custom_config_dir:
         env["OUTPUT_CONFIG_DIR"] = custom_config_dir
+
+    if fips_mode:
+        env['FIPS_MODE'] = 'true'
 
     # We need to override the workers variable in omnibus build when running on Kubernetes runners,
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
@@ -187,6 +191,7 @@ def build(
     """
 
     flavor = AgentFlavor[flavor]
+    fips_mode = flavor.is_fips()
     durations = {}
     if not skip_deps:
         with timed(quiet=True) as durations['Deps']:
@@ -211,6 +216,7 @@ def build(
         flavor=flavor,
         pip_config_file=pip_config_file,
         custom_config_dir=config_directory,
+        fips_mode=fips_mode,
     )
 
     if not target_project:

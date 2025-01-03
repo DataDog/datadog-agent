@@ -87,7 +87,7 @@ def clean(ctx):
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
+def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
     """
     Run integration tests for cluster-agent
     """

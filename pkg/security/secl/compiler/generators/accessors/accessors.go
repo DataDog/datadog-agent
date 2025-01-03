@@ -708,7 +708,7 @@ func newAstFiles(cfg *packages.Config, files ...string) (*AstFiles, error) {
 func parseFile(modelFile string, typesFile string, pkgName string) (*common.Module, error) {
 	cfg := packages.Config{
 		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=mod", fmt.Sprintf("-tags=%s", buildTags)},
+		BuildFlags: []string{"-mod=readonly", fmt.Sprintf("-tags=%s", buildTags)},
 	}
 
 	astFiles, err := newAstFiles(&cfg, modelFile, typesFile)

@@ -7,6 +7,7 @@ Utilities to manage build tags
 # so we only need to check that we don't run this code with old Python versions.
 from __future__ import annotations
 
+import os
 import sys
 
 from invoke import task
@@ -104,6 +105,8 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "trivy",
     }
 )
+
+FIPS_AGENT_TAGS = AGENT_TAGS.union({"goexperiment.systemcrypto"})
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
 CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2", "gce"}
@@ -235,6 +238,11 @@ build_tags = {
         "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
+    AgentFlavor.fips: {
+        "agent": FIPS_AGENT_TAGS,
+        "lint": FIPS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": FIPS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+    },
 }
 
 
@@ -316,7 +324,7 @@ def filter_incompatible_tags(include, platform=sys.platform):
     if not platform.startswith("linux"):
         exclude = exclude.union(LINUX_ONLY_TAGS)
 
-    if platform == "win32":
+    if platform == "win32" or os.getenv("GOOS") == "windows":
         include = include.union(["wmi"])
         exclude = exclude.union(WINDOWS_EXCLUDE_TAGS)
 
@@ -414,3 +422,9 @@ def compute_config_build_tags(targets="all", build_include=None, build_exclude=N
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     use_tags = get_build_tags(build_include, build_exclude)
     return use_tags
+
+
+def add_fips_tags(tags: list[str], fips_mode: bool) -> list[str]:
+    if fips_mode:
+        tags.append("goexperiment.systemcrypto")
+    return tags
