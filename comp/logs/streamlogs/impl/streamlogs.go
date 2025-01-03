@@ -7,9 +7,11 @@
 package streamlogsimpl
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,9 +58,6 @@ type LogParams struct {
 	// Duration represents the duration of the log stream.
 	Duration time.Duration
 }
-
-// DefaultStreamLogsDuration is 60 seconds
-const DefaultStreamLogsDuration = 60 * time.Second
 
 // NewComponent creates a new streamlogs component for remote config flare component
 func NewComponent(reqs Requires) (Provides, error) {
@@ -108,8 +107,9 @@ func exportStreamLogs(la logsAgent.Component, logger logger.Component, streamLog
 	defer messageReceiver.SetEnabled(false)
 
 	done := make(chan struct{})
-
+	chanSize := pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size")
 	logChan := messageReceiver.Filter(nil, done)
+	writeChan := make(chan string, chanSize)
 
 	timer := time.NewTimer(streamLogParams.Duration)
 	defer timer.Stop()
@@ -120,55 +120,84 @@ func exportStreamLogs(la logsAgent.Component, logger logger.Component, streamLog
 		close(done)
 	}()
 
+	wg.Add(1)
+	go func() {
+		batchSize := chanSize
+		batch := make([]string, 0, batchSize) // Create a batch buffer
+		flushInterval := time.NewTicker(100 * time.Millisecond)
+		defer flushInterval.Stop()
+		defer wg.Done()
+
+		for {
+			select {
+			case log, ok := <-writeChan:
+				if !ok {
+					if len(batch) > 0 {
+						writeBatch(bufWriter, batch, logger)
+					}
+					return
+				}
+
+				batch = append(batch, log)
+
+				if len(batch) >= batchSize {
+					writeBatch(bufWriter, batch, logger)
+					batch = batch[:0]
+				}
+
+			case <-flushInterval.C:
+				if len(batch) > 0 {
+					writeBatch(bufWriter, batch, logger)
+					batch = batch[:0]
+				}
+			}
+		}
+	}()
+
 	for {
 		select {
 		case log, ok := <-logChan:
 			if !ok {
 				logger.Error("failed to read from log channel for streamlogs")
+				close(writeChan)
+				wg.Wait()
 				return nil
 			}
-			wg.Add(1)
-			go func(log string) {
-				defer wg.Done()
-				_, err := bufWriter.WriteString(log + "\n")
-				if err != nil {
-					logger.Errorf("failed to write to file: %v", err)
-				}
-			}(log)
+			writeChan <- log
+
 		case <-done:
-			for log := range logChan {
-				_, err := bufWriter.WriteString(log + "\n")
-				if err != nil {
-					logger.Errorf("failed to write to file: %v", err)
-				}
-			}
+			close(writeChan)
 			wg.Wait()
 			return nil
 		}
 	}
 }
 
-// exportStreamLogsIfEnabled streams logs when runtime is enabled
-func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logsAgent logsAgent.Component, streamlogsLogFilePath string) error {
-	// If the enable_streamlogs config is set, start streaming log to default file
-	enabled := pkgconfigsetup.Datadog().GetBool("logs_config.streaming.enable_streamlogs")
+// exportStreamLogsIfEnabled streams logs to a file if the enable_streamlogs config is set
+func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logsAgent logsAgent.Component, streamlogsLogFilePath string, fb flaretypes.FlareBuilder) error {
 
-	if enabled {
-		streamLogParams := LogParams{
-			FilePath: streamlogsLogFilePath,
-			Duration: DefaultStreamLogsDuration,
-		}
-		if err := exportStreamLogs(logsAgent, sl.logger, &streamLogParams); err != nil {
-			return fmt.Errorf("failed to export stream logs: %w", err)
-		}
+	slDuration := fb.GetFlareArgs().StreamLogsDuration
+	if slDuration <= 0 {
+		_ = fb.Logf("Streamlogs has been disabled via an unset duration, exiting streamlogs flare filler")
+		return nil
+	}
+	streamLogParams := LogParams{
+		FilePath: streamlogsLogFilePath,
+		Duration: slDuration,
+	}
+	if err := exportStreamLogs(logsAgent, sl.logger, &streamLogParams); err != nil {
+		return fmt.Errorf("failed to export stream logs: %w", err)
 	}
 	return nil
 }
 
+// Currently flare args are only populated (and this function is only enabled) via
+// the RC flare generation flow. The goal is to shift other flare generation flows
+// to utilize this provider over time, which will require additional plumbing.
 func (sl *streamlogsimpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	streamlogsLogFile := sl.config.GetString("logs_config.streaming.streamlogs_log_file")
 
-	if err := sl.exportStreamLogsIfEnabled(sl.logsAgent, streamlogsLogFile); err != nil {
+	if err := sl.exportStreamLogsIfEnabled(sl.logsAgent, streamlogsLogFile, fb); err != nil {
 		return err
 	}
 
@@ -194,4 +223,12 @@ func (sl *streamlogsimpl) getFlareTimeout(fb flaretypes.FlareBuilder) time.Durat
 
 	// Total timeout
 	return baseTimeout + overhead
+}
+
+// writeBatch writes a batch of logs to the buffer writer so that it can be flushed to the file.
+func writeBatch(bufWriter *bufio.Writer, batch []string, logger logger.Component) {
+	_, err := bufWriter.WriteString(strings.Join(batch, "\n") + "\n")
+	if err != nil {
+		logger.Errorf("failed to write to file: %v", err)
+	}
 }
