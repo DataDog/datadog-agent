@@ -52,7 +52,7 @@ func assertAgentUseCert(t *assert.CollectT, host *components.RemoteHost, certPoo
 	client.Transport = tr
 
 	//Assert that it's not working if the IPC cert is not set as RootCA
-	_, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d", coreCMDPort))
+	_, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d", coreCMDPort)) // nolint: bodyclose
 	require.Error(t, err)
 
 	// Setting IPC certificate as Root CA
