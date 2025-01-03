@@ -22,7 +22,7 @@ namespace WixSetup
         }
 
         /// <summary>
-        /// Adds elements to the WiX XML to enforce that the product cannot be installed at the same time as another product.
+        /// Adds elements to the WiX to enforce that the product cannot be installed at the same time as another product.
         /// </summary>
         /// <remarks>
         /// The FindRelatedProducts action will set a property if a product matching the provided UpgradeCode
