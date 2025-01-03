@@ -965,7 +965,10 @@ func (tm *testModule) validateSyscallsInFlight() {
 }
 
 func (tm *testModule) Close() {
+
 	if !tm.opts.staticOpts.disableRuntimeSecurity {
+		// The stats from the rate_limiter should be sent, tm.eventMonitor.SendStats() does not do that
+		tm.cws.SendStats()
 		tm.eventMonitor.SendStats()
 	}
 
