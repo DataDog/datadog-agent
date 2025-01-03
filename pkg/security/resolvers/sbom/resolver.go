@@ -202,7 +202,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		resolver.removePendingScan(sbom.ContainerID)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
+		return nil, fmt.Errorf("couldn't create new SBOM resolver: %w", err)
 	}
 	resolver.sboms = sboms
 
