@@ -5,7 +5,9 @@
 
 package common
 
-import "fmt"
+import (
+	"fmt"
+)
 
 const (
 	// DatadogInstallerPackage is the datadog installer package
@@ -33,6 +35,16 @@ var (
 		DatadogInstallerPackage,
 		DatadogAgentPackage,
 		DatadogAPMInjectPackage,
+		DatadogAPMLibraryJavaPackage,
+		DatadogAPMLibraryPythonPackage,
+		DatadogAPMLibraryRubyPackage,
+		DatadogAPMLibraryJSPackage,
+		DatadogAPMLibraryDotNetPackage,
+		DatadogAPMLibraryPHPPackage,
+	}
+
+	// ApmLibraries is a list of all the apm libraries
+	ApmLibraries = []string{
 		DatadogAPMLibraryJavaPackage,
 		DatadogAPMLibraryPythonPackage,
 		DatadogAPMLibraryRubyPackage,
