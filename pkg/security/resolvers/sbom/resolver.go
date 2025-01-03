@@ -196,7 +196,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		failedSBOMGenerations: atomic.NewUint64(0),
 	}
 
-	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](maxSBOMEntries, func(containerID containerutils.ContainerID, sbom *SBOM) {
+	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](maxSBOMEntries, func(_ containerutils.ContainerID, sbom *SBOM) {
 		// should be trigger from a function already locking the sbom, see Add, Delete
 		sbom.stop()
 		resolver.removePendingScan(sbom.ContainerID)
