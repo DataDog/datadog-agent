@@ -57,11 +57,10 @@ const (
 
 var errNoProcessForContainerID = errors.New("found no running process matching the given container ID")
 
-// SBOMData use the keep the result of a scan of a same workload accross multiple
+// Data use the keep the result of a scan of a same workload across multiple
 // container
-type SBOMData struct {
-	report *trivy.Report
-	files  fileQuerier
+type Data struct {
+	files fileQuerier
 }
 
 // SBOM defines an SBOM
@@ -73,12 +72,10 @@ type SBOM struct {
 	Service     string
 	ContainerID containerutils.ContainerID
 
-	*SBOMData
+	data *Data
 
 	workloadKey workloadKey
 
-	//deleted        *atomic.Bool
-	//scanSuccessful *atomic.Bool
 	cgroup *cgroupModel.CacheEntry
 	state  *atomic.Int64
 
@@ -99,7 +96,7 @@ func (s *SBOM) IsComputed() bool {
 // SetReport sets the SBOM report
 func (s *SBOM) setReport(report *trivy.Report) {
 	// build file cache
-	s.files = newFileQuerier(report)
+	s.data.files = newFileQuerier(report)
 }
 
 // NewSBOM returns a new empty instance of SBOM
@@ -111,7 +108,7 @@ func NewSBOM(host string, source string, id containerutils.ContainerID, cgroup *
 		workloadKey: workloadKey,
 		state:       atomic.NewInt64(pendingState),
 		cgroup:      cgroup,
-		SBOMData:    &SBOMData{},
+		data:        &Data{},
 	}
 
 	return sbom, nil
@@ -125,8 +122,8 @@ type Resolver struct {
 	sboms     *simplelru.LRU[containerutils.ContainerID, *SBOM]
 
 	// cache
-	sbomDataCacheLock sync.RWMutex
-	sbomDataCache     *simplelru.LRU[workloadKey, *SBOMData] // cache per workload key
+	dataCacheLock sync.RWMutex
+	dataCache     *simplelru.LRU[workloadKey, *Data] // cache per workload key
 
 	// queue
 	scanChan        chan *SBOM
@@ -164,7 +161,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
 	}
 
-	sbomDataCache, err := simplelru.NewLRU[workloadKey, *SBOMData](c.SBOMResolverWorkloadsCacheSize, nil)
+	dataCache, err := simplelru.NewLRU[workloadKey, *Data](c.SBOMResolverWorkloadsCacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
 	}
@@ -183,7 +180,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		cfg:                   c,
 		statsdClient:          statsdClient,
 		sboms:                 sboms,
-		sbomDataCache:         sbomDataCache,
+		dataCache:             dataCache,
 		scanChan:              make(chan *SBOM, 100),
 		sbomScanner:           sbomScanner,
 		hostRootDevice:        stat.Dev,
@@ -392,9 +389,9 @@ func (r *Resolver) doScan(sbom *SBOM) (*trivy.Report, error) {
 }
 
 func (r *Resolver) removeSBOMData(key workloadKey) {
-	r.sbomDataCacheLock.Lock()
-	r.sbomDataCache.Remove(key)
-	r.sbomDataCacheLock.Unlock()
+	r.dataCacheLock.Lock()
+	r.dataCache.Remove(key)
+	r.dataCacheLock.Unlock()
 }
 
 func (r *Resolver) addPendingScan(key workloadKey) bool {
@@ -432,38 +429,38 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	}
 
 	// bail out if the workload has been analyzed while queued up
-	r.sbomDataCacheLock.RLock()
-	if sbomData, exists := r.sbomDataCache.Get(sbom.workloadKey); exists {
-		r.sbomDataCacheLock.RUnlock()
-		sbom.SBOMData = sbomData
+	r.dataCacheLock.RLock()
+	if data, exists := r.dataCache.Get(sbom.workloadKey); exists {
+		r.dataCacheLock.RUnlock()
+		sbom.data = data
 
 		r.removePendingScan(sbom.workloadKey)
 
 		return nil
 	}
-	r.sbomDataCacheLock.RUnlock()
+	r.dataCacheLock.RUnlock()
 
 	report, err := r.doScan(sbom)
 	if err != nil {
 		return err
 	}
 
-	r.removePendingScan(sbom.workloadKey)
-
-	sbomData := &SBOMData{
+	data := &Data{
 		files: newFileQuerier(report),
 	}
-	sbom.SBOMData = sbomData
+	sbom.data = data
 
 	// mark the SBOM as successful
 	sbom.state.Store(computedState)
 
 	// add to cache
-	r.sbomDataCacheLock.Lock()
-	r.sbomDataCache.Add(sbom.workloadKey, sbomData)
-	r.sbomDataCacheLock.Unlock()
+	r.dataCacheLock.Lock()
+	r.dataCache.Add(sbom.workloadKey, data)
+	r.dataCacheLock.Unlock()
 
-	seclog.Infof("new sbom generated for '%s': %d files added", sbom.ContainerID, sbomData.files.len())
+	r.removePendingScan(sbom.workloadKey)
+
+	seclog.Infof("new sbom generated for '%s': %d files added", sbom.ContainerID, data.files.len())
 	return nil
 }
 
@@ -489,7 +486,7 @@ func (r *Resolver) ResolvePackage(containerID containerutils.ContainerID, file *
 	sbom.Lock()
 	defer sbom.Unlock()
 
-	return sbom.files.queryFile(file.PathnameStr)
+	return sbom.data.files.queryFile(file.PathnameStr)
 }
 
 // newSBOM (thread unsafe) creates a new SBOM entry for the sbom designated by the provided process cache
@@ -517,11 +514,11 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 	}
 
 	// check if this sbom has been scanned before
-	r.sbomDataCacheLock.Lock()
-	defer r.sbomDataCacheLock.Unlock()
+	r.dataCacheLock.Lock()
+	defer r.dataCacheLock.Unlock()
 
-	if sbomData, ok := r.sbomDataCache.Get(sbom.workloadKey); ok {
-		sbom.SBOMData = sbomData
+	if data, ok := r.dataCache.Get(sbom.workloadKey); ok {
+		sbom.data = data
 
 		sbom.state.Store(computedState)
 
@@ -540,6 +537,7 @@ func (r *Resolver) triggerScan(sbom *SBOM) {
 	select {
 	case r.scanChan <- sbom:
 	default:
+		r.removePendingScan(sbom.workloadKey)
 	}
 }
 
@@ -631,9 +629,9 @@ func (r *Resolver) SendStats() error {
 		}
 	}
 
-	r.sbomDataCacheLock.Lock()
-	defer r.sbomDataCacheLock.Unlock()
-	if val := float64(r.sbomDataCache.Len()); val > 0 {
+	r.dataCacheLock.Lock()
+	defer r.dataCacheLock.Unlock()
+	if val := float64(r.dataCache.Len()); val > 0 {
 		if err := r.statsdClient.Gauge(metrics.MetricSBOMResolverSBOMCacheLen, val, []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSBOMResolverSBOMCacheLen: %w", err)
 		}
