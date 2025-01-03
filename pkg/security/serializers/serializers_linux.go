@@ -1176,8 +1176,8 @@ func (e *EventSerializer) MarshalJSON() ([]byte, error) {
 }
 
 // MarshalEvent marshal the event
-func MarshalEvent(event *model.Event, opts *eval.Opts) ([]byte, error) {
-	s := NewEventSerializer(event, opts)
+func MarshalEvent(event *model.Event) ([]byte, error) {
+	s := NewEventSerializer(event, nil)
 	return utils.MarshalEasyJSON(s)
 }
 
