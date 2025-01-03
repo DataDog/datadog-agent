@@ -15,15 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
 
-func resetGlobals() {
-	lastChannelID = -1
-	lastBSSID = ""
-	lastSSID = ""
-}
-
 func TestWLANOK(t *testing.T) {
-	resetGlobals()
-
 	// setup mocks
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
@@ -59,8 +51,6 @@ func TestWLANOK(t *testing.T) {
 }
 
 func TestWLANEmptySSIDisUnknown(t *testing.T) {
-	resetGlobals()
-
 	// setup mocks
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
@@ -96,8 +86,6 @@ func TestWLANEmptySSIDisUnknown(t *testing.T) {
 }
 
 func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
-	resetGlobals()
-
 	// setup mocks
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
@@ -133,8 +121,6 @@ func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
 }
 
 func TestWLANEmptySSIDandBSSID(t *testing.T) {
-	resetGlobals()
-
 	// setup mocks
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
@@ -170,8 +156,6 @@ func TestWLANEmptySSIDandBSSID(t *testing.T) {
 }
 
 func TestWLANChannelSwapEvents(t *testing.T) {
-	resetGlobals()
-
 	// setup mocks
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
@@ -242,8 +226,6 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 }
 
 func TestWLANRoamingEvents(t *testing.T) {
-	resetGlobals()
-
 	// setup mocks
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{

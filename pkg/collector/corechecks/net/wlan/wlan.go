@@ -7,6 +7,7 @@
 package wlan
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -23,10 +24,6 @@ const (
 
 var getWiFiInfo = GetWiFiInfo
 
-var lastChannelID int = -1
-var lastBSSID string = ""
-var lastSSID string = ""
-
 // WiFiInfo contains information about the WiFi connection as defined in wlan_darwin.h
 type WiFiInfo struct {
 	Rssi            int
@@ -41,6 +38,19 @@ type WiFiInfo struct {
 // WLANCheck monitors the status of the WLAN interface
 type WLANCheck struct {
 	core.CheckBase
+	lastChannelID int
+	lastBSSID     string
+	lastSSID      string
+	warmedUp      bool
+}
+type WLANInstanceConfig struct {
+}
+
+type WLANInitConfig struct{}
+
+type WLANConfig struct {
+	instance WLANInstanceConfig
+	initConf WLANInitConfig
 }
 
 func (c *WLANCheck) String() string {
@@ -80,23 +90,25 @@ func (c *WLANCheck) Run() error {
 	sender.Gauge("wlan.transmit_rate", float64(wifiInfo.TransmitRate), "", tags)
 
 	// channel swap events
-	if lastChannelID != -1 && lastChannelID != wifiInfo.Channel {
+	if c.warmedUp && c.lastChannelID != -1 && c.lastChannelID != wifiInfo.Channel {
+		fmt.Printf("last_channel_id: %s/n", c.lastChannelID)
 		sender.Count("wlan.channel_swap_events", 1.0, "", tags)
 	} else {
 		sender.Count("wlan.channel_swap_events", 0.0, "", tags)
 	}
 
 	// roaming events / ssid swap events
-	if lastBSSID != "" && lastSSID != "" && lastBSSID == wifiInfo.Bssid && lastSSID != wifiInfo.Ssid {
+	if c.warmedUp && c.lastBSSID != "" && c.lastSSID != "" && c.lastBSSID == wifiInfo.Bssid && c.lastSSID != wifiInfo.Ssid {
 		sender.Count("wlan.roaming_events", 1.0, "", tags)
 	} else {
 		sender.Count("wlan.roaming_events", 0.0, "", tags)
 	}
 
 	// update last values
-	lastChannelID = wifiInfo.Channel
-	lastBSSID = wifiInfo.Bssid
-	lastSSID = wifiInfo.Ssid
+	c.lastChannelID = wifiInfo.Channel
+	c.lastBSSID = wifiInfo.Bssid
+	c.lastSSID = wifiInfo.Ssid
+	c.warmedUp = true
 
 	sender.Commit()
 	return nil
@@ -109,6 +121,9 @@ func Factory() optional.Option[func() check.Check] {
 
 func newCheck() check.Check {
 	return &WLANCheck{
-		CheckBase: core.NewCheckBaseWithInterval(CheckName, time.Duration(defaultMinCollectionInterval)*time.Second),
+		CheckBase:     core.NewCheckBaseWithInterval(CheckName, time.Duration(defaultMinCollectionInterval)*time.Second),
+		lastChannelID: -1,
+		lastBSSID:     "",
+		lastSSID:      "",
 	}
 }
