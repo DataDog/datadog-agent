@@ -9,6 +9,7 @@ package telemetry
 
 import (
 	"os"
+	"syscall"
 	"testing"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -20,10 +21,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 
+	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
 )
 
-var m = &manager.Manager{
+var m1 = &manager.Manager{
 	Probes: []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -37,6 +39,19 @@ var m = &manager.Manager{
 		},
 		{
 			Name: "suppress_map",
+		},
+		{
+			Name: "shared_map",
+		},
+	},
+}
+
+var m2 = &manager.Manager{
+	Probes: []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe__do_vfs_ioctl",
+			},
 		},
 	},
 }
@@ -62,6 +77,20 @@ func skipTestIfEBPFTelemetryNotSupported(t *testing.T) {
 	}
 }
 
+func startManager(t *testing.T, m *manager.Manager, options manager.Options, name string, buf bytecode.AssetReader) {
+	err := m.LoadELF(buf)
+	require.NoError(t, err)
+
+	modifier := ErrorsTelemetryModifier{}
+	err = modifier.BeforeInit(m, names.NewModuleName(name), &options)
+	require.NoError(t, err)
+	err = m.InitWithOptions(nil, options)
+	require.NoError(t, err)
+	err = modifier.AfterInit(m, names.NewModuleName(name), &options)
+	require.NoError(t, err)
+	m.Start()
+}
+
 func triggerTestAndGetTelemetry(t *testing.T) []prometheus.Metric {
 	cfg := testConfig()
 
@@ -71,7 +100,7 @@ func triggerTestAndGetTelemetry(t *testing.T) []prometheus.Metric {
 
 	collector := NewEBPFErrorsCollector()
 
-	options := manager.Options{
+	optionsM1 := manager.Options{
 		RemoveRlimit: true,
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
@@ -81,21 +110,35 @@ func triggerTestAndGetTelemetry(t *testing.T) []prometheus.Metric {
 			},
 		},
 	}
+	startManager(t, m1, optionsM1, "m1", buf)
 
-	err = m.LoadELF(buf)
+	sharedMap, found, err := m1.GetMap("shared_map")
+	require.True(t, found, "'shared_map' not found in manager")
 	require.NoError(t, err)
 
-	modifier := ErrorsTelemetryModifier{}
-	err = modifier.BeforeInit(m, names.NewModuleName("ebpf"), &options)
-	require.NoError(t, err)
-	err = m.InitWithOptions(nil, options)
-	require.NoError(t, err)
-	err = modifier.AfterInit(m, names.NewModuleName("ebpf"), &options)
-	require.NoError(t, err)
-	m.Start()
+	optionsM2 := manager.Options{
+		RemoveRlimit: true,
+		ActivatedProbes: []manager.ProbesSelector{
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe__do_vfs_ioctl",
+				},
+			},
+		},
+		MapEditors: map[string]*ebpf.Map{
+			"shared_map": sharedMap,
+		},
+	}
+	startManager(t, m2, optionsM2, "m2", buf)
 
 	_, err = os.Open("/proc/self/exe")
 	require.NoError(t, err)
+
+	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(0), 0xfafadead, uintptr(0)); errno != 0 {
+		// Only valid return value is ENOTTY (invalid ioctl for device) because indeed we
+		// are not doing any valid ioctl, we just want to trigger the kprobe
+		require.Equal(t, syscall.ENOTTY, errno)
+	}
 
 	ch := make(chan prometheus.Metric)
 	go func() {
@@ -117,7 +160,8 @@ func TestMapsTelemetry(t *testing.T) {
 
 	mapsTelemetry := triggerTestAndGetTelemetry(t)
 	t.Cleanup(func() {
-		m.Stop(manager.CleanAll)
+		m1.Stop(manager.CleanAll)
+		m2.Stop(manager.CleanAll)
 	})
 
 	errorMapEntryFound, e2bigErrorFound := false, false
@@ -154,7 +198,8 @@ func TestMapsTelemetrySuppressError(t *testing.T) {
 
 	mapsTelemetry := triggerTestAndGetTelemetry(t)
 	t.Cleanup(func() {
-		m.Stop(manager.CleanAll)
+		m1.Stop(manager.CleanAll)
+		m2.Stop(manager.CleanAll)
 	})
 
 	suppressMapEntryFound := false
@@ -181,7 +226,8 @@ func TestHelpersTelemetry(t *testing.T) {
 
 	helperTelemetry := triggerTestAndGetTelemetry(t)
 	t.Cleanup(func() {
-		m.Stop(manager.CleanAll)
+		m1.Stop(manager.CleanAll)
+		m2.Stop(manager.CleanAll)
 	})
 
 	probeReadHelperFound, efaultErrorFound := false, false
@@ -211,4 +257,50 @@ func TestHelpersTelemetry(t *testing.T) {
 
 	// ensure test fails if helper metric not found
 	require.True(t, probeReadHelperFound)
+}
+
+func TestSharedMapsTelemetry(t *testing.T) {
+	skipTestIfEBPFTelemetryNotSupported(t)
+
+	mapsTelemetry := triggerTestAndGetTelemetry(t)
+	t.Cleanup(func() {
+		m1.Stop(manager.CleanAll)
+		m2.Stop(manager.CleanAll)
+	})
+
+	sharedMapFound, moduleFound, e2bigErrorFound := false, false, false
+	for _, promMetric := range mapsTelemetry {
+		dtoMetric := dto.Metric{}
+		require.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
+		require.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
+
+		for _, label := range dtoMetric.GetLabel() {
+			switch label.GetName() {
+			case "map_name":
+				if label.GetValue() == "shared_map" {
+					sharedMapFound = true
+				}
+			case "error":
+				if label.GetValue() == "E2BIG" {
+					e2bigErrorFound = true
+				}
+			// only interested in module 'm2'
+			case "module":
+				if label.GetValue() == "m2" {
+					moduleFound = true
+				}
+			}
+		}
+
+		// check error value immediately if map is discovered
+		if sharedMapFound && moduleFound {
+			moduleFound = false
+			require.True(t, e2bigErrorFound)
+			require.Equal(t, dtoMetric.GetCounter().GetValue(), float64(2))
+		}
+	}
+
+	// ensure test fails if map telemetry not found
+	require.True(t, sharedMapFound)
+
 }
