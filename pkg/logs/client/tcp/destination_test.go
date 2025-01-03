@@ -106,6 +106,9 @@ func TestConnectivityDiagnoseOperationFail(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
+	_, err = connManager.NewConnection(ctx)
+	assert.NotNil(t, err)
+
 	testFailEndpointWrongPort := config.NewEndpoint("api-key", host, portInt+1, false)
 	connManager = NewConnectionManager(testFailEndpointWrongPort, statusinterface.NewNoopStatusProvider())
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)

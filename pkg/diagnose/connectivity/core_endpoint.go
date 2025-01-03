@@ -32,10 +32,30 @@ import (
 func getLogsEndpoints(useTCP bool) (*logsConfig.Endpoints, error) {
 	datadogConfig := pkgconfigsetup.Datadog()
 	logsConfigKey := logsConfig.NewLogsConfigKeys("logs_config.", datadogConfig)
+
+	var endpoints *logsConfig.Endpoints
+	var err error
+
 	if useTCP {
-		return logsConfig.BuildEndpointsWithConfig(datadogConfig, logsConfigKey, "agent-http-intake.logs.", false, "logs", logsConfig.AgentJSONIntakeProtocol, logsConfig.DefaultIntakeOrigin)
+		endpoints, err = logsConfig.BuildEndpointsWithConfig(
+			datadogConfig,
+			logsConfigKey,
+			"agent-http-intake.logs.",
+			false,
+			"logs",
+			logsConfig.AgentJSONIntakeProtocol,
+			logsConfig.DefaultIntakeOrigin)
+	} else {
+		endpoints, err = logsConfig.BuildHTTPEndpointsWithConfig(
+			datadogConfig,
+			logsConfigKey,
+			"agent-http-intake.logs.",
+			"logs",
+			logsConfig.AgentJSONIntakeProtocol,
+			logsConfig.DefaultIntakeOrigin)
 	}
-	return logsConfig.BuildHTTPEndpointsWithConfig(datadogConfig, logsConfigKey, "agent-http-intake.logs.", "logs", logsConfig.AgentJSONIntakeProtocol, logsConfig.DefaultIntakeOrigin)
+
+	return endpoints, err
 }
 
 // getLogsUseTCP returns true if the agent should use TCP to transport logs
