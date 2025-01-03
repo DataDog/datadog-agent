@@ -25,7 +25,7 @@ func TestFetchConfig(t *testing.T) {
 
 		_, client, url := makeServer(t, handler)
 
-		config, err := fetchConfig(context.Background(), client, "", url.String())
+		config, err := fetchConfig(context.Background(), client, url.String())
 		require.NoError(t, err)
 		require.Equal(t, map[string]interface{}{"key1": "value1"}, config)
 	})
@@ -37,7 +37,7 @@ func TestFetchConfig(t *testing.T) {
 
 		_, client, url := makeServer(t, handler)
 
-		_, err := fetchConfig(context.Background(), client, "", url.String())
+		_, err := fetchConfig(context.Background(), client, url.String())
 		require.Error(t, err)
 	})
 
@@ -48,7 +48,7 @@ func TestFetchConfig(t *testing.T) {
 
 		_, client, url := makeServer(t, handler)
 
-		_, err := fetchConfig(context.Background(), client, "", url.String())
+		_, err := fetchConfig(context.Background(), client, url.String())
 		require.Error(t, err)
 	})
 
@@ -58,7 +58,7 @@ func TestFetchConfig(t *testing.T) {
 
 		_, client, url := makeServer(t, nil)
 
-		_, err := fetchConfig(ctx, client, "", url.String())
+		_, err := fetchConfig(ctx, client, url.String())
 		require.Error(t, err)
 	})
 }

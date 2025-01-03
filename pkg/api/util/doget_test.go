@@ -60,10 +60,10 @@ func TestDoGet(t *testing.T) {
 	t.Run("check global auth token", func(t *testing.T) {
 		handler := func(w http.ResponseWriter, r *http.Request) {
 			authorizer := auth.NewStaticAuthTokenSigner("0123456789abcdef0123456789abcdef")
-			err := authorizer.VerifyREST(r.Method, r.Header, r.Body, r.ContentLength)
+			statusCode, err := authorizer.VerifyREST(r.Method, r.Header, r.Body, r.ContentLength)
 
 			require.NoError(t, err)
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(statusCode)
 		}
 		server := makeTestServer(t, http.HandlerFunc(handler))
 
