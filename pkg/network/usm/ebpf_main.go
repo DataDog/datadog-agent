@@ -15,7 +15,6 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
 	"github.com/davecgh/go-spew/spew"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -101,16 +100,16 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 			UID:          probeUID,
 		},
 	}
-	if features.HaveProgramType(ebpf.RawTracepoint) == nil {
-		netifProbe = manager.Probe{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: netifReceiveSkbRawTp,
-				UID:          probeUID,
-			},
-			TracepointCategory: "net",
-			TracepointName:     "netif_receive_skb",
-		}
-	}
+	//if features.HaveProgramType(ebpf.RawTracepoint) == nil {
+	//	netifProbe = manager.Probe{
+	//		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+	//			EBPFFuncName: netifReceiveSkbRawTp,
+	//			UID:          probeUID,
+	//		},
+	//		TracepointCategory: "net",
+	//		TracepointName:     "netif_receive_skb",
+	//	}
+	//}
 
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
@@ -480,11 +479,11 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	// exclude unused netif_receive_skb probe
-	if features.HaveProgramType(ebpf.RawTracepoint) == nil {
-		options.ExcludedFunctions = append(options.ExcludedFunctions, netifReceiveSkbTp)
-	} else {
-		options.ExcludedFunctions = append(options.ExcludedFunctions, netifReceiveSkbRawTp)
-	}
+	//if features.HaveProgramType(ebpf.RawTracepoint) == nil {
+	//	options.ExcludedFunctions = append(options.ExcludedFunctions, netifReceiveSkbTp)
+	//} else {
+	options.ExcludedFunctions = append(options.ExcludedFunctions, netifReceiveSkbRawTp)
+	//}
 
 	err := e.InitWithOptions(buf, &options)
 	if err != nil {
