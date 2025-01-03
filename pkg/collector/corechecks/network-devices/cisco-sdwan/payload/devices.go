@@ -83,6 +83,8 @@ func buildDeviceMetadata(namespace string, device client.Device) devicemetadata.
 		ProductName:  device.DeviceModel,
 		Location:     device.SiteName,
 		Integration:  "cisco-sdwan",
+		Latitude:     device.Latitude,
+		Longitude:    device.Longitude,
 	}
 }
 
