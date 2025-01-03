@@ -235,10 +235,10 @@ func (i EntityID) String(_ bool) string {
 
 // EntityMeta represents generic metadata about an Entity.
 type EntityMeta struct {
-	Name        string
-	Namespace   string
 	Annotations map[string]string
 	Labels      map[string]string
+	Name        string
+	Namespace   string
 }
 
 // String returns a string representation of EntityMeta.
@@ -315,13 +315,13 @@ func (c ContainerImage) String(verbose bool) string {
 
 // ContainerState is the state of a container.
 type ContainerState struct {
-	Running    bool
-	Status     ContainerStatus
-	Health     ContainerHealth
 	CreatedAt  time.Time
 	StartedAt  time.Time
 	FinishedAt time.Time
 	ExitCode   *int64
+	Status     ContainerStatus
+	Health     ContainerHealth
+	Running    bool
 }
 
 // String returns a string representation of ContainerState.
@@ -346,8 +346,8 @@ func (c ContainerState) String(verbose bool) string {
 // ContainerPort is a port open in the container.
 type ContainerPort struct {
 	Name     string
-	Port     int
 	Protocol string
+	Port     int
 	HostPort uint16
 }
 
@@ -423,13 +423,13 @@ func (c ContainerHealthStatus) String(verbose bool) string {
 
 // ContainerResources is resources requests or limitations for a container
 type ContainerResources struct {
-	GPURequest    *uint64 // Number of GPUs
+	GPURequest    *uint64
 	GPULimit      *uint64
-	GPUVendorList []string // The type of GPU requested (eg. nvidia, amd, intel)
-	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
+	CPURequest    *float64
 	CPULimit      *float64
-	MemoryRequest *uint64 // Bytes
+	MemoryRequest *uint64
 	MemoryLimit   *uint64
+	GPUVendorList []string
 }
 
 // String returns a string representation of ContainerPort.
@@ -481,17 +481,17 @@ func (o OrchestratorContainer) String(_ bool) string {
 
 // ECSContainer is a reference to a container running in ECS
 type ECSContainer struct {
-	DisplayName   string
-	Networks      []ContainerNetwork
-	Volumes       []ContainerVolume
 	Health        *ContainerHealthStatus
+	LogOptions    map[string]string
+	DisplayName   string
 	DesiredStatus string
 	KnownStatus   string
 	Type          string
 	LogDriver     string
-	LogOptions    map[string]string
 	ContainerARN  string
 	Snapshotter   string
+	Networks      []ContainerNetwork
+	Volumes       []ContainerVolume
 }
 
 // String returns a string representation of ECSContainer.
@@ -529,35 +529,25 @@ func (e ECSContainer) String(verbose bool) string {
 
 // Container is an Entity representing a containerized workload.
 type Container struct {
-	EntityID
+	State     ContainerState
+	Resources ContainerResources
 	EntityMeta
-	// ECSContainer contains properties specific to container running in ECS
-	*ECSContainer
-	// EnvVars are limited to variables included in pkg/util/containers/env_vars_filter.go
-	EnvVars       map[string]string
-	Hostname      string
-	Image         ContainerImage
-	NetworkIPs    map[string]string
-	PID           int
-	Ports         []ContainerPort
-	Runtime       ContainerRuntime
-	RuntimeFlavor ContainerRuntimeFlavor
-	State         ContainerState
-	// CollectorTags represent tags coming from the collector itself
-	// and that it would be impossible to compute later on
-	CollectorTags   []string
-	Owner           *EntityID
+	NetworkIPs      map[string]string
 	SecurityContext *ContainerSecurityContext
-	Resources       ContainerResources
-
-	// AllocatedResources is the list of resources allocated to this pod. Requires the
-	// PodResources API to query that data.
+	EnvVars         map[string]string
+	*ECSContainer
+	Owner *EntityID
+	Image ContainerImage
+	EntityID
+	Hostname           string
+	CgroupPath         string
+	Runtime            ContainerRuntime
+	RuntimeFlavor      ContainerRuntimeFlavor
+	Ports              []ContainerPort
+	CollectorTags      []string
 	AllocatedResources []ContainerAllocatedResource
-	// CgroupPath is a path to the cgroup of the container.
-	// It can be relative to the cgroup parent.
-	// Linux only.
-	CgroupPath   string
-	RestartCount int
+	PID                int
+	RestartCount       int
 }
 
 // GetID implements Entity#GetID.
@@ -660,8 +650,8 @@ type PodSecurityContext struct {
 // ContainerSecurityContext is the Security Context of a Container
 type ContainerSecurityContext struct {
 	*Capabilities
-	Privileged     bool
 	SeccompProfile *SeccompProfile
+	Privileged     bool
 }
 
 // Capabilities is the capabilities a certain Container security context is capable of
@@ -693,24 +683,24 @@ var GetRunningContainers EntityFilterFunc[*Container] = func(container *Containe
 
 // KubernetesPod is an Entity representing a Kubernetes Pod.
 type KubernetesPod struct {
-	EntityID
 	EntityMeta
-	Owners                     []KubernetesPodOwner
-	PersistentVolumeClaimNames []string
-	InitContainers             []OrchestratorContainer
-	Containers                 []OrchestratorContainer
-	Ready                      bool
+	FinishedAt           time.Time
+	SecurityContext      *PodSecurityContext
+	NamespaceAnnotations map[string]string
+	NamespaceLabels      map[string]string
+	EntityID
+	RuntimeClass               string
 	Phase                      string
 	IP                         string
 	PriorityClass              string
 	QOSClass                   string
 	GPUVendorList              []string
-	RuntimeClass               string
 	KubeServices               []string
-	NamespaceLabels            map[string]string
-	NamespaceAnnotations       map[string]string
-	FinishedAt                 time.Time
-	SecurityContext            *PodSecurityContext
+	Containers                 []OrchestratorContainer
+	InitContainers             []OrchestratorContainer
+	PersistentVolumeClaimNames []string
+	Owners                     []KubernetesPodOwner
+	Ready                      bool
 }
 
 // GetID implements Entity#GetID.
@@ -824,9 +814,9 @@ type KubeMetadataEntityID string
 
 // KubernetesMetadata is an Entity representing kubernetes resource metadata
 type KubernetesMetadata struct {
-	EntityID
 	EntityMeta
 	GVR *schema.GroupVersionResource
+	EntityID
 }
 
 // GetID implements Entity#GetID.
@@ -871,19 +861,13 @@ var _ Entity = &KubernetesMetadata{}
 
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {
-	EntityID
 	EntityMeta
+	InjectableLanguages langUtil.ContainersLanguages
+	DetectedLanguages   langUtil.ContainersLanguages
+	EntityID
 	Env     string
 	Service string
 	Version string
-
-	// InjectableLanguages indicate containers languages that can be injected by the admission controller
-	// These languages are determined by parsing the deployment annotations
-	InjectableLanguages langUtil.ContainersLanguages
-
-	// DetectedLanguages languages indicate containers languages detected and reported by the language
-	// detection server.
-	DetectedLanguages langUtil.ContainersLanguages
 }
 
 // GetID implements Entity#GetID.
@@ -967,27 +951,27 @@ type MapTags map[string]string
 
 // ECSTask is an Entity representing an ECS Task.
 type ECSTask struct {
-	EntityID
 	EntityMeta
+	PullStartedAt           *time.Time
 	Tags                    MapTags
 	ContainerInstanceTags   MapTags
-	ClusterName             string
-	AWSAccountID            int
-	Region                  string
-	AvailabilityZone        string
-	Family                  string
-	Version                 string
-	DesiredStatus           string
-	KnownStatus             string
-	PullStartedAt           *time.Time
-	PullStoppedAt           *time.Time
-	ExecutionStoppedAt      *time.Time
-	VPCID                   string
-	ServiceName             string
-	EphemeralStorageMetrics map[string]int64
 	Limits                  map[string]float64
-	LaunchType              ECSLaunchType
-	Containers              []OrchestratorContainer
+	EphemeralStorageMetrics map[string]int64
+	ExecutionStoppedAt      *time.Time
+	PullStoppedAt           *time.Time
+	EntityID
+	VPCID            string
+	DesiredStatus    string
+	KnownStatus      string
+	Version          string
+	Family           string
+	AvailabilityZone string
+	Region           string
+	ServiceName      string
+	ClusterName      string
+	LaunchType       ECSLaunchType
+	Containers       []OrchestratorContainer
+	AWSAccountID     int
 }
 
 // GetID implements Entity#GetID.
@@ -1059,36 +1043,36 @@ var _ Entity = &ECSTask{}
 
 // ContainerImageMetadata is an Entity that represents container image metadata
 type ContainerImageMetadata struct {
-	EntityID
 	EntityMeta
-	RepoTags     []string
-	RepoDigests  []string
+	SBOM *SBOM
+	EntityID
 	MediaType    string
-	SizeBytes    int64
 	OS           string
 	OSVersion    string
 	Architecture string
 	Variant      string
+	RepoTags     []string
+	RepoDigests  []string
 	Layers       []ContainerImageLayer
-	SBOM         *SBOM
+	SizeBytes    int64
 }
 
 // ContainerImageLayer represents a layer of a container image
 type ContainerImageLayer struct {
+	History   *v1.History
 	MediaType string
 	Digest    string
-	SizeBytes int64
 	URLs      []string
-	History   *v1.History
+	SizeBytes int64
 }
 
 // SBOM represents the Software Bill Of Materials (SBOM) of a container
 type SBOM struct {
-	CycloneDXBOM       *cyclonedx.BOM
 	GenerationTime     time.Time
-	GenerationDuration time.Duration
+	CycloneDXBOM       *cyclonedx.BOM
 	Status             SBOMStatus
-	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
+	Error              string
+	GenerationDuration time.Duration
 }
 
 // GetID implements Entity#GetID.
@@ -1187,12 +1171,11 @@ var _ Entity = &ContainerImageMetadata{}
 
 // Process is an Entity that represents a process
 type Process struct {
-	EntityID // EntityID.ID is the PID
-
-	NsPid        int32
-	ContainerID  string
 	CreationTime time.Time
 	Language     *languagemodels.Language
+	EntityID
+	ContainerID string
+	NsPid       int32
 }
 
 var _ Entity = &Process{}
@@ -1276,30 +1259,15 @@ func (p HostTags) String(verbose bool) string {
 // CollectorEvent is an event generated by a metadata collector, to be handled
 // by the metadata store.
 type CollectorEvent struct {
-	Type   EventType
-	Source Source
 	Entity Entity
+	Source Source
+	Type   EventType
 }
 
 // Event represents a change to an entity.
 type Event struct {
-	// Type gives the type of this event.
-	//
-	// When Type is EventTypeSet, this represents an added or updated entity.
-	// Multiple set events may be sent for a single entity.
-	//
-	// When Type is EventTypeUnset, this represents a removed entity.
-	Type EventType
-
-	// Entity is the entity involved in this event.  For an EventTypeSet event,
-	// this may contain information "merged" from multiple sources.  For an
-	// unset event it contains only an EntityID.
-	//
-	// For Type == EventTypeSet, this field can be cast unconditionally to the
-	// concrete type corresponding to its kind (Entity.GetID().Kind).  For Type
-	// == EventTypeUnset, only the Entity ID is available and such a cast will
-	// fail.
 	Entity Entity
+	Type   EventType
 }
 
 // SubscriberPriority is a priority for subscribers to the store.  Subscribers
@@ -1332,11 +1300,8 @@ const (
 // complete.  Other subscribers should close the channel immediately.
 // See the example for Store#Subscribe for details.
 type EventBundle struct {
-	// Events gives the events in this bundle.
+	Ch     chan struct{}
 	Events []Event
-
-	// Ch should be closed once the subscriber has handled the event.
-	Ch chan struct{}
 }
 
 // Acknowledge acknowledges that the subscriber has handled the event.
