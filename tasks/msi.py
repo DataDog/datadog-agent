@@ -13,7 +13,7 @@ from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.common.utils import download_to_tempfile, timed
-from tasks.libs.releasing.version import get_version, load_release_versions
+from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version, load_release_versions
 
 # Windows only import
 try:
@@ -298,17 +298,6 @@ def build(
         vstudio_root=vstudio_root,
     )
 
-    if build_upgrade:
-        print("Building optional upgrade test helper")
-        # Build the optional upgrade test helper
-        env['PACKAGE_VERSION'] = '7.99.0'
-        _build(
-            ctx,
-            env,
-            configuration=configuration,
-            vstudio_root=vstudio_root,
-        )
-
     # sign build output that will be included in the installer MSI
     sign_file(ctx, os.path.join(build_outdir, 'CustomActions.dll'))
     sign_file(ctx, os.path.join(build_outdir, 'AgentCustomActions.dll'))
@@ -335,13 +324,26 @@ def build(
         shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
 
     # if the optional upgrade test helper exists then build that too
-    print("Building optional MSI")
-    optional_name = "datadog-agent-7.99.0-1-x86_64"
-    print(os.path.join(build_outdir, optional_name + ".wxs"))
-    if os.path.exists(os.path.join(build_outdir, optional_name + ".wxs")):
+    if build_upgrade:
+        print("Building optional upgrade test helper")
+
+        # Build the optional upgrade test helper
+        upgrade_env = env.copy()
+        version = _create_version_from_match(VERSION_RE.search(env['PACKAGE_VERSION']))
+        next_version = version.next_version(bump_patch=True)
+        upgrade_env['PACKAGE_VERSION'] = upgrade_env['PACKAGE_VERSION'].replace(str(version), str(next_version))
+
+        _build_wxs(
+            ctx,
+            upgrade_env,
+            build_outdir,
+            'AgentCustomActions.CA.dll',
+        )
+        msi_name = _msi_output_name(upgrade_env)
+        print(os.path.join(build_outdir, msi_name + ".wxs"))
         with timed("Building optional MSI"):
-            _build_msi(ctx, env, build_outdir, optional_name, DATADOG_AGENT_MSI_ALLOW_LIST)
-            shutil.copy2(os.path.join(build_outdir, optional_name + '.msi'), OUTPUT_PATH)
+            _build_msi(ctx, env, build_outdir, msi_name, DATADOG_AGENT_MSI_ALLOW_LIST)
+            shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
 
 
 @task
