@@ -110,9 +110,8 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 	}
 }
 
-func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
-	o := a.lazyInitObfuscator()
-
+// ObfuscateStatsGroup obfuscates sensitive data in APM stats payloads
+func ObfuscateStatsGroup(o *obfuscate.Obfuscator, b *pb.ClientGroupedStats) {
 	switch b.Type {
 	case "sql", "cassandra":
 		oq, err := o.ObfuscateSQLString(b.Resource)
