@@ -1,0 +1,20 @@
+log_level: debug
+auth_token_file_path: {{.AuthTokenFilePath}}
+ipc_cert_file_path: {{.IPCCertFilePath}}
+
+cmd_port: {{.AgentCMDPort}}
+agent_ipc:
+  port: {{.AgentIpcPort}}
+
+apm_config:
+  enabled: true
+  debug:
+    port: {{.ApmCmdPort}}
+
+security_agent:
+  cmd_port: {{.SecurityCmdPort}}
+
+process_config:
+  process_collection:
+    enabled: true
+  cmd_port: {{.ProcessCmdPort}}
