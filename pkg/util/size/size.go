@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package util
+// Package size provides functions to compute the size of some complex types
+package size
 
 import (
-	"strconv"
 	"unsafe"
 )
 
@@ -20,24 +20,17 @@ type HasSizeInBytes interface {
 }
 
 const (
-	// IntSize is the size of an int in bytes.
-	IntSize = strconv.IntSize / 8
-	// StringSize is the size of a string structure in bytes.
-	StringSize = unsafe.Sizeof("")
-	// StringSliceSize is the size of the string slice in bytes (not counting the size of the strings themselves).
-	StringSliceSize = unsafe.Sizeof([]string{})
-
-	// BytesKindTelemetryKey is the tag key used to identify the kind of telemetry value.
-	BytesKindTelemetryKey = "bytes_kind"
-	// BytesKindStruct is the tag value used to mark bytes as struct.
-	BytesKindStruct = "struct"
-	// BytesKindData is the tag value used to mark bytes as data. Those are likely to be interned strings.
-	BytesKindData = "data"
+	// stringSize is the size of a string structure in bytes.
+	stringSize = unsafe.Sizeof("")
+	// stringSliceSize is the size of the string slice in bytes (not counting the size of the strings themselves).
+	stringSliceSize = unsafe.Sizeof([]string{})
 )
 
 // SizeOfStringSlice returns the size of the string slice in bytes (not counting the size of the strings themselves).
+//
+//nolint:revive
 func SizeOfStringSlice(s []string) int {
-	return int(StringSliceSize) + len(s)*int(StringSize)
+	return int(stringSliceSize) + len(s)*int(stringSize)
 }
 
 // DataSizeOfStringSlice returns the size of the content of the string slice in bytes.
