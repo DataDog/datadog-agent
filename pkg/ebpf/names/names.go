@@ -29,6 +29,10 @@ func NewMapNameFromManagerMap(m *manager.Map) MapName { //nolint:revive // TODO
 	return MapName{n: m.Name}
 }
 
+func NewMapNameFromMapSpec(m *ebpf.MapSpec) MapName { //nolint:revive // TODO
+	return MapName{n: m.Name}
+}
+
 // ProgramName represents a name of a map derived from an object representing
 // an eBPF program. It should be used in places where we want guarantees that
 // we are working with a valid program name.
