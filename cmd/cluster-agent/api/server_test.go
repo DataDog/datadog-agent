@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -65,7 +66,8 @@ func TestValidateTokenMiddleware(t *testing.T) {
 			req, err := http.NewRequest("GET", tt.path, nil)
 			require.NoError(t, err)
 
-			req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", tt.authToken))
+			authorizer := auth.NewStaticAuthTokenSigner(tt.authToken)
+			authorizer.SignREST(req.Method, req.Header, req.Body, req.ContentLength)
 
 			rr := httptest.NewRecorder()
 

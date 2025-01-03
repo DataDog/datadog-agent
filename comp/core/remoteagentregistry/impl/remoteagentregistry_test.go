@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"testing"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -31,6 +30,7 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
@@ -265,9 +265,12 @@ func buildRemoteAgentServer(t *testing.T, remoteAgentServer *testRemoteAgentServ
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
+	// Initialize an authorizer that checks the authorization header of requests.
+	authorizer := auth.NewStaticAuthTokenSigner("testing")
+
 	serverOpts := []grpc.ServerOption{
 		grpc.Creds(credentials.NewServerTLSFromCert(tlsKeyPair)),
-		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(grpcutil.StaticAuthInterceptor("testing"))),
+		grpc.UnaryInterceptor(grpcutil.GetUnaryServerInterceptor(authorizer)),
 	}
 
 	server := grpc.NewServer(serverOpts...)

@@ -18,13 +18,7 @@ import (
 )
 
 func (cs *configSync) updater() {
-	authToken, err := cs.Authtoken.Get()
-	if err != nil {
-		cs.Log.Errorf("Failed to fetch config from core agent: unable to retrieve auth_token: %v", err.Error())
-		return
-	}
-
-	cfg, err := fetchConfig(cs.ctx, cs.client, authToken, cs.url.String())
+	cfg, err := fetchConfig(cs.ctx, cs.client, cs.url.String())
 	if err != nil {
 		if cs.connected {
 			cs.Log.Warnf("Failed to fetch config from core agent: %v", err)
@@ -92,11 +86,10 @@ func (cs *configSync) runWithChan(ch <-chan time.Time) {
 }
 
 // fetchConfig contacts the url in configSync and parses the returned data
-func fetchConfig(ctx context.Context, client *http.Client, authtoken, url string) (map[string]interface{}, error) {
+func fetchConfig(ctx context.Context, client *http.Client, url string) (map[string]interface{}, error) {
 	options := apiutil.ReqOptions{
-		Ctx:       ctx,
-		Conn:      apiutil.LeaveConnectionOpen,
-		Authtoken: authtoken,
+		Ctx:  ctx,
+		Conn: apiutil.LeaveConnectionOpen,
 	}
 	data, err := apiutil.DoGetWithOptions(client, url, &options)
 	if err != nil {

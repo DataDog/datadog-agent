@@ -21,11 +21,11 @@ import (
 	"os"
 	"time"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
@@ -163,9 +163,12 @@ func buildAndSpawnGrpcServer(listenAddr string, server pbcore.RemoteAgentServer)
 		return "", fmt.Errorf("unable to generate authentication token: %v", err)
 	}
 
+	// Initialize an authorizer that checks the authorization header of requests.
+	authorizer := auth.NewStaticAuthTokenSigner(authToken)
+
 	serverOpts := []grpc.ServerOption{
 		grpc.Creds(credentials.NewServerTLSFromCert(tlsKeyPair)),
-		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(grpcutil.StaticAuthInterceptor(authToken))),
+		grpc.UnaryInterceptor(grpcutil.GetUnaryServerInterceptor(authorizer)),
 	}
 
 	grpcServer := grpc.NewServer(serverOpts...)
@@ -215,9 +218,12 @@ func newAgentSecureClient(ipcAddress string, agentAuthToken string) (pbcore.Agen
 		InsecureSkipVerify: true,
 	})
 
+	// Initialize an authorizer that checks the authorization header of requests.
+	authorizer := auth.NewStaticAuthTokenSigner(agentAuthToken)
+
 	conn, err := grpc.NewClient(ipcAddress,
 		grpc.WithTransportCredentials(tlsCreds),
-		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(agentAuthToken)),
+		grpc.WithUnaryInterceptor(grpcutil.GetUnaryClientInterceptor(authorizer)),
 	)
 	if err != nil {
 		return nil, err

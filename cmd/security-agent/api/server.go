@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -35,6 +35,7 @@ type Server struct {
 	listener  net.Listener
 	agent     *agent.Agent
 	tlsConfig *tls.Config
+	at        authtoken.Component
 }
 
 // NewServer creates a new Server instance
@@ -47,6 +48,7 @@ func NewServer(statusComponent status.Component, settings settings.Component, wm
 		listener:  listener,
 		agent:     agent.NewAgent(statusComponent, settings, wmeta),
 		tlsConfig: at.GetTLSServerConfig(),
+		at:        at,
 	}, nil
 }
 
@@ -58,8 +60,11 @@ func (s *Server) Start() error {
 	// IPC REST API server
 	s.agent.SetupHandlers(r.PathPrefix("/agent").Subrouter())
 
+	// Initialize an authorizer that checks the authorization header of requests.
+	authorizer := auth.NewAuthTokenSigner(s.at.Get)
+
 	// Validate token for every request
-	r.Use(validateToken)
+	r.Use(auth.GetHTTPGuardMiddleware(authorizer))
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 	logWriter, _ := pkglogsetup.NewLogWriter(4, log.ErrorLvl)
@@ -87,13 +92,4 @@ func (s *Server) Stop() {
 // Address retruns the server address.
 func (s *Server) Address() *net.TCPAddr {
 	return s.listener.Addr().(*net.TCPAddr)
-}
-
-func validateToken(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := util.Validate(w, r); err != nil {
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }

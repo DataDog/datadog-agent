@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -71,6 +72,7 @@ func TestPostAuthentication(t *testing.T) {
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
+	var authToken authtoken.Component
 
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
@@ -90,21 +92,27 @@ func TestPostAuthentication(t *testing.T) {
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
 		createandfetchimpl.Module(),
+		fx.Populate(&authToken),
 	))
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		// No authentication
 		url := fmt.Sprintf("https://localhost:%d/config/log_level?value=debug", port)
+		client := http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: authToken.GetTLSClientConfig(),
+			},
+		}
 		req, err := http.NewRequest("POST", url, nil)
 		require.NoError(c, err)
-		res, err := util.GetClient(false).Do(req)
+		res, err := client.Do(req)
 		require.NoError(c, err)
 		defer res.Body.Close()
 		assert.Equal(c, http.StatusUnauthorized, res.StatusCode)
 
 		// With authentication
 		req.Header.Set("Authorization", "Bearer "+util.GetAuthToken())
-		res, err = util.GetClient(false).Do(req)
+		res, err = client.Do(req)
 		require.NoError(c, err)
 		defer res.Body.Close()
 		assert.Equal(c, http.StatusOK, res.StatusCode)

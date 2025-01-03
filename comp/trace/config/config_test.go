@@ -29,10 +29,14 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -2224,7 +2228,8 @@ func TestGetCoreConfigHandler(t *testing.T) {
 	// Accept valid auth token and returning a valid YAML conf
 	resp = httptest.NewRecorder()
 	req = httptest.NewRequest("GET", "/config", nil)
-	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
+	authorizer := auth.NewStaticAuthTokenSigner(apiutil.GetAuthToken())
+	authorizer.SignREST(req.Method, req.Header, req.Body, req.ContentLength)
 	handler(resp, req)
 	assert.Equal(t, http.StatusOK, resp.Code)
 
@@ -2261,7 +2266,8 @@ func TestSetConfigHandler(t *testing.T) {
 	// Accept valid auth token return OK
 	resp = httptest.NewRecorder()
 	req = httptest.NewRequest("POST", "/config", nil)
-	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
+	authorizer := auth.NewStaticAuthTokenSigner(apiutil.GetAuthToken())
+	authorizer.SignREST(req.Method, req.Header, req.Body, req.ContentLength)
 	handler(resp, req)
 	assert.Equal(t, http.StatusOK, resp.Code)
 }
@@ -2317,7 +2323,8 @@ func buildConfigComponent(t *testing.T, setHostnameInConfig bool, coreConfigOpti
 		fx.Provide(func() corecomp.Component {
 			return coreConfig
 		}),
-		fetchonlyimpl.MockModule(),
+		fx.Provide(func() logcomp.Component { return logmock.New(t) }),
+		createandfetchimpl.Module(),
 		MockModule(),
 	))
 	return c

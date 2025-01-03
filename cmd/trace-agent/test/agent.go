@@ -30,9 +30,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/api/security/auth"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 
@@ -115,9 +114,11 @@ func newAgentRunner(ddAddr string, verbose bool, buildSecretBackend bool) (*agen
 		return nil, fmt.Errorf("unable to generate authentication token: %v", err)
 	}
 
+	unaryInterceptor := grpcutil.GetUnaryServerInterceptor(auth.NewStaticAuthTokenSigner(authToken))
+
 	serverOpts := []grpc.ServerOption{
 		grpc.Creds(credentials.NewServerTLSFromCert(tlsKeyPair)),
-		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(grpcutil.StaticAuthInterceptor(authToken))),
+		grpc.UnaryInterceptor(unaryInterceptor),
 	}
 
 	// Start dummy gRPc server mocking the core agent
