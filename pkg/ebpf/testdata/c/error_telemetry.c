@@ -1,13 +1,9 @@
 #include "ktypes.h"
 #include "bpf_metadata.h"
-#ifdef COMPILE_RUNTIME
-#include "kconfig.h"
-#endif
 #include "compiler.h"
 #include "map-defs.h"
 #include "bpf_tracing.h"
 #include "bpf_telemetry.h"
-#include <uapi/linux/ptrace.h>
 
 BPF_HASH_MAP(error_map, u32, u32, 2);
 BPF_HASH_MAP(suppress_map, u32, u32, 2);

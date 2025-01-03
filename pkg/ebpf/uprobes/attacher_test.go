@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -701,7 +702,8 @@ func TestUprobeAttacher(t *testing.T) {
 
 	procMon := launchProcessMonitor(t, false)
 
-	buf, err := bytecode.GetReader(ebpfCfg.BPFDir, "uprobe_attacher-test.o")
+	coreDir := path.Join(ebpfCfg.BPFDir, "co-re")
+	buf, err := bytecode.GetReader(coreDir, "uprobe_attacher-test.o")
 	require.NoError(t, err)
 	t.Cleanup(func() { buf.Close() })
 

@@ -10,6 +10,7 @@ package ebpf
 import (
 	"bufio"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -43,7 +44,8 @@ func TestPatchPrintkNewline(t *testing.T) {
 	cfg := NewConfig()
 	require.NotNil(t, cfg)
 
-	buf, err := bytecode.GetReader(cfg.BPFDir, "logdebug-test.o")
+	coreDir := path.Join(cfg.BPFDir, "co-re")
+	buf, err := bytecode.GetReader(coreDir, "logdebug-test.o")
 	require.NoError(t, err)
 	defer buf.Close()
 

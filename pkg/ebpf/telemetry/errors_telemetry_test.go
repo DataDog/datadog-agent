@@ -9,6 +9,7 @@ package telemetry
 
 import (
 	"os"
+	"path"
 	"syscall"
 	"testing"
 
@@ -94,7 +95,8 @@ func startManager(t *testing.T, m *manager.Manager, options manager.Options, nam
 func triggerTestAndGetTelemetry(t *testing.T) []prometheus.Metric {
 	cfg := testConfig()
 
-	buf, err := bytecode.GetReader(cfg.bpfDir, "error_telemetry.o")
+	coreDir := path.Join(cfg.bpfDir, "co-re")
+	buf, err := bytecode.GetReader(coreDir, "error_telemetry.o")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = buf.Close })
 
