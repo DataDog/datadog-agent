@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // MakeCommand returns the start subcommand for the 'trace-agent' command.
@@ -46,7 +46,7 @@ func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 		config.Module(),
 		fx.Supply(coreconfig.NewAgentParams(params.ConfPath, coreconfig.WithFleetPoliciesDirPath(params.FleetPoliciesDirPath))),
 		fx.Supply(log.ForOneShot(params.LoggerName, "off", true)),
-		fx.Supply(optional.NewNoneOption[secrets.Component]()),
+		fx.Supply(option.None[secrets.Component]()),
 		fx.Supply(secrets.NewEnabledParams()),
 		coreconfig.Module(),
 		secretsimpl.Module(),

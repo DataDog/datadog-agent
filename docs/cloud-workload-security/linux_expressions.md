@@ -873,6 +873,8 @@ A directory was created
 | [`mkdir.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`mkdir.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`mkdir.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`mkdir.syscall.mode`](#mkdir-syscall-mode-doc) | Mode of the new directory |
+| [`mkdir.syscall.path`](#mkdir-syscall-path-doc) | Path argument of the syscall |
 
 ### Event `mmap`
 
@@ -1346,6 +1348,7 @@ A directory was removed
 | [`rmdir.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`rmdir.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`rmdir.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`rmdir.syscall.path`](#rmdir-syscall-path-doc) | Path argument of the syscall |
 
 ### Event `selinux`
 
@@ -2969,6 +2972,20 @@ Constants: [File mode constants](#file-mode-constants)
 
 
 
+### `mkdir.syscall.mode` {#mkdir-syscall-mode-doc}
+Type: int
+
+Definition: Mode of the new directory
+
+
+
+### `mkdir.syscall.path` {#mkdir-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
+
+
+
 ### `mmap.flags` {#mmap-flags-doc}
 Type: int
 
@@ -3131,6 +3148,13 @@ Definition: Destination path argument of the syscall
 
 
 ### `rename.syscall.path` {#rename-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
+
+
+
+### `rmdir.syscall.path` {#rmdir-syscall-path-doc}
 Type: string
 
 Definition: Path argument of the syscall

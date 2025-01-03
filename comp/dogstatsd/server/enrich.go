@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -43,7 +44,7 @@ func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []by
 		ContainerIDFromSocket: originFromUDS,
 		ContainerID:           string(originFromMsg),
 		ExternalData:          externalData,
-		ProductOrigin:         taggertypes.ProductOriginDogStatsD,
+		ProductOrigin:         origindetection.ProductOriginDogStatsD,
 	}
 
 	n := 0

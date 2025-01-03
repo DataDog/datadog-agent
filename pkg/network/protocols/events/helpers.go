@@ -17,11 +17,12 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 // NewEBPFProgram creates a new test eBPF program.
-func NewEBPFProgram(c *config.Config) (*manager.Manager, error) {
+func NewEBPFProgram(c *config.Config) (*ddebpf.Manager, error) {
 	bc, err := bytecode.GetReader(c.BPFDir, "usm_events_test-debug.o")
 	if err != nil {
 		return nil, err
@@ -53,14 +54,15 @@ func NewEBPFProgram(c *config.Config) (*manager.Manager, error) {
 			},
 		},
 	}
+	ddEbpfManager := ddebpf.NewManager(m, "usm", &ebpftelemetry.ErrorsTelemetryModifier{})
 
-	Configure(config.New(), "test", m, &options)
-	err = m.InitWithOptions(bc, options)
+	Configure(config.New(), "test", ddEbpfManager.Manager, &options)
+	err = ddEbpfManager.InitWithOptions(bc, &options)
 	if err != nil {
 		return nil, err
 	}
 
-	return m, nil
+	return ddEbpfManager, nil
 }
 
 // RecordSample records a sample using the consumer Handler.
