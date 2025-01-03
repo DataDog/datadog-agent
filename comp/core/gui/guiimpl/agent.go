@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -65,9 +66,23 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 		stats, err = statusComponent.GetStatus("html", verbose, status.CollectorSection)
 	}
 
+	if len(stats) != 0 {
+		// scrub status output
+		var e error
+		stats, e = scrubber.DefaultScrubber.ScrubBytes(stats)
+		if e != nil {
+			stats = []byte("[REDACTED] - failure to clean the message")
+		}
+	}
+
 	if err != nil {
-		log.Errorf("Error getting status: %s", err.Error())
-		w.Write([]byte("Error getting status: " + err.Error()))
+		errMsg := fmt.Sprintf("Error getting status: %v", err)
+		scrubbedMsg, scrubOperationErr := scrubber.DefaultScrubber.ScrubBytes([]byte(errMsg))
+		if scrubOperationErr != nil {
+			scrubbedMsg = []byte("[REDACTED] failed to clean error")
+		}
+		log.Error(string(scrubbedMsg))
+		w.Write(scrubbedMsg)
 		return
 	}
 
