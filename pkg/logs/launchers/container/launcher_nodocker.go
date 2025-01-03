@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
@@ -25,7 +25,7 @@ import (
 type Launcher struct{}
 
 // NewLauncher returns a new launcher
-func NewLauncher(_ *sourcesPkg.LogSources, _ optional.Option[workloadmeta.Component], _ tagger.Component) *Launcher {
+func NewLauncher(_ *sourcesPkg.LogSources, _ option.Option[workloadmeta.Component], _ tagger.Component) *Launcher {
 	return &Launcher{}
 }
 
