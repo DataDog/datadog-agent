@@ -389,14 +389,14 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 	productOrigin := originInfo.ProductOrigin
 	// If origin_detection_unified is disabled, we use DogStatsD's Legacy Origin Detection.
 	// TODO: remove this when origin_detection_unified is enabled by default
-	if !t.datadogConfig.originDetectionUnifiedEnabled && productOrigin == taggertypes.ProductOriginDogStatsD {
-		productOrigin = taggertypes.ProductOriginDogStatsDLegacy
+	if !t.datadogConfig.originDetectionUnifiedEnabled && productOrigin == origindetection.ProductOriginDogStatsD {
+		productOrigin = origindetection.ProductOriginDogStatsDLegacy
 	}
 
 	containerIDFromSocketCutIndex := len(types.ContainerID) + types.GetSeparatorLengh()
 
 	switch productOrigin {
-	case taggertypes.ProductOriginDogStatsDLegacy:
+	case origindetection.ProductOriginDogStatsDLegacy:
 		// The following was moved from the dogstatsd package
 		// originFromUDS is the origin discovered via UDS origin detection (container ID).
 		// originFromTag is the origin sent by the client via the dd.internal.entity_id tag (non-prefixed pod uid).
