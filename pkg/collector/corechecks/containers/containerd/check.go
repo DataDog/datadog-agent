@@ -39,6 +39,12 @@ const (
 	CheckName           = "containerd"
 	pullImageGrpcMethod = "PullImage"
 	cacheValidity       = 2 * time.Second
+
+	ImageSizeQueryInterval = 10 * time.Minute
+	ImageCreateEvent       = "/images/create"
+	ImageUpdateEvent       = "/images/update"
+	ImageDeleteEvent       = "/images/delete"
+	ImageWildcardEvent     = "/images/*"
 )
 
 var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
@@ -106,8 +112,13 @@ func (c *ContainerdCheck) Configure(senderManager sender.SenderManager, _ uint64
 	c.processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
 	c.subscriber = createEventSubscriber("ContainerdCheck", c.client, cutil.FiltersWithNamespaces(c.instance.ContainerdFilters))
 
+	c.subscriber.isCacheConfigValid = c.isEventConfigValid()
 	if err := c.initializeImageCache(); err != nil {
 		log.Warnf("Failed to initialize image size cache: %v", err)
+
+	} else {
+		log.Debugf("Image event collection not configured. Starting periodic cache updates.")
+		go c.periodicImageSizeQuery()
 	}
 
 	return nil
@@ -253,8 +264,7 @@ func (c *ContainerdCheck) initializeImageCache() error {
 		return fmt.Errorf("failed to list namespaces: %w", err)
 	}
 
-	c.subscriber.imageSizeCacheLock.Lock()
-	defer c.subscriber.imageSizeCacheLock.Unlock()
+	newCache := make(map[string]map[string]int64)
 
 	for _, namespace := range namespaces {
 		images, err := c.client.ListImages(namespace)
@@ -263,9 +273,7 @@ func (c *ContainerdCheck) initializeImageCache() error {
 			continue
 		}
 
-		if _, exists := c.subscriber.imageSizeCache[namespace]; !exists {
-			c.subscriber.imageSizeCache[namespace] = make(map[string]int64)
-		}
+		newCache[namespace] = make(map[string]int64)
 
 		for _, image := range images {
 			size, err := c.subscriber.getImageSize(namespace, image.Name())
@@ -274,9 +282,52 @@ func (c *ContainerdCheck) initializeImageCache() error {
 				continue
 			}
 
-			c.subscriber.imageSizeCache[namespace][image.Name()] = size
+			newCache[namespace][image.Name()] = size
 		}
 	}
 
+	c.subscriber.imageSizeCacheLock.Lock()
+	c.subscriber.imageSizeCache = newCache
+	c.subscriber.imageSizeCacheLock.Unlock()
+
 	return nil
+}
+
+func (c *ContainerdCheck) isEventConfigValid() bool {
+	if !c.instance.CollectEvents {
+		return false
+	}
+
+	hasImageEvents := map[string]bool{
+		ImageCreateEvent: false,
+		ImageUpdateEvent: false,
+		ImageDeleteEvent: false,
+	}
+
+	for _, filter := range c.instance.ContainerdFilters {
+		strippedFilter := strings.Trim(strings.TrimPrefix(filter, "topic=="), `"`)
+		if strippedFilter == ImageWildcardEvent {
+			return true
+		}
+		if _, ok := hasImageEvents[strippedFilter]; ok {
+			hasImageEvents[strippedFilter] = true
+		}
+	}
+	for _, included := range hasImageEvents {
+		if !included {
+			return false
+		}
+	}
+	return true
+}
+
+func (c *ContainerdCheck) periodicImageSizeQuery() {
+	ticker := time.NewTicker(ImageSizeQueryInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if err := c.initializeImageCache(); err != nil {
+			log.Warnf("Failed to refresh image size cache: %v", err)
+		}
+	}
 }

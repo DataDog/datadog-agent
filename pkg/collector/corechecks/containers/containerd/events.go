@@ -112,6 +112,7 @@ type subscriber struct {
 	running             bool
 	client              ctrUtil.ContainerdItf
 
+	isCacheConfigValid bool
 	imageSizeCache     map[string]map[string]int64 // namespace -> image -> size
 	imageSizeCacheLock sync.RWMutex
 }
@@ -513,6 +514,9 @@ func (s *subscriber) GetImageSizes() map[string]map[string]int64 {
 }
 
 func (s *subscriber) handleImageCreate(namespace, imageName string) {
+	if !s.isCacheConfigValid {
+		return
+	}
 	size, err := s.getImageSize(namespace, imageName)
 	if err != nil {
 		log.Debugf("Failed to fetch size for new image %s in namespace %s: %v", imageName, namespace, err)
@@ -528,6 +532,9 @@ func (s *subscriber) handleImageCreate(namespace, imageName string) {
 }
 
 func (s *subscriber) handleImageDelete(namespace, imageName string) {
+	if !s.isCacheConfigValid {
+		return
+	}
 	s.imageSizeCacheLock.Lock()
 	defer s.imageSizeCacheLock.Unlock()
 
@@ -541,6 +548,9 @@ func (s *subscriber) handleImageDelete(namespace, imageName string) {
 }
 
 func (s *subscriber) handleImageUpdate(namespace, imageName string) {
+	if !s.isCacheConfigValid {
+		return
+	}
 	size, err := s.getImageSize(namespace, imageName)
 	if err != nil {
 		log.Debugf("Failed to fetch size for updated image %s in namespace %s: %v", imageName, namespace, err)
