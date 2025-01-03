@@ -60,3 +60,8 @@ validate_modules:
   script:
     - inv -e modules.validate
     - inv -e modules.validate-used-by-otel
+
+lint_python_type_check:
+  extends: .lint
+  script:
+    - inv python-type-check.run    
