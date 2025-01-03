@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -166,8 +165,6 @@ func (s *service) Run(svcctx context.Context) error {
 
 		fetchonlyimpl.Module(),
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
-		// Force the instantiation of the component
-		fx.Invoke(func(_ configsync.Component) {}),
 		autoexitimpl.Module(),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{

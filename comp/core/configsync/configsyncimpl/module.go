@@ -39,6 +39,15 @@ func Module(params Params) fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newComponent),
 		fx.Supply(params),
+
+		// configSync is a component with no public method, therefore nobody depends on it and FX only instantiates
+		// components when they're needed. Adding a dummy function that takes our Component as a parameter force
+		// the instantiation of configsync. This means that simply using 'configsync.Module()' will run our
+		// component (which is the expected behavior).
+		//
+		// This prevent silent corner case where including 'configsync' in the main function would not actually
+		// instantiate it. This also remove the need for every main using configsync to add the line bellow.
+		fx.Invoke(func(_ configsync.Component) {}),
 	)
 }
 
