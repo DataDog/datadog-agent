@@ -167,7 +167,7 @@ func getOptionsFromContainerResource(target *datadoghq.DatadogPodAutoscalerConta
 }
 
 // CalculateHorizontalRecommendations is the entrypoint to calculate the horizontal recommendation for a given DatadogPodAutoscaler
-func (l localRecommender) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal) (*model.HorizontalScalingValues, error) {
+func (l localRecommender) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal) (*model.ScalingValues, error) {
 	currentTime := time.Now()
 
 	// Get current pods for the target
@@ -216,7 +216,9 @@ func (l localRecommender) CalculateHorizontalRecommendations(dpai model.PodAutos
 		return nil, fmt.Errorf("No recommendation found for autoscaler: %s", dpai.ID())
 	}
 
-	return &recommendedReplicas, nil
+	return &model.ScalingValues{
+		Horizontal: &recommendedReplicas,
+	}, nil
 }
 
 func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*workloadmeta.KubernetesPod, queryResult QueryResult, currentReplicas float64) (int32, time.Time, error) {
@@ -399,10 +401,6 @@ func (r *resourceRecommenderSettings) calculateReplicas(currentReplicas float64,
 			// Only allow if we don't break the high watermark
 			if forecastValue < r.HighWatermark {
 				recommendedReplicas = int32(proposedReplicas)
-
-				// if rec > recommendedReplicas {
-				// 	recommendedReplicas = rec
-				// }
 				break
 			}
 		}
