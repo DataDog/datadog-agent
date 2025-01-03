@@ -34,14 +34,17 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
 
 Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb)
     : RtLoader(memtrack_cb)
-    , _pythonHome(NULL)
-    , _pythonExe(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
     , _pymallocPrev{ 0 }
     , _pymemInuse(0)
     , _pymemAlloc(0)
 {
+    PyConfig_InitPythonConfig(&_config);
+    // force initialize siginterrupt with signal in python so it can be overwritten by the agent
+    // This only effects the windows builds as linux already has the sigint handler initialized
+    // and thus python will ignore it
+    _config.install_signal_handlers = 1;
     initPythonHome(python_home);
 
     // If not empty, set our Python interpreter path
@@ -60,45 +63,32 @@ Three::~Three()
 
 void Three::initPythonHome(const char *pythonHome)
 {
-    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
-    wchar_t *oldPythonHome = _pythonHome;
-    if (pythonHome == NULL || strlen(pythonHome) == 0) {
-        _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
-    } else {
-        _pythonHome = Py_DecodeLocale(pythonHome, NULL);
+    const auto home = pythonHome != nullptr && strlen(pythonHome) > 0 ? pythonHome : _defaultPythonHome;
+    const auto status = PyConfig_SetBytesString(&_config, &_config.home, home);
+    if (PyStatus_Exception(status)) {
+        setError("Failed to set python home");
     }
-
-    Py_SetPythonHome(_pythonHome);
-    PyMem_RawFree((void *)oldPythonHome);
 }
 
 void Three::initPythonExe(const char *python_exe)
 {
-    // Py_SetProgramName stores a pointer to the string we pass to it, so we must keep it in memory
-    wchar_t *oldPythonExe = _pythonExe;
-    _pythonExe = Py_DecodeLocale(python_exe, NULL);
-
-    Py_SetProgramName(_pythonExe);
-
-    // HACK: This extra internal API invocation is due to the workaround for an upstream bug on
-    // Windows (https://bugs.python.org/issue34725) where just using `Py_SetProgramName` is
-    // ineffective. The workaround API call will be removed at some point in the future (Python
-    // 3.12+) so we should convert this initialization to the new`PyConfig API`
-    // (https://docs.python.org/3.11/c-api/init_config.html#c.PyConfig) before then.
-    _Py_SetProgramFullPath(_pythonExe);
-
-    PyMem_RawFree((void *)oldPythonExe);
+    const auto status = PyConfig_SetBytesString(&_config, &_config.executable, python_exe);
+    if (PyStatus_Exception(status)) {
+        setError("Failed to set python executable");
+    }
 }
 
 bool Three::init()
 {
     // we want the checks to be runned with the standard encoding utf-8
-    // setting this var to 1 forces the UTF8 mode for CPython >= 3.7
-    // See:
-    //	- PEP UTF8 mode https://www.python.org/dev/peps/pep-0540/
-    //	- about this var https://github.com/python/cpython/pull/12589
-    // This has to be set before the Py_Initialize() call.
-    Py_UTF8Mode = 1;
+    PyPreConfig preConfig;
+    PyPreConfig_InitPythonConfig(&preConfig);
+    preConfig.utf8_mode = 1;
+    auto status = Py_PreInitialize(&preConfig);
+    if (PyStatus_Exception(status)) {
+        setError("Failed to pre-initialize python");
+        return false;
+    }
 
     // add custom builtins init funcs to Python inittab, one by one
     // Unlinke its py2 counterpart, these need to be called before Py_Initialize
@@ -110,15 +100,13 @@ bool Three::init()
     PyImport_AppendInittab(KUBEUTIL_MODULE_NAME, PyInit_kubeutil);
     PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
 
-    // force initialize siginterrupt with signal in python so it can be overwritten by the agent
-    // This only effects the windows builds as linux already has the sigint handler initialized
-    // and thus python will ignore it
-    Py_InitializeEx(1);
+    status = Py_InitializeFromConfig(&_config);
 
-    if (!Py_IsInitialized()) {
+    if (PyStatus_Exception(status)) {
         setError("Python not initialized");
         return false;
     }
+    PyConfig_Clear(&_config);
 
     // Set PYTHONPATH
     if (!_pythonPaths.empty()) {
