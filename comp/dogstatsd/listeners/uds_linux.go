@@ -20,7 +20,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -61,7 +61,7 @@ func enableUDSPassCred(conn netUnixConn) error {
 // source, and an error if any.
 // PID is added to ancillary data by the Linux kernel if we added the
 // SO_PASSCRED to the socket, see enableUDSPassCred.
-func processUDSOrigin(ancillary []byte, wmeta optional.Option[workloadmeta.Component], state pidmap.Component) (int, string, error) {
+func processUDSOrigin(ancillary []byte, wmeta option.Option[workloadmeta.Component], state pidmap.Component) (int, string, error) {
 	messages, err := unix.ParseSocketControlMessage(ancillary)
 	if err != nil {
 		return 0, packets.NoOrigin, err
@@ -97,7 +97,7 @@ func processUDSOrigin(ancillary []byte, wmeta optional.Option[workloadmeta.Compo
 // getEntityForPID returns the container entity name and caches the value for future lookups
 // As the result is cached and the lookup is really fast (parsing local files), it can be
 // called from the intake goroutine.
-func getEntityForPID(pid int32, capture bool, wmeta optional.Option[workloadmeta.Component], state pidmap.Component) (string, error) {
+func getEntityForPID(pid int32, capture bool, wmeta option.Option[workloadmeta.Component], state pidmap.Component) (string, error) {
 	key := cache.BuildAgentKey(pidToEntityCacheKeyPrefix, strconv.Itoa(int(pid)))
 	if x, found := cache.Cache.Get(key); found {
 		return x.(string), nil
@@ -123,7 +123,7 @@ func getEntityForPID(pid int32, capture bool, wmeta optional.Option[workloadmeta
 
 // entityForPID returns the entity ID for a given PID. It can return
 // errNoContainerMatch if no match is found for the PID.
-func entityForPID(pid int32, capture bool, wmeta optional.Option[workloadmeta.Component], state pidmap.Component) (string, error) {
+func entityForPID(pid int32, capture bool, wmeta option.Option[workloadmeta.Component], state pidmap.Component) (string, error) {
 	if capture {
 		return state.ContainerIDForPID(pid)
 	}
