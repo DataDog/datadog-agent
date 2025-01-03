@@ -174,11 +174,9 @@ func Test_resolveProfiles(t *testing.T) {
 					for _, metric := range profile.Definition.Metrics {
 						metricsNames = append(metricsNames, fmt.Sprintf("%s:%s", name, metric.Symbol.Name))
 					}
-					ifMeta, ok := profile.Definition.Metadata["interface"]
-					if ok {
-						for _, metricTag := range ifMeta.IDTags {
-							ifIDTags = append(ifIDTags, fmt.Sprintf("%s:%s", name, metricTag.Tag))
-						}
+					ifMeta := profile.Definition.Metadata.Interface
+					for _, metricTag := range ifMeta.IDTags {
+						ifIDTags = append(ifIDTags, fmt.Sprintf("%s:%s", name, metricTag.Tag))
 					}
 				}
 				assert.ElementsMatch(t, tt.expectedProfileMetrics, metricsNames)
@@ -202,12 +200,12 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			},
 		},
 		Metadata: profiledefinition.MetadataConfig{
-			"device": {
-				Fields: map[string]profiledefinition.MetadataField{
-					"vendor": {
+			Device: profiledefinition.DeviceMetadata{
+				Fields: profiledefinition.DeviceMetadataFields{
+					Vendor: profiledefinition.MetadataField{
 						Value: "f5",
 					},
-					"description": {
+					Description: profiledefinition.MetadataField{
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.1.1.0",
 							Name: "sysDescr",
@@ -215,11 +213,10 @@ func Test_mergeProfileDefinition(t *testing.T) {
 					},
 				},
 			},
-			"interface": {
-				Fields: map[string]profiledefinition.MetadataField{
-					"admin_status": {
+			Interface: profiledefinition.InterfaceMetadata{
+				Fields: profiledefinition.InterfaceMetadataFields{
+					AdminStatus: profiledefinition.MetadataField{
 						Symbol: profiledefinition.SymbolConfig{
-
 							OID:  "1.3.6.1.2.1.2.2.1.7",
 							Name: "ifAdminStatus",
 						},
@@ -249,9 +246,9 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			},
 		},
 		Metadata: profiledefinition.MetadataConfig{
-			"device": {
-				Fields: map[string]profiledefinition.MetadataField{
-					"name": {
+			Device: profiledefinition.DeviceMetadata{
+				Fields: profiledefinition.DeviceMetadataFields{
+					Name: profiledefinition.MetadataField{
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.1.5.0",
 							Name: "sysName",
@@ -259,9 +256,9 @@ func Test_mergeProfileDefinition(t *testing.T) {
 					},
 				},
 			},
-			"interface": {
-				Fields: map[string]profiledefinition.MetadataField{
-					"oper_status": {
+			Interface: profiledefinition.InterfaceMetadata{
+				Fields: profiledefinition.InterfaceMetadataFields{
+					OperStatus: profiledefinition.MetadataField{
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.2.2.1.8",
 							Name: "ifOperStatus",
@@ -306,54 +303,53 @@ func Test_mergeProfileDefinition(t *testing.T) {
 					},
 				},
 				Metadata: profiledefinition.MetadataConfig{
-					"device": {
-						Fields: map[string]profiledefinition.MetadataField{
-							"vendor": {
+					Device: profiledefinition.DeviceMetadata{
+						Fields: profiledefinition.DeviceMetadataFields{
+							Vendor: profiledefinition.MetadataField{
 								Value: "f5",
 							},
-							"name": {
-								Symbol: profiledefinition.SymbolConfig{
-									OID:  "1.3.6.1.2.1.1.5.0",
-									Name: "sysName",
-								},
-							},
-							"description": {
+							Description: profiledefinition.MetadataField{
 								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.1.0",
 									Name: "sysDescr",
 								},
 							},
+							Name: profiledefinition.MetadataField{
+								Symbol: profiledefinition.SymbolConfig{
+									OID:  "1.3.6.1.2.1.1.5.0",
+									Name: "sysName",
+								},
+							},
 						},
 					},
-					"interface": {
-						Fields: map[string]profiledefinition.MetadataField{
-							"oper_status": {
+					Interface: profiledefinition.InterfaceMetadata{
+						Fields: profiledefinition.InterfaceMetadataFields{
+							AdminStatus: profiledefinition.MetadataField{
+								Symbol: profiledefinition.SymbolConfig{
+									OID:  "1.3.6.1.2.1.2.2.1.7",
+									Name: "ifAdminStatus",
+								},
+							},
+							OperStatus: profiledefinition.MetadataField{
 								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.2.2.1.8",
 									Name: "ifOperStatus",
 								},
 							},
-							"admin_status": {
-								Symbol: profiledefinition.SymbolConfig{
-
-									OID:  "1.3.6.1.2.1.2.2.1.7",
-									Name: "ifAdminStatus",
-								},
-							},
 						},
 						IDTags: profiledefinition.MetricTagConfigList{
-							{
-								Tag: "interface",
-								Symbol: profiledefinition.SymbolConfigCompat{
-									OID:  "1.3.6.1.2.1.31.1.1.1.1",
-									Name: "ifName",
-								},
-							},
 							{
 								Tag: "alias",
 								Symbol: profiledefinition.SymbolConfigCompat{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifAlias",
+								},
+							},
+							{
+								Tag: "interface",
+								Symbol: profiledefinition.SymbolConfigCompat{
+									OID:  "1.3.6.1.2.1.31.1.1.1.1",
+									Name: "ifName",
 								},
 							},
 						},
@@ -376,9 +372,9 @@ func Test_mergeProfileDefinition(t *testing.T) {
 					},
 				},
 				Metadata: profiledefinition.MetadataConfig{
-					"device": {
-						Fields: map[string]profiledefinition.MetadataField{
-							"name": {
+					Device: profiledefinition.DeviceMetadata{
+						Fields: profiledefinition.DeviceMetadataFields{
+							Name: profiledefinition.MetadataField{
 								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.5.0",
 									Name: "sysName",
@@ -386,9 +382,9 @@ func Test_mergeProfileDefinition(t *testing.T) {
 							},
 						},
 					},
-					"interface": {
-						Fields: map[string]profiledefinition.MetadataField{
-							"oper_status": {
+					Interface: profiledefinition.InterfaceMetadata{
+						Fields: profiledefinition.InterfaceMetadataFields{
+							OperStatus: profiledefinition.MetadataField{
 								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.2.2.1.8",
 									Name: "ifOperStatus",
@@ -423,12 +419,12 @@ func Test_mergeProfileDefinition(t *testing.T) {
 					},
 				},
 				Metadata: profiledefinition.MetadataConfig{
-					"device": {
-						Fields: map[string]profiledefinition.MetadataField{
-							"vendor": {
+					Device: profiledefinition.DeviceMetadata{
+						Fields: profiledefinition.DeviceMetadataFields{
+							Vendor: profiledefinition.MetadataField{
 								Value: "f5",
 							},
-							"description": {
+							Description: profiledefinition.MetadataField{
 								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.1.0",
 									Name: "sysDescr",
@@ -436,11 +432,10 @@ func Test_mergeProfileDefinition(t *testing.T) {
 							},
 						},
 					},
-					"interface": {
-						Fields: map[string]profiledefinition.MetadataField{
-							"admin_status": {
+					Interface: profiledefinition.InterfaceMetadata{
+						Fields: profiledefinition.InterfaceMetadataFields{
+							AdminStatus: profiledefinition.MetadataField{
 								Symbol: profiledefinition.SymbolConfig{
-
 									OID:  "1.3.6.1.2.1.2.2.1.7",
 									Name: "ifAdminStatus",
 								},

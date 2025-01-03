@@ -8,6 +8,7 @@ package profile
 import (
 	"expvar"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -108,28 +109,32 @@ func mergeProfileDefinition(targetDefinition *profiledefinition.ProfileDefinitio
 	targetDefinition.Metrics = append(targetDefinition.Metrics, baseDefinition.Metrics...)
 	targetDefinition.MetricTags = append(targetDefinition.MetricTags, baseDefinition.MetricTags...)
 	targetDefinition.StaticTags = append(targetDefinition.StaticTags, baseDefinition.StaticTags...)
-	if targetDefinition.Metadata == nil {
-		targetDefinition.Metadata = make(profiledefinition.MetadataConfig)
+	// we only have two types of resources: Device and Interface
+	// merge Device Metadata Fields
+	baseProfileDeviceMetadataFields := reflect.ValueOf(baseDefinition.Metadata.Device.Fields).Elem()
+	targetProfileDeviceMetadataFields := reflect.ValueOf(targetDefinition.Metadata.Device.Fields).Elem()
+	for i := 0; i < targetProfileDeviceMetadataFields.NumField(); i++ {
+		targetField := targetProfileDeviceMetadataFields.Field(i)
+		baseField := baseProfileDeviceMetadataFields.Field(i)
+
+		if isEmpty(targetField) {
+			targetField.Set(baseField)
+		}
 	}
-	for baseResName, baseResource := range baseDefinition.Metadata {
-		if _, ok := targetDefinition.Metadata[baseResName]; !ok {
-			targetDefinition.Metadata[baseResName] = profiledefinition.NewMetadataResourceConfig()
-		}
-		if resource, ok := targetDefinition.Metadata[baseResName]; ok {
-			for _, tagConfig := range baseResource.IDTags {
-				resource.IDTags = append(targetDefinition.Metadata[baseResName].IDTags, tagConfig)
-			}
+	
+	// merge Interface Metadata Fields
+	baseProfileInterfaceMetadataFields := reflect.ValueOf(baseDefinition.Metadata.Interface.Fields).Elem()
+	targetProfileInterfaceMetadataFields := reflect.ValueOf(targetDefinition.Metadata.Interface.Fields).Elem()
+	for i := 0; i < targetProfileInterfaceMetadataFields.NumField(); i++ {
+		targetField := targetProfileInterfaceMetadataFields.Field(i)
+		baseField := baseProfileInterfaceMetadataFields.Field(i)
 
-			if resource.Fields == nil {
-				resource.Fields = make(map[string]profiledefinition.MetadataField, len(baseResource.Fields))
-			}
-			for field, symbol := range baseResource.Fields {
-				if _, ok := resource.Fields[field]; !ok {
-					resource.Fields[field] = symbol
-				}
-			}
-
-			targetDefinition.Metadata[baseResName] = resource
+		if isEmpty(targetField) {
+			targetField.Set(baseField)
 		}
+	}
+	// merge Interface Metadata IDTags
+	for _, tagConfig := range baseDefinition.Metadata.Interface.IDTags {
+		targetDefinition.Metadata.Interface.IDTags = append(targetDefinition.Metadata.Interface.IDTags, tagConfig)
 	}
 }

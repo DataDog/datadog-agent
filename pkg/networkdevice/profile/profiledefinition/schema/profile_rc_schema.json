@@ -12,6 +12,57 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "DeviceMetadata": {
+      "properties": {
+        "fields": {
+          "$ref": "#/$defs/DeviceMetadataFields"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DeviceMetadataFields": {
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "description": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "location": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "vendor": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "serial_number": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "version": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "product_name": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "model": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "os_name": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "os_version": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "os_hostname": {
+          "$ref": "#/$defs/MetadataField"
+        },
+        "type": {
+          "$ref": "#/$defs/MetadataField"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "DeviceProfileRcConfig": {
       "properties": {
         "profile_definition": {
@@ -23,6 +74,18 @@
       "required": [
         "profile_definition"
       ]
+    },
+    "InterfaceMetadata": {
+      "properties": {
+        "fields": {
+          "type": "string"
+        },
+        "id_tags": {
+          "$ref": "#/$defs/MetricTagConfigList"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
     },
     "ListMap[string]": {
       "items": {
@@ -42,6 +105,36 @@
         ]
       },
       "type": "array"
+    },
+    "MetadataConfig": {
+      "properties": {
+        "device": {
+          "$ref": "#/$defs/DeviceMetadata"
+        },
+        "interface": {
+          "$ref": "#/$defs/InterfaceMetadata"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MetadataField": {
+      "properties": {
+        "symbol": {
+          "$ref": "#/$defs/SymbolConfig"
+        },
+        "symbols": {
+          "items": {
+            "$ref": "#/$defs/SymbolConfig"
+          },
+          "type": "array"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
     },
     "MetricIndexTransform": {
       "properties": {
@@ -114,6 +207,21 @@
         },
         "metric_type": {
           "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/MetricsConfigOption"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MetricsConfigOption": {
+      "properties": {
+        "placement": {
+          "type": "integer"
+        },
+        "metric_suffix": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -135,6 +243,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "metadata": {
+          "$ref": "#/$defs/MetadataConfig"
         },
         "metric_tags": {
           "items": {
