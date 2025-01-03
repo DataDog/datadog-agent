@@ -225,6 +225,71 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
 }
 
+func TestWLANChannelSwapEventsChannelZero(t *testing.T) {
+	// setup mocks
+	getWiFiInfo = func() (WiFiInfo, error) {
+		return WiFiInfo{
+			Rssi:            10,
+			Ssid:            "test-ssid",
+			Bssid:           "test-bssid",
+			Channel:         0,
+			Noise:           20,
+			TransmitRate:    4.0,
+			HardwareAddress: "hardware-address",
+		}, nil
+	}
+
+	defer func() {
+		getWiFiInfo = GetWiFiInfo
+	}()
+
+	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address"}
+
+	wlanCheck := new(WLANCheck)
+
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	// 1st run: no channel change
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+
+	getWiFiInfo = func() (WiFiInfo, error) {
+		return WiFiInfo{
+			Rssi:            10,
+			Ssid:            "test-ssid",
+			Bssid:           "test-bssid",
+			Channel:         0,
+			Noise:           20,
+			TransmitRate:    4.0,
+			HardwareAddress: "hardware-address",
+		}, nil
+	}
+
+	// 2nd run: no channel change
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+
+	getWiFiInfo = func() (WiFiInfo, error) {
+		return WiFiInfo{
+			Rssi:            10,
+			Ssid:            "test-ssid",
+			Bssid:           "test-bssid",
+			Channel:         1,
+			Noise:           20,
+			TransmitRate:    4.0,
+			HardwareAddress: "hardware-address",
+		}, nil
+	}
+
+	// 3nd run: change channel to 1
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 1.0, "", expectedTags)
+}
+
 func TestWLANRoamingEvents(t *testing.T) {
 	// setup mocks
 	getWiFiInfo = func() (WiFiInfo, error) {

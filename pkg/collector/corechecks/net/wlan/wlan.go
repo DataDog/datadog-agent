@@ -7,7 +7,6 @@
 package wlan
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -42,15 +41,6 @@ type WLANCheck struct {
 	lastBSSID     string
 	lastSSID      string
 	warmedUp      bool
-}
-type WLANInstanceConfig struct {
-}
-
-type WLANInitConfig struct{}
-
-type WLANConfig struct {
-	instance WLANInstanceConfig
-	initConf WLANInitConfig
 }
 
 func (c *WLANCheck) String() string {
@@ -90,8 +80,7 @@ func (c *WLANCheck) Run() error {
 	sender.Gauge("wlan.transmit_rate", float64(wifiInfo.TransmitRate), "", tags)
 
 	// channel swap events
-	if c.warmedUp && c.lastChannelID != -1 && c.lastChannelID != wifiInfo.Channel {
-		fmt.Printf("last_channel_id: %s/n", c.lastChannelID)
+	if c.warmedUp && c.lastChannelID != wifiInfo.Channel {
 		sender.Count("wlan.channel_swap_events", 1.0, "", tags)
 	} else {
 		sender.Count("wlan.channel_swap_events", 0.0, "", tags)
@@ -121,9 +110,6 @@ func Factory() optional.Option[func() check.Check] {
 
 func newCheck() check.Check {
 	return &WLANCheck{
-		CheckBase:     core.NewCheckBaseWithInterval(CheckName, time.Duration(defaultMinCollectionInterval)*time.Second),
-		lastChannelID: -1,
-		lastBSSID:     "",
-		lastSSID:      "",
+		CheckBase: core.NewCheckBaseWithInterval(CheckName, time.Duration(defaultMinCollectionInterval)*time.Second),
 	}
 }
