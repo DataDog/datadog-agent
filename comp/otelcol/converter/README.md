@@ -1,8 +1,6 @@
 # Converter Component
 
-The converter:
-- Enhances the user provided configuration
-- Provides an API which returns the provided and enhanced configurations
+The converter enhances the user provided configuration.
 
 ## Autoconfigure logic
 
@@ -31,12 +29,6 @@ If `api_key` is unset, set to an empty string or set to a secret, the converter 
 ### Datadog Connector
 
 The converter will automatically set `datadogconnector` config `trace.span_name_as_resource_name` to true in any datadog connectors in your configuration.
-
-## Provided and enhanced config
-
-`GetProvidedConf` and `GetEnhancedConf` return the string representation of the user provided and autoconfigured conf respectively. Currently, these APIs have two limitations:
-- They do not redact sensitive data
-- They do not provide the effective config (including defaults...etc)
 
 ## Opting out of converter
 

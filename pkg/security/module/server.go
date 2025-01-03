@@ -128,6 +128,10 @@ type APIServer struct {
 	policiesStatus     []*api.PolicyStatus
 	msgSender          MsgSender
 
+	// os release data
+	kernelVersion string
+	distribution  string
+
 	stopChan chan struct{}
 	stopper  startstop.Stopper
 }
@@ -314,12 +318,14 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 	backendEvent := events.BackendEvent{
 		Title: rule.Def.Description,
 		AgentContext: events.AgentContext{
-			RuleID:      rule.Def.ID,
-			RuleVersion: rule.Def.Version,
-			Version:     version.AgentVersion,
-			OS:          runtime.GOOS,
-			Arch:        utils.RuntimeArch(),
-			Origin:      a.probe.Origin(),
+			RuleID:        rule.Def.ID,
+			RuleVersion:   rule.Def.Version,
+			Version:       version.AgentVersion,
+			OS:            runtime.GOOS,
+			Arch:          utils.RuntimeArch(),
+			Origin:        a.probe.Origin(),
+			KernelVersion: a.kernelVersion,
+			Distribution:  a.distribution,
 		},
 	}
 
@@ -575,6 +581,8 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		stopChan:      make(chan struct{}),
 		msgSender:     msgSender,
 	}
+
+	as.collectOSReleaseData()
 
 	if as.msgSender == nil {
 		if pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe") {
