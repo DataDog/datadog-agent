@@ -26,11 +26,31 @@ const (
 )
 
 // ErrorsTelemetryModifier is a modifier that sets up the manager to handle eBPF telemetry.
-type ErrorsTelemetryModifier struct{}
+type ErrorsTelemetryModifier struct {
+	trackedMaps []names.MapName
+}
 
 // String returns the name of the modifier.
 func (t *ErrorsTelemetryModifier) String() string {
 	return "ErrorsTelemetryModifier"
+}
+
+// getMapNames returns the names of the maps in the manager.
+func getMapNames(m *manager.Manager, opts *manager.Options) []names.MapName {
+	var mapNames []names.MapName
+	for _, mp := range m.Maps {
+		mapNames = append(mapNames, names.NewMapNameFromManagerMap(mp))
+	}
+
+	for mpName, _ := range opts.MapEditors {
+		spec, _, err := m.GetMapSpec(mpName)
+		if err != nil {
+			continue
+		}
+		mapNames = append(mapNames, names.NewMapNameFromMapSpec(spec))
+	}
+
+	return mapNames
 }
 
 // BeforeInit sets up the manager to handle eBPF telemetry.
@@ -87,11 +107,14 @@ func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, module names.Mo
 		}
 		log.Tracef("module %s probes %d", module.Name(), opts.MapSpecEditors[helperErrTelemetryMapName].MaxEntries)
 
+		mapNames := getMapNames(m, opts)
+		t.trackedMaps = mapNames
+
 		h := keyHash()
-		for _, ebpfMap := range m.Maps {
+		for _, mapName := range t.trackedMaps {
 			opts.ConstantEditors = append(opts.ConstantEditors, manager.ConstantEditor{
-				Name:  ebpfMap.Name + "_telemetry_key",
-				Value: eBPFMapErrorKey(h, mapTelemetryKey(names.NewMapNameFromManagerMap(ebpfMap), module)),
+				Name:  mapName.Name() + "_telemetry_key",
+				Value: eBPFMapErrorKey(h, mapTelemetryKey(mapName, module)),
 			})
 		}
 
@@ -123,28 +146,18 @@ func getErrMaps(m *manager.Manager) (mapErrMap *maps.GenericMap[uint64, mapErrTe
 	return mapErrMap, helperErrMap, nil
 }
 
-// getMapNames returns the names of the maps in the manager.
-func getMapNames(m *manager.Manager) []names.MapName {
-	var mapNames []names.MapName
-	for _, mp := range m.Maps {
-		mapNames = append(mapNames, names.NewMapNameFromManagerMap(mp))
-	}
-	return mapNames
-}
-
 // AfterInit pre-populates the telemetry maps with entries corresponding to the ebpf program of the manager.
 func (t *ErrorsTelemetryModifier) AfterInit(m *manager.Manager, module names.ModuleName, _ *manager.Options) error {
 	if errorsTelemetry == nil {
 		return nil
 	}
 
-	mapNames := getMapNames(m)
 	genericMapErrMap, genericHelperErrMap, err := getErrMaps(m)
 	if err != nil {
 		return err
 	}
 
-	if err := errorsTelemetry.fill(mapNames, module, genericMapErrMap, genericHelperErrMap); err != nil {
+	if err := errorsTelemetry.fill(t.trackedMaps, module, genericMapErrMap, genericHelperErrMap); err != nil {
 		return err
 	}
 
@@ -157,13 +170,12 @@ func (t *ErrorsTelemetryModifier) BeforeStop(m *manager.Manager, module names.Mo
 		return nil
 	}
 
-	mapNames := getMapNames(m)
 	genericMapErrMap, genericHelperErrMap, err := getErrMaps(m)
 	if err != nil {
 		return err
 	}
 
-	if err := errorsTelemetry.cleanup(mapNames, module, genericMapErrMap, genericHelperErrMap); err != nil {
+	if err := errorsTelemetry.cleanup(t.trackedMaps, module, genericMapErrMap, genericHelperErrMap); err != nil {
 		return err
 	}
 
