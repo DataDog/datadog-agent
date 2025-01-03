@@ -606,11 +606,12 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 	defer r.sbomsLock.Unlock()
 
 	seclog.Infof("deleting SBOM entry for '%s'", sbom.ContainerID)
-	r.sboms.Remove(sbom.ContainerID)
 
 	if sbom.refresher != nil {
 		sbom.refresher.Stop()
 	}
+
+	r.sboms.Remove(sbom.ContainerID)
 }
 
 // SendStats sends stats
