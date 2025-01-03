@@ -132,6 +132,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if telemetryLogMapping < activeLogLevel {
 		activeLogLevel = telemetryLogMapping
 	}
+	fmt.Printf("setting log level to: %v\n", logLevelReverseMap[activeLogLevel])
 	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
 
 	// Override config read (if any) with Default values
