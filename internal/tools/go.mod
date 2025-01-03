@@ -164,7 +164,7 @@ require (
 	github.com/polyfloyd/go-errorlint v1.6.0 // indirect
 	github.com/prometheus/client_golang v1.20.5 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
-	github.com/prometheus/common v0.60.1 // indirect
+	github.com/prometheus/common v0.61.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/quasilyte/go-ruleguard v0.4.2 // indirect
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22 // indirect
@@ -246,3 +246,6 @@ require (
 	mvdan.cc/gofumpt v0.7.0 // indirect
 	mvdan.cc/unparam v0.0.0-20240528143540-8a5130ca722f // indirect
 )
+
+// github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
+replace github.com/golang/mock => github.com/golang/mock v1.6.0

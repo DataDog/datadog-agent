@@ -89,7 +89,7 @@ require (
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/tinylib/msgp v1.2.4 // indirect
+	github.com/tinylib/msgp v1.2.5 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.8.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
@@ -98,6 +98,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.32.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20241217172543-b2144cdd0a67 // indirect
+	golang.org/x/oauth2 v0.24.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	google.golang.org/genproto v0.0.0-20240903143218-8af14fe29dc1 // indirect
