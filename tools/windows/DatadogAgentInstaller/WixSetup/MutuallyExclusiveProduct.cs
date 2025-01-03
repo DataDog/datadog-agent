@@ -29,7 +29,7 @@ namespace WixSetup
         /// is found on the system. We check this property in a LaunchCondition to prevent installation.
         /// See https://learn.microsoft.com/en-us/windows/win32/msi/findrelatedproducts-action
         ///
-        /// Example WiX XML:
+        /// Example WiX:
         ///   <Upgrade Id="PUT-GUID-HERE">
         ///     <UpgradeVersion Minimum="0.0.0.0" IncludeMinimum="yes" OnlyDetect="yes" Maximum="255.255.0.0" IncludeMaximum="no" Property="MUTUALLY_EXCLUSIVE_PRODUCTS_1" />
         ///   </Upgrade>
