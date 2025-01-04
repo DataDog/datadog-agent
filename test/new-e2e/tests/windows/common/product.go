@@ -38,7 +38,7 @@ func GetProductVersionByName(host *components.RemoteHost, name string) (string, 
 		return "", err
 	}
 	// get verion string
-	cmd := fmt.Sprintf(`(Get-ItemProperty -Path "HKLM:SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\%s).DisplayVersion`, guid)
+	cmd := fmt.Sprintf(`(Get-ItemProperty -Path "HKLM:SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\%s").DisplayVersion`, guid)
 	val, err := host.Execute(cmd)
 	if err != nil {
 		return "", err

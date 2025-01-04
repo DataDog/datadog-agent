@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -127,19 +128,21 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 
 	// Get Display Version
 	productVersion, err := windowsAgent.GetDatadogProductVersion(vm)
-	assert.NoError(s.T(), err, "should get product version")
+	s.Require().NoError(err, "should get product version")
 
 	// split version string by .
 	versionParts := strings.Split(productVersion, ".")
 
-	// verify there are three parts
-	assert.Len(s.T(), versionParts, 4, "Version should have four parts")
+	// verify there are four parts
+	require.Len(s.T(), versionParts, 4, "Version should have four parts")
 
 	// get version parts of the upgrade test version
 	ver, _ := version.New(strings.TrimSuffix(s.upgradeAgentPackge.Version, "-1"), "")
 
 	// check if the version is the same as the upgrade test version
-	assert.Equal(s.T(), ver.Patch+1, versionParts[2], "Patch version should increment by 1")
+	patchVersion, err := strconv.Atoi(versionParts[2])
+	s.Require().NoError(err, "should convert patch version to int")
+	assert.Equal(s.T(), ver.Patch+1, patchVersion, "Patch version should increment by 1")
 
 	s.uninstallAgentAndRunUninstallTests(t)
 
