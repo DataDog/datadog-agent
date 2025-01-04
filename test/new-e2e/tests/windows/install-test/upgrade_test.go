@@ -142,7 +142,7 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 	// check if the version is the same as the upgrade test version
 	patchVersion, err := strconv.Atoi(versionParts[2])
 	s.Require().NoError(err, "should convert patch version to int")
-	assert.Equal(s.T(), ver.Patch+1, patchVersion, "Patch version should increment by 1")
+	assert.Equal(s.T(), ver.Patch+1, int64(patchVersion), "Patch version should increment by 1")
 
 	s.uninstallAgentAndRunUninstallTests(t)
 
