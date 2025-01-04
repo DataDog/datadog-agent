@@ -44,7 +44,6 @@ DATADOG_AGENT_MSI_ALLOW_LIST = [
     "APPLICATIONDATADIRECTORY",
     "EXAMPLECONFSLOCATION",
     "checks.d",
-    "protected",
     "run",
     "logs",
     "ProgramMenuDatadog",
@@ -81,6 +80,7 @@ def _get_env(ctx, major_version='7', release_version='nightly'):
     env['AGENT_FLAVOR'] = os.getenv("AGENT_FLAVOR", "")
     env['AGENT_INSTALLER_OUTPUT_DIR'] = BUILD_OUTPUT_DIR
     env['NUGET_PACKAGES_DIR'] = NUGET_PACKAGES_DIR
+    env['UPGRADE_TEST'] = ""
 
     return env
 
@@ -271,12 +271,11 @@ def _build_msi(ctx, env, outdir, name, allowlist):
     sign_file(ctx, out_file)
 
 
-def _msi_output_name(env, testing=False):
-    testing_suffix = "upgrade-test-" if testing else ""
+def _msi_output_name(env):
     if _is_fips_mode(env):
-        return f"datadog-fips-agent-{testing_suffix}{env['PACKAGE_VERSION']}-1-x86_64"
+        return f"datadog-fips-agent-{env['UPGRADE_TEST']}{env['PACKAGE_VERSION']}-1-x86_64"
     else:
-        return f"datadog-agent-{testing_suffix}{env['PACKAGE_VERSION']}-1-x86_64"
+        return f"datadog-agent-{env['UPGRADE_TEST']}{env['PACKAGE_VERSION']}-1-x86_64"
 
 
 @task
@@ -332,13 +331,14 @@ def build(
         version = _create_version_from_match(VERSION_RE.search(env['PACKAGE_VERSION']))
         next_version = version.next_version(bump_patch=True)
         upgrade_env['PACKAGE_VERSION'] = upgrade_env['PACKAGE_VERSION'].replace(str(version), str(next_version))
+        upgrade_env['UPGRADE_TEST'] = "upgrade-test-"
         _build_wxs(
             ctx,
             upgrade_env,
             build_outdir,
             'AgentCustomActions.CA.dll',
         )
-        msi_name = _msi_output_name(upgrade_env, True)
+        msi_name = _msi_output_name(upgrade_env)
         print(os.path.join(build_outdir, msi_name + ".wxs"))
         with timed("Building optional MSI"):
             _build_msi(ctx, env, build_outdir, msi_name, DATADOG_AGENT_MSI_ALLOW_LIST)
