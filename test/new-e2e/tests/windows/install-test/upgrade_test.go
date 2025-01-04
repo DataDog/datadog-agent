@@ -12,7 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/version"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	servicetest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
 
@@ -94,7 +96,7 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 	if !s.Run(fmt.Sprintf("install %s", s.AgentPackage.AgentVersion()), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
 		)
 		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
 	}) {
@@ -121,6 +123,22 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 	if !t.TestInstallExpectations(s.T()) {
 		s.T().FailNow()
 	}
+
+	// Get Display Version
+	productVersion, err := agent.GetDatadogProductVersion(vm)
+	assert.NoError(s.T(), err, "should get product version")
+
+	// split version string by .
+	versionParts := strings.Split(productVersion, ".")
+
+	// verify there are three parts
+	assert.Len(s.T(), versionParts, 4, "Version should have four parts")
+
+	// get version parts of the upgrade test version
+	ver, _ := version.New(strings.TrimSuffix(s.upgradeAgentPackge.Version, "-1"), "")
+
+	// check if the version is the same as the upgrade test version
+	assert.Equal(s.T(), ver.Patch+1, versionParts[2], "Patch version should increment by 1")
 
 	s.uninstallAgentAndRunUninstallTests(t)
 
