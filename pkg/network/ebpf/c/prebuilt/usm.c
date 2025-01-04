@@ -12,6 +12,7 @@
 #include "protocols/http/http.h"
 #include "protocols/http2/decoding.h"
 #include "protocols/http2/decoding-tls.h"
+#include "protocols/http2/decoding-kprobe.h"
 #include "protocols/kafka/kafka-parsing.h"
 #include "protocols/postgres/decoding.h"
 #include "protocols/redis/decoding.h"
@@ -41,7 +42,7 @@ int uprobe__tls_protocol_dispatcher_kafka(struct pt_regs *ctx) {
 };
 
 SEC("kprobe/tcp_sendmsg")
-int BPF_BYPASSABLE_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_sendmsg_socket_filter, struct sock *sk) {
     log_debug("kprobe/tcp_sendmsg: sk=%p", sk);
     // map connection tuple during SSL_do_handshake(ctx)
     map_ssl_ctx_to_sock(sk);

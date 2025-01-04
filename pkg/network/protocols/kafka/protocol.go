@@ -61,6 +61,15 @@ const (
 	tlsProduceResponsePartitionParserV0TailCall  = "uprobe__kafka_tls_produce_response_partition_parser_v0"
 	tlsProduceResponsePartitionParserV9TailCall  = "uprobe__kafka_tls_produce_response_partition_parser_v9"
 
+	kprobeFilterTailCall                            = "kprobe__kafka_filter"
+	kprobeFetchResponsePartitionParserV0TailCall    = "kprobe__kafka_fetch_response_partition_parser_v0"
+	kprobeFetchResponsePartitionParserV12TailCall   = "kprobe__kafka_fetch_response_partition_parser_v12"
+	kprobeFetchResponseRecordBatchParserV0TailCall  = "kprobe__kafka_fetch_response_record_batch_parser_v0"
+	kprobeFetchResponseRecordBatchParserV12TailCall = "kprobe__kafka_fetch_response_record_batch_parser_v12"
+	kprobeProduceResponsePartitionParserV0TailCall  = "kprobe__kafka_produce_response_partition_parser_v0"
+	kprobeProduceResponsePartitionParserV9TailCall  = "kprobe__kafka_produce_response_partition_parser_v9"
+	kprobeDispatcherTailCall                        = "kprobe__protocol_dispatcher_kafka"
+
 	tlsTerminationTailCall = "uprobe__kafka_tls_termination"
 	tlsDispatcherTailCall  = "uprobe__tls_protocol_dispatcher_kafka"
 	// eBPFTelemetryMap is the name of the eBPF map used to retrieve metrics from the kernel
@@ -217,6 +226,62 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.DispatcherKafkaProg),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsDispatcherTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.KprobeDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafka),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: kprobeFilterTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.KprobeDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaFetchResponsePartitionParserV0),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: kprobeFetchResponsePartitionParserV0TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.KprobeDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaFetchResponsePartitionParserV12),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: kprobeFetchResponsePartitionParserV12TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.KprobeDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaFetchResponseRecordBatchParserV0),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: kprobeFetchResponseRecordBatchParserV0TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.KprobeDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaFetchResponseRecordBatchParserV12),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: kprobeFetchResponseRecordBatchParserV12TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.KprobeDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaProduceResponsePartitionParserV0),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: kprobeProduceResponsePartitionParserV0TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.KprobeDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaProduceResponsePartitionParserV9),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: kprobeProduceResponsePartitionParserV9TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.KprobeProtocolDispatcherClassificationPrograms,
+			Key:           uint32(protocols.DispatcherKafkaProg),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: kprobeDispatcherTailCall,
 			},
 		},
 	},

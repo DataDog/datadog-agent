@@ -1365,6 +1365,29 @@ func TestUSMEventStream(t *testing.T) {
 	})
 }
 
+func TestUSMKprobeDataHooks(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.False(t, cfg.EnableUSMKprobeDataHooks)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_kprobe_data_hooks", true)
+		cfg := New()
+		assert.True(t, cfg.EnableUSMKprobeDataHooks)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_KPROBE_DATA_HOOKS", "true")
+		cfg := New()
+
+		assert.True(t, cfg.EnableUSMKprobeDataHooks)
+	})
+}
+
 func TestMaxUSMConcurrentRequests(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		mock.NewSystemProbe(t)
