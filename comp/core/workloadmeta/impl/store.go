@@ -60,12 +60,19 @@ func (w *workloadmeta) start(ctx context.Context) {
 	}()
 
 	go func() {
+		if err := w.startCandidatesWithRetry(ctx); err != nil {
+			w.log.Errorf("error starting collectors: %s", err)
+		}
+	}()
+
+	go func() {
 		pullTicker := time.NewTicker(pullCollectorInterval)
 		health := health.RegisterLiveness("workloadmeta-puller")
 
 		// Start a pull immediately to fill the store without waiting for the
 		// next tick.
 		w.pull(ctx)
+		w.updateCollectorStatus(wmdef.CollectorsInitialized)
 
 		for {
 			select {
@@ -88,12 +95,6 @@ func (w *workloadmeta) start(ctx context.Context) {
 
 				return
 			}
-		}
-	}()
-
-	go func() {
-		if err := w.startCandidatesWithRetry(ctx); err != nil {
-			w.log.Errorf("error starting collectors: %s", err)
 		}
 	}()
 
@@ -504,7 +505,9 @@ func (w *workloadmeta) Reset(newEntities []wmdef.Entity, source wmdef.Source) {
 
 // IsInitialzed: If startCandidates is run at least once, return true.
 func (w *workloadmeta) IsInitialzed() bool {
-	return w.candidatesInited
+	w.storeMut.RLock()
+	defer w.storeMut.RUnlock()
+	return w.collectorsInited == wmdef.CollectorsInitialized
 }
 
 func (w *workloadmeta) validatePushEvents(events []wmdef.Event) error {
@@ -554,7 +557,9 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 		default:
 		}
 
-		if w.startCandidates(ctx) {
+		startCandidatesFinished := w.startCandidates(ctx)
+		w.updateCollectorStatus(wmdef.CollectorsStarting)
+		if startCandidatesFinished {
 			return nil
 		}
 
@@ -589,8 +594,19 @@ func (w *workloadmeta) startCandidates(ctx context.Context) bool {
 		// next tick
 		delete(w.candidates, id)
 	}
-	w.candidatesInited = true
 	return len(w.candidates) == 0
+}
+
+func (w *workloadmeta) updateCollectorStatus(status wmdef.CollectorStatus) {
+	w.collectorMut.Lock()
+	defer w.collectorMut.Unlock()
+	// Status can not be reverted
+	if w.collectorsInited == wmdef.CollectorsInitialized {
+		return // already initialized
+	} else if status == wmdef.CollectorsInitialized && w.collectorsInited == wmdef.CollectorsNotStarted {
+		return // no collectors to initialize yet
+	}
+	w.collectorsInited = status
 }
 
 func (w *workloadmeta) pull(ctx context.Context) {

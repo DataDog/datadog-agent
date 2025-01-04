@@ -1469,6 +1469,7 @@ func (g GPU) String(verbose bool) string {
 
 	return sb.String()
 }
+<<<<<<< HEAD
 
 // GPUComputeCapability represents the compute capability version of a GPU.
 type GPUComputeCapability struct {
@@ -1482,3 +1483,17 @@ type GPUComputeCapability struct {
 func (gcc GPUComputeCapability) String() string {
 	return fmt.Sprintf("%d.%d", gcc.Major, gcc.Minor)
 }
+=======
+// CollectorStatus is the status of collector which is used to determine if the collectors
+// are not started, starting, started (pulled once)
+type CollectorStatus uint8
+
+const (
+	// CollectorsNotStarted means workloadmeta collectors are not started
+	CollectorsNotStarted CollectorStatus = iota
+	// CollectorsStarting means workloadmeta collectors are starting
+	CollectorsStarting
+	// CollectorsInitialized means workloadmeta collectors have been at least pulled once
+	CollectorsInitialized
+)
+>>>>>>> 25d2a08642 (update wmeta and autodiscovery scher)

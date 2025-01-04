@@ -136,7 +136,7 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 
 // newAutoConfig creates an AutoConfig instance and starts it.
 func newAutoConfig(deps dependencies) autodiscovery.Component {
-	ac := createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
+	ac := createNewAutoConfig(scheduler.NewControllerWithWmeta(deps.WMeta), deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			ac.Start()
