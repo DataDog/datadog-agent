@@ -40,7 +40,7 @@ type workloadmeta struct {
 	collectorMut     sync.RWMutex
 	candidates       map[string]wmdef.Collector
 	collectors       map[string]wmdef.Collector
-	candidatesInited bool
+	collectorsInited wmdef.CollectorStatus
 
 	eventCh chan []wmdef.CollectorEvent
 
@@ -81,7 +81,7 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 
 		store:            make(map[wmdef.Kind]map[string]*cachedEntity),
 		candidates:       candidates,
-		candidatesInited: false,
+		collectorsInited: wmdef.CollectorsNotStarted,
 		collectors:       make(map[string]wmdef.Collector),
 		eventCh:          make(chan []wmdef.CollectorEvent, eventChBufferSize),
 		ongoingPulls:     make(map[string]time.Time),

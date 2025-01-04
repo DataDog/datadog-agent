@@ -6,19 +6,22 @@
 package scheduler
 
 import (
+	"context"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 )
 
 const (
-// MaxRetries is the maximum number of retries for a failed task (TODO: implement retries on failure)
-// MaxRetries = 5
+	// MaxWmetaWaitTime is the maximum time to wait for wmeta being ready
+	MaxWmetaWaitTime = 30 * time.Second
 )
 
 // Controller is a scheduler dispatching to all its registered schedulers
@@ -45,6 +48,12 @@ type Controller struct {
 
 // NewController inits a scheduler controller
 func NewController() *Controller {
+	return NewControllerWithWmeta(optional.NewNoneOption[workloadmeta.Component]())
+}
+
+// NewControllerWithWmeta inits a scheduler controller with workloadmeta component,
+// if workloadmeta is not ready, schedule controller will wait for it till timeout
+func NewControllerWithWmeta(wmeta optional.Option[workloadmeta.Component]) *Controller {
 	schedulerController := Controller{
 		scheduledConfigs: make(map[Digest]*integration.Config),
 		activeSchedulers: make(map[string]Scheduler),
@@ -56,18 +65,31 @@ func NewController() *Controller {
 		stopChannel:      make(chan struct{}),
 		configStateStore: NewConfigStateStore(),
 	}
-	schedulerController.start()
+	schedulerController.start(wmeta)
 	return &schedulerController
 }
 
-func (ms *Controller) start() {
+func (ms *Controller) start(wmeta optional.Option[workloadmeta.Component]) {
 	ms.m.Lock()
 	if ms.started {
 		return
 	}
 	ms.started = true
 	ms.m.Unlock()
-	go wait.Until(ms.worker, time.Second, ms.stopChannel)
+	// non-blocking start so that Register can be called before the worker starts to work
+	go func() {
+		instance, found := wmeta.Get()
+		if found {
+			// wait for wmeta to be ready
+			_ = wait.PollUntilContextTimeout(context.TODO(), time.Second, MaxWmetaWaitTime, true, func(_ context.Context) (bool, error) {
+				if instance.IsInitialzed() {
+					return true, nil
+				}
+				return false, nil
+			})
+		}
+		wait.Until(ms.worker, time.Second, ms.stopChannel)
+	}()
 }
 
 // Register a new scheduler to receive configurations.
