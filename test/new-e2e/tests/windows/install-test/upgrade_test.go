@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/version"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	servicetest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
 
@@ -125,7 +124,7 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 	}
 
 	// Get Display Version
-	productVersion, err := agent.GetDatadogProductVersion(vm)
+	productVersion, err := windowsAgent.GetDatadogProductVersion(vm)
 	assert.NoError(s.T(), err, "should get product version")
 
 	// split version string by .
