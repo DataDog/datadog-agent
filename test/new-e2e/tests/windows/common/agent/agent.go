@@ -56,7 +56,7 @@ func GetDatadogAgentProductCode(host *components.RemoteHost) (string, error) {
 	return windowsCommon.GetProductCodeByName(host, "Datadog Agent")
 }
 
-// GetDatadogProductVersionByName
+// GetDatadogProductVersion returns the product version for the Datadog Agent
 func GetDatadogProductVersion(host *components.RemoteHost) (string, error) {
 	return windowsCommon.GetProductVersionByName(host, "Datadog Agent")
 }
