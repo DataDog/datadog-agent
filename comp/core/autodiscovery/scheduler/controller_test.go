@@ -6,23 +6,13 @@
 package scheduler
 
 import (
-	"context"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	compConfig "github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func makeConfig(name string) integration.Config {
@@ -66,14 +56,7 @@ func (s *scheduler) reset() {
 }
 
 func TestController(t *testing.T) {
-	// Create a workload meta global store
-	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		compConfig.MockModule(),
-		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-	ms := NewControllerWithWmeta(optional.NewOption[workloadmeta.Component](workloadmetaStore))
+	ms := NewController()
 
 	// schedule some configs before registering
 	c1 := makeConfig("one")
