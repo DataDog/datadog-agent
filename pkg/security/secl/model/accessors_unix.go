@@ -282,7 +282,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.CGroupContext)
+				return ev.FieldHandlers.ResolveCGroupID(ev, ev.CGroupContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -292,7 +292,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.CGroupContext)
+				return ev.FieldHandlers.ResolveCGroupManager(ev, ev.CGroupContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -302,7 +302,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.CGroupContext)
+				return ev.FieldHandlers.ResolveCGroupVersion(ev, ev.CGroupContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -22501,11 +22501,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "cgroup.file.mount_id":
 		return int(ev.CGroupContext.CGroupFile.MountID), nil
 	case "cgroup.id":
-		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.CGroupContext), nil
+		return ev.FieldHandlers.ResolveCGroupID(ev, ev.CGroupContext), nil
 	case "cgroup.manager":
-		return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.CGroupContext), nil
+		return ev.FieldHandlers.ResolveCGroupManager(ev, ev.CGroupContext), nil
 	case "cgroup.version":
-		return ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.CGroupContext), nil
+		return ev.FieldHandlers.ResolveCGroupVersion(ev, ev.CGroupContext), nil
 	case "chdir.file.change_time":
 		return int(ev.Chdir.File.FileFields.CTime), nil
 	case "chdir.file.filesystem":
@@ -32218,6 +32218,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.Capset.CapPermitted = uint64(rv)
 		return nil
 	case "cgroup.file.inode":
+		if ev.CGroupContext == nil {
+			ev.CGroupContext = &CGroupContext{}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "cgroup.file.inode"}
@@ -32225,6 +32228,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.CGroupContext.CGroupFile.Inode = uint64(rv)
 		return nil
 	case "cgroup.file.mount_id":
+		if ev.CGroupContext == nil {
+			ev.CGroupContext = &CGroupContext{}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "cgroup.file.mount_id"}
@@ -32232,6 +32238,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.CGroupContext.CGroupFile.MountID = uint32(rv)
 		return nil
 	case "cgroup.id":
+		if ev.CGroupContext == nil {
+			ev.CGroupContext = &CGroupContext{}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "cgroup.id"}
@@ -32239,6 +32248,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.CGroupContext.CGroupID = containerutils.CGroupID(rv)
 		return nil
 	case "cgroup.manager":
+		if ev.CGroupContext == nil {
+			ev.CGroupContext = &CGroupContext{}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "cgroup.manager"}
@@ -32246,6 +32258,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.CGroupContext.CGroupManager = rv
 		return nil
 	case "cgroup.version":
+		if ev.CGroupContext == nil {
+			ev.CGroupContext = &CGroupContext{}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "cgroup.version"}

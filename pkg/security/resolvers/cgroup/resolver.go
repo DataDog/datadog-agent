@@ -69,7 +69,10 @@ func NewResolver(statsdClient statsd.ClientInterface) (*Resolver, error) {
 	}
 
 	cleanup := func(value *cgroupModel.CacheEntry) {
-		value.CallReleaseCallback()
+		if value.CGroupContext.IsContainer() {
+			value.ContainerContext.CallReleaseCallback()
+		}
+		value.CGroupContext.CallReleaseCallback()
 		value.Deleted.Store(true)
 
 		cr.NotifyListeners(CGroupDeleted, value)
