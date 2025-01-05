@@ -6,22 +6,14 @@
 package scheduler
 
 import (
-	"context"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
-)
-
-const (
-	// MaxWmetaWaitTime is the maximum time to wait for wmeta being ready
-	MaxWmetaWaitTime = 30 * time.Second
 )
 
 // Controller is a scheduler dispatching to all its registered schedulers
@@ -46,15 +38,16 @@ type Controller struct {
 	stopChannel chan struct{}
 }
 
-// NewController inits a scheduler controller
+// NewController inits a scheduler controller without waiting, for unit test only
 func NewController() *Controller {
-	return NewControllerWithWmeta(optional.NewNoneOption[workloadmeta.Component]())
+	schedulerController := CreateNewController()
+	schedulerController.Start()
+	return schedulerController
 }
 
-// NewControllerWithWmeta inits a scheduler controller with workloadmeta component,
-// if workloadmeta is not ready, schedule controller will wait for it till timeout
-func NewControllerWithWmeta(wmeta optional.Option[workloadmeta.Component]) *Controller {
-	schedulerController := Controller{
+// CreateNewController creates a new controller without starting it
+func CreateNewController() *Controller {
+	return &Controller{
 		scheduledConfigs: make(map[Digest]*integration.Config),
 		activeSchedulers: make(map[string]Scheduler),
 		// No delay for adding items to the queue first time
@@ -65,31 +58,18 @@ func NewControllerWithWmeta(wmeta optional.Option[workloadmeta.Component]) *Cont
 		stopChannel:      make(chan struct{}),
 		configStateStore: NewConfigStateStore(),
 	}
-	schedulerController.start(wmeta)
-	return &schedulerController
 }
 
-func (ms *Controller) start(wmeta optional.Option[workloadmeta.Component]) {
+// Start processing the queue
+func (ms *Controller) Start() {
 	ms.m.Lock()
 	if ms.started {
 		return
 	}
 	ms.started = true
 	ms.m.Unlock()
-	// non-blocking start so that Register can be called before the worker starts to work
-	go func() {
-		instance, found := wmeta.Get()
-		if found {
-			// wait for wmeta to be ready
-			_ = wait.PollUntilContextTimeout(context.TODO(), time.Second, MaxWmetaWaitTime, true, func(_ context.Context) (bool, error) {
-				if instance.IsInitialzed() {
-					return true, nil
-				}
-				return false, nil
-			})
-		}
-		wait.Until(ms.worker, time.Second, ms.stopChannel)
-	}()
+	go wait.Until(ms.worker, time.Second, ms.stopChannel)
+	log.Infof("Autodiscovery scheduler controller started")
 }
 
 // Register a new scheduler to receive configurations.
