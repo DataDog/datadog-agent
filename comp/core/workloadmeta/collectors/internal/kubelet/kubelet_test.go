@@ -122,6 +122,7 @@ func TestPodParser(t *testing.T) {
 		EnvVars: map[string]string{},
 		State: workloadmeta.ContainerState{
 			Health: "healthy",
+			Status: workloadmeta.ContainerStatusUnknown,
 		},
 	}
 	expectedPod := &workloadmeta.KubernetesPod{

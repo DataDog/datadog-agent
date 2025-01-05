@@ -274,7 +274,10 @@ func parsePodContainers(
 			})
 		}
 
-		containerState := workloadmeta.ContainerState{}
+		containerState := workloadmeta.ContainerState{
+			Status: workloadmeta.ContainerStatusUnknown,
+			Health: workloadmeta.ContainerHealthUnknown,
+		}
 		if st := container.State.Running; st != nil {
 			containerState.Running = true
 			containerState.Status = workloadmeta.ContainerStatusRunning
