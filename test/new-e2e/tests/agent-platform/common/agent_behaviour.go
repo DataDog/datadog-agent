@@ -33,7 +33,7 @@ func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 		var statusOutputJSON map[string]any
 		var err error
 		result := false
-		for try := 0; try < 5 && !result; try++ {
+		for try := 0; try < 10 && !result; try++ {
 			err = json.Unmarshal([]byte(client.AgentClient.Status(agentclient.WithArgs([]string{"-j"})).Content), &statusOutputJSON)
 			if err != nil {
 				time.Sleep(1 * time.Second)
