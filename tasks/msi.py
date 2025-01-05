@@ -323,10 +323,9 @@ def build(
         # And copy it to the final output path as a build artifact
         shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
 
-    # if the optional upgrade test helper exists then build that too
+    # Build the optional upgrade test helper
     if build_upgrade:
         print("Building optional upgrade test helper")
-        # Build the optional upgrade test helper
         upgrade_env = env.copy()
         version = _create_version_from_match(VERSION_RE.search(env['PACKAGE_VERSION']))
         next_version = version.next_version(bump_patch=True)
