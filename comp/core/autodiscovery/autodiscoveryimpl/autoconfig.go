@@ -94,6 +94,13 @@ type AutoConfig struct {
 	ranOnce *atomic.Bool
 }
 
+const (
+	// MaxWmetaWaitTime is the maximum time to wait for wmeta being ready
+	MaxWmetaWaitTime = 10 * time.Second
+	// WmetaCheckInterval is the interval to check if wmeta is ready
+	WmetaCheckInterval = 1 * time.Second
+)
+
 type provides struct {
 	fx.Out
 
@@ -136,7 +143,34 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 
 // newAutoConfig creates an AutoConfig instance and starts it.
 func newAutoConfig(deps dependencies) autodiscovery.Component {
-	ac := createNewAutoConfig(scheduler.NewControllerWithWmeta(deps.WMeta), deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
+	schController := scheduler.CreateNewController()
+	// Non-blocking start of the scheduler controller
+	go func() {
+		instance, found := deps.WMeta.Get()
+		if found {
+			ticker := time.NewTicker(WmetaCheckInterval)
+			defer ticker.Stop()
+			timeout := time.After(MaxWmetaWaitTime)
+			for {
+				select {
+				case <-ticker.C:
+					if instance.IsInitialized() {
+						log.Infof("Workloadmeta collectors are ready, starting autodiscovery scheduler controller")
+						schController.Start()
+						return
+					}
+				case <-timeout:
+					log.Warnf("Workloadmeta collectors are not ready, starting autodiscovery scheduler controller anyway")
+					schController.Start()
+					return
+				}
+			}
+		} else {
+			schController.Start()
+		}
+	}()
+
+	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			ac.Start()
