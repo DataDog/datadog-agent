@@ -681,20 +681,18 @@ namespace Datadog.CustomActions
         private List<string> PathsWithAgentAccess()
         {
             var configRoot = _session.Property("APPLICATIONDATADIRECTORY");
-
-            var filesInConfigRoot = new[]
-            {
-                "conf.d",
-                "checks.d",
-                "run",
-                "logs",
-                "datadog.yaml",
-                "system-probe.yaml",
-                "auth_token",
-                "install_info",
-                "python-cache",
-            }.Select(x => Path.Combine(configRoot, x)).ToList();
-            return filesInConfigRoot;
+            
+            return new List<string> {
+                Path.Combine(configRoot, "conf.d"),
+                Path.Combine(configRoot, "checks.d"),
+                Path.Combine(configRoot, "run"),
+                Path.Combine(configRoot, "logs"),
+                Path.Combine(configRoot, "datadog.yaml"),
+                Path.Combine(configRoot, "system-probe.yaml"),
+                Path.Combine(configRoot, "auth_token"),
+                Path.Combine(configRoot, "install_info"),
+                Path.Combine(configRoot, "python-cache"),
+            };
         }
 
         /// <summary>
