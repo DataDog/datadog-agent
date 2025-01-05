@@ -81,10 +81,10 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 
 		store:            make(map[wmdef.Kind]map[string]*cachedEntity),
 		candidates:       candidates,
-		collectorsInited: wmdef.CollectorsNotStarted,
 		collectors:       make(map[string]wmdef.Collector),
 		eventCh:          make(chan []wmdef.CollectorEvent, eventChBufferSize),
 		ongoingPulls:     make(map[string]time.Time),
+		collectorsInited: wmdef.CollectorsNotStarted,
 	}
 
 	deps.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
