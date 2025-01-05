@@ -498,7 +498,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 						windows.AccessControlTypeAllow,
 						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
 						// yes this flag is wrong, but go has the wrong value for it
-						windows.PropagationFlagsNoPropagate,
+						windows.PropagationFlagsInherit,
 					),
 				)
 				return expected

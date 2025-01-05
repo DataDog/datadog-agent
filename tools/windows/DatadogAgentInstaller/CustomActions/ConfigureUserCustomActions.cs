@@ -469,6 +469,7 @@ namespace Datadog.CustomActions
                 AccessControlType.Allow));
 
             // datadog write on this folder
+            // This allows creating new files/folders, but not deleting or modifying permissions.
             fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
                 _ddAgentUserSID,
                 FileSystemRights.WriteData | FileSystemRights.AppendData | FileSystemRights.WriteAttributes | FileSystemRights.WriteExtendedAttributes | FileSystemRights.Synchronize,
@@ -477,6 +478,8 @@ namespace Datadog.CustomActions
                 AccessControlType.Allow));
 
             // add full control to CREATOR OWNER
+            // Grants FullControl to any files/directories created by the Agent user
+            // Marked InherityOnly so it applies only to children and not this directory
             fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
                 new SecurityIdentifier(WellKnownSidType.CreatorOwnerSid, null),
                 FileSystemRights.FullControl,
@@ -679,17 +682,19 @@ namespace Datadog.CustomActions
         {
             var configRoot = _session.Property("APPLICATIONDATADIRECTORY");
 
-            return new List<string> {
-                Path.Combine(configRoot, "conf.d"),
-                Path.Combine(configRoot, "checks.d"),
-                Path.Combine(configRoot, "run"),
-                Path.Combine(configRoot, "logs"),
-                Path.Combine(configRoot, "datadog.yaml"),
-                Path.Combine(configRoot, "system-probe.yaml"),
-                Path.Combine(configRoot, "auth_token"),
-                Path.Combine(configRoot, "install_info"),
-                Path.Combine(configRoot, "python-cache"),
-            }; ;
+            var filesInConfigRoot = new[]
+            {
+                "conf.d",
+                "checks.d",
+                "run",
+                "logs",
+                "datadog.yaml",
+                "system-probe.yaml",
+                "auth_token",
+                "install_info",
+                "python-cache",
+            }.Select(x => Path.Combine(configRoot, x)).ToList();
+            return filesInConfigRoot;
         }
 
         /// <summary>
