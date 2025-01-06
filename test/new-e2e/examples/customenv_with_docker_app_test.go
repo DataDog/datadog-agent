@@ -11,10 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/components/os"
@@ -47,7 +49,7 @@ var lighttpdConfigContent string
 //go:embed testfixtures/lighttpd_integration.conf.yaml
 var lighttpdIntegrationConfigContent string
 
-func vmPlusDockerEnvProvisioner() e2e.PulumiEnvRunFunc[vmPlusDockerEnv] {
+func vmPlusDockerEnvProvisioner() provisioners.PulumiEnvRunFunc[vmPlusDockerEnv] {
 	return func(ctx *pulumi.Context, env *vmPlusDockerEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {

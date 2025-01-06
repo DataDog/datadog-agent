@@ -219,7 +219,7 @@ process_config:
 			_, err = w.Write(b)
 			require.NoError(t, err)
 		}
-		srv := httptest.NewServer(http.HandlerFunc(handler))
+		srv := httptest.NewTLSServer(http.HandlerFunc(handler))
 		defer srv.Close()
 
 		setupIPCAddress(t, cfg, srv.URL)
@@ -294,7 +294,7 @@ func TestProcessAgentChecks(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		srv := httptest.NewServer(http.HandlerFunc(handler))
+		srv := httptest.NewTLSServer(http.HandlerFunc(handler))
 		defer srv.Close()
 
 		setupIPCAddress(t, configmock.New(t), srv.URL)

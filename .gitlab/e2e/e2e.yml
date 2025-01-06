@@ -412,8 +412,8 @@ new-e2e-installer:
     - deploy_rpm_testing-a7_x64
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
-    - qa_installer_oci
-    - qa_agent_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
@@ -428,8 +428,8 @@ new-e2e-installer-windows:
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
-    - qa_installer_oci
-    - qa_agent_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
   before_script:
     # CURRENT_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
@@ -471,8 +471,8 @@ new-e2e-installer-ansible:
     - deploy_rpm_testing-a7_x64
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
-    - qa_installer_oci
-    - qa_agent_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
@@ -642,6 +642,7 @@ new-e2e-gpu:
   variables:
     TARGETS: ./tests/gpu                          # the target path where tests are
     TEAM: ebpf-platform
+    E2E_PULUMI_LOG_LEVEL: 8 # incident-33572
   needs:                                         # list of required jobs. By default gitlab waits for any previous jobs.
     - !reference [.needs_new_e2e_template]
     - deploy_deb_testing-a7_x64                  # agent 7 debian package
@@ -663,8 +664,8 @@ generate-flakes-finder-pipeline:
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
     - deploy_windows_testing-a7
-    - qa_installer_oci
-    - qa_agent_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
     - qa_cws_instrumentation
     - qa_dca
     - qa_dogstatsd

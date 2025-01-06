@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type grpcServer struct {
@@ -45,8 +45,8 @@ type serverSecure struct {
 	taggerServer        *taggerserver.Server
 	taggerComp          tagger.Component
 	workloadmetaServer  *workloadmetaServer.Server
-	configService       optional.Option[rcservice.Component]
-	configServiceMRF    optional.Option[rcservicemrf.Component]
+	configService       option.Option[rcservice.Component]
+	configServiceMRF    option.Option[rcservicemrf.Component]
 	dogstatsdServer     dogstatsdServer.Component
 	capture             dsdReplay.Component
 	pidMap              pidmap.Component
@@ -72,6 +72,12 @@ func (s *grpcServer) AuthFuncOverride(ctx context.Context, _ string) (context.Co
 
 func (s *serverSecure) TaggerStreamEntities(req *pb.StreamTagsRequest, srv pb.AgentSecure_TaggerStreamEntitiesServer) error {
 	return s.taggerServer.TaggerStreamEntities(req, srv)
+}
+
+// TaggerGenerateContainerIDFromOriginInfo generates a container ID from the Origin Info.
+// This function takes an Origin Info but only uses the ExternalData part of it, this is done for backward compatibility.
+func (s *serverSecure) TaggerGenerateContainerIDFromOriginInfo(ctx context.Context, req *pb.GenerateContainerIDFromOriginInfoRequest) (*pb.GenerateContainerIDFromOriginInfoResponse, error) {
+	return s.taggerServer.TaggerGenerateContainerIDFromOriginInfo(ctx, req)
 }
 
 func (s *serverSecure) TaggerFetchEntity(ctx context.Context, req *pb.FetchEntityRequest) (*pb.FetchEntityResponse, error) {

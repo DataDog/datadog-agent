@@ -12,6 +12,7 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -116,7 +117,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	logWriter, _ := pkglogsetup.NewTLSHandshakeErrorWriter(4, log.WarnLvl)
 
 	authInterceptor := grpcutil.AuthInterceptor(func(token string) (interface{}, error) {
-		if token != util.GetDCAAuthToken() {
+		if subtle.ConstantTimeCompare([]byte(token), []byte(util.GetDCAAuthToken())) == 0 {
 			return struct{}{}, errors.New("Invalid session token")
 		}
 
@@ -135,7 +136,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	// event size should be small enough to fit within the grpc max message size
 	maxEventSize := maxMessageSize / 2
 	pb.RegisterAgentSecureServer(grpcSrv, &serverSecure{
-		taggerServer: taggerserver.NewServer(taggerComp, maxEventSize),
+		taggerServer: taggerserver.NewServer(taggerComp, maxEventSize, cfg.GetInt("remote_tagger.max_concurrent_sync")),
 	})
 
 	timeout := pkgconfigsetup.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second

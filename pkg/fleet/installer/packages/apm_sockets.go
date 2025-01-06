@@ -15,8 +15,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"gopkg.in/yaml.v2"
 )
 
@@ -119,9 +119,9 @@ func (a *apmInjectorInstaller) configureSocketsEnv(ctx context.Context) (retErr 
 }
 
 // setSocketEnvs sets the socket environment variables
-func setSocketEnvs(ctx context.Context, envFile []byte) ([]byte, error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "set_socket_envs")
-	defer span.Finish()
+func setSocketEnvs(ctx context.Context, envFile []byte) (res []byte, err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "set_socket_envs")
+	defer span.Finish(err)
 
 	apmSocket, statsdSocket, err := getSocketsPath()
 	if err != nil {
@@ -169,8 +169,8 @@ func addEnvsIfNotSet(envs map[string]string, envFile []byte) ([]byte, error) {
 //
 // Reloading systemd & restarting the unit has to be done separately by the caller
 func addSystemDEnvOverrides(ctx context.Context, unit string) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "add_systemd_env_overrides")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "add_systemd_env_overrides")
+	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
 
 	// The - is important as it lets the unit start even if the file is missing.

@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
@@ -79,7 +79,7 @@ func (s *testAgentInstallSuite) uninstallAgentWithMSI() {
 
 	// Act
 	err := windowsAgent.UninstallAgent(s.Env().RemoteHost,
-		filepath.Join(s.OutputDir(), "uninstall.log"),
+		filepath.Join(s.SessionOutputDir(), "uninstall.log"),
 	)
 
 	// Assert
