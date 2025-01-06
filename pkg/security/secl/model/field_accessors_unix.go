@@ -4157,6 +4157,70 @@ func (ev *Event) GetMkdirRetval() int64 {
 	return ev.Mkdir.SyscallEvent.Retval
 }
 
+// GetMkdirSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetMkdirSyscallInt1() int {
+	if ev.GetEventType().String() != "mkdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Mkdir.SyscallContext)
+}
+
+// GetMkdirSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetMkdirSyscallInt2() int {
+	if ev.GetEventType().String() != "mkdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Mkdir.SyscallContext)
+}
+
+// GetMkdirSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetMkdirSyscallInt3() int {
+	if ev.GetEventType().String() != "mkdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Mkdir.SyscallContext)
+}
+
+// GetMkdirSyscallMode returns the value of the field, resolving if necessary
+func (ev *Event) GetMkdirSyscallMode() int {
+	if ev.GetEventType().String() != "mkdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Mkdir.SyscallContext)
+}
+
+// GetMkdirSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetMkdirSyscallPath() string {
+	if ev.GetEventType().String() != "mkdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mkdir.SyscallContext)
+}
+
+// GetMkdirSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetMkdirSyscallStr1() string {
+	if ev.GetEventType().String() != "mkdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mkdir.SyscallContext)
+}
+
+// GetMkdirSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetMkdirSyscallStr2() string {
+	if ev.GetEventType().String() != "mkdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mkdir.SyscallContext)
+}
+
+// GetMkdirSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetMkdirSyscallStr3() string {
+	if ev.GetEventType().String() != "mkdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mkdir.SyscallContext)
+}
+
 // GetMmapFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetMmapFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "mmap" {
@@ -14278,6 +14342,62 @@ func (ev *Event) GetRmdirRetval() int64 {
 		return int64(0)
 	}
 	return ev.Rmdir.SyscallEvent.Retval
+}
+
+// GetRmdirSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetRmdirSyscallInt1() int {
+	if ev.GetEventType().String() != "rmdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Rmdir.SyscallContext)
+}
+
+// GetRmdirSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetRmdirSyscallInt2() int {
+	if ev.GetEventType().String() != "rmdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Rmdir.SyscallContext)
+}
+
+// GetRmdirSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetRmdirSyscallInt3() int {
+	if ev.GetEventType().String() != "rmdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Rmdir.SyscallContext)
+}
+
+// GetRmdirSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetRmdirSyscallPath() string {
+	if ev.GetEventType().String() != "rmdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rmdir.SyscallContext)
+}
+
+// GetRmdirSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetRmdirSyscallStr1() string {
+	if ev.GetEventType().String() != "rmdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rmdir.SyscallContext)
+}
+
+// GetRmdirSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetRmdirSyscallStr2() string {
+	if ev.GetEventType().String() != "rmdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Rmdir.SyscallContext)
+}
+
+// GetRmdirSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetRmdirSyscallStr3() string {
+	if ev.GetEventType().String() != "rmdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Rmdir.SyscallContext)
 }
 
 // GetSelinuxBoolName returns the value of the field, resolving if necessary
