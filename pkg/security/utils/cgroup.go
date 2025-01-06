@@ -249,8 +249,9 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 			return false
 		}
 
+		ctrlDirectory := strings.TrimPrefix(ctrl, "name=")
 		for _, mountpoint := range cfs.cGroupMountPoints {
-			procsPath := filepath.Join(mountpoint, ctrl, path, "cgroup.procs")
+			procsPath := filepath.Join(mountpoint, ctrlDirectory, path, "cgroup.procs")
 			if exists, err := checkPidExists(procsPath, pid); err == nil && exists {
 				cgroupID := containerutils.CGroupID(path)
 				ctrID, flags := containerutils.FindContainerID(cgroupID)
