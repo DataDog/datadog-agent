@@ -1082,7 +1082,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
 	config.BindEnvAndSetDefault("agent_ipc.host", "localhost")
-	config.BindEnvAndSetDefault("agent_ipc.port", 0)
+	config.BindEnvAndSetDefault("agent_ipc.port", 4999)
 	config.BindEnvAndSetDefault("agent_ipc.config_refresh_interval", 0)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("integration_tracing", false)
