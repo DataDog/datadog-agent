@@ -23,9 +23,6 @@ from tasks.libs.pipeline_notifications import (
 from tasks.libs.pipeline_stats import get_failed_jobs_stats
 from tasks.libs.types import FailedJobs, SlackMessage, TeamMessage
 
-UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
-Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
-"""
 PROJECT_NAME = "DataDog/datadog-agent"
 AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
 S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/failed_jobs"
@@ -91,12 +88,10 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
     base = base_message(header, state)
 
     # Send messages
-    for owner, message in messages_to_send.items():
+    for _, message in messages_to_send.items():
+        # We don't generate one message per owner, only the global one
         channel = "#agent-agent6-ops"
         message.base_message = base
-        if channel is None:
-            channel = "#datadog-agent-pipelines"
-            message.base_message += UNKNOWN_OWNER_TEMPLATE.format(owner=owner)
         message.coda = coda
         if print_to_stdout:
             print(f"Would send to {channel}:\n{str(message)}")
@@ -190,8 +185,6 @@ def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dic
             for job in jobs.all_non_infra_failures():
                 for test in get_failed_tests(project_name, job):
                     messages_to_send[all_teams].add_test_failure(test, job)
-                    for owner in test.owners:
-                        messages_to_send[owner].add_test_failure(test, job)
         elif owner == "@DataDog/do-not-notify":
             # Jobs owned by @DataDog/do-not-notify do not send team messages
             pass
