@@ -1206,6 +1206,6 @@ workflow:
 # windows_docker_default configures the job to use the default Windows Server runners
 # Use in jobs that may need to have their version updated in the future.
 #
-# Current default: Windows Server 2019
+# Current default: Windows Server 2022
 .windows_docker_default:
-  extends: .windows_docker_2019
+  extends: .windows_docker_2022
