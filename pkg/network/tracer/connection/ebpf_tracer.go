@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"sync"
 	"time"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
@@ -783,6 +782,7 @@ func (t *ebpfTracer) setupOngoingConnectMapCleaner(m *manager.Manager) {
 
 	t.ongoingConnectCleaner = tcpOngoingConnectPidCleaner
 }
+
 // setupTLSTagsMapCleaner sets up a map cleaner for the tls_enhanced_tags map
 func (t *ebpfTracer) setupTLSTagsMapCleaner(m *manager.Manager) {
 	TLSTagsMap, _, err := m.GetMap(probes.EnhancedTLSTagsMap)
@@ -804,4 +804,3 @@ func (t *ebpfTracer) setupTLSTagsMapCleaner(m *manager.Manager) {
 
 	t.TLSTagsCleaner = TLSTagsMapCleaner
 }
-

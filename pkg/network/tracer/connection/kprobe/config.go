@@ -175,6 +175,22 @@ func protocolClassificationTailCalls(cfg *config.Config) []manager.TailCallRoute
 	tcs := []manager.TailCallRoute{
 		{
 			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationTLSClient,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierTLSClientSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationTLSServer,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierTLSServerSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
 			Key:           netebpf.ClassificationQueues,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: probes.ProtocolClassifierQueuesSocketFilter,

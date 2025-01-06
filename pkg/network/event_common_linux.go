@@ -15,6 +15,7 @@ import (
 
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 )
 
 // Sub returns s-other.
@@ -107,6 +108,12 @@ func (c *ConnectionStats) FromTupleAndStats(t *netebpf.ConnTuple, s *netebpf.Con
 		API:         protocols.API(s.Protocol_stack.Api),
 		Application: protocols.Application(s.Protocol_stack.Application),
 		Encryption:  protocols.Encryption(s.Protocol_stack.Encryption),
+	}
+
+	c.TLSTags = tls.Tags{
+		ChosenVersion:   s.Tls_tags.Chosen_version,
+		CipherSuite:     s.Tls_tags.Cipher_suite,
+		OfferedVersions: s.Tls_tags.Offered_versions,
 	}
 
 	if t.Type() == netebpf.TCP {
