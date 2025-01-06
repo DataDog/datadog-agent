@@ -240,7 +240,7 @@ def _list_invoke_tasks(ctx) -> dict[str, str]:
 
     tasks = json.loads(ctx.run('invoke --list -F json', hide=True).stdout)
 
-    def get_tasks_rec(collection, prefix='', res=None):
+    def list_tasks_rec(collection, prefix='', res=None):
         res = res or {}
 
         if isinstance(collection, dict):
@@ -250,12 +250,12 @@ def _list_invoke_tasks(ctx) -> dict[str, str]:
                 res[newpref + '.' + task['name']] = task['help']
 
             for subtask in collection['collections']:
-                get_tasks_rec(subtask, newpref + '.', res)
+                list_tasks_rec(subtask, newpref + '.', res)
 
         return res
 
     # Remove 'tasks.' prefix
-    return {name.removeprefix(tasks['name'] + '.'): desc for name, desc in get_tasks_rec(tasks).items()}
+    return {name.removeprefix(tasks['name'] + '.'): desc for name, desc in list_tasks_rec(tasks).items()}
 
 
 @task
