@@ -1149,7 +1149,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 		expectedReason  string
 		upscaleWindow   int32
 		downscaleWindow int32
-		scaleDirection  scaleDirection
+		scaleDirection  ScaleDirection
 	}{
 		{
 			name: "no downscale stabilization - constant upscale",
@@ -1163,7 +1163,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 			expectedReason:  "",
 			upscaleWindow:   0,
 			downscaleWindow: 300,
-			scaleDirection:  scaleUp,
+			scaleDirection:  ScaleUp,
 		},
 		{
 			name: "downscale stabilization",
@@ -1177,7 +1177,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 			expectedReason:  "desired replica count limited to 5 (originally 4) due to stabilization window",
 			upscaleWindow:   0,
 			downscaleWindow: 300,
-			scaleDirection:  scaleDown,
+			scaleDirection:  ScaleDown,
 		},
 		{
 			name: "downscale stabilization, recommendation flapping",
@@ -1192,7 +1192,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 			expectedReason:  "desired replica count limited to 7 (originally 5) due to stabilization window",
 			upscaleWindow:   0,
 			downscaleWindow: 300,
-			scaleDirection:  scaleDown,
+			scaleDirection:  ScaleDown,
 		},
 		{
 			name: "upscale stabilization",
@@ -1206,7 +1206,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 			expectedReason:  "desired replica count limited to 8 (originally 12) due to stabilization window",
 			upscaleWindow:   300,
 			downscaleWindow: 0,
-			scaleDirection:  scaleUp,
+			scaleDirection:  ScaleUp,
 		},
 		{
 			name: "upscale stabilization, recommendation flapping",
@@ -1221,7 +1221,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 			expectedReason:  "desired replica count limited to 9 (originally 12) due to stabilization window",
 			upscaleWindow:   300,
 			downscaleWindow: 0,
-			scaleDirection:  scaleUp,
+			scaleDirection:  ScaleUp,
 		},
 	}
 
