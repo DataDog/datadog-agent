@@ -80,7 +80,7 @@ const (
 // ErrNoFlareAvailable is returned when no flare is available
 var ErrNoFlareAvailable = errors.New("no flare available")
 
-//nolint:revive // TODO(APL) Fix revive linter
+// Client tbd
 type Client struct {
 	fakeIntakeURL string
 
@@ -355,6 +355,39 @@ func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.Metr
 	return filteredMetrics, nil
 }
 
+// filterPayload returns payloads matching any [MatchOpt](#MatchOpt) options
+func filterPayload[T aggregator.PayloadItem](payloads []T, options ...MatchOpt[T]) ([]T, error) {
+	// apply filters one after the other
+	filteredPayloads := make([]T, 0, len(payloads))
+	for _, payload := range payloads {
+		matchCount := 0
+		for _, matchOpt := range options {
+			isMatch, err := matchOpt(payload)
+			if err != nil {
+				return nil, err
+			}
+			if !isMatch {
+				break
+			}
+			matchCount++
+		}
+		if matchCount == len(options) {
+			filteredPayloads = append(filteredPayloads, payload)
+		}
+	}
+	return filteredPayloads, nil
+}
+
+// FilterCheckRuns fetches fakeintake on `/api/v1/check_run` endpoint and returns
+// metrics matching `name` and any [MatchOpt](#MatchOpt) options
+func (c *Client) FilterCheckRuns(name string, options ...MatchOpt[*aggregator.CheckRun]) ([]*aggregator.CheckRun, error) {
+	checkRuns, err := c.GetCheckRun(name)
+	if err != nil {
+		return nil, err
+	}
+	return filterPayload(checkRuns, options...)
+}
+
 // WithTags filters by `tags`
 func WithTags[P aggregator.PayloadItem](tags []string) MatchOpt[P] {
 	return func(payload P) (bool, error) {
@@ -401,9 +434,7 @@ func WithMetricValueLowerThan(maxValue float64) MatchOpt[*aggregator.MetricSerie
 	}
 }
 
-// WithMetricValueLowerThan filters metrics with values higher than `minValue`
-//
-//nolint:revive // TODO(APL) Fix revive linter
+// WithMetricValueHigherThan filters metrics with values higher than `minValue`
 func WithMetricValueHigherThan(minValue float64) MatchOpt[*aggregator.MetricSeries] {
 	return func(metric *aggregator.MetricSeries) (bool, error) {
 		for _, point := range metric.Points {
@@ -424,10 +455,8 @@ func (c *Client) getLog(service string) ([]*aggregator.Log, error) {
 	return c.logAggregator.GetPayloadsByName(service), nil
 }
 
-// GetLogNames fetches fakeintake on `/api/v2/logs` endpoint and returns
+// GetLogServiceNames fetches fakeintake on `/api/v2/logs` endpoint and returns
 // all received log service names
-//
-//nolint:revive // TODO(APL) Fix revive linter
 func (c *Client) GetLogServiceNames() ([]string, error) {
 	err := c.getLogs()
 	if err != nil {
@@ -500,10 +529,8 @@ func (c *Client) GetCheckRunNames() ([]string, error) {
 	return c.checkRunAggregator.GetNames(), nil
 }
 
-// FilterLogs fetches fakeintake on `/api/v1/check_run` endpoint, unpackage payloads and returns
+// GetCheckRun fetches fakeintake on `/api/v1/check_run` endpoint, unpackage payloads and returns
 // checks matching `name`
-//
-//nolint:revive // TODO(APL) Fix revive linter
 func (c *Client) GetCheckRun(name string) ([]*aggregator.CheckRun, error) {
 	err := c.getCheckRuns()
 	if err != nil {
