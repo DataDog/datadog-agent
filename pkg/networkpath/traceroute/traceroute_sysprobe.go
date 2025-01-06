@@ -12,7 +12,6 @@ import (
 
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 )
 
