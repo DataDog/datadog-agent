@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
+	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/stretchr/testify/assert"
@@ -79,7 +79,7 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
 			// Run diagnose to send requests and verify the server logs
 			runAgentDiagnose(v)
 
-			serverLogs := v.Env().RemoteHost.MustExecute("docker logs fips-server")
+			serverLogs := v.Env().RemoteHost.MustExecute("docker logs dd-fips-server")
 			if shouldConnect {
 				assert.NotContains(v.T(), serverLogs, "no cipher suite supported by both client and server")
 			} else {
@@ -98,7 +98,7 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSDisabled() {
 	v.UpdateEnv(
 		awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(
-				dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
+				dockeragentparams.WithExtraComposeManifest("dd-fips-server", pulumi.String(dockerCompose)),
 			),
 		),
 	)
@@ -113,7 +113,7 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSDisabled() {
 			// Run diagnose to send requests and verify the server logs
 			runAgentDiagnose(v)
 
-			serverLogs := v.Env().RemoteHost.MustExecute("docker logs fips-server")
+			serverLogs := v.Env().RemoteHost.MustExecute("docker logs dd-fips-server")
 			assert.NotContains(v.T(), serverLogs, "no cipher suite supported by both client and server")
 
 		})
@@ -129,7 +129,7 @@ func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
 	v.UpdateEnv(
 		awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(
-				dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
+				dockeragentparams.WithExtraComposeManifest("dd-fips-server", pulumi.String(dockerCompose)),
 			),
 		),
 	)
@@ -137,7 +137,7 @@ func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
 	runFipsServer(v, "rsa --tls-max=1.1")
 	runAgentDiagnose(v)
 
-	serverLogs := v.Env().RemoteHost.MustExecute("docker logs fips-server")
+	serverLogs := v.Env().RemoteHost.MustExecute("docker logs dd-fips-server")
 	assert.Contains(v.T(), serverLogs, "tls: client offered only unsupported version")
 
 	stopFipsServer(v)
@@ -146,7 +146,7 @@ func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
 func runFipsServer(v *fipsServerSuite, command string) {
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		stopFipsServer(v)
-		_, err := v.Env().RemoteHost.Execute("docker run --rm -d --network fips-network --name fips-server ghcr.io/datadog/apps-fips-server:main " + command)
+		_, err := v.Env().RemoteHost.Execute("docker run --rm -d --name dd-fips-server ghcr.io/datadog/apps-fips-server:main " + command)
 		if err != nil {
 			v.T().Logf("Error starting fips-server: %v", err)
 			require.NoError(t, err)
@@ -155,20 +155,20 @@ func runFipsServer(v *fipsServerSuite, command string) {
 	}, 60*time.Second, 20*time.Second)
 
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		serverLogs, _ := v.Env().RemoteHost.Execute("docker logs fips-server")
+		serverLogs, _ := v.Env().RemoteHost.Execute("docker logs dd-fips-server")
 		assert.Contains(t, serverLogs, "Server Starting...", "Server should start")
 		assert.Equal(t, 1, strings.Count(serverLogs, "Server Starting..."), "Server should start only once, logs from previous runs should not be present")
 	}, 10*time.Second, 2*time.Second)
 }
 
 func runAgentDiagnose(v *fipsServerSuite) {
-	_ = v.Env().Docker.Client.ExecuteCommand("datadog-agent", `sh`, `-c`, `DD_DD_URL=https://fips-server:443 agent diagnose --include connectivity-datadog-core-endpoints --local`)
+	_ = v.Env().Docker.Client.ExecuteCommand("datadog-agent", `sh`, `-c`, `DD_DD_URL=https://dd-fips-server:443 agent diagnose --include connectivity-datadog-core-endpoints --local`)
 }
 
 func stopFipsServer(v *fipsServerSuite) {
-	fipsContainer := v.Env().RemoteHost.MustExecute("docker container ls -a --filter name=fips-server --format '{{.Names}}'")
+	fipsContainer := v.Env().RemoteHost.MustExecute("docker container ls -a --filter name=dd-fips-server --format '{{.Names}}'")
 	if fipsContainer != "" {
-		v.Env().RemoteHost.MustExecute("docker stop fips-server")
+		v.Env().RemoteHost.MustExecute("docker stop dd-fips-server")
 	}
 }
 
