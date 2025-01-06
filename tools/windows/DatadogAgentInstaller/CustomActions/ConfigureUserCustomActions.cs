@@ -681,7 +681,7 @@ namespace Datadog.CustomActions
         private List<string> PathsWithAgentAccess()
         {
             var configRoot = _session.Property("APPLICATIONDATADIRECTORY");
-            
+
             return new List<string> {
                 Path.Combine(configRoot, "conf.d"),
                 Path.Combine(configRoot, "checks.d"),
