@@ -2145,7 +2145,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		},
 		manager.ConstantEditor{
 			Name:  "is_sk_storage_supported",
-			Value: utils.BoolTouint64(p.useFentry && p.kernelVersion.HasSKStorageInTracingPrograms()),
+			Value: utils.BoolTouint64(p.useFentry && p.kernelVersion.HasSKStorageInTracingPrograms() && config.Probe.NetworkFlowMonitorSKStorageEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "is_network_flow_monitor_enabled",
