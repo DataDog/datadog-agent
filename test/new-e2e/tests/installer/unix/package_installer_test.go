@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
 type packageInstallerSuite struct {
@@ -51,7 +52,18 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertSymlinkExists("/usr/bin/datadog-bootstrap", "/opt/datadog-installer/bin/installer/installer", "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "root", "root")
 
-	state.AssertUnitsNotLoaded("datadog-installer.service", "datadog-installer-exp.service")
+	state.AssertUnitsLoaded("datadog-installer.service", "datadog-installer-exp.service")
+	state.AssertUnitsEnabled("datadog-installer.service")
+	state.AssertUnitsNotEnabled("datadog-installer-exp.service")
+	state.AssertUnitsDead("datadog-installer-exp.service")
+	assert.Eventually(s.T(), func() bool {
+		state := s.host.State()
+		unit, ok := state.Units["datadog-installer.service"]
+		if !ok {
+			return false
+		}
+		return unit.SubState == host.Dead
+	}, 30*time.Second, 1*time.Second)
 }
 
 func (s *packageInstallerSuite) TestInstallWithRemoteUpdates() {
