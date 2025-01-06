@@ -63,9 +63,9 @@ require (
 	github.com/DataDog/test-infra-definitions v0.0.0-20250103120737-f61405297d57
 	github.com/aws/aws-sdk-go-v2 v1.32.7
 	github.com/aws/aws-sdk-go-v2/config v1.28.7
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.190.0
-	github.com/aws/aws-sdk-go-v2/service/eks v1.51.0
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.55.2
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.198.1
+	github.com/aws/aws-sdk-go-v2/service/eks v1.56.0
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.56.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/docker/cli v27.4.0+incompatible
 	github.com/docker/docker v27.4.0+incompatible
@@ -118,7 +118,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.26 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.38.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.53.1
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.53.2
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.4.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.7 // indirect
@@ -283,7 +283,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.56.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/aws/aws-sdk-go v1.55.5
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.71.1
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.72.0
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
 	github.com/hairyhenderson/go-codeowners v0.7.0
