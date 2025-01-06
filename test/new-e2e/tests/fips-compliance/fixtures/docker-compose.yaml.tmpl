@@ -8,8 +8,7 @@ services:
       DD_SKIP_SSL_VALIDATION: "true"
 
   fips-server:
-    container_name:
-      image: "ghcr.io/datadog/apps-fips-server:main"
-      ports:
-        - "443:443"
-      container_name: dd-fips-server
+    container_name: "dd-fips-server"
+    image: "ghcr.io/datadog/apps-fips-server:main"
+    ports:
+      - "443:443"

@@ -64,7 +64,8 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
 	v.UpdateEnv(
 		awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(
-				dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
+				dockeragentparams.WithFIPS(),
+				dockeragentparams.WithExtraComposeManifest("dd-fips-server", pulumi.String(dockerCompose)),
 			),
 		),
 	)
@@ -98,6 +99,7 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSDisabled() {
 	v.UpdateEnv(
 		awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(
+				dockeragentparams.WithFIPS(),
 				dockeragentparams.WithExtraComposeManifest("dd-fips-server", pulumi.String(dockerCompose)),
 			),
 		),
@@ -129,6 +131,7 @@ func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
 	v.UpdateEnv(
 		awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(
+				dockeragentparams.WithFIPS(),
 				dockeragentparams.WithExtraComposeManifest("dd-fips-server", pulumi.String(dockerCompose)),
 			),
 		),
