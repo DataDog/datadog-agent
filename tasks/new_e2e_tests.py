@@ -178,8 +178,11 @@ def run(
 
     if logs_post_processing:
         if len(test_res) == 1:
-            washer = TestWasher(test_res[0].result_json_path, 'flakes.yml')
-            _, marked_flaky_tests = washer.parse_test_results('.')
+            result_json_path = test_res[0].result_json_path
+            result_json_name = result_json_path.split("/")[-1]
+            result_json_dir = result_json_path.removesuffix('/' + result_json_name)
+            washer = TestWasher(result_json_name, 'flakes.yml')
+            _, marked_flaky_tests = washer.parse_test_results(result_json_dir)
             post_processed_output = post_process_output(
                 test_res[0].result_json_path, test_depth=logs_post_processing_test_depth
             )
