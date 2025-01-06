@@ -557,7 +557,7 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHa
 
 //nolint:deadcode,unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
-	b, err := serializers.MarshalEvent(ev, nil)
+	b, err := serializers.MarshalEvent(ev)
 	return string(b), err
 }
 

@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -96,7 +95,7 @@ func TracemallocEnabled() C.bool {
 //
 //export Headers
 func Headers(yamlPayload **C.char) {
-	h := util.HTTPHeaders()
+	h := httpHeaders()
 
 	data, err := yaml.Marshal(h)
 	if err != nil {
@@ -736,5 +735,15 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 		}
 	default:
 		log.Warnf("EmitAgentTelemetry: unsupported metric type %s requested by %s for %s", goMetricType, goCheckName, goMetricName)
+	}
+}
+
+// httpHeaders returns a http headers including various basic information (User-Agent, Content-Type...).
+func httpHeaders() map[string]string {
+	av, _ := version.Agent()
+	return map[string]string{
+		"User-Agent":   fmt.Sprintf("Datadog Agent/%s", av.GetNumber()),
+		"Content-Type": "application/x-www-form-urlencoded",
+		"Accept":       "text/html, */*",
 	}
 }

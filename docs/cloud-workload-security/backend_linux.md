@@ -1615,6 +1615,12 @@ CSM Threats event for Linux systems have the following JSON schema:
                 },
                 "mount": {
                     "$ref": "#/$defs/SyscallArgs"
+                },
+                "mkdir": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "rmdir": {
+                    "$ref": "#/$defs/SyscallArgs"
                 }
             },
             "additionalProperties": false,
@@ -4205,6 +4211,12 @@ CSM Threats event for Linux systems have the following JSON schema:
             "$ref": "#/$defs/SyscallArgs"
         },
         "mount": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "mkdir": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "rmdir": {
             "$ref": "#/$defs/SyscallArgs"
         }
     },
