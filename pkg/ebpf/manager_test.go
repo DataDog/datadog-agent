@@ -7,6 +7,7 @@
 package ebpf
 
 import (
+	"path"
 	"testing"
 
 	manager "github.com/DataDog/ebpf-manager"
