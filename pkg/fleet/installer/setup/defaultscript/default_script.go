@@ -32,17 +32,30 @@ var (
 	}
 
 	fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)
+
+	// unsupportedEnvVars are the environment variables that are not supported by the default script
+	// TODO: support as many as possible
+	unsupportedEnvVars = []string{
+		"DD_INSTALLER",
+		"DD_AGENT_FLAVOR",
+		"DD_URL",
+		"DD_HOST_TAGS",
+		"DD_UPGRADE",
+		"DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE",
+		"DD_INSTALL_ONLY",
+	}
 )
 
 // SetupDefaultScript sets up the default installation
 func SetupDefaultScript(s *common.Setup) error {
 	// Installer management
-	if _, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok {
-		s.Config.DatadogYAML.RemoteUpdates = true
+	s.Config.DatadogYAML.RemoteUpdates = true
+	s.Config.DatadogYAML.RemotePolicies = true
+	if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok && strings.ToLower(val) == "false" {
+		s.Config.DatadogYAML.RemoteUpdates = false
 	}
-	if _, ok := os.LookupEnv("DD_REMOTE_POLICIES"); ok {
-		s.Config.DatadogYAML.RemoteUpdates = true
-		s.Config.DatadogYAML.RemotePolicies = true
+	if val, ok := os.LookupEnv("DD_REMOTE_POLICIES"); ok && strings.ToLower(val) == "false" {
+		s.Config.DatadogYAML.RemotePolicies = false
 	}
 	registryURL, registryURLOk := os.LookupEnv("DD_INSTALLER_REGISTRY_URL")
 	registryAuth, registryAuthOk := os.LookupEnv("DD_INSTALLER_REGISTRY_AUTH")
@@ -56,6 +69,7 @@ func SetupDefaultScript(s *common.Setup) error {
 	}
 
 	// Config management
+	warnUnsupportedEnvVars(s, unsupportedEnvVars...)
 	if tags, ok := os.LookupEnv("DD_TAGS"); ok {
 		s.Config.DatadogYAML.Tags = strings.Split(tags, ",")
 	}
@@ -139,4 +153,14 @@ func getLibraryVersion(env *env.Env, library string) string {
 		return versionTag + "-1"
 	}
 	return versionTag
+}
+
+func warnUnsupportedEnvVars(s *common.Setup, envVars ...string) {
+	var setUnsupported []string
+	for _, envVar := range envVars {
+		if _, ok := os.LookupEnv(envVar); ok {
+			setUnsupported = append(setUnsupported, envVar)
+		}
+	}
+	s.Out.WriteString(fmt.Sprintf("Warning: options '%s' are not supported and will be ignored\n", strings.Join(setUnsupported, "', '")))
 }
