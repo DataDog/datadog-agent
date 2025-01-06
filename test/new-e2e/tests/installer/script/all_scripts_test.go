@@ -20,12 +20,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
 type installerScriptTests func(os e2eos.Descriptor, arch e2eos.Architecture) installerScriptSuite
 
-type installerScriptTestsWithSkipedFlavors struct {
+type installerScriptTestsWithSkippedFlavors struct {
 	t              installerScriptTests
 	skippedFlavors []e2eos.Descriptor
 }
@@ -45,8 +47,9 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Suse15,
 	}
-	scriptTestsWithSkippedFlavors = []installerScriptTestsWithSkipedFlavors{
+	scriptTestsWithSkippedFlavors = []installerScriptTestsWithSkippedFlavors{
 		{t: testDatabricksScript},
+		{t: testDefaultScript, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7}},
 	}
 )
 
@@ -149,8 +152,20 @@ func (s *installerScriptBaseSuite) RunInstallScript(url string, params ...string
 	require.NoErrorf(s.T(), err, "install script failed")
 }
 
+func (s *installerScriptBaseSuite) getAPIKey() string {
+	apiKey := os.Getenv("DD_API_KEY")
+	if apiKey == "" {
+		var err error
+		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
+		if apiKey == "" || err != nil {
+			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
+		}
+	}
+	return apiKey
+}
+
 func (s *installerScriptBaseSuite) RunInstallScriptWithError(url string, params ...string) error {
-	scriptParams := append(params, "DD_API_KEY=test", "DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com")
+	scriptParams := append(params, fmt.Sprintf("DD_API_KEY=%s", s.getAPIKey()), "DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com")
 	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("curl -L %s > install_script; %s bash install_script", url, strings.Join(scriptParams, " ")))
 	return err
 }
@@ -158,4 +173,5 @@ func (s *installerScriptBaseSuite) RunInstallScriptWithError(url string, params 
 func (s *installerScriptBaseSuite) Purge() {
 	s.Env().RemoteHost.MustExecute("sudo rm -rf install_script")
 	s.Env().RemoteHost.Execute("sudo datadog-installer purge")
+	s.Env().RemoteHost.Execute("sudo rm -rf /etc/datadog-agent")
 }
