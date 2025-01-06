@@ -105,10 +105,9 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		marshaler := marshal.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
 
-		// the statistics can be safely released at this point
-		for _, httpStats := range cs.HTTP {
-			httpStats.ReleaseStats()
-		}
+		// at this point can safely release statistics
+		cs.ReleaseStats()
+
 		if nt.restartTimer != nil {
 			nt.restartTimer.Reset(inactivityRestartDuration)
 		}
@@ -176,6 +175,9 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 
 		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP, cs.DNS))
+
+		// at this point can safely release statistics
+		cs.ReleaseStats()
 	})
 
 	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {

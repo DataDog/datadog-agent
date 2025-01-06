@@ -139,6 +139,13 @@ func NewConnections(buffer *ClientBuffer) *Connections {
 	}
 }
 
+// ReleaseStats releases stats objects.
+func (c *Connections) ReleaseStats() {
+	for _, stats := range c.HTTP {
+		stats.ReleaseStats()
+	}
+}
+
 // ConnTelemetryType enumerates the connection telemetry gathered by the system-probe
 // The string name of each telemetry type is the metric name which will be emitted
 type ConnTelemetryType string
