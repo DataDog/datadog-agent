@@ -35,6 +35,10 @@ tests_macos_gitlab_amd64:
     - !reference [.select_python_env_commands]
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
+  # Retry when it is not possible to extract the dependencies
+  retry:
+    max: 2
+    exit_codes: 101
 
 tests_macos_gitlab_arm64:
   extends: .tests_macos_gitlab
