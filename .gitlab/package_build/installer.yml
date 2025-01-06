@@ -104,6 +104,8 @@ installer-install-scripts:
     - echo "About to build for $RELEASE_VERSION"
     - mkdir -p $OMNIBUS_PACKAGE_DIR
     - inv -e installer.build-linux-script "databricks" "$RELEASE_VERSION"
+    - inv -e installer.build-linux-script "emr" "$RELEASE_VERSION"
+    - inv -e installer.build-linux-script "dataproc" "$RELEASE_VERSION"
     - mv ./bin/installer/install-*.sh $OMNIBUS_PACKAGE_DIR/
     - ls -la $OMNIBUS_PACKAGE_DIR
   artifacts:

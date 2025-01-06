@@ -116,6 +116,7 @@ def _get_environment_for_cache() -> dict:
             "GET_SOURCES_ATTEMPTS",
             "GO_TEST_SKIP_FLAKE",
             "GONOSUMDB",
+            "GOPROXY",
             "HELM_HOOKS_CI_IMAGE",
             "HELM_HOOKS_PERIODICAL_REBUILD_CONDUCTOR_ENV",
             "HOME",
@@ -209,8 +210,10 @@ def omnibus_compute_cache_key(ctx):
     omnibus_last_changes = _last_omnibus_changes(ctx)
     h.update(str.encode(omnibus_last_changes))
     h.update(str.encode(os.getenv('CI_JOB_IMAGE', 'local_build')))
-    omnibus_ruby_commit = _get_omnibus_commits('OMNIBUS_RUBY_VERSION')
-    omnibus_software_commit = _get_omnibus_commits('OMNIBUS_SOFTWARE_VERSION')
+    # Omnibus ruby & software versions can be forced through the environment
+    # so we need to read it from there first, and fallback to release.json
+    omnibus_ruby_commit = os.getenv('OMNIBUS_RUBY_VERSION', _get_omnibus_commits('OMNIBUS_RUBY_VERSION'))
+    omnibus_software_commit = os.getenv('OMNIBUS_SOFTWARE_VERSION', _get_omnibus_commits('OMNIBUS_SOFTWARE_VERSION'))
     print(f'Omnibus ruby commit: {omnibus_ruby_commit}')
     print(f'Omnibus software commit: {omnibus_software_commit}')
     h.update(str.encode(omnibus_ruby_commit))

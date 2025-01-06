@@ -985,9 +985,10 @@ func (s *SharedLibrarySuite) TestDetectionWithPIDAndRootNamespace() {
 	t.Cleanup(ua.Stop)
 
 	time.Sleep(10 * time.Millisecond)
-	// simulate a slow (1 second) : open, write, close of the file
+	// simulate a slow (1 second) : open, read, close of the file
 	// in a new pid and mount namespaces
-	o, err := exec.Command("unshare", "--fork", "--pid", "-R", root, "/ash", "-c", fmt.Sprintf("sleep 1 > %s", libpath)).CombinedOutput()
+	o, err := exec.Command("unshare", "--fork", "--pid", "-R", root, "/ash", "-c",
+		fmt.Sprintf("touch foo && mv foo %s && sleep 1 < %s", libpath, libpath)).CombinedOutput()
 	if err != nil {
 		t.Log(err, string(o))
 	}
