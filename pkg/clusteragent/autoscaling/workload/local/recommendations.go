@@ -18,16 +18,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 
 	// "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/shared"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type localRecommender struct {
-	podWatcher workload.PodWatcher
-	// store     *loadstore.EntityStore
+type LocalRecommender struct {
+	PodWatcher shared.PodWatcher
+	// Store     *loadstore.EntityStore
 }
 
 type ValueType float64
@@ -167,7 +167,7 @@ func getOptionsFromContainerResource(target *datadoghq.DatadogPodAutoscalerConta
 }
 
 // CalculateHorizontalRecommendations is the entrypoint to calculate the horizontal recommendation for a given DatadogPodAutoscaler
-func (l localRecommender) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal) (*model.ScalingValues, error) {
+func (l LocalRecommender) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal) (*model.ScalingValues, error) {
 	currentTime := time.Now()
 
 	// Get current pods for the target
@@ -177,12 +177,12 @@ func (l localRecommender) CalculateHorizontalRecommendations(dpai model.PodAutos
 	if targetErr != nil {
 		return nil, fmt.Errorf("Failed to get GVK for target: %s, %s", dpai.ID(), targetErr)
 	}
-	podOwner := workload.NamespacedPodOwner{
+	podOwner := shared.NamespacedPodOwner{
 		Namespace: dpai.Namespace(),
 		Name:      targetRef.Name,
 		Kind:      targetGVK.Kind,
 	}
-	pods := l.podWatcher.GetPodsForOwner(podOwner)
+	pods := l.PodWatcher.GetPodsForOwner(podOwner)
 	if len(pods) == 0 {
 		// If we found nothing, we'll wait just until the next sync
 		return nil, fmt.Errorf("No pods found for autoscaler: %s, gvk: %s, name: %s", dpai.ID(), targetGVK.String(), targetRef.Name)
@@ -229,14 +229,14 @@ func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*wo
 
 	recommendedReplicas := r.calculateReplicas(currentReplicas, utilizationResult.AverageUtilization)
 
-	scaleDirection := getScaleDirection(int32(currentReplicas), recommendedReplicas)
+	scaleDirection := shared.GetScaleDirection(int32(currentReplicas), recommendedReplicas)
 	// account for missing pods
-	if scaleDirection != workload.NoScale && len(utilizationResult.MissingPods) > 0 {
+	if scaleDirection != shared.NoScale && len(utilizationResult.MissingPods) > 0 {
 		adjustedPodToUtilization := adjustMissingPods(scaleDirection, utilizationResult.PodToUtilization, utilizationResult.MissingPods)
 		newRecommendation := r.calculateReplicas(currentReplicas, getAveragePodUtilization(adjustedPodToUtilization))
 
 		// If scale direction is reversed, we should not scale
-		if getScaleDirection(int32(currentReplicas), newRecommendation) != scaleDirection {
+		if shared.GetScaleDirection(int32(currentReplicas), newRecommendation) != scaleDirection {
 			recommendedReplicas = int32(currentReplicas)
 		} else {
 			recommendedReplicas = newRecommendation
@@ -368,12 +368,12 @@ func findAverageUtilization(podToUtilization map[string]float64) float64 {
 	return totalUtilization / float64(len(podToUtilization))
 }
 
-func adjustMissingPods(scaleDirection workload.ScaleDirection, podToUtilization map[string]float64, missingPods []string) map[string]float64 {
+func adjustMissingPods(scaleDirection shared.ScaleDirection, podToUtilization map[string]float64, missingPods []string) map[string]float64 {
 	for _, pod := range missingPods {
 		// adjust based on scale direction
-		if scaleDirection == workload.ScaleUp {
+		if scaleDirection == shared.ScaleUp {
 			podToUtilization[pod] = 0.0 // 0%
-		} else if scaleDirection == workload.ScaleDown {
+		} else if scaleDirection == shared.ScaleDown {
 			podToUtilization[pod] = 1.0 // 100%
 		}
 	}
@@ -432,14 +432,4 @@ func convertCpuRequestToMillicores(cpuRequests float64) float64 {
 	// For 100Mi, AsApproximate returns 0.1; we return 10
 	// This helper converts value back to Mi units
 	return cpuRequests * 10
-}
-
-// TODO move this to general util
-func getScaleDirection(currentReplicas, recommendedReplicas int32) workload.ScaleDirection {
-	if currentReplicas < recommendedReplicas {
-		return workload.ScaleUp
-	} else if currentReplicas > recommendedReplicas {
-		return workload.ScaleDown
-	}
-	return workload.NoScale
 }

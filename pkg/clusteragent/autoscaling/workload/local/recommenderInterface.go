@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/shared"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,30 +22,30 @@ const (
 	localRecommenderID string = "lr"
 )
 
-type Interface struct {
-	localRecommender localRecommender
-	context          context.Context
+type RecommenderInterface struct {
+	localRecommender LocalRecommender
 	store            *autoscaling.Store[model.PodAutoscalerInternal]
+	context          context.Context
 }
 
-func newInterface(podWatcher workload.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) (*Interface, error) {
-	localRecommender := localRecommender{
-		podWatcher: podWatcher,
+func NewInterface(podWatcher shared.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) (*RecommenderInterface, error) {
+	localRecommender := LocalRecommender{
+		PodWatcher: podWatcher,
 	}
 
-	return &Interface{
+	return &RecommenderInterface{
 		localRecommender: localRecommender,
 		store:            store,
 	}, nil
 }
 
 // Run starts the controller to handle objects
-func (i *Interface) Run(ctx context.Context, done <-chan struct{}) {
+func (ri *RecommenderInterface) Run(ctx context.Context) {
 	if ctx == nil {
 		log.Errorf("Cannot run with a nil context")
 		return
 	}
-	i.context = ctx
+	ri.context = ctx
 
 	log.Infof("Starting autoscaling interface")
 	ticker := time.NewTicker(pollingInterval)
@@ -56,8 +56,9 @@ func (i *Interface) Run(ctx context.Context, done <-chan struct{}) {
 		for {
 			select {
 			case <-ticker.C:
-				i.Process()
-			case <-done:
+				ri.process()
+			case <-ctx.Done():
+				log.Debugf("Stopping autoscaling interface")
 				return
 			}
 		}
@@ -65,20 +66,21 @@ func (i *Interface) Run(ctx context.Context, done <-chan struct{}) {
 	log.Infof("Stopping autoscaling interface")
 }
 
-func (i *Interface) Process() {
-	podAutoscalers := i.store.GetAll()
+func (ri *RecommenderInterface) process() {
+	podAutoscalers := ri.store.GetAll()
 	for _, podAutoscaler := range podAutoscalers {
 		if podAutoscaler.CustomRecommenderConfiguration() != nil {
 			// TODO: Process custom recommender
 			continue
 		} else {
-			horizontalRecommendation, err := i.localRecommender.CalculateHorizontalRecommendations(podAutoscaler)
+			horizontalRecommendation, err := ri.localRecommender.CalculateHorizontalRecommendations(podAutoscaler)
 			if err != nil || horizontalRecommendation == nil {
 				log.Errorf("Error calculating horizontal recommendations for pod autoscaler %s: %s", podAutoscaler.ID(), err)
 				continue
 			}
+			log.Debugf("Updating local fallback values for pod autoscaler %s", podAutoscaler.ID())
 			podAutoscaler.UpdateFromLocalValues(*horizontalRecommendation)
-			i.store.UnlockSet(podAutoscaler.ID(), podAutoscaler, localRecommenderID)
+			ri.store.UnlockSet(podAutoscaler.ID(), podAutoscaler, localRecommenderID)
 		}
 	}
 }

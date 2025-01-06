@@ -19,6 +19,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -51,6 +52,10 @@ func StartWorkloadAutoscaling(
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
 	podPatcher := newPODPatcher(store, le.IsLeader, apiCl.DynamicCl, eventRecorder)
 	podWatcher := newPodWatcher(wlm, podPatcher)
+	autoscalingInterface, err := local.NewInterface(podWatcher, store)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to start workload autoscaling interface: %w", err)
+	}
 
 	_, err = newConfigRetriever(store, le.IsLeader, rcClient)
 	if err != nil {
@@ -78,6 +83,7 @@ func StartWorkloadAutoscaling(
 	// TODO: Wait POD Watcher sync before running the controller
 	go podWatcher.Run(ctx)
 	go controller.Run(ctx)
+	go autoscalingInterface.Run(ctx)
 
 	return podPatcher, nil
 }

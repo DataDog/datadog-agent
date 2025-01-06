@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/shared"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -20,32 +21,13 @@ const (
 	patcherQueueSize = 100
 )
 
-// NamespacedPodOwner represents a pod owner in a namespace
-type NamespacedPodOwner struct {
-	// Namespace is the namespace of the pod owner
-	Namespace string
-	// Kind is the kind of the pod owner (e.g. Deployment, StatefulSet etc.)
-	// ReplicaSet is replaced by Deployment
-	Kind string
-	// Name is the name of the pod owner
-	Name string
-}
-
-// podWatcher indexes pods by their owner
-type PodWatcher interface {
-	// Start starts the PodWatcher.
-	Run(ctx context.Context)
-	// GetPodsForOwner returns the pods for the given owner.
-	GetPodsForOwner(NamespacedPodOwner) []*workloadmeta.KubernetesPod
-}
-
 type podWatcherImpl struct {
 	mutex sync.RWMutex
 
 	wlm             workloadmeta.Component
 	patcher         PodPatcher
 	patcherChan     chan *workloadmeta.KubernetesPod
-	podsPerPodOwner map[NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod
+	podsPerPodOwner map[shared.NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod
 }
 
 // newPodWatcher creates a new PodWatcher
@@ -53,12 +35,12 @@ func newPodWatcher(wlm workloadmeta.Component, patcher PodPatcher) *podWatcherIm
 	return &podWatcherImpl{
 		wlm:             wlm,
 		patcher:         patcher,
-		podsPerPodOwner: make(map[NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod),
+		podsPerPodOwner: make(map[shared.NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod),
 	}
 }
 
 // GetPodsForOwner returns the pods for the given owner.
-func (pw *podWatcherImpl) GetPodsForOwner(owner NamespacedPodOwner) []*workloadmeta.KubernetesPod {
+func (pw *podWatcherImpl) GetPodsForOwner(owner shared.NamespacedPodOwner) []*workloadmeta.KubernetesPod {
 	pw.mutex.RLock()
 	defer pw.mutex.RUnlock()
 	pods, ok := pw.podsPerPodOwner[owner]
@@ -175,8 +157,8 @@ func (pw *podWatcherImpl) runPatcher(ctx context.Context) {
 	}
 }
 
-func getNamespacedPodOwner(ns string, owner *workloadmeta.KubernetesPodOwner) NamespacedPodOwner {
-	res := NamespacedPodOwner{
+func getNamespacedPodOwner(ns string, owner *workloadmeta.KubernetesPodOwner) shared.NamespacedPodOwner {
+	res := shared.NamespacedPodOwner{
 		Name:      owner.Name,
 		Kind:      owner.Kind,
 		Namespace: ns,
