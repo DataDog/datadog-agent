@@ -17,10 +17,6 @@ lint_macos_gitlab_amd64:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  # Retry when it is not possible to extract the dependencies
-  retry:
-    max: 2
-    exit_codes: 101
 
 lint_macos_gitlab_arm64:
   extends: .lint_macos_gitlab
