@@ -6,12 +6,12 @@
 package http
 
 import (
-	"github.com/DataDog/sketches-go/ddsketch"
-
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
+	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 // Interner is used to intern strings to save memory allocations.
@@ -138,7 +138,8 @@ func (r *RequestStat) initSketch() (err error) {
 
 // RequestStats stores HTTP request statistics.
 type RequestStats struct {
-	Data map[uint16]*RequestStat
+	Data     map[uint16]*RequestStat
+	Sketches *ddsync.TypedPool[ddsketch.DDSketch]
 }
 
 // NewRequestStats creates a new RequestStats object.
@@ -223,7 +224,9 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 	}
 
 	if stats.Latencies == nil {
-		if err := stats.initSketch(); err != nil {
+		if r.Sketches != nil {
+			stats.Latencies = r.Sketches.Get()
+		} else if err := stats.initSketch(); err != nil {
 			return
 		}
 
@@ -248,9 +251,13 @@ func (r *RequestStats) HalfAllCounts() {
 	}
 }
 
-// ReleaseStats deletes all requests from the map.
+// ReleaseStats puts 'DDSketch' objects back to pool and deletes requests from the map.
 func (r *RequestStats) ReleaseStats() {
-	for statusCode := range r.Data {
+	for statusCode, stats := range r.Data {
+		if r.Sketches != nil {
+			r.Sketches.Put(stats.Latencies)
+			stats.Latencies = nil
+		}
 		delete(r.Data, statusCode)
 	}
 }

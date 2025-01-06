@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
+	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 // StatKeeper is responsible for aggregating HTTP stats.
@@ -34,6 +36,9 @@ type StatKeeper struct {
 	buffer []byte
 
 	oversizedLogLimit *log.Limit
+
+	// pool of 'DDSketch' objects
+	sketches *ddsync.TypedPool[ddsketch.DDSketch]
 }
 
 // NewStatkeeper returns a new StatKeeper.
@@ -59,6 +64,7 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer Inco
 		buffer:               make([]byte, getPathBufferSize(c)),
 		telemetry:            telemetry,
 		oversizedLogLimit:    log.NewLogLimit(10, time.Minute*10),
+		sketches:             newSketchPool(),
 	}
 }
 
@@ -107,6 +113,7 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 // Close closes the stat keeper.
 func (h *StatKeeper) Close() {
 	h.oversizedLogLimit.Close()
+	h.ReleaseStats()
 }
 
 func (h *StatKeeper) add(tx Transaction) {
@@ -158,6 +165,7 @@ func (h *StatKeeper) add(tx Transaction) {
 		h.telemetry.aggregations.Add(1)
 		stats = NewRequestStats()
 		h.stats[key] = stats
+		stats.Sketches = h.sketches
 	}
 
 	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), tx.DynamicTags())
@@ -215,5 +223,27 @@ func (h *StatKeeper) clearEphemeralPorts(aggregator *utils.ConnectionAggregator,
 		delete(stats, key)
 		key.ConnectionKey = newConnKey
 		stats[key] = aggregation
+	}
+}
+
+// newSketchPool creates new pool of 'DDSketch' objects.
+func newSketchPool() *ddsync.TypedPool[ddsketch.DDSketch] {
+	sketchPool := ddsync.NewTypedPool(func() *ddsketch.DDSketch {
+		sketch, err := ddsketch.NewDefaultDDSketch(RelativeAccuracy)
+		if err != nil {
+			log.Debugf("http stats, could not create new ddsketch for pool, error: %v", err)
+		}
+		return sketch
+	})
+	return sketchPool
+}
+
+// ReleaseStats releases stats objects.
+func (h *StatKeeper) ReleaseStats() {
+	h.mux.Lock()
+	defer h.mux.Unlock()
+
+	for _, stats := range h.stats {
+		stats.ReleaseStats()
 	}
 }
