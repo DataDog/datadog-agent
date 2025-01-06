@@ -8,11 +8,11 @@
 ---
 security:
   - |
-    Removes Datadog user's full control of the Datadog data directory on windows.
+    Removes Datadog user's full control of the Datadog data directory on Windows.
 upgrade:
   - |
-    Removes Datadog user's full control of the Datadog data directory on windows.
+    Removes Datadog user's full control of the Datadog data directory on Windows.
     If you are using custom configured values for log files, confd_path, run_path, or additional_checksd
-    that are within the Datadog ProgramDirectory folder, then you will have to explicitly give the Datadog user
+    that are within the Datadog ProgramData folder, then you will have to explicitly give the Datadog user
     write permissions to the folders and files configured.
 
