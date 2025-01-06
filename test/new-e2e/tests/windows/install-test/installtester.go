@@ -544,7 +544,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 						windows.FileFullControl,
 						windows.AccessControlTypeAllow,
 						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
-						windows.PropagationFlagsNoPropagate,
+						windows.PropagationFlagsInherit,
 					),
 					windows.NewInheritedAccessRuleWithFlags(
 						windows.GetIdentityForSID(windows.AdministratorsSID),
@@ -574,7 +574,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 						windows.FileFullControl,
 						windows.AccessControlTypeAllow,
 						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
-						windows.PropagationFlagsNoPropagate,
+						windows.PropagationFlagsInherit,
 					),
 					// create owner inherited permissions
 					windows.NewInheritedAccessRuleWithFlags(
