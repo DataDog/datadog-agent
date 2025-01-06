@@ -1,10 +1,15 @@
+import datetime
 import os
 import shutil
 
-from invoke import task
+from codeowners import CodeOwners
+from invoke.context import Context
 from invoke.exceptions import Exit
+from invoke.tasks import task
 
+from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
+from tasks.libs.owners.parsing import read_owners
 
 BIN_NAME = "otel-agent"
 CFG_NAME = "otel-config.yaml"
@@ -15,7 +20,7 @@ OT_AGENT_TAG = "main-ot"
 
 
 @task
-def build(ctx):
+def build(ctx: Context):
     """
     Build the otel agent
     """
@@ -40,7 +45,14 @@ def build(ctx):
 
 
 @task
-def image_build(ctx, arch='amd64', base_version='latest', tag=OT_AGENT_TAG, push=False, no_cache=False):
+def image_build(
+    ctx: Context,
+    arch: str = 'amd64',
+    base_version: str = 'latest',
+    tag: str = OT_AGENT_TAG,
+    push: bool = False,
+    no_cache: bool = False,
+):
     """
     Build the otel agent container image
     """
@@ -72,10 +84,43 @@ def image_build(ctx, arch='amd64', base_version='latest', tag=OT_AGENT_TAG, push
 
 
 @task
-def integration_test(ctx):
+def integration_test(ctx: Context):
     """
     Run the otel integration test
     """
     cmd = """go test -timeout 0s -tags otlp,test -run ^TestIntegration$ \
         github.com/DataDog/datadog-agent/comp/otelcol/otlp/integrationtest -v"""
     ctx.run(cmd)
+
+
+@task
+def changelog(_, days: int = 60):
+    """
+    Print a changelog for the otel-agent.
+    Only PRs merged in the last `days` days that have a changelog
+    and that updates at least one file owned by@DataDog/opentelemetry are
+    considered.
+    """
+    code_owners_file = ".github/CODEOWNERS"
+    code_owners = read_owners(code_owners_file)
+
+    gh = GithubAPI()
+    now = datetime.datetime.now()
+    since = now - datetime.timedelta(days=days)
+    print(f"Gettings PRs since {since}")
+    pulls = gh.get_pulls(since=since)
+    for pr in pulls:
+        has_no_changelog = any(label.name == "changelog/no-changelog" for label in pr.labels)
+        if has_no_changelog or pr.state != "closed" or not pr.merged:
+            continue
+
+        files = [f.filename for f in pr.get_files()]
+        owners = __get_team_owners(code_owners, files)
+        if any(owner == "@DataDog/opentelemetry" for owner in owners):
+            print(f"#{pr.number} - {pr.title} {pr.html_url}")
+    print("Done")
+
+
+def __get_team_owners(code_owners: CodeOwners, files: list[str]) -> list[str]:
+    lines = [code_owners.matching_line(file) for file in files]
+    return [owner[1] for (owners, _, _, _) in lines for owner in owners]

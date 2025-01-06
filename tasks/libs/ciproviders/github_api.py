@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import base64
+import datetime
 import json
 import os
 import platform
 import re
 import subprocess
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from functools import lru_cache
 
 import requests
@@ -247,7 +248,13 @@ class GithubAPI:
                 return True
         return False
 
-    def get_pulls(self, milestone=None, labels=None):
+    def get_pulls(
+        self,
+        milestone: str | None = None,
+        labels: str | None = None,
+        state: str | None = 'all',
+        since: datetime.datetime | None = None,
+    ) -> Iterator[PullRequest.PullRequest]:
         if milestone is None:
             m = GithubObject.NotSet
         else:
@@ -257,8 +264,10 @@ class GithubAPI:
                 return None
         if labels is None:
             labels = []
-        issues = self._repository.get_issues(milestone=m, state='all', labels=labels)
-        return [i.as_pull_request() for i in issues if i.pull_request is not None]
+        issues = self._repository.get_issues(milestone=m, state=state, labels=labels, since=since)
+        for i in issues:
+            if i.pull_request is not None:
+                yield i.as_pull_request()
 
     def get_pr_for_branch(self, branch_name):
         return self._repository.get_pulls(state="open", head=f'DataDog:{branch_name}')
