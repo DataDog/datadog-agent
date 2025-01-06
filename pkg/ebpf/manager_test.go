@@ -97,7 +97,8 @@ func TestManagerInitWithOptions(t *testing.T) {
 	cfg := NewConfig()
 	require.NotNil(t, cfg)
 
-	buf, err := bytecode.GetReader(cfg.BPFDir, "logdebug-test.o")
+	coreDir := path.Join(cfg.BPFDir, "co-re")
+	buf, err := bytecode.GetReader(coreDir, "logdebug-test.o")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = buf.Close })
 
