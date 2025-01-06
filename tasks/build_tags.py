@@ -20,7 +20,10 @@ ALL_TAGS = {
     "clusterchecks",
     "consul",
     "containerd",
-    "containerd_no_plugins",
+    # Disables dynamic plugins in containerd v1, which removes the import to std "plugin" package on Linux amd64,
+    # which makes the agent significantly smaller.
+    # This can be removed when we start using containerd v2.1 or later.
+    "no_dynamic_plugins",
     "cri",
     "crio",
     "docker",
@@ -59,7 +62,7 @@ ALL_TAGS = {
 AGENT_TAGS = {
     "consul",
     "containerd",
-    "containerd_no_plugins",
+    "no_dynamic_plugins",
     "cri",
     "crio",
     "datadog.no_waf",
@@ -87,7 +90,7 @@ AGENT_TAGS = {
 AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     {
         "containerd",
-        "containerd_no_plugins",
+        "no_dynamic_plugins",
         "cri",
         "crio",
         "docker",
@@ -112,7 +115,7 @@ CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orche
 CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks"}
 
 # DOGSTATSD_TAGS lists the tags needed when building dogstatsd
-DOGSTATSD_TAGS = {"containerd", "containerd_no_plugins", "docker", "kubelet", "podman", "zlib", "zstd"}
+DOGSTATSD_TAGS = {"containerd", "no_dynamic_plugins", "docker", "kubelet", "podman", "zlib", "zstd"}
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
 IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib", "zstd"}
@@ -127,7 +130,7 @@ PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess"}).difference({"otlp", "p
 PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
     {
         "containerd",
-        "containerd_no_plugins",
+        "no_dynamic_plugins",
         "cri",
         "crio",
         "docker",
@@ -147,7 +150,7 @@ SECURITY_AGENT_TAGS = {
     "datadog.no_waf",
     "docker",
     "containerd",
-    "containerd_no_plugins",
+    "no_dynamic_plugins",
     "kubeapiserver",
     "kubelet",
     "podman",
@@ -176,7 +179,7 @@ SYSTEM_PROBE_TAGS = {
 TRACE_AGENT_TAGS = {
     "docker",
     "containerd",
-    "containerd_no_plugins",
+    "no_dynamic_plugins",
     "datadog.no_waf",
     "kubeapiserver",
     "kubelet",
@@ -189,7 +192,7 @@ TRACE_AGENT_TAGS = {
 TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
     {
         "containerd",
-        "containerd_no_plugins",
+        "no_dynamic_plugins",
         "docker",
         "kubeapiserver",
         "kubelet",
@@ -210,7 +213,7 @@ LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "pcap", "podman",
 WINDOWS_EXCLUDE_TAGS = {"linux_bpf"}
 
 # List of tags to always remove when building on Darwin/macOS
-DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "containerd_no_plugins", "cri", "crio"}
+DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "no_dynamic_plugins", "cri", "crio"}
 
 # Unit test build tags
 UNIT_TEST_TAGS = {"test"}
