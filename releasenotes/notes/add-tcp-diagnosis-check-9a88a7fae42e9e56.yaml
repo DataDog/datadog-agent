@@ -8,5 +8,4 @@
 ---
 enhancements:
   - |
-    Add ``apm_config.obfuscation.cache.max_size`` to set the maximum size of the
-    cache in bytes.
+    Add TCP diagnosis check for logs_config.force_use_tcp.
