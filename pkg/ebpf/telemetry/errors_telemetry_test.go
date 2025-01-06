@@ -253,13 +253,11 @@ func TestHelpersTelemetry(t *testing.T) {
 	require.True(t, probeReadHelperFound)
 }
 
-func TestSharedMapsTelemetry(t *testing.T) {
-	skipTestIfEBPFTelemetryNotSupported(t)
-
-	mapsTelemetry := triggerTestAndGetTelemetry(t)
-
-	sharedMapFound, moduleFound, e2bigErrorFound := false, false, false
+func testSharedMaps(t *testing.T, mapsTelemetry []prometheus.Metric, errorCount float64, sharedMap, moduleToTest string) bool {
+	testComplete := false
 	for _, promMetric := range mapsTelemetry {
+		sharedMapFound, moduleFound, e2bigErrorFound := false, false, false
+
 		dtoMetric := dto.Metric{}
 		require.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
 		require.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
@@ -267,16 +265,15 @@ func TestSharedMapsTelemetry(t *testing.T) {
 		for _, label := range dtoMetric.GetLabel() {
 			switch label.GetName() {
 			case "map_name":
-				if label.GetValue() == "shared_map" {
+				if label.GetValue() == sharedMap {
 					sharedMapFound = true
 				}
 			case "error":
 				if label.GetValue() == "E2BIG" {
 					e2bigErrorFound = true
 				}
-			// only interested in module 'm2'
 			case "module":
-				if label.GetValue() == "m2" {
+				if label.GetValue() == moduleToTest {
 					moduleFound = true
 				}
 			}
@@ -284,13 +281,20 @@ func TestSharedMapsTelemetry(t *testing.T) {
 
 		// check error value immediately if map is discovered
 		if sharedMapFound && moduleFound {
-			moduleFound = false
+			testComplete = true
 			require.True(t, e2bigErrorFound)
-			require.Equal(t, dtoMetric.GetCounter().GetValue(), float64(2))
+			require.Equal(t, dtoMetric.GetCounter().GetValue(), errorCount)
+			break
 		}
 	}
 
-	// ensure test fails if map telemetry not found
-	require.True(t, sharedMapFound)
+	return testComplete
+}
 
+func TestSharedMapsTelemetry(t *testing.T) {
+	skipTestIfEBPFTelemetryNotSupported(t)
+
+	mapsTelemetry := triggerTestAndGetTelemetry(t)
+	require.True(t, testSharedMaps(t, mapsTelemetry, float64(1), "shared_map", "m1"))
+	require.True(t, testSharedMaps(t, mapsTelemetry, float64(3), "shared_map", "m2"))
 }

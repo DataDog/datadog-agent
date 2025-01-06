@@ -29,6 +29,15 @@ int kprobe__vfs_open(int *ctx) {
     char buf[16];
     bpf_probe_read_with_telemetry(&buf, 16, (void *)0xdeadbeef);
 
+    u32 j = 1;
+    u32* val = bpf_map_lookup_elem(&shared_map, &j);
+    if (val == NULL) {
+        bpf_map_update_with_telemetry(shared_map, &j, &j, BPF_ANY);
+        j++;
+
+        bpf_map_update_with_telemetry(shared_map, &j, &j, BPF_ANY);
+    }
+
     return 0;
 }
 
@@ -43,7 +52,9 @@ int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
         return 0;
     }
 
-    u32 i = 0;
+    // we must start updating from a value we know does not exist in the map already
+    // from the call to `kprobe__vs_open`
+    u32 i = 0xabcd;
     bpf_map_update_with_telemetry(shared_map, &i, &i, BPF_ANY);
     i++;
     bpf_map_update_with_telemetry(shared_map, &i, &i, BPF_ANY);
