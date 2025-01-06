@@ -33,10 +33,13 @@ func getTraceroute(client *http.Client, clientID string, host string, port uint1
 
 	req.Header.Set("Accept", "application/json")
 	resp, err := client.Do(req)
+	// https://www.ziccardi.net/blog/tips-and-tricks/the-good-way-to-close-a-response-body
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusBadRequest {
 		body, err := sysprobeclient.ReadAllResponseBody(resp)
