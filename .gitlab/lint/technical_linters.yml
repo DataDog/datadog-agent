@@ -64,4 +64,4 @@ validate_modules:
 lint_python_type_check:
   extends: .lint
   script:
-    - inv python-type-check.run    
+    - inv linter.python-type-check    
