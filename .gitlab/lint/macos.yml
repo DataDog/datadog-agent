@@ -20,11 +20,7 @@ lint_macos_gitlab_amd64:
   # Retry when it is not possible to extract the dependencies
   retry:
     max: 2
-    when:
-      - script_failure:
-        exit_codes:
-        - 101
-  parallel: 50
+    exit_codes: 101
 
 lint_macos_gitlab_arm64:
   extends: .lint_macos_gitlab
