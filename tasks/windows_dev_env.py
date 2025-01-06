@@ -76,19 +76,12 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
         )
         if result is None or not result:
             raise Exception("Failed to create the Windows development environment.")
-        # Find pulumi output in stdout
-        connection_message_prefix = "You can run the following command to connect to the host `ssh "
-        connection_message_suffix = "`."
-
-        pulumi_output_start_index = result.stdout.find(connection_message_prefix)
-        if pulumi_output_start_index == -1:
+        connection_message_regex = re.compile(r"`ssh ([^@]+@\d+.\d+.\d+.\d+ [^`]+)`"
+        match = connection_message_regex.search(result.stdout)
+        if match:
+            connection_message = match.group(1)
+        else:
             raise Exception("Failed to find pulumi output in stdout.")
-        pulumi_output_end_index = result.stdout.find(connection_message_suffix, pulumi_output_start_index)
-        if pulumi_output_end_index == -1:
-            raise Exception("Failed to find pulumi output end in stdout.")
-        connection_message = result.stdout[
-            pulumi_output_start_index + len(connection_message_prefix) : pulumi_output_end_index
-        ]
         print(f"Pulumi output:\n============\n{connection_message}\n============\n")
         # extract username and address from connection message
         host = connection_message.split()[0]
