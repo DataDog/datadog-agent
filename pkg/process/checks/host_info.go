@@ -144,7 +144,7 @@ func getHostnameFromCmd(ddAgentBin string, cmdFn cmdFunc) (string, error) {
 }
 
 // getHostnameFromGRPC retrieves the hostname from the main datadog agent via GRPC
-func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Context, address, port string, opts ...grpc.DialOption) (pb.AgentClient, error), grpcConnectionTimeout time.Duration) (string, error) {
+func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(address, port string, opts ...grpc.DialOption) (pb.AgentClient, error), grpcConnectionTimeout time.Duration) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, grpcConnectionTimeout)
 	defer cancel()
 
@@ -153,7 +153,7 @@ func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Cont
 		return "", err
 	}
 
-	ddAgentClient, err := grpcClientFn(ctx, ipcAddress, pkgconfigsetup.GetIPCPort())
+	ddAgentClient, err := grpcClientFn(ipcAddress, pkgconfigsetup.GetIPCPort())
 	if err != nil {
 		return "", fmt.Errorf("cannot connect to datadog agent via grpc: %w", err)
 	}
