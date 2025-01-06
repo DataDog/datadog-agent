@@ -380,6 +380,16 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 		return fmt.Errorf("snapshot failed for %d: couldn't parse container and cgroup context: %w", proc.Pid, err)
 	}
 
+	if cgroup.CGroupFile.Inode != 0 && cgroup.CGroupFile.MountID == 0 { // the mount id is unavailable through statx
+		// Get the file fields of the cgroup.procs file
+		info, err := p.retrieveExecFileFields(cgroupProcsPath)
+		if err != nil {
+			seclog.Debugf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
+		} else {
+			cgroup.CGroupFile.MountID = info.MountID
+		}
+	}
+
 	entry.ContainerID = containerID
 
 	entry.CGroup = cgroup
@@ -391,16 +401,6 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	// force mount from procfs/snapshot
 	entry.FileEvent.MountOrigin = model.MountOriginProcfs
 	entry.FileEvent.MountSource = model.MountSourceSnapshot
-
-	if entry.Process.CGroup.CGroupFile.MountID == 0 {
-		// Get the file fields of the cgroup.procs file
-		info, err := p.retrieveExecFileFields(cgroupProcsPath)
-		if err != nil {
-			seclog.Debugf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
-		} else {
-			entry.Process.CGroup.CGroupFile.MountID = info.MountID
-		}
-	}
 
 	if entry.FileEvent.IsFileless() {
 		entry.FileEvent.Filesystem = model.TmpFS

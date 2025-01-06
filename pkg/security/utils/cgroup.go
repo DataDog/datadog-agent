@@ -197,12 +197,15 @@ var defaultCGroupMountpoints = []string{
 	"/sys/fs/cgroup/unified",
 }
 
+// ErrNoCGroupMountpoint is returned when no cgroup mount point is found
 var ErrNoCGroupMountpoint = errors.New("no cgroup mount point found")
 
+// CGroupFS is a helper type used to find the cgroup context of a process
 type CGroupFS struct {
 	cGroupMountPoints []string
 }
 
+// NewCGroupFS creates a new CGroupFS instance
 func NewCGroupFS(cgroupMountPoints ...string) *CGroupFS {
 	cfs := &CGroupFS{}
 
@@ -223,6 +226,8 @@ func NewCGroupFS(cgroupMountPoints ...string) *CGroupFS {
 	return cfs
 }
 
+// FindCGroupContext returns the container ID, cgroup context and cgroup.procs file path the process belongs to.
+// Returns "" as container ID and cgroup.procs path, and an empty CGroupContext if the process does not belong to a container.
 func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.ContainerID, model.CGroupContext, string, error) {
 	if len(cfs.cGroupMountPoints) == 0 {
 		return "", model.CGroupContext{}, "", ErrNoCGroupMountpoint
@@ -234,7 +239,7 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 		cgroupProcsPath string
 	)
 
-	err := parseProcControlGroups(tgid, pid, func(id, ctrl, path string) bool {
+	err := parseProcControlGroups(tgid, pid, func(_, ctrl, path string) bool {
 		if path == "/" {
 			return false
 		} else if ctrl != "" && !strings.HasPrefix(ctrl, "name=") {
