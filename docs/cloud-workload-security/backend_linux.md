@@ -94,6 +94,12 @@ CSM Threats event for Linux systems have the following JSON schema:
                 },
                 "origin": {
                     "type": "string"
+                },
+                "kernel_version": {
+                    "type": "string"
+                },
+                "distribution": {
+                    "type": "string"
                 }
             },
             "additionalProperties": false,
@@ -1609,6 +1615,12 @@ CSM Threats event for Linux systems have the following JSON schema:
                 },
                 "mount": {
                     "$ref": "#/$defs/SyscallArgs"
+                },
+                "mkdir": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "rmdir": {
+                    "$ref": "#/$defs/SyscallArgs"
                 }
             },
             "additionalProperties": false,
@@ -1940,6 +1952,12 @@ CSM Threats event for Linux systems have the following JSON schema:
             "type": "string"
         },
         "origin": {
+            "type": "string"
+        },
+        "kernel_version": {
+            "type": "string"
+        },
+        "distribution": {
             "type": "string"
         }
     },
@@ -4193,6 +4211,12 @@ CSM Threats event for Linux systems have the following JSON schema:
             "$ref": "#/$defs/SyscallArgs"
         },
         "mount": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "mkdir": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "rmdir": {
             "$ref": "#/$defs/SyscallArgs"
         }
     },

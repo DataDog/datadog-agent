@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Module defines the fx options for this component.
@@ -56,7 +56,7 @@ type rcClient struct {
 	taskListeners     []types.RCAgentTaskListener
 	settingsComponent settings.Component
 	config            configcomp.Component
-	sysprobeConfig    optional.Option[sysprobeconfig.Component]
+	sysprobeConfig    option.Option[sysprobeconfig.Component]
 	isSystemProbe     bool
 }
 
@@ -71,7 +71,7 @@ type dependencies struct {
 	TaskListeners     []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 	SettingsComponent settings.Component
 	Config            configcomp.Component
-	SysprobeConfig    optional.Option[sysprobeconfig.Component]
+	SysprobeConfig    option.Option[sysprobeconfig.Component]
 }
 
 // newRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by
@@ -168,6 +168,10 @@ func (rc rcClient) start() {
 	}
 }
 
+// mrfUpdateCallback is the callback function for the AGENT_FAILOVER configs.
+// It fetches all the configs targeting the agent and applies the failover settings
+// using an OR strategy. In case of nil the value is not updated, for a false it does not update if
+// the setting is already set to true.
 func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	// If the updates map is empty, we should unset the failover settings if they were set via RC previously
 	if len(updates) == 0 {
@@ -188,8 +192,13 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 		return
 	}
 
-	applied := false
+	var enableLogs, enableMetrics *bool
+	var enableLogsCfgPth, enableMetricsCfgPth string
 	for cfgPath, update := range updates {
+		if (enableLogs != nil && *enableLogs) && (enableMetrics != nil && *enableMetrics) {
+			break
+		}
+
 		mrfUpdate, err := parseMultiRegionFailoverConfig(update.Config)
 		if err != nil {
 			pkglog.Errorf("Multi-Region Failover update unmarshal failed: %s", err)
@@ -200,42 +209,55 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 			continue
 		}
 
-		if mrfUpdate != nil && (mrfUpdate.FailoverMetrics != nil || mrfUpdate.FailoverLogs != nil) {
-			// If we've received multiple config files updating the failover settings, we should disregard all but the first update and log it, as this is unexpected
-			if applied {
-				pkglog.Warnf("Multiple Multi-Region Failover updates received, disregarding update of `multi_region_failover.failover_metrics` to %v and `multi_region_failover.failover_logs` to %v", mrfUpdate.FailoverMetrics, mrfUpdate.FailoverLogs)
-				applyStateCallback(cfgPath, state.ApplyStatus{
-					State: state.ApplyStateError,
-					Error: "Multiple Multi-Region Failover updates received. Only the first was applied.",
-				})
-				continue
-			}
-
-			if mrfUpdate.FailoverMetrics != nil {
-				err = rc.applyMRFRuntimeSetting("multi_region_failover.failover_metrics", *mrfUpdate.FailoverMetrics, cfgPath, applyStateCallback)
-				if err != nil {
-					continue
-				}
-				change := "disabled"
-				if *mrfUpdate.FailoverMetrics {
-					change = "enabled"
-				}
-				pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for metrics", change)
-			}
-			if mrfUpdate.FailoverLogs != nil {
-				err = rc.applyMRFRuntimeSetting("multi_region_failover.failover_logs", *mrfUpdate.FailoverLogs, cfgPath, applyStateCallback)
-				if err != nil {
-					continue
-				}
-				change := "disabled"
-				if *mrfUpdate.FailoverLogs {
-					change = "enabled"
-				}
-				pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for logs", change)
-			}
-			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-			applied = true
+		if mrfUpdate == nil || (mrfUpdate.FailoverMetrics == nil && mrfUpdate.FailoverLogs == nil) {
+			continue
 		}
+
+		if !(enableMetrics != nil && *enableMetrics) && mrfUpdate.FailoverMetrics != nil {
+			enableMetrics = mrfUpdate.FailoverMetrics
+			enableMetricsCfgPth = cfgPath
+		}
+
+		if !(enableLogs != nil && *enableLogs) && mrfUpdate.FailoverLogs != nil {
+			enableLogs = mrfUpdate.FailoverLogs
+			enableLogsCfgPth = cfgPath
+		}
+	}
+
+	if enableMetrics != nil {
+		err := rc.applyMRFRuntimeSetting("multi_region_failover.failover_metrics", *enableMetrics, enableMetricsCfgPth, applyStateCallback)
+		if err != nil {
+			pkglog.Errorf("Multi-Region Failover failed to apply new metrics settings : %s", err)
+			applyStateCallback(enableMetricsCfgPth, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+			return
+		}
+		change := "disabled"
+		if *enableMetrics {
+			change = "enabled"
+		}
+		pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for metrics", change)
+		applyStateCallback(enableMetricsCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+	}
+
+	if enableLogs != nil {
+		err := rc.applyMRFRuntimeSetting("multi_region_failover.failover_logs", *enableLogs, enableLogsCfgPth, applyStateCallback)
+		if err != nil {
+			pkglog.Errorf("Multi-Region Failover failed to apply new logs settings : %s", err)
+			applyStateCallback(enableMetricsCfgPth, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+			return
+		}
+		change := "disabled"
+		if *enableLogs {
+			change = "enabled"
+		}
+		pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for logs", change)
+		applyStateCallback(enableLogsCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 }
 

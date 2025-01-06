@@ -35,7 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -108,8 +108,8 @@ func MakeCommand() *cobra.Command {
 					defaultpaths.StreamlogsLogFile,
 				)),
 				noopAutodiscover.Module(),
-				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
-				fx.Supply(optional.NewNoneOption[collector.Component]()),
+				fx.Supply(option.None[workloadmeta.Component]()),
+				fx.Supply(option.None[collector.Component]()),
 				compressionfx.Module(),
 				diagnosesendermanagerimpl.Module(),
 				nooptagger.Module(),

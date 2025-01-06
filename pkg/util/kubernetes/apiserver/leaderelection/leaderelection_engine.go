@@ -154,7 +154,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 		OnStartedLeading: func(context.Context) {
 			le.updateLeaderIdentity(le.HolderIdentity)
 			le.reportLeaderMetric(true)
-			le.notify()
+			le.notify() // current process gained leadership
 			log.Infof("Started leading as %q...", le.HolderIdentity)
 		},
 		// OnStoppedLeading shouldn't be called unless the election is lost. This could happen if
@@ -162,6 +162,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 		OnStoppedLeading: func() {
 			le.updateLeaderIdentity("")
 			le.reportLeaderMetric(false)
+			le.notify() // current process lost leadership
 			log.Infof("Stopped leading %q", le.HolderIdentity)
 		},
 	}
@@ -219,14 +220,18 @@ func (le *LeaderEngine) reportLeaderMetric(isLeader bool) {
 	le.leaderMetric.Set(1.0, metrics.JoinLeaderValue, strconv.FormatBool(isLeader))
 }
 
-// notify sends a notification to subscribers when the current process becomes leader.
-// notify is a simplistic notifier but can be extended to send different notification
-// kinds (leadership acquisition / loss) in the future if needed.
+// notify sends a notification to subscribers when the leadership state of the current
+// process changes
 func (le *LeaderEngine) notify() {
 	le.m.Lock()
 	defer le.m.Unlock()
 
 	for _, s := range le.subscribers {
+		if len(s) > 0 {
+			// subscriber already notified about the change in leadership state
+			continue
+		}
+
 		s <- struct{}{}
 	}
 }

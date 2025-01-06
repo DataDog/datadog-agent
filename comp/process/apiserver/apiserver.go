@@ -7,7 +7,9 @@ package apiserver
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
+	"net"
 	"net/http"
 	"time"
 
@@ -60,14 +62,18 @@ func newApiServer(deps dependencies) Component {
 			ReadTimeout:  timeout,
 			WriteTimeout: timeout,
 			IdleTimeout:  timeout,
-			TLSConfig:    deps.At.GetTLSServerConfig(),
 		},
 	}
 
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
+			ln, err := net.Listen("tcp", addr)
+			if err != nil {
+				return err
+			}
 			go func() {
-				err := apiserver.server.ListenAndServe()
+				tlsListener := tls.NewListener(ln, deps.At.GetTLSServerConfig())
+				err = apiserver.server.Serve(tlsListener)
 				if err != nil && !errors.Is(err, http.ErrServerClosed) {
 					_ = deps.Log.Error(err)
 				}

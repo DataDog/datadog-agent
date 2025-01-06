@@ -59,7 +59,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"go.uber.org/fx"
 )
@@ -112,15 +112,9 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			}),
 			logfx.Module(),
 			fetchonlyimpl.Module(),
-			// TODO: don't rely on this pattern; remove this `OptionalModuleWithParams` thing
-			//       and instead adapt OptionalModule to allow parameter passing naturally.
-			//       See: https://github.com/DataDog/datadog-agent/pull/28386
-			configsyncimpl.OptionalModuleWithParams(),
-			fx.Provide(func() configsyncimpl.Params {
-				return configsyncimpl.NewParams(params.SyncTimeout, params.SyncDelay, true)
-			}),
+			configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 			converterfx.Module(),
-			fx.Provide(func(cp converter.Component, _ optional.Option[configsync.Component]) confmap.Converter {
+			fx.Provide(func(cp converter.Component, _ configsync.Component) confmap.Converter {
 				return cp
 			}),
 			collectorcontribFx.Module(),
@@ -188,16 +182,10 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		}),
 		fx.Provide(newOrchestratorinterfaceimpl),
 		fx.Options(opts...),
-		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ optional.Option[logsagentpipeline.Component]) {
+		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component]) {
 		}),
 
-		// TODO: don't rely on this pattern; remove this `OptionalModuleWithParams` thing
-		//       and instead adapt OptionalModule to allow parameter passing naturally.
-		//       See: https://github.com/DataDog/datadog-agent/pull/28386
-		configsyncimpl.OptionalModuleWithParams(),
-		fx.Provide(func() configsyncimpl.Params {
-			return configsyncimpl.NewParams(params.SyncTimeout, params.SyncDelay, true)
-		}),
+		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 
 		remoteTaggerFx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c coreconfig.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
@@ -218,7 +206,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 
 		// TODO: consider adding configsync.Component as an explicit dependency for traceconfig
 		//       to avoid this sort of dependency tree hack.
-		fx.Provide(func(deps traceconfig.Dependencies, _ optional.Option[configsync.Component]) (traceconfig.Component, error) {
+		fx.Provide(func(deps traceconfig.Dependencies, _ configsync.Component) (traceconfig.Component, error) {
 			// TODO: this would be much better if we could leverage traceconfig.Module
 			//       Must add a new parameter to traconfig.Module to handle this.
 			return traceconfig.NewConfig(deps)
@@ -236,13 +224,13 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 
 // ForwarderBundle returns the fx.Option for the forwarder bundle.
 // TODO: cleanup the forwarder instantiation with fx.
-// This is a bit of a hack because we need to enforce optional.Option[configsync.Component]
+// This is a bit of a hack because we need to enforce configsync.Component
 // is passed to newForwarder to enforce the correct instantiation order. Currently, the
 // new forwarder.BundleWithProvider makes a few assumptions in its generic prototype, and
 // this is the current workaround to leverage it.
 func ForwarderBundle() fx.Option {
 	return defaultforwarder.ModulWithOptionTMP(
-		fx.Provide(func(_ optional.Option[configsync.Component]) defaultforwarder.Params {
+		fx.Provide(func(_ configsync.Component) defaultforwarder.Params {
 			return defaultforwarder.NewParams()
 		}))
 }

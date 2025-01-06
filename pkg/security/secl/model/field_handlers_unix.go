@@ -534,6 +534,12 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Mkdir.File)
 		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mkdir.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Mkdir.SyscallContext)
+		}
 	case "mmap":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.MMap.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.MMap.File.FileFields)
@@ -852,6 +858,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Rmdir.File)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rmdir.File)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rmdir.SyscallContext)
 		}
 	case "selinux":
 		_ = ev.FieldHandlers.ResolveSELinuxBoolName(ev, &ev.SELinux)
