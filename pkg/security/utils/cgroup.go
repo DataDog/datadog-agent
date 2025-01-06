@@ -197,6 +197,8 @@ var defaultCGroupMountpoints = []string{
 	"/sys/fs/cgroup/unified",
 }
 
+var ErrNoCGroupMountpoint = errors.New("no cgroup mount point found")
+
 type CGroupFS struct {
 	cGroupMountPoints []string
 }
@@ -223,7 +225,7 @@ func NewCGroupFS(cgroupMountPoints ...string) *CGroupFS {
 
 func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.ContainerID, model.CGroupContext, string, error) {
 	if len(cfs.cGroupMountPoints) == 0 {
-		return "", model.CGroupContext{}, "", errors.New("no cgroup mount point found")
+		return "", model.CGroupContext{}, "", ErrNoCGroupMountpoint
 	}
 
 	var (
