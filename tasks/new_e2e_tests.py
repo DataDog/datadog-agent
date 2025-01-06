@@ -11,6 +11,7 @@ import os.path
 import re
 import shutil
 import tempfile
+from collections import defaultdict
 from pathlib import Path
 
 import yaml
@@ -24,6 +25,7 @@ from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import REPO_PATH, color_message, gitlab_section, running_in_ci
+from tasks.testwasher import TestWasher
 from tasks.tools.e2e_stacks import destroy_remote_stack
 
 
@@ -176,9 +178,8 @@ def run(
 
     if logs_post_processing:
         if len(test_res) == 1:
-            print(test_res[0].result_json_path)
-            with open(test_res[0].result_json_path) as f:
-                print(f.read())
+            washer = TestWasher(test_res[0].result_json_path, 'flakes.yml')
+            _, marked_flaky_tests = washer.parse_test_results('.')
             post_processed_output = post_process_output(
                 test_res[0].result_json_path, test_depth=logs_post_processing_test_depth
             )
@@ -186,7 +187,7 @@ def run(
             os.makedirs(logs_folder, exist_ok=True)
             write_result_to_log_files(post_processed_output, logs_folder)
             try:
-                pretty_print_logs(post_processed_output)
+                pretty_print_logs(post_processed_output, marked_flaky_tests)
             except TooManyLogsError:
                 print(
                     color_message("WARNING", "yellow")
@@ -359,7 +360,7 @@ class TooManyLogsError(Exception):
     pass
 
 
-def pretty_print_logs(logs_per_test, max_size=250000):
+def pretty_print_test_logs(logs_per_test, max_size):
     # Compute size in bytes of what we are about to print. If it exceeds max_size, we skip printing because it will make the Gitlab logs almost completely collapsed.
     # By default Gitlab has a limit of 500KB per job log, so we want to avoid printing too much.
     size = 0
@@ -373,6 +374,24 @@ def pretty_print_logs(logs_per_test, max_size=250000):
             with gitlab_section("Complete logs for " + package + "." + test, collapsed=True):
                 print("Complete logs for " + package + "." + test)
                 print("".join(logs))
+
+    return size
+
+
+def pretty_print_logs(logs_per_test, marked_flaky_tests, max_size=250000):
+    # Split flaky / non flaky tests
+    flaky_logs = defaultdict(dict)
+    non_flaky_logs = defaultdict(dict)
+    for package, tests in logs_per_test.items():
+        package_flaky = marked_flaky_tests.get(package, set())
+        for test_name, logs in tests.items():
+            logs_dict = flaky_logs if test_name in package_flaky else non_flaky_logs
+            logs_dict[package][test_name] = logs
+
+    # Print non flaky tests first
+    size = pretty_print_test_logs(non_flaky_logs, max_size)
+    # Print flaky tests if we have enough space
+    pretty_print_test_logs(flaky_logs, max_size - size)
 
 
 @task
