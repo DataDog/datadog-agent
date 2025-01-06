@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -49,8 +49,8 @@ type CRICheck struct {
 }
 
 // Factory is exported for integration testing
-func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory(store workloadmeta.Component, tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return &CRICheck{
 			CheckBase: core.NewCheckBase(CheckName),
 			instance:  &CRIConfig{},
@@ -84,7 +84,7 @@ func (c *CRICheck) Configure(senderManager sender.SenderManager, _ uint64, confi
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
-	c.processor = generic.NewProcessor(metrics.GetProvider(optional.NewOption(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(containerFilter, c.store), c.tagger)
+	c.processor = generic.NewProcessor(metrics.GetProvider(option.New(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(containerFilter, c.store), c.tagger)
 	if c.instance.CollectDisk {
 		c.processor.RegisterExtension("cri-custom-metrics", &criCustomMetricsExtension{criGetter: func() (cri.CRIClient, error) {
 			return cri.GetUtil()

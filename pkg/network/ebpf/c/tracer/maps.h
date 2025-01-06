@@ -132,4 +132,7 @@ BPF_HASH_MAP(tcp_close_args, __u64, conn_tuple_t, 1024)
 // by using tail call.
 BPF_PROG_ARRAY(tcp_close_progs, 1)
 
+// Map to store extra information about TLS connections like version, cipher, etc.
+BPF_HASH_MAP(tls_enhanced_tags, conn_tuple_t, tls_info_wrapper_t, 0)
+
 #endif

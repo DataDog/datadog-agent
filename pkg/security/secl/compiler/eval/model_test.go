@@ -650,116 +650,116 @@ func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 	return nil, &ErrFieldNotFound{Field: field}
 }
 
-func (e *testEvent) GetFieldEventType(field Field) (string, error) {
+func (e *testEvent) GetFieldMetadata(field Field) (string, reflect.Kind, error) {
 	switch field {
 
 	case "network.ip":
 
-		return "network", nil
+		return "network", reflect.Struct, nil
 
 	case "network.ips":
 
-		return "network", nil
+		return "network", reflect.Array, nil
 
 	case "network.cidr":
 
-		return "network", nil
+		return "network", reflect.Struct, nil
 
 	case "network.cidrs":
 
-		return "network", nil
+		return "network", reflect.Array, nil
 
 	case "process.name":
 
-		return "", nil
+		return "", reflect.String, nil
 
 	case "process.argv0":
 
-		return "", nil
+		return "", reflect.String, nil
 
 	case "process.uid":
 
-		return "", nil
+		return "", reflect.Int, nil
 
 	case "process.gid":
 
-		return "", nil
+		return "", reflect.Int, nil
 
 	case "process.pid":
 
-		return "", nil
+		return "", reflect.Int, nil
 
 	case "process.is_root":
 
-		return "", nil
+		return "", reflect.Bool, nil
 
 	case "process.list.key":
 
-		return "", nil
+		return "", reflect.Int, nil
 
 	case "process.list.value":
 
-		return "", nil
+		return "", reflect.String, nil
 
 	case "process.list.flag":
 
-		return "", nil
+		return "", reflect.Bool, nil
 
 	case "process.array.key":
 
-		return "", nil
+		return "", reflect.Int, nil
 
 	case "process.array.value":
 
-		return "", nil
+		return "", reflect.String, nil
 
 	case "process.array.flag":
 
-		return "", nil
+		return "", reflect.Bool, nil
 
 	case "process.created_at":
 
-		return "", nil
+		return "", reflect.Int, nil
 
 	case "process.or_name":
 
-		return "", nil
+		return "", reflect.String, nil
 
 	case "process.or_array.value":
 
-		return "", nil
+		return "", reflect.String, nil
 
 	case "open.filename":
 
-		return "open", nil
+		return "open", reflect.String, nil
 
 	case "retval":
 
-		return "", nil
+		return "", reflect.Int, nil
 
 	case "open.flags":
 
-		return "open", nil
+		return "open", reflect.Int, nil
 
 	case "open.mode":
 
-		return "open", nil
+		return "open", reflect.Int, nil
 
 	case "open.opened_at":
 
-		return "open", nil
+		return "open", reflect.Int, nil
 
 	case "mkdir.filename":
 
-		return "mkdir", nil
+		return "mkdir", reflect.String, nil
 
 	case "mkdir.mode":
 
-		return "mkdir", nil
+		return "mkdir", reflect.Int, nil
 
 	}
 
-	return "", &ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, &ErrFieldNotFound{Field: field}
 }
 
 func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
@@ -857,96 +857,6 @@ func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 	}
 
 	return &ErrFieldNotFound{Field: field}
-}
-
-func (e *testEvent) GetFieldType(field Field) (reflect.Kind, error) {
-	switch field {
-
-	case "network.ip":
-
-		return reflect.Struct, nil
-
-	case "network.ips":
-
-		return reflect.Array, nil
-
-	case "network.cidr":
-
-		return reflect.Struct, nil
-
-	case "network.cidrs":
-
-		return reflect.Array, nil
-
-	case "process.name":
-
-		return reflect.String, nil
-
-	case "process.argv0":
-
-		return reflect.String, nil
-
-	case "process.uid":
-
-		return reflect.Int, nil
-
-	case "process.gid":
-
-		return reflect.Int, nil
-
-	case "process.pid":
-
-		return reflect.Int, nil
-
-	case "process.is_root":
-
-		return reflect.Bool, nil
-
-	case "process.list.key":
-		return reflect.Int, nil
-
-	case "process.list.value":
-		return reflect.Int, nil
-
-	case "process.list.flag":
-		return reflect.Bool, nil
-
-	case "process.array.key":
-		return reflect.Int, nil
-
-	case "process.array.value":
-		return reflect.String, nil
-
-	case "process.array.flag":
-		return reflect.Bool, nil
-
-	case "open.filename":
-
-		return reflect.String, nil
-
-	case "retval":
-
-		return reflect.Int, nil
-
-	case "open.flags":
-
-		return reflect.Int, nil
-
-	case "open.mode":
-
-		return reflect.Int, nil
-
-	case "mkdir.filename":
-
-		return reflect.String, nil
-
-	case "mkdir.mode":
-
-		return reflect.Int, nil
-
-	}
-
-	return reflect.Invalid, &ErrFieldNotFound{Field: field}
 }
 
 var testConstants = map[string]interface{}{

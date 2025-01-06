@@ -435,23 +435,36 @@ static __always_inline void pktbuf_fix_header_frame(pktbuf_t pkt, char *out, inc
     return;
 }
 
+// Reads a frame from the packet, and reports if it's a valid frame.
+static __always_inline bool read_frame(pktbuf_t pkt, http2_frame_t *current_frame) {
+    // Checking we have enough bytes in the packet to read a frame header.
+    if (pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
+        // Not enough bytes, cannot read frame, so we have 0 interesting frames in that packet.
+        return false;
+    }
+
+    // Reading frame, and ensuring the frame is valid.
+    pktbuf_load_bytes_from_current_offset(pkt, (char *)current_frame, HTTP2_FRAME_HEADER_SIZE);
+    pktbuf_advance(pkt, HTTP2_FRAME_HEADER_SIZE);
+    return format_http2_frame_header(current_frame);
+}
+
+// Fixes an incomplete frame header. The function is trying to read the remaining of a split frame header.
+static __always_inline bool fix_incomplete_frame_header(pktbuf_t pkt, incomplete_frame_t *incomplete_frame, http2_frame_t *current_frame) {
+    pktbuf_fix_header_frame(pkt, (char*)current_frame, incomplete_frame);
+    bool res = false;
+    if (format_http2_frame_header(current_frame)) {
+        pktbuf_advance(pkt, incomplete_frame->remainder);
+        res = true;
+    }
+    incomplete_frame->remainder = 0;
+    return res;
+}
+
 static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, incomplete_frame_t *incomplete_frame, http2_frame_t *current_frame) {
     // Attempting to read the initial frame in the packet, or handling a state where there is no remainder and finishing reading the current frame.
     if (incomplete_frame == NULL) {
-        // Checking we have enough bytes in the packet to read a frame header.
-        if (pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
-            // Not enough bytes, cannot read frame, so we have 0 interesting frames in that packet.
-            return false;
-        }
-
-        // Reading frame, and ensuring the frame is valid.
-        pktbuf_load_bytes_from_current_offset(pkt, (char *)current_frame, HTTP2_FRAME_HEADER_SIZE);
-        pktbuf_advance(pkt, HTTP2_FRAME_HEADER_SIZE);
-        if (!format_http2_frame_header(current_frame)) {
-            // Frame is not valid, so we have 0 interesting frames in that packet.
-            return false;
-        }
-        return true;
+        return read_frame(pkt, current_frame);
     }
 
     // Getting here means we have a frame state from the previous packets.
@@ -477,15 +490,7 @@ static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, incomplete_fram
         return true;
     }
     if (incomplete_frame->header_length > 0) {
-        pktbuf_fix_header_frame(pkt, (char*)current_frame, incomplete_frame);
-        if (format_http2_frame_header(current_frame)) {
-            pktbuf_advance(pkt, incomplete_frame->remainder);
-            incomplete_frame->remainder = 0;
-            return true;
-        }
-        incomplete_frame->remainder = 0;
-        // We couldn't read frame header using the remainder.
-        return false;
+        return fix_incomplete_frame_header(pkt, incomplete_frame, current_frame);
     }
 
     // We failed to read a frame, if we have a remainder trying to consume it and read the following frame.
@@ -617,11 +622,6 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
     pktbuf_skip_preface(pkt);
     if (pktbuf_data_offset(pkt) == pktbuf_data_end(pkt)) {
         // Abort early if we reached to the end of the frame (a.k.a having only the HTTP2 magic in the packet).
-        return;
-    }
-
-    http2_telemetry_t *http2_tel = get_telemetry(pkt);
-    if (http2_tel == NULL) {
         return;
     }
 

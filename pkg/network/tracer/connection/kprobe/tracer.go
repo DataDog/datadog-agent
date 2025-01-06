@@ -56,8 +56,8 @@ var (
 )
 
 // ClassificationSupported returns true if the current kernel version supports the classification feature.
-// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the socket
-// filter, and a tracepoint (4.7.0+)
+// The kernel has to be newer than 4.11.0 since we are using bpf_skb_load_bytes (4.5.0+) method which was added to
+// socket filters in 4.11.0, and a tracepoint (4.7.0+)
 func ClassificationSupported(config *config.Config) bool {
 	if !config.ProtocolClassificationEnabled {
 		return false
@@ -233,7 +233,7 @@ func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEve
 	var closeFn func()
 	var err error
 	err = ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
-		o.RLimit = mgrOpts.RLimit
+		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod
