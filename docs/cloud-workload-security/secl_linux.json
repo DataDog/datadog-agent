@@ -3402,6 +3402,16 @@
           "name": "mkdir.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "mkdir.syscall.mode",
+          "definition": "Mode of the new directory",
+          "property_doc_link": "mkdir-syscall-mode-doc"
+        },
+        {
+          "name": "mkdir.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "mkdir-syscall-path-doc"
         }
       ]
     },
@@ -5523,6 +5533,11 @@
           "name": "rmdir.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "rmdir.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "rmdir-syscall-path-doc"
         }
       ]
     },
@@ -10265,6 +10280,30 @@
       "examples": []
     },
     {
+      "name": "mkdir.syscall.mode",
+      "link": "mkdir-syscall-mode-doc",
+      "type": "int",
+      "definition": "Mode of the new directory",
+      "prefixes": [
+        "mkdir"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mkdir.syscall.path",
+      "link": "mkdir-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "mkdir"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "mmap.flags",
       "link": "mmap-flags-doc",
       "type": "int",
@@ -10511,6 +10550,18 @@
       "definition": "Path argument of the syscall",
       "prefixes": [
         "rename"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "rmdir.syscall.path",
+      "link": "rmdir-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "rmdir"
       ],
       "constants": "",
       "constants_link": "",

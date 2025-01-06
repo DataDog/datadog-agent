@@ -8,6 +8,7 @@ package windowseventlogimpl
 
 import (
 	"context"
+
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
@@ -16,7 +17,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Module defines the fx options for this component.
@@ -31,7 +32,7 @@ type dependencies struct {
 
 	// Logs Agent component, used to send integration logs
 	// It is optional because the Logs Agent can be disabled
-	LogsComponent optional.Option[logsAgent.Component]
+	LogsComponent option.Option[logsAgent.Component]
 	Config        configComponent.Component
 
 	Lifecycle fx.Lifecycle
