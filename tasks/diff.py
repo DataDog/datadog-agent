@@ -235,6 +235,29 @@ def patch_summary(diff):
     return add_count, remove_count
 
 
+def _list_invoke_tasks(ctx) -> dict[str, str]:
+    """Returns a dictionary of invoke tasks and their descriptions."""
+
+    tasks = json.loads(ctx.run('invoke --list -F json', hide=True).stdout)
+
+    def get_tasks_rec(collection, prefix='', res=None):
+        res = res or {}
+
+        if isinstance(collection, dict):
+            newpref = prefix + collection['name']
+
+            for task in collection['tasks']:
+                res[newpref + '.' + task['name']] = task['help']
+
+            for subtask in collection['collections']:
+                get_tasks_rec(subtask, newpref + '.', res)
+
+        return res
+
+    # Remove 'tasks.' prefix
+    return {name.removeprefix(tasks['name'] + '.'): desc for name, desc in get_tasks_rec(tasks).items()}
+
+
 @task
 def invoke_tasks(ctx, diff_date: str | None = None):
     """Shows the added / removed invoke tasks since diff_date with their description.
@@ -242,26 +265,6 @@ def invoke_tasks(ctx, diff_date: str | None = None):
     Args:
         diff_date: The date to compare the tasks to ('YYYY-MM-DD' format). Will be the last 30 days if not provided.
     """
-
-    def get_tasks() -> dict[str, str]:
-        tasks = json.loads(ctx.run('invoke --list -F json', hide=True).stdout)
-
-        def get_tasks_rec(collection, prefix='', res=None):
-            res = res or {}
-
-            if isinstance(collection, dict):
-                newpref = prefix + collection['name']
-
-                for task in collection['tasks']:
-                    res[newpref + '.' + task['name']] = task['help']
-
-                for subtask in collection['collections']:
-                    get_tasks_rec(subtask, newpref + '.', res)
-
-            return res
-
-        # Remove 'tasks.' prefix
-        return {name.removeprefix(tasks['name'] + '.'): desc for name, desc in get_tasks_rec(tasks).items()}
 
     if not diff_date:
         diff_date = (datetime.datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
@@ -275,19 +278,25 @@ def invoke_tasks(ctx, diff_date: str | None = None):
     assert old_commit, f"No commit found before {diff_date}"
 
     with agent_context(ctx, commit=old_commit):
-        old_tasks = get_tasks()
-    current_tasks = get_tasks()
+        old_tasks = _list_invoke_tasks(ctx)
+    current_tasks = _list_invoke_tasks(ctx)
 
     all_tasks = set(old_tasks.keys()).union(current_tasks.keys())
     removed_tasks = {task for task in all_tasks if task not in current_tasks}
     added_tasks = {task for task in all_tasks if task not in old_tasks}
 
-    print(f'* {color_message("Removed tasks", Color.BOLD)}:')
-    print('\n'.join(sorted(f'- {name}' for name in removed_tasks)))
+    if removed_tasks:
+        print(f'* {color_message("Removed tasks", Color.BOLD)}:')
+        print('\n'.join(sorted(f'- {name}' for name in removed_tasks)))
+    else:
+        print('No task removed')
 
-    print(f'\n* {color_message("Added tasks", Color.BOLD)}:')
-    for name, description in sorted((name, current_tasks[name]) for name in added_tasks):
-        line = '+ ' + name
-        if description:
-            line += ': ' + description
-        print(line)
+    if added_tasks:
+        print(f'\n* {color_message("Added tasks", Color.BOLD)}:')
+        for name, description in sorted((name, current_tasks[name]) for name in added_tasks):
+            line = '+ ' + name
+            if description:
+                line += ': ' + description
+            print(line)
+    else:
+        print('No task added')
