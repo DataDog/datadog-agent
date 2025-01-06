@@ -21,10 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 )
 
-//go:embed testdata/instance.json
+//go:embed testdata/emrInstance.json
 var instanceJSON string
 
-//go:embed testdata/extraInstanceData.json
+//go:embed testdata/emrExtraInstanceData.json
 var extraInstanceJSON string
 
 //go:embed testdata/emrDescribeClusterResponse.json
