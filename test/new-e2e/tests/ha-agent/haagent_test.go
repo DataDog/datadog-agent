@@ -20,7 +20,7 @@ import (
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
 type haAgentTestSuite struct {
@@ -45,21 +45,6 @@ func (s *haAgentTestSuite) TestHaAgentRunningMetrics() {
 	fakeClient := s.Env().FakeIntake.Client()
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		s.T().Log("try assert datadog.agent.running metric")
-		metrics, err := fakeClient.FilterMetrics("datadog.agent.running")
-		require.NoError(c, err)
-		assert.NotEmpty(c, metrics)
-		for _, metric := range metrics {
-			s.T().Logf("    datadog.agent.running metric tags: %+v", metric.Tags)
-		}
-
-		tags := []string{"agent_group:test-group01"}
-		metrics, err = fakeClient.FilterMetrics("datadog.agent.running", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
-		require.NoError(c, err)
-		assert.NotEmpty(c, metrics)
-	}, 5*time.Minute, 3*time.Second)
-
-	s.EventuallyWithT(func(c *assert.CollectT) {
 		s.T().Log("try assert datadog.agent.ha_agent.running metric")
 		metrics, err := fakeClient.FilterMetrics("datadog.agent.ha_agent.running")
 		require.NoError(c, err)
@@ -68,7 +53,7 @@ func (s *haAgentTestSuite) TestHaAgentRunningMetrics() {
 			s.T().Logf("    datadog.agent.ha_agent.running metric tags: %+v", metric.Tags)
 		}
 
-		tags := []string{"agent_group:test-group01", "agent_state:unknown"}
+		tags := []string{"agent_state:unknown"}
 		metrics, err = fakeClient.FilterMetrics("datadog.agent.ha_agent.running", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
 		require.NoError(c, err)
 		assert.NotEmpty(c, metrics)

@@ -78,7 +78,7 @@ func (suite *ConfigTestSuite) TestAgentConfigDefaults() {
 	assert.Equal(t, 6, c.Get("logs_config.compression_level"))
 	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
-	assert.Equal(t, true, c.Get("otlp_config.traces.span_name_as_resource_name"))
+	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
 	assert.Equal(t, []string{"enable_receive_resource_spans_v2", "enable_operation_and_resource_name_logic_v2", "enable_otlp_compute_top_level_by_span_kind"},
 		c.Get("apm_config.features"))
 }
@@ -104,7 +104,7 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlDefaults() {
 	assert.Equal(t, 6, c.Get("logs_config.compression_level"))
 	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
-	assert.Equal(t, true, c.Get("otlp_config.traces.span_name_as_resource_name"))
+	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
 	assert.Equal(t, []string{"enable_receive_resource_spans_v2", "enable_operation_and_resource_name_logic_v2", "enable_otlp_compute_top_level_by_span_kind"}, c.Get("apm_config.features"))
 
 	// log_level from datadog.yaml takes precedence -> more verbose
@@ -203,7 +203,29 @@ func (suite *ConfigTestSuite) TestEnvBadLogLevel() {
 	fileName := "testdata/config_default.yaml"
 	ddFileName := "testdata/datadog_low_log_level.yaml"
 	_, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
-	assert.Error(t, err)
+	assert.EqualError(t, err, "invalid log level (yabadabadooo) set in the Datadog Agent configuration")
+}
+
+func (suite *ConfigTestSuite) TestEnvUpperCaseLogLevel() {
+	t := suite.T()
+	oldval, exists := os.LookupEnv("DD_LOG_LEVEL")
+	os.Unsetenv("DD_LOG_LEVEL")
+	defer func() {
+		if !exists {
+			os.Unsetenv("DD_LOG_LEVEL")
+		} else {
+			os.Setenv("DD_LOG_LEVEL", oldval)
+		}
+	}()
+	fileName := "testdata/config_default.yaml"
+	ddFileName := "testdata/datadog_uppercase_log_level.yaml"
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	if err != nil {
+		t.Errorf("Failed to load agent config: %v", err)
+	}
+
+	// log_level will be mapped to lowercase by code and set accordingly
+	assert.Equal(t, "info", c.Get("log_level"))
 }
 
 func (suite *ConfigTestSuite) TestBadDDConfigFile() {

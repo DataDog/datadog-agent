@@ -11,15 +11,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 
-	"path/filepath"
-
 	"github.com/DataDog/viper"
 	"go.uber.org/atomic"
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -128,12 +127,6 @@ type NodeTreeConfig interface {
 	GetNode(string) (Node, error)
 }
 
-func (c *ntmConfig) logErrorNotImplemented(method string) error {
-	err := fmt.Errorf("not implemented: %s", method)
-	log.Error(err)
-	return err
-}
-
 // OnUpdate adds a callback to the list of receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
 // Callbacks are only called if the value is effectively changed.
@@ -171,14 +164,14 @@ func (c *ntmConfig) getTreeBySource(source model.Source) (InnerNode, error) {
 	case model.SourceCLI:
 		return c.cli, nil
 	}
-	return nil, fmt.Errorf("unknown source tree: %s", source)
+	return nil, fmt.Errorf("invalid source tree: %s", source)
 }
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	tree, err := c.getTreeBySource(source)
 	if err != nil {
-		log.Errorf("unknown source: %s", source)
+		log.Errorf("Set invalid source: %s", source)
 		return
 	}
 
@@ -628,13 +621,17 @@ func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
 
+	if !c.isReady() {
+		return fmt.Errorf("attempt to MergeConfig before config is constructed")
+	}
+
 	content, err := io.ReadAll(in)
 	if err != nil {
 		return err
 	}
 
 	other := newInnerNode(nil)
-	if err = c.readConfigurationContent(other, content); err != nil {
+	if err = c.readConfigurationContent(other, model.SourceFile, content); err != nil {
 		return err
 	}
 
@@ -663,8 +660,17 @@ func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 	}
 	defer in.Close()
 
-	// TODO: Implement merging, merge in the policy that was read
-	return c.logErrorNotImplemented("MergeFleetPolicy")
+	content, err := io.ReadAll(in)
+	if err != nil {
+		return err
+	}
+
+	other := newInnerNode(nil)
+	if err = c.readConfigurationContent(other, model.SourceFleetPolicies, content); err != nil {
+		return err
+	}
+
+	return c.root.Merge(other)
 }
 
 // AllSettings returns all settings from the config
@@ -779,11 +785,6 @@ func (c *ntmConfig) ConfigFileUsed() string {
 	c.RLock()
 	defer c.RUnlock()
 	return c.configFile
-}
-
-// SetTypeByDefaultValue is a no-op
-func (c *ntmConfig) SetTypeByDefaultValue(_in bool) {
-	// do nothing: nodetreemodel always does this conversion
 }
 
 // BindEnvAndSetDefault binds an environment variable and sets a default for the given key

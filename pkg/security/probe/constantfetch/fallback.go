@@ -139,23 +139,41 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getFileFinodeOffset(f.kernelVersion)
 	case OffsetNameFileFpath:
 		value = getFileFpathOffset(f.kernelVersion)
+	case OffsetNameDentryDSb:
+		value = getDentryDsbOffset(f.kernelVersion)
 	case OffsetNameMountMntID:
 		value = getMountIDOffset(f.kernelVersion)
 	case OffsetNameRenameStructOldDentry:
 		value = getRenameStructOldDentryOffset(f.kernelVersion)
 	case OffsetNameRenameStructNewDentry:
 		value = getRenameStructNewDentryOffset(f.kernelVersion)
+	case OffsetInodeIno:
+		value = getInodeInoOffset(f.kernelVersion)
+	case OffsetInodeGid:
+		value = getInodeGIDOffset(f.kernelVersion)
+	case OffsetInodeNlink:
+		value = getInodeNlinkOffset(f.kernelVersion)
+	case OffsetInodeMtime:
+		value = getInodeMtimeOffset(f.kernelVersion)
+	case OffsetInodeCtime:
+		value = getInodeCtimeOffset(f.kernelVersion)
+	case OffsetNameSbDev:
+		value = getSuperBlockDevOffset(f.kernelVersion)
+	case OffsetNameDentryDInode:
+		value = getDentryDInodeOffset(f.kernelVersion)
+	case OffsetNamePathDentry:
+		value = getPathDentryOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
 
 // AppendSizeofRequest appends a sizeof request
-func (f *FallbackConstantFetcher) AppendSizeofRequest(id, _, _ string) {
+func (f *FallbackConstantFetcher) AppendSizeofRequest(id, _ string) {
 	f.appendRequest(id)
 }
 
 // AppendOffsetofRequest appends an offset request
-func (f *FallbackConstantFetcher) AppendOffsetofRequest(id, _, _, _ string) {
+func (f *FallbackConstantFetcher) AppendOffsetofRequest(id, _ string, _ ...string) {
 	f.appendRequest(id)
 }
 
@@ -232,6 +250,26 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	}
 
 	return sizeOf
+}
+
+func getInodeInoOffset(_ *kernel.Version) uint64 {
+	return uint64(64)
+}
+
+func getInodeGIDOffset(_ *kernel.Version) uint64 {
+	return uint64(8)
+}
+
+func getInodeNlinkOffset(_ *kernel.Version) uint64 {
+	return uint64(72)
+}
+
+func getInodeMtimeOffset(_ *kernel.Version) uint64 {
+	return uint64(104)
+}
+
+func getInodeCtimeOffset(_ *kernel.Version) uint64 {
+	return uint64(120)
 }
 
 func getSuperBlockFlagsOffset(_ *kernel.Version) uint64 {
@@ -1013,6 +1051,10 @@ func getFileFpathOffset(kv *kernel.Version) uint64 {
 	}
 }
 
+func getDentryDsbOffset(_ *kernel.Version) uint64 {
+	return 104
+}
+
 func getMountIDOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsSuseKernel() || kv.Code >= kernel.Kernel5_12:
@@ -1034,4 +1076,16 @@ func getRenameStructOldDentryOffset(_ *kernel.Version) uint64 {
 
 func getRenameStructNewDentryOffset(_ *kernel.Version) uint64 {
 	return 40
+}
+
+func getSuperBlockDevOffset(_ *kernel.Version) uint64 {
+	return 16
+}
+
+func getDentryDInodeOffset(_ *kernel.Version) uint64 {
+	return 48
+}
+
+func getPathDentryOffset(_ *kernel.Version) uint64 {
+	return 8
 }

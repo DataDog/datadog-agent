@@ -404,10 +404,14 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	state := s.host.State()
+	// Assert setup successful
+	state.AssertDirExists("/etc/datadog-agent/managed", 0755, "root", "root")
+	state.AssertDirExists("/etc/datadog-agent/managed/datadog-apm-libraries", 0755, "root", "root")
+	state.AssertDirExists("/etc/datadog-agent/managed/datadog-agent", 0755, "root", "root")
 	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", "/etc/datadog-agent/managed/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d", "root", "root")
 	// Verify metadata
-	state.AssertFileExists("/etc/datadog-agent/managed/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policy.metadata", 0440, "dd-agent", "dd-agent")
-	file := s.Env().RemoteHost.MustExecute("sudo cat /etc/datadog-agent/managed/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policy.metadata")
+	state.AssertFileExists("/etc/datadog-agent/managed/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policy.metadata", 0444, "root", "root")
+	file := s.Env().RemoteHost.MustExecute("cat /etc/datadog-agent/managed/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policy.metadata")
 	policiesState := &pbgo.PoliciesState{}
 	err := json.Unmarshal([]byte(file), policiesState)
 	require.NoError(s.T(), err)

@@ -21,10 +21,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func TestKernelLaunchesHandled(t *testing.T) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
+func getSystemContextForTest(t *testing.T) *systemContext {
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t))
 	require.NoError(t, err)
-	stream := newStreamHandler(0, "", sysCtx)
+	require.NotNil(t, sysCtx)
+
+	return sysCtx
+}
+
+func TestKernelLaunchesHandled(t *testing.T) {
+	stream := newStreamHandler(0, "", getSystemContextForTest(t))
 
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{
@@ -81,9 +87,7 @@ func TestKernelLaunchesHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsHandled(t *testing.T) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
-	require.NoError(t, err)
-	stream := newStreamHandler(0, "", sysCtx)
+	stream := newStreamHandler(0, "", getSystemContextForTest(t))
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -152,9 +156,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
-	require.NoError(t, err)
-	stream := newStreamHandler(0, "", sysCtx)
+	stream := newStreamHandler(0, "", getSystemContextForTest(t))
 
 	memAllocTime := uint64(1)
 	memAddr := uint64(42)
@@ -187,9 +189,7 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 }
 
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
-	require.NoError(t, err)
-	stream := newStreamHandler(0, "", sysCtx)
+	stream := newStreamHandler(0, "", getSystemContextForTest(t))
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -231,9 +231,7 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 }
 
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
-	require.NoError(t, err)
-	stream := newStreamHandler(0, "", sysCtx)
+	stream := newStreamHandler(0, "", getSystemContextForTest(t))
 
 	memAllocTime1, memAllocTime2 := uint64(1), uint64(10)
 	memFreeTime1, memFreeTime2 := uint64(15), uint64(20)
@@ -324,7 +322,7 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 
 func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 	proc := kernel.ProcFSRoot()
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), proc)
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), proc, testutil.GetWorkloadMetaMock(t))
 	require.NoError(t, err)
 
 	// Set up the caches in system context so no actual queries are done

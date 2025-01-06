@@ -7,7 +7,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-long __attribute__((always_inline)) trace__sys_mkdir(u8 async, umode_t mode) {
+long __attribute__((always_inline)) trace__sys_mkdir(u8 async, const char *filename, umode_t mode) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -21,17 +21,20 @@ long __attribute__((always_inline)) trace__sys_mkdir(u8 async, umode_t mode) {
             .mode = mode }
     };
 
+    if (!async) {
+        collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_INT(1), (void *)filename, (void *)&mode, NULL);
+    }
     cache_syscall(&syscall);
 
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY2(mkdir, const char *, filename, umode_t, mode) {
-    return trace__sys_mkdir(SYNC_SYSCALL, mode);
+    return trace__sys_mkdir(SYNC_SYSCALL, filename, mode);
 }
 
 HOOK_SYSCALL_ENTRY3(mkdirat, int, dirfd, const char *, filename, umode_t, mode) {
-    return trace__sys_mkdir(SYNC_SYSCALL, mode);
+    return trace__sys_mkdir(SYNC_SYSCALL, filename, mode);
 }
 
 HOOK_ENTRY("vfs_mkdir")
@@ -75,6 +78,10 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_t
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sure we grab it now
     set_file_inode(syscall->mkdir.dentry, &syscall->mkdir.file, 0);
 
+    if (retval && !syscall->mkdir.file.path_key.ino) {
+        syscall->mkdir.file.path_key.mount_id = 0; // do not try resolving the path
+    }
+
     syscall->resolver.key = syscall->mkdir.file.path_key;
     syscall->resolver.dentry = syscall->mkdir.dentry;
     syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
@@ -95,14 +102,14 @@ int hook_do_mkdirat(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
     if (!syscall) {
         umode_t mode = (umode_t)CTX_PARM3(ctx);
-        return trace__sys_mkdir(ASYNC_SYSCALL, mode);
+        return trace__sys_mkdir(ASYNC_SYSCALL, NULL, mode);
     }
     return 0;
 }
 
 HOOK_EXIT("do_mkdirat")
 int rethook_do_mkdirat(ctx_t *ctx) {
-    int retval = CTX_PARMRET(ctx, 3);
+    int retval = CTX_PARMRET(ctx);
     return sys_mkdir_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
@@ -140,6 +147,7 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
 
     struct mkdir_event_t event = {
         .syscall.retval = retval,
+        .syscall_ctx.id = syscall->ctx_id,
         .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
         .file = syscall->mkdir.file,
         .mode = syscall->mkdir.mode,

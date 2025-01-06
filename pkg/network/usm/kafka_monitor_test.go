@@ -555,7 +555,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					client.Client.Close()
 				}
 			})
-			monitor := newKafkaMonitor(t, cfg)
+			monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 			if tls && cfg.EnableGoTLSSupport {
 				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
@@ -1153,7 +1153,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 	can.runServer()
 	proxyPid := can.runProxy()
 
-	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
+	monitor := setupUSMTLSMonitor(t, getDefaultTestConfiguration(tls), useExistingConsumer)
 	if tls {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
 	}
@@ -1381,7 +1381,7 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 	can.runServer()
 	proxyPid := can.runProxy()
 
-	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
+	monitor := setupUSMTLSMonitor(t, getDefaultTestConfiguration(tls), useExistingConsumer)
 	if tls {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
 	}
@@ -1510,7 +1510,7 @@ func TestKafkaInFlightMapCleaner(t *testing.T) {
 	cfg := getDefaultTestConfiguration(false)
 	cfg.HTTPMapCleanerInterval = 5 * time.Second
 	cfg.HTTPIdleConnectionTTL = time.Second
-	monitor := newKafkaMonitor(t, cfg)
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	ebpfNow, err := ddebpf.NowNanoseconds()
 	require.NoError(t, err)
 	inFlightMap, _, err := monitor.ebpfProgram.GetMap("kafka_in_flight")
@@ -1686,20 +1686,6 @@ func validateProduceFetchCountWithErrorCodes(t *assert.CollectT, kafkaStats map[
 	}
 }
 
-func newKafkaMonitor(t *testing.T, cfg *config.Config) *Monitor {
-	monitor, err := NewMonitor(cfg, nil)
-	skipIfNotSupported(t, err)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		monitor.Stop()
-	})
-	t.Cleanup(utils.ResetDebugger)
-
-	err = monitor.Start()
-	require.NoError(t, err)
-	return monitor
-}
-
 // This test will help us identify if there is any verifier problems while loading the Kafka binary in the CI environment
 func TestLoadKafkaBinary(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
@@ -1722,5 +1708,5 @@ func loadKafkaBinary(t *testing.T, debug bool) {
 	cfg.MaxTrackedConnections = 1000
 	cfg.BPFDebug = debug
 
-	newKafkaMonitor(t, cfg)
+	setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 }

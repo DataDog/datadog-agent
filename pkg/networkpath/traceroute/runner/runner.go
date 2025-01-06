@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/tcp"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -222,7 +223,7 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 	return pathResult, nil
 }
 
-func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHost string, destinationPort uint16, destinationIP net.IP) (payload.NetworkPath, error) {
+func (r *Runner) processTCPResults(res *common.Results, hname string, destinationHost string, destinationPort uint16, destinationIP net.IP) (payload.NetworkPath, error) {
 	traceroutePath := payload.NetworkPath{
 		AgentVersion: version.AgentVersion,
 		PathtraceID:  payload.NewPathtraceID(),

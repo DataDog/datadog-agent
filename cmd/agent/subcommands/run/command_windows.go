@@ -75,7 +75,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	// runtime init routines
 )
 
@@ -105,7 +106,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			ac autodiscovery.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
-			logsAgent optional.Option[logsAgent.Component],
+			logsAgent option.Option[logsAgent.Component],
 			processAgent processAgent.Component,
 			_ runner.Component,
 			sharedSerializer serializer.MetricSerializer,
@@ -117,7 +118,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ inventoryotel.Component,
 			_ secrets.Component,
 			invChecks inventorychecks.Component,
-			logsReceiver optional.Option[integrations.Component],
+			logsReceiver option.Option[integrations.Component],
 			_ netflowServer.Component,
 			_ trapserver.Component,
 			agentAPI internalAPI.Component,
@@ -129,7 +130,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ expvarserver.Component,
 			jmxlogger jmxlogger.Component,
 			settings settings.Component,
-			_ optional.Option[gui.Component],
+			_ option.Option[gui.Component],
 			_ agenttelemetry.Component,
 		) error {
 			defer StopAgentWithDefaults()
@@ -206,6 +207,28 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 	return errChan, nil
 }
 
+// Re-register the ctrl handler because Go uses SetConsoleCtrlHandler and Python uses posix signal calls.
+// This is only needed when using the embedded Python module.
+// When Python imports the signal module, it overrides the ctrl handler set by Go and installs the Windows posix signal handler.
+// Linux uses the POSIX signal handler for both Go and Python, so this is not an issue on Linux.
+// As Python checks if the signal handler is not the default handler before overwritting it.
+// If CPython adds a way to avoid overriding the ctrl handler, we can remove this workaround.
+// If Go adds support to use the posix signal handler on Windows, we can remove this workaround.
+// All calls to signal.Notify will no longer work after the Python module is started.
+func reRegisterCtrlHandler(log log.Component, _ collector.Component) {
+	log.Info("Re-registering Ctrl+C handler")
+	err := winutil.SetConsoleCtrlHandler(func(ctrlType uint32) bool {
+		switch ctrlType {
+		case winutil.CtrlCEvent, winutil.CtrlBreakEvent:
+			signals.Stopper <- true
+		}
+		return true
+	}, true)
+	if err != nil {
+		log.Error(err)
+	}
+}
+
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetectimpl.Module(),
@@ -222,5 +245,6 @@ func getPlatformModules() fx.Option {
 		fx.Invoke(func(_ etwtracer.Component) {}),
 		fx.Invoke(func(_ windowseventlog.Component) {}),
 		fx.Invoke(func(_ winregistry.Component) {}),
+		fx.Invoke(reRegisterCtrlHandler),
 	)
 }

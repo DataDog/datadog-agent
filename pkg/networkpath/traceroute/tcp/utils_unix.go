@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket/layers"
 	"go.uber.org/multierr"
@@ -68,8 +69,8 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 	wg.Wait()
 
 	if tcpErr != nil && icmpErr != nil {
-		_, tcpCanceled := tcpErr.(canceledError)
-		_, icmpCanceled := icmpErr.(canceledError)
+		_, tcpCanceled := tcpErr.(common.CanceledError)
+		_, icmpCanceled := icmpErr.(common.CanceledError)
 		if icmpCanceled && tcpCanceled {
 			log.Trace("timed out waiting for responses")
 			return net.IP{}, 0, 0, time.Time{}, nil
@@ -103,7 +104,7 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, lo
 	for {
 		select {
 		case <-ctx.Done():
-			return net.IP{}, 0, 0, time.Time{}, canceledError("listener canceled")
+			return net.IP{}, 0, 0, time.Time{}, common.CanceledError("listener canceled")
 		default:
 		}
 		now := time.Now()
@@ -127,12 +128,12 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, lo
 		// TODO: remove listener constraint and parse all packets
 		// in the same function return a succinct struct here
 		if listener == "icmp" {
-			icmpResponse, err := parseICMP(header, packet)
+			icmpResponse, err := common.ParseICMP(header, packet)
 			if err != nil {
 				log.Tracef("failed to parse ICMP packet: %s", err)
 				continue
 			}
-			if icmpMatch(localIP, localPort, remoteIP, remotePort, seqNum, icmpResponse) {
+			if common.ICMPMatch(localIP, localPort, remoteIP, remotePort, seqNum, icmpResponse) {
 				return icmpResponse.SrcIP, 0, icmpResponse.TypeCode, received, nil
 			}
 		} else if listener == "tcp" {
