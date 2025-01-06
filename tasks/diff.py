@@ -235,27 +235,28 @@ def patch_summary(diff):
     return add_count, remove_count
 
 
+def _list_tasks_rec(collection, prefix='', res=None):
+    res = res or {}
+
+    if isinstance(collection, dict):
+        newpref = prefix + collection['name']
+
+        for task in collection['tasks']:
+            res[newpref + '.' + task['name']] = task['help']
+
+        for subtask in collection['collections']:
+            _list_tasks_rec(subtask, newpref + '.', res)
+
+    return res
+
+
 def _list_invoke_tasks(ctx) -> dict[str, str]:
     """Returns a dictionary of invoke tasks and their descriptions."""
 
     tasks = json.loads(ctx.run('invoke --list -F json', hide=True).stdout)
 
-    def list_tasks_rec(collection, prefix='', res=None):
-        res = res or {}
-
-        if isinstance(collection, dict):
-            newpref = prefix + collection['name']
-
-            for task in collection['tasks']:
-                res[newpref + '.' + task['name']] = task['help']
-
-            for subtask in collection['collections']:
-                list_tasks_rec(subtask, newpref + '.', res)
-
-        return res
-
     # Remove 'tasks.' prefix
-    return {name.removeprefix(tasks['name'] + '.'): desc for name, desc in list_tasks_rec(tasks).items()}
+    return {name.removeprefix(tasks['name'] + '.'): desc for name, desc in _list_tasks_rec(tasks).items()}
 
 
 @task
