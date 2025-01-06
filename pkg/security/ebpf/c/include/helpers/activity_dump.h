@@ -97,6 +97,10 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, struct c
     u64 cookie = rand64();
     struct activity_dump_config config = {};
 
+    if (!is_cgroup_activity_dumps_supported(&container->cgroup_context)) {
+        return 0;
+    }
+
     if (!reserve_traced_cgroup_spot(&container->cgroup_context, now, cookie, &config)) {
         // we're already tracing too many cgroups concurrently, ignore this one for now
         return 0;
@@ -106,10 +110,6 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, struct c
     struct cgroup_tracing_event_t *evt = get_cgroup_tracing_event();
     if (evt == NULL) {
         // should never happen, ignore
-        return 0;
-    }
-
-    if (!is_cgroup_activity_dumps_supported(&container->cgroup_context)) {
         return 0;
     }
 
