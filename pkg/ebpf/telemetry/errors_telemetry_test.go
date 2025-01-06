@@ -90,6 +90,10 @@ func startManager(t *testing.T, m *manager.Manager, options manager.Options, nam
 	err = modifier.AfterInit(m, names.NewModuleName(name), &options)
 	require.NoError(t, err)
 	m.Start()
+
+	t.Cleanup(func() {
+		m.Stop(manager.CleanAll)
+	})
 }
 
 func triggerTestAndGetTelemetry(t *testing.T) []prometheus.Metric {
@@ -161,10 +165,6 @@ func TestMapsTelemetry(t *testing.T) {
 	skipTestIfEBPFTelemetryNotSupported(t)
 
 	mapsTelemetry := triggerTestAndGetTelemetry(t)
-	t.Cleanup(func() {
-		m1.Stop(manager.CleanAll)
-		m2.Stop(manager.CleanAll)
-	})
 
 	errorMapEntryFound, e2bigErrorFound := false, false
 	for _, promMetric := range mapsTelemetry {
@@ -199,10 +199,6 @@ func TestMapsTelemetrySuppressError(t *testing.T) {
 	skipTestIfEBPFTelemetryNotSupported(t)
 
 	mapsTelemetry := triggerTestAndGetTelemetry(t)
-	t.Cleanup(func() {
-		m1.Stop(manager.CleanAll)
-		m2.Stop(manager.CleanAll)
-	})
 
 	suppressMapEntryFound := false
 	for _, promMetric := range mapsTelemetry {
@@ -227,10 +223,6 @@ func TestHelpersTelemetry(t *testing.T) {
 	skipTestIfEBPFTelemetryNotSupported(t)
 
 	helperTelemetry := triggerTestAndGetTelemetry(t)
-	t.Cleanup(func() {
-		m1.Stop(manager.CleanAll)
-		m2.Stop(manager.CleanAll)
-	})
 
 	probeReadHelperFound, efaultErrorFound := false, false
 	for _, promMetric := range helperTelemetry {
@@ -265,10 +257,6 @@ func TestSharedMapsTelemetry(t *testing.T) {
 	skipTestIfEBPFTelemetryNotSupported(t)
 
 	mapsTelemetry := triggerTestAndGetTelemetry(t)
-	t.Cleanup(func() {
-		m1.Stop(manager.CleanAll)
-		m2.Stop(manager.CleanAll)
-	})
 
 	sharedMapFound, moduleFound, e2bigErrorFound := false, false, false
 	for _, promMetric := range mapsTelemetry {
