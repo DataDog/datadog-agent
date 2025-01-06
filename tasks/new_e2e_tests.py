@@ -21,6 +21,7 @@ from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
+from tasks.libs.common.color import Color
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import get_default_modules
@@ -178,24 +179,13 @@ def run(
 
     if logs_post_processing:
         if len(test_res) == 1:
-            result_json_path = test_res[0].result_json_path
-            result_json_name = result_json_path.split("/")[-1]
-            result_json_dir = result_json_path.removesuffix('/' + result_json_name)
-            washer = TestWasher(result_json_name, 'flakes.yml')
-            _, marked_flaky_tests = washer.parse_test_results(result_json_dir)
             post_processed_output = post_process_output(
                 test_res[0].result_json_path, test_depth=logs_post_processing_test_depth
             )
-
             os.makedirs(logs_folder, exist_ok=True)
             write_result_to_log_files(post_processed_output, logs_folder)
-            try:
-                pretty_print_logs(post_processed_output, marked_flaky_tests)
-            except TooManyLogsError:
-                print(
-                    color_message("WARNING", "yellow")
-                    + f": Too many logs to print, skipping logs printing to avoid Gitlab collapse. You can find your logs properly organized in the job artifacts: https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{os.getenv('CI_JOB_ID')}/artifacts/browse/e2e-output/logs/"
-                )
+
+            pretty_print_logs(test_res[0].result_json_path, post_processed_output)
         else:
             print(
                 color_message("WARNING", "yellow")
@@ -363,38 +353,65 @@ class TooManyLogsError(Exception):
     pass
 
 
-def pretty_print_test_logs(logs_per_test, max_size):
+def pretty_print_test_logs(logs_per_test: list[tuple[str, str, str]], max_size):
     # Compute size in bytes of what we are about to print. If it exceeds max_size, we skip printing because it will make the Gitlab logs almost completely collapsed.
     # By default Gitlab has a limit of 500KB per job log, so we want to avoid printing too much.
     size = 0
-    for _, tests in logs_per_test.items():
-        for _, logs in tests.items():
-            size += len("".join(logs).encode())
+    for _, _, logs in logs_per_test:
+        size += len("".join(logs).encode())
     if size > max_size and running_in_ci():
         raise TooManyLogsError
-    for package, tests in logs_per_test.items():
-        for test, logs in tests.items():
-            with gitlab_section("Complete logs for " + package + "." + test, collapsed=True):
-                print("Complete logs for " + package + "." + test)
-                print("".join(logs))
+    for package, test, logs in logs_per_test:
+        with gitlab_section("Complete logs for " + package + "." + test, collapsed=True):
+            print("Complete logs for " + package + "." + test)
+            print("".join(logs))
 
     return size
 
 
-def pretty_print_logs(logs_per_test, marked_flaky_tests, max_size=250000):
-    # Split flaky / non flaky tests
-    flaky_logs = defaultdict(dict)
-    non_flaky_logs = defaultdict(dict)
-    for package, tests in logs_per_test.items():
-        package_flaky = marked_flaky_tests.get(package, set())
-        for test_name, logs in tests.items():
-            logs_dict = flaky_logs if test_name in package_flaky else non_flaky_logs
-            logs_dict[package][test_name] = logs
+def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_file="flakes.yml"):
+    """Pretty prints logs with a specific order.
 
-    # Print non flaky tests first
-    size = pretty_print_test_logs(non_flaky_logs, max_size)
-    # Print flaky tests if we have enough space
-    pretty_print_test_logs(flaky_logs, max_size - size)
+    Print order:
+        1. Failing and non flaky tests
+        2. Failing and flaky tests
+        3. Successful and non flaky tests
+        4. Successful and flaky tests
+    """
+
+    result_json_name = result_json_path.split("/")[-1]
+    result_json_dir = result_json_path.removesuffix('/' + result_json_name)
+    washer = TestWasher(result_json_name, flakes_file)
+    failing_tests, marked_flaky_tests = washer.parse_test_results(result_json_dir)
+
+    try:
+        # (failing, flaky) -> [(package, test_name, logs)]
+        categorized_logs = defaultdict(list)
+
+        # Split flaky / non flaky tests
+        for package, tests in logs_per_test.items():
+            package_flaky = marked_flaky_tests.get(package, set())
+            package_failing = failing_tests.get(package, set())
+            for test_name, logs in tests.items():
+                categorized_logs[test_name in package_failing, test_name in package_flaky].append(
+                    (package, test_name, logs)
+                )
+
+        for failing, flaky in [(True, False), (True, True), (False, False), (False, True)]:
+            logs_to_print = categorized_logs[(failing, flaky)]
+            if not logs_to_print:
+                continue
+
+            print(
+                f'* {color_message("Failing" if failing else "Successful", Color.BOLD)} / {color_message("Flaky" if flaky else "Non-flaky", Color.BOLD)} job logs:'
+            )
+            # Print till the size limit is reached
+            max_size -= pretty_print_test_logs(logs_to_print, max_size)
+    except TooManyLogsError:
+        print(
+            color_message("WARNING", "yellow")
+            + f": Too many logs to print, skipping logs printing to avoid Gitlab collapse. You can find your logs properly organized in the job artifacts: https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{os.getenv('CI_JOB_ID')}/artifacts/browse/e2e-output/logs/"
+        )
 
 
 @task
