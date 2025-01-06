@@ -168,21 +168,21 @@ unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry *dentr
     return get_inode_ino(get_dentry_inode(dentry));
 }
 
-struct dentry *__attribute__((always_inline)) get_file_dentry(struct file *file) {
-    struct dentry *file_dentry;
-    bpf_probe_read(&file_dentry, sizeof(file_dentry), &get_file_f_path_addr(file)->dentry);
-    return file_dentry;
-}
-
 struct dentry *__attribute__((always_inline)) get_path_dentry(struct path *path) {
+    u64 offset;
+    LOAD_CONSTANT("path_dentry_offset", offset);
+
     struct dentry *dentry;
-    bpf_probe_read(&dentry, sizeof(dentry), &path->dentry);
+    bpf_probe_read(&dentry, sizeof(dentry), (void *)path + offset);
     return dentry;
 }
 
+struct dentry *__attribute__((always_inline)) get_file_dentry(struct file *file) {
+    return get_path_dentry(get_file_f_path_addr(file));
+}
+
 unsigned long __attribute__((always_inline)) get_path_ino(struct path *path) {
-    struct dentry *dentry;
-    bpf_probe_read(&dentry, sizeof(dentry), &path->dentry);
+    struct dentry *dentry = get_path_dentry(path);
 
     if (dentry) {
         return get_dentry_ino(dentry);

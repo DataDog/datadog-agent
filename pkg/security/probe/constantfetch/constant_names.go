@@ -32,6 +32,7 @@ const (
 	OffsetNameMountMntID                = "mount_id_offset"
 	OffsetNameSbDev                     = "sb_dev_offset"
 	OffsetNameDentryDInode              = "dentry_d_inode_offset"
+	OffsetNamePathDentry                = "path_dentry_offset"
 
 	// inode
 	OffsetInodeIno   = "inode_ino_offset"
