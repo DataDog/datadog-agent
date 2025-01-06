@@ -17,6 +17,15 @@ unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) 
     return ino;
 }
 
+struct inode* get_dentry_inode(struct dentry *dentry) {
+    u64 offset;
+    LOAD_CONSTANT("dentry_d_inode_offset", offset);
+
+    struct inode *inode;
+    bpf_probe_read(&inode, sizeof(inode), (void *)dentry + offset);
+    return inode;
+}
+
 dev_t __attribute__((always_inline)) get_sb_dev(struct super_block *sb) {
     u64 sb_dev_offset;
     LOAD_CONSTANT("sb_dev_offset", sb_dev_offset);
@@ -155,12 +164,6 @@ dev_t __attribute__((always_inline)) get_mount_dev(void *mnt) {
     return get_vfsmount_dev(get_mount_vfsmount(mnt));
 }
 
-struct inode *__attribute__((always_inline)) get_dentry_inode(struct dentry *dentry) {
-    struct inode *d_inode;
-    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
-    return d_inode;
-}
-
 unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry *dentry) {
     return get_inode_ino(get_dentry_inode(dentry));
 }
@@ -246,8 +249,7 @@ static __attribute__((always_inline)) int is_overlayfs(struct dentry *dentry) {
 }
 
 int __attribute__((always_inline)) get_ovl_lower_ino_direct(struct dentry *dentry) {
-    struct inode *d_inode;
-    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
+    struct inode *d_inode = get_dentry_inode(dentry);
 
     // escape from the embedded vfs_inode to reach ovl_inode
     struct inode *lower;
@@ -257,8 +259,7 @@ int __attribute__((always_inline)) get_ovl_lower_ino_direct(struct dentry *dentr
 }
 
 int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_path(struct dentry *dentry) {
-    struct inode *d_inode;
-    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
+    struct inode *d_inode = get_dentry_inode(dentry);
 
     // escape from the embedded vfs_inode to reach ovl_inode
     struct dentry *lower;
@@ -268,8 +269,7 @@ int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_path(struct dentry
 }
 
 int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_entry(struct dentry *dentry) {
-    struct inode *d_inode;
-    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
+    struct inode *d_inode = get_dentry_inode(dentry);
 
     void *oe;
     bpf_probe_read(&oe, sizeof(oe), (char *)d_inode + get_sizeof_inode() + 8);
@@ -282,8 +282,7 @@ int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_entry(struct dentr
 }
 
 int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
-    struct inode *d_inode;
-    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
+    struct inode *d_inode = get_dentry_inode(dentry);
 
     // escape from the embedded vfs_inode to reach ovl_inode
     struct dentry *upper;
