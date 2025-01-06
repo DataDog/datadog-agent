@@ -56,6 +56,8 @@ type cacheOptions struct {
 	MaxSize int64
 }
 
+const worstCaseQuerySize = 11
+
 // newMeasuredCache returns a new measuredCache.
 func newMeasuredCache(opts cacheOptions) *measuredCache {
 	if !opts.On {
@@ -63,10 +65,14 @@ func newMeasuredCache(opts cacheOptions) *measuredCache {
 		return &measuredCache{}
 	}
 	cfg := &ristretto.Config{
-		MaxCost:     opts.MaxSize,
-		NumCounters: opts.MaxSize * 10, // Multiplied by 10 as per ristretto recommendation
-		BufferItems: 64,                // default recommended value
-		Metrics:     true,              // enable hit/miss counters
+		MaxCost: opts.MaxSize,
+		// An appromixated worst-case scenario when the cache is filled with small
+		// queries averaged as being of length 11 ("LOCK TABLES").
+		// opts.MaxSize / worstCaseQuerySize would be the maximum number of queries.
+		// We multiply it by 10 as per the recommendation in the ristretto documentation.
+		NumCounters: opts.MaxSize / worstCaseQuerySize * 10,
+		BufferItems: 64,   // default recommended value
+		Metrics:     true, // enable hit/miss counters
 	}
 	cache, err := ristretto.NewCache(cfg)
 	if err != nil {
