@@ -36,7 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -53,7 +53,7 @@ type dependencies struct {
 	HaAgent haagent.Component
 
 	SenderManager    sender.SenderManager
-	MetricSerializer optional.Option[serializer.MetricSerializer]
+	MetricSerializer option.Option[serializer.MetricSerializer]
 }
 
 type collectorImpl struct {
@@ -62,7 +62,7 @@ type collectorImpl struct {
 	haAgent haagent.Component
 
 	senderManager    sender.SenderManager
-	metricSerializer optional.Option[serializer.MetricSerializer]
+	metricSerializer option.Option[serializer.MetricSerializer]
 	checkInstances   int64
 
 	// state is 'started' or 'stopped'
@@ -93,8 +93,8 @@ type provides struct {
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newProvides),
-		fx.Provide(func(c collector.Component) optional.Option[collector.Component] {
-			return optional.NewOption[collector.Component](c)
+		fx.Provide(func(c collector.Component) option.Option[collector.Component] {
+			return option.New[collector.Component](c)
 		}),
 	)
 }

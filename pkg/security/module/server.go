@@ -357,7 +357,6 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 
 	// model event or custom event ? if model event use queuing so that tags and actions can be handled
 	if ev, ok := event.(*model.Event); ok {
-		//return serializers.MarshalEvent(ev, opts)
 		eventActionReports := ev.GetActionReports()
 		actionReports := make([]model.ActionReport, 0, len(eventActionReports))
 		for _, ar := range eventActionReports {

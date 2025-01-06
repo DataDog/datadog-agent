@@ -41,7 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -313,7 +313,7 @@ func (t *TaggerWrapper) Standard(entityID types.EntityID) ([]string, error) {
 // AgentTags returns the agent tags
 // It relies on the container provider utils to get the Agent container ID
 func (t *TaggerWrapper) AgentTags(cardinality types.TagCardinality) ([]string, error) {
-	ctrID, err := metrics.GetProvider(optional.NewOption(t.wmeta)).GetMetaCollector().GetSelfContainerID()
+	ctrID, err := metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector().GetSelfContainerID()
 	if err != nil {
 		return nil, err
 	}
@@ -389,14 +389,14 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 	productOrigin := originInfo.ProductOrigin
 	// If origin_detection_unified is disabled, we use DogStatsD's Legacy Origin Detection.
 	// TODO: remove this when origin_detection_unified is enabled by default
-	if !t.datadogConfig.originDetectionUnifiedEnabled && productOrigin == taggertypes.ProductOriginDogStatsD {
-		productOrigin = taggertypes.ProductOriginDogStatsDLegacy
+	if !t.datadogConfig.originDetectionUnifiedEnabled && productOrigin == origindetection.ProductOriginDogStatsD {
+		productOrigin = origindetection.ProductOriginDogStatsDLegacy
 	}
 
 	containerIDFromSocketCutIndex := len(types.ContainerID) + types.GetSeparatorLengh()
 
 	switch productOrigin {
-	case taggertypes.ProductOriginDogStatsDLegacy:
+	case origindetection.ProductOriginDogStatsDLegacy:
 		// The following was moved from the dogstatsd package
 		// originFromUDS is the origin discovered via UDS origin detection (container ID).
 		// originFromTag is the origin sent by the client via the dd.internal.entity_id tag (non-prefixed pod uid).
@@ -519,7 +519,7 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 			}
 
 			// Generate container ID from External Data
-			generatedContainerID, err := t.generateContainerIDFromExternalData(parsedExternalData, metrics.GetProvider(optional.NewOption(t.wmeta)).GetMetaCollector())
+			generatedContainerID, err := t.generateContainerIDFromExternalData(parsedExternalData, metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector())
 			if err != nil {
 				t.log.Tracef("Failed to generate container ID from %s: %s", originInfo.ExternalData, err)
 			}

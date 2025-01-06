@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"reflect"
 	"strconv"
 	"time"
 
@@ -17,16 +16,17 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func (cs *configSync) updater() {
+func (cs *configSync) updater() error {
+	cs.Log.Debugf("Pulling new configuration from agent-core at '%s'", cs.url.String())
 	cfg, err := fetchConfig(cs.ctx, cs.client, cs.Authtoken.Get(), cs.url.String())
 	if err != nil {
 		if cs.connected {
-			cs.Log.Warnf("Failed to fetch config from core agent: %v", err)
+			cs.Log.Warnf("Loosed connectivity to core-agent to fetch config: %v", err)
 			cs.connected = false
 		} else {
 			cs.Log.Debugf("Failed to fetch config from core agent: %v", err)
 		}
-		return
+		return err
 	}
 
 	if cs.connected {
@@ -42,7 +42,7 @@ func (cs *configSync) updater() {
 			valueMap, ok := value.(map[string]string)
 			if !ok {
 				// this would be unexpected - but deal with it
-				updateConfig(cs.Config, key, value)
+				cs.Config.Set(key, value, pkgconfigmodel.SourceLocalConfigProcess)
 				continue
 			}
 
@@ -55,13 +55,13 @@ func (cs *configSync) updater() {
 						typedValues[cfgkey] = cfgval
 					}
 				}
-				updateConfig(cs.Config, key, typedValues)
+				cs.Config.Set(key, typedValues, pkgconfigmodel.SourceLocalConfigProcess)
 			}
-
 		} else {
-			updateConfig(cs.Config, key, value)
+			cs.Config.Set(key, value, pkgconfigmodel.SourceLocalConfigProcess)
 		}
 	}
+	return nil
 }
 
 func (cs *configSync) runWithInterval(refreshInterval time.Duration) {
@@ -72,7 +72,6 @@ func (cs *configSync) runWithInterval(refreshInterval time.Duration) {
 }
 
 func (cs *configSync) runWithChan(ch <-chan time.Time) {
-
 	cs.Log.Infof("Starting to sync config with core agent at %s", cs.url)
 
 	for {
@@ -80,7 +79,7 @@ func (cs *configSync) runWithChan(ch <-chan time.Time) {
 		case <-cs.ctx.Done():
 			return
 		case <-ch:
-			cs.updater()
+			_ = cs.updater()
 		}
 	}
 }
@@ -103,12 +102,4 @@ func fetchConfig(ctx context.Context, client *http.Client, authtoken, url string
 	}
 
 	return config, nil
-}
-
-func updateConfig(cfg pkgconfigmodel.ReaderWriter, key string, value interface{}) bool {
-	// check if the value changed to only log if it effectively changed the value
-	oldvalue := cfg.Get(key)
-	cfg.Set(key, value, pkgconfigmodel.SourceLocalConfigProcess)
-
-	return !reflect.DeepEqual(oldvalue, cfg.Get(key))
 }
