@@ -88,7 +88,7 @@ def enter_env(ctx, branch: str | None, skip_checkout=False, commit: str | None =
     """Enters the worktree environment."""
 
     if not (branch or commit):
-        assert skip_checkout, 'skip_checkout must be set to True if branch is None'
+        assert skip_checkout, 'skip_checkout must be set to True if branch and commit are None'
 
     if not skip_checkout:
         init_env(ctx, branch, commit=commit)
