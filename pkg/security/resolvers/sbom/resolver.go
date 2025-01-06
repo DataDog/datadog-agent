@@ -240,6 +240,7 @@ func (r *Resolver) Start(ctx context.Context) error {
 			return err
 		}
 		r.hostSBOM.SetReport(report)
+		r.hostSBOM.scanSuccessful.Store(true)
 	}
 
 	go func() {
@@ -535,7 +536,9 @@ func (r *Resolver) GetWorkload(id containerutils.ContainerID) *SBOM {
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (r *Resolver) OnCGroupDeletedEvent(cgroup *cgroupModel.CacheEntry) {
-	r.Delete(cgroup.ContainerID)
+	if cgroup.ContainerID != "" {
+		r.Delete(cgroup.ContainerID)
+	}
 }
 
 // Delete removes the SBOM of the provided cgroup id
