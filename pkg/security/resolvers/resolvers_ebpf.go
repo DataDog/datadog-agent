@@ -133,7 +133,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		mountResolver = &mount.NoOpResolver{}
 		pathResolver = &path.NoOpResolver{}
 	}
-	containerResolver := &container.Resolver{}
+	containerResolver := container.New()
 
 	processOpts := process.NewResolverOpts()
 	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)

@@ -12,14 +12,20 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/moby/sys/mountinfo"
+
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"golang.org/x/sys/unix"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // ContainerIDLen is the length of a container ID is the length of the hex representation of a sha256 hash
@@ -42,12 +48,6 @@ type ControlGroup struct {
 func (cg ControlGroup) GetContainerContext() (containerutils.ContainerID, containerutils.CGroupFlags) {
 	id, flags := containerutils.FindContainerID(containerutils.CGroupID(cg.Path))
 	return containerutils.ContainerID(id), containerutils.CGroupFlags(flags)
-}
-
-// GetContainerID returns the container id extracted from the path of the control group
-func (cg ControlGroup) GetContainerID() containerutils.ContainerID {
-	id, _ := containerutils.FindContainerID(containerutils.CGroupID(cg.Path))
-	return containerutils.ContainerID(id)
 }
 
 func parseCgroupLine(line string) (string, string, string, error) {
@@ -190,4 +190,95 @@ func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, mode
 	}
 
 	return containerID, cgroupContext, nil
+}
+
+var defaultCGroupMountpoints = []string{
+	"/sys/fs/cgroup",
+	"/sys/fs/cgroup/unified",
+}
+
+type CGroupFS struct {
+	cGroupMountPoints []string
+}
+
+func NewCGroupFS(cgroupMountPoints ...string) *CGroupFS {
+	cfs := &CGroupFS{}
+
+	var cgroupMnts []string
+	if len(cgroupMountPoints) == 0 {
+		cgroupMnts = defaultCGroupMountpoints
+	} else {
+		cgroupMnts = cgroupMountPoints
+	}
+
+	for _, mountpoint := range cgroupMnts {
+		hostMountpoint := filepath.Join(kernel.SysFSRoot(), strings.TrimPrefix(mountpoint, "/sys/"))
+		if mounted, _ := mountinfo.Mounted(hostMountpoint); mounted {
+			cfs.cGroupMountPoints = append(cfs.cGroupMountPoints, hostMountpoint)
+		}
+	}
+
+	return cfs
+}
+
+func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.ContainerID, model.CGroupContext, string, error) {
+	if len(cfs.cGroupMountPoints) == 0 {
+		return "", model.CGroupContext{}, "", errors.New("no cgroup mount point found")
+	}
+
+	var (
+		containerID     containerutils.ContainerID
+		cgroupContext   model.CGroupContext
+		cgroupProcsPath string
+	)
+
+	err := parseProcControlGroups(tgid, pid, func(id, ctrl, path string) bool {
+		if path == "/" {
+			return false
+		} else if ctrl != "" && !strings.HasPrefix(ctrl, "name=") {
+			// On cgroup v1 we choose to take the "name" ctrl entry (ID 1), as the ID 0 could be empty
+			// On cgroup v2, it's only a single line with ID 0 and no ctrl
+			// (Cf unit tests for examples)
+			return false
+		}
+
+		for _, mountpoint := range cfs.cGroupMountPoints {
+			procsPath := filepath.Join(mountpoint, ctrl, path, "cgroup.procs")
+			if exists, err := checkPidExists(procsPath, pid); err == nil && exists {
+				cgroupID := containerutils.CGroupID(path)
+				ctrID, flags := containerutils.FindContainerID(cgroupID)
+				cgroupContext.CGroupID = cgroupID
+				cgroupContext.CGroupFlags = containerutils.CGroupFlags(flags)
+				containerID = ctrID
+				cgroupProcsPath = procsPath
+
+				var fileStats unix.Statx_t
+				if err := unix.Statx(unix.AT_FDCWD, procsPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStats); err == nil {
+					cgroupContext.CGroupFile.MountID = uint32(fileStats.Mnt_id)
+					cgroupContext.CGroupFile.Inode = fileStats.Ino
+				}
+				return true
+			}
+		}
+		return false
+	})
+	if err != nil {
+		return "", model.CGroupContext{}, "", err
+	}
+
+	return containerID, cgroupContext, cgroupProcsPath, nil
+}
+
+func checkPidExists(cgroupProcsPath string, expectedPid uint32) (bool, error) {
+	data, err := os.ReadFile(cgroupProcsPath)
+	if err != nil {
+		return false, err
+	}
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil && uint32(pid) == expectedPid {
+			return true, nil
+		}
+	}
+	return false, nil
 }

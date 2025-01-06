@@ -374,8 +374,8 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 		return fmt.Errorf("snapshot failed for %d: couldn't retrieve inode info: %w", proc.Pid, err)
 	}
 
-	// Retrieve the container ID of the process from /proc
-	containerID, cgroup, err := p.containerResolver.GetContainerContext(pid)
+	// Retrieve the container ID of the process from /proc and /sys/fs/cgroup/.../cgroup.procs
+	containerID, cgroup, cgroupProcsPath, err := p.containerResolver.GetContainerContext(pid)
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't parse container and cgroup context: %w", proc.Pid, err)
 	}
@@ -393,9 +393,8 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	entry.FileEvent.MountSource = model.MountSourceSnapshot
 
 	if entry.Process.CGroup.CGroupFile.MountID == 0 {
-		// Get the file fields of the cgroup file
-		taskPath := utils.CgroupTaskPath(pid, pid)
-		info, err := p.retrieveExecFileFields(taskPath)
+		// Get the file fields of the cgroup.procs file
+		info, err := p.retrieveExecFileFields(cgroupProcsPath)
 		if err != nil {
 			seclog.Debugf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
 		} else {
@@ -891,7 +890,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 	// the parent is in a container. In other words, we have to fall back to /proc to query the container ID of the
 	// process.
 	if entry.CGroup.CGroupFile.Inode == 0 {
-		if containerID, cgroup, err := p.containerResolver.GetContainerContext(pid); err == nil {
+		if containerID, cgroup, _, err := p.containerResolver.GetContainerContext(pid); err == nil {
 			entry.CGroup.Merge(&cgroup)
 			entry.ContainerID = containerID
 		}

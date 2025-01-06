@@ -15,10 +15,19 @@ import (
 )
 
 // Resolver is used to resolve the container context of the events
-type Resolver struct{}
+type Resolver struct {
+	fs *utils.CGroupFS
+}
 
-// GetContainerContext returns the container id of the given pid along with its flags
-func (cr *Resolver) GetContainerContext(pid uint32) (containerutils.ContainerID, model.CGroupContext, error) {
-	// Parse /proc/[pid]/task/[pid]/cgroup
-	return utils.GetProcContainerContext(pid, pid)
+// New creates a new container resolver
+func New() *Resolver {
+	return &Resolver{
+		fs: utils.NewCGroupFS(),
+	}
+}
+
+// GetContainerContext returns the container id and cgroup context of the given pid
+func (cr *Resolver) GetContainerContext(pid uint32) (containerutils.ContainerID, model.CGroupContext, string, error) {
+	// Parse /proc/[pid]/task/[pid]/cgroup and /sys/fs/cgroup/.../cgroup.procs
+	return cr.fs.FindCGroupContext(pid, pid)
 }
