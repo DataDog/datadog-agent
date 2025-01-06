@@ -21,7 +21,23 @@ lint_macos_gitlab_amd64:
   retry:
     max: 2
     exit_codes: 101
-  parallel: 50
+
+lint_macos_gitlab_amd64_test:
+  extends: .lint_macos_gitlab
+  tags: ["macos:monterey-amd64", "specific:true"]
+  needs: []
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  script:
+    - dd if=/dev/urandom of=modcache.tar.xz bs=128 count=1
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+    - echo "Running tests..."
+  # Retry when it is not possible to extract the dependencies
+  retry:
+    max: 2
+    exit_codes: 101
 
 lint_macos_gitlab_arm64:
   extends: .lint_macos_gitlab
