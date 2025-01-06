@@ -24,6 +24,7 @@ lint_macos_gitlab_amd64:
       - script_failure:
         exit_codes:
         - 101
+  parallel: 50
 
 lint_macos_gitlab_arm64:
   extends: .lint_macos_gitlab
