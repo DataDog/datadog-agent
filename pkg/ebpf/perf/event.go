@@ -35,8 +35,9 @@ type Flusher interface {
 	Flush()
 }
 
-// compile time check to ensure this satisfies the Modifier interface
-var _ ddebpf.Modifier = (*EventHandler)(nil)
+// compile time check to ensure this satisfies the Modifier* interfaces
+var _ ddebpf.ModifierPreStart = (*EventHandler)(nil)
+var _ ddebpf.ModifierAfterStop = (*EventHandler)(nil)
 
 // EventHandler abstracts consuming data from a perf buffer or ring buffer (depending on availability and options).
 // It handles upgrading maps from a ring buffer if desired, and unmarshalling into the desired data type.
@@ -295,19 +296,14 @@ func (e *EventHandler) setupRingbufferWakeupConstant(mgrOpts *manager.Options) {
 	}
 }
 
-// AfterInit implements the Modifier interface
-func (e *EventHandler) AfterInit(_ *manager.Manager, _ names.ModuleName, _ *manager.Options) error {
-	return nil
-}
-
-// PreStart implements the Modifier interface
-func (e *EventHandler) PreStart() error {
+// PreStart implements the ModifierPreStart interface
+func (e *EventHandler) PreStart(_ *manager.Manager, _ names.ModuleName) error {
 	go e.readLoop()
 	return nil
 }
 
-// AfterStop implements the Modifier interface
-func (e *EventHandler) AfterStop(_ manager.MapCleanupType) error {
+// AfterStop implements the ModifierAfterStop interface
+func (e *EventHandler) AfterStop(_ *manager.Manager, _ names.ModuleName, _ manager.MapCleanupType) error {
 	if e.perfChan != nil {
 		close(e.perfChan)
 	}
