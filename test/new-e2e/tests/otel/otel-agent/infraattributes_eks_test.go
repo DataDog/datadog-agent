@@ -26,7 +26,6 @@ type iaEKSTestSuite struct {
 }
 
 func TestOTelAgentIAEKS(t *testing.T) {
-	flake.Mark(t) // incident-33599
 	values := `
 datadog:
   logs:
