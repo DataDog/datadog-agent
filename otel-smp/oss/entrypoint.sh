@@ -1,2 +1,2 @@
 #!/bin/sh
-/otelcol-contrib --config /etc/otelcol-contrib/minimal.yaml
+/otelcol-contrib --config /etc/datadog-agent/otel-config.yaml
