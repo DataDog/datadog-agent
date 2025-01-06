@@ -17,23 +17,28 @@ unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) 
     return ino;
 }
 
-dev_t __attribute__((always_inline)) get_inode_dev(struct inode *inode) {
+dev_t __attribute__((always_inline)) get_sb_dev(struct super_block *sb) {
+    u64 sb_dev_offset;
+    LOAD_CONSTANT("sb_dev_offset", sb_dev_offset);
+
     dev_t dev;
+    bpf_probe_read(&dev, sizeof(dev), (void *)sb + sb_dev_offset);
+    return dev;
+}
+
+dev_t __attribute__((always_inline)) get_inode_dev(struct inode *inode) {
     struct super_block *sb;
     bpf_probe_read(&sb, sizeof(sb), &inode->i_sb);
-    bpf_probe_read(&dev, sizeof(dev), &sb->s_dev);
-    return dev;
+    return get_sb_dev(sb);
 }
 
 dev_t __attribute__((always_inline)) get_dentry_dev(struct dentry *dentry) {
     u64 offset;
     LOAD_CONSTANT("dentry_d_sb_offset", offset);
 
-    dev_t dev;
     struct super_block *sb;
     bpf_probe_read(&sb, sizeof(sb), (char *)dentry + offset);
-    bpf_probe_read(&dev, sizeof(dev), &sb->s_dev);
-    return dev;
+    return get_sb_dev(sb);
 }
 
 void *__attribute__((always_inline)) get_file_f_inode_addr(struct file *file) {
@@ -132,12 +137,6 @@ struct super_block *__attribute__((always_inline)) get_vfsmount_sb(struct vfsmou
     struct super_block *sb;
     bpf_probe_read(&sb, sizeof(sb), &mnt->mnt_sb);
     return sb;
-}
-
-dev_t __attribute__((always_inline)) get_sb_dev(struct super_block *sb) {
-    dev_t dev;
-    bpf_probe_read(&dev, sizeof(dev), &sb->s_dev);
-    return dev;
 }
 
 struct dentry *__attribute__((always_inline)) get_mountpoint_dentry(void *mntpoint) {

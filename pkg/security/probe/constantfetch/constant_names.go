@@ -30,6 +30,7 @@ const (
 	OffsetNameFileFpath                 = "file_f_path_offset"
 	OffsetNameDentryDSb                 = "dentry_d_sb_offset"
 	OffsetNameMountMntID                = "mount_id_offset"
+	OffsetNameSbDev                     = "sb_dev_offset"
 
 	// inode
 	OffsetInodeIno   = "inode_ino_offset"
