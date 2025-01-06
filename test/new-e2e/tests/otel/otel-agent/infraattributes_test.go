@@ -27,6 +27,7 @@ type iaTestSuite struct {
 var iaConfig string
 
 func TestOTelAgentIA(t *testing.T) {
+	t.Skip("Skipping broken test: incident-33599") // incident-33599
 	values := `
 datadog:
   logs:

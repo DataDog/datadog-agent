@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/components/remote"
+	componentsremote "github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
@@ -151,6 +151,20 @@ func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner 
 		if err != nil {
 			return fmt.Errorf("validateDockerCuda failed: %w", err)
 		}
+		// incident-33572: log the output of the CUDA validation command
+		pulumi.All(dockerCudaValidateCmd.StdoutOutput(), dockerCudaValidateCmd.StderrOutput()).ApplyT(func(args []interface{}) error {
+			stdout := args[0].(string)
+			stderr := args[1].(string)
+			err := ctx.Log.Info(fmt.Sprintf("Docker CUDA validation stdout: %s", stdout), nil)
+			if err != nil {
+				return err
+			}
+			err = ctx.Log.Info(fmt.Sprintf("Docker CUDA validation stderr: %s", stderr), nil)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
 
 		// Combine agent options from the parameters with the fakeintake and docker dependencies
 		params.agentOptions = append(params.agentOptions,
@@ -177,7 +191,7 @@ func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner 
 }
 
 // validateGPUDevices checks that there are GPU devices present and accesible
-func validateGPUDevices(e aws.Environment, vm *remote.Host) ([]pulumi.Resource, error) {
+func validateGPUDevices(e aws.Environment, vm *componentsremote.Host) ([]pulumi.Resource, error) {
 	commands := map[string]string{
 		"pci":    fmt.Sprintf("lspci -d %s:: | grep NVIDIA", nvidiaPCIVendorID),
 		"driver": "lsmod | grep nvidia",
@@ -203,7 +217,7 @@ func validateGPUDevices(e aws.Environment, vm *remote.Host) ([]pulumi.Resource, 
 	return cmds, nil
 }
 
-func downloadDockerImages(e aws.Environment, vm *remote.Host, images []string, dependsOn ...pulumi.Resource) ([]pulumi.Resource, error) {
+func downloadDockerImages(e aws.Environment, vm *componentsremote.Host, images []string, dependsOn ...pulumi.Resource) ([]pulumi.Resource, error) {
 	var cmds []pulumi.Resource
 
 	for i, image := range images {
@@ -224,7 +238,7 @@ func downloadDockerImages(e aws.Environment, vm *remote.Host, images []string, d
 	return cmds, nil
 }
 
-func validateDockerCuda(e aws.Environment, vm *remote.Host, dependsOn ...pulumi.Resource) (pulumi.Resource, error) {
+func validateDockerCuda(e aws.Environment, vm *componentsremote.Host, dependsOn ...pulumi.Resource) (command.Command, error) {
 	return vm.OS.Runner().Command(
 		e.CommonNamer().ResourceName("docker-cuda-validate"),
 		&command.Args{
