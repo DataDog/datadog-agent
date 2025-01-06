@@ -60,7 +60,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20250103120737-f61405297d57
+	github.com/DataDog/test-infra-definitions v0.0.0-20250106114357-715245d08581
 	github.com/aws/aws-sdk-go-v2 v1.32.7
 	github.com/aws/aws-sdk-go-v2/config v1.28.7
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.190.0
@@ -305,12 +305,12 @@ require (
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/onsi/ginkgo/v2 v2.20.2 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.79.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.79.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.79.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.79.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.79.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.79.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.80.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.80.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.80.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.80.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.80.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.80.0 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v3 v3.6.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
 	github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19 // indirect
