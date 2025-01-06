@@ -498,54 +498,6 @@ namespace Datadog.CustomActions
 
         }
 
-        private void RemoveDatadogUserFromDataFolder(SecurityIdentifier sid)
-        {
-            var dataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
-
-            FileSystemSecurity fileSystemSecurity;
-            try
-            {
-                fileSystemSecurity = _fileSystemServices.GetAccessControl(dataDirectory, AccessControlSections.All);
-            }
-            catch (Exception e)
-            {
-                _session.Log($"Failed to get ACLs on {dataDirectory}: {e}");
-                throw;
-            }
-
-            // Remove ddagentuser from data folder
-            fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
-                sid,
-                FileSystemRights.ReadAndExecute | FileSystemRights.Synchronize,
-                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-            fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
-                sid,
-                FileSystemRights.Write,
-                InheritanceFlags.None,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-
-            // remove full control to CREATOR OWNER
-            fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(WellKnownSidType.CreatorOwnerSid, null),
-                FileSystemRights.FullControl,
-                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                PropagationFlags.InheritOnly,
-                AccessControlType.Allow));
-
-            try
-            {
-                UpdateAndLogAccessControl(dataDirectory, fileSystemSecurity);
-            }
-            catch (Exception e)
-            {
-                _session.Log($"Failed to set ACLs on {dataDirectory}: {e}");
-                throw;
-            }
-        }
-
         private void ConfigureFilePermissions()
         {
             try
@@ -785,8 +737,8 @@ namespace Datadog.CustomActions
                             _session.Log($"Failed to remove {ddAgentUserName} from {filePath}: {e}");
                         }
                     }
-                    //remove access to root folder
-                    RemoveDatadogUserFromDataFolder(securityIdentifier);
+                    //remove datadog access to root folder and restore to base permissions
+                    SetBaseInheritablePermissions();
                 }
 
                 // We intentionally do NOT delete the ddagentuser account.
