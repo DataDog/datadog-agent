@@ -26,21 +26,28 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+type cipherTestCase struct {
+	cert    string
+	cipher  string
+	tls_max string
+	want    bool
+}
+
 var (
-	testcases = map[string]bool{
-		"ecc -c TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256":       true,
-		"rsa -c TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256":         true,
-		"ecc -c TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384":       true,
-		"rsa -c TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384":         true,
-		"rsa -c TLS_AES_128_GCM_SHA256 --tls-max=1.3":          true,
-		"rsa -c TLS_AES_256_GCM_SHA384 --tls-max=1.3":          true,
-		"ecc -c TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256": false,
-		"rsa -c TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256":   false,
-		"ecc -c TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA":          false,
-		"rsa -c TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA":            false,
-		"ecc -c TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA":          false,
-		"rsa -c TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA":            false,
-		"rsa -c TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA":           false,
+	testcases = []cipherTestCase{
+		cipherTestCase{cert: "ecc", cipher: "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", want: true},
+		cipherTestCase{cert: "ecc", cipher: "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384", want: true},
+		cipherTestCase{cert: "ecc", cipher: "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256", want: false},
+		cipherTestCase{cert: "ecc", cipher: "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA", want: false},
+		cipherTestCase{cert: "ecc", cipher: "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA", want: false},
+		cipherTestCase{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", want: true},
+		cipherTestCase{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", want: true},
+		cipherTestCase{cert: "rsa", cipher: "TLS_AES_128_GCM_SHA256", tls_max: "1.3", want: true},
+		cipherTestCase{cert: "rsa", cipher: "TLS_AES_256_GCM_SHA384", tls_max: "1.3", want: true},
+		cipherTestCase{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256", want: false},
+		cipherTestCase{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", want: false},
+		cipherTestCase{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA", want: false},
+		cipherTestCase{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA", want: false},
 	}
 )
 
@@ -64,24 +71,24 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
 	v.UpdateEnv(
 		awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(
-				dockeragentparams.WithFIPS(),
-				dockeragentparams.WithExtraComposeManifest("dd-fips-server", pulumi.String(dockerCompose)),
+				dockeragentparams.WithFullImagePath("registry.ddbuild.io/ci/datadog-agent/agent:v51515213-0796c161-7-fips-arm64"),
+				dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
 			),
 		),
 	)
 
-	for command, shouldConnect := range testcases {
-		v.Run(fmt.Sprintf("FIPS enabled testing '%v' (should connect %v)", command, shouldConnect), func() {
+	for _, tc := range testcases {
+		v.Run(fmt.Sprintf("FIPS enabled testing '%v -c %v' (should connect %v)", tc.cert, tc.cipher, tc.want), func() {
 
 			// Start the fips-server and waits for it to be ready
-			runFipsServer(v, command)
+			runFipsServer(v, tc)
 			defer stopFipsServer(v)
 
 			// Run diagnose to send requests and verify the server logs
 			runAgentDiagnose(v)
 
 			serverLogs := v.Env().RemoteHost.MustExecute("docker logs dd-fips-server")
-			if shouldConnect {
+			if tc.want {
 				assert.NotContains(v.T(), serverLogs, "no cipher suite supported by both client and server")
 			} else {
 				assert.Contains(v.T(), serverLogs, "no cipher suite supported by both client and server")
@@ -99,17 +106,17 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSDisabled() {
 	v.UpdateEnv(
 		awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(
-				dockeragentparams.WithFIPS(),
-				dockeragentparams.WithExtraComposeManifest("dd-fips-server", pulumi.String(dockerCompose)),
+				dockeragentparams.WithFullImagePath("registry.ddbuild.io/ci/datadog-agent/agent:v51515213-0796c161-7-fips-arm64"),
+				dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
 			),
 		),
 	)
 
-	for command := range testcases {
-		v.Run(fmt.Sprintf("FIPS disabled testing '%v'", command), func() {
+	for _, tc := range testcases {
+		v.Run(fmt.Sprintf("FIPS disabled testing '%v -c %v'", tc.cert, tc.cipher), func() {
 
 			// Start the fips-server and waits for it to be ready
-			runFipsServer(v, command)
+			runFipsServer(v, tc)
 			defer stopFipsServer(v)
 
 			// Run diagnose to send requests and verify the server logs
@@ -131,13 +138,13 @@ func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
 	v.UpdateEnv(
 		awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(
-				dockeragentparams.WithFIPS(),
-				dockeragentparams.WithExtraComposeManifest("dd-fips-server", pulumi.String(dockerCompose)),
+				dockeragentparams.WithFullImagePath("registry.ddbuild.io/ci/datadog-agent/agent:v51515213-0796c161-7-fips-arm64"),
+				dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
 			),
 		),
 	)
 
-	runFipsServer(v, "rsa --tls-max=1.1")
+	runFipsServer(v, cipherTestCase{cert: "rsa", tls_max: "1.1"})
 	runAgentDiagnose(v)
 
 	serverLogs := v.Env().RemoteHost.MustExecute("docker logs dd-fips-server")
@@ -146,10 +153,18 @@ func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
 	stopFipsServer(v)
 }
 
-func runFipsServer(v *fipsServerSuite, command string) {
+func runFipsServer(v *fipsServerSuite, tc cipherTestCase) {
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		stopFipsServer(v)
-		_, err := v.Env().RemoteHost.Execute("docker run --rm -d --name dd-fips-server ghcr.io/datadog/apps-fips-server:main " + command)
+		envvar := fmt.Sprintf("CERT=%v", tc.cert)
+		if tc.cipher != "" {
+			envvar = fmt.Sprintf(`%v CIPHER="-c %v"`, envvar, tc.cipher)
+		}
+		if tc.tls_max != "" {
+			envvar = fmt.Sprintf(`%v TLS_MAX="--tls-max %v"`, envvar, tc.tls_max)
+		}
+
+		_, err := v.Env().RemoteHost.Execute(fmt.Sprintf("%v docker-compose run --rm -d fips-server", envvar))
 		if err != nil {
 			v.T().Logf("Error starting fips-server: %v", err)
 			require.NoError(t, err)
@@ -171,7 +186,7 @@ func runAgentDiagnose(v *fipsServerSuite) {
 func stopFipsServer(v *fipsServerSuite) {
 	fipsContainer := v.Env().RemoteHost.MustExecute("docker container ls -a --filter name=dd-fips-server --format '{{.Names}}'")
 	if fipsContainer != "" {
-		v.Env().RemoteHost.MustExecute("docker stop dd-fips-server")
+		v.Env().RemoteHost.MustExecute("docker compose stop fips-server")
 	}
 }
 

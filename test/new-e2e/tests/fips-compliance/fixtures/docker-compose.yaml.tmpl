@@ -12,3 +12,4 @@ services:
     image: "ghcr.io/datadog/apps-fips-server:main"
     ports:
       - "443:443"
+    entrypoint: ["./run.sh", "${CERT:-rsa}", "${CIPHER}", "${TLS_MAX}"]
