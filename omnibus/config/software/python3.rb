@@ -122,8 +122,8 @@ build do
     # the OpenSSL build, so we need to copy those files to the install directory.
     # The ones we copied for the build are now irrelevant
     openssl_arch = "x64"
-    move "#{install_dir}\\embedded3\\bin\\libcrypto-3-#{openssl_arch}.dll", "#{windows_safe_path(python_3_embedded)}\\DLLs"
-    move "#{install_dir}\\embedded3\\bin\\libssl-3-#{openssl_arch}.dll", "#{windows_safe_path(python_3_embedded)}\\DLLs"
+    copy "#{install_dir}\\embedded3\\bin\\libcrypto-3-#{openssl_arch}.dll", "#{windows_safe_path(python_3_embedded)}\\DLLs"
+    copy "#{install_dir}\\embedded3\\bin\\libssl-3-#{openssl_arch}.dll", "#{windows_safe_path(python_3_embedded)}\\DLLs"
     # Generate libpython3XY.a for MinGW tools
     # https://docs.python.org/3/whatsnew/3.8.html
     command "gendef #{windows_safe_path(python_3_embedded)}\\python312.dll"
