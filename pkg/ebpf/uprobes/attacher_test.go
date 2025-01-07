@@ -702,11 +702,6 @@ func TestUprobeAttacher(t *testing.T) {
 
 	procMon := launchProcessMonitor(t, false)
 
-	coreDir := path.Join(ebpfCfg.BPFDir, "co-re")
-	buf, err := bytecode.GetReader(coreDir, "uprobe_attacher-test.o")
-	require.NoError(t, err)
-	t.Cleanup(func() { buf.Close() })
-
 	connectProbeID := manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}
 	mainProbeID := manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__main"}
 
@@ -750,9 +745,13 @@ func TestUprobeAttacher(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
-	require.NoError(t, mgr.InitWithOptions(buf, manager.Options{}))
-	require.NoError(t, mgr.Start())
-	t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
+	err = LoadCOREAsset("uprobe_attacher-test.o", func(buf bytecode.AssertCalled, opts manager.Options) error {
+		require.NoError(t, mgr.InitWithOptions(buf, opts))
+		require.NoError(t, mgr.Start())
+		t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
+	})
+	require.NoError(t, err)
+
 	require.NoError(t, ua.Start())
 	t.Cleanup(ua.Stop)
 
