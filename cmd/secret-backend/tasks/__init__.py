@@ -7,3 +7,8 @@ from invoke import Collection
 from linter import (
     copyrights,
 )
+
+from licenses import (
+    generate_licenses,
+    lint_licenses,
+)

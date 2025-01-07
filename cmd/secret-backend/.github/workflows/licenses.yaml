@@ -1,0 +1,25 @@
+name: "licenses linter"
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  licenses:
+    name: licenses
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.13
+      - run: pip install -r requirements.txt
+      - run: |
+          go install github.com/goware/modvendor
+          go install github.com/frapposelli/wwhrd
+          go install github.com/go-enry/go-license-detector/v4/cmd/license-detector
+      - run: |
+          export PATH=$PATH:$(go env GOPATH)/bin
+          inv -e lint-licenses

@@ -21,6 +21,7 @@ github.com/cenkalti/backoff/v3: "Copyright (c) 2014 Cenk Altı"
 github.com/dimchansky/utfbom: "Copyright (c) 2018-2020, Dmitrij Koniajev (dimchansky@gmail.com)"
 github.com/go-jose/go-jose/v3: "Copyright 2014 Square Inc"
 github.com/go-jose/go-jose/v3/json: ["Copyright 2014 Square Inc", "Copyright (c) 2012 The Go Authors. All rights reserved"]
+github.com/go-jose/go-jose/v4: Copyright 2014 Square Inc.
 github.com/golang-jwt/jwt/v4: ["Copyright (c) 2012 Dave Grijalva", "Copyright (c) 2021 golang-jwt maintainers"]
 github.com/hashicorp/*: Copyright © 2014-2018 HashiCorp, Inc
 github.com/jmespath/go-jmespath: "Copyright 2015 James Saryerwinnie"
@@ -30,6 +31,21 @@ github.com/mitchellh/* : "Copyright (c) 2013 Mitchell Hashimoto"
 github.com/rs/zerolog: "Copyright (c) 2017 Olivier Poitrey"
 github.com/ryanuber/go-glob: "Copyright (c) 2014 Ryan Uber"
 github.com/sirupsen/logrus: "Copyright (c) 2014 Simon Eskildsen"
+github.com/xanzy/ssh-agent: ["Copyright (c) 2014 David Mzareulyan", "Copyright 2015, Sander van Harmelen"]
 golang.org/x/*: "Copyright (c) 2009 The Go Authors. All rights reserved"
 golang/go: Copyright (c) 2009 The Go Authors. All rights reserved.
 gopkg.in/yaml.v2: "Copyright 2011-2016 Canonical Ltd"
+
+# https://github.com/acomagu/bufpipe/blob/master/LICENSE
+github.com/acomagu/bufpipe: Copyright (c) 2019 acomagu
+
+# https://github.com/emicklei/dot/blob/master/LICENSE
+github.com/emicklei/dot: Copyright(c) Ernest Micklei
+
+github.com/pjbgf/sha1cd:
+ - Copyright 2009 The Go Authors. All rights reserved.
+ - Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com>
+ - Copyright 2022 Paulo Gomes <pjbgf@linux.com>
+ - Copyright 2023 pjbgf
+
+github.com/golang/groupcache: Copyright 2013 Google Inc.

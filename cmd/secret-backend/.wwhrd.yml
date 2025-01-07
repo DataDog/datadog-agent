@@ -16,12 +16,20 @@ allowlist:
   - NewBSD
   - FreeBSD
 
+overrides:
+  # https://github.com/acomagu/bufpipe/blob/master/LICENSE
+  "github.com/acomagu/bufpipe": MIT
+
 exceptions:
   - "golang.org/x/mobile/..."
   - "golang.org/x/tools/..."
   - "golang.org/x/mod/..."
   - "golang.org/x/xerrors/..."
   - "github.com/stretchr/testify"
+  # Build tools, not embedded in the software
+  - "github.com/goware/modvendor"
+  - "github.com/go-enry/go-license-detector/..."
+
 
 additional:
   # list here paths to additional licenses
