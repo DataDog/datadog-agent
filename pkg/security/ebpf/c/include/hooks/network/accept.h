@@ -4,6 +4,10 @@
 #include "constants/offsets/network.h"
 
 int __attribute__((always_inline)) read_sock_and_send_event(ctx_t * ctx, struct sock * sock) {
+    if(sock == NULL) {
+        return 0;
+    }
+
     struct accept_event_t event = {0};
 
     // Extract family from the socket
