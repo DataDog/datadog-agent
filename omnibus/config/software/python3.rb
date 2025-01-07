@@ -99,7 +99,7 @@ build do
     # The applink "header"
     copy "#{install_dir}\\embedded3\\include\\openssl\\applink.c", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\include\\"
     # And finally the headers:
-    copy "#{install_dir}\\embedded3\\include\\openssl", "externals\\openssl-bin-#{openssl_version}\#{python_arch}\\include\\"
+    copy "#{install_dir}\\embedded3\\include\\openssl", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\include\\"
     # Now build python itself...
 
     ###############################
