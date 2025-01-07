@@ -5,7 +5,29 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
+// list of requests we don't want to rate limit
+const int important_reqs[] = {
+    PTRACE_ATTACH,
+    PTRACE_DETACH,
+    PTRACE_TRACEME,
+    PTRACE_SEIZE,
+    PTRACE_KILL,
+    PTRACE_SETOPTIONS,
+};
+
 HOOK_SYSCALL_ENTRY3(ptrace, u32, request, pid_t, pid, void *, addr) {
+    u8 found = 0;
+    for (int i = 0; i < sizeof(important_reqs) / sizeof(int); i++) {
+        if (request == important_reqs[i]) {
+            found = 1;
+            break;
+        }
+    }
+    if (!found && !rate_limiter_allow_simple()) {
+        // for other requests types than a define list, rate limit the events
+        return 0;
+    }
+
     struct syscall_cache_t syscall = {
         .type = EVENT_PTRACE,
         .ptrace = {

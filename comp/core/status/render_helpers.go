@@ -23,8 +23,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cast"
 
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -290,8 +288,12 @@ func formatTitle(title string) string {
 	}
 	title = strings.Join(words, " ")
 
+	if title == "" {
+		return ""
+	}
+
 	// Capitalize the first letter
-	return cases.Title(language.English, cases.NoLower).String(title)
+	return strings.ToUpper(string(title[0])) + title[1:]
 }
 
 func status(check map[string]interface{}) string {

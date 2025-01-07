@@ -83,6 +83,12 @@
         },
         "origin": {
           "type": "string"
+        },
+        "kernel_version": {
+          "type": "string"
+        },
+        "distribution": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -1597,6 +1603,12 @@
           "$ref": "#/$defs/SyscallArgs"
         },
         "mount": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "mkdir": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "rmdir": {
           "$ref": "#/$defs/SyscallArgs"
         }
       },

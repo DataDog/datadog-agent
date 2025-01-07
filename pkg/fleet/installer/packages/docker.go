@@ -148,7 +148,8 @@ func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err err
 		return nil
 	}
 
-	for i := 0; i < 3; i++ {
+	currentRuntime := ""
+	for i := 0; i < 5; i++ {
 		if i > 0 {
 			time.Sleep(time.Second)
 		}
@@ -157,17 +158,22 @@ func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err err
 		cmd.Stdout = &outb
 		err = cmd.Run()
 		if err != nil {
-			if i < 2 {
+			if i < 5 {
 				log.Debug("failed to verify docker runtime, retrying: ", err)
 			} else {
 				log.Warn("failed to verify docker runtime: ", err)
 			}
 		}
 		if strings.TrimSpace(outb.String()) == "dd-shim" {
+			span.SetTag("retries", i)
+			span.SetTag("docker_runtime", "dd-shim")
 			return nil
 		}
+		currentRuntime = strings.TrimSpace(outb.String())
 	}
-	err = fmt.Errorf("docker default runtime has not been set to injector docker runtime")
+	span.SetTag("retries", 5)
+	span.SetTag("docker_runtime", currentRuntime)
+	err = fmt.Errorf("docker default runtime has not been set to injector docker runtime (is \"%s\")", currentRuntime)
 	return err
 }
 

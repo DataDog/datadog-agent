@@ -22,7 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	envkube "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	envkube "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )
@@ -38,7 +39,7 @@ type eksVMSuite struct {
 	e2e.BaseSuite[eksHttpbinEnv]
 }
 
-func eksHttpbinEnvProvisioner(opts ...envkube.ProvisionerOption) e2e.PulumiEnvRunFunc[eksHttpbinEnv] {
+func eksHttpbinEnvProvisioner(opts ...envkube.ProvisionerOption) provisioners.PulumiEnvRunFunc[eksHttpbinEnv] {
 	return func(ctx *pulumi.Context, env *eksHttpbinEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -94,7 +95,7 @@ func TestEKSVMSuite(t *testing.T) {
 	t.Parallel()
 
 	s := &eksVMSuite{}
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("eksHttpbin", eksHttpbinEnvProvisioner(), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("eksHttpbin", eksHttpbinEnvProvisioner(), nil))}
 
 	e2e.Run(t, s, e2eParams...)
 }

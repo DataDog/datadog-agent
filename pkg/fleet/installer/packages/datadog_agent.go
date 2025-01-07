@@ -19,11 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
 	agentPackage      = "datadog-agent"
-	pathOldAgent      = "/opt/datadog-agent"
 	agentSymlink      = "/usr/bin/datadog-agent"
 	agentUnit         = "datadog-agent.service"
 	traceAgentUnit    = "datadog-agent-trace.service"
@@ -76,13 +76,18 @@ func PrepareAgent(ctx context.Context) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "prepare_agent")
 	defer func() { span.Finish(err) }()
 
-	// Check if the agent has been installed by a package manager, if yes remove it
-	if !oldAgentInstalled() {
-		return nil // Nothing to do
-	}
-	err = stopOldAgentUnits(ctx)
+	err = removeDebRPMPackage(ctx, "datadog-agent")
 	if err != nil {
-		return fmt.Errorf("failed to stop old agent units: %w", err)
+		return fmt.Errorf("failed to remove deb/rpm datadog-agent package: %w", err)
+	}
+
+	for _, unit := range stableUnits {
+		if err := stopUnit(ctx, unit); err != nil {
+			log.Warnf("Failed to stop %s: %s", unit, err)
+		}
+		if err := disableUnit(ctx, unit); err != nil {
+			log.Warnf("Failed to disable %s: %s", unit, err)
+		}
 	}
 	return removeDebRPMPackage(ctx, agentPackage)
 }
@@ -139,8 +144,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	}
 
 	// write installinfo before start, or the agent could write it
-	// TODO: add installer version properly
-	if err = installinfo.WriteInstallInfo("installer_package", "manual_update"); err != nil {
+	if err = installinfo.WriteInstallInfo("installer", fmt.Sprintf("installer-%s", version.AgentVersion), "manual_update"); err != nil {
 		return fmt.Errorf("failed to write install info: %v", err)
 	}
 
@@ -202,28 +206,6 @@ func RemoveAgent(ctx context.Context) error {
 	}
 	installinfo.RmInstallInfo()
 	// TODO: Return error to caller?
-	return nil
-}
-
-func oldAgentInstalled() bool {
-	_, err := os.Stat(pathOldAgent)
-	return err == nil
-}
-
-func stopOldAgentUnits(ctx context.Context) (err error) {
-	if !oldAgentInstalled() {
-		return nil
-	}
-	span, ctx := telemetry.StartSpanFromContext(ctx, "remove_old_agent_units")
-	defer span.Finish(err)
-	for _, unit := range stableUnits {
-		if err := stopUnit(ctx, unit); err != nil {
-			return fmt.Errorf("failed to stop %s: %v", unit, err)
-		}
-		if err := disableUnit(ctx, unit); err != nil {
-			return fmt.Errorf("failed to disable %s: %v", unit, err)
-		}
-	}
 	return nil
 }
 

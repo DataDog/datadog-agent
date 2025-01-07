@@ -8,15 +8,12 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.package.size import (
     PACKAGE_SIZE_TEMPLATE,
-    _get_deb_uncompressed_size,
-    _get_rpm_uncompressed_size,
     compare,
     compute_package_size_metrics,
 )
 from tasks.libs.package.utils import (
     PackageSize,
     display_message,
-    find_package,
     get_ancestor,
     list_packages,
     retrieve_package_sizes,
@@ -56,50 +53,15 @@ def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False)
             decision = "⚠️ Warning"
         else:
             decision = "✅ Passed"
-        display_message(ctx, ancestor, size_message, decision)
+        # Try to display the message on the PR when a PR exists
+        if os.environ.get("CI_COMMIT_BRANCH"):
+            try:
+                display_message(ctx, ancestor, size_message, decision)
+            # PR commenter asserts on the numbers of PR's, this will raise if there's no PR
+            except AssertionError as exc:
+                print(f"Got `{exc}` while trying to comment on PR, we'll assume that this is not a PR.")
         if "Failed" in decision:
             raise Exit(code=1)
-
-
-@task
-def compare_size(ctx, new_package, stable_package, package_type, last_stable, threshold):
-    mb = 1000000
-
-    if package_type.endswith('deb'):
-        new_package_size = _get_deb_uncompressed_size(ctx, find_package(new_package))
-        stable_package_size = _get_deb_uncompressed_size(ctx, find_package(stable_package))
-    else:
-        new_package_size = _get_rpm_uncompressed_size(ctx, find_package(new_package))
-        stable_package_size = _get_rpm_uncompressed_size(ctx, find_package(stable_package))
-
-    threshold = int(threshold)
-
-    diff = new_package_size - stable_package_size
-
-    # For printing purposes
-    new_package_size_mb = new_package_size / mb
-    stable_package_size_mb = stable_package_size / mb
-    threshold_mb = threshold / mb
-    diff_mb = diff / mb
-
-    if diff > threshold:
-        print(
-            color_message(
-                f"""{package_type} size increase is too large:
-  New package size is {new_package_size_mb:.2f}MB
-  Stable package ({last_stable}) size is {stable_package_size_mb:.2f}MB
-  Diff is {diff_mb:.2f}MB > {threshold_mb:.2f}MB (max allowed diff)""",
-                "red",
-            )
-        )
-        raise Exit(code=1)
-
-    print(
-        f"""{package_type} size increase is OK:
-  New package size is {new_package_size_mb:.2f}MB
-  Stable package ({last_stable}) size is {stable_package_size_mb:.2f}MB
-  Diff is {diff_mb:.2f}MB (max allowed diff: {threshold_mb:.2f}MB)"""
-    )
 
 
 @task

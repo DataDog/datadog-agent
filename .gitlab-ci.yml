@@ -6,7 +6,6 @@ include:
   - .gitlab/check_deploy/check_deploy.yml
   - .gitlab/check_merge/do_not_merge.yml
   - .gitlab/choco_build/choco_build.yml
-  - .gitlab/choco_deploy/choco_deploy.yml
   - .gitlab/powershell_script_signing/powershell_script_signing.yml
   - .gitlab/powershell_script_deploy/powershell_script_deploy.yml
   - .gitlab/common/shared.yml
@@ -45,7 +44,9 @@ include:
 default:
   retry:
     max: 2
-    exit_codes: 42
+    exit_codes:
+      - 42
+      - 101 # Failed to extract dependencies
     when:
       - runner_system_failure
       - stuck_or_timeout_failure
@@ -86,7 +87,7 @@ stages:
   - deploy_dca
   - choco_and_install_script_build
   - trigger_release
-  - choco_and_install_script_deploy
+  - install_script_deploy
   - internal_image_deploy
   - e2e_deploy
   - install_script_testing
@@ -623,18 +624,6 @@ workflow:
 .on_main_or_release_branch:
   - <<: *if_main_branch
   - <<: *if_release_branch
-
-.on_main_or_release_branch_or_all_builds_or_pkg_installer_changes:
-  - <<: *if_main_branch
-  - <<: *if_release_branch
-  - <<: *if_run_all_builds
-  - <<: *if_run_all_unit_tests
-  - changes:
-      paths:
-        - pkg/fleet/**/*
-      compare_to: main
-    variables:
-      FAST_TESTS: "true"
 
 .only_main:
   - <<: *if_not_main_branch
@@ -1197,3 +1186,26 @@ workflow:
         - test/new-e2e/tests/gpu/**/*
         - pkg/collector/corechecks/gpu/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+# windows_docker_2022 configures the job to use the Windows Server 2022 runners.
+# Use in jobs that need to run on Windows Server 2022 runners.
+.windows_docker_2022:
+  tags: ["runner:windows-docker", "windowsversion:2022"]
+  variables:
+    # Full image name for Agent windows build image, for use in docker run command
+    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${DATADOG_AGENT_WINBUILDIMAGES}
+
+# windows_docker_2019 configures the job to use the Windows Server 2019 runners.
+# Use in jobs that need to run on Windows Server 2019 runners.
+.windows_docker_2019:
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  variables:
+    # Full image name for Agent windows build image, for use in docker run command
+    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${DATADOG_AGENT_WINBUILDIMAGES}
+
+# windows_docker_default configures the job to use the default Windows Server runners
+# Use in jobs that may need to have their version updated in the future.
+#
+# Current default: Windows Server 2019
+.windows_docker_default:
+  extends: .windows_docker_2019
