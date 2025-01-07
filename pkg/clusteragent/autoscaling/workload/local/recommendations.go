@@ -360,14 +360,6 @@ func processAverageContainerMetricValue(series []EntityValue, currentTime time.T
 	return average(values), lastTimestamp, nil
 }
 
-func findAverageUtilization(podToUtilization map[string]float64) float64 {
-	totalUtilization := 0.0
-	for _, utilization := range podToUtilization {
-		totalUtilization += utilization
-	}
-	return totalUtilization / float64(len(podToUtilization))
-}
-
 func adjustMissingPods(scaleDirection shared.ScaleDirection, podToUtilization map[string]float64, missingPods []string) map[string]float64 {
 	for _, pod := range missingPods {
 		// adjust based on scale direction
