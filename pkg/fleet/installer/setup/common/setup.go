@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -41,7 +42,7 @@ type Setup struct {
 	Out      *Output
 	Env      *env.Env
 	Ctx      context.Context
-	Span     telemetry.Span
+	Span     *telemetry.Span
 	Packages Packages
 	Config   Config
 }
@@ -114,6 +115,10 @@ func (s *Setup) Run() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to install installer: %w", err)
 	}
+	err = installinfo.WriteInstallInfo("installer", fmt.Sprintf("installer-%s", version.AgentVersion), fmt.Sprintf("install-%s.sh", s.flavor))
+	if err != nil {
+		return fmt.Errorf("failed to write install info: %w", err)
+	}
 	for _, p := range packages {
 		url := oci.PackageURL(s.Env, p.name, p.version)
 		err = s.installPackage(p.name, url)
@@ -130,7 +135,7 @@ func (s *Setup) installPackage(name string, url string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(s.Ctx, "install")
 	defer func() { span.Finish(err) }()
 	span.SetTag("url", url)
-	span.SetTag("_top_level", 1)
+	span.SetTopLevel()
 
 	s.Out.WriteString(fmt.Sprintf("Installing %s...\n", name))
 	err = s.installer.Install(ctx, url, nil)

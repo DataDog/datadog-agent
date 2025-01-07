@@ -82,7 +82,6 @@ AGENT_CORECHECKS = [
     "systemd",
     "tcp_queue_length",
     "uptime",
-    "winproc",
     "jetson",
     "telemetry",
     "orchestrator_pod",
@@ -98,6 +97,7 @@ WINDOWS_CORECHECKS = [
     "windows_registry",
     "winkmem",
     "wincrashdetect",
+    "winproc",
     "win32_event_log",
 ]
 
@@ -352,9 +352,8 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
             shutil.copytree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir, dirs_exist_ok=True)
 
-    if "apm" in build_tags:
+    if sys.platform == 'darwin':
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
-    if "process" in build_tags:
         shutil.copy(
             "./cmd/agent/dist/conf.d/process_agent.yaml.default",
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),

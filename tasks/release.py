@@ -70,10 +70,11 @@ from tasks.libs.releasing.version import (
     VERSION_RE,
     _create_version_from_match,
     current_version,
+    deduce_version,
+    get_version_major,
     next_final_version,
     next_rc_version,
 )
-from tasks.libs.types.version import Version
 from tasks.pipeline import edit_schedule, run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
@@ -83,68 +84,6 @@ GITLAB_FILES_TO_UPDATE = [
 ]
 
 BACKPORT_LABEL_COLOR = "5319e7"
-
-
-def deduce_version(ctx, branch, as_str=True, trust=False) -> str | Version:
-    release_version = get_next_version_from_branch(ctx, branch, as_str=as_str)
-
-    print(
-        f'{color_message("Info", Color.BLUE)}: Version {release_version} deduced from branch {branch}', file=sys.stderr
-    )
-
-    if (
-        trust
-        or not os.isatty(sys.stdin.fileno())
-        or yes_no_question(
-            'Is this the version you want to use?',
-            color="orange",
-            default=False,
-        )
-    ):
-        return release_version
-
-    raise Exit(color_message("Aborting.", "red"), code=1)
-
-
-def get_version_major(branch: str) -> int:
-    """Get the major version from a branch name."""
-
-    return 7 if branch == 'main' else int(branch.split('.')[0])
-
-
-def get_all_version_tags(ctx) -> list[str]:
-    """Returns the tags for all the versions of the Agent in git."""
-
-    cmd = "bash -c 'git tag | grep -E \"^[0-9]\\.[0-9]+\\.[0-9]+$\"'"
-
-    return ctx.run(cmd, hide=True).stdout.strip().split('\n')
-
-
-def get_next_version_from_branch(ctx, branch: str, as_str=True) -> str | Version:
-    """Returns the latest version + 1 belonging to a branch.
-
-    Example:
-        get_latest_version_from_branch("7.55.x") -> Version(7, 55, 4) if there are 7.55.0, 7.55.1, 7.55.2, 7.55.3 tags.
-        get_latest_version_from_branch("6.99.x") -> Version(6, 99, 0) if there are no 6.99.* tags.
-    """
-
-    re_branch = re.compile(r"^([0-9]\.[0-9]+\.)x$")
-
-    try:
-        matched = re_branch.match(branch).group(1)
-    except Exception as e:
-        raise Exit(
-            f'{color_message("Error:", "red")}: Branch {branch} is not a release branch (should be X.Y.x)', code=1
-        ) from e
-
-    tags = [tuple(map(int, tag.split('.'))) for tag in get_all_version_tags(ctx) if tag.startswith(matched)]
-    versions = sorted(Version(*tag) for tag in tags)
-
-    minor, major = tuple(map(int, branch.split('.')[:2]))
-
-    latest = versions[-1].next_version(bump_patch=True) if versions else Version(minor, major, 0)
-
-    return str(latest) if as_str else latest
 
 
 @task
@@ -183,6 +122,13 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
         for module in modules.values():
             for dependency in module.dependencies:
                 dependency_mod = modules[dependency]
+                if (
+                    agent_version.startswith('6')
+                    and 'pkg/util/optional' in dependency_mod.dependency_path(agent_version)
+                    and 'test/new-e2e' in module.go_mod_path()
+                ):
+                    # Skip this dependency update in new-e2e for Agent 6, as it's incompatible.
+                    continue
                 ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
 
 
@@ -627,7 +573,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
-def set_release_json(ctx, key, value, release_branch=None, skip_checkout=False, worktree=True):
+def set_release_json(ctx, key, value, release_branch=None, skip_checkout=False, worktree=False):
     def _main():
         nonlocal key
 
@@ -837,10 +783,6 @@ def _update_last_stable(_, version, major_version: int = 7):
     return release_json["current_milestone"]
 
 
-def _get_agent6_latest_release(gh):
-    return max((r for r in gh.get_releases() if r.title.startswith('6.53')), key=lambda r: r.created_at).title
-
-
 @task
 def cleanup(ctx, release_branch):
     """Perform the post release cleanup steps
@@ -850,13 +792,13 @@ def cleanup(ctx, release_branch):
       - Updates the release.json last_stable fields
     """
 
-    with agent_context(ctx, release_branch):
+    # This task will create a PR to update the last_stable field in release.json
+    # It must create the PR against the default branch (6 or 7), so setting the context on it
+    main_branch = get_default_branch()
+    with agent_context(ctx, main_branch):
         gh = GithubAPI()
         major_version = get_version_major(release_branch)
-        if major_version == 6:
-            latest_release = _get_agent6_latest_release(gh)
-        else:
-            latest_release = gh.latest_release()
+        latest_release = gh.latest_release(major_version)
         match = VERSION_RE.search(latest_release)
         if not match:
             raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
@@ -865,7 +807,6 @@ def cleanup(ctx, release_branch):
         current_milestone = _update_last_stable(ctx, version, major_version=major_version)
 
         # create pull request to update last stable version
-        main_branch = get_default_branch()
         cleanup_branch = f"release/{version}-cleanup"
         ctx.run(f"git checkout -b {cleanup_branch}")
         ctx.run("git add release.json")
@@ -1034,7 +975,7 @@ def get_active_release_branch(ctx, release_branch):
 
     with agent_context(ctx, branch=release_branch):
         gh = GithubAPI()
-        next_version = get_next_version(gh, latest_release=_get_agent6_latest_release(gh) if is_agent6(ctx) else None)
+        next_version = get_next_version(gh, latest_release=gh.latest_release(6) if is_agent6(ctx) else None)
         release_branch = gh.get_branch(next_version.branch())
         if release_branch:
             print(f"{release_branch.name}")
@@ -1096,17 +1037,17 @@ def generate_release_metrics(ctx, milestone, freeze_date, release_date):
 
 
 @task
-def create_schedule(_, version, freeze_date):
+def create_schedule(_, version, cutoff_date):
     """Create confluence pages for the release schedule.
 
     Args:
-        freeze_date: Date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+        cutoff_date: Date when the code cut-off happened. Expected format YYYY-MM-DD, like '2022-02-01'
     """
 
     required_environment_variables = ["ATLASSIAN_USERNAME", "ATLASSIAN_PASSWORD"]
     if not all(key in os.environ for key in required_environment_variables):
         raise Exit(f"You must set {required_environment_variables} environment variables to use this task.", code=1)
-    release_page = create_release_page(version, date.fromisoformat(freeze_date))
+    release_page = create_release_page(version, date.fromisoformat(cutoff_date))
     print(f"Release schedule pages {release_page['url']} {color_message('successfully created', 'green')}")
 
 
@@ -1226,7 +1167,7 @@ def create_github_release(ctx, release_branch, draft=True):
     )
 
     notes = []
-    version = deduce_version(ctx, release_branch)
+    version = deduce_version(ctx, release_branch, next_version=False)
 
     with agent_context(ctx, release_branch):
         for section, filename in sections:
