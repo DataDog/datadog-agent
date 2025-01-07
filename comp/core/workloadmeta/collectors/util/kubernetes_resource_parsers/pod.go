@@ -14,6 +14,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/gpu"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 type podParser struct {
@@ -77,6 +78,20 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		gpuVendorList = append(gpuVendorList, gpuVendor)
 	}
 
+	containersList := make([]workloadmeta.OrchestratorContainer, 0, len(pod.Spec.Containers))
+	for _, container := range pod.Spec.Containers {
+		c := workloadmeta.OrchestratorContainer{
+			Name: container.Name,
+		}
+		if cpuReq, found := container.Resources.Requests[corev1.ResourceCPU]; found {
+			c.Resources.CPURequest = pointer.Ptr(cpuReq.AsApproximateFloat64() * 100) // For 100Mi, AsApproximate returns 0.1, we return 10%
+		}
+		if memoryReq, found := container.Resources.Requests[corev1.ResourceMemory]; found {
+			c.Resources.MemoryRequest = pointer.Ptr(uint64(memoryReq.Value()))
+		}
+		containersList = append(containersList, c)
+	}
+
 	return &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
@@ -102,6 +117,6 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		// currently it's not to save on memory, since this is supposed
 		// to run in the Cluster Agent, and the total amount of
 		// containers can be quite significant
-		// Containers:                 []workloadmeta.OrchestratorContainer{},
+		Containers: containersList,
 	}
 }
