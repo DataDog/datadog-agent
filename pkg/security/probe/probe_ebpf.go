@@ -2533,6 +2533,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePathMnt, "struct path", "mnt")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeSuperblock, "struct inode", "i_sb")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameMountMntMountpoint, "struct mount", "mnt_mountpoint")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameMountMntMountpoint, "struct mountpoint", "m_dentry")
 }
 
 // HandleActions handles the rule actions

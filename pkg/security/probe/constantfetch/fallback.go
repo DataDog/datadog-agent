@@ -169,6 +169,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getPathMntOffset(f.kernelVersion)
 	case OffsetNameMountMntMountpoint:
 		value = getMountMntMountpointOffset(f.kernelVersion)
+	case OffsetNameMountpointDentry:
+		value = getMountpointDentryOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -1106,4 +1108,8 @@ func getPathMntOffset(_ *kernel.Version) uint64 {
 
 func getMountMntMountpointOffset(_ *kernel.Version) uint64 {
 	return 24
+}
+
+func getMountpointDentryOffset(_ *kernel.Version) uint64 {
+	return 16
 }
