@@ -34,11 +34,9 @@ var (
 	fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)
 
 	// unsupportedEnvVars are the environment variables that are not supported by the default script
-	// TODO: support as many as possible
 	unsupportedEnvVars = []string{
 		"DD_INSTALLER",
 		"DD_AGENT_FLAVOR",
-		"DD_URL",
 		"DD_HOST_TAGS",
 		"DD_UPGRADE",
 		"DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE",
