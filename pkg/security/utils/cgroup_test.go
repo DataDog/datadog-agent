@@ -60,7 +60,6 @@ func TestCGroup(t *testing.T) {
 			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerCRI),
 			path:        "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod98005c3b_b650_4efe_8b91_2164d784397f.slice/cri-containerd-e8ac3efec3322d7f13cfa0cdee4344754d01bd4e50fea44e0753e83fdb74cab3.scope",
 		},
-
 		{
 			name: "cgroupv1-docker",
 			cgroupContent: `13:memory:/docker/99d24a208bd5b9c9663e18c34e4bd793536f062d8299a5cca0e718994abd9182
@@ -83,7 +82,6 @@ func TestCGroup(t *testing.T) {
 			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerDocker),
 			path:        "/docker/99d24a208bd5b9c9663e18c34e4bd793536f062d8299a5cca0e718994abd9182",
 		},
-
 		{
 			name: "cgroupv1-systemd-service",
 			cgroupContent: `13:memory:/system.slice/cups.service
@@ -106,7 +104,6 @@ func TestCGroup(t *testing.T) {
 			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerSystemd),
 			path:        "/system.slice/cups.service",
 		},
-
 		{
 			name: "cgroupv1-systemd-subservice",
 			cgroupContent: `13:memory:/user.slice/user-1000.slice/user@1000.service
@@ -129,7 +126,6 @@ func TestCGroup(t *testing.T) {
 			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerSystemd),
 			path:        "/user.slice/user-1000.slice/user@1000.service/xdg-desktop-portal-gtk.service",
 		},
-
 		{
 			name: "cgroupv1-systemd-scope",
 			cgroupContent: `13:memory:/user.slice/user-1000.slice/user@1000.service
@@ -152,7 +148,49 @@ func TestCGroup(t *testing.T) {
 			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerSystemd | containerutils.CGroupManager(containerutils.SystemdScope)),
 			path:        "/user.slice/user-1000.slice/user@1000.service/apps.slice/apps-org.gnome.Terminal.slice/vte-spawn-1d0750f1-4e83-4b26-81ae-e3770394b7f3.scope",
 		},
-
+		{
+			name: "cgroupv1-empty",
+			cgroupContent: `12:pids:/
+11:devices:/
+10:blkio:/
+9:cpuset:/
+8:perf_event:/
+7:memory:/
+6:freezer:/
+5:hugetlb:/
+4:rdma:/
+3:net_cls,net_prio:/
+2:cpu,cpuacct:/
+1:name=systemd:/
+0::/
+`,
+			error:       false,
+			containerID: "",
+			runtime:     0,
+			path:        "",
+		},
+		{
+			name: "cgroupv1-pid1",
+			cgroupContent: `13:memory:/init.scope
+12:hugetlb:/
+11:misc:/
+10:blkio:/init.scope
+9:rdma:/
+8:perf_event:/
+7:cpuset:/
+6:pids:/init.scope
+5:cpu,cpuacct:/init.scope
+4:freezer:/
+3:devices:/init.scope
+2:net_cls,net_prio:/
+1:name=systemd:/init.scope
+0::/init.scope
+`,
+			error:       false,
+			containerID: "",
+			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerSystemd | containerutils.CGroupManager(containerutils.SystemdScope)),
+			path:        "/init.scope",
+		},
 		{
 			name: "cgroupv2-docker",
 			cgroupContent: `0::/system.slice/docker-473a28bd49fcbf3a24eb55563125720311181ee184ae9b88fc9a3fbb30031e47.scope
@@ -162,7 +200,6 @@ func TestCGroup(t *testing.T) {
 			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerDocker),
 			path:        "/system.slice/docker-473a28bd49fcbf3a24eb55563125720311181ee184ae9b88fc9a3fbb30031e47.scope",
 		},
-
 		{
 			name: "cgroupv2-systemd-service",
 			cgroupContent: `0::/system.slice/ssh.service
@@ -172,7 +209,6 @@ func TestCGroup(t *testing.T) {
 			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerSystemd),
 			path:        "/system.slice/ssh.service",
 		},
-
 		{
 			name: "cgroupv2-systemd-scope",
 			cgroupContent: `0::/user.slice/user-1000.slice/session-4.scope
@@ -182,16 +218,34 @@ func TestCGroup(t *testing.T) {
 			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerSystemd | containerutils.CGroupManager(containerutils.SystemdScope)),
 			path:        "/user.slice/user-1000.slice/session-4.scope",
 		},
+		{
+			name: "cgroupv2-pid1",
+			cgroupContent: `0::/init.scope
+`,
+			error:       false,
+			containerID: "",
+			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerSystemd | containerutils.CGroupManager(containerutils.SystemdScope)),
+			path:        "/init.scope",
+		},
+		{
+			name: "cgroupv2-empty",
+			cgroupContent: `0::/
+`,
+			error:       false,
+			containerID: "",
+			runtime:     0,
+			path:        "",
+		},
 	}
 
-	var (
-		containerID   containerutils.ContainerID
-		runtime       containerutils.CGroupFlags
-		cgroupContext model.CGroupContext
-		cgroupPath    string
-	)
-
 	for _, test := range testsCgroup {
+		var (
+			containerID   containerutils.ContainerID
+			runtime       containerutils.CGroupFlags
+			cgroupContext model.CGroupContext
+			cgroupPath    string
+		)
+
 		t.Run(test.name, func(t *testing.T) {
 			err := parseProcControlGroupsData([]byte(test.cgroupContent), func(id, ctrl, path string) bool {
 				if path == "/" {

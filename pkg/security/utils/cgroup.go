@@ -12,7 +12,6 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -95,7 +94,7 @@ func parseProcControlGroupsData(data []byte, fnc func(string, string, string) bo
 		data = data[nextStart:]
 	}
 
-	return errors.New("cgroup resolver error: no good candidate found")
+	return nil
 }
 
 func parseProcControlGroups(tgid, pid uint32, fnc func(string, string, string) bool) error {
