@@ -71,7 +71,6 @@ Invoke-BuildScript `
 
     if ($BuildUpgrade) {
         $inv_args += "--build-upgrade"
-        $env:BUILD_UPGRADE=$BuildUpgrade
     }
 
     Write-Host "inv -e winbuild.agent-package $inv_args"

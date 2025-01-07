@@ -80,7 +80,7 @@ def _get_env(ctx, major_version='7', release_version='nightly'):
     env['AGENT_FLAVOR'] = os.getenv("AGENT_FLAVOR", "")
     env['AGENT_INSTALLER_OUTPUT_DIR'] = BUILD_OUTPUT_DIR
     env['NUGET_PACKAGES_DIR'] = NUGET_PACKAGES_DIR
-    env['UPGRADE_TEST'] = ""
+    env['AGENT_PRODUCT_NAME_SUFFIX'] = ""
 
     return env
 
@@ -273,9 +273,9 @@ def _build_msi(ctx, env, outdir, name, allowlist):
 
 def _msi_output_name(env):
     if _is_fips_mode(env):
-        return f"datadog-fips-agent-{env['UPGRADE_TEST']}{env['PACKAGE_VERSION']}-1-x86_64"
+        return f"datadog-fips-agent-{env['AGENT_PRODUCT_NAME_SUFFIX']}{env['PACKAGE_VERSION']}-1-x86_64"
     else:
-        return f"datadog-agent-{env['UPGRADE_TEST']}{env['PACKAGE_VERSION']}-1-x86_64"
+        return f"datadog-agent-{env['AGENT_PRODUCT_NAME_SUFFIX']}{env['PACKAGE_VERSION']}-1-x86_64"
 
 
 @task
@@ -330,7 +330,7 @@ def build(
         version = _create_version_from_match(VERSION_RE.search(env['PACKAGE_VERSION']))
         next_version = version.next_version(bump_patch=True)
         upgrade_env['PACKAGE_VERSION'] = upgrade_env['PACKAGE_VERSION'].replace(str(version), str(next_version))
-        upgrade_env['UPGRADE_TEST'] = "upgrade-test-"
+        upgrade_env['AGENT_PRODUCT_NAME_SUFFIX'] = "upgrade-test-"
         _build_wxs(
             ctx,
             upgrade_env,

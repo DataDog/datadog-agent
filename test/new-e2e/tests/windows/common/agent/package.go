@@ -145,14 +145,12 @@ func GetLatestMSIURL(majorVersion string, arch string, flavor string) (string, e
 // majorVersion: 6, 7
 // arch: x86_64
 // flavor: base, fips
-func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string, flavor string, upgradeTest bool) (string, error) {
+func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string, flavor string, nameSuffix string) (string, error) {
 	productName, err := GetFlavorProductName(flavor)
 	if err != nil {
 		return "", err
 	}
-	if upgradeTest {
-		productName = fmt.Sprintf("%s-upgrade-test", productName)
-	}
+	productName = fmt.Sprintf("%s%s", productName, nameSuffix)
 	// Manual URL example: https://s3.amazonaws.com/dd-agent-mstesting?prefix=pipelines/A7/25309493
 	fmt.Printf("Looking for agent MSI for pipeline majorVersion %v %v\n", majorVersion, pipelineID)
 	artifactURL, err := pipeline.GetPipelineArtifact(pipelineID, pipeline.AgentS3BucketTesting, majorVersion, func(artifact string) bool {
@@ -340,7 +338,7 @@ func GetPackageFromEnv() (*Package, error) {
 
 	// check if we should use the URL from a specific CI pipeline
 	if pipelineIDFound {
-		url, err := GetPipelineMSIURL(pipelineID, majorVersion, arch, flavor, false)
+		url, err := GetPipelineMSIURL(pipelineID, majorVersion, arch, flavor, "")
 		if err != nil {
 			return nil, err
 		}
@@ -462,7 +460,7 @@ func GetUpgradeTestPackageFromEnv() (*Package, error) {
 
 	// check if we should use the URL from a specific CI pipeline
 	if pipelineIDFound {
-		url, err := GetPipelineMSIURL(pipelineID, majorVersion, arch, flavor, true)
+		url, err := GetPipelineMSIURL(pipelineID, majorVersion, arch, flavor, "-upgrade-test")
 		if err != nil {
 			return nil, err
 		}
