@@ -17,24 +17,43 @@ import (
 	"net/http"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 var klogRegexp = regexp.MustCompile(`<(\d+)>(.*)`)
 
-func readAllDmesg() ([]byte, error) {
-	const syslogActionSizeBuffer = 10
-	const syslogActionReadAll = 3
+var klogLevels = []string{
+	"emerg",
+	"alert",
+	"crit",
+	"err",
+	"warn",
+	"notice",
+	"info",
+	"debug",
+}
 
-	n, err := syscall.Klogctl(syslogActionSizeBuffer, nil)
+// lowest 3 bits are the log level, remaining bits are the facility
+const klogFacilityShift = 3
+const klogLevelMask = (1 << klogFacilityShift) - 1
+
+func klogLevelName(level int) string {
+	return klogLevels[level&klogLevelMask]
+}
+
+func readAllDmesg() ([]byte, error) {
+	n, err := syscall.Klogctl(unix.SYSLOG_ACTION_SIZE_BUFFER, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query size of log buffer [%w]", err)
 	}
 
 	b := make([]byte, n)
 
-	m, err := syscall.Klogctl(syslogActionReadAll, b)
+	m, err := syscall.Klogctl(unix.SYSLOG_ACTION_READ_ALL, b)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read messages from log buffer [%w]", err)
 	}
@@ -56,7 +75,13 @@ func parseDmesg(buffer []byte) (string, error) {
 
 		parts := klogRegexp.FindStringSubmatch(line)
 		if parts != nil {
-			result += parts[2] + "\n"
+			digits, message := parts[1], parts[2]
+			levelName := ""
+			level, err := strconv.Atoi(digits)
+			if err == nil {
+				levelName = klogLevelName(level)
+			}
+			result += fmt.Sprintf("%-6s: %s\n", levelName, message)
 		} else {
 			result += line
 		}
@@ -73,6 +98,7 @@ func HandleLinuxDmesg(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, "failed to read dmesg: %s", err)
 		return
 	}
+
 	dmesgStr, err := parseDmesg(dmesg)
 	if err != nil {
 		w.WriteHeader(500)
