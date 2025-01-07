@@ -12,8 +12,6 @@ import (
 	"syscall"
 	"testing"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
@@ -55,19 +53,6 @@ var m2 = &manager.Manager{
 			},
 		},
 	},
-}
-
-type config struct {
-	bpfDir string
-}
-
-func testConfig() *config {
-	cfg := pkgconfigsetup.SystemProbe()
-	sysconfig.Adjust(cfg)
-
-	return &config{
-		bpfDir: cfg.GetString("system_probe_config.bpf_dir"),
-	}
 }
 
 func skipTestIfEBPFTelemetryNotSupported(t *testing.T) {
