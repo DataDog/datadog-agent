@@ -167,6 +167,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getInodeSuperblockOffset(f.kernelVersion)
 	case OffsetNamePathMnt:
 		value = getPathMntOffset(f.kernelVersion)
+	case OffsetNameMountMntMountpoint:
+		value = getMountMntMountpointOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -1100,4 +1102,8 @@ func getInodeSuperblockOffset(_ *kernel.Version) uint64 {
 
 func getPathMntOffset(_ *kernel.Version) uint64 {
 	return 0
+}
+
+func getMountMntMountpointOffset(_ *kernel.Version) uint64 {
+	return 24
 }
