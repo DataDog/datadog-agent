@@ -3,20 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build windows
 
-package connection
+package installinfo
 
-import (
-	"testing"
-
-	"github.com/stretchr/testify/require"
-)
-
-func TestTcpCloseConsumerStopRace(t *testing.T) {
-	c := newTCPCloseConsumer(nil, nil)
-	require.NotNil(t, c)
-
-	c.Stop()
-	c.FlushPending()
+// WriteInstallInfo write install info and signature files
+func WriteInstallInfo(_, _, _ string) error {
+	// Placeholder for Windows, this is done in tools/windows/DatadogAgentInstaller
+	return nil
 }
