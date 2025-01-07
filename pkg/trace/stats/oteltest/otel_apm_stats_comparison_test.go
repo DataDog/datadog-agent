@@ -24,6 +24,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
@@ -33,15 +34,23 @@ import (
 // Comparison test to ensure APM stats generated from 2 different OTel ingestion paths are consistent.
 func TestOTelAPMStatsMatch(t *testing.T) {
 	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
-		testOTelAPMStatsMatch(false, t)
+		testOTelAPMStatsMatch(false, false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV1_WithObfuscation", func(t *testing.T) {
+		testOTelAPMStatsMatch(false, true, t)
 	})
 
 	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
-		testOTelAPMStatsMatch(true, t)
+		testOTelAPMStatsMatch(true, false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2_WithObfuscation", func(t *testing.T) {
+		testOTelAPMStatsMatch(true, true, t)
 	})
 }
 
-func testOTelAPMStatsMatch(enableReceiveResourceSpansV2 bool, t *testing.T) {
+func testOTelAPMStatsMatch(enableReceiveResourceSpansV2 bool, enableObfuscation bool, t *testing.T) {
 	ctx := context.Background()
 	set := componenttest.NewNopTelemetrySettings()
 	set.MeterProvider = noop.NewMeterProvider()
@@ -52,9 +61,14 @@ func testOTelAPMStatsMatch(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	if enableReceiveResourceSpansV2 {
 		tcfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
 	}
-
 	metricsClient := &statsd.NoOpClient{}
 	timingReporter := timing.New(metricsClient)
+	oconf := tcfg.Obfuscation.Export(tcfg)
+	oconf.Statsd = metricsClient
+	var obfuscator *obfuscate.Obfuscator
+	if enableObfuscation {
+		obfuscator = obfuscate.NewObfuscator(oconf)
+	}
 	// Set up 2 output channels for APM stats, and start 2 fake trace agent to conduct a comparison test
 	out1 := make(chan *pb.StatsPayload, 100)
 	fakeAgent1 := statsprocessor.NewAgentWithConfig(ctx, tcfg, out1, metricsClient, timingReporter)
@@ -71,7 +85,12 @@ func testOTelAPMStatsMatch(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	fakeAgent1.Ingest(ctx, traces)
 
 	// fakeAgent2 calls the new API in Concentrator that directly calculates APM stats for OTLP traces
-	inputs := stats.OTLPTracesToConcentratorInputs(traces, tcfg, []string{semconv.AttributeContainerID, semconv.AttributeK8SContainerName}, peerTagKeys, nil)
+	var inputs []stats.Input
+	if enableObfuscation {
+		inputs = stats.OTLPTracesToConcentratorInputsWithObfuscation(traces, tcfg, []string{semconv.AttributeContainerID, semconv.AttributeK8SContainerName}, peerTagKeys, obfuscator)
+	} else {
+		inputs = stats.OTLPTracesToConcentratorInputs(traces, tcfg, []string{semconv.AttributeContainerID, semconv.AttributeK8SContainerName}, peerTagKeys)
+	}
 	for _, input := range inputs {
 		fakeAgent2.Concentrator.Add(input)
 	}
@@ -124,6 +143,7 @@ func getTraceAgentCfg(attributesTranslator *attributes.Translator) *traceconfig.
 	acfg.PeerTagsAggregation = true
 	acfg.Features["enable_cid_stats"] = struct{}{}
 	acfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
+	acfg.Obfuscation.Redis.Enabled = true
 	return acfg
 }
 

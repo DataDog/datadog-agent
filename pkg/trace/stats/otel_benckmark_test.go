@@ -75,7 +75,12 @@ func benchmarkOTelContainerTags(b *testing.B, enableObfuscation bool) {
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		inputs := OTLPTracesToConcentratorInputs(traces, conf, containerTagKeys, nil, obfuscator)
+		var inputs []Input
+		if enableObfuscation {
+			inputs = OTLPTracesToConcentratorInputsWithObfuscation(traces, conf, containerTagKeys, nil, obfuscator)
+		} else {
+			inputs = OTLPTracesToConcentratorInputs(traces, conf, containerTagKeys, nil)
+		}
 		assert.Len(b, inputs, 1)
 		input := inputs[0]
 		concentrator.Add(input)
@@ -83,13 +88,6 @@ func benchmarkOTelContainerTags(b *testing.B, enableObfuscation bool) {
 		assert.Len(b, stats.Stats, 1)
 		assert.Equal(b, stats.Stats[0].Tags, expected)
 	}
-}
-
-func newTestObfuscator(conf *config.AgentConfig) *obfuscate.Obfuscator {
-	oconf := conf.Obfuscation.Export(conf)
-	oconf.Redis.Enabled = true
-	o := obfuscate.NewObfuscator(oconf)
-	return o
 }
 
 func BenchmarkOTelPeerTags(b *testing.B) {
@@ -152,7 +150,12 @@ func benchmarkOTelPeerTags(b *testing.B, initOnce bool, enableObfuscation bool) 
 		if !initOnce {
 			peerTagKeys = conf.ConfiguredPeerTags()
 		}
-		inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, peerTagKeys, obfuscator)
+		var inputs []Input
+		if enableObfuscation {
+			inputs = OTLPTracesToConcentratorInputsWithObfuscation(traces, conf, nil, peerTagKeys, obfuscator)
+		} else {
+			inputs = OTLPTracesToConcentratorInputs(traces, conf, nil, peerTagKeys)
+		}
 		assert.Len(b, inputs, 1)
 		input := inputs[0]
 		concentrator.Add(input)

@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
@@ -30,6 +31,14 @@ var (
 )
 
 func TestProcessOTLPTraces(t *testing.T) {
+	testProcessOTLPTraces(t, false)
+}
+
+func TestProcessOTLPTraces_WithObfuscation(t *testing.T) {
+	testProcessOTLPTraces(t, true)
+}
+
+func testProcessOTLPTraces(t *testing.T, enableObfuscation bool) {
 	start := time.Now().Add(-1 * time.Second)
 	end := time.Now()
 	set := componenttest.NewNopTelemetrySettings()
@@ -60,72 +69,83 @@ func TestProcessOTLPTraces(t *testing.T) {
 		legacyTopLevel         bool
 		ctagKeys               []string
 		expected               *pb.StatsPayload
+		enableObfuscation      bool
 	}{
 		{
-			name:     "empty trace id",
-			traceID:  &traceIDEmpty,
-			expected: &pb.StatsPayload{AgentEnv: agentEnv, AgentHostname: agentHost},
+			name:              "empty trace id",
+			traceID:           &traceIDEmpty,
+			expected:          &pb.StatsPayload{AgentEnv: agentEnv, AgentHostname: agentHost},
+			enableObfuscation: enableObfuscation,
 		},
 		{
-			name:     "empty span id",
-			spanID:   &spanIDEmpty,
-			expected: &pb.StatsPayload{AgentEnv: agentEnv, AgentHostname: agentHost},
+			name:              "empty span id",
+			spanID:            &spanIDEmpty,
+			expected:          &pb.StatsPayload{AgentEnv: agentEnv, AgentHostname: agentHost},
+			enableObfuscation: enableObfuscation,
 		},
 		{
-			name:     "span with no attributes, everything uses default",
-			expected: createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.unspecified", "custom", "unspecified", "", agentHost, agentEnv, "", nil, nil, true, false),
+			name:              "span with no attributes, everything uses default",
+			expected:          createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.unspecified", "custom", "unspecified", "", agentHost, agentEnv, "", nil, nil, true, false),
+			enableObfuscation: enableObfuscation,
 		},
 		{
-			name:         "non root span with kind internal does not get stats with new top level rules",
-			parentSpanID: &parentID,
-			spanKind:     ptrace.SpanKindInternal,
-			expected:     &pb.StatsPayload{AgentEnv: agentEnv, AgentHostname: agentHost},
+			name:              "non root span with kind internal does not get stats with new top level rules",
+			parentSpanID:      &parentID,
+			spanKind:          ptrace.SpanKindInternal,
+			expected:          &pb.StatsPayload{AgentEnv: agentEnv, AgentHostname: agentHost},
+			enableObfuscation: enableObfuscation,
 		},
 		{
-			name:         "non root span with kind internal and _dd.measured key gets stats with new top level rules",
-			parentSpanID: &parentID,
-			spanKind:     ptrace.SpanKindInternal,
-			sattrs:       map[string]any{"_dd.measured": int64(1)},
-			expected:     createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.internal", "custom", "internal", "", agentHost, agentEnv, "", nil, nil, false, true),
+			name:              "non root span with kind internal and _dd.measured key gets stats with new top level rules",
+			parentSpanID:      &parentID,
+			spanKind:          ptrace.SpanKindInternal,
+			sattrs:            map[string]any{"_dd.measured": int64(1)},
+			expected:          createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.internal", "custom", "internal", "", agentHost, agentEnv, "", nil, nil, false, true),
+			enableObfuscation: enableObfuscation,
 		},
 		{
-			name:         "non root span with kind client gets stats with new top level rules",
-			parentSpanID: &parentID,
-			spanKind:     ptrace.SpanKindClient,
-			expected:     createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.client", "http", "client", "", agentHost, agentEnv, "", nil, nil, false, true),
+			name:              "non root span with kind client gets stats with new top level rules",
+			parentSpanID:      &parentID,
+			spanKind:          ptrace.SpanKindClient,
+			expected:          createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.client", "http", "client", "", agentHost, agentEnv, "", nil, nil, false, true),
+			enableObfuscation: enableObfuscation,
 		},
 		{
-			name:           "non root span with kind internal does get stats with legacy top level rules",
-			parentSpanID:   &parentID,
-			spanKind:       ptrace.SpanKindInternal,
-			legacyTopLevel: true,
-			expected:       createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.internal", "custom", "internal", "", agentHost, agentEnv, "", nil, nil, false, false),
+			name:              "non root span with kind internal does get stats with legacy top level rules",
+			parentSpanID:      &parentID,
+			spanKind:          ptrace.SpanKindInternal,
+			legacyTopLevel:    true,
+			expected:          createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.internal", "custom", "internal", "", agentHost, agentEnv, "", nil, nil, false, false),
+			enableObfuscation: enableObfuscation,
 		},
 		{
-			name:     "span with name, service, instrumentation scope and span kind",
-			spanName: "spanname",
-			rattrs:   map[string]string{"service.name": "svc"},
-			spanKind: ptrace.SpanKindServer,
-			libname:  "spring",
-			expected: createStatsPayload(agentEnv, agentHost, "svc", "spring.server", "web", "server", "spanname", agentHost, agentEnv, "", nil, nil, true, false),
+			name:              "span with name, service, instrumentation scope and span kind",
+			spanName:          "spanname",
+			rattrs:            map[string]string{"service.name": "svc"},
+			spanKind:          ptrace.SpanKindServer,
+			libname:           "spring",
+			expected:          createStatsPayload(agentEnv, agentHost, "svc", "spring.server", "web", "server", "spanname", agentHost, agentEnv, "", nil, nil, true, false),
+			enableObfuscation: enableObfuscation,
 		},
 		{
-			name:     "span with operation name, resource name and env attributes",
-			spanName: "spanname2",
-			rattrs:   map[string]string{"service.name": "svc", semconv.AttributeDeploymentEnvironment: "tracer-env"},
-			sattrs:   map[string]any{"operation.name": "op", "resource.name": "res"},
-			spanKind: ptrace.SpanKindClient,
-			libname:  "spring",
-			expected: createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "res", agentHost, "tracer-env", "", nil, nil, true, false),
+			name:              "span with operation name, resource name and env attributes",
+			spanName:          "spanname2",
+			rattrs:            map[string]string{"service.name": "svc", semconv.AttributeDeploymentEnvironment: "tracer-env"},
+			sattrs:            map[string]any{"operation.name": "op", "resource.name": "res"},
+			spanKind:          ptrace.SpanKindClient,
+			libname:           "spring",
+			expected:          createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "res", agentHost, "tracer-env", "", nil, nil, true, false),
+			enableObfuscation: enableObfuscation,
 		},
 		{
-			name:     "new env convention",
-			spanName: "spanname2",
-			rattrs:   map[string]string{"service.name": "svc", "deployment.environment.name": "new-env"},
-			sattrs:   map[string]any{"operation.name": "op", "resource.name": "res"},
-			spanKind: ptrace.SpanKindClient,
-			libname:  "spring",
-			expected: createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "res", agentHost, "new-env", "", nil, nil, true, false),
+			name:              "new env convention",
+			spanName:          "spanname2",
+			rattrs:            map[string]string{"service.name": "svc", "deployment.environment.name": "new-env"},
+			sattrs:            map[string]any{"operation.name": "op", "resource.name": "res"},
+			spanKind:          ptrace.SpanKindClient,
+			libname:           "spring",
+			expected:          createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "res", agentHost, "new-env", "", nil, nil, true, false),
+			enableObfuscation: enableObfuscation,
 		},
 		{
 			name:                   "span operation name from span name with db attribute, peerTagsAggr not enabled",
@@ -134,14 +154,16 @@ func TestProcessOTLPTraces(t *testing.T) {
 			spanKind:               ptrace.SpanKindClient,
 			spanNameAsResourceName: true,
 			expected:               createStatsPayload(agentEnv, agentHost, "svc", "spanname3", "cache", "client", "spanname3", "test-host", agentEnv, "", nil, nil, true, false),
+			enableObfuscation:      enableObfuscation,
 		},
 		{
-			name:     "with container tags",
-			spanName: "spanname4",
-			rattrs:   map[string]string{"service.name": "svc", "db.system": "spanner", semconv.AttributeContainerID: "test_cid"},
-			ctagKeys: []string{semconv.AttributeContainerID},
-			spanKind: ptrace.SpanKindClient,
-			expected: createStatsPayload(agentEnv, agentHost, "svc", "opentelemetry.client", "db", "client", "spanname4", agentHost, agentEnv, "test_cid", []string{"container_id:test_cid"}, nil, true, false),
+			name:              "with container tags",
+			spanName:          "spanname4",
+			rattrs:            map[string]string{"service.name": "svc", "db.system": "spanner", semconv.AttributeContainerID: "test_cid"},
+			ctagKeys:          []string{semconv.AttributeContainerID},
+			spanKind:          ptrace.SpanKindClient,
+			expected:          createStatsPayload(agentEnv, agentHost, "svc", "opentelemetry.client", "db", "client", "spanname4", agentHost, agentEnv, "test_cid", []string{"container_id:test_cid"}, nil, true, false),
+			enableObfuscation: enableObfuscation,
 		},
 		{
 			name:               "operation name remapping and resource from http",
@@ -150,24 +172,27 @@ func TestProcessOTLPTraces(t *testing.T) {
 			sattrs:             map[string]any{semconv.AttributeHTTPMethod: "GET", semconv.AttributeHTTPRoute: "/home"},
 			spanNameRemappings: map[string]string{"opentelemetry.internal": "internal_op"},
 			expected:           createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "internal_op", "custom", "internal", "GET /home", agentHost, agentEnv, "", nil, nil, true, false),
+			enableObfuscation:  enableObfuscation,
 		},
 		{
-			name:         "with peer tags and peerTagsAggr enabled",
-			spanName:     "spanname6",
-			spanKind:     ptrace.SpanKindClient,
-			peerTagsAggr: true,
-			rattrs:       map[string]string{"service.name": "svc", semconv.AttributeDeploymentEnvironment: "tracer-env", "datadog.host.name": "dd-host"},
-			sattrs:       map[string]any{"operation.name": "op", semconv.AttributeRPCMethod: "call", semconv.AttributeRPCService: "rpc_service"},
-			expected:     createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "call rpc_service", "dd-host", "tracer-env", "", nil, []string{"rpc.service:rpc_service"}, true, false),
+			name:              "with peer tags and peerTagsAggr enabled",
+			spanName:          "spanname6",
+			spanKind:          ptrace.SpanKindClient,
+			peerTagsAggr:      true,
+			rattrs:            map[string]string{"service.name": "svc", semconv.AttributeDeploymentEnvironment: "tracer-env", "datadog.host.name": "dd-host"},
+			sattrs:            map[string]any{"operation.name": "op", semconv.AttributeRPCMethod: "call", semconv.AttributeRPCService: "rpc_service"},
+			expected:          createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "call rpc_service", "dd-host", "tracer-env", "", nil, []string{"rpc.service:rpc_service"}, true, false),
+			enableObfuscation: enableObfuscation,
 		},
 
 		{
-			name:      "ignore resource name",
-			spanName:  "spanname7",
-			spanKind:  ptrace.SpanKindClient,
-			sattrs:    map[string]any{"http.request.method": "GET", semconv.AttributeHTTPRoute: "/home"},
-			ignoreRes: []string{"GET /home"},
-			expected:  &pb.StatsPayload{AgentEnv: agentEnv, AgentHostname: agentHost},
+			name:              "ignore resource name",
+			spanName:          "spanname7",
+			spanKind:          ptrace.SpanKindClient,
+			sattrs:            map[string]any{"http.request.method": "GET", semconv.AttributeHTTPRoute: "/home"},
+			ignoreRes:         []string{"GET /home"},
+			expected:          &pb.StatsPayload{AgentEnv: agentEnv, AgentHostname: agentHost},
+			enableObfuscation: enableObfuscation,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -226,7 +251,14 @@ func TestProcessOTLPTraces(t *testing.T) {
 			}
 
 			concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
-			inputs := OTLPTracesToConcentratorInputs(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags(), nil)
+			var obfuscator *obfuscate.Obfuscator
+			var inputs []Input
+			if tt.enableObfuscation {
+				obfuscator = newTestObfuscator(conf)
+				inputs = OTLPTracesToConcentratorInputsWithObfuscation(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags(), obfuscator)
+			} else {
+				inputs = OTLPTracesToConcentratorInputs(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags())
+			}
 			for _, input := range inputs {
 				concentrator.Add(input)
 			}
@@ -288,7 +320,7 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 
 	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
-	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil, nil)
+	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)
 	for _, input := range inputs {
 		concentrator.Add(input)
 	}
@@ -362,4 +394,11 @@ func createStatsPayload(
 				},
 			}}}},
 	}
+}
+
+func newTestObfuscator(conf *config.AgentConfig) *obfuscate.Obfuscator {
+	oconf := conf.Obfuscation.Export(conf)
+	oconf.Redis.Enabled = true
+	o := obfuscate.NewObfuscator(oconf)
+	return o
 }
