@@ -124,6 +124,10 @@ build do
     openssl_arch = "x64"
     move "#{install_dir}\\embedded3\\bin\\libcrypto-3-#{openssl_arch}.dll", "#{windows_safe_path(python_3_embedded)}\\DLLs"
     move "#{install_dir}\\embedded3\\bin\\libssl-3-#{openssl_arch}.dll", "#{windows_safe_path(python_3_embedded)}\\DLLs"
+    # Generate libpython3XY.a for MinGW tools
+    # https://docs.python.org/3/whatsnew/3.8.html
+    command "gendef #{windows_safe_path(python_3_embedded)}\\python312.dll"
+    command "dlltool --dllname python312.dll --def python312.def --output-lib #{windows_safe_path(python_3_embedded)}\\libs\\libpython312.a"
 
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
     command "#{python} -m ensurepip"
