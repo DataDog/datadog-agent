@@ -136,8 +136,11 @@ struct vfsmount *__attribute__((always_inline)) get_mount_vfsmount(void *mnt) {
 }
 
 struct dentry *__attribute__((always_inline)) get_vfsmount_dentry(struct vfsmount *mnt) {
+	u64 offset;
+	LOAD_CONSTANT("vfsmount_mnt_root_offset", offset);
+
     struct dentry *dentry;
-    bpf_probe_read(&dentry, sizeof(dentry), &mnt->mnt_root);
+    bpf_probe_read(&dentry, sizeof(dentry), (void *)mnt + offset);
     return dentry;
 }
 

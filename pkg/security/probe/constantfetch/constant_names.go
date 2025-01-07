@@ -38,6 +38,8 @@ const (
 	OffsetNameMountMntMountpoint        = "mount_mnt_mountpoint_offset"
 	OffsetNameMountpointDentry          = "mountpoint_dentry_offset"
 	OffsetNameVfsmountMntFlags          = "vfsmount_mnt_flags_offset"
+	OffsetNameVfsmountMntRoot           = "vfsmount_mnt_root_offset"
+	OffsetNameSuperblockSType           = "super_block_s_type_offset"
 
 	// inode
 	OffsetInodeIno   = "inode_ino_offset"
