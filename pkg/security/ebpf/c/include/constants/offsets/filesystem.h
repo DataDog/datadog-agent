@@ -151,8 +151,11 @@ struct super_block *__attribute__((always_inline)) get_dentry_sb(struct dentry *
 }
 
 struct file_system_type *__attribute__((always_inline)) get_super_block_fs(struct super_block *sb) {
+	u64 offset;
+	LOAD_CONSTANT("super_block_s_type_offset", offset);
+
     struct file_system_type *fs;
-    bpf_probe_read(&fs, sizeof(fs), &sb->s_type);
+    bpf_probe_read(&fs, sizeof(fs), (void *)sb + offset);
     return fs;
 }
 
