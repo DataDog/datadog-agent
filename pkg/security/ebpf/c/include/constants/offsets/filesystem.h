@@ -120,8 +120,11 @@ int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
 }
 
 struct dentry *__attribute__((always_inline)) get_mount_mountpoint_dentry(struct mount *mnt) {
+	u64 mount_mnt_mountpoint_offset;
+	LOAD_CONSTANT("mount_mnt_mountpoint_offset", mount_mnt_mountpoint_offset);
+
     struct dentry *dentry;
-    bpf_probe_read(&dentry, sizeof(dentry), (char *)mnt + 24);
+    bpf_probe_read(&dentry, sizeof(dentry), (void *)mnt + mount_mnt_mountpoint_offset);
     return dentry;
 }
 

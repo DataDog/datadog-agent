@@ -35,6 +35,7 @@ const (
 	OffsetNamePathDentry                = "path_dentry_offset"
 	OffsetNameInodeSuperblock           = "inode_sb_offset"
 	OffsetNamePathMnt                   = "path_mnt_offset"
+	OffsetNameMountMntMountpoint        = "mount_mnt_mountpoint_offset"
 
 	// inode
 	OffsetInodeIno   = "inode_ino_offset"
