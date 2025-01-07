@@ -71,7 +71,7 @@ func testOTelAPMStatsMatch(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	fakeAgent1.Ingest(ctx, traces)
 
 	// fakeAgent2 calls the new API in Concentrator that directly calculates APM stats for OTLP traces
-	inputs := stats.OTLPTracesToConcentratorInputs(traces, tcfg, []string{semconv.AttributeContainerID, semconv.AttributeK8SContainerName}, peerTagKeys)
+	inputs := stats.OTLPTracesToConcentratorInputs(traces, tcfg, []string{semconv.AttributeContainerID, semconv.AttributeK8SContainerName}, peerTagKeys, nil)
 	for _, input := range inputs {
 		fakeAgent2.Concentrator.Add(input)
 	}

@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -20,6 +18,9 @@ import (
 	semconv "go.opentelemetry.io/collector/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/metric/noop"
 	"google.golang.org/protobuf/testing/protocmp"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 var (
@@ -225,7 +226,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			}
 
 			concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
-			inputs := OTLPTracesToConcentratorInputs(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags())
+			inputs := OTLPTracesToConcentratorInputs(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags(), nil)
 			for _, input := range inputs {
 				concentrator.Add(input)
 			}
@@ -287,7 +288,7 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 
 	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
-	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)
+	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil, nil)
 	for _, input := range inputs {
 		concentrator.Add(input)
 	}

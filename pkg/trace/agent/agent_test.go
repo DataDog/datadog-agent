@@ -23,9 +23,10 @@ import (
 	"testing"
 	"time"
 
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"

@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 	"slices"
 
@@ -34,6 +35,7 @@ func OTLPTracesToConcentratorInputs(
 	conf *config.AgentConfig,
 	containerTagKeys []string,
 	peerTagKeys []string,
+	obfuscator *obfuscate.Obfuscator,
 ) []Input {
 	spanByID, resByID, scopeByID := traceutil.IndexOTelSpans(traces)
 	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
@@ -83,7 +85,15 @@ func OTLPTracesToConcentratorInputs(
 			chunks[ckey] = chunk
 		}
 		_, isTop := topLevelSpans[spanID]
-		chunk.Spans = append(chunk.Spans, transform.OtelSpanToDDSpanMinimal(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, peerTagKeys))
+		ddSpan := transform.OtelSpanToDDSpanMinimal(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, peerTagKeys)
+		if obfuscator != nil {
+			switch ddSpan.Type {
+			case "sql", "cassandra":
+			case "redis":
+			}
+
+		}
+		chunk.Spans = append(chunk.Spans, ddSpan)
 	}
 
 	inputs := make([]Input, 0, len(chunks))
