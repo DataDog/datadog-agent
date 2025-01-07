@@ -89,6 +89,10 @@ class TestWasher:
                 if test_result["Action"] == "success":
                     if test_result["Test"] in failing_tests[test_result["Package"]]:
                         failing_tests[test_result["Package"]].remove(test_result["Test"])
+                # Tests that have a go routine that panicked does not have an Action field with the result of the test, let's try to catch them from their Output
+                if "Output" in test_result and "panic:" in test_result["Output"]:
+                    failing_tests[test_result["Package"]].add(test_result["Test"])
+
                 if "Output" in test_result and self.flaky_test_indicator in test_result["Output"]:
                     flaky_marked_tests[test_result["Package"]].add(test_result["Test"])
         return failing_tests, flaky_marked_tests
@@ -108,6 +112,7 @@ class TestWasher:
             non_flaky_failing_tests = self.get_non_flaky_failing_tests(
                 failing_tests=failing_tests, flaky_marked_tests=flaky_marked_tests
             )
+            print("Failing tests", failing_tests)
             if (
                 not failing_tests and module_result.failed
             ):  # In this case the Go test command failed on one of the modules but no test failed, it means that the test command itself failed (build errors,...)
@@ -120,6 +125,7 @@ class TestWasher:
         if failed_tests:
             print("The test command failed, the following tests failed and are not supposed to be flaky:")
             print("\n".join(sorted(failed_tests)))
+        print("failed command modules", failed_command_modules)
         if failed_command_modules:
             print("The test command failed, before test execution on the following modules:")
             print("\n".join(sorted(failed_command_modules)))
