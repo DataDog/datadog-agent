@@ -24,7 +24,7 @@ const ebpflessModuleName = "ebpfless_network_tracer"
 
 // PCAPTuple represents a unique key for an ebpfless tracer connection.
 // It represents a network.ConnectionTuple with only the fields that are available
-// via packet capture: PID and Direction are removed.
+// via packet capture: PID and Direction are zeroed out.
 type PCAPTuple network.ConnectionTuple
 
 func connDirectionFromPktType(pktType uint8) network.ConnectionDirection {
