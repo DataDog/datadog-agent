@@ -1349,3 +1349,16 @@ func (e EventBundle) Acknowledge() {
 // InitHelper this should be provided as a helper to allow passing the component into
 // the inithook for additional start-time configutation.
 type InitHelper func(context.Context, Component, config.Component) error
+
+// CollectorStatus is the status of collector which is used to determine if the collectors
+// are not started, starting, started (pulled once)
+type CollectorStatus uint8
+
+const (
+	// CollectorsNotStarted means workloadmeta collectors are not started
+	CollectorsNotStarted CollectorStatus = iota
+	// CollectorsStarting means workloadmeta collectors are starting
+	CollectorsStarting
+	// CollectorsInitialized means workloadmeta collectors have been at least pulled once
+	CollectorsInitialized
+)
