@@ -17,24 +17,15 @@ import (
 	"github.com/google/gopacket/layers"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 const ebpflessModuleName = "ebpfless_network_tracer"
 
 // PCAPTuple represents a unique key for an ebpfless tracer connection.
-// It represents a network.Connection with only the fields that are available
-// via packet capture - for example, PID and Direction are removed.
-type PCAPTuple struct {
-	Source util.Address
-	Dest   util.Address
-	NetNS  uint32
-	SPort  uint16
-	DPort  uint16
-	Type   network.ConnectionType
-	Family network.ConnectionFamily
-}
+// It represents a network.ConnectionTuple with only the fields that are available
+// via packet capture: PID and Direction are removed.
+type PCAPTuple network.ConnectionTuple
 
 // ConnDirection represents what the TCPProcessor knows about the direction of a connection.
 type ConnDirection uint8

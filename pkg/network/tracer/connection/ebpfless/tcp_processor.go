@@ -384,31 +384,16 @@ func (t *TCPProcessor) CleanupExpiredPendingConns(timestampNs uint64) {
 // MakeEbpflessTuple converts a network.ConnectionTuple to a PCAPTuple.
 // See the PCAPTuple doc for more information.
 func MakeEbpflessTuple(tuple network.ConnectionTuple) PCAPTuple {
-	return PCAPTuple{
-		Source: tuple.Source,
-		Dest:   tuple.Dest,
-		NetNS:  tuple.NetNS,
-		SPort:  tuple.SPort,
-		DPort:  tuple.DPort,
-		Type:   tuple.Type,
-		Family: tuple.Family,
-	}
+	ret := PCAPTuple(tuple)
+	ret.Pid = 0
+	ret.Direction = 0
+	return ret
 }
 
 // MakeConnStatsTuple converts a PCAPTuple to a network.ConnectionTuple.
 func MakeConnStatsTuple(tuple PCAPTuple) network.ConnectionTuple {
-	return network.ConnectionTuple{
-		Source: tuple.Source,
-		Dest:   tuple.Dest,
-		Pid:    0,
-		NetNS:  tuple.NetNS,
-		SPort:  tuple.SPort,
-		DPort:  tuple.DPort,
-		Type:   tuple.Type,
-		Family: tuple.Family,
-		// this will get set by the ebpfless tracer in finalizeConnectionDirection
-		Direction: 0,
-	}
+	// Direction is still 0, this will get set by the ebpfless tracer in finalizeConnectionDirection
+	return network.ConnectionTuple(tuple)
 }
 
 // GetConnDirection returns the direction of the connection.
