@@ -109,27 +109,7 @@ build do
     # present, but the modules will be built nonetheless.
     command "PCbuild\\build.bat -e --pgo"
     # Install the built artifacts to their expected locations
-    mkdir "#{windows_safe_path(python_3_embedded)}\\DLLs"
-    copy "PCbuild\\#{python_arch}\\*.exe", "#{windows_safe_path(python_3_embedded)}\\"
-    move "PCbuild\\#{python_arch}\\sqlite*.dll", "#{windows_safe_path(python_3_embedded)}\\DLLs\\"
-    # We can also remove the DLLs that were put there by the python build before copying all other DLLs
-    # since they won't be loaded anyway
-    delete "#{windows_safe_path(python_3_embedded)}\\libcrypto-3.dll"
-    delete "#{windows_safe_path(python_3_embedded)}\\libssl-3.dll"
-    move "PCbuild\\#{python_arch}\\libffi*.dll", "#{windows_safe_path(python_3_embedded)}\\DLLs\\"
-    copy "PCbuild\\#{python_arch}\\*.dll", "#{windows_safe_path(python_3_embedded)}\\"
-
-    copy "PCbuild\\#{python_arch}\\*.pyd", "#{windows_safe_path(python_3_embedded)}\\DLLs\\"
-    copy "PCbuild\\#{python_arch}\\*.dll", "#{windows_safe_path(python_3_embedded)}\\DLLs\\"
-
-    mkdir "#{windows_safe_path(python_3_embedded)}\\libs"
-    copy "PCbuild\\#{python_arch}\\*.lib", "#{windows_safe_path(python_3_embedded)}\\libs"
-    copy "Lib", "#{windows_safe_path(python_3_embedded)}\\"
-
-    # Copy the same icon files that we used to ship from the python installer
-    copy "PC\\icons\\py.ico", "#{windows_safe_path(python_3_embedded)}\\DLLs\\"
-    copy "PC\\icons\\pyc.ico", "#{windows_safe_path(python_3_embedded)}\\DLLs\\"
-    copy "PC\\icons\\pyd.ico", "#{windows_safe_path(python_3_embedded)}\\DLLs\\"
+    command "PCbuild\\#{python_arch}\\python.exe PC\\layout\\main.py --build PCbuild\\#{python_arch} --include-cat --precompile --copy #{windows_safe_path(python_3_embedded)} -vv"
 
     ###############################
     # Install build artifacts...  #
