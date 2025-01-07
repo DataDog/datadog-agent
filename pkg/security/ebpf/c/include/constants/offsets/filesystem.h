@@ -36,8 +36,11 @@ dev_t __attribute__((always_inline)) get_sb_dev(struct super_block *sb) {
 }
 
 dev_t __attribute__((always_inline)) get_inode_dev(struct inode *inode) {
+    u64 offset;
+    LOAD_CONSTANT("inode_sb_offset", offset);
+
     struct super_block *sb;
-    bpf_probe_read(&sb, sizeof(sb), &inode->i_sb);
+    bpf_probe_read(&sb, sizeof(sb), (void *)inode + offset);
     return get_sb_dev(sb);
 }
 
