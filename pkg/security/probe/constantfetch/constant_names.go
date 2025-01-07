@@ -39,6 +39,7 @@ const (
 	OffsetNameMountpointDentry          = "mountpoint_dentry_offset"
 	OffsetNameVfsmountMntFlags          = "vfsmount_mnt_flags_offset"
 	OffsetNameVfsmountMntRoot           = "vfsmount_mnt_root_offset"
+	OffsetNameVfsmountMntSb             = "vfsmount_mnt_sb_offset"
 	OffsetNameSuperblockSType           = "super_block_s_type_offset"
 	OffsetNameDentryDName               = "dentry_d_name_offset"
 
