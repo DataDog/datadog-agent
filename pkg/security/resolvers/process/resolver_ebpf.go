@@ -368,7 +368,7 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	// Get the file fields of the process binary
 	info, err := p.retrieveExecFileFields(procExecPath)
 	if err != nil {
-		if !os.IsNotExist(err) {
+		if !os.IsNotExist(err) && !errors.Is(err, lib.ErrKeyNotExist) {
 			seclog.Errorf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
 		}
 		return fmt.Errorf("snapshot failed for %d: couldn't retrieve inode info: %w", proc.Pid, err)
@@ -514,6 +514,10 @@ func (p *EBPFResolver) retrieveExecFileFields(procExecPath string) (*model.FileF
 	binary.NativeEndian.PutUint64(inodeb, inode)
 
 	data, err := p.execFileCacheMap.LookupBytes(inodeb)
+	// go back to a sane error value
+	if data == nil && err == nil {
+		err = lib.ErrKeyNotExist
+	}
 	if err != nil {
 		return nil, fmt.Errorf("unable to get filename for inode `%d`: %v", inode, err)
 	}
