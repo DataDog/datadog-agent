@@ -6,9 +6,11 @@
 package stats
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/obfuscate"
-	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 	"slices"
+
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv "go.opentelemetry.io/collector/semconv/v1.17.0"
@@ -87,11 +89,7 @@ func OTLPTracesToConcentratorInputs(
 		_, isTop := topLevelSpans[spanID]
 		ddSpan := transform.OtelSpanToDDSpanMinimal(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, peerTagKeys)
 		if obfuscator != nil {
-			switch ddSpan.Type {
-			case "sql", "cassandra":
-			case "redis":
-			}
-
+			obfuscateSpanForConcentrator(obfuscator, ddSpan, conf)
 		}
 		chunk.Spans = append(chunk.Spans, ddSpan)
 	}
@@ -112,4 +110,22 @@ func OTLPTracesToConcentratorInputs(
 		})
 	}
 	return inputs
+}
+
+func obfuscateSpanForConcentrator(o *obfuscate.Obfuscator, span *pb.Span, conf *config.AgentConfig) {
+	if span.Meta == nil {
+		return
+	}
+	switch span.Type {
+	case "sql", "cassandra":
+		_, err := transform.ObfuscateSQLSpan(o, span)
+		if err != nil {
+			log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
+		}
+	case "redis":
+		span.Resource = o.QuantizeRedisString(span.Resource)
+		if conf.Obfuscation.Redis.Enabled {
+			transform.ObfuscateRedisSpan(o, span, conf.Obfuscation.Redis.RemoveAllArgs)
+		}
+	}
 }
