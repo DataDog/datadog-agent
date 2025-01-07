@@ -73,18 +73,22 @@ func parseDmesg(buffer []byte) (string, error) {
 			return result, err
 		}
 
+		levelName := "info"
+		message := line
+
+		// convert the numeric log level to a string
 		parts := klogRegexp.FindStringSubmatch(line)
 		if parts != nil {
-			digits, message := parts[1], parts[2]
-			levelName := ""
+			message = parts[2]
+
+			digits := parts[1]
 			level, err := strconv.Atoi(digits)
 			if err == nil {
 				levelName = klogLevelName(level)
 			}
-			result += fmt.Sprintf("%-6s: %s\n", levelName, message)
-		} else {
-			result += line
 		}
+
+		result += fmt.Sprintf("%-6s: %s\n", levelName, message)
 	}
 
 	return result, nil
