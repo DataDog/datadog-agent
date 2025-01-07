@@ -160,10 +160,11 @@ struct super_block *__attribute__((always_inline)) get_vfsmount_sb(struct vfsmou
 }
 
 struct dentry *__attribute__((always_inline)) get_mountpoint_dentry(void *mntpoint) {
-    struct dentry *dentry;
+	u64 offset;
+	LOAD_CONSTANT("mountpoint_dentry_offset", offset);
 
-    // bpf_probe_read(&dentry, sizeof(dentry), (char *)mntpoint + offsetof(struct mountpoint, m_dentry));
-    bpf_probe_read(&dentry, sizeof(dentry), (char *)mntpoint + 16);
+    struct dentry *dentry;
+    bpf_probe_read(&dentry, sizeof(dentry), (void *)mntpoint + offset);
     return dentry;
 }
 
