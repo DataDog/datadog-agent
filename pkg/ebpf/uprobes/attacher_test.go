@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -745,10 +744,12 @@ func TestUprobeAttacher(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
-	err = LoadCOREAsset("uprobe_attacher-test.o", func(buf bytecode.AssertCalled, opts manager.Options) error {
+	err = ddebpf.LoadCOREAsset("uprobe_attacher-test.o", func(buf bytecode.AssetReader, opts manager.Options) error {
 		require.NoError(t, mgr.InitWithOptions(buf, opts))
 		require.NoError(t, mgr.Start())
 		t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
+
+		return nil
 	})
 	require.NoError(t, err)
 
