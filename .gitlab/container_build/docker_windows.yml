@@ -54,6 +54,7 @@
   variables:
     AGENT_ZIP: "datadog-agent-7*-x86_64.zip"
     BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=nano-${VARIANT}"
+  retry: 2
 
 .docker_build_agent7_windows_servercore_common:
   extends:

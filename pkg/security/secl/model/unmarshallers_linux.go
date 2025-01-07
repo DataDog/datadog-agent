@@ -427,7 +427,7 @@ func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -586,7 +586,7 @@ func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
