@@ -20,6 +20,26 @@ jobs:
           branches: ${{ steps.branches.outputs.value }}
           warning: ${{ steps.warning.outputs.value }}
         steps:
+            - name: Check if agent 6 rc PR already exists
+              if: ${{ env.IS_AGENT6_RELEASE == 'true' }}
+              run: |
+                prs=$(gh pr list \
+                    --repo "$GITHUB_REPOSITORY" \
+                    --base "$AGENT6_RELEASE_BRANCH" \
+                    --json url,title \
+                    --draft=false \
+                    --search "Update release.json and Go modules for in:title")
+
+                if [ "$(echo "$prs" | jq 'length')" -gt 0 ]; then
+                    pr_list=$(echo "$prs" | jq -r '.[] | "- \(.title): \(.url)"')
+                    error_message="AGENT 6 ERROR: The following Agent 6 release candidate PRs already exist. Please address these PRs before creating a new release candidate:\n$pr_list"
+                    curl -X POST -H 'Content-Type: application/json' \
+                    --data "{ 'channel_id': 'C0701E5KYSX', 'message': '$error_message' }" \
+                    ${{ secrets.SLACK_DATADOG_AGENT_CI_WEBHOOK }}
+                    echo -e "\n$error_message"
+                    exit 1
+                fi
+
             - name: Checkout repository
               
               uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
@@ -107,7 +127,7 @@ jobs:
                 MATRIX: ${{ matrix.value }}
               run: |
                 if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
-                  inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }} --patch-version
+                  inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT6_RELEASE_SLACK_WEBHOOK }} --patch-version
                 else
                   inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }}
                 fi

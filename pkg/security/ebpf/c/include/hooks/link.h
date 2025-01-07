@@ -151,7 +151,7 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
 
 HOOK_EXIT("do_linkat")
 int rethook_do_linkat(ctx_t *ctx) {
-    int retval = CTX_PARMRET(ctx, 5);
+    int retval = CTX_PARMRET(ctx);
     return sys_link_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
