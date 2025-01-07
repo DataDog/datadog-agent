@@ -837,7 +837,7 @@ func TestTCPProcessorConnDirection(t *testing.T) {
 		}
 		f.runPkts(capture)
 
-		require.Equal(t, ConnDirectionOutgoing, f.getConnectionState().connDirection)
+		require.Equal(t, network.OUTGOING, f.getConnectionState().connDirection)
 	})
 	t.Run("incoming", func(t *testing.T) {
 		f := newTCPTestFixture(t)
@@ -848,7 +848,7 @@ func TestTCPProcessorConnDirection(t *testing.T) {
 		}
 		f.runPkts(capture)
 
-		require.Equal(t, ConnDirectionIncoming, f.getConnectionState().connDirection)
+		require.Equal(t, network.INCOMING, f.getConnectionState().connDirection)
 	})
 	t.Run("preexisting", func(t *testing.T) {
 		f := newTCPTestFixture(t)
@@ -859,6 +859,6 @@ func TestTCPProcessorConnDirection(t *testing.T) {
 		}
 		f.runPkts(capture)
 
-		require.Equal(t, ConnDirectionUnknown, f.getConnectionState().connDirection)
+		require.Equal(t, network.UNKNOWN, f.getConnectionState().connDirection)
 	})
 }

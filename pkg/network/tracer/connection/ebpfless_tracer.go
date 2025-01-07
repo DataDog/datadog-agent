@@ -293,14 +293,13 @@ func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionSt
 		tuple := ebpfless.MakeEbpflessTuple(conn.ConnectionTuple)
 		dir, ok := t.tcp.GetConnDirection(tuple)
 		if !ok {
-			return 0, fmt.Errorf("finalizeConnectionDirection: expected to find TCP connection for tuple: %+v", tuple)
+			return network.UNKNOWN, fmt.Errorf("finalizeConnectionDirection: expected to find TCP connection for tuple: %+v", tuple)
 		}
 		switch dir {
-		case ebpfless.ConnDirectionIncoming:
-			return network.INCOMING, nil
-		case ebpfless.ConnDirectionOutgoing:
-			return network.OUTGOING, nil
-		case ebpfless.ConnDirectionUnknown:
+		case network.INCOMING:
+		case network.OUTGOING:
+			return dir, nil
+		case network.UNKNOWN:
 			// This happens when the TCP processor missed the SYN packet.
 			// Fall through and guess the direction.
 		}
@@ -325,7 +324,7 @@ func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionSt
 	case unix.PACKET_OUTGOING:
 		return network.OUTGOING, nil
 	default:
-		return 0, fmt.Errorf("unknown packet type %d", pktType)
+		return network.UNKNOWN, fmt.Errorf("unknown packet type %d", pktType)
 	}
 }
 

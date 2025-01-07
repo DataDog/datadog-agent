@@ -63,7 +63,7 @@ type connectionState struct {
 	lastUpdateEpoch uint64
 
 	// connDirection has the direction of the connection, if we saw the SYN packet
-	connDirection ConnDirection
+	connDirection network.ConnectionDirection
 }
 
 func (st *connectionState) hasMissedHandshake() bool {
@@ -386,7 +386,7 @@ func (t *TCPProcessor) CleanupExpiredPendingConns(timestampNs uint64) {
 func MakeEbpflessTuple(tuple network.ConnectionTuple) PCAPTuple {
 	ret := PCAPTuple(tuple)
 	ret.Pid = 0
-	ret.Direction = 0
+	ret.Direction = network.UNKNOWN
 	return ret
 }
 
@@ -398,10 +398,10 @@ func MakeConnStatsTuple(tuple PCAPTuple) network.ConnectionTuple {
 
 // GetConnDirection returns the direction of the connection.
 // If the SYN packet was not seen (for a pre-existing connection), it returns ConnDirUnknown.
-func (t *TCPProcessor) GetConnDirection(tuple PCAPTuple) (ConnDirection, bool) {
+func (t *TCPProcessor) GetConnDirection(tuple PCAPTuple) (network.ConnectionDirection, bool) {
 	conn, ok := t.getConn(tuple)
 	if !ok {
-		return ConnDirectionUnknown, false
+		return network.UNKNOWN, false
 	}
 	return conn.connDirection, true
 }

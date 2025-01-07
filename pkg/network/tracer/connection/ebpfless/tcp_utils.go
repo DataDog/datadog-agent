@@ -39,14 +39,14 @@ const (
 	ConnDirectionOutgoing
 )
 
-func connDirectionFromPktType(pktType uint8) ConnDirection {
+func connDirectionFromPktType(pktType uint8) network.ConnectionDirection {
 	switch pktType {
 	case unix.PACKET_HOST:
-		return ConnDirectionIncoming
+		return network.INCOMING
 	case unix.PACKET_OUTGOING:
-		return ConnDirectionOutgoing
+		return network.OUTGOING
 	default:
-		return ConnDirectionUnknown
+		return 0
 	}
 }
 
