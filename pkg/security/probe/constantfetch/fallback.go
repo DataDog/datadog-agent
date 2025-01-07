@@ -165,6 +165,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getPathDentryOffset(f.kernelVersion)
 	case OffsetNameInodeSuperblock:
 		value = getInodeSuperblockOffset(f.kernelVersion)
+	case OffsetNamePathMnt:
+		value = getPathMntOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -1094,4 +1096,8 @@ func getPathDentryOffset(_ *kernel.Version) uint64 {
 
 func getInodeSuperblockOffset(_ *kernel.Version) uint64 {
 	return 40
+}
+
+func getPathMntOffset(_ *kernel.Version) uint64 {
+	return 0
 }

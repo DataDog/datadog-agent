@@ -84,10 +84,17 @@ int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount *mnt) {
     return mount_id;
 }
 
-int __attribute__((always_inline)) get_path_mount_id(struct path *path) {
+struct vfsmount* __attribute__((always_inline)) get_path_vfsmount(struct path *path) {
+    u64 offset;
+    LOAD_CONSTANT("path_mnt_offset", offset);
+
     struct vfsmount *mnt;
-    bpf_probe_read(&mnt, sizeof(mnt), &path->mnt);
-    return get_vfsmount_mount_id(mnt);
+    bpf_probe_read(&mnt, sizeof(mnt), (void *)path + offset);
+    return mnt;
+}
+
+int __attribute__((always_inline)) get_path_mount_id(struct path *path) {
+    return get_vfsmount_mount_id(get_path_vfsmount(path));
 }
 
 int __attribute__((always_inline)) get_file_mount_id(struct file *file) {
@@ -101,9 +108,7 @@ int __attribute__((always_inline)) get_vfsmount_mount_flags(struct vfsmount *mnt
 }
 
 int __attribute__((always_inline)) get_path_mount_flags(struct path *path) {
-    struct vfsmount *mnt;
-    bpf_probe_read(&mnt, sizeof(mnt), &path->mnt);
-    return get_vfsmount_mount_flags(mnt);
+    return get_vfsmount_mount_flags(get_path_vfsmount(path));
 }
 
 int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
