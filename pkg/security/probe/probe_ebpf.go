@@ -2535,6 +2535,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSbDev, "struct super_block", "s_dev")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSuperblockSType, "struct super_block", "s_type")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDentryDInode, "struct dentry", "d_inode")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDentryDName, "struct dentry", "d_name")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePathDentry, "struct path", "dentry")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePathMnt, "struct path", "mnt")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeSuperblock, "struct inode", "i_sb")

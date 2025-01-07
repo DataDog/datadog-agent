@@ -177,6 +177,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getSuperblockSTypeOffset(f.kernelVersion)
 	case OffsetNameVfsmountMntRoot:
 		value = getVfsmountMntRootOffset(f.kernelVersion)
+	case OffsetNameDentryDName:
+		value = getDentryDNameOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -1130,4 +1132,8 @@ func getSuperblockSTypeOffset(_ *kernel.Version) uint64 {
 
 func getVfsmountMntRootOffset(_ *kernel.Version) uint64 {
 	return 0
+}
+
+func getDentryDNameOffset(_ *kernel.Version) uint64 {
+	return 32
 }
