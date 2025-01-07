@@ -27,10 +27,10 @@ import (
 )
 
 type cipherTestCase struct {
-	cert    string
-	cipher  string
-	tls_max string
-	want    bool
+	cert   string
+	cipher string
+	tlsMax string
+	want   bool
 }
 
 var (
@@ -42,8 +42,8 @@ var (
 		cipherTestCase{cert: "ecc", cipher: "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA", want: false},
 		cipherTestCase{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", want: true},
 		cipherTestCase{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", want: true},
-		cipherTestCase{cert: "rsa", cipher: "TLS_AES_128_GCM_SHA256", tls_max: "1.3", want: true},
-		cipherTestCase{cert: "rsa", cipher: "TLS_AES_256_GCM_SHA384", tls_max: "1.3", want: true},
+		cipherTestCase{cert: "rsa", cipher: "TLS_AES_128_GCM_SHA256", tlsMax: "1.3", want: true},
+		cipherTestCase{cert: "rsa", cipher: "TLS_AES_256_GCM_SHA384", tlsMax: "1.3", want: true},
 		cipherTestCase{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256", want: false},
 		cipherTestCase{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", want: false},
 		cipherTestCase{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA", want: false},
@@ -144,7 +144,7 @@ func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
 		),
 	)
 
-	runFipsServer(v, cipherTestCase{cert: "rsa", tls_max: "1.1"})
+	runFipsServer(v, cipherTestCase{cert: "rsa", tlsMax: "1.1"})
 	runAgentDiagnose(v)
 
 	serverLogs := v.Env().RemoteHost.MustExecute("docker logs dd-fips-server")
@@ -160,8 +160,8 @@ func runFipsServer(v *fipsServerSuite, tc cipherTestCase) {
 		if tc.cipher != "" {
 			envvar = fmt.Sprintf(`%v CIPHER="-c %v"`, envvar, tc.cipher)
 		}
-		if tc.tls_max != "" {
-			envvar = fmt.Sprintf(`%v TLS_MAX="--tls-max %v"`, envvar, tc.tls_max)
+		if tc.tlsMax != "" {
+			envvar = fmt.Sprintf(`%v TLS_MAX="--tls-max %v"`, envvar, tc.tlsMax)
 		}
 
 		_, err := v.Env().RemoteHost.Execute(fmt.Sprintf("%v docker-compose run --rm -d fips-server", envvar))
