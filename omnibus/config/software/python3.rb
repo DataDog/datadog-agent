@@ -145,13 +145,12 @@ build do
 
     # Sign the binaries
     if windows_signing_enabled?
-      sign_file python
-      sign_file "#{windows_safe_path(python_3_embedded)}\\python3.dll"
-      sign_file "#{windows_safe_path(python_3_embedded)}\\python312.dll"
-      sign_file "#{windows_safe_path(python_3_embedded)}\\DLLs\\libcrypto-3.dll"
-      sign_file "#{windows_safe_path(python_3_embedded)}\\DLLs\\libssl-3.dll"
-      sign_file "#{windows_safe_path(python_3_embedded)}\\bin\\openssl.exe"
-
+      project.sign_file python
+      project.sign_file "#{windows_safe_path(python_3_embedded)}\\python3.dll"
+      project.sign_file "#{windows_safe_path(python_3_embedded)}\\python312.dll"
+      project.sign_file "#{windows_safe_path(python_3_embedded)}\\DLLs\\libcrypto-3.dll"
+      project.sign_file "#{windows_safe_path(python_3_embedded)}\\DLLs\\libssl-3.dll"
+      project.sign_file "#{windows_safe_path(python_3_embedded)}\\bin\\openssl.exe"
     end
   end
 end
