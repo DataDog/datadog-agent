@@ -9,12 +9,12 @@ package telemetry
 
 import (
 	"os"
-	"path"
 	"syscall"
 	"testing"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 
@@ -97,45 +97,45 @@ func startManager(t *testing.T, m *manager.Manager, options manager.Options, nam
 }
 
 func triggerTestAndGetTelemetry(t *testing.T) []prometheus.Metric {
-	cfg := testConfig()
-
-	coreDir := path.Join(cfg.bpfDir, "co-re")
-	buf, err := bytecode.GetReader(coreDir, "error_telemetry.o")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = buf.Close })
-
 	collector := NewEBPFErrorsCollector()
 
-	optionsM1 := manager.Options{
-		RemoveRlimit: true,
-		ActivatedProbes: []manager.ProbesSelector{
+	err := ddebpf.LoadCOREAsset("error_telemetry.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+		opts.RemoveRlimit = true
+		opts.ActivatedProbes = []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "kprobe__vfs_open",
 				},
 			},
-		},
-	}
-	startManager(t, m1, optionsM1, "m1", buf)
+		}
+		startManager(t, m1, opts, "m1", buf)
+
+		return nil
+	})
+	require.NoError(t, err)
 
 	sharedMap, found, err := m1.GetMap("shared_map")
 	require.True(t, found, "'shared_map' not found in manager")
 	require.NoError(t, err)
 
-	optionsM2 := manager.Options{
-		RemoveRlimit: true,
-		ActivatedProbes: []manager.ProbesSelector{
+	err = ddebpf.LoadCOREAsset("error_telemetry.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+		opts.RemoveRlimit = true
+		opts.ActivatedProbes = []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "kprobe__do_vfs_ioctl",
 				},
 			},
-		},
-		MapEditors: map[string]*ebpf.Map{
+		}
+		opts.MapEditors = map[string]*ebpf.Map{
 			"shared_map": sharedMap,
-		},
-	}
-	startManager(t, m2, optionsM2, "m2", buf)
+		}
+
+		startManager(t, m2, opts, "m2", buf)
+
+		return nil
+	})
+	require.NoError(t, err)
 
 	_, err = os.Open("/proc/self/exe")
 	require.NoError(t, err)
