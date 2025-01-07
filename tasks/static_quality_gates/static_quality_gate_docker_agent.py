@@ -20,7 +20,7 @@ def entrypoint(**kwargs):
             )
         )
     url = f"registry.ddbuild.io/ci/datadog-agent/agent:v{pipeline_id}-{commit_sha}-7-{arch}"
-    ctx.run("systemctl start docker")
+    ctx.run("sudo dockerd")
     image_on_wire_size = ctx.run(
         "DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect -v "
         + url
@@ -58,4 +58,3 @@ def entrypoint(**kwargs):
         )
     if error_message != "":
         raise AssertionError(error_message)
-

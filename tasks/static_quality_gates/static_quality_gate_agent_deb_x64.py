@@ -39,7 +39,7 @@ def entrypoint(**kwargs):
         else:
             print(
                 color_message(
-                    f"package_on_wire_size <= max_on_wire_size, ({package_on_disk_size}) <= ({max_on_disk_size})",
+                    f"package_on_disk_size <= max_on_disk_size, ({package_on_disk_size}) <= ({max_on_disk_size})",
                     "green",
                 )
             )
