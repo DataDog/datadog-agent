@@ -77,12 +77,15 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
 		),
 	)
 
+	composeFiles := strings.Split(v.Env().RemoteHost.MustExecute(`docker inspect --format='{{index (index .Config.Labels "com.docker.compose.project.config_files")}}' dd-fips-server`), ",")
+	formattedComposeFiles := strings.Join(composeFiles, " -f ")
+
 	for _, tc := range testcases {
 		v.Run(fmt.Sprintf("FIPS enabled testing '%v -c %v' (should connect %v)", tc.cert, tc.cipher, tc.want), func() {
 
 			// Start the fips-server and waits for it to be ready
-			runFipsServer(v, tc)
-			defer stopFipsServer(v)
+			runFipsServer(v, tc, formattedComposeFiles)
+			defer stopFipsServer(v, formattedComposeFiles)
 
 			// Run diagnose to send requests and verify the server logs
 			runAgentDiagnose(v)
@@ -112,12 +115,15 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSDisabled() {
 		),
 	)
 
+	composeFiles := strings.Split(v.Env().RemoteHost.MustExecute(`docker inspect --format='{{index (index .Config.Labels "com.docker.compose.project.config_files")}}' dd-fips-server`), ",")
+	formattedComposeFiles := strings.Join(composeFiles, " -f ")
+
 	for _, tc := range testcases {
 		v.Run(fmt.Sprintf("FIPS disabled testing '%v -c %v'", tc.cert, tc.cipher), func() {
 
 			// Start the fips-server and waits for it to be ready
-			runFipsServer(v, tc)
-			defer stopFipsServer(v)
+			runFipsServer(v, tc, formattedComposeFiles)
+			defer stopFipsServer(v, formattedComposeFiles)
 
 			// Run diagnose to send requests and verify the server logs
 			runAgentDiagnose(v)
@@ -144,18 +150,21 @@ func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
 		),
 	)
 
-	runFipsServer(v, cipherTestCase{cert: "rsa", tlsMax: "1.1"})
+	composeFiles := strings.Split(v.Env().RemoteHost.MustExecute(`docker inspect --format='{{index (index .Config.Labels "com.docker.compose.project.config_files")}}' dd-fips-server`), ",")
+	formattedComposeFiles := strings.Join(composeFiles, " -f ")
+
+	runFipsServer(v, cipherTestCase{cert: "rsa", tlsMax: "1.1"}, formattedComposeFiles)
+	defer stopFipsServer(v, formattedComposeFiles)
+
 	runAgentDiagnose(v)
 
 	serverLogs := v.Env().RemoteHost.MustExecute("docker logs dd-fips-server")
 	assert.Contains(v.T(), serverLogs, "tls: client offered only unsupported version")
-
-	stopFipsServer(v)
 }
 
-func runFipsServer(v *fipsServerSuite, tc cipherTestCase) {
+func runFipsServer(v *fipsServerSuite, tc cipherTestCase, composeFiles string) {
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		stopFipsServer(v)
+		stopFipsServer(v, composeFiles)
 		envvar := fmt.Sprintf("CERT=%v", tc.cert)
 		if tc.cipher != "" {
 			envvar = fmt.Sprintf(`%v CIPHER="-c %v"`, envvar, tc.cipher)
@@ -164,7 +173,7 @@ func runFipsServer(v *fipsServerSuite, tc cipherTestCase) {
 			envvar = fmt.Sprintf(`%v TLS_MAX="--tls-max %v"`, envvar, tc.tlsMax)
 		}
 
-		_, err := v.Env().RemoteHost.Execute(fmt.Sprintf("%v docker-compose -f docker-compose-fips-server.yml run --rm -d fips-server", envvar))
+		_, err := v.Env().RemoteHost.Execute(fmt.Sprintf("%v docker-compose -f %v run --rm -d fips-server", envvar, strings.TrimSpace(composeFiles)))
 		if err != nil {
 			v.T().Logf("Error starting fips-server: %v", err)
 			require.NoError(t, err)
@@ -183,10 +192,10 @@ func runAgentDiagnose(v *fipsServerSuite) {
 	_ = v.Env().Docker.Client.ExecuteCommand("datadog-agent", `sh`, `-c`, `DD_DD_URL=https://dd-fips-server:443 agent diagnose --include connectivity-datadog-core-endpoints --local`)
 }
 
-func stopFipsServer(v *fipsServerSuite) {
+func stopFipsServer(v *fipsServerSuite, composeFiles string) {
 	fipsContainer := v.Env().RemoteHost.MustExecute("docker container ls -a --filter name=dd-fips-server --format '{{.Names}}'")
 	if fipsContainer != "" {
-		v.Env().RemoteHost.MustExecute("docker-compose -f docker-compose-fips-server.yml stop fips-server")
+		v.Env().RemoteHost.MustExecute(fmt.Sprintf("docker-compose -f %v stop fips-server", strings.TrimSpace(composeFiles)))
 	}
 }
 
