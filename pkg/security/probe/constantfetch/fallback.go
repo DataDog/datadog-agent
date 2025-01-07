@@ -163,6 +163,24 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getDentryDInodeOffset(f.kernelVersion)
 	case OffsetNamePathDentry:
 		value = getPathDentryOffset(f.kernelVersion)
+	case OffsetNameInodeSuperblock:
+		value = getInodeSuperblockOffset(f.kernelVersion)
+	case OffsetNamePathMnt:
+		value = getPathMntOffset(f.kernelVersion)
+	case OffsetNameMountMntMountpoint:
+		value = getMountMntMountpointOffset(f.kernelVersion)
+	case OffsetNameMountpointDentry:
+		value = getMountpointDentryOffset(f.kernelVersion)
+	case OffsetNameVfsmountMntFlags:
+		value = getVfsmountMntFlagsOffset(f.kernelVersion)
+	case OffsetNameSuperblockSType:
+		value = getSuperblockSTypeOffset(f.kernelVersion)
+	case OffsetNameVfsmountMntRoot:
+		value = getVfsmountMntRootOffset(f.kernelVersion)
+	case OffsetNameDentryDName:
+		value = getDentryDNameOffset(f.kernelVersion)
+	case OffsetNameVfsmountMntSb:
+		value = getVfsmountMntSbOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -1087,5 +1105,41 @@ func getDentryDInodeOffset(_ *kernel.Version) uint64 {
 }
 
 func getPathDentryOffset(_ *kernel.Version) uint64 {
+	return 8
+}
+
+func getInodeSuperblockOffset(_ *kernel.Version) uint64 {
+	return 40
+}
+
+func getPathMntOffset(_ *kernel.Version) uint64 {
+	return 0
+}
+
+func getMountMntMountpointOffset(_ *kernel.Version) uint64 {
+	return 24
+}
+
+func getMountpointDentryOffset(_ *kernel.Version) uint64 {
+	return 16
+}
+
+func getVfsmountMntFlagsOffset(_ *kernel.Version) uint64 {
+	return 16
+}
+
+func getSuperblockSTypeOffset(_ *kernel.Version) uint64 {
+	return 40
+}
+
+func getVfsmountMntRootOffset(_ *kernel.Version) uint64 {
+	return 0
+}
+
+func getDentryDNameOffset(_ *kernel.Version) uint64 {
+	return 32
+}
+
+func getVfsmountMntSbOffset(_ *kernel.Version) uint64 {
 	return 8
 }
