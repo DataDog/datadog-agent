@@ -12,11 +12,12 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type messageType int
@@ -72,7 +73,7 @@ type parser struct {
 	provider provider.Provider
 }
 
-func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, wmeta optional.Option[workloadmeta.Component], stringInternerTelemetry *stringInternerTelemetry) *parser {
+func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, wmeta option.Option[workloadmeta.Component], stringInternerTelemetry *stringInternerTelemetry) *parser {
 	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
@@ -177,7 +178,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	sampleRate := 1.0
 	var tags []string
 	var containerID []byte
-	var externalData string
+	var externalData origindetection.ExternalData
 	var optionalField []byte
 	var timestamp time.Time
 	for message != nil {
@@ -210,7 +211,11 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 			containerID = p.resolveContainerIDFromLocalData(optionalField)
 		// external data
 		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, externalDataPrefix):
-			externalData = string(optionalField[len(externalDataPrefix):])
+			rawExternalData := string(optionalField[len(externalDataPrefix):])
+			externalData, err = origindetection.ParseExternalData(rawExternalData)
+			if err != nil {
+				return dogstatsdMetricSample{}, fmt.Errorf("failed to parse OriginInfo.ExternalData %s: %v", rawExternalData, err)
+			}
 		}
 	}
 

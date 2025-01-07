@@ -225,13 +225,19 @@ func TestNotificationNoChange(t *testing.T) {
 
 	updatedKeyCB1 := []string{}
 
-	config.OnUpdate(func(key string, _, _ any) { updatedKeyCB1 = append(updatedKeyCB1, key) })
+	config.OnUpdate(func(key string, _, newValue any) { updatedKeyCB1 = append(updatedKeyCB1, key+":"+newValue.(string)) })
 
 	config.Set("foo", "bar", SourceFile)
-	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
+	assert.Equal(t, []string{"foo:bar"}, updatedKeyCB1)
 
 	config.Set("foo", "bar", SourceFile)
-	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
+	assert.Equal(t, []string{"foo:bar"}, updatedKeyCB1)
+
+	config.Set("foo", "baz", SourceAgentRuntime)
+	assert.Equal(t, []string{"foo:bar", "foo:baz"}, updatedKeyCB1)
+
+	config.Set("foo", "bar2", SourceFile)
+	assert.Equal(t, []string{"foo:bar", "foo:baz"}, updatedKeyCB1)
 }
 
 func TestCheckKnownKey(t *testing.T) {
