@@ -57,7 +57,7 @@ build do
     elsif windows_target?
       copy "providers/fips.dll", "#{dest}/lib/ossl-modules/fips.dll"
       if windows_signing_enabled?
-        sign_file "#{dest}/lib/ossl-modules/fips.dll"
+        project.sign_file "#{dest}/lib/ossl-modules/fips.dll"
       end
     end
 
