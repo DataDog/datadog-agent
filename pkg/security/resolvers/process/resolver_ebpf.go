@@ -519,16 +519,16 @@ func (p *EBPFResolver) retrieveExecFileFields(procExecPath string) (*model.FileF
 		err = lib.ErrKeyNotExist
 	}
 	if err != nil {
-		return nil, fmt.Errorf("unable to get filename for inode `%d`: %v", inode, err)
+		return nil, fmt.Errorf("unable to get filename for inode `%d`: %w", inode, err)
 	}
 
 	var fileFields model.FileFields
 	if _, err := fileFields.UnmarshalBinary(data); err != nil {
-		return nil, fmt.Errorf("unable to unmarshal entry for inode `%d`: %v", inode, err)
+		return nil, fmt.Errorf("unable to unmarshal entry for inode `%d`: %w", inode, err)
 	}
 
 	if fileFields.Inode == 0 {
-		return nil, fmt.Errorf("inode `%d` not found: %v", inode, err)
+		return nil, fmt.Errorf("inode `%d` not found: %w", inode, err)
 	}
 
 	return &fileFields, nil
