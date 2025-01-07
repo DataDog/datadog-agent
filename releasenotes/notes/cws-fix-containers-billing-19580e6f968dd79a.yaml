@@ -9,5 +9,5 @@
 fixes:
   - |
     Fix an issue where the remote workloadmeta was not receiving some unset
-    events for ECS containers. This was causing CWS, CSPM, CSM Pro, CSM
-    Enterprise and DevSecOps Enterprise Containers billing to be incorrect.
+    events for ECS containers, causing incorrect billing in CWS, CSPM, CSM Pro, CSM
+    Enterprise, and DevSecOps Enterprise Containers.
