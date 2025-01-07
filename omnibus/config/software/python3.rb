@@ -126,6 +126,11 @@ build do
     copy "PCbuild\\#{python_arch}\\*.lib", "#{windows_safe_path(python_3_embedded)}\\libs"
     copy "Lib", "#{windows_safe_path(python_3_embedded)}\\"
 
+    # Copy the same icon files that we used to ship from the python installer
+    copy "PC\\icons\\py.ico", "#{windows_safe_path(python_3_embedded)}\\DLLs\\"
+    copy "PC\\icons\\pyc.ico", "#{windows_safe_path(python_3_embedded)}\\DLLs\\"
+    copy "PC\\icons\\pyd.ico", "#{windows_safe_path(python_3_embedded)}\\DLLs\\"
+
     ###############################
     # Install build artifacts...  #
     ###############################
