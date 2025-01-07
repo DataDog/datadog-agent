@@ -186,7 +186,7 @@ func runAgentDiagnose(v *fipsServerSuite) {
 func stopFipsServer(v *fipsServerSuite) {
 	fipsContainer := v.Env().RemoteHost.MustExecute("docker container ls -a --filter name=dd-fips-server --format '{{.Names}}'")
 	if fipsContainer != "" {
-		v.Env().RemoteHost.MustExecute("docker compose stop fips-server")
+		v.Env().RemoteHost.MustExecute("docker-compose stop fips-server")
 	}
 }
 
