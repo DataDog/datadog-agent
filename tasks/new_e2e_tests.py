@@ -381,8 +381,9 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_f
 
     result_json_name = result_json_path.split("/")[-1]
     result_json_dir = result_json_path.removesuffix('/' + result_json_name)
-    washer = TestWasher(result_json_name, flakes_file)
+    washer = TestWasher(test_output_json_file=result_json_name, flakes_file_path=flakes_file)
     failing_tests, marked_flaky_tests = washer.parse_test_results(result_json_dir)
+    all_known_flakes = washer.merge_known_flakes(marked_flaky_tests)
 
     try:
         # (failing, flaky) -> [(package, test_name, logs)]
@@ -390,7 +391,7 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_f
 
         # Split flaky / non flaky tests
         for package, tests in logs_per_test.items():
-            package_flaky = marked_flaky_tests.get(package, set())
+            package_flaky = all_known_flakes.get(package, set())
             package_failing = failing_tests.get(package, set())
             for test_name, logs in tests.items():
                 categorized_logs[test_name in package_failing, test_name in package_flaky].append(
