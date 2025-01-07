@@ -159,10 +159,14 @@ func (v *multiFakeIntakeSuite) TestNSSFailover() {
 	setHostEntry(v.T(), v.Env().Host, intakeName, fakeintake1IP)
 
 	// configure agent to use the custom intake, set connection_reset_interval, use logs, and processes
+	scheme := "http"
+	if strings.HasPrefix(v.Env().Fakeintake1.URL, "https://") {
+		scheme = "https"
+	}
 	agentOptions := []agentparams.Option{
 		agentparams.WithAgentConfig(agentConfig),
 		agentparams.WithLogs(),
-		agentparams.WithIntakeHostname(intakeName),
+		agentparams.WithIntakeHostname(scheme, intakeName),
 		agentparams.WithIntegration("custom_logs.d", customLogsConfig),
 	}
 	v.UpdateEnv(multiFakeIntakeAWS(agentOptions...))

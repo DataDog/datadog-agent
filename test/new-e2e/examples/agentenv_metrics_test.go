@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -22,7 +24,8 @@ type fakeintakeSuiteMetrics struct {
 }
 
 func TestVMSuiteEx5(t *testing.T) {
-	e2e.Run(t, &fakeintakeSuiteMetrics{}, e2e.WithProvisioner(awshost.Provisioner()))
+	// e2e.Run(t, &fakeintakeSuiteMetrics{}, e2e.WithProvisioner(awshost.Provisioner()))
+	e2e.Run(t, &fakeintakeSuiteMetrics{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithFakeIntakeOptions(fakeintake.WithLoadBalancer()))))
 }
 
 func (v *fakeintakeSuiteMetrics) Test1_FakeIntakeReceivesMetrics() {

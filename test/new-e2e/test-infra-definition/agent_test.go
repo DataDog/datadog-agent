@@ -6,7 +6,9 @@
 package testinfradefinition
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +23,9 @@ type agentSuite struct {
 }
 
 func TestAgentSuite(t *testing.T) {
-	e2e.Run(t, &agentSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
+	// e2e.Run(t, &agentSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
+	// e2e.Run(t, &agentSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithFakeIntakeOptions(fakeintake.WithLoadBalancer()))))
+	e2e.Run(t, &agentSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 func (v *agentSuite) TestAgentCommandNoArg() {
@@ -29,4 +33,10 @@ func (v *agentSuite) TestAgentCommandNoArg() {
 	require.NoError(v.T(), err)
 	assert.NotNil(v.T(), status)
 	assert.NotEmpty(v.T(), status.Content)
+
+	v.EventuallyWithT(func(tt *assert.CollectT) {
+		metrics, err := v.Env().FakeIntake.Client().GetMetricNames()
+		assert.NoError(tt, err)
+		assert.Contains(tt, metrics, "system.uptime", fmt.Sprintf("metrics %v doesn't contain system.uptime", metrics))
+	}, 2*time.Minute, 10*time.Second)
 }
