@@ -12,4 +12,4 @@ qa_installer_script:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "install-*.sh" "$OMNIBUS_PACKAGE_DIR" "s3://${INSTALLER_TESTING_S3_BUCKET}/${CI_COMMIT_SHA}/scripts/"
+    - $S3_CP_CMD --recursive --exclude "*" --include "install*.sh" "$OMNIBUS_PACKAGE_DIR" "s3://${INSTALLER_TESTING_S3_BUCKET}/${CI_COMMIT_SHA}/scripts/"
