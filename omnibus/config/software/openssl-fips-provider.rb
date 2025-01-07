@@ -56,6 +56,9 @@ build do
       copy "/usr/local/lib*/ossl-modules/fips.so", "#{dest}/lib/ossl-modules/fips.so"
     elsif windows_target?
       copy "providers/fips.dll", "#{dest}/lib/ossl-modules/fips.dll"
+      if windows_signing_enabled?
+        sign_file "#{dest}/lib/ossl-modules/fips.dll"
+      end
     end
 
     erb source: "openssl.cnf.erb",
