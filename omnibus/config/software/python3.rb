@@ -107,12 +107,17 @@ build do
     # -e to enable external libraries. They won't be fetched if already
     # present, but the modules will be built nonetheless.
     command "PCbuild\\build.bat -e --pgo"
-    command "dir PCbuild/#{python_arch}/"
-    # Install the build artifact to their expected locations
+    command "ls -lR PCbuild/#{python_arch}/"
+    # Install the built artifacts to their expected locations
     copy "PCbuild/#{python_arch}/*.exe", "#{windows_safe_path(python_3_embedded)}/"
     copy "PCbuild/#{python_arch}/*.dll", "#{windows_safe_path(python_3_embedded)}/"
+
     mkdir "#{windows_safe_path(python_3_embedded)}/DLLs"
     copy "PCbuild/#{python_arch}/*.pyd", "#{windows_safe_path(python_3_embedded)}/DLLs/"
+    copy "PCbuild/#{python_arch}/*.ico", "#{windows_safe_path(python_3_embedded)}/DLLs/"
+    copy "PCbuild/#{python_arch}/*.cat", "#{windows_safe_path(python_3_embedded)}/DLLs/"
+    copy "PCbuild/#{python_arch}/*.dll", "#{windows_safe_path(python_3_embedded)}/DLLs/"
+
     mkdir "#{windows_safe_path(python_3_embedded)}/libs"
     copy "PCbuild/#{python_arch}/*.lib", "#{windows_safe_path(python_3_embedded)}/libs"
     copy "Lib", "#{windows_safe_path(python_3_embedded)}/"
