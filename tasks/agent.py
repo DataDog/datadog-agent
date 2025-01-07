@@ -82,7 +82,6 @@ AGENT_CORECHECKS = [
     "systemd",
     "tcp_queue_length",
     "uptime",
-    "winproc",
     "jetson",
     "telemetry",
     "orchestrator_pod",
@@ -98,6 +97,7 @@ WINDOWS_CORECHECKS = [
     "windows_registry",
     "winkmem",
     "wincrashdetect",
+    "winproc",
     "win32_event_log",
 ]
 
