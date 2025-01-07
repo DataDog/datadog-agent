@@ -111,8 +111,10 @@ build do
     mkdir "#{windows_safe_path(python_3_embedded)}/DLLs"
     copy "PCbuild/#{python_arch}/*.exe", "#{windows_safe_path(python_3_embedded)}/"
     move "PCbuild/#{python_arch}\\sqlite*.dll", "#{windows_safe_path(python_3_embedded)}/DLLs/"
-    move "PCbuild/#{python_arch}\\libssl-3.dll", "#{windows_safe_path(python_3_embedded)}/DLLs/"
-    move "PCbuild/#{python_arch}\\libcrypto-3.dll", "#{windows_safe_path(python_3_embedded)}/DLLs/"
+    # We can also remove the DLLs that were put there by the python build before copying all other DLLs
+    # since they won't be loaded anyway
+    delete "#{windows_safe_path(python_3_embedded)}/libcrypto-3.dll"
+    delete "#{windows_safe_path(python_3_embedded)}/libssl-3.dll"
     move "PCbuild/#{python_arch}\\libffi*.dll", "#{windows_safe_path(python_3_embedded)}/DLLs/"
     copy "PCbuild/#{python_arch}\\*.dll", "#{windows_safe_path(python_3_embedded)}/"
 
@@ -133,11 +135,8 @@ build do
     # the OpenSSL build, so we need to copy those files to the install directory.
     # The ones we copied for the build are now irrelevant
     openssl_arch = "x64"
-    copy "#{install_dir}/embedded3/bin/libcrypto-3-#{openssl_arch}.dll", "#{windows_safe_path(python_3_embedded)}/DLLs"
-    copy "#{install_dir}/embedded3/bin/libssl-3-#{openssl_arch}.dll", "#{windows_safe_path(python_3_embedded)}/DLLs"
-    # We can also remove the DLLs that were put there by the python build since they won't be loaded anyway
-    delete "#{windows_safe_path(python_3_embedded)}/libcrypto-3.dll"
-    delete "#{windows_safe_path(python_3_embedded)}/libssl-3.dll"
+    move "#{install_dir}/embedded3/bin/libcrypto-3-#{openssl_arch}.dll", "#{windows_safe_path(python_3_embedded)}/DLLs"
+    move "#{install_dir}/embedded3/bin/libssl-3-#{openssl_arch}.dll", "#{windows_safe_path(python_3_embedded)}/DLLs"
 
     copy "Include", "#{windows_safe_path(python_3_embedded)}\\include"
     copy "PC/pyconfig.h", "#{windows_safe_path(python_3_embedded)}\\include\\"
