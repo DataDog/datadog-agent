@@ -84,8 +84,6 @@ modules:
     used_by_otel: true
   comp/otelcol/otlp/testutil:
     used_by_otel: true
-  comp/serializer/compressionfactory:
-    used_by_otel: true
   comp/serializer/metricscompression:
     used_by_otel: true
   comp/serializer/logscompression:

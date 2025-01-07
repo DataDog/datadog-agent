@@ -26,7 +26,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ./../../comp/otelcol/otlp/components/metricsclient
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ./../../comp/otelcol/otlp/components/statsprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./../../comp/otelcol/otlp/testutil
-	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory => ./../../comp/serializer/compressionfactory
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression => ./../../comp/serializer/logscompression
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ./../../comp/serializer/metricscompression
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ./../../comp/trace/agent/def
@@ -74,6 +73,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ./../../pkg/util/cgroups
 	github.com/DataDog/datadog-agent/pkg/util/common => ../../pkg/util/common
 	github.com/DataDog/datadog-agent/pkg/util/compression => ../../pkg/util/compression
+	github.com/DataDog/datadog-agent/pkg/util/compression/impl-noop => ../../pkg/util/compression/impl-noop
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ./../../pkg/util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/executable => ./../../pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ./../../pkg/util/filesystem
@@ -106,11 +106,11 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.56.0-rc.1
-	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.115.0
 )
 
@@ -165,16 +165,15 @@ require (
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.59.0 // indirect

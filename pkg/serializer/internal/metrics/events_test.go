@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compressionfactory/selector"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
@@ -371,7 +371,8 @@ func BenchmarkCreateSingleMarshalerOneEventBySource(b *testing.B) {
 func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem int) Events) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
 		cfg := configmock.New(b)
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, selector.NewCompressor(cfg))
+		compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
+		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor)
 		events := createEvents(numberOfItem)
 
 		b.ResetTimer()
@@ -385,7 +386,8 @@ func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem
 func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
 		cfg := configmock.New(b)
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, selector.NewCompressor(cfg))
+		compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
+		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor)
 		events := createBenchmarkEvents(numberOfItem)
 
 		b.ResetTimer()
@@ -401,7 +403,9 @@ func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 func BenchmarkCreateMarshalersSeveralSourceTypes(b *testing.B) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
 		cfg := configmock.New(b)
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, selector.NewCompressor(cfg))
+
+		compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
+		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor)
 
 		events := Events{}
 		// Half of events have the same source type

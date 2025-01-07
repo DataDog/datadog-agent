@@ -22,8 +22,8 @@ import (
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/comp/serializer/compressionfactory/selector"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
+	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -36,7 +36,9 @@ import (
 func TestInitExtraHeadersNoopCompression(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("serializer_compressor_kind", "blah")
-	s := NewSerializer(nil, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
+
+	compressor := metricscompressionfx.NewCompressorReq(metricscompressionfx.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(nil, nil, compressor, mockConfig, "testhost")
 	initExtraHeaders(s)
 
 	expected := make(http.Header)
@@ -71,7 +73,8 @@ func TestInitExtraHeadersWithCompression(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			s := NewSerializer(nil, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
+			compressor := metricscompressionfx.NewCompressorReq(metricscompressionfx.Requires{Cfg: mockConfig}).Comp
+			s := NewSerializer(nil, nil, compressor, mockConfig, "testhost")
 			initExtraHeaders(s)
 
 			expected := make(http.Header)
@@ -260,7 +263,8 @@ func TestSendV1Events(t *testing.T) {
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
 
-			s := NewSerializer(f, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
+			compressor := metricscompressionfx.NewCompressorReq(metricscompressionfx.Requires{Cfg: mockConfig}).Comp
+			s := NewSerializer(f, nil, compressor, mockConfig, "testhost")
 			matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{},"internalHostname"`, s)
 			f.On("SubmitV1Intake", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
@@ -287,7 +291,8 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
 
-			s := NewSerializer(f, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
+			compressor := metricscompressionfx.NewCompressorReq(metricscompressionfx.Requires{Cfg: mockConfig}).Comp
+			s := NewSerializer(f, nil, compressor, mockConfig, "testhost")
 
 			events := event.Events{&event.Event{SourceTypeName: "source1"}, &event.Event{SourceTypeName: "source2"}, &event.Event{SourceTypeName: "source3"}}
 			payloadsCountMatcher := func(payloadCount int) interface{} {
@@ -325,7 +330,9 @@ func TestSendV1ServiceChecks(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("enable_service_checks_stream_payload_serialization", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			s := NewSerializer(f, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
+
+			compressor := metricscompressionfx.NewCompressorReq(metricscompressionfx.Requires{Cfg: mockConfig}).Comp
+			s := NewSerializer(f, nil, compressor, mockConfig, "testhost")
 			matcher := createJSONPayloadMatcher(`[{"check":"","host_name":"","timestamp":0,"status":0,"message":"","tags":null}]`, s)
 			f.On("SubmitV1CheckRuns", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
@@ -351,7 +358,9 @@ func TestSendV1Series(t *testing.T) {
 			mockConfig.SetWithoutSource("enable_stream_payload_serialization", false)
 			mockConfig.SetWithoutSource("use_v2_api.series", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			s := NewSerializer(f, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
+
+			compressor := metricscompressionfx.NewCompressorReq(metricscompressionfx.Requires{Cfg: mockConfig}).Comp
+			s := NewSerializer(f, nil, compressor, mockConfig, "testhost")
 			matcher := createJSONPayloadMatcher(`{"series":[]}`, s)
 
 			f.On("SubmitV1Series", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
@@ -377,7 +386,9 @@ func TestSendSeries(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("use_v2_api.series", true) // default value, but just to be sure
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			s := NewSerializer(f, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
+
+			compressor := metricscompressionfx.NewCompressorReq(metricscompressionfx.Requires{Cfg: mockConfig}).Comp
+			s := NewSerializer(f, nil, compressor, mockConfig, "testhost")
 			matcher := createProtoscopeMatcher(`1: {
 		1: { 1: {"host"} }
 		5: 3
@@ -406,7 +417,9 @@ func TestSendSketch(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("use_v2_api.series", true) // default value, but just to be sure
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			s := NewSerializer(f, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
+
+			compressor := metricscompressionfx.NewCompressorReq(metricscompressionfx.Requires{Cfg: mockConfig}).Comp
+			s := NewSerializer(f, nil, compressor, mockConfig, "testhost")
 			matcher := createProtoscopeMatcher(`
 		1: { 1: {"fakename"} 2: {"fakehost"} 8: { 1: { 4: 10 }}}
 		2: {}
@@ -435,7 +448,8 @@ func TestSendMetadata(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			compressor := selector.NewCompressor(mockConfig)
+
+			compressor := metricscompressionfx.NewCompressorReq(metricscompressionfx.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, "testhost")
 			jsonPayloads, _ := mkPayloads(jsonString, true, s)
 			f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
@@ -471,7 +485,9 @@ func TestSendProcessesMetadata(t *testing.T) {
 			payload := []byte("\"test\"")
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			s := NewSerializer(f, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
+
+			compressor := metricscompressionfx.NewCompressorReq(metricscompressionfx.Requires{Cfg: mockConfig}).Comp
+			s := NewSerializer(f, nil, compressor, mockConfig, "testhost")
 			payloads, _ := mkPayloads(payload, true, s)
 			f.On("SubmitV1Intake", payloads, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
@@ -511,7 +527,9 @@ func TestSendWithDisabledKind(t *testing.T) {
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 
 			f := &forwarder.MockedForwarder{}
-			s := NewSerializer(f, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
+
+			compressor := metricscompressionfx.NewCompressorReq(metricscompressionfx.Requires{Cfg: mockConfig}).Comp
+			s := NewSerializer(f, nil, compressor, mockConfig, "testhost")
 			jsonPayloads, _ := mkPayloads(jsonString, true, s)
 			payload := &testPayload{}
 

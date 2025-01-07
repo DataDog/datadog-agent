@@ -15,7 +15,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../../def
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../logs/agent/config
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../logsagentpipeline
-	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory => ../../../serializer/compressionfactory
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression => ../../../serializer/logscompression
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ../../../serializer/metricscompression
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
@@ -100,7 +99,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.59.0 // indirect
@@ -119,10 +117,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0 // indirect

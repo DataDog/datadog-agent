@@ -15,7 +15,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../../../../def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../../forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../../../forwarder/orchestrator/orchestratorinterface
-	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory => ../../../../../serializer/compressionfactory
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression => ../../../../../serializer/logscompression
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ../../../../../serializer/metricscompression
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../../../../pkg/aggregator/ckey

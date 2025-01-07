@@ -14,12 +14,12 @@ import (
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/serializer/compressionfactory/selector"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
@@ -54,8 +54,7 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forw
 	cfg := pkgconfigsetup.Datadog()
 	kind := cfg.GetString("serializer_compressor_kind")
 	level := cfg.GetInt("serializer_zstd_compressor_level")
-	factory := &selector.Factory{}
-	compressor := factory.NewCompressor(kind, level)
+	compressor := selector.NewCompressor(kind, level)
 
 	serializer := serializer.NewSerializer(forwarder, nil, compressor, pkgconfigsetup.Datadog(), h)
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()))

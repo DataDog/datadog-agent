@@ -13,7 +13,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../comp/logs/agent/config
-	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory => ../../../comp/serializer/compressionfactory
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression => ../../../comp/serializer/logscompression
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ../../../comp/serializer/metricscompression
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
@@ -78,7 +77,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/status/health v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.56.0-rc.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/stretchr/testify v1.10.0
@@ -90,7 +89,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.59.0 // indirect
@@ -108,7 +106,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0 // indirect

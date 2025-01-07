@@ -7,32 +7,28 @@
 package fx
 
 import (
-	factory "github.com/DataDog/datadog-agent/comp/serializer/compressionfactory/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// Requires contains the config for Compression
-type Requires struct {
-	Factory factory.Component
-}
 
 // Provides contains the compression component
 type Provides struct {
 	Comp logscompression.Component
 }
 
-func NewCompressorReq(req Requires) Provides {
-	return Provides{
-		Comp: req.Factory,
-	}
+type component struct{}
+
+func (*component) NewCompressor(kind string, level int) compression.Compressor {
+	return selector.NewCompressor(kind, level)
 }
 
 // Module defines the fx options for the component.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			NewCompressorReq,
+			&component{},
 		),
 	)
 }

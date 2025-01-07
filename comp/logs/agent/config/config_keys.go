@@ -116,9 +116,9 @@ func (l *LogsConfigKeys) compressionKind() string {
 func (l *LogsConfigKeys) compressionLevel() int {
 	if l.compressionKind() == "zstd" {
 		return l.getConfig().GetInt(l.getConfigKey("zstd_compression_level"))
-	} else {
-		return l.getConfig().GetInt(l.getConfigKey("compression_level"))
 	}
+
+	return l.getConfig().GetInt(l.getConfigKey("compression_level"))
 }
 
 func (l *LogsConfigKeys) useCompression() bool {

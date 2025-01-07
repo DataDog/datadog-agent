@@ -31,7 +31,6 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compressionfactory/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 
@@ -84,7 +83,6 @@ func main() {
 		fx.Supply(coreconfig.NewParams("", coreconfig.WithConfigMissingOK(true))),
 		coreconfig.Module(),
 		logscompressionfx.Module(),
-		compressionfx.Module(),
 		fx.Supply(secrets.NewEnabledParams()),
 		secretsimpl.Module(),
 		fx.Provide(func(secrets secrets.Component) optional.Option[secrets.Component] { return optional.NewOption(secrets) }),

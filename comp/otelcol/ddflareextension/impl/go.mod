@@ -34,7 +34,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor => ../../otlp/components/processor/infraattributesprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ../../otlp/components/statsprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ../../../otelcol/otlp/testutil
-	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory => ../../../serializer/compressionfactory
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression => ../../../serializer/logscompression
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ../../../serializer/metricscompression
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ../../../trace/agent/def
@@ -259,11 +258,11 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/json v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.58.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.59.0 // indirect

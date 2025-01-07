@@ -15,13 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/comp/serializer/compressionfactory/selector"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -85,9 +86,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 				testSeries = append(testSeries, &point)
 			}
 
-			mockConfig := mock.New(t)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			strategy := selector.NewCompressor(mockConfig)
+			strategy := selector.NewCompressor(tc.kind, 1)
 
 			payloads, err := Payloads(testSeries, compress, JSONMarshalFct, strategy)
 			require.Nil(t, err)
@@ -137,12 +136,12 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 	}
 
 	mockConfig := mock.New(b)
-	strategy := selector.NewCompressor(mockConfig)
+	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
 	var r transaction.BytesPayloads
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.
-		r, _ = Payloads(testSeries, true, JSONMarshalFct, strategy)
+		r, _ = Payloads(testSeries, true, JSONMarshalFct, compressor)
 
 	}
 	// ensure we actually had to split
@@ -216,8 +215,8 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			strategy := selector.NewCompressor(mockConfig)
-			payloads, err := Payloads(testEvent, compress, JSONMarshalFct, strategy)
+			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
+			payloads, err := Payloads(testEvent, compress, JSONMarshalFct, compressor)
 			require.Nil(t, err)
 
 			originalLength := len(testEvent.EventsArr)
@@ -226,7 +225,7 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 				var s map[string]interface{}
 				localPayload := payload.GetContent()
 				if compress {
-					localPayload, err = strategy.Decompress(localPayload)
+					localPayload, err = compressor.Decompress(localPayload)
 					require.Nil(t, err)
 				}
 
@@ -295,8 +294,8 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			strategy := selector.NewCompressor(mockConfig)
-			payloads, err := Payloads(testServiceChecks, compress, JSONMarshalFct, strategy)
+			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
+			payloads, err := Payloads(testServiceChecks, compress, JSONMarshalFct, compressor)
 			require.Nil(t, err)
 
 			originalLength := len(testServiceChecks)
@@ -305,7 +304,7 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 				var s []interface{}
 				localPayload := payload.GetContent()
 				if compress {
-					localPayload, err = strategy.Decompress(localPayload)
+					localPayload, err = compressor.Decompress(localPayload)
 					require.Nil(t, err)
 				}
 

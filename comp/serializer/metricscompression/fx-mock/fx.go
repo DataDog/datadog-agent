@@ -10,7 +10,8 @@ package fx
 
 import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
-	fx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	common "github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -23,7 +24,7 @@ func MockModule() fxutil.Module {
 	)
 }
 
-// NewMockCompressor returns a new Mock
-func NewMockCompressor(req fx.Requires) compression.Component {
-	return req.Factory.NewCompressor("none", 0)
+// NewMockCompressor returns a noop compressor.
+func NewMockCompressor() compression.Component {
+	return selector.NewCompressor(common.NoneKind, 1)
 }

@@ -14,21 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
-// Provides contains the compression component
-type Provides struct {
-	Comp compression.Compressor
-}
-
 // ZlibStrategy is the strategy for when serializer_compressor_kind is zlib
-type ZlibStrategy struct {
-	newKind func(string, int) compression.Compressor
-}
+type ZlibStrategy struct{}
 
 // NewComponent returns a new ZlibStrategy
-func NewComponent() Provides {
-	return Provides{
-		Comp: &ZlibStrategy{},
-	}
+func New() compression.Compressor {
+	return &ZlibStrategy{}
 }
 
 // Compress will compress the data with zlib

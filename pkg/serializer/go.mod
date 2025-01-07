@@ -15,7 +15,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../comp/forwarder/orchestrator/orchestratorinterface
-	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory => ../../comp/serializer/compressionfactory
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ../../comp/serializer/metricscompression
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../api
@@ -69,7 +68,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.57.1
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.59.0

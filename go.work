@@ -40,7 +40,6 @@ use (
 	comp/otelcol/otlp/components/processor/infraattributesprocessor
 	comp/otelcol/otlp/components/statsprocessor
 	comp/otelcol/otlp/testutil
-	comp/serializer/compressionfactory
 	comp/serializer/logscompression
 	comp/serializer/metricscompression
 	comp/trace/agent/def

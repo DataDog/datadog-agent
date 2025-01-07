@@ -9,15 +9,28 @@
 package fx
 
 import (
-	factory "github.com/DataDog/datadog-agent/comp/serializer/compressionfactory/fx-mock"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+type component struct{}
+
+func (*component) NewCompressor(_kind string, _level int) compression.Compressor {
+	return selector.NewNoopCompressor()
+}
+
+// NewMockCompressor returns a mock component that will always return a noop compressor.
+func NewMockCompressor() logscompression.Component {
+	return &component{}
+}
 
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			factory.NewMockCompressor,
+			NewMockCompressor,
 		),
 	)
 }

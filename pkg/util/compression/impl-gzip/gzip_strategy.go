@@ -20,18 +20,13 @@ type Requires struct {
 	Level int
 }
 
-// Provides contains the compression component
-type Provides struct {
-	Comp compression.Compressor
-}
-
 // GzipStrategy is the strategy for when serializer_compression_kind is gzip
 type GzipStrategy struct {
 	level int
 }
 
-// NewComponent returns a new GzipStrategy
-func NewComponent(req Requires) Provides {
+// New returns a new GzipStrategy
+func New(req Requires) compression.Compressor {
 	level := req.Level
 	if level < gzip.NoCompression {
 		log.Warnf("Gzip log level set to %d, minimum is %d.", level, gzip.NoCompression)
@@ -41,10 +36,8 @@ func NewComponent(req Requires) Provides {
 		level = gzip.BestCompression
 	}
 
-	return Provides{
-		Comp: &GzipStrategy{
-			level: level,
-		},
+	return &GzipStrategy{
+		level: level,
 	}
 }
 

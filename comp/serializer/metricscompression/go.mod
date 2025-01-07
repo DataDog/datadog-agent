@@ -4,7 +4,6 @@ go 1.23.3
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../core/config
-	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory => ../compressionfactory
 	github.com/DataDog/datadog-agent/pkg/util/compression => ../../../pkg/util/compression
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../pkg/util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
@@ -12,7 +11,6 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.59.0
 )
@@ -40,6 +38,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.59.1 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
+	github.com/DataDog/zstd v1.5.6 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect

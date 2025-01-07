@@ -14,7 +14,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../def
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../logs/agent/config
-	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory => ../../serializer/compressionfactory
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression => ../../serializer/logscompression
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ../../serializer/metricscompression
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
@@ -75,7 +74,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0 // indirect
@@ -105,10 +103,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.59.0 // indirect

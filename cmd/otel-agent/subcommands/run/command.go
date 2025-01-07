@@ -32,6 +32,7 @@ import (
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -48,8 +49,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compressionfactory/def"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compressionfactory/fx"
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
@@ -167,11 +166,13 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),
-		compressionfx.NoopModule(),
-		fx.Decorate(func(compression compression.Component) compression.Component {
-			// We directly select zlib
-			return compression.WithKindAndLevel("zlib", 0)
-		}),
+		compressionfx.Module(),
+		/*
+			fx.Decorate(func(compression compression.Component) compression.Component {
+				// We directly select zlib
+				return compression.WithKindAndLevel("zlib", 0)
+			}),
+		*/
 		fx.Provide(serializer.NewSerializer),
 		// For FX to provide the serializer.MetricSerializer from the serializer.Serializer
 		fx.Provide(func(s *serializer.Serializer) serializer.MetricSerializer {

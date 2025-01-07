@@ -19,22 +19,15 @@ type Requires struct {
 	Level int
 }
 
-// Provides contains the compression component
-type Provides struct {
-	Comp compression.Compressor
-}
-
 // ZstdStrategy is the strategy for when serializer_compressor_kind is zstd
 type ZstdStrategy struct {
 	level int
 }
 
 // NewComponent returns a new ZstdStrategy
-func NewComponent(reqs Requires) Provides {
-	return Provides{
-		Comp: &ZstdStrategy{
-			level: reqs.Level,
-		},
+func New(reqs Requires) compression.Compressor {
+	return &ZstdStrategy{
+		level: reqs.Level,
 	}
 }
 
