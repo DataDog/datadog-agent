@@ -65,6 +65,20 @@ CSM Threats event for Linux systems have the following JSON schema:
             ],
             "description": "AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request"
         },
+        "AcceptEvent": {
+            "properties": {
+                "addr": {
+                    "$ref": "#/$defs/IPPortFamily",
+                    "description": "Bound address (if any)"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "addr"
+            ],
+            "description": "AcceptEventSerializer serializes a bind event to JSON"
+        },
         "AgentContext": {
             "properties": {
                 "rule_id": {
@@ -93,6 +107,12 @@ CSM Threats event for Linux systems have the following JSON schema:
                     "type": "string"
                 },
                 "origin": {
+                    "type": "string"
+                },
+                "kernel_version": {
+                    "type": "string"
+                },
+                "distribution": {
                     "type": "string"
                 }
             },
@@ -1609,6 +1629,12 @@ CSM Threats event for Linux systems have the following JSON schema:
                 },
                 "mount": {
                     "$ref": "#/$defs/SyscallArgs"
+                },
+                "mkdir": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "rmdir": {
+                    "$ref": "#/$defs/SyscallArgs"
                 }
             },
             "additionalProperties": false,
@@ -1718,9 +1744,6 @@ CSM Threats event for Linux systems have the following JSON schema:
         "container": {
             "$ref": "#/$defs/ContainerContext"
         },
-        "cgroup": {
-            "$ref": "#/$defs/CGroupContext"
-        },
         "network": {
             "$ref": "#/$defs/NetworkContext"
         },
@@ -1729,6 +1752,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         },
         "security_profile": {
             "$ref": "#/$defs/SecurityProfileContext"
+        },
+        "cgroup": {
+            "$ref": "#/$defs/CGroupContext"
         },
         "selinux": {
             "$ref": "#/$defs/SELinuxEvent"
@@ -1759,6 +1785,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         },
         "imds": {
             "$ref": "#/$defs/IMDSEvent"
+        },
+        "accept": {
+            "$ref": "#/$defs/AcceptEvent"
         },
         "bind": {
             "$ref": "#/$defs/BindEvent"
@@ -1802,10 +1831,10 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `exit` | $ref | Please see [ExitEvent](#exitevent) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
-| `cgroup` | $ref | Please see [CGroupContext](#cgroupcontext) |
 | `network` | $ref | Please see [NetworkContext](#networkcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
 | `security_profile` | $ref | Please see [SecurityProfileContext](#securityprofilecontext) |
+| `cgroup` | $ref | Please see [CGroupContext](#cgroupcontext) |
 | `selinux` | $ref | Please see [SELinuxEvent](#selinuxevent) |
 | `bpf` | $ref | Please see [BPFEvent](#bpfevent) |
 | `mmap` | $ref | Please see [MMapEvent](#mmapevent) |
@@ -1816,6 +1845,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `splice` | $ref | Please see [SpliceEvent](#spliceevent) |
 | `dns` | $ref | Please see [DNSEvent](#dnsevent) |
 | `imds` | $ref | Please see [IMDSEvent](#imdsevent) |
+| `accept` | $ref | Please see [AcceptEvent](#acceptevent) |
 | `bind` | $ref | Please see [BindEvent](#bindevent) |
 | `connect` | $ref | Please see [ConnectEvent](#connectevent) |
 | `mount` | $ref | Please see [MountEvent](#mountevent) |
@@ -1908,6 +1938,35 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `expiration` | expiration is the expiration date of the credentials |
 
 
+## `AcceptEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "addr": {
+            "$ref": "#/$defs/IPPortFamily",
+            "description": "Bound address (if any)"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "addr"
+    ],
+    "description": "AcceptEventSerializer serializes a bind event to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `addr` | Bound address (if any) |
+
+| References |
+| ---------- |
+| [IPPortFamily](#ipportfamily) |
+
 ## `AgentContext`
 
 
@@ -1940,6 +1999,12 @@ CSM Threats event for Linux systems have the following JSON schema:
             "type": "string"
         },
         "origin": {
+            "type": "string"
+        },
+        "kernel_version": {
+            "type": "string"
+        },
+        "distribution": {
             "type": "string"
         }
     },
@@ -4193,6 +4258,12 @@ CSM Threats event for Linux systems have the following JSON schema:
             "$ref": "#/$defs/SyscallArgs"
         },
         "mount": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "mkdir": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "rmdir": {
             "$ref": "#/$defs/SyscallArgs"
         }
     },

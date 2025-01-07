@@ -81,6 +81,15 @@ type FileSerializer struct {
 	MountOrigin string `json:"mount_origin,omitempty"`
 }
 
+// CGroupContextSerializer serializes a cgroup context to JSON
+// easyjson:json
+type CGroupContextSerializer struct {
+	// CGroup ID
+	ID string `json:"id,omitempty"`
+	// CGroup manager
+	Manager string `json:"manager,omitempty"`
+}
+
 // UserContextSerializer serializes a user context to JSON
 // easyjson:json
 type UserContextSerializer struct {
@@ -423,6 +432,13 @@ type SpliceEventSerializer struct {
 	PipeExitFlag string `json:"pipe_exit_flag"`
 }
 
+// AcceptEventSerializer serializes a bind event to JSON
+// easyjson:json
+type AcceptEventSerializer struct {
+	// Bound address (if any)
+	Addr IPPortFamilySerializer `json:"addr"`
+}
+
 // BindEventSerializer serializes a bind event to JSON
 // easyjson:json
 type BindEventSerializer struct {
@@ -577,6 +593,18 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 			DestinationPath: &mountPointPath,
 			FSType:          &fstype,
 		}
+	case model.FileMkdirEventType:
+		path := e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc)
+		mode := e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc)
+		return &SyscallArgsSerializer{
+			Path: &path,
+			Mode: &mode,
+		}
+	case model.FileRmdirEventType:
+		path := e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc)
+		return &SyscallArgsSerializer{
+			Path: &path,
+		}
 	}
 
 	return nil
@@ -595,6 +623,8 @@ type SyscallContextSerializer struct {
 	Rename *SyscallArgsSerializer `json:"rename,omitempty"`
 	Utimes *SyscallArgsSerializer `json:"utimes,omitempty"`
 	Mount  *SyscallArgsSerializer `json:"mount,omitempty"`
+	Mkdir  *SyscallArgsSerializer `json:"mkdir,omitempty"`
+	Rmdir  *SyscallArgsSerializer `json:"rmdir,omitempty"`
 }
 
 func newSyscallContextSerializer(sc *model.SyscallContext, e *model.Event, attachEventypeCb func(*SyscallContextSerializer, *SyscallArgsSerializer)) *SyscallContextSerializer {
@@ -622,6 +652,7 @@ type EventSerializer struct {
 	*NetworkContextSerializer         `json:"network,omitempty"`
 	*DDContextSerializer              `json:"dd,omitempty"`
 	*SecurityProfileContextSerializer `json:"security_profile,omitempty"`
+	*CGroupContextSerializer          `json:"cgroup,omitempty"`
 
 	*SELinuxEventSerializer   `json:"selinux,omitempty"`
 	*BPFEventSerializer       `json:"bpf,omitempty"`
@@ -633,6 +664,7 @@ type EventSerializer struct {
 	*SpliceEventSerializer    `json:"splice,omitempty"`
 	*DNSEventSerializer       `json:"dns,omitempty"`
 	*IMDSEventSerializer      `json:"imds,omitempty"`
+	*AcceptEventSerializer    `json:"accept,omitempty"`
 	*BindEventSerializer      `json:"bind,omitempty"`
 	*ConnectEventSerializer   `json:"connect,omitempty"`
 	*MountEventSerializer     `json:"mount,omitempty"`
@@ -949,6 +981,14 @@ func newSpliceEventSerializer(e *model.Event) *SpliceEventSerializer {
 	}
 }
 
+func newAcceptEventSerializer(e *model.Event) *AcceptEventSerializer {
+	ces := &AcceptEventSerializer{
+		Addr: newIPPortFamilySerializer(&e.Accept.Addr,
+			model.AddressFamily(e.Accept.AddrFamily).String()),
+	}
+	return ces
+}
+
 func newBindEventSerializer(e *model.Event) *BindEventSerializer {
 	bes := &BindEventSerializer{
 		Addr: newIPPortFamilySerializer(&e.Bind.Addr,
@@ -1166,8 +1206,8 @@ func (e *EventSerializer) MarshalJSON() ([]byte, error) {
 }
 
 // MarshalEvent marshal the event
-func MarshalEvent(event *model.Event, opts *eval.Opts) ([]byte, error) {
-	s := NewEventSerializer(event, opts)
+func MarshalEvent(event *model.Event) ([]byte, error) {
+	s := NewEventSerializer(event, nil)
 	return utils.MarshalEasyJSON(s)
 }
 
@@ -1269,11 +1309,18 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Mkdir.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Mkdir.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
+			ctx.Mkdir = args
+		})
+
 	case model.FileRmdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Rmdir.File, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Rmdir.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Rmdir.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
+			ctx.Rmdir = args
+		})
 	case model.FileChdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Chdir.File, event),
@@ -1415,6 +1462,9 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 				FileSerializer: *newFileSerializer(&event.Splice.File, event),
 			}
 		}
+	case model.AcceptEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Accept.Retval)
+		s.AcceptEventSerializer = newAcceptEventSerializer(event)
 	case model.BindEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Bind.Retval)
 		s.BindEventSerializer = newBindEventSerializer(event)

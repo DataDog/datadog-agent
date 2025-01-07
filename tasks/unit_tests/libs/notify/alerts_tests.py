@@ -30,10 +30,17 @@ def test_job_executions(path="tasks/unit_tests/testdata/job_executions.json"):
 
 
 class TestCheckConsistentFailures(unittest.TestCase):
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_PIPELINE_ID': '456',
+            'CI_PIPELINE_SOURCE': 'push',
+            'CI_COMMIT_BRANCH': 'taylor-swift',
+            'CI_DEFAULT_BRANCH': 'taylor-swift',
+        },
+    )
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_nominal(self, api_mock):
-        os.environ["CI_PIPELINE_ID"] = "456"
-
         repo_mock = api_mock.return_value.projects.get.return_value
         trace_mock = repo_mock.jobs.get.return_value.trace
         list_mock = repo_mock.pipelines.get.return_value.jobs.list
@@ -44,11 +51,32 @@ class TestCheckConsistentFailures(unittest.TestCase):
         with test_job_executions() as path:
             notify.check_consistent_failures(
                 MockContext(run=Result("test")),
+                1979,
                 path,
             )
 
+        repo_mock.jobs.get.assert_called()
         trace_mock.assert_called()
         list_mock.assert_called()
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_PIPELINE_ID': '456',
+            'CI_PIPELINE_SOURCE': 'push',
+            'CI_COMMIT_BRANCH': 'taylor',
+            'CI_DEFAULT_BRANCH': 'swift',
+        },
+    )
+    @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
+    def test_dismiss(self, api_mock):
+        repo_mock = api_mock.return_value.projects.get.return_value
+        with test_job_executions() as path:
+            notify.check_consistent_failures(
+                MockContext(run=Result("test")),
+                path,
+            )
+        repo_mock.jobs.get.assert_not_called()
 
 
 class TestAlertsRetrieveJobExecutionsCreated(unittest.TestCase):
