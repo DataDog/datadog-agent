@@ -171,6 +171,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getMountMntMountpointOffset(f.kernelVersion)
 	case OffsetNameMountpointDentry:
 		value = getMountpointDentryOffset(f.kernelVersion)
+	case OffsetNameVfsmountMntFlags:
+		value = getVfsmountMntFlagsOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -1111,5 +1113,9 @@ func getMountMntMountpointOffset(_ *kernel.Version) uint64 {
 }
 
 func getMountpointDentryOffset(_ *kernel.Version) uint64 {
+	return 16
+}
+
+func getVfsmountMntFlagsOffset(_ *kernel.Version) uint64 {
 	return 16
 }
