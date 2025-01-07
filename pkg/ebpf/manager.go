@@ -91,6 +91,14 @@ type ModifierAfterInit interface {
 	AfterInit(*manager.Manager, names.ModuleName, *manager.Options) error
 }
 
+// ModifierPreStart is a sub-interface of Modifier that exposes an PreStart method
+type ModifierPreStart interface {
+	Modifier
+
+	// PreStart is called before the ebpf.Manager.Start call
+	PreStart(*manager.Manager, names.ModuleName) error
+}
+
 // ModifierBeforeStop is a sub-interface of Modifier that exposes a BeforeStop method
 type ModifierBeforeStop interface {
 	Modifier
@@ -167,4 +175,16 @@ func (m *Manager) Stop(cleanupType manager.MapCleanupType) error {
 	})
 
 	return errors.Join(errs, err)
+}
+
+// Start is a wrapper around ebpf-manager.Manager.Start
+func (m *Manager) Start() error {
+	err := runModifiersOfType(m.EnabledModifiers, "PreStart", func(mod ModifierPreStart) error {
+		return mod.PreStart(m.Manager, m.Name)
+	})
+	if err != nil {
+		return err
+	}
+
+	return m.Manager.Start()
 }
