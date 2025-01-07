@@ -20,7 +20,6 @@ def entrypoint(**kwargs):
             )
         )
     url = f"registry.ddbuild.io/ci/datadog-agent/agent:v{pipeline_id}-{commit_sha}-7-{arch}"
-    ctx.run("sudo dockerd")
     image_on_wire_size = ctx.run(
         "DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect -v "
         + url
