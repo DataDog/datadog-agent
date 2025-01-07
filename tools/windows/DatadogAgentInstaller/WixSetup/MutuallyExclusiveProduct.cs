@@ -46,7 +46,7 @@ namespace WixSetup
             // in the condition message, which makes the message more user-friendly.
             // https://learn.microsoft.com/en-us/windows/win32/msi/upgrade-table
             usageCounter++;
-            string propertyName = $"MUTUALLY_EXCLUSIVE_PRODUCTS_{usageCounter}";
+            var propertyName = $"MUTUALLY_EXCLUSIVE_PRODUCTS_{usageCounter}";
 
             var upgradeElement = new XElement("Upgrade");
             upgradeElement.SetAttributeValue("Id", UpgradeCode);
