@@ -3,6 +3,8 @@
 
 #include "ktypes.h"
 
+#include "ip.h"
+
 #include "defs.h"
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
@@ -28,6 +30,11 @@ static __always_inline bool is_tcp(conn_tuple_t *tup) {
 // Returns true if the payload is empty.
 static __always_inline bool is_payload_empty(skb_info_t *skb_info) {
     return skb_info->data_off == skb_info->data_end;
+}
+
+// Returns true if the payload represents a TCP termination by checking if the tcp flags contains TCPHDR_FIN or TCPHDR_RST.
+static __always_inline bool is_tcp_termination(skb_info_t *skb_info) {
+    return skb_info->tcp_flags & (TCPHDR_FIN | TCPHDR_RST);
 }
 
 READ_INTO_BUFFER(for_classification, CLASSIFICATION_MAX_BUFFER, BLK_SIZE)

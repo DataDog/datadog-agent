@@ -40,11 +40,6 @@ __maybe_unused static __always_inline protocol_prog_t protocol_to_program(protoc
     }
 }
 
-// Returns true if the payload represents a TCP termination by checking if the tcp flags contains TCPHDR_FIN or TCPHDR_RST.
-static __always_inline bool is_tcp_termination(skb_info_t *skb_info) {
-    return skb_info->tcp_flags & (TCPHDR_FIN | TCPHDR_RST);
-}
-
 static __always_inline bool is_tcp_ack(skb_info_t *skb_info) {
     return skb_info->tcp_flags == TCPHDR_ACK;
 }
