@@ -75,16 +75,24 @@ func waitForProcessMonitor(t *testing.T, pm *ProcessMonitor) {
 	exitRecorder := newPidRecorder()
 	registerCallback(t, pm, false, getProcessCallback(exitRecorder))
 
-	for i := 0; i < 10; i++ {
+	const (
+		iterationInterval = 100 * time.Millisecond
+		iterations        = 10
+	)
+
+	// Trying for 10 seconds (100 iterations * 100ms) to capture exec and exit events.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		cmd := exec.Command("/bin/echo")
-		require.NoError(t, cmd.Run())
-		require.NotZero(t, cmd.Process.Pid)
+		require.NoError(ct, cmd.Run())
+		require.NotZero(ct, cmd.Process.Pid)
 		t.Logf("running %d", cmd.Process.Pid)
-		require.EventuallyWithT(t, func(ct *assert.CollectT) {
-			require.Truef(ct, execRecorder.has(uint32(cmd.Process.Pid)), "didn't capture exec event %d", cmd.Process.Pid)
-			require.True(ct, exitRecorder.has(uint32(cmd.Process.Pid)), "didn't capture exit event %d", cmd.Process.Pid)
-		}, 1*time.Second, 100*time.Millisecond)
-	}
+		// Trying for a second (10 iterations * 100ms) to capture exec and exit events.
+		// If we failed, try to run the command again.
+		require.EventuallyWithT(ct, func(innerCt *assert.CollectT) {
+			require.Truef(innerCt, execRecorder.has(uint32(cmd.Process.Pid)), "didn't capture exec event %d", cmd.Process.Pid)
+			require.True(innerCt, exitRecorder.has(uint32(cmd.Process.Pid)), "didn't capture exit event %d", cmd.Process.Pid)
+		}, iterations*iterationInterval, iterationInterval)
+	}, iterations*iterations*iterationInterval, iterationInterval)
 }
 
 func initializePM(t *testing.T, pm *ProcessMonitor, useEventStream bool) {
