@@ -109,7 +109,10 @@ build do
     # present, but the modules will be built nonetheless.
     command "PCbuild\\build.bat -e --pgo"
     # Install the built artifacts to their expected locations
-    command "PCbuild\\#{python_arch}\\python.exe PC\\layout\\main.py --build PCbuild\\#{python_arch} --precompile --copy #{windows_safe_path(python_3_embedded)} -vv"
+    # --include-dev - include include/ and libs/ directories
+    # --include-venv - necessary for ensurepip to work
+    # --include-stable - adds python3.dll
+    command "PCbuild\\#{python_arch}\\python.exe PC\\layout\\main.py --build PCbuild\\#{python_arch} --precompile --copy #{windows_safe_path(python_3_embedded)} --include-dev --include-venv --include-stable -vv"
 
     ###############################
     # Install build artifacts...  #
@@ -121,9 +124,6 @@ build do
     openssl_arch = "x64"
     move "#{install_dir}\\embedded3\\bin\\libcrypto-3-#{openssl_arch}.dll", "#{windows_safe_path(python_3_embedded)}\\DLLs"
     move "#{install_dir}\\embedded3\\bin\\libssl-3-#{openssl_arch}.dll", "#{windows_safe_path(python_3_embedded)}\\DLLs"
-
-    copy "Include", "#{windows_safe_path(python_3_embedded)}\\include"
-    copy "PC\\pyconfig.h", "#{windows_safe_path(python_3_embedded)}\\include\\"
 
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
     command "#{python} -m ensurepip"
