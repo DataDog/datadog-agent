@@ -64,19 +64,6 @@ type Entity struct {
 	MetricName    string       // required, metric name of workload
 }
 
-// String returns a string representation of the Entity.
-func (e *Entity) String() string {
-	return fmt.Sprintf(
-		"  Key: %d,"+
-			"  MetricName: %s"+
-			"  EntityName: %s,"+
-			"  EntityType: %d,"+
-			"  Namespace: %s,"+
-			"  PodOwnerName: %s"+
-			"  PodOwnerType: %d",
-		hashEntityToUInt64(e), e.MetricName, e.EntityName, e.EntityType, e.Namespace, e.PodOwnerName, e.PodOwnerkind)
-}
-
 // EntityValue represents a value with a timestamp.
 type EntityValue struct {
 	value     ValueType

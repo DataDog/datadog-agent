@@ -19,7 +19,7 @@ var _ Store = (*EntityStore)(nil)
 
 type dataItem struct {
 	entity       *Entity
-	valueQue     EntityValueQueue // value queue, default 3 data points
+	valueQueue   EntityValueQueue // value queue, default 3 data points
 	lastActiveTs Timestamp        // last active timestamp
 }
 
@@ -87,7 +87,7 @@ func (es *EntityStore) SetEntitiesValues(entities map[*Entity]*EntityValue) {
 		if !exists {
 			data = &dataItem{
 				entity: entity,
-				valueQue: EntityValueQueue{
+				valueQueue: EntityValueQueue{
 					data:     make([]*EntityValue, maxDataPoints),
 					head:     0,
 					tail:     0,
@@ -96,13 +96,13 @@ func (es *EntityStore) SetEntitiesValues(entities map[*Entity]*EntityValue) {
 				},
 				lastActiveTs: value.timestamp,
 			}
-			data.valueQue.pushBack(value)
+			data.valueQueue.pushBack(value)
 			es.key2ValuesMap[entityHash] = data
 		} else {
 			if data.lastActiveTs < value.timestamp {
 				// Update the last active timestamp
 				data.lastActiveTs = value.timestamp
-				data.valueQue.pushBack(value)
+				data.valueQueue.pushBack(value)
 			} //else if lastActiveTs is greater than value.timestamp, skip the value because it is outdated
 		}
 
@@ -157,7 +157,7 @@ func (es *EntityStore) GetMetricsRaw(metricName string,
 			entity := es.key2ValuesMap[dataPerPod.podEntityID]
 			podResult := PodResult{
 				PodName:       podName,
-				PodLevelValue: convertsToEntityValueSlice(entity.valueQue.data),
+				PodLevelValue: convertsToEntityValueSlice(entity.valueQueue.data),
 			}
 			result.results = append(result.results, podResult)
 		} else {
@@ -170,7 +170,7 @@ func (es *EntityStore) GetMetricsRaw(metricName string,
 					continue
 				}
 				entity := es.key2ValuesMap[entityHash]
-				podList.ContainerValues[containerNameKey] = convertsToEntityValueSlice(entity.valueQue.data)
+				podList.ContainerValues[containerNameKey] = convertsToEntityValueSlice(entity.valueQueue.data)
 			}
 			if len(podList.ContainerValues) > 0 {
 				result.results = append(result.results, podList)
@@ -199,13 +199,6 @@ func (es *EntityStore) deleteInternal(hash uint64) {
 		// Delete the entity from the key2ValuesMap
 		delete(es.key2ValuesMap, hash)
 	}
-}
-
-// DeleteEntityByHashKey deltes an entity from the store.
-func (es *EntityStore) DeleteEntityByHashKey(hash uint64) {
-	es.lock.Lock() // Lock for writing
-	defer es.lock.Unlock()
-	es.deleteInternal(hash)
 }
 
 // purgeInactiveEntities purges inactive entities.

@@ -70,9 +70,6 @@ type Store interface {
 		namespace string,
 		podOwnerName string,
 		containerName string) QueryResult
-
-	//DeleteEntityByHashKey to delete entity by hash key
-	DeleteEntityByHashKey(hash uint64)
 }
 
 // createEntitiesFromPayload is a helper function used for creating entities from the metric payload.
