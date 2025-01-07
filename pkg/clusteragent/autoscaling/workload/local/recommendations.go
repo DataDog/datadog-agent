@@ -162,6 +162,7 @@ func getOptionsFromContainerResource(target *datadoghq.DatadogPodAutoscalerConta
 		MetricName:    metric,
 		LowWatermark:  float64((*target.Value.Utilization - 5)) / 100.0,
 		HighWatermark: float64((*target.Value.Utilization + 5)) / 100.0,
+		ContainerName: target.Container,
 	}
 	return recSettings, nil
 }

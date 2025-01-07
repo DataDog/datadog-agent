@@ -34,6 +34,14 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 		err    error
 	}{
 		{
+			name: "Invalid resource type",
+			target: datadoghq.DatadogPodAutoscalerTarget{
+				Type: "something-invalid",
+			},
+			want: nil,
+			err:  fmt.Errorf("Invalid target type: something-invalid"),
+		},
+		{
 			name: "Pod resource - CPU target utilization",
 			target: datadoghq.DatadogPodAutoscalerTarget{
 				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
@@ -70,6 +78,15 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				HighWatermark: 0.85,
 			},
 			err: nil,
+		},
+		{
+			name: "Pod resource - nil target",
+			target: datadoghq.DatadogPodAutoscalerTarget{
+				Type:        datadoghq.DatadogPodAutoscalerResourceTargetType,
+				PodResource: nil,
+			},
+			want: nil,
+			err:  fmt.Errorf("nil target"),
 		},
 		{
 			name: "Pod resource - invalid value type",
@@ -110,12 +127,14 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
+					Container: "container-foo",
 				},
 			},
 			want: &resourceRecommenderSettings{
 				MetricName:    "container.cpu.usage",
 				LowWatermark:  0.75,
 				HighWatermark: 0.85,
+				ContainerName: "container-foo",
 			},
 			err: nil,
 		},
@@ -129,14 +148,25 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
+					Container: "container-foo",
 				},
 			},
 			want: &resourceRecommenderSettings{
 				MetricName:    "container.memory.usage",
 				LowWatermark:  0.75,
 				HighWatermark: 0.85,
+				ContainerName: "container-foo",
 			},
 			err: nil,
+		},
+		{
+			name: "Container resource - nil target",
+			target: datadoghq.DatadogPodAutoscalerTarget{
+				Type:              datadoghq.DatadogPodAutoscalerContainerResourceTargetType,
+				ContainerResource: nil,
+			},
+			want: nil,
+			err:  fmt.Errorf("nil target"),
 		},
 		{
 			name: "Container resource - invalid value type",
@@ -147,6 +177,7 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 					Value: datadoghq.DatadogPodAutoscalerTargetValue{
 						Type: datadoghq.DatadogPodAutoscalerAbsoluteTargetValueType,
 					},
+					Container: "container-foo",
 				},
 			},
 			want: nil,
@@ -260,7 +291,7 @@ func TestProcessAverageContainerMetricValue(t *testing.T) {
 	}
 }
 
-func TestCalculateUtilization(t *testing.T) {
+func TestCalculateUtilizationPodResource(t *testing.T) {
 	testTime := time.Now()
 	tests := []struct {
 		name        string
@@ -334,7 +365,7 @@ func TestCalculateUtilization(t *testing.T) {
 					{
 						PodName: "pod-name2",
 						ContainerValues: map[string][]EntityValue{
-							"container-1": []EntityValue{
+							"container-1": {
 								{
 									value:     ValueType(2),
 									timestamp: Timestamp(time.Now().Unix()),
@@ -381,7 +412,7 @@ func TestCalculateUtilization(t *testing.T) {
 					{
 						PodName: "pod-name1",
 						ContainerValues: map[string][]EntityValue{
-							"container-name1": []EntityValue{
+							"container-name1": {
 								{
 									value:     ValueType(2),
 									timestamp: Timestamp(testTime.Unix() - 15),
@@ -443,7 +474,7 @@ func TestCalculateUtilization(t *testing.T) {
 					{
 						PodName: "pod-name1",
 						ContainerValues: map[string][]EntityValue{
-							"container-name1": []EntityValue{
+							"container-name1": {
 								{
 									value:     ValueType(2),
 									timestamp: Timestamp(testTime.Unix() - 15),
@@ -453,7 +484,7 @@ func TestCalculateUtilization(t *testing.T) {
 									timestamp: Timestamp(testTime.Unix() - 30),
 								},
 							},
-							"container-name2": []EntityValue{
+							"container-name2": {
 								{
 									value:     ValueType(2),
 									timestamp: Timestamp(testTime.Unix() - 15),
@@ -654,6 +685,415 @@ func TestCalculateUtilization(t *testing.T) {
 						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
+				},
+			})
+			assert.NoError(t, err)
+			utilization, err := r.calculateUtilization(tt.pods, tt.queryResult, tt.currentTime)
+			if err != nil {
+				assert.Error(t, err, tt.err.Error())
+				assert.Equal(t, tt.err, err)
+			} else {
+				assert.Equal(t, tt.want, utilization)
+			}
+		})
+	}
+}
+
+func TestCalculateUtilizationContainerResource(t *testing.T) {
+	testTime := time.Now()
+	tests := []struct {
+		name        string
+		pods        []*workloadmeta.KubernetesPod
+		queryResult QueryResult
+		currentTime time.Time
+		want        UtilizationResult
+		err         error
+	}{
+		{
+			name:        "Empty pods",
+			pods:        []*workloadmeta.KubernetesPod{},
+			queryResult: QueryResult{},
+			currentTime: time.Time{},
+			want:        UtilizationResult{},
+			err:         fmt.Errorf("No pods found"),
+		},
+		{
+			name: "Pods with empty query results",
+			pods: []*workloadmeta.KubernetesPod{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name1",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID: "container-id1",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+			},
+			queryResult: QueryResult{},
+			currentTime: testTime,
+			want:        UtilizationResult{},
+			err:         fmt.Errorf("Issue fetching metrics data"),
+		},
+		{
+			name: "Pods with no corresponding metrics data",
+			pods: []*workloadmeta.KubernetesPod{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name1",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID: "container-id1",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+			},
+			queryResult: QueryResult{
+				results: []PodResult{
+					{
+						PodName: "pod-name2",
+						ContainerValues: map[string][]EntityValue{
+							"container-1": []EntityValue{
+								{
+									value:     ValueType(2),
+									timestamp: Timestamp(time.Now().Unix()),
+								},
+								{
+									value:     ValueType(3),
+									timestamp: Timestamp(time.Now().Unix() - 15),
+								},
+							},
+						},
+					},
+				},
+			},
+			currentTime: testTime,
+			want:        UtilizationResult{},
+			err:         fmt.Errorf("Issue calculating pod utilization"),
+		},
+		{
+			name: "Single pod and container",
+			pods: []*workloadmeta.KubernetesPod{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name1",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "container-id1",
+							Name: "container-name1",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+			},
+			queryResult: QueryResult{
+				results: []PodResult{
+					{
+						PodName: "pod-name1",
+						ContainerValues: map[string][]EntityValue{
+							"container-name1": {
+								{
+									value:     ValueType(2),
+									timestamp: Timestamp(testTime.Unix() - 15),
+								},
+								{
+									value:     ValueType(3),
+									timestamp: Timestamp(testTime.Unix() - 30),
+								},
+							},
+						},
+					},
+				},
+			},
+			currentTime: testTime,
+			want: UtilizationResult{
+				AverageUtilization: 2.5,
+				MissingPods:        []string{},
+				PodToUtilization: map[string]float64{
+					"pod-name1": 2.5,
+				},
+				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+			},
+			err: nil,
+		},
+		{
+			name: "Single pod, multiple containers",
+			pods: []*workloadmeta.KubernetesPod{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name1",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "container-id1",
+							Name: "container-name1",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+						{
+							ID:   "container-id2",
+							Name: "container-name2",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+			},
+			queryResult: QueryResult{
+				results: []PodResult{
+					{
+						PodName: "pod-name1",
+						ContainerValues: map[string][]EntityValue{
+							"container-name1": {
+								{
+									value:     ValueType(2),
+									timestamp: Timestamp(testTime.Unix() - 15),
+								},
+								{
+									value:     ValueType(3),
+									timestamp: Timestamp(testTime.Unix() - 30),
+								},
+							},
+							"container-name2": []EntityValue{
+								{
+									value:     ValueType(2),
+									timestamp: Timestamp(testTime.Unix() - 15),
+								},
+								{
+									value:     ValueType(4),
+									timestamp: Timestamp(testTime.Unix() - 30),
+								},
+							},
+						},
+					},
+				},
+			},
+			currentTime: testTime,
+			want: UtilizationResult{
+				AverageUtilization: 2.5,
+				MissingPods:        []string{},
+				PodToUtilization: map[string]float64{
+					"pod-name1": 2.5,
+				},
+				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+			},
+			err: nil,
+		},
+		{
+			name: "Multiple single-container pods",
+			pods: []*workloadmeta.KubernetesPod{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name1",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "container-id1-1",
+							Name: "container-name1",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name2",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "container-id1-2",
+							Name: "container-name1",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+			},
+			queryResult: QueryResult{
+				results: []PodResult{
+					{
+						PodName: "pod-name1",
+						ContainerValues: map[string][]EntityValue{
+							"container-name1": {
+								{
+									value:     ValueType(2),
+									timestamp: Timestamp(testTime.Unix() - 15),
+								},
+								{
+									value:     ValueType(3),
+									timestamp: Timestamp(testTime.Unix() - 30),
+								},
+							},
+						},
+					},
+					{
+						PodName: "pod-name2",
+						ContainerValues: map[string][]EntityValue{
+							"container-name1": {
+								{
+									value:     ValueType(2),
+									timestamp: Timestamp(testTime.Unix() - 15),
+								},
+								{
+									value:     ValueType(4),
+									timestamp: Timestamp(testTime.Unix() - 30),
+								},
+							},
+						},
+					},
+				},
+			},
+			currentTime: testTime,
+			want: UtilizationResult{
+				AverageUtilization: 2.75,
+				MissingPods:        []string{},
+				PodToUtilization: map[string]float64{
+					"pod-name1": 2.5,
+					"pod-name2": 3.0,
+				},
+				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+			},
+			err: nil,
+		},
+		{
+			name: "Query results missing pod",
+			pods: []*workloadmeta.KubernetesPod{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name1",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "container-id1",
+							Name: "container-name1",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name2",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "container-id1-2",
+							Name: "container-name1",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+			},
+			queryResult: QueryResult{
+				results: []PodResult{
+					{
+						PodName: "pod-name1",
+						ContainerValues: map[string][]EntityValue{
+							"container-name1": {
+								{
+									value:     ValueType(2),
+									timestamp: Timestamp(testTime.Unix() - 15),
+								},
+								{
+									value:     ValueType(3),
+									timestamp: Timestamp(testTime.Unix() - 30),
+								},
+							},
+						},
+					},
+				},
+			},
+			currentTime: testTime,
+			want: UtilizationResult{
+				AverageUtilization: 2.5,
+				MissingPods:        []string{"pod-name2"},
+				PodToUtilization: map[string]float64{
+					"pod-name1": 2.5,
+				},
+				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+			},
+			err: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
+				Type: datadoghq.DatadogPodAutoscalerContainerResourceTargetType,
+				ContainerResource: &datadoghq.DatadogPodAutoscalerContainerResourceTarget{
+					Name: "cpu",
+					Value: datadoghq.DatadogPodAutoscalerTargetValue{
+						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+						Utilization: pointer.Ptr(int32(80)),
+					},
+					Container: "container-name1",
 				},
 			})
 			assert.NoError(t, err)
