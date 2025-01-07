@@ -22,6 +22,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	pythonImage = "public.ecr.aws/docker/library/python:3"
+)
+
 type dockerDiscoveryTestSuite struct {
 	e2e.BaseSuite[environments.DockerHost]
 }
@@ -48,7 +52,8 @@ func (s *dockerDiscoveryTestSuite) TestServiceDiscoveryContainerID() {
 
 	s.assertDockerAgentDiscoveryRunning()
 
-	containerID := s.Env().RemoteHost.MustExecute("docker run -d --name e2e-test-python-server --publish 8090:8090 public.ecr.aws/docker/library/python:3 python -m http.server 8090")
+	s.Env().RemoteHost.MustExecute("docker pull " + pythonImage)
+	containerID := s.Env().RemoteHost.MustExecute("docker run -d --name e2e-test-python-server --publish 8090:8090 " + pythonImage + " python -m http.server 8090")
 	t.Cleanup(func() {
 		s.Env().RemoteHost.MustExecute("docker stop e2e-test-python-server && docker rm e2e-test-python-server")
 	})
