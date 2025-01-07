@@ -21,6 +21,7 @@ var _ = math.MaxUint16
 
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
+		eval.EventType("accept"),
 		eval.EventType("bind"),
 		eval.EventType("bpf"),
 		eval.EventType("capset"),
@@ -83,6 +84,56 @@ func (m *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 }
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
+	case "accept.addr.family":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Accept.AddrFamily)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "accept.addr.ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Accept.Addr.IPNet
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "accept.addr.is_public":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Accept.Addr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "accept.addr.port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Accept.Addr.Port)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "accept.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Accept.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "bind.addr.family":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -4218,6 +4269,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+	case "mkdir.syscall.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Mkdir.SyscallContext))
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "mkdir.syscall.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mkdir.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
 		}, nil
 	case "mmap.file.change_time":
 		return &eval.IntEvaluator{
@@ -15240,6 +15311,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "rmdir.syscall.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rmdir.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	case "selinux.bool.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -20999,6 +21080,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 }
 func (ev *Event) GetFields() []eval.Field {
 	return []eval.Field{
+		"accept.addr.family",
+		"accept.addr.ip",
+		"accept.addr.is_public",
+		"accept.addr.port",
+		"accept.retval",
 		"bind.addr.family",
 		"bind.addr.ip",
 		"bind.addr.is_public",
@@ -21386,6 +21472,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"mkdir.file.uid",
 		"mkdir.file.user",
 		"mkdir.retval",
+		"mkdir.syscall.mode",
+		"mkdir.syscall.path",
 		"mmap.file.change_time",
 		"mmap.file.filesystem",
 		"mmap.file.gid",
@@ -22060,6 +22148,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"rmdir.file.uid",
 		"rmdir.file.user",
 		"rmdir.retval",
+		"rmdir.syscall.path",
 		"selinux.bool.name",
 		"selinux.bool.state",
 		"selinux.bool_commit.state",
@@ -22425,6 +22514,16 @@ func (ev *Event) GetFields() []eval.Field {
 }
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
+	case "accept.addr.family":
+		return int(ev.Accept.AddrFamily), nil
+	case "accept.addr.ip":
+		return ev.Accept.Addr.IPNet, nil
+	case "accept.addr.is_public":
+		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Accept.Addr), nil
+	case "accept.addr.port":
+		return int(ev.Accept.Addr.Port), nil
+	case "accept.retval":
+		return int(ev.Accept.SyscallEvent.Retval), nil
 	case "bind.addr.family":
 		return int(ev.Bind.AddrFamily), nil
 	case "bind.addr.ip":
@@ -23419,6 +23518,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Mkdir.File.FileFields), nil
 	case "mkdir.retval":
 		return int(ev.Mkdir.SyscallEvent.Retval), nil
+	case "mkdir.syscall.mode":
+		return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Mkdir.SyscallContext)), nil
+	case "mkdir.syscall.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mkdir.SyscallContext), nil
 	case "mmap.file.change_time":
 		return int(ev.MMap.File.FileFields.CTime), nil
 	case "mmap.file.filesystem":
@@ -27231,6 +27334,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Rmdir.File.FileFields), nil
 	case "rmdir.retval":
 		return int(ev.Rmdir.SyscallEvent.Retval), nil
+	case "rmdir.syscall.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rmdir.SyscallContext), nil
 	case "selinux.bool.name":
 		return ev.FieldHandlers.ResolveSELinuxBoolName(ev, &ev.SELinux), nil
 	case "selinux.bool.state":
@@ -29190,6 +29295,16 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 }
 func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, error) {
 	switch field {
+	case "accept.addr.family":
+		return "accept", reflect.Int, nil
+	case "accept.addr.ip":
+		return "accept", reflect.Struct, nil
+	case "accept.addr.is_public":
+		return "accept", reflect.Bool, nil
+	case "accept.addr.port":
+		return "accept", reflect.Int, nil
+	case "accept.retval":
+		return "accept", reflect.Int, nil
 	case "bind.addr.family":
 		return "bind", reflect.Int, nil
 	case "bind.addr.ip":
@@ -29964,6 +30079,10 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "mkdir", reflect.String, nil
 	case "mkdir.retval":
 		return "mkdir", reflect.Int, nil
+	case "mkdir.syscall.mode":
+		return "mkdir", reflect.Int, nil
+	case "mkdir.syscall.path":
+		return "mkdir", reflect.String, nil
 	case "mmap.file.change_time":
 		return "mmap", reflect.Int, nil
 	case "mmap.file.filesystem":
@@ -31312,6 +31431,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "rmdir", reflect.String, nil
 	case "rmdir.retval":
 		return "rmdir", reflect.Int, nil
+	case "rmdir.syscall.path":
+		return "rmdir", reflect.String, nil
 	case "selinux.bool.name":
 		return "selinux", reflect.String, nil
 	case "selinux.bool.state":
@@ -32039,6 +32160,47 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
+	case "accept.addr.family":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "accept.addr.family"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "accept.addr.family"}
+		}
+		ev.Accept.AddrFamily = uint16(rv)
+		return nil
+	case "accept.addr.ip":
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "accept.addr.ip"}
+		}
+		ev.Accept.Addr.IPNet = rv
+		return nil
+	case "accept.addr.is_public":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "accept.addr.is_public"}
+		}
+		ev.Accept.Addr.IsPublic = rv
+		return nil
+	case "accept.addr.port":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "accept.addr.port"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "accept.addr.port"}
+		}
+		ev.Accept.Addr.Port = uint16(rv)
+		return nil
+	case "accept.retval":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "accept.retval"}
+		}
+		ev.Accept.SyscallEvent.Retval = int64(rv)
+		return nil
 	case "bind.addr.family":
 		rv, ok := value.(int)
 		if !ok {
@@ -35315,6 +35477,20 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "mkdir.retval"}
 		}
 		ev.Mkdir.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "mkdir.syscall.mode":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "mkdir.syscall.mode"}
+		}
+		ev.Mkdir.SyscallContext.IntArg2 = int64(rv)
+		return nil
+	case "mkdir.syscall.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "mkdir.syscall.path"}
+		}
+		ev.Mkdir.SyscallContext.StrArg1 = rv
 		return nil
 	case "mmap.file.change_time":
 		rv, ok := value.(int)
@@ -42612,6 +42788,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "rmdir.retval"}
 		}
 		ev.Rmdir.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "rmdir.syscall.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "rmdir.syscall.path"}
+		}
+		ev.Rmdir.SyscallContext.StrArg1 = rv
 		return nil
 	case "selinux.bool.name":
 		rv, ok := value.(string)

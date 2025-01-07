@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package telemetry
+package ebpf
 
 import (
 	"testing"
