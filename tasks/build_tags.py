@@ -169,7 +169,11 @@ SECURITY_AGENT_TAGS = {
     "grpcnotrace",
     "no_dynamic_plugins",
     "kubelet",
+    "kubeapiserver",
+    "podman",
+    "zlib",
     "zstd",
+    "ec2",
 }
 
 # SERVERLESS_TAGS lists the tags necessary to build serverless
