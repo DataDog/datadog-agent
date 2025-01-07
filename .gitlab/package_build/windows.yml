@@ -47,8 +47,9 @@
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
   artifacts:
     expire_in: 2 weeks
+    when: always
     paths:
-      - omnibus/pkg
+      - omnibus/dbg
 
 .windows_main_agent_base:
   extends: .windows_msi_base
