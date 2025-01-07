@@ -1,8 +1,8 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "connect.schema.json",
+    "$id": "accept.schema.json",
     "type": "object",
-    "required" : ["connect"],
+    "required" : ["accept"],
     "allOf": [
         {
             "$ref": "event.schema.json"
@@ -20,11 +20,10 @@
         },
         {
             "properties": {
-                "connect": {
+                "accept": {
                     "type": "object",
                     "required": [
-                        "addr",
-                        "protocol"
+                        "addr"
                     ],
                     "properties": {
                         "addr": {
