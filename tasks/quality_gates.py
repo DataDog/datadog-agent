@@ -1,6 +1,9 @@
 import yaml
 from invoke import task
 
+def generate_pr_comment():
+    pass
+
 
 @task
 def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.yml"):

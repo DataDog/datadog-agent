@@ -11,6 +11,8 @@ single-machine-performance-regression_detector:
       artifacts: false
     - job: agent_deb-x64-a7
       artifacts: true
+    - job: docker_build_agent7
+      artifacts: true
   artifacts:
     expire_in: 1 weeks
     paths:
