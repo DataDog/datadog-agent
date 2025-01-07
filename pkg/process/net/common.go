@@ -65,6 +65,11 @@ var _ SysProbeUtilGetter = GetRemoteSystemProbeUtil
 
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
 func GetRemoteSystemProbeUtil(path string) (SysProbeUtil, error) {
+	err := CheckPath(path)
+	if err != nil {
+		return nil, fmt.Errorf("error setting up remote system probe util, %v", err)
+	}
+
 	sysProbeUtil, err := getRemoteSystemProbeUtil(path)
 	if err != nil {
 		return nil, err
@@ -79,13 +84,8 @@ func GetRemoteSystemProbeUtil(path string) (SysProbeUtil, error) {
 }
 
 var getRemoteSystemProbeUtil = funcs.MemoizeArg(func(path string) (*RemoteSysProbeUtil, error) {
-	err := CheckPath(path)
-	if err != nil {
-		return nil, fmt.Errorf("error setting up remote system probe util, %v", err)
-	}
-
 	sysProbeUtil := newSystemProbe(path)
-	err = sysProbeUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
+	err := sysProbeUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 		Name:          "system-probe-util",
 		AttemptMethod: sysProbeUtil.init,
 		Strategy:      retry.RetryCount,

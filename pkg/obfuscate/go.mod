@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.5.0
 	github.com/DataDog/go-sqllexer v0.0.16
 	github.com/outcaste-io/ristretto v0.2.1
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.10.0
 )
 

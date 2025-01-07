@@ -48,7 +48,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.61.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/status/health v0.61.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/util/log v0.61.0-rc.9
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 )
 
 require (
