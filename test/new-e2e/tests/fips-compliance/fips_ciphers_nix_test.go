@@ -164,7 +164,7 @@ func runFipsServer(v *fipsServerSuite, tc cipherTestCase) {
 			envvar = fmt.Sprintf(`%v TLS_MAX="--tls-max %v"`, envvar, tc.tlsMax)
 		}
 
-		_, err := v.Env().RemoteHost.Execute(fmt.Sprintf("%v docker-compose run --rm -d fips-server", envvar))
+		_, err := v.Env().RemoteHost.Execute(fmt.Sprintf("%v docker-compose -f docker-compose-fips-server.yml run --rm -d fips-server", envvar))
 		if err != nil {
 			v.T().Logf("Error starting fips-server: %v", err)
 			require.NoError(t, err)
@@ -186,7 +186,7 @@ func runAgentDiagnose(v *fipsServerSuite) {
 func stopFipsServer(v *fipsServerSuite) {
 	fipsContainer := v.Env().RemoteHost.MustExecute("docker container ls -a --filter name=dd-fips-server --format '{{.Names}}'")
 	if fipsContainer != "" {
-		v.Env().RemoteHost.MustExecute("docker-compose stop fips-server")
+		v.Env().RemoteHost.MustExecute("docker-compose -f docker-compose-fips-server.yml stop fips-server")
 	}
 }
 
