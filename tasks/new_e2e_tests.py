@@ -76,6 +76,7 @@ def run(
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
     """
+
     if shutil.which("pulumi") is None:
         raise Exit(
             "pulumi CLI not found, Pulumi needs to be installed on the system (see https://github.com/DataDog/test-infra-definitions/blob/main/README.md)",
@@ -369,7 +370,7 @@ def pretty_print_test_logs(logs_per_test: list[tuple[str, str, str]], max_size):
     return size
 
 
-def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_file="flakes.yml"):
+def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_file="flakes.yaml"):
     """Pretty prints logs with a specific order.
 
     Print order:
