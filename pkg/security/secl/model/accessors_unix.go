@@ -4219,6 +4219,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "mkdir.syscall.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Mkdir.SyscallContext))
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "mkdir.syscall.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mkdir.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	case "mmap.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -15240,6 +15260,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "rmdir.syscall.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rmdir.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	case "selinux.bool.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -21386,6 +21416,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"mkdir.file.uid",
 		"mkdir.file.user",
 		"mkdir.retval",
+		"mkdir.syscall.mode",
+		"mkdir.syscall.path",
 		"mmap.file.change_time",
 		"mmap.file.filesystem",
 		"mmap.file.gid",
@@ -22060,6 +22092,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"rmdir.file.uid",
 		"rmdir.file.user",
 		"rmdir.retval",
+		"rmdir.syscall.path",
 		"selinux.bool.name",
 		"selinux.bool.state",
 		"selinux.bool_commit.state",
@@ -23419,6 +23452,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Mkdir.File.FileFields), nil
 	case "mkdir.retval":
 		return int(ev.Mkdir.SyscallEvent.Retval), nil
+	case "mkdir.syscall.mode":
+		return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Mkdir.SyscallContext)), nil
+	case "mkdir.syscall.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mkdir.SyscallContext), nil
 	case "mmap.file.change_time":
 		return int(ev.MMap.File.FileFields.CTime), nil
 	case "mmap.file.filesystem":
@@ -27231,6 +27268,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Rmdir.File.FileFields), nil
 	case "rmdir.retval":
 		return int(ev.Rmdir.SyscallEvent.Retval), nil
+	case "rmdir.syscall.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rmdir.SyscallContext), nil
 	case "selinux.bool.name":
 		return ev.FieldHandlers.ResolveSELinuxBoolName(ev, &ev.SELinux), nil
 	case "selinux.bool.state":
@@ -29964,6 +30003,10 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "mkdir", reflect.String, nil
 	case "mkdir.retval":
 		return "mkdir", reflect.Int, nil
+	case "mkdir.syscall.mode":
+		return "mkdir", reflect.Int, nil
+	case "mkdir.syscall.path":
+		return "mkdir", reflect.String, nil
 	case "mmap.file.change_time":
 		return "mmap", reflect.Int, nil
 	case "mmap.file.filesystem":
@@ -31312,6 +31355,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "rmdir", reflect.String, nil
 	case "rmdir.retval":
 		return "rmdir", reflect.Int, nil
+	case "rmdir.syscall.path":
+		return "rmdir", reflect.String, nil
 	case "selinux.bool.name":
 		return "selinux", reflect.String, nil
 	case "selinux.bool.state":
@@ -35315,6 +35360,20 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "mkdir.retval"}
 		}
 		ev.Mkdir.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "mkdir.syscall.mode":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "mkdir.syscall.mode"}
+		}
+		ev.Mkdir.SyscallContext.IntArg2 = int64(rv)
+		return nil
+	case "mkdir.syscall.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "mkdir.syscall.path"}
+		}
+		ev.Mkdir.SyscallContext.StrArg1 = rv
 		return nil
 	case "mmap.file.change_time":
 		rv, ok := value.(int)
@@ -42612,6 +42671,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "rmdir.retval"}
 		}
 		ev.Rmdir.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "rmdir.syscall.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "rmdir.syscall.path"}
+		}
+		ev.Rmdir.SyscallContext.StrArg1 = rv
 		return nil
 	case "selinux.bool.name":
 		rv, ok := value.(string)

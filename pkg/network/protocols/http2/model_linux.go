@@ -82,6 +82,9 @@ func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8, output []byte) ([]b
 		return nil, err
 	}
 
+	if n > len(output) {
+		n = len(output)
+	}
 	copy(output[:n], tmpBuffer.Bytes())
 	return output[:n], nil
 }
@@ -109,16 +112,20 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 			return nil, false
 		}
 	} else {
-		if err = validatePathSize(tx.Stream.Path.Length); err != nil {
+		if tx.Stream.Path.Length == 0 {
 			if oversizedLogLimit.ShouldLog() {
-				log.Warnf("path size: %d is invalid due to: %s", tx.Stream.Path.Length, err)
+				log.Warn("path size: 0 is invalid")
 			}
 			return nil, false
+		} else if int(tx.Stream.Path.Length) > len(tx.Stream.Path.Raw_buffer) {
+			if oversizedLogLimit.ShouldLog() {
+				log.Warnf("Truncating as path size: %d is greater than the buffer size: %d", tx.Stream.Path.Length, len(buffer))
+			}
+			tx.Stream.Path.Length = uint8(len(tx.Stream.Path.Raw_buffer))
 		}
-
-		copy(buffer, tx.Stream.Path.Raw_buffer[:tx.Stream.Path.Length])
+		n := copy(buffer, tx.Stream.Path.Raw_buffer[:tx.Stream.Path.Length])
 		// Truncating exceeding nulls.
-		buffer = buffer[:tx.Stream.Path.Length]
+		buffer = buffer[:n]
 		if err = validatePath(buffer); err != nil {
 			if oversizedLogLimit.ShouldLog() {
 				// The error already contains the path, so we don't need to log it again.

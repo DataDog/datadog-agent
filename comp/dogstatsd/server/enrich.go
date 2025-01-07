@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -36,14 +37,14 @@ type enrichConfig struct {
 }
 
 // extractTagsMetadata returns tags (client tags + host tag) and information needed to query tagger (origins, cardinality).
-func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []byte, externalData string, conf enrichConfig) ([]string, string, taggertypes.OriginInfo, metrics.MetricSource) {
+func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []byte, externalData origindetection.ExternalData, conf enrichConfig) ([]string, string, taggertypes.OriginInfo, metrics.MetricSource) {
 	host := conf.defaultHostname
 	metricSource := metrics.MetricSourceDogstatsd
 	origin := taggertypes.OriginInfo{
 		ContainerIDFromSocket: originFromUDS,
 		ContainerID:           string(originFromMsg),
 		ExternalData:          externalData,
-		ProductOrigin:         taggertypes.ProductOriginDogStatsD,
+		ProductOrigin:         origindetection.ProductOriginDogStatsD,
 	}
 
 	n := 0
