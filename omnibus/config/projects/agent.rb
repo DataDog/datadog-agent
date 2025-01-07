@@ -333,7 +333,7 @@ if windows_target?
     windows_symbol_stripping_file bin
   end
 
-  if ENV['SIGN_WINDOWS_DD_WCS']
+  if windows_signing_enabled?
     BINARIES_TO_SIGN = GO_BINARIES + [
       "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
