@@ -163,8 +163,11 @@ struct file_system_type *__attribute__((always_inline)) get_super_block_fs(struc
 }
 
 struct super_block *__attribute__((always_inline)) get_vfsmount_sb(struct vfsmount *mnt) {
+	u64 offset;
+	LOAD_CONSTANT("vfsmount_mnt_sb_offset", offset);
+
     struct super_block *sb;
-    bpf_probe_read(&sb, sizeof(sb), &mnt->mnt_sb);
+    bpf_probe_read(&sb, sizeof(sb), (void *)mnt + offset);
     return sb;
 }
 
@@ -213,7 +216,7 @@ unsigned long __attribute__((always_inline)) get_path_ino(struct path *path) {
 
 void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void *buffer, size_t n) {
 	u64 dentry_d_name_offset;
-	LOAD_CONSTANT*("dentry_d_name_offset", dentry_d_name_offset);
+	LOAD_CONSTANT("dentry_d_name_offset", dentry_d_name_offset);
 
     struct qstr qstr;
     bpf_probe_read(&qstr, sizeof(qstr), (void *)dentry + dentry_d_name_offset);
