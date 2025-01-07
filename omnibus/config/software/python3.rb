@@ -124,6 +124,9 @@ build do
     openssl_arch = "x64"
     copy "#{install_dir}\\embedded3\\bin\\libcrypto-3-#{openssl_arch}.dll", "#{windows_safe_path(python_3_embedded)}\\DLLs"
     copy "#{install_dir}\\embedded3\\bin\\libssl-3-#{openssl_arch}.dll", "#{windows_safe_path(python_3_embedded)}\\DLLs"
+    # We can also remove the DLLs that were put there by the python build since they won't be loaded anyway
+    delete "#{windows_safe_path(python_3_embedded)}\\DLLs\\libcrypto-3.dll"
+    delete "#{windows_safe_path(python_3_embedded)}\\DLLs\\libssl-3.dll"
     # Generate libpython3XY.a for MinGW tools
     # https://docs.python.org/3/whatsnew/3.8.html
     command "gendef #{windows_safe_path(python_3_embedded)}\\python312.dll"
