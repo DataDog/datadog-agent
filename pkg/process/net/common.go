@@ -15,6 +15,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -28,7 +29,6 @@ import (
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -45,6 +45,11 @@ type Conn interface {
 const (
 	contentTypeProtobuf = "application/protobuf"
 	contentTypeJSON     = "application/json"
+)
+
+var (
+	globalUtil     *RemoteSysProbeUtil
+	globalUtilOnce sync.Once
 )
 
 var _ SysProbeUtil = &RemoteSysProbeUtil{}
@@ -65,39 +70,30 @@ var _ SysProbeUtilGetter = GetRemoteSystemProbeUtil
 
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
 func GetRemoteSystemProbeUtil(path string) (SysProbeUtil, error) {
-	sysProbeUtil, err := getRemoteSystemProbeUtil(path)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := sysProbeUtil.initRetry.TriggerRetry(); err != nil {
-		log.Debugf("system probe init error: %s", err)
-		return nil, err
-	}
-
-	return sysProbeUtil, nil
-}
-
-var getRemoteSystemProbeUtil = funcs.MemoizeArg(func(path string) (*RemoteSysProbeUtil, error) {
 	err := CheckPath(path)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up remote system probe util, %v", err)
 	}
 
-	sysProbeUtil := newSystemProbe(path)
-	err = sysProbeUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
-		Name:          "system-probe-util",
-		AttemptMethod: sysProbeUtil.init,
-		Strategy:      retry.RetryCount,
-		// 10 tries w/ 30s delays = 5m of trying before permafail
-		RetryCount: 10,
-		RetryDelay: 30 * time.Second,
+	globalUtilOnce.Do(func() {
+		globalUtil = newSystemProbe(path)
+		globalUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
+			Name:          "system-probe-util",
+			AttemptMethod: globalUtil.init,
+			Strategy:      retry.RetryCount,
+			// 10 tries w/ 30s delays = 5m of trying before permafail
+			RetryCount: 10,
+			RetryDelay: 30 * time.Second,
+		})
 	})
-	if err != nil {
+
+	if err := globalUtil.initRetry.TriggerRetry(); err != nil {
+		log.Debugf("system probe init error: %s", err)
 		return nil, err
 	}
-	return sysProbeUtil, nil
-})
+
+	return globalUtil, nil
+}
 
 // GetProcStats returns a set of process stats by querying system-probe
 func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPermByPID, error) {

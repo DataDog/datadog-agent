@@ -9,13 +9,16 @@ package config
 
 import (
 	"fmt"
-	"strings"
+	"net"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
+	// defaultSystemProbeAddress is the default address to be used for connecting to the system probe
+	defaultSystemProbeAddress = "localhost:3333"
+
 	// ServiceName is the service name used for the system-probe
 	ServiceName = "datadog-system-probe"
 )
@@ -33,8 +36,8 @@ func init() {
 
 // ValidateSocketAddress validates that the sysprobe socket config option is of the correct format.
 func ValidateSocketAddress(sockAddress string) error {
-	if !strings.HasPrefix(sockAddress, `\\.\pipe\`) {
-		return fmt.Errorf(`named pipe must be of the form '\\.\pipe\<pipename>'`)
+	if _, _, err := net.SplitHostPort(sockAddress); err != nil {
+		return fmt.Errorf("socket address must be of the form 'host:port'")
 	}
 	return nil
 }

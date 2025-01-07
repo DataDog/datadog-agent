@@ -11,7 +11,6 @@ package flare
 import (
 	"net/http"
 	"net/http/httptest"
-	"testing"
 
 	"github.com/stretchr/testify/require"
 
@@ -19,14 +18,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-const (
-	// systemProbeTestPipeName is the test named pipe for system-probe
+var (
+	// SystemProbeTestPipeName is the test named pipe for system-probe
 	systemProbeTestPipeName = `\\.\pipe\dd_system_probe_flare_test`
 )
 
-func sysprobeSocketPath(_ *testing.T) string {
-	return systemProbeTestPipeName
-}
+const (
+
+	// systemProbeTestPipeSecurityDescriptor has a DACL that allows Everyone access for these tests.
+	systemProbeTestPipeSecurityDescriptor = "D:PAI(A;;FA;;;WD)"
+)
 
 // NewSystemProbeTestServer starts a new mock server to handle System Probe requests.
 func NewSystemProbeTestServer(handler http.Handler) (*httptest.Server, error) {
@@ -49,7 +50,7 @@ func InjectConnectionFailures(mockSysProbeConfig model.Config, mockConfig model.
 	// Exercise a connection failure for a Windows system probe named pipe client by
 	// making them use a bad path.
 	// The system probe http server must be setup before this override.
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", `\\.\pipe\dd_system_probe_test_bad`)
+	systemProbeTestPipeName = `\\.\pipe\dd_system_probe_test_bad`
 
 	// The security-agent connection is expected to fail too in this test, but
 	// by enabling system probe, a port will be provided to it (security agent).
