@@ -109,7 +109,7 @@ build do
     # present, but the modules will be built nonetheless.
     command "PCbuild\\build.bat -e --pgo"
     # Install the built artifacts to their expected locations
-    command "PCbuild\\#{python_arch}\\python.exe PC\\layout\\main.py --build PCbuild\\#{python_arch} --include-cat --precompile --copy #{windows_safe_path(python_3_embedded)} -vv"
+    command "PCbuild\\#{python_arch}\\python.exe PC\\layout\\main.py --build PCbuild\\#{python_arch} --precompile --copy #{windows_safe_path(python_3_embedded)} -vv"
 
     ###############################
     # Install build artifacts...  #
