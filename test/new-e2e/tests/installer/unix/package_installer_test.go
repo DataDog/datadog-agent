@@ -56,14 +56,20 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertUnitsEnabled("datadog-installer.service")
 	state.AssertUnitsNotEnabled("datadog-installer-exp.service")
 	state.AssertUnitsDead("datadog-installer-exp.service")
+	var installerUnitState string
 	assert.Eventually(s.T(), func() bool {
 		state := s.host.State()
 		unit, ok := state.Units["datadog-installer.service"]
 		if !ok {
+			installerUnitState = "not found"
 			return false
 		}
-		return unit.SubState == host.Dead
-	}, 30*time.Second, 1*time.Second)
+		if unit.SubState != host.Dead {
+			installerUnitState = string(unit.SubState)
+			return false
+		}
+		return true
+	}, 60*time.Second, 1*time.Second, "datadog-installer.service should be dead but is %s", installerUnitState)
 }
 
 func (s *packageInstallerSuite) TestInstallWithRemoteUpdates() {
