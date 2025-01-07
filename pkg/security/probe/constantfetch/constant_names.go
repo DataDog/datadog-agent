@@ -34,6 +34,7 @@ const (
 	OffsetNameDentryDInode              = "dentry_d_inode_offset"
 	OffsetNamePathDentry                = "path_dentry_offset"
 	OffsetNameInodeSuperblock           = "inode_sb_offset"
+	OffsetNamePathMnt                   = "path_mnt_offset"
 
 	// inode
 	OffsetInodeIno   = "inode_ino_offset"
