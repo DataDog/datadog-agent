@@ -17,10 +17,19 @@ import (
 	semconv "go.opentelemetry.io/collector/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/metric/noop"
 
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 func BenchmarkOTelContainerTags(b *testing.B) {
+	benchmarkOTelContainerTags(b, false)
+}
+
+func BenchmarkOTelContainerTags_WithObfuscation(b *testing.B) {
+	benchmarkOTelContainerTags(b, true)
+}
+
+func benchmarkOTelContainerTags(b *testing.B, enableObfuscation bool) {
 	start := time.Now().Add(-1 * time.Second)
 	end := time.Now()
 	set := componenttest.NewNopTelemetrySettings()
@@ -56,13 +65,17 @@ func BenchmarkOTelContainerTags(b *testing.B) {
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 
 	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
+	var obfuscator *obfuscate.Obfuscator
+	if enableObfuscation {
+		obfuscator = newTestObfuscator(conf)
+	}
 	containerTagKeys := []string{"az", semconv.AttributeContainerID, semconv.AttributeK8SClusterName}
 	expected := []string{"az:my-az", "container_id:test_cid", "kube_cluster_name:test_cluster"}
 
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		inputs := OTLPTracesToConcentratorInputs(traces, conf, containerTagKeys, nil, nil)
+		inputs := OTLPTracesToConcentratorInputs(traces, conf, containerTagKeys, nil, obfuscator)
 		assert.Len(b, inputs, 1)
 		input := inputs[0]
 		concentrator.Add(input)
@@ -72,16 +85,31 @@ func BenchmarkOTelContainerTags(b *testing.B) {
 	}
 }
 
+func newTestObfuscator(conf *config.AgentConfig) *obfuscate.Obfuscator {
+	oconf := conf.Obfuscation.Export(conf)
+	oconf.Redis.Enabled = true
+	o := obfuscate.NewObfuscator(oconf)
+	return o
+}
+
 func BenchmarkOTelPeerTags(b *testing.B) {
-	benchmarkOTelPeerTags(b, true)
+	benchmarkOTelPeerTags(b, true, false)
+}
+
+func BenchmarkOTelPeerTags_WithObfuscation(b *testing.B) {
+	benchmarkOTelPeerTags(b, true, true)
 }
 
 // This simulates the benchmark of OTLPTracesToConcentratorInputs before https://github.com/DataDog/datadog-agent/pull/28908
 func BenchmarkOTelPeerTags_IncludeConfiguredPeerTags(b *testing.B) {
-	benchmarkOTelPeerTags(b, false)
+	benchmarkOTelPeerTags(b, false, false)
 }
 
-func benchmarkOTelPeerTags(b *testing.B, initOnce bool) {
+func BenchmarkOTelPeerTags_IncludeConfiguredPeerTags_WithObfuscation(b *testing.B) {
+	benchmarkOTelPeerTags(b, false, true)
+}
+
+func benchmarkOTelPeerTags(b *testing.B, initOnce bool, enableObfuscation bool) {
 	start := time.Now().Add(-1 * time.Second)
 	end := time.Now()
 	set := componenttest.NewNopTelemetrySettings()
@@ -114,14 +142,17 @@ func benchmarkOTelPeerTags(b *testing.B, initOnce bool) {
 	}
 
 	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
-
+	var obfuscator *obfuscate.Obfuscator
+	if enableObfuscation {
+		obfuscator = newTestObfuscator(conf)
+	}
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
 		if !initOnce {
 			peerTagKeys = conf.ConfiguredPeerTags()
 		}
-		inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, peerTagKeys, nil)
+		inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, peerTagKeys, obfuscator)
 		assert.Len(b, inputs, 1)
 		input := inputs[0]
 		concentrator.Add(input)
