@@ -212,8 +212,11 @@ unsigned long __attribute__((always_inline)) get_path_ino(struct path *path) {
 }
 
 void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void *buffer, size_t n) {
+	u64 dentry_d_name_offset;
+	LOAD_CONSTANT*("dentry_d_name_offset", dentry_d_name_offset);
+
     struct qstr qstr;
-    bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
+    bpf_probe_read(&qstr, sizeof(qstr), (void *)dentry + dentry_d_name_offset);
     bpf_probe_read_str(buffer, n, (void *)qstr.name);
 }
 
