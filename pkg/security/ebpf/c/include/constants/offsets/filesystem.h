@@ -102,8 +102,11 @@ int __attribute__((always_inline)) get_file_mount_id(struct file *file) {
 }
 
 int __attribute__((always_inline)) get_vfsmount_mount_flags(struct vfsmount *mnt) {
+    u64 offset;
+    LOAD_CONSTANT("vfsmount_mnt_flags_offset", offset);
+
     int mount_flags;
-    bpf_probe_read(&mount_flags, sizeof(mount_flags), &mnt->mnt_flags);
+    bpf_probe_read(&mount_flags, sizeof(mount_flags), (void *)mnt + offset);
     return mount_flags;
 }
 
