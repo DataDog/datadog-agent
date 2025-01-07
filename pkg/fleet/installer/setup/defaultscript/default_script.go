@@ -34,11 +34,9 @@ var (
 	fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)
 
 	// unsupportedEnvVars are the environment variables that are not supported by the default script
-	// TODO: support as many as possible
 	unsupportedEnvVars = []string{
 		"DD_INSTALLER",
 		"DD_AGENT_FLAVOR",
-		"DD_URL",
 		"DD_HOST_TAGS",
 		"DD_UPGRADE",
 		"DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE",
@@ -78,20 +76,24 @@ func SetupDefaultScript(s *common.Setup) error {
 		return fmt.Errorf("the Datadog Installer doesn't support FIPS mode")
 	}
 
+	if url, ok := os.LookupEnv("DD_URL"); ok {
+		s.Config.DatadogYAML.DDURL = url
+	}
+
 	// Feature enablement through environment variables
-	_, systemProbeEnsureConfig := os.LookupEnv("DD_SYSTEM_PROBE_ENSURE_CONFIG")
-	_, runtimeSecurityConfigEnabled := os.LookupEnv("DD_RUNTIME_SECURITY_CONFIG_ENABLED")
-	_, complianceConfigEnabled := os.LookupEnv("DD_COMPLIANCE_CONFIG_ENABLED")
-	if systemProbeEnsureConfig || runtimeSecurityConfigEnabled || complianceConfigEnabled {
+	_, systemProbeEnsureConfigOk := os.LookupEnv("DD_SYSTEM_PROBE_ENSURE_CONFIG")
+	runtimeSecurityConfigEnabled, runtimeSecurityConfigEnabledOk := os.LookupEnv("DD_RUNTIME_SECURITY_CONFIG_ENABLED")
+	complianceConfigEnabled, complianceConfigEnabledOk := os.LookupEnv("DD_COMPLIANCE_CONFIG_ENABLED")
+	if systemProbeEnsureConfigOk || runtimeSecurityConfigEnabledOk || complianceConfigEnabledOk {
 		s.Config.SecurityAgentYAML = &common.SecurityAgentConfig{}
 		s.Config.SystemProbeYAML = &common.SystemProbeConfig{}
 	}
-	if complianceConfigEnabled {
+	if complianceConfigEnabledOk && strings.ToLower(complianceConfigEnabled) != "false" {
 		s.Config.SecurityAgentYAML.ComplianceConfig = common.SecurityAgentComplianceConfig{
 			Enabled: true,
 		}
 	}
-	if runtimeSecurityConfigEnabled {
+	if runtimeSecurityConfigEnabledOk && strings.ToLower(runtimeSecurityConfigEnabled) != "false" {
 		s.Config.SecurityAgentYAML.RuntimeSecurityConfig = common.RuntimeSecurityConfig{
 			Enabled: true,
 		}
@@ -102,7 +104,7 @@ func SetupDefaultScript(s *common.Setup) error {
 
 	// Agent install
 	if _, ok := os.LookupEnv("DD_NO_AGENT_INSTALL"); !ok {
-		s.Packages.Install(common.DatadogAgentPackage, defaultAgentVersion)
+		s.Packages.Install(common.DatadogAgentPackage, agentVersion(s.Env))
 	}
 
 	// Injector install
@@ -116,8 +118,7 @@ func SetupDefaultScript(s *common.Setup) error {
 	for _, library := range common.ApmLibraries {
 		lang := packageToLanguage(library)
 		_, installLibrary := s.Env.ApmLibraries[lang]
-		if (installAllAPMLibraries || apmInstrumentationEnabled) && library != common.DatadogAPMLibraryPHPPackage ||
-			installLibrary {
+		if (installAllAPMLibraries || len(s.Env.ApmLibraries) == 0 && apmInstrumentationEnabled) && library != common.DatadogAPMLibraryPHPPackage || installLibrary {
 			s.Packages.Install(library, getLibraryVersion(s.Env, library))
 		}
 	}
@@ -163,4 +164,15 @@ func warnUnsupportedEnvVars(s *common.Setup, envVars ...string) {
 		}
 	}
 	s.Out.WriteString(fmt.Sprintf("Warning: options '%s' are not supported and will be ignored\n", strings.Join(setUnsupported, "', '")))
+}
+
+func agentVersion(e *env.Env) string {
+	minorVersion := e.AgentMinorVersion
+	if strings.Contains(minorVersion, ".") && !strings.HasSuffix(minorVersion, "-1") {
+		minorVersion = minorVersion + "-1"
+	}
+	if minorVersion != "" {
+		return "7." + minorVersion
+	}
+	return defaultAgentVersion
 }

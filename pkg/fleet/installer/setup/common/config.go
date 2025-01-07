@@ -129,6 +129,7 @@ type DatadogConfig struct {
 	RemoteUpdates        bool                       `yaml:"remote_updates,omitempty"`
 	RemotePolicies       bool                       `yaml:"remote_policies,omitempty"`
 	Installer            DatadogConfigInstaller     `yaml:"installer,omitempty"`
+	DDURL                string                     `yaml:"dd_url,omitempty"`
 }
 
 // DatadogConfigProxy represents the configuration for the proxy

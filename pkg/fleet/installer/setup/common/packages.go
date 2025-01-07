@@ -5,9 +5,7 @@
 
 package common
 
-import (
-	"fmt"
-)
+import "fmt"
 
 const (
 	// DatadogInstallerPackage is the datadog installer package
