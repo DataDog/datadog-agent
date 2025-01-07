@@ -47,7 +47,6 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 			},
 			want: &resourceRecommenderSettings{
 				MetricName:    "container.cpu.usage",
-				ContainerName: nil,
 				LowWatermark:  0.75,
 				HighWatermark: 0.85,
 			},
@@ -67,7 +66,6 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 			},
 			want: &resourceRecommenderSettings{
 				MetricName:    "container.memory.usage",
-				ContainerName: nil,
 				LowWatermark:  0.75,
 				HighWatermark: 0.85,
 			},
@@ -116,7 +114,6 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 			},
 			want: &resourceRecommenderSettings{
 				MetricName:    "container.cpu.usage",
-				ContainerName: nil,
 				LowWatermark:  0.75,
 				HighWatermark: 0.85,
 			},
@@ -136,7 +133,6 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 			},
 			want: &resourceRecommenderSettings{
 				MetricName:    "container.memory.usage",
-				ContainerName: nil,
 				LowWatermark:  0.75,
 				HighWatermark: 0.85,
 			},

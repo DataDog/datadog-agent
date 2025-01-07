@@ -103,7 +103,7 @@ var (
 
 type resourceRecommenderSettings struct {
 	MetricName    string
-	ContainerName *string
+	ContainerName string
 	LowWatermark  float64
 	HighWatermark float64
 }
@@ -177,9 +177,13 @@ func (l LocalRecommender) CalculateHorizontalRecommendations(dpai model.PodAutos
 	if targetErr != nil {
 		return nil, fmt.Errorf("Failed to get GVK for target: %s, %s", dpai.ID(), targetErr)
 	}
+
+	podOwnerName := targetRef.Name
+	namespace := dpai.Namespace()
+
 	podOwner := shared.NamespacedPodOwner{
-		Namespace: dpai.Namespace(),
-		Name:      targetRef.Name,
+		Namespace: namespace,
+		Name:      podOwnerName,
 		Kind:      targetGVK.Kind,
 	}
 	pods := l.PodWatcher.GetPodsForOwner(podOwner)
@@ -196,7 +200,7 @@ func (l LocalRecommender) CalculateHorizontalRecommendations(dpai model.PodAutos
 			return nil, fmt.Errorf("Failed to get resource recommender settings: %s", err)
 		}
 
-		// queryResult := GetMetricsRaw()
+		// queryResult := GetMetricsRaw(recSettings.MetricName, namespace, podOwnerName, recSettings.ContainerName)
 		rec, ts, err := recSettings.recommend(currentTime, pods, queryResult, float64(*dpai.CurrentReplicas()))
 		if err != nil {
 			log.Debugf("Got error calculating recommendation: %s", err)
@@ -266,7 +270,7 @@ func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.
 		totalRequests := 0.0
 
 		for _, container := range pod.Containers {
-			if r.ContainerName != nil && container.Name != *r.ContainerName {
+			if r.ContainerName != "" && container.Name != r.ContainerName {
 				continue
 			}
 
