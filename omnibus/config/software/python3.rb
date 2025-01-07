@@ -107,7 +107,7 @@ build do
     # -e to enable external libraries. They won't be fetched if already
     # present, but the modules will be built nonetheless.
     command "PCbuild\\build.bat -e --pgo"
-    copy "PCBuild/#{python_arch}", "C:\\mnt\\omnibus\\dbg"
+    copy "PCBuild/", "C:\\mnt\\omnibus\\dbg"
     command "ls -lR PCbuild/#{python_arch}/"
     # Install the built artifacts to their expected locations
     copy "PCbuild/#{python_arch}/*.exe", "#{windows_safe_path(python_3_embedded)}/"
