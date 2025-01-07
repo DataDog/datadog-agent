@@ -26,7 +26,6 @@ type completeTestSuite struct {
 var completeConfig string
 
 func TestOTelAgentComplete(t *testing.T) {
-	t.Skip("Skipping broken test: incident-33599") // incident-33599
 	values := `
 datadog:
   logs:

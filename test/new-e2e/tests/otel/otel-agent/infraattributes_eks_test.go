@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
@@ -25,7 +26,6 @@ type iaEKSTestSuite struct {
 }
 
 func TestOTelAgentIAEKS(t *testing.T) {
-	t.Skip("Skipping broken test: incident-33599") // incident-33599
 	values := `
 datadog:
   logs:
@@ -72,7 +72,7 @@ type iaUSTEKSTestSuite struct {
 }
 
 func TestOTelAgentIAUSTEKS(t *testing.T) {
-	t.Skip("Skipping broken test: incident-33599") // incident-33599
+	flake.Mark(t) // incident-33599
 	values := `
 datadog:
   logs:
