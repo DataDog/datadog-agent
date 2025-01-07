@@ -215,11 +215,26 @@ func (t *ebpfLessTracer) processConnection(
 	switch result {
 	case ebpfless.ProcessResultNone:
 	case ebpfless.ProcessResultStoreConn:
+		// if we fail to store this connection at any point, remove its TCP state tracking
+		storeConnOk := false
+		defer func() {
+			if storeConnOk {
+				return
+			}
+			if conn.Type == network.TCP {
+				t.tcp.RemoveConn(tuple)
+			}
+			ebpfLessTracerTelemetry.droppedConnections.Inc()
+		}()
+
 		if isNewConn {
 			conn.Duration = time.Duration(time.Now().UnixNano())
 			direction, err := t.determineConnectionDirection(conn, pktType)
 			if err != nil {
 				return err
+			}
+			if direction == network.UNKNOWN {
+				return fmt.Errorf("could not determine connection direction")
 			}
 			conn.Direction = direction
 
@@ -227,14 +242,7 @@ func (t *ebpfLessTracer) processConnection(
 			t.cookieHasher.Hash(conn)
 		}
 		maxTrackedConns := int(t.config.MaxTrackedConnections)
-		ok := ebpfless.WriteMapWithSizeLimit(t.conns, tuple, conn, maxTrackedConns)
-		if !ok {
-			// we don't have enough space to add this connection, remove its TCP state tracking
-			if conn.Type == network.TCP {
-				t.tcp.RemoveConn(tuple)
-			}
-			ebpfLessTracerTelemetry.droppedConnections.Inc()
-		}
+		storeConnOk = ebpfless.WriteMapWithSizeLimit(t.conns, tuple, conn, maxTrackedConns)
 	case ebpfless.ProcessResultCloseConn:
 		delete(t.conns, tuple)
 		closeCallback(conn)

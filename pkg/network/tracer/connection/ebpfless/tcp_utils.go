@@ -27,18 +27,6 @@ const ebpflessModuleName = "ebpfless_network_tracer"
 // via packet capture: PID and Direction are removed.
 type PCAPTuple network.ConnectionTuple
 
-// ConnDirection represents what the TCPProcessor knows about the direction of a connection.
-type ConnDirection uint8
-
-const (
-	// ConnDirectionUnknown means we don't know the direction (because we missed the SYN)
-	ConnDirectionUnknown ConnDirection = iota
-	// ConnDirectionIncoming means the connection is incoming to the host
-	ConnDirectionIncoming
-	// ConnDirectionOutgoing means the connection is outgoing from the host
-	ConnDirectionOutgoing
-)
-
 func connDirectionFromPktType(pktType uint8) network.ConnectionDirection {
 	switch pktType {
 	case unix.PACKET_HOST:
@@ -46,7 +34,7 @@ func connDirectionFromPktType(pktType uint8) network.ConnectionDirection {
 	case unix.PACKET_OUTGOING:
 		return network.OUTGOING
 	default:
-		return 0
+		return network.UNKNOWN
 	}
 }
 
