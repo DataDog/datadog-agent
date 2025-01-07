@@ -75,6 +75,10 @@ build do
     # Setup openssl dependency... #
     ###############################
 
+    # We must provide python with the same file hierarchy as
+    # https://github.com/python/cpython-bin-deps/tree/openssl-bin-3.0/amd64
+    # but with our OpenSSL build instead.
+
     # This is not necessarily the version we built, but the version
     # the Python build system expects.
     openssl_version = "3.0.15"
