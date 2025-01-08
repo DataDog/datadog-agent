@@ -23,6 +23,7 @@ import (
 const (
 	collectorID   = "nvml"
 	componentName = "workloadmeta-nvml"
+	nvidiaVendor  = "nvidia"
 )
 
 type collector struct {
@@ -96,7 +97,7 @@ func (c *collector) Pull(_ context.Context) error {
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: name,
 			},
-			Vendor: "nvidia",
+			Vendor: nvidiaVendor,
 			Device: name,
 		}
 
