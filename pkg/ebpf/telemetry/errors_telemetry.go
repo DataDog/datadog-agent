@@ -249,35 +249,53 @@ func (e *ebpfTelemetry) initializeHelperErrTelemetryMap(module names.ModuleName,
 	return nil
 }
 
+func PatchConstant(symbol string, p *ebpf.ProgramSpec, enable bool, eBPFKey uint64) error {
+	// do constant editing of programs for helper errors post-init
+	ins := p.Instructions
+	ldDWImm := asm.LoadImmOp(asm.DWord)
+	if enable {
+		offsets := ins.ReferenceOffsets()
+		indices := offsets[symbol]
+		if len(indices) > 0 {
+			for _, index := range indices {
+				load := &ins[index]
+				if load.OpCode != ldDWImm {
+					return fmt.Errorf("symbol %v: load: found %v instead of %v", symbol, load.OpCode, ldDWImm)
+				}
+
+				load.Constant = int64(eBPFKey)
+			}
+		}
+	}
+
+	return nil
+}
+
+func PatchEBPFTelemetry(programSpecs map[string]*ebpf.ProgramSpec, enable bool, mn names.ModuleName) error {
+	if errorsTelemetry == nil {
+		return errors.New("errorsTelemetry not initialized")
+	}
+	return patchEBPFTelemetry(programSpecs, enable, mn, errorsTelemetry)
+}
+
 func patchEBPFTelemetry(programSpecs map[string]*ebpf.ProgramSpec, enable bool, mn names.ModuleName, bpfTelemetry ebpfErrorsTelemetry) error {
 	const symbol = "telemetry_program_id_key"
 	newIns := asm.Mov.Reg(asm.R1, asm.R1)
 	if enable {
 		newIns = asm.StoreXAdd(asm.R1, asm.R2, asm.Word)
 	}
-	ldDWImm := asm.LoadImmOp(asm.DWord)
 	h := keyHash()
 
 	for _, p := range programSpecs {
-		// do constant editing of programs for helper errors post-init
 		ins := p.Instructions
-		if enable && bpfTelemetry != nil {
-			offsets := ins.ReferenceOffsets()
-			indices := offsets[symbol]
-			if len(indices) > 0 {
-				for _, index := range indices {
-					load := &ins[index]
-					if load.OpCode != ldDWImm {
-						return fmt.Errorf("symbol %v: load: found %v instead of %v", symbol, load.OpCode, ldDWImm)
-					}
-
-					programName := names.NewProgramNameFromProgramSpec(p)
-					key := eBPFHelperErrorKey(h, probeTelemetryKey(programName, mn))
-					load.Constant = int64(key)
-					bpfTelemetry.setProbe(probeTelemetryKey(programName, mn), key)
-				}
-			}
+		// do constant editing of programs for helper errors post-init
+		programName := names.NewProgramNameFromProgramSpec(p)
+		tk := probeTelemetryKey(programName, mn)
+		key := eBPFHelperErrorKey(h, tk)
+		if err := PatchConstant(symbol, p, enable && bpfTelemetry != nil, key); err != nil {
+			return err
 		}
+		bpfTelemetry.setProbe(tk, key)
 
 		// patch telemetry helper calls
 		const ebpfTelemetryPatchCall = -1
@@ -318,7 +336,7 @@ func eBPFHelperErrorKey(h hash.Hash64, name telemetryKey) uint64 {
 }
 
 // ebpfTelemetrySupported returns whether eBPF telemetry is supported, which depends on the verifier in 4.14+
-func ebpfTelemetrySupported() (bool, error) {
+func EBPFTelemetrySupported() (bool, error) {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
 		return false, err
