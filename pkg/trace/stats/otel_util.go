@@ -38,73 +38,7 @@ func OTLPTracesToConcentratorInputs(
 	containerTagKeys []string,
 	peerTagKeys []string,
 ) []Input {
-	spanByID, resByID, scopeByID := traceutil.IndexOTelSpans(traces)
-	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
-	topLevelSpans := traceutil.GetTopLevelOTelSpans(spanByID, resByID, topLevelByKind)
-	ignoreResNames := make(map[string]struct{})
-	for _, resName := range conf.Ignore["resource"] {
-		ignoreResNames[resName] = struct{}{}
-	}
-	chunks := make(map[chunkKey]*pb.TraceChunk)
-	containerTagsByID := make(map[string][]string)
-	for spanID, otelspan := range spanByID {
-		otelres := resByID[spanID]
-		var resourceName string
-		if transform.OperationAndResourceNameV2Enabled(conf) {
-			resourceName = traceutil.GetOTelResourceV2(otelspan, otelres)
-		} else {
-			resourceName = traceutil.GetOTelResourceV1(otelspan, otelres)
-		}
-		if _, exists := ignoreResNames[resourceName]; exists {
-			continue
-		}
-		env := traceutil.GetOTelEnv(otelres)
-		hostname := traceutil.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname)
-		version := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeServiceVersion)
-		cid := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
-		var ctags []string
-		if cid != "" {
-			ctags = traceutil.GetOTelContainerTags(otelres.Attributes(), containerTagKeys)
-			if ctags != nil {
-				// Make sure container tags are sorted per APM stats intake requirement
-				if !slices.IsSorted(ctags) {
-					slices.Sort(ctags)
-				}
-				containerTagsByID[cid] = ctags
-			}
-		}
-		ckey := chunkKey{
-			traceIDUInt64: traceutil.OTelTraceIDToUint64(otelspan.TraceID()),
-			env:           env,
-			version:       version,
-			hostname:      hostname,
-			cid:           cid,
-		}
-		chunk, ok := chunks[ckey]
-		if !ok {
-			chunk = &pb.TraceChunk{}
-			chunks[ckey] = chunk
-		}
-		_, isTop := topLevelSpans[spanID]
-		chunk.Spans = append(chunk.Spans, transform.OtelSpanToDDSpanMinimal(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, peerTagKeys))
-	}
-
-	inputs := make([]Input, 0, len(chunks))
-	for ckey, chunk := range chunks {
-		pt := traceutil.ProcessedTrace{
-			TraceChunk:     chunk,
-			Root:           traceutil.GetRoot(chunk.Spans),
-			TracerEnv:      ckey.env,
-			AppVersion:     ckey.version,
-			TracerHostname: ckey.hostname,
-		}
-		inputs = append(inputs, Input{
-			Traces:        []traceutil.ProcessedTrace{pt},
-			ContainerID:   ckey.cid,
-			ContainerTags: containerTagsByID[ckey.cid],
-		})
-	}
-	return inputs
+	return OTLPTracesToConcentratorInputsWithObfuscation(traces, conf, containerTagKeys, peerTagKeys, nil)
 }
 
 // OTLPTracesToConcentratorInputsWithObfuscation converts eligible OTLP spans to Concentrator Input.
