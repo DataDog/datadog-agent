@@ -8,6 +8,7 @@ package fipscompliance
 import (
 	_ "embed"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -66,12 +67,20 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
 	templateVars := map[string]interface{}{
 		"FIPSEnabled": "1",
 	}
+	var imageTag string
+	if os.Getenv("E2E_PIPELINE_ID") != "" && os.Getenv("CI_COMMIT_SHA") != "" {
+		imageTag = fmt.Sprintf("v%s-%s-7-fips-arm64", os.Getenv("E2E_PIPELINE_ID"), os.Getenv("CI_COMMIT_SHA"))
+	} else {
+		imageTag = "latest"
+	}
 	dockerCompose := fillTmplConfig(v.T(), dockerComposeTemplate, templateVars)
 
+	fmt.Println("ImageTag: " + imageTag)
 	v.UpdateEnv(
 		awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(
-				dockeragentparams.WithFullImagePath("registry.ddbuild.io/ci/datadog-agent/agent:v51515213-0796c161-7-fips-arm64"),
+				// dockeragentparams.WithImageTag(imageTag), // "registry.ddbuild.io/ci/datadog-agent/agent:v51515213-0796c161-7-fips-arm64"),
+				dockeragentparams.WithImageTag("registry.ddbuild.io/ci/datadog-agent/agent:v51515213-0796c161-7-fips-arm64"),
 				dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
 			),
 		),
@@ -165,15 +174,15 @@ func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
 func runFipsServer(v *fipsServerSuite, tc cipherTestCase, composeFiles string) {
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		stopFipsServer(v, composeFiles)
-		envvar := fmt.Sprintf("CERT=%v", tc.cert)
+		envvar := fmt.Sprintf("CERT=%s", tc.cert)
 		if tc.cipher != "" {
-			envvar = fmt.Sprintf(`%v CIPHER="-c %v"`, envvar, tc.cipher)
+			envvar = fmt.Sprintf(`%s CIPHER="-c %s"`, envvar, tc.cipher)
 		}
 		if tc.tlsMax != "" {
-			envvar = fmt.Sprintf(`%v TLS_MAX="--tls-max %v"`, envvar, tc.tlsMax)
+			envvar = fmt.Sprintf(`%s TLS_MAX="--tls-max %s"`, envvar, tc.tlsMax)
 		}
 
-		_, err := v.Env().RemoteHost.Execute(fmt.Sprintf("%v docker-compose -f %v run --rm -d fips-server", envvar, strings.TrimSpace(composeFiles)))
+		_, err := v.Env().RemoteHost.Execute(fmt.Sprintf("%s docker-compose -f %s --detach  --wait --timeout 300 up", envvar, strings.TrimSpace(composeFiles)))
 		if err != nil {
 			v.T().Logf("Error starting fips-server: %v", err)
 			require.NoError(t, err)
@@ -195,7 +204,7 @@ func runAgentDiagnose(v *fipsServerSuite) {
 func stopFipsServer(v *fipsServerSuite, composeFiles string) {
 	fipsContainer := v.Env().RemoteHost.MustExecute("docker container ls -a --filter name=dd-fips-server --format '{{.Names}}'")
 	if fipsContainer != "" {
-		v.Env().RemoteHost.MustExecute(fmt.Sprintf("docker-compose -f %v stop fips-server", strings.TrimSpace(composeFiles)))
+		v.Env().RemoteHost.MustExecute(fmt.Sprintf("docker-compose -f %s down fips-server", strings.TrimSpace(composeFiles)))
 	}
 }
 
