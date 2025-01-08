@@ -342,13 +342,13 @@ func TestCGroupSnapshot(t *testing.T) {
 
 		// Check that we have the right cgroup inode
 		cgroupFS := utils.NewCGroupFS()
-		_, _, cgroupProcsPath, err := cgroupFS.FindCGroupContext(uint32(os.Getpid()), uint32(os.Getpid()))
+		_, _, cgroupSysFSPath, err := cgroupFS.FindCGroupContext(uint32(os.Getpid()), uint32(os.Getpid()))
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		var stats unix.Stat_t
-		if err := unix.Stat(cgroupProcsPath, &stats); err != nil {
+		if err := unix.Stat(cgroupSysFSPath, &stats); err != nil {
 			t.Fatal(err)
 		}
 		assert.Equal(t, stats.Ino, testsuiteEntry.CGroup.CGroupFile.Inode)

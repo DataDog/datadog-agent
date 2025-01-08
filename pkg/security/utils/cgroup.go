@@ -226,7 +226,7 @@ func NewCGroupFS(cgroupMountPoints ...string) *CGroupFS {
 	return cfs
 }
 
-// FindCGroupContext returns the container ID, cgroup context and cgroup path the process belongs to.
+// FindCGroupContext returns the container ID, cgroup context and sysfs cgroup path the process belongs to.
 // Returns "" as container ID and sysfs cgroup path, and an empty CGroupContext if the process does not belong to a container.
 func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.ContainerID, model.CGroupContext, string, error) {
 	if len(cfs.cGroupMountPoints) == 0 {
@@ -280,9 +280,8 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 	return containerID, cgroupContext, sysFScGroupPath, nil
 }
 
-func checkPidExists(sysFsPath string, expectedPid uint32) (bool, error) {
-	cgroupProcsPath := filepath.Join(sysFsPath, "cgroup.procs")
-	data, err := os.ReadFile(cgroupProcsPath)
+func checkPidExists(sysFScGroupPath string, expectedPid uint32) (bool, error) {
+	data, err := os.ReadFile(filepath.Join(sysFScGroupPath, "cgroup.procs"))
 	if err != nil {
 		return false, err
 	}
