@@ -503,7 +503,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 		upCtx, cancel := context.WithTimeout(ctx, params.UpTimeout)
 		now := time.Now()
 		upResult, upError = stack.Up(upCtx, progressStreamsUpOption, optup.DebugLogging(loggingOptions))
-		fmt.Fprintf(logger, "Stack up took %v\n", time.Since(now))
+		fmt.Fprintf(logger, "Stack up took %v at attempt %v\n", time.Since(now), upCount)
 		cancel()
 
 		// early return on success

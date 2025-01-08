@@ -70,6 +70,45 @@ class TestUtils(unittest.TestCase):
             {"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers": {"TestEKSSuite"}},
         )
 
+    def test_flaky_panicking_test(self):
+        test_washer = TestWasher(
+            test_output_json_file="test_output_failure_flaky_panic.json",
+            flakes_file_path="tasks/unit_tests/testdata/flakes_2.yaml",
+        )
+        module_path = "tasks/unit_tests/testdata"
+        failing_tests, marked_flaky_tests = test_washer.parse_test_results(module_path)
+        non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(
+            failing_tests=failing_tests, flaky_marked_tests=marked_flaky_tests
+        )
+        self.assertEqual(non_flaky_failing_tests, {})
+
+    def test_non_flaky_panicking_test(self):
+        test_washer = TestWasher(
+            test_output_json_file="test_output_failure_panic.json",
+            flakes_file_path="tasks/unit_tests/testdata/flakes_2.yaml",
+        )
+        module_path = "tasks/unit_tests/testdata"
+        failing_tests, marked_flaky_tests = test_washer.parse_test_results(module_path)
+        non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(
+            failing_tests=failing_tests, flaky_marked_tests=marked_flaky_tests
+        )
+        self.assertEqual(
+            non_flaky_failing_tests,
+            {'github.com/DataDog/datadog-agent/pkg/serverless/trace': {'TestLoadConfigShouldBeFast'}},
+        )
+
+    def test_flaky_panicking_flakesyaml_test(self):
+        test_washer = TestWasher(
+            test_output_json_file="test_output_failure_panic.json",
+            flakes_file_path="tasks/unit_tests/testdata/flakes_4.yaml",
+        )
+        module_path = "tasks/unit_tests/testdata"
+        failing_tests, marked_flaky_tests = test_washer.parse_test_results(module_path)
+        non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(
+            failing_tests=failing_tests, flaky_marked_tests=marked_flaky_tests
+        )
+        self.assertEqual(non_flaky_failing_tests, {})
+
 
 class TestMergeKnownFlakes(unittest.TestCase):
     def test_with_shared_keys(self):
