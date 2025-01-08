@@ -17,8 +17,8 @@ github.com/DataDog/datadog-go/v5 v5.6.0 h1:2oCLxjF/4htd55piM75baflj/KoE6VYS7alEU
 github.com/DataDog/datadog-go/v5 v5.6.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
-github.com/DataDog/test-infra-definitions v0.0.0-20250107163430-4372e330fe39 h1:D4Y9rEmYJPVaR6RCKk2Bs3+ds9YgG99jFtaEmyPnZDI=
-github.com/DataDog/test-infra-definitions v0.0.0-20250107163430-4372e330fe39/go.mod h1:i96PWIO1DkyiqYqRLnN9xM4pfgYiDpm9CKcV1c/6qyw=
+github.com/DataDog/test-infra-definitions v0.0.0-20250108153522-d76a72e92a19 h1:orJWdjyb8MLIpZxz6ilPeczkNzTxp3v4M+iLSxsABpQ=
+github.com/DataDog/test-infra-definitions v0.0.0-20250108153522-d76a72e92a19/go.mod h1:eotbmEI8RWRoYeF2PVITWndo5efpq6mRmpw4PXevClk=
 github.com/DataDog/zstd v1.5.6 h1:LbEglqepa/ipmmQJUDnSsfvA8e8IStVcGaFWDuxvGOY=
 github.com/DataDog/zstd v1.5.6/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f h1:5Vuo4niPKFkfwW55jV4vY0ih3VQ9RaQqeqY67fvRn8A=
@@ -430,8 +430,8 @@ github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 h1:21oSj+TKlKTzQcxN9Hik7iSNNHPUQXN4s
 github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0/go.mod h1:YaEZms1NgXFqGhObKVofcAeWXu2V+3t/BAXdHQZq7fU=
 github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.19.0 h1:7AjJpUyW6YHHpZr0bI6Fy1A3/b7ERxq1LAo5mlyNN1Y=
 github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.19.0/go.mod h1:ATS+UN8pguMxypQAK+SaPewesU+UN5dpf93PNqVuHzs=
-github.com/pulumi/pulumi-libvirt/sdk v0.5.3 h1:CiUGTweLLIxbAbADxxnwPv4BK8pxXfU8urokJvK1ihM=
-github.com/pulumi/pulumi-libvirt/sdk v0.5.3/go.mod h1:gAhyIZKtzs4rknrl8fu8BQnyqijAmViFbaUkyuHt4xY=
+github.com/pulumi/pulumi-libvirt/sdk v0.5.4 h1:7nS8ATK0Iml+yid80BrkW8WDynzwWYevx0cLpbPOYdM=
+github.com/pulumi/pulumi-libvirt/sdk v0.5.4/go.mod h1:HPx6S9mhaHpSHTKDVERTMaziKEpSqY8Trm+m2z1iJ3k=
 github.com/pulumi/pulumi-random/sdk/v4 v4.16.8 h1:ZrVKUJUYgphlD1zY35CiS6hdVN75wur5NjMDVIxWrJA=
 github.com/pulumi/pulumi-random/sdk/v4 v4.16.8/go.mod h1:0xQ8Gg8izJMYYCM6fBLY2TUkmEpaVczAx1yFk5OwuSg=
 github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 h1:tXemWrzeVTqG8zq6hBdv1TdPFXjgZ+dob63a/6GlF1o=
