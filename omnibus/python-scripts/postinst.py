@@ -45,7 +45,7 @@ if os.name == 'nt':
         if not os.path.exists(data_dog_data_dir):
             print(f"Directory {data_dog_data_dir} does not exist.")
             return 1
-        if not packages.check_all_files_owner_system_windows(install_directory):
+        if not packages.check_all_files_owner_system_windows(data_dog_data_dir):
             print("Files are not owned by system.")
             return 1
         postinst(install_directory, data_dog_data_dir)
