@@ -226,7 +226,7 @@ func main() {
 		}
 
 		jsonFile := filepath.Join("ebpf-calculator", "constants.json")
-		j, err := json.Marshal(ls)
+		j, err := json.MarshalIndent(ls, "", "	")
 		if err != nil {
 			log.Fatalf("failed to marshal constants into json list: %v", err)
 		}
