@@ -260,9 +260,12 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 				containerID = ctrID
 				cgroupProcsPath = procsPath
 
-				var fileStats unix.Statx_t
-				if err := unix.Statx(unix.AT_FDCWD, procsPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStats); err == nil {
-					cgroupContext.CGroupFile.MountID = uint32(fileStats.Mnt_id)
+				var fileStatx unix.Statx_t
+				var fileStats unix.Stat_t
+				if err := unix.Statx(unix.AT_FDCWD, procsPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStatx); err == nil {
+					cgroupContext.CGroupFile.MountID = uint32(fileStatx.Mnt_id)
+					cgroupContext.CGroupFile.Inode = fileStatx.Ino
+				} else if err := unix.Stat(procsPath, &fileStats); err == nil {
 					cgroupContext.CGroupFile.Inode = fileStats.Ino
 				}
 				return true
