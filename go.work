@@ -132,5 +132,3 @@ use (
 	test/otel
 	tools/retry_file_dump
 )
-
-use ../test-infra-definitions
