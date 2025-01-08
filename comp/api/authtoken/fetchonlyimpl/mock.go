@@ -9,6 +9,8 @@ package fetchonlyimpl
 
 import (
 	"crypto/tls"
+	"net/http"
+	"net/http/httptest"
 
 	"go.uber.org/fx"
 
@@ -40,7 +42,12 @@ func (fc *MockFetchOnly) GetTLSClientConfig() *tls.Config {
 
 // GetTLSServerConfig is a mock of the fetchonly GetTLSServerConfig function
 func (fc *MockFetchOnly) GetTLSServerConfig() *tls.Config {
-	return &tls.Config{}
+	// Starting a TLS httptest server to retrieve a localhost tlsCert
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
+	tlsConfig := ts.TLS.Clone()
+	ts.Close()
+
+	return tlsConfig
 }
 
 // NewMock returns a new fetch only authtoken mock

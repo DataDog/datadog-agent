@@ -120,7 +120,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 	t.Cleanup(cancel)
 	defaultCtx := context.Background()
 
-	usmMonitor := setupUSMTLSMonitor(t, s.getConfig())
+	usmMonitor := setupUSMTLSMonitor(t, s.getConfig(), useExistingConsumer)
 	if s.isTLS {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, srv.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
@@ -448,7 +448,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 	t.Cleanup(cancel)
 	defaultCtx := context.Background()
 
-	usmMonitor := setupUSMTLSMonitor(t, s.getConfig())
+	usmMonitor := setupUSMTLSMonitor(t, s.getConfig(), useExistingConsumer)
 	if s.isTLS {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, srv.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}

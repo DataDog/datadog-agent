@@ -89,6 +89,10 @@ class TestWasher:
                 if test_result["Action"] == "success":
                     if test_result["Test"] in failing_tests[test_result["Package"]]:
                         failing_tests[test_result["Package"]].remove(test_result["Test"])
+                # Tests that have a go routine that panicked does not have an Action field with the result of the test, let's try to catch them from their Output
+                if "Output" in test_result and "panic:" in test_result["Output"]:
+                    failing_tests[test_result["Package"]].add(test_result["Test"])
+
                 if "Output" in test_result and self.flaky_test_indicator in test_result["Output"]:
                     flaky_marked_tests[test_result["Package"]].add(test_result["Test"])
         return failing_tests, flaky_marked_tests

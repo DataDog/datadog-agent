@@ -14,6 +14,7 @@ class TestCheckSize(unittest.TestCase):
             'OMNIBUS_PACKAGE_DIR': 'tasks/unit_tests/testdata/packages',
             'OMNIBUS_PACKAGE_DIR_SUSE': 'tasks/unit_tests/testdata/packages',
             'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
     @patch('tasks.libs.package.size.find_package', new=MagicMock(return_value='datadog-agent'))
@@ -61,6 +62,31 @@ class TestCheckSize(unittest.TestCase):
         print_mock.assert_called()
         self.assertEqual(print_mock.call_count, 16)
         upload_mock.assert_not_called()
+
+    @patch.dict(
+        'os.environ',
+        {
+            'OMNIBUS_PACKAGE_DIR': 'tasks/unit_tests/testdata/packages',
+            'OMNIBUS_PACKAGE_DIR_SUSE': 'tasks/unit_tests/testdata/packages',
+            'CI_COMMIT_REF_NAME': 'pikachu',
+        },
+        clear=True,
+    )
+    @patch('tasks.libs.package.size.find_package', new=MagicMock(return_value='datadog-agent'))
+    @patch('tasks.package.upload_package_sizes', new=MagicMock())
+    @patch('tasks.package.display_message')
+    def test_dev_no_pr_defined(self, display_mock):
+        flavor = 'datadog-agent'
+        display_mock.side_effect = AssertionError('CI_COMMIT_BRANCH')
+        c = MockContext(
+            run={
+                'git merge-base HEAD origin/main': Result('25'),
+                f"dpkg-deb --info {flavor} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
+                f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(20000000),
+            }
+        )
+        check_size(c, filename='tasks/unit_tests/testdata/package_sizes_real.json', dry_run=True)
+        display_mock.assert_not_called()
 
     @patch.dict(
         'os.environ',

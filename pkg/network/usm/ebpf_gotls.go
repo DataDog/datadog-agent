@@ -387,7 +387,7 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 			if errors.Is(err, safeelf.ErrNoSymbols) {
 				binNoSymbolsMetric.Add(1)
 			}
-			return fmt.Errorf("error extracting inspectoin data from %s: %w", filePath.HostPath, err)
+			return fmt.Errorf("error extracting inspection data from %s: %w", filePath.HostPath, err)
 		}
 
 		if err := addInspectionResultToMap(offsetsDataMap, filePath.ID, inspectionResult); err != nil {

@@ -36,6 +36,19 @@ type ProfileDefinition struct {
 	Version uint64 `yaml:"version,omitempty" json:"version"`
 }
 
+// GetVendor returns the static vendor for this profile, if one is set
+func (p *ProfileDefinition) GetVendor() string {
+	device, ok := p.Metadata["device"]
+	if !ok {
+		return ""
+	}
+	vendor, ok := device.Fields["vendor"]
+	if !ok {
+		return ""
+	}
+	return vendor.Value
+}
+
 // DeviceProfileRcConfig represent the profile stored in remote config.
 type DeviceProfileRcConfig struct {
 	Profile ProfileDefinition `json:"profile_definition"`
@@ -46,4 +59,12 @@ func NewProfileDefinition() *ProfileDefinition {
 	p := &ProfileDefinition{}
 	p.Metadata = make(MetadataConfig)
 	return p
+}
+
+// SplitOIDs returns two slices (scalars, columns) of all scalar and column OIDs requested by this profile.
+func (p *ProfileDefinition) SplitOIDs(includeMetadata bool) ([]string, []string) {
+	if includeMetadata {
+		return splitOIDs(p.Metrics, p.MetricTags, p.Metadata)
+	}
+	return splitOIDs(p.Metrics, p.MetricTags, nil)
 }
