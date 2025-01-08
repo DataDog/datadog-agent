@@ -39,8 +39,8 @@ import (
 //go:embed fixtures/diff.txt
 var diffPythonInstalledPackages string
 
-//go:embed fixtures/postinst.txt
-var postinstPythonInstalledPackages string
+//go:embed fixtures/post.txt
+var postPythonInstalledPackages string
 
 //go:embed fixtures/requirements.txt
 var requirementsAgentRelease string
@@ -54,9 +54,9 @@ var (
 )
 
 var filesToMock = map[string]string{
-	"/opt/datadog-agent/.diff_python_installed_packages.txt":     diffPythonInstalledPackages,
-	"/opt/datadog-agent/.postinst_python_installed_packages.txt": postinstPythonInstalledPackages,
-	"/opt/datadog-agent/requirements-agent-release.txt":          requirementsAgentRelease,
+	"/opt/datadog-agent/.diff_python_installed_packages.txt": diffPythonInstalledPackages,
+	"/opt/datadog-agent/.post_python_installed_packages.txt": postPythonInstalledPackages,
+	"/opt/datadog-agent/requirements-agent-release.txt":      requirementsAgentRelease,
 }
 
 type persistingIntegrationsSuite struct {
