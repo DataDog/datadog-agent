@@ -37,6 +37,7 @@ if os.name == 'nt':
     def main():
         if len(sys.argv) != 3:
             print("Usage: postinst.py <INSTALL_DIR> <WINDOWS_DATADOG_DATA_DIR>")
+            return 1
         install_directory = sys.argv[1]
         data_dog_data_dir = sys.argv[2]
         # Check data dog data directory exists and files are owned by system
