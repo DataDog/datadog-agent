@@ -41,6 +41,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 			})
 		},
 	}
+	// TODO: add flag for config
 	installCmd := &cobra.Command{
 		Use:     "install package version",
 		Aliases: []string{"install"},
@@ -92,11 +93,12 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		},
 	}
 	startConfigExperimentCmd := &cobra.Command{
-		Use:     "start-config-experiment package version",
+		Use:     "start-config-experiment package flavor",
 		Aliases: []string{"start-config"},
-		Short:   "Starts an experiment",
+		Short:   "Starts a config experiment",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) error {
+
 			return experimentFxWrapper(startConfig, &cliParams{
 				GlobalParams: *global,
 				pkg:          args[0],
@@ -107,7 +109,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 	stopConfigExperimentCmd := &cobra.Command{
 		Use:     "stop-config-experiment package",
 		Aliases: []string{"stop-config"},
-		Short:   "Stops an experiment",
+		Short:   "Stops a config experiment",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			return experimentFxWrapper(stopConfig, &cliParams{
@@ -119,7 +121,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 	promoteConfigExperimentCmd := &cobra.Command{
 		Use:     "promote-config-experiment package",
 		Aliases: []string{"promote-config"},
-		Short:   "Promotes an experiment",
+		Short:   "Promotes a config experiment",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			return experimentFxWrapper(promoteConfig, &cliParams{

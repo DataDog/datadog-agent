@@ -50,11 +50,11 @@ type Daemon interface {
 	Stop(ctx context.Context) error
 
 	SetCatalog(c catalog)
-	Install(ctx context.Context, url string, args []string) error
+	Install(ctx context.Context, url string, args []string, flavor string) error
 	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
-	StartConfigExperiment(ctx context.Context, pkg string, hash string) error
+	StartConfigExperiment(ctx context.Context, pkg string, flavor string) error
 	StopConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -101,6 +101,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 		Site:                 config.GetString("site"),
 		RemoteUpdates:        config.GetBool("remote_updates"),
 		RemotePolicies:       config.GetBool("remote_policies"),
+		Flavor:               config.GetString("flavor"),
 		Mirror:               config.GetString("installer.mirror"),
 		RegistryOverride:     config.GetString("installer.registry.url"),
 		RegistryAuthOverride: config.GetString("installer.registry.auth"),
@@ -285,20 +286,24 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 }
 
 // Install installs the package from the given URL.
-func (d *daemonImpl) Install(ctx context.Context, url string, args []string) error {
+func (d *daemonImpl) Install(ctx context.Context, url string, args []string, flavor string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.install(ctx, url, args)
+	return d.install(ctx, url, args, flavor)
 }
 
-func (d *daemonImpl) install(ctx context.Context, url string, args []string) (err error) {
+func (d *daemonImpl) install(ctx context.Context, url string, args []string, flavor string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "install")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
+	configBytes, err := d.cdn.GetBytes(ctx, flavor)
+	if err != nil {
+		return fmt.Errorf("could not get config: %w", err)
+	}
 	log.Infof("Daemon: Installing package from %s", url)
-	err = d.installer.Install(ctx, url, args)
+	err = d.installer.Install(ctx, url, args, configBytes)
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
 	}
@@ -392,20 +397,24 @@ func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error)
 }
 
 // StartConfigExperiment starts a config experiment with the given package.
-func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, version string) error {
+func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, flavor string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.startConfigExperiment(ctx, url, version)
+	return d.startConfigExperiment(ctx, url, flavor)
 }
 
-func (d *daemonImpl) startConfigExperiment(ctx context.Context, url string, version string) (err error) {
+func (d *daemonImpl) startConfigExperiment(ctx context.Context, url string, flavor string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
+	configBytes, err := d.cdn.GetBytes(ctx, flavor)
+	if err != nil {
+		return fmt.Errorf("could not get config: %w", err)
+	}
 	log.Infof("Daemon: Starting config experiment for package from %s", url)
-	err = d.installer.InstallConfigExperiment(ctx, url, version)
+	err = d.installer.InstallConfigExperiment(ctx, url, configBytes)
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}
@@ -540,7 +549,7 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
 		log.Infof("Installer: Received remote request %s to start config experiment for package %s", request.ID, request.Package)
-		return d.startConfigExperiment(ctx, request.Package, params.Version)
+		return d.startConfigExperiment(ctx, request.Package, params.Flavor)
 	case methodStopConfigExperiment:
 		log.Infof("Installer: Received remote request %s to stop config experiment for package %s", request.ID, request.Package)
 		return d.stopConfigExperiment(ctx, request.Package)
@@ -594,7 +603,7 @@ func (d *daemonImpl) resolveRemoteConfigVersion(ctx context.Context, pkg string)
 	if !d.env.RemotePolicies {
 		return nil, nil
 	}
-	config, err := d.cdn.Get(ctx, pkg)
+	config, err := d.cdn.Get(ctx, pkg, d.env.Flavor)
 	if err != nil {
 		return nil, err
 	}

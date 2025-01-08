@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -21,15 +20,16 @@ const (
 )
 
 // apmLibrariesConfig represents the injector configuration from the CDN.
+// The contents are YAML and are ready to be written on disk.
 type apmLibrariesConfig struct {
-	version   string
-	policyIDs []string
+	version string
+	policy  string
 
 	apmLibrariesConfig []byte
 }
 
-// apmLibrariesConfigLayer is a config layer that can be merged with other layers into a config.
-type apmLibrariesConfigLayer struct {
+// apmLibrariesConfigRaw represents the raw injector configuration from the CDN.
+type apmLibrariesConfigRaw struct {
 	ID                 string                 `json:"name"`
 	APMLibrariesConfig map[string]interface{} `json:"apm_libraries_config"`
 }
@@ -37,53 +37,45 @@ type apmLibrariesConfigLayer struct {
 // State returns the APM configs state
 func (i *apmLibrariesConfig) State() *pbgo.PoliciesState {
 	return &pbgo.PoliciesState{
-		MatchedPolicies: i.policyIDs,
+		MatchedPolicies: []string{i.policy},
 		Version:         i.version,
 	}
 }
 
-func newAPMLibrariesConfig(hostTags []string, orderedLayers ...[]byte) (*apmLibrariesConfig, error) {
-	// Compile ordered layers into a single config
-	policyIDs := []string{}
-	compiledLayer := &apmLibrariesConfigLayer{
-		APMLibrariesConfig: map[string]interface{}{},
+func newAPMLibrariesConfig(hostTags []string, rawConfig []byte) (*apmLibrariesConfig, error) {
+	if len(rawConfig) == 0 {
+		return nil, nil
 	}
-	for _, rawLayer := range orderedLayers {
-		layer := &apmLibrariesConfigLayer{}
-		if err := json.Unmarshal(rawLayer, layer); err != nil {
-			log.Warnf("Failed to unmarshal layer: %v", err)
-			continue
-		}
+	var config configLayer
+	if err := json.Unmarshal(rawConfig, &config); err != nil {
+		return nil, err
+	}
+	apmLibsConfig := &apmLibrariesConfigRaw{}
+	if err := json.Unmarshal(config.Config, apmLibsConfig); err != nil {
+		return nil, err
+	}
+	if len(apmLibsConfig.APMLibrariesConfig) == 0 {
+		return nil, nil
+	}
 
-		if layer.APMLibrariesConfig != nil {
-			cfg, err := merge(compiledLayer.APMLibrariesConfig, layer.APMLibrariesConfig)
-			if err != nil {
-				return nil, err
-			}
-			compiledLayer.APMLibrariesConfig = cfg.(map[string]interface{})
-			policyIDs = append(policyIDs, layer.ID)
-		}
+	apmLibsConfig.APMLibrariesConfig["host_tags"] = hostTags
+
+	// Marshal into YAML configs
+	yamlCfg, err := marshalYAMLConfig(apmLibsConfig.APMLibrariesConfig)
+	if err != nil {
+		return nil, err
 	}
 
 	hash := sha256.New()
-	version, err := json.Marshal(compiledLayer)
+	version, err := json.Marshal(apmLibsConfig)
 	if err != nil {
 		return nil, err
 	}
 	hash.Write(version)
 
-	// Add host tags AFTER compiling the version -- we don't want to trigger noop updates
-	compiledLayer.APMLibrariesConfig["host_tags"] = hostTags
-
-	// Marshal into msgpack configs
-	yamlCfg, err := marshalYAMLConfig(compiledLayer.APMLibrariesConfig)
-	if err != nil {
-		return nil, err
-	}
-
 	return &apmLibrariesConfig{
-		version:   fmt.Sprintf("%x", hash.Sum(nil)),
-		policyIDs: policyIDs,
+		version: fmt.Sprintf("%x", hash.Sum(nil)),
+		policy:  config.ID,
 
 		apmLibrariesConfig: yamlCfg,
 	}, nil
@@ -91,6 +83,9 @@ func newAPMLibrariesConfig(hostTags []string, orderedLayers ...[]byte) (*apmLibr
 
 // Write writes the agent configuration to the given directory.
 func (i *apmLibrariesConfig) Write(dir string) error {
+	if i == nil {
+		return nil
+	}
 	if i.apmLibrariesConfig != nil {
 		err := os.WriteFile(filepath.Join(dir, apmLibrariesConfigPath), []byte(i.apmLibrariesConfig), 0644) // Must be world readable
 		if err != nil {

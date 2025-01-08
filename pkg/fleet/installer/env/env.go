@@ -24,6 +24,7 @@ const (
 	envSite                  = "DD_SITE"
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
 	envRemotePolicies        = "DD_REMOTE_POLICIES"
+	envFlavor                = "DD_FLAVOR"
 	envMirror                = "DD_INSTALLER_MIRROR"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
@@ -59,6 +60,7 @@ var defaultEnv = Env{
 	Site:          "datadoghq.com",
 	RemoteUpdates: false,
 	Mirror:        "",
+	Flavor:        "",
 
 	RegistryOverride:            "",
 	RegistryAuthOverride:        "",
@@ -105,6 +107,7 @@ type Env struct {
 	Site           string
 	RemoteUpdates  bool
 	RemotePolicies bool
+	Flavor         string
 
 	Mirror                      string
 	RegistryOverride            string
@@ -175,6 +178,7 @@ func FromEnv() *Env {
 		Site:           getEnvOrDefault(envSite, defaultEnv.Site),
 		RemoteUpdates:  strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
 		RemotePolicies: strings.ToLower(os.Getenv(envRemotePolicies)) == "true",
+		Flavor:         getEnvOrDefault(envFlavor, defaultEnv.Flavor),
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -228,6 +232,9 @@ func (e *Env) ToEnv() []string {
 	}
 	if e.RemotePolicies {
 		env = append(env, envRemotePolicies+"=true")
+	}
+	if e.Flavor != "" {
+		env = append(env, envFlavor+"="+e.Flavor)
 	}
 	if e.Mirror != "" {
 		env = append(env, envMirror+"="+e.Mirror)

@@ -14,8 +14,7 @@ import (
 )
 
 func TestAgentConfig(t *testing.T) {
-	baseLayer := &agentConfigLayer{
-		ID: "base",
+	baseLayer := &agentConfigRaw{
 		AgentConfig: map[string]interface{}{
 			"api_key": "1234",
 			"apm": map[string]interface{}{
@@ -27,81 +26,70 @@ func TestAgentConfig(t *testing.T) {
 	baseLayerRaw, err := json.Marshal(baseLayer)
 	assert.NoError(t, err)
 
-	overrideLayer := &agentConfigLayer{
-		ID: "override",
-		AgentConfig: map[string]interface{}{
-			"apm": map[string]interface{}{
-				"sampling_rate": 0.7,
-				"env":           "prod",
-			},
-		},
+	configLayer := &configLayer{
+		ID:     "policy",
+		Config: baseLayerRaw,
 	}
-	overrideLayerRaw, err := json.Marshal(overrideLayer)
+
+	configLayerRaw, err := json.Marshal(configLayer)
 	assert.NoError(t, err)
 
-	config, err := newAgentConfig(baseLayerRaw, overrideLayerRaw)
+	config, err := newAgentConfig(configLayerRaw)
 	assert.NoError(t, err)
 	expectedConfig := doNotEditDisclaimer + `
 api_key: "1234"
 apm:
   enabled: true
-  env: prod
-  sampling_rate: 0.7
+  sampling_rate: 0.5
 fleet_layers:
-- base
-- override
+- policy
 `
 	assert.Equal(t, expectedConfig, string(config.datadog))
 }
 
 func TestAgentConfigWithIntegrations(t *testing.T) {
-	layers := []*agentConfigLayer{
-		{
-			ID: "layer1",
-			AgentConfig: map[string]interface{}{
-				"api_key": "1234",
-			},
-			IntegrationsConfig: []integration{
-				{
-					Type: "apache",
-					Instance: map[string]interface{}{
-						"status_url": "http://localhost:1234/server-status",
-					},
-					Init: map[string]interface{}{
-						"apache_status_url": "http://localhost:1234/server-status",
-					},
+	layer := &agentConfigRaw{
+		AgentConfig: map[string]interface{}{
+			"api_key": "1234",
+		},
+		IntegrationsConfig: []integration{
+			{
+				Type: "apache",
+				Instance: map[string]interface{}{
+					"status_url": "http://localhost:1234/server-status",
+				},
+				Init: map[string]interface{}{
+					"apache_status_url": "http://localhost:1234/server-status",
 				},
 			},
-		},
-		{
-			ID: "layer2",
-			IntegrationsConfig: []integration{
-				{
-					Type: "apache",
-					Instance: map[string]interface{}{
-						"status_url": "http://localhost:5678/server-status",
-					},
-					Init: map[string]interface{}{
-						"apache_status_url": "http://localhost:5678/server-status",
-					},
+			{
+				Type: "apache",
+				Instance: map[string]interface{}{
+					"status_url": "http://localhost:5678/server-status",
+				},
+				Init: map[string]interface{}{
+					"apache_status_url": "http://localhost:5678/server-status",
 				},
 			},
 		},
 	}
-	rawLayers := make([][]byte, 0, len(layers))
-	for _, layer := range layers {
-		rawLayer, err := json.Marshal(layer)
-		assert.NoError(t, err)
-		rawLayers = append(rawLayers, rawLayer)
+	rawLayer, err := json.Marshal(layer)
+	assert.NoError(t, err)
+
+	configLayer := &configLayer{
+		ID:     "policy",
+		Config: rawLayer,
 	}
 
-	config, err := newAgentConfig(rawLayers...)
+	configLayerRaw, err := json.Marshal(configLayer)
+	assert.NoError(t, err)
+
+	config, err := newAgentConfig(configLayerRaw)
 	assert.NoError(t, err)
 	expectedAgentConfig := doNotEditDisclaimer + `
 api_key: "1234"
 fleet_layers:
-- layer1
-- layer2
+- policy
 `
 	assert.Equal(t, expectedAgentConfig, string(config.datadog))
 

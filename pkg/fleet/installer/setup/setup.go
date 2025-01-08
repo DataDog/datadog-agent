@@ -54,7 +54,7 @@ func Agent7InstallScript(ctx context.Context, env *env.Env) error {
 		return fmt.Errorf("failed to get default packages: %w", err)
 	}
 	for _, url := range defaultPackages {
-		err = cmd.Install(ctx, url, nil)
+		err = cmd.Install(ctx, url, nil, nil) // TODO -- grab flavor?
 		if err != nil {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}

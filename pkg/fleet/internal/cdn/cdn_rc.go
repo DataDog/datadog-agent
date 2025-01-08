@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
@@ -18,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/go-tuf/data"
 	"github.com/google/uuid"
@@ -93,7 +93,7 @@ func newRCFetcher(env *env.Env, configDBPath string) (fetcher, error) {
 }
 
 // get calls the Remote Config service to get the ordered layers.
-func (c *fetcherRC) get(ctx context.Context) ([][]byte, error) {
+func (c *fetcherRC) get(ctx context.Context, policy string) ([]byte, error) {
 	if c.firstRequest {
 		// A first request is made to the remote config service at service startup,
 		// so if we do another request too close to the first one (in the same second)
@@ -107,7 +107,7 @@ func (c *fetcherRC) get(ctx context.Context) ([][]byte, error) {
 	agentConfigUpdate, err := c.rcService.ClientGetConfigs(ctx, &pbgo.ClientGetConfigsRequest{
 		Client: &pbgo.Client{
 			Id:        c.clientUUID,
-			Products:  []string{"AGENT_CONFIG"},
+			Products:  []string{"INSTALLER_CONFIG"},
 			IsUpdater: true,
 			ClientUpdater: &pbgo.ClientUpdater{
 				Tags: []string{"installer:true"},
@@ -144,20 +144,19 @@ func (c *fetcherRC) get(ctx context.Context) ([][]byte, error) {
 	}
 
 	// Unmarshal RC results
-	files := map[string][]byte{}
+	policyRegex, err := regexp.Compile(fmt.Sprintf(policyConfigRegexTemplate, policy))
+	if err != nil {
+		return nil, err
+	}
 	for _, file := range agentConfigUpdate.TargetFiles {
 		path := file.GetPath()
-		pathMatches := datadogConfigIDRegexp.FindStringSubmatch(path)
+		pathMatches := policyRegex.FindStringSubmatch(path)
 		if len(pathMatches) != 2 {
-			log.Warnf("invalid config path: %s", path)
 			continue
 		}
-		files[pathMatches[1]] = file.GetRaw()
+		return file.GetRaw(), nil
 	}
-	return getOrderedScopedLayers(
-		files,
-		getScopeExprVars(c.env, c.hostTagsGetter),
-	)
+	return nil, fmt.Errorf("no configuration found for policy %s", policy)
 }
 
 func (c *fetcherRC) close() error {

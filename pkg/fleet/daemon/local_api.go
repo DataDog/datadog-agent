@@ -281,7 +281,7 @@ func (l *localAPIImpl) install(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infof("Received local request to install package %s version %s", pkg, request.Version)
-	err = l.daemon.Install(r.Context(), catalogPkg.URL, request.InstallArgs)
+	err = l.daemon.Install(r.Context(), catalogPkg.URL, request.InstallArgs, request.Flavor)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}

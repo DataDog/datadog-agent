@@ -19,7 +19,7 @@ func newNoopFetcher() (fetcher, error) {
 	return &fetcherNoop{}, nil
 }
 
-func (c *fetcherNoop) get(_ context.Context) ([][]byte, error) {
+func (c *fetcherNoop) get(_ context.Context, _ string) ([]byte, error) {
 	log.Debug("Noop CDN get")
 	return nil, nil
 }

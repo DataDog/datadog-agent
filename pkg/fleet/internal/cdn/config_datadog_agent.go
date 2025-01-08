@@ -16,7 +16,6 @@ import (
 	"strconv"
 
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -29,8 +28,8 @@ const (
 
 // agentConfig represents the agent configuration from the CDN.
 type agentConfig struct {
-	version   string
-	policyIDs []string
+	version string
+	policy  string
 
 	datadog       []byte
 	securityAgent []byte
@@ -38,10 +37,10 @@ type agentConfig struct {
 	integrations  []integration
 }
 
-// agentConfigLayer is a config layer that can be merged with other layers into a config.
-type agentConfigLayer struct {
-	ID                  string                 `json:"name"`
-	AgentConfig         map[string]interface{} `json:"config"`
+// agentConfigRaw represents the raw agent configuration from the CDN.
+// The contents are YAML and are ready to be written on disk.
+type agentConfigRaw struct {
+	AgentConfig         map[string]interface{} `json:"agent"`
 	SecurityAgentConfig map[string]interface{} `json:"security_agent"`
 	SystemProbeConfig   map[string]interface{} `json:"system_probe"`
 	IntegrationsConfig  []integration          `json:"integrations,omitempty"`
@@ -57,101 +56,67 @@ type integration struct {
 // State returns the agent policies state
 func (a *agentConfig) State() *pbgo.PoliciesState {
 	return &pbgo.PoliciesState{
-		MatchedPolicies: a.policyIDs,
+		MatchedPolicies: []string{a.policy},
 		Version:         a.version,
 	}
 }
 
-func newAgentConfig(orderedLayers ...[]byte) (*agentConfig, error) {
-	// Compile ordered layers into a single config
-	policyIDs := []string{}
-	compiledLayer := &agentConfigLayer{
-		AgentConfig:         map[string]interface{}{},
-		SecurityAgentConfig: map[string]interface{}{},
-		SystemProbeConfig:   map[string]interface{}{},
-		IntegrationsConfig:  []integration{},
+func newAgentConfig(rawConfig []byte) (*agentConfig, error) {
+	if len(rawConfig) == 0 {
+		return nil, nil
+	}
+	var config configLayer
+	if err := json.Unmarshal(rawConfig, &config); err != nil {
+		return nil, err
+	}
+	datadogAgentConfig := &agentConfigRaw{}
+	if err := json.Unmarshal(config.Config, datadogAgentConfig); err != nil {
+		return nil, err
+	}
+	if datadogAgentConfig.AgentConfig == nil && datadogAgentConfig.SecurityAgentConfig == nil && datadogAgentConfig.SystemProbeConfig == nil && len(datadogAgentConfig.IntegrationsConfig) == 0 {
+		return nil, nil
 	}
 
-	for _, rawLayer := range orderedLayers {
-		layer := &agentConfigLayer{}
-		if err := json.Unmarshal(rawLayer, layer); err != nil {
-			log.Warnf("Failed to unmarshal layer: %v", err)
-			continue
-		}
-		if layer.AgentConfig == nil && layer.SecurityAgentConfig == nil && layer.SystemProbeConfig == nil && len(layer.IntegrationsConfig) == 0 {
-			// Only add layers that have at least one config that matches the agent
-
-			continue
-		}
-
-		policyIDs = append(policyIDs, layer.ID)
-
-		if layer.AgentConfig != nil {
-			agentConfig, err := merge(compiledLayer.AgentConfig, layer.AgentConfig)
-			if err != nil {
-				return nil, err
-			}
-			compiledLayer.AgentConfig = agentConfig.(map[string]interface{})
-		}
-
-		if layer.SecurityAgentConfig != nil {
-			securityAgentConfig, err := merge(compiledLayer.SecurityAgentConfig, layer.SecurityAgentConfig)
-			if err != nil {
-				return nil, err
-			}
-			compiledLayer.SecurityAgentConfig = securityAgentConfig.(map[string]interface{})
-		}
-
-		if layer.SystemProbeConfig != nil {
-			systemProbeAgentConfig, err := merge(compiledLayer.SystemProbeConfig, layer.SystemProbeConfig)
-			if err != nil {
-				return nil, err
-			}
-			compiledLayer.SystemProbeConfig = systemProbeAgentConfig.(map[string]interface{})
-		}
-
-		if len(layer.IntegrationsConfig) > 0 {
-			compiledLayer.IntegrationsConfig = append(compiledLayer.IntegrationsConfig, layer.IntegrationsConfig...)
-		}
-	}
-
-	// Report applied layers
-	compiledLayer.AgentConfig[layerKeys] = policyIDs
+	// Report applied policy
+	datadogAgentConfig.AgentConfig[layerKeys] = []string{config.ID}
 
 	// Marshal into YAML configs
-	config, err := marshalYAMLConfig(compiledLayer.AgentConfig)
+	agentConfigYAML, err := marshalYAMLConfig(datadogAgentConfig.AgentConfig)
 	if err != nil {
 		return nil, err
 	}
-	securityAgentConfig, err := marshalYAMLConfig(compiledLayer.SecurityAgentConfig)
+	securityAgentConfigYAML, err := marshalYAMLConfig(datadogAgentConfig.SecurityAgentConfig)
 	if err != nil {
 		return nil, err
 	}
-	systemProbeConfig, err := marshalYAMLConfig(compiledLayer.SystemProbeConfig)
+	systemProbeConfigYAML, err := marshalYAMLConfig(datadogAgentConfig.SystemProbeConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	hash := sha256.New()
-	version, err := json.Marshal(compiledLayer)
+	version, err := json.Marshal(datadogAgentConfig)
 	if err != nil {
 		return nil, err
 	}
 	hash.Write(version)
 
 	return &agentConfig{
-		version:   fmt.Sprintf("%x", hash.Sum(nil)),
-		policyIDs: policyIDs,
+		version: fmt.Sprintf("%x", hash.Sum(nil)),
+		policy:  config.ID,
 
-		datadog:       config,
-		securityAgent: securityAgentConfig,
-		systemProbe:   systemProbeConfig,
-		integrations:  compiledLayer.IntegrationsConfig,
+		datadog:       agentConfigYAML,
+		securityAgent: securityAgentConfigYAML,
+		systemProbe:   systemProbeConfigYAML,
+		integrations:  datadogAgentConfig.IntegrationsConfig,
 	}, nil
 }
 
 // Write writes the agent configuration to the given directory.
 func (a *agentConfig) Write(dir string) error {
+	if a == nil {
+		return nil
+	}
 	ddAgentUID, ddAgentGID, err := getAgentIDs()
 	if err != nil {
 		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)

@@ -9,11 +9,12 @@ package cdn
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"regexp"
 
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/go-tuf/data"
 )
@@ -49,10 +50,10 @@ func (c *fetcherHTTP) close() error {
 }
 
 // get calls the Remote Config service to get the ordered layers.
-func (c *fetcherHTTP) get(ctx context.Context) ([][]byte, error) {
+func (c *fetcherHTTP) get(ctx context.Context, policy string) ([]byte, error) {
 	agentConfigUpdate, err := c.client.GetCDNConfigUpdate(
 		ctx,
-		[]string{"AGENT_CONFIG"},
+		[]string{"INSTALLER_CONFIG"},
 		// Always send 0 since we are relying on the CDN cache state instead of our own tracer cache. This will fetch the latest configs from the cache/CDN everytime.
 		0,
 		// Not using the roots; send the highest seen version of roots so don't received them all on every request
@@ -85,18 +86,17 @@ func (c *fetcherHTTP) get(ctx context.Context) ([][]byte, error) {
 		}
 	}
 
-	files := map[string][]byte{}
+	// Unmarshal RC results
+	policyRegex, err := regexp.Compile(fmt.Sprintf(policyConfigRegexTemplate, policy))
+	if err != nil {
+		return nil, err
+	}
 	for path, content := range agentConfigUpdate.TargetFiles {
-		pathMatches := datadogConfigIDRegexp.FindStringSubmatch(path)
+		pathMatches := policyRegex.FindStringSubmatch(path)
 		if len(pathMatches) != 2 {
-			log.Warnf("invalid config path: %s", path)
 			continue
 		}
-		files[pathMatches[1]] = content
+		return content, nil
 	}
-
-	return getOrderedScopedLayers(
-		files,
-		getScopeExprVars(c.env, c.hostTagsGetter),
-	)
+	return nil, fmt.Errorf("no configuration found for policy %s", policy)
 }

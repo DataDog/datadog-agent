@@ -69,8 +69,8 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 }
 
 // Install installs a package.
-func (i *InstallerExec) Install(ctx context.Context, url string, _ []string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "install", url)
+func (i *InstallerExec) Install(ctx context.Context, url string, _ []string, config []byte) (err error) {
+	cmd := i.newInstallerCmd(ctx, "install", url, "--config", string(config))
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
@@ -109,8 +109,8 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 }
 
 // InstallConfigExperiment installs an experiment.
-func (i *InstallerExec) InstallConfigExperiment(ctx context.Context, url string, version string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "install-config-experiment", url, version)
+func (i *InstallerExec) InstallConfigExperiment(ctx context.Context, url string, configBytes []byte) (err error) {
+	cmd := i.newInstallerCmd(ctx, "install-config-experiment", url, "--config", string(configBytes))
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }

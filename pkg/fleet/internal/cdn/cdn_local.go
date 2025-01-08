@@ -25,7 +25,7 @@ func newLocalFetcher(env *env.Env) (fetcher, error) {
 	}, nil
 }
 
-func (c *fetcherLocal) get(_ context.Context) (orderedLayers [][]byte, err error) {
+func (c *fetcherLocal) get(_ context.Context, policy string) (layer []byte, err error) {
 	f, err := os.ReadDir(c.dirPath)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't read directory %s: %w", c.dirPath, err)
@@ -45,7 +45,7 @@ func (c *fetcherLocal) get(_ context.Context) (orderedLayers [][]byte, err error
 		files[file.Name()] = contents
 	}
 
-	return getOrderedScopedLayers(files, nil)
+	return files[policy], nil
 }
 
 func (c *fetcherLocal) close() error {

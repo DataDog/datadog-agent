@@ -48,7 +48,7 @@ type Installer interface {
 	ConfigState(pkg string) (repository.State, error)
 	ConfigStates() (map[string]repository.State, error)
 
-	Install(ctx context.Context, url string, args []string) error
+	Install(ctx context.Context, url string, args []string, config []byte) error
 	Remove(ctx context.Context, pkg string) error
 	Purge(ctx context.Context)
 
@@ -56,7 +56,7 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(ctx context.Context, pkg string, version string) error
+	InstallConfigExperiment(ctx context.Context, pkg string, config []byte) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -157,7 +157,7 @@ func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error)
 }
 
 // Install installs or updates a package.
-func (i *installerImpl) Install(ctx context.Context, url string, args []string) error {
+func (i *installerImpl) Install(ctx context.Context, url string, args []string, configBytes []byte) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
@@ -207,7 +207,7 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
-	err = i.configurePackage(ctx, pkg.Name) // Config
+	err = i.configurePackage(ctx, pkg.Name, configBytes) // Config
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
 	}
@@ -216,7 +216,7 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 		// don't have an OCI. To properly configure their configuration repositories,
 		// we call configurePackage when setting up the installer; which is the only
 		// package that is always installed.
-		err = i.configurePackage(ctx, packageAPMLibraries)
+		err = i.configurePackage(ctx, packageAPMLibraries, configBytes)
 		if err != nil {
 			return fmt.Errorf("could not configure package: %w", err)
 		}
@@ -339,21 +339,15 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string) error {
+func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, configBytes []byte) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	config, err := i.cdn.Get(ctx, pkg)
+	config, err := i.cdn.FromBytes(pkg, configBytes)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrDownloadFailed,
 			fmt.Errorf("could not get cdn config: %w", err),
-		)
-	}
-	if config.State().GetVersion() != version {
-		return installerErrors.Wrap(
-			installerErrors.ErrDownloadFailed,
-			fmt.Errorf("version mismatch: expected %s, got %s", config.State().GetVersion(), version),
 		)
 	}
 
@@ -375,7 +369,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	}
 
 	configRepo := i.configs.Get(pkg)
-	err = configRepo.SetExperiment(version, tmpDir)
+	err = configRepo.SetExperiment(config.State().GetVersion(), tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
@@ -666,7 +660,7 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 	}
 }
 
-func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err error) {
+func (i *installerImpl) configurePackage(ctx context.Context, pkg string, configBytes []byte) (err error) {
 	if !i.env.RemotePolicies {
 		return nil
 	}
@@ -676,7 +670,7 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 
 	switch pkg {
 	case packageDatadogAgent, packageAPMInjector, packageAPMLibraries:
-		config, err := i.cdn.Get(ctx, pkg)
+		config, err := i.cdn.FromBytes(pkg, configBytes)
 		if err != nil {
 			return fmt.Errorf("could not get %s CDN config: %w", pkg, err)
 		}

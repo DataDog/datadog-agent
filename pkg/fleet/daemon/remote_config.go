@@ -193,6 +193,7 @@ type expectedState struct {
 
 type taskWithVersionParams struct {
 	Version     string   `json:"version"`
+	Flavor      string   `json:"flavor"`
 	InstallArgs []string `json:"install_args"`
 }
 

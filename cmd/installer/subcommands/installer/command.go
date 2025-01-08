@@ -283,6 +283,7 @@ func setupCommand() *cobra.Command {
 }
 
 func installCommand() *cobra.Command {
+	var config string
 	var installArgs []string
 	cmd := &cobra.Command{
 		Use:     "install <url>",
@@ -296,9 +297,10 @@ func installCommand() *cobra.Command {
 			}
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.url", args[0])
-			return i.Install(i.ctx, args[0], installArgs)
+			return i.Install(i.ctx, args[0], installArgs, []byte(config))
 		},
 	}
+	cmd.Flags().StringVar(&config, "config", "", "The configuration for the package")
 	cmd.Flags().StringArrayVarP(&installArgs, "install_args", "A", nil, "Arguments to pass to the package")
 	return cmd
 }
@@ -399,11 +401,12 @@ func promoteExperimentCommand() *cobra.Command {
 }
 
 func installConfigExperimentCommand() *cobra.Command {
+	var config string
 	cmd := &cobra.Command{
-		Use:     "install-config-experiment <package> <version>",
+		Use:     "install-config-experiment <package>",
 		Short:   "Install a config experiment",
 		GroupID: "installer",
-		Args:    cobra.ExactArgs(2),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_config_experiment")
 			if err != nil {
@@ -411,10 +414,10 @@ func installConfigExperimentCommand() *cobra.Command {
 			}
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
-			i.span.SetTag("params.version", args[1])
-			return i.InstallConfigExperiment(i.ctx, args[0], args[1])
+			return i.InstallConfigExperiment(i.ctx, args[0], []byte(config))
 		},
 	}
+	cmd.Flags().StringVar(&config, "config", "", "The configuration for the experiment")
 	return cmd
 }
 

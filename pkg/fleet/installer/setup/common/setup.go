@@ -111,7 +111,7 @@ func (s *Setup) Run() (err error) {
 	for _, p := range packages {
 		s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", p.name, p.version))
 	}
-	err = s.installPackage("datadog-installer", installerOCILayoutURL)
+	err = s.installPackage("datadog-installer", installerOCILayoutURL, nil) // TODO -- grab flavor config
 	if err != nil {
 		return fmt.Errorf("failed to install installer: %w", err)
 	}
@@ -121,7 +121,7 @@ func (s *Setup) Run() (err error) {
 	}
 	for _, p := range packages {
 		url := oci.PackageURL(s.Env, p.name, p.version)
-		err = s.installPackage(p.name, url)
+		err = s.installPackage(p.name, url, nil) // TODO -- grab flavor config
 		if err != nil {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}
@@ -131,14 +131,14 @@ func (s *Setup) Run() (err error) {
 }
 
 // installPackage mimicks the telemetry of calling the install package command
-func (s *Setup) installPackage(name string, url string) (err error) {
+func (s *Setup) installPackage(name string, url string, config []byte) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(s.Ctx, "install")
 	defer func() { span.Finish(err) }()
 	span.SetTag("url", url)
 	span.SetTopLevel()
 
 	s.Out.WriteString(fmt.Sprintf("Installing %s...\n", name))
-	err = s.installer.Install(ctx, url, nil)
+	err = s.installer.Install(ctx, url, nil, config)
 	if err != nil {
 		return err
 	}
