@@ -37,54 +37,69 @@ var (
 	unsupportedEnvVars = []string{
 		"DD_INSTALLER",
 		"DD_AGENT_FLAVOR",
-		"DD_HOST_TAGS",
 		"DD_UPGRADE",
-		"DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE",
 		"DD_INSTALL_ONLY",
+		"DD_FIPS_MODE",
+	}
+
+	// supportedEnvVars are the environment variables that are supported by the default script to be reported
+	// in the span
+	supportedEnvVars = []string{
+		"DD_ENV",
+		"DD_SITE",
+		"DD_TAGS",
+		"DD_HOST_TAGS",
+		"DD_URL",
+		"DD_REMOTE_UPDATES",
+		"DD_REMOTE_POLICIES",
+		"DD_FIPS_MODE",
+		"DD_SYSTEM_PROBE_ENSURE_CONFIG",
+		"DD_RUNTIME_SECURITY_CONFIG_ENABLED",
+		"DD_COMPLIANCE_CONFIG_ENABLED",
+		"DD_APM_INSTRUMENTATION_ENABLED",
+		"DD_APM_LIBRARIES",
+		"DD_NO_AGENT_INSTALL",
+		"DD_INSTALLER_REGISTRY_URL",
+		"DD_INSTALLER_REGISTRY_AUTH",
+		"DD_HOSTNAME",
+		"DD_PROXY_HTTP",
+		"DD_PROXY_HTTPS",
+		"DD_PROXY_NO_PROXY",
 	}
 )
 
 // SetupDefaultScript sets up the default installation
 func SetupDefaultScript(s *common.Setup) error {
+	// Telemetry
+	telemetrySupportedEnvVars(s, supportedEnvVars...)
+	if err := exitOnUnsupportedEnvVars(unsupportedEnvVars...); err != nil {
+		return err
+	}
+
 	// Installer management
-	s.Config.DatadogYAML.RemoteUpdates = true
-	s.Config.DatadogYAML.RemotePolicies = true
-	if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok && strings.ToLower(val) == "false" {
-		s.Config.DatadogYAML.RemoteUpdates = false
-	}
-	if val, ok := os.LookupEnv("DD_REMOTE_POLICIES"); ok && strings.ToLower(val) == "false" {
-		s.Config.DatadogYAML.RemotePolicies = false
-	}
-	registryURL, registryURLOk := os.LookupEnv("DD_INSTALLER_REGISTRY_URL")
-	registryAuth, registryAuthOk := os.LookupEnv("DD_INSTALLER_REGISTRY_AUTH")
-	if registryURLOk || registryAuthOk {
-		s.Config.DatadogYAML.Installer = common.DatadogConfigInstaller{
-			Registry: common.DatadogConfigInstallerRegistry{
-				URL:  registryURL,
-				Auth: registryAuth,
-			},
-		}
-	}
+	setConfigInstallerDaemon(s)
+	setConfigInstallerRegistries(s)
 
 	// Config management
-	warnUnsupportedEnvVars(s, unsupportedEnvVars...)
-	if tags, ok := os.LookupEnv("DD_TAGS"); ok {
-		s.Config.DatadogYAML.Tags = strings.Split(tags, ",")
-	}
-
-	if _, ok := os.LookupEnv("DD_FIPS_MODE"); ok {
-		return fmt.Errorf("the Datadog Installer doesn't support FIPS mode")
-	}
+	setConfigTags(s)
+	setConfigSecurityProducts(s)
 
 	if url, ok := os.LookupEnv("DD_URL"); ok {
 		s.Config.DatadogYAML.DDURL = url
 	}
 
-	// Feature enablement through environment variables
-	_, systemProbeEnsureConfigOk := os.LookupEnv("DD_SYSTEM_PROBE_ENSURE_CONFIG")
+	// Install packages
+	installAgentPackage(s)
+	installAPMPackages(s)
+
+	return nil
+}
+
+// setConfigSecurityProducts sets the configuration for the security products
+func setConfigSecurityProducts(s *common.Setup) {
 	runtimeSecurityConfigEnabled, runtimeSecurityConfigEnabledOk := os.LookupEnv("DD_RUNTIME_SECURITY_CONFIG_ENABLED")
 	complianceConfigEnabled, complianceConfigEnabledOk := os.LookupEnv("DD_COMPLIANCE_CONFIG_ENABLED")
-	if systemProbeEnsureConfigOk || runtimeSecurityConfigEnabledOk || complianceConfigEnabledOk {
+	if runtimeSecurityConfigEnabledOk || complianceConfigEnabledOk {
 		s.Config.SecurityAgentYAML = &common.SecurityAgentConfig{}
 		s.Config.SystemProbeYAML = &common.SystemProbeConfig{}
 	}
@@ -101,12 +116,55 @@ func SetupDefaultScript(s *common.Setup) error {
 			Enabled: true,
 		}
 	}
+}
 
+// setConfigInstallerDaemon sets the daemon in the configuration
+func setConfigInstallerDaemon(s *common.Setup) {
+	s.Config.DatadogYAML.RemoteUpdates = true
+	s.Config.DatadogYAML.RemotePolicies = true
+	if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok && strings.ToLower(val) == "false" {
+		s.Config.DatadogYAML.RemoteUpdates = false
+	}
+	if val, ok := os.LookupEnv("DD_REMOTE_POLICIES"); ok && strings.ToLower(val) == "false" {
+		s.Config.DatadogYAML.RemotePolicies = false
+	}
+}
+
+// setConfigInstallerRegistries sets the registries in the configuration
+func setConfigInstallerRegistries(s *common.Setup) {
+	registryURL, registryURLOk := os.LookupEnv("DD_INSTALLER_REGISTRY_URL")
+	registryAuth, registryAuthOk := os.LookupEnv("DD_INSTALLER_REGISTRY_AUTH")
+	if registryURLOk || registryAuthOk {
+		s.Config.DatadogYAML.Installer = common.DatadogConfigInstaller{
+			Registry: common.DatadogConfigInstallerRegistry{
+				URL:  registryURL,
+				Auth: registryAuth,
+			},
+		}
+	}
+}
+
+// setConfigTags sets the tags in the configuration
+func setConfigTags(s *common.Setup) {
+	if tags, ok := os.LookupEnv("DD_TAGS"); ok {
+		s.Config.DatadogYAML.Tags = strings.Split(tags, ",")
+	} else {
+		if tags, ok := os.LookupEnv("DD_HOST_TAGS"); ok {
+			s.Config.DatadogYAML.Tags = strings.Split(tags, ",")
+		}
+	}
+}
+
+// installAgentPackage installs the agent package
+func installAgentPackage(s *common.Setup) {
 	// Agent install
 	if _, ok := os.LookupEnv("DD_NO_AGENT_INSTALL"); !ok {
 		s.Packages.Install(common.DatadogAgentPackage, agentVersion(s.Env))
 	}
+}
 
+// installAPMPackages installs the APM packages
+func installAPMPackages(s *common.Setup) {
 	// Injector install
 	_, apmInstrumentationEnabled := os.LookupEnv("DD_APM_INSTRUMENTATION_ENABLED")
 	if apmInstrumentationEnabled {
@@ -122,8 +180,6 @@ func SetupDefaultScript(s *common.Setup) error {
 			s.Packages.Install(library, getLibraryVersion(s.Env, library))
 		}
 	}
-
-	return nil
 }
 
 // packageToLanguage returns the language of an APM package
@@ -156,14 +212,23 @@ func getLibraryVersion(env *env.Env, library string) string {
 	return versionTag
 }
 
-func warnUnsupportedEnvVars(s *common.Setup, envVars ...string) {
-	var setUnsupported []string
+func exitOnUnsupportedEnvVars(envVars ...string) error {
+	var unsupported []string
 	for _, envVar := range envVars {
 		if _, ok := os.LookupEnv(envVar); ok {
-			setUnsupported = append(setUnsupported, envVar)
+			unsupported = append(unsupported, envVar)
 		}
 	}
-	s.Out.WriteString(fmt.Sprintf("Warning: options '%s' are not supported and will be ignored\n", strings.Join(setUnsupported, "', '")))
+	if len(unsupported) > 0 {
+		return fmt.Errorf("unsupported environment variables: %s, exiting setup", strings.Join(unsupported, ", "))
+	}
+	return nil
+}
+
+func telemetrySupportedEnvVars(s *common.Setup, envVars ...string) {
+	for _, envVar := range envVars {
+		s.Span.SetTag(fmt.Sprintf("env.%s", envVar), os.Getenv(envVar))
+	}
 }
 
 func agentVersion(e *env.Env) string {
