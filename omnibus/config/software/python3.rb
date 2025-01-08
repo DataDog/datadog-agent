@@ -141,8 +141,8 @@ build do
       project.sign_file python
       project.sign_file "#{windows_safe_path(python_3_embedded)}\\python3.dll"
       project.sign_file "#{windows_safe_path(python_3_embedded)}\\python312.dll"
-      project.sign_file "#{windows_safe_path(python_3_embedded)}\\DLLs\\libcrypto-3.dll"
-      project.sign_file "#{windows_safe_path(python_3_embedded)}\\DLLs\\libssl-3.dll"
+      project.sign_file "#{windows_safe_path(python_3_embedded)}\\DLLs\\libcrypto-3-x64.dll"
+      project.sign_file "#{windows_safe_path(python_3_embedded)}\\DLLs\\libssl-3-x64.dll"
       project.sign_file "#{windows_safe_path(python_3_embedded)}\\bin\\openssl.exe"
     end
   end
