@@ -24,6 +24,14 @@ type (
 		DstIP       net.IP
 		TCPResponse layers.TCP
 	}
+
+	// TCPParser encapsulates everything needed to
+	// decode TCP packets off the wire into structs
+	TCPParser struct {
+		layer               layers.TCP
+		decoded             []gopacket.LayerType
+		decodingLayerParser *gopacket.DecodingLayerParser
+	}
 )
 
 // reserveLocalPort reserves an ephemeral TCP port
@@ -93,12 +101,6 @@ func createRawTCPSynBuffer(sourceIP net.IP, sourcePort uint16, destIP net.IP, de
 	}
 
 	return &ipHdr, packet, 20, nil
-}
-
-type TCPParser struct {
-	layer               layers.TCP
-	decoded             []gopacket.LayerType
-	decodingLayerParser *gopacket.DecodingLayerParser
 }
 
 func newTCPParser() *TCPParser {

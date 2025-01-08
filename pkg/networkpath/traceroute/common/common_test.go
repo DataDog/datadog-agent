@@ -26,7 +26,8 @@ var (
 	innerDstIP = net.ParseIP("192.168.1.1")
 )
 
-func Test_parseICMP(t *testing.T) {
+// TODO: rename this
+func Test_parseICMPTCP(t *testing.T) {
 	ipv4Header := testutils.CreateMockIPv4Header(srcIP, dstIP, 1)
 	icmpLayer := testutils.CreateMockICMPLayer(layers.ICMPv4CodeTTLExceeded)
 	innerIPv4Layer := testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP)
@@ -72,13 +73,13 @@ func Test_parseICMP(t *testing.T) {
 			inHeader:    ipv4Header,
 			inPayload:   testutils.CreateMockICMPPacket(nil, icmpLayer, innerIPv4Layer, innerTCPLayer, true),
 			expected: &ICMPResponse{
-				SrcIP:        srcIP,
-				DstIP:        dstIP,
-				InnerSrcIP:   innerSrcIP,
-				InnerDstIP:   innerDstIP,
-				InnerSrcPort: 12345,
-				InnerDstPort: 443,
-				InnerSeqNum:  28394,
+				SrcIP:           srcIP,
+				DstIP:           dstIP,
+				InnerSrcIP:      innerSrcIP,
+				InnerDstIP:      innerDstIP,
+				InnerSrcPort:    12345,
+				InnerDstPort:    443,
+				InnerIdentifier: 28394,
 			},
 			errMsg: "",
 		},
@@ -87,13 +88,13 @@ func Test_parseICMP(t *testing.T) {
 			inHeader:    ipv4Header,
 			inPayload:   testutils.CreateMockICMPPacket(nil, icmpLayer, innerIPv4Layer, innerTCPLayer, true),
 			expected: &ICMPResponse{
-				SrcIP:        srcIP,
-				DstIP:        dstIP,
-				InnerSrcIP:   innerSrcIP,
-				InnerDstIP:   innerDstIP,
-				InnerSrcPort: 12345,
-				InnerDstPort: 443,
-				InnerSeqNum:  28394,
+				SrcIP:           srcIP,
+				DstIP:           dstIP,
+				InnerSrcIP:      innerSrcIP,
+				InnerDstIP:      innerDstIP,
+				InnerSrcPort:    12345,
+				InnerDstPort:    443,
+				InnerIdentifier: 28394,
 			},
 			errMsg: "",
 		},
@@ -101,7 +102,8 @@ func Test_parseICMP(t *testing.T) {
 
 	for _, test := range tt {
 		t.Run(test.description, func(t *testing.T) {
-			actual, err := ParseICMP(test.inHeader, test.inPayload)
+			icmpParser := NewICMPTCPParser()
+			actual, err := icmpParser.Parse(test.inHeader, test.inPayload)
 			if test.errMsg != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.errMsg)
@@ -118,7 +120,7 @@ func Test_parseICMP(t *testing.T) {
 			assert.Truef(t, test.expected.InnerDstIP.Equal(actual.InnerDstIP), "mismatch inner dest IPs: expected %s, got %s", test.expected.InnerDstIP.String(), actual.InnerDstIP.String())
 			assert.Equal(t, test.expected.InnerSrcPort, actual.InnerSrcPort)
 			assert.Equal(t, test.expected.InnerDstPort, actual.InnerDstPort)
-			assert.Equal(t, test.expected.InnerSeqNum, actual.InnerSeqNum)
+			assert.Equal(t, test.expected.InnerIdentifier, actual.InnerIdentifier)
 		})
 	}
 }

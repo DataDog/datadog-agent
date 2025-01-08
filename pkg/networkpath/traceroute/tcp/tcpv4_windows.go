@@ -23,13 +23,11 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	log.Debugf("Running traceroute to %+v", t)
 	// Get local address for the interface that connects to this
 	// host and store in in the probe
-	//
-	// TODO: do this once for the probe and hang on to the
-	// listener until we decide to close the probe
-	addr, err := common.LocalAddrForHost(t.Target, t.DestPort)
+	addr, conn, err := common.LocalAddrForHost(t.Target, t.DestPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local address for target: %w", err)
 	}
+	defer conn.Close()
 	t.srcIP = addr.IP
 	t.srcPort = addr.AddrPort().Port()
 
@@ -78,9 +76,10 @@ func (t *TCPv4) sendAndReceive(rs *common.Winrawsocket, ttl int, seqNum uint32, 
 		return nil, err
 	}
 
+	icmpParser := common.NewICMPTCPParser()
 	tcpParser := newTCPParser()
 	matcherFuncs := map[int]common.MatcherFunc{
-		windows.IPPROTO_ICMP: common.MatchICMP,
+		windows.IPPROTO_ICMP: icmpParser.MatchICMP,
 		windows.IPPROTO_TCP:  tcpParser.MatchTCP,
 	}
 	start := time.Now() // TODO: is this the best place to start?

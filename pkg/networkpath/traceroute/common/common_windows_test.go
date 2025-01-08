@@ -339,7 +339,8 @@ func Test_MatchICMP(t *testing.T) {
 
 	for _, test := range tts {
 		t.Run(test.description, func(t *testing.T) {
-			actualIP, err := MatchICMP(test.header, test.payload, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
+			icmpParser := NewICMPTCPParser()
+			actualIP, err := icmpParser.MatchICMP(test.header, test.payload, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
 			if test.expectedErrMsg != "" {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), test.expectedErrMsg), fmt.Sprintf("expected %q, got %q", test.expectedErrMsg, err.Error()))

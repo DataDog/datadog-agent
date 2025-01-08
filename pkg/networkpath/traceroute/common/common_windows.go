@@ -164,15 +164,15 @@ func (w *Winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 	}
 }
 
-func MatchICMP(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, error) {
+func (p *ICMPParser) MatchICMP(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32) (net.IP, error) {
 	if header.Protocol != windows.IPPROTO_ICMP {
 		return net.IP{}, errors.New("expected an ICMP packet")
 	}
-	icmpResponse, err := ParseICMP(header, packet)
+	icmpResponse, err := p.Parse(header, packet)
 	if err != nil {
 		return net.IP{}, fmt.Errorf("ICMP parse error: %w", err)
 	}
-	if !ICMPMatch(localIP, localPort, remoteIP, remotePort, seqNum, icmpResponse) {
+	if !ICMPMatch(localIP, localPort, remoteIP, remotePort, innerIdentifier, icmpResponse) {
 		return net.IP{}, MismatchError("ICMP packet doesn't match")
 	}
 
