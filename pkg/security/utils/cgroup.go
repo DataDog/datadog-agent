@@ -226,8 +226,8 @@ func NewCGroupFS(cgroupMountPoints ...string) *CGroupFS {
 	return cfs
 }
 
-// FindCGroupContext returns the container ID, cgroup context and cgroup.procs file path the process belongs to.
-// Returns "" as container ID and cgroup.procs path, and an empty CGroupContext if the process does not belong to a container.
+// FindCGroupContext returns the container ID, cgroup context and cgroup path the process belongs to.
+// Returns "" as container ID and sysfs cgroup path, and an empty CGroupContext if the process does not belong to a container.
 func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.ContainerID, model.CGroupContext, string, error) {
 	if len(cfs.cGroupMountPoints) == 0 {
 		return "", model.CGroupContext{}, "", ErrNoCGroupMountpoint
@@ -236,7 +236,7 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 	var (
 		containerID     containerutils.ContainerID
 		cgroupContext   model.CGroupContext
-		cgroupProcsPath string
+		sysFScGroupPath string
 	)
 
 	err := parseProcControlGroups(tgid, pid, func(_, ctrl, path string) bool {
@@ -251,21 +251,21 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 
 		ctrlDirectory := strings.TrimPrefix(ctrl, "name=")
 		for _, mountpoint := range cfs.cGroupMountPoints {
-			procsPath := filepath.Join(mountpoint, ctrlDirectory, path, "cgroup.procs")
-			if exists, err := checkPidExists(procsPath, pid); err == nil && exists {
+			cgroupPath := filepath.Join(mountpoint, ctrlDirectory, path)
+			if exists, err := checkPidExists(cgroupPath, pid); err == nil && exists {
 				cgroupID := containerutils.CGroupID(path)
 				ctrID, flags := containerutils.FindContainerID(cgroupID)
 				cgroupContext.CGroupID = cgroupID
 				cgroupContext.CGroupFlags = containerutils.CGroupFlags(flags)
 				containerID = ctrID
-				cgroupProcsPath = procsPath
+				sysFScGroupPath = cgroupPath
 
 				var fileStatx unix.Statx_t
 				var fileStats unix.Stat_t
-				if err := unix.Statx(unix.AT_FDCWD, procsPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStatx); err == nil {
+				if err := unix.Statx(unix.AT_FDCWD, sysFScGroupPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStatx); err == nil {
 					cgroupContext.CGroupFile.MountID = uint32(fileStatx.Mnt_id)
 					cgroupContext.CGroupFile.Inode = fileStatx.Ino
-				} else if err := unix.Stat(procsPath, &fileStats); err == nil {
+				} else if err := unix.Stat(sysFScGroupPath, &fileStats); err == nil {
 					cgroupContext.CGroupFile.Inode = fileStats.Ino
 				}
 				return true
@@ -277,10 +277,11 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 		return "", model.CGroupContext{}, "", err
 	}
 
-	return containerID, cgroupContext, cgroupProcsPath, nil
+	return containerID, cgroupContext, sysFScGroupPath, nil
 }
 
-func checkPidExists(cgroupProcsPath string, expectedPid uint32) (bool, error) {
+func checkPidExists(sysFsPath string, expectedPid uint32) (bool, error) {
+	cgroupProcsPath := filepath.Join(sysFsPath, "cgroup.procs")
 	data, err := os.ReadFile(cgroupProcsPath)
 	if err != nil {
 		return false, err
