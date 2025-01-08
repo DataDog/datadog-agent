@@ -80,7 +80,7 @@ func (ri *RecommenderInterface) process() {
 			}
 			log.Debugf("Updating local fallback values for pod autoscaler %s", podAutoscaler.ID())
 			podAutoscaler.UpdateFromLocalValues(*horizontalRecommendation)
-			ri.store.UnlockSet(podAutoscaler.ID(), podAutoscaler, localRecommenderID)
+			ri.store.Set(podAutoscaler.ID(), podAutoscaler, localRecommenderID) // should we be holding the lock here??
 		}
 	}
 }

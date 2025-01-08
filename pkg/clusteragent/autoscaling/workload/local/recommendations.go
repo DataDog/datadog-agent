@@ -426,7 +426,7 @@ func convertTimestampToTime(timestamp Timestamp) time.Time {
 
 func convertCpuRequestToMillicores(cpuRequests float64) float64 {
 	// Current implementation takes Mi value and returns .AsApproximateFloat64()*100
-	// For 100Mi, AsApproximate returns 0.1; we return 10
+	// For 100m, AsApproximate returns 0.1; we return 10%
 	// This helper converts value back to Mi units
-	return cpuRequests * 10
+	return cpuRequests / 100
 }
