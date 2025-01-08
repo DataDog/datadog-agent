@@ -299,7 +299,7 @@ namespace WixSetup.Datadog_Agent
                     Return.ignore,
                     When.Before,
                     Step.RemoveFiles,
-                    Conditions.RemovingForUpgrade | Conditions.Maintenance | Conditions.Uninstalling
+                    Conditions.RemovingForUpgrade | Conditions.Maintenance
                 )
             {
                 Execute = Execute.deferred,
