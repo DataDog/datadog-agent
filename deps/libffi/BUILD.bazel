@@ -10,8 +10,8 @@ configure_make(
     out_shared_libs = select({
         "@platforms//os:linux": [
             "libffi.so",
-            "libffi.so.6",
-            "libffi.so.6.0.4",
+            "libffi.so.8",
+            "libffi.so.8.1.4",
         ],
     }),
     visibility = ["//visibility:public"],
