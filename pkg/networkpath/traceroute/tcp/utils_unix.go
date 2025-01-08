@@ -101,6 +101,7 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
 	buf := make([]byte, 1024)
 	tp := newTCPParser()
+	icmpParser := common.NewICMPTCPParser()
 	for {
 		select {
 		case <-ctx.Done():
@@ -128,7 +129,7 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, lo
 		// TODO: remove listener constraint and parse all packets
 		// in the same function return a succinct struct here
 		if listener == "icmp" {
-			icmpResponse, err := common.ParseICMP(header, packet)
+			icmpResponse, err := icmpParser.Parse(header, packet)
 			if err != nil {
 				log.Tracef("failed to parse ICMP packet: %s", err)
 				continue

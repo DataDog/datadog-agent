@@ -6,6 +6,7 @@
 package tcp
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"syscall"
@@ -22,6 +23,14 @@ type (
 		SrcIP       net.IP
 		DstIP       net.IP
 		TCPResponse layers.TCP
+	}
+
+	// TCPParser encapsulates everything needed to
+	// decode TCP packets off the wire into structs
+	TCPParser struct {
+		layer               layers.TCP
+		decoded             []gopacket.LayerType
+		decodingLayerParser *gopacket.DecodingLayerParser
 	}
 )
 
@@ -94,22 +103,19 @@ func createRawTCPSynBuffer(sourceIP net.IP, sourcePort uint16, destIP net.IP, de
 	return &ipHdr, packet, 20, nil
 }
 
-type tcpParser struct {
-	layer               layers.TCP
-	decoded             []gopacket.LayerType
-	decodingLayerParser *gopacket.DecodingLayerParser
-}
-
-func newTCPParser() *tcpParser {
-	tcpParser := &tcpParser{}
+func newTCPParser() *TCPParser {
+	tcpParser := &TCPParser{}
 	tcpParser.decodingLayerParser = gopacket.NewDecodingLayerParser(layers.LayerTypeTCP, &tcpParser.layer)
 	return tcpParser
 }
 
-func (tp *tcpParser) parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
+func (tp *TCPParser) parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
 	if header.Protocol != syscall.IPPROTO_TCP || header.Version != 4 ||
 		header.Src == nil || header.Dst == nil {
 		return nil, fmt.Errorf("invalid IP header for TCP packet: %+v", header)
+	}
+	if len(payload) <= 0 {
+		return nil, errors.New("received empty TCP payload")
 	}
 
 	if err := tp.decodingLayerParser.DecodeLayers(payload, &tp.decoded); err != nil {
