@@ -179,7 +179,6 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
         for i in range(n):
             new_job = copy.deepcopy(kept_job[job])
             new_job["stage"] = f"flake-finder-{i}"
-            new_job["dependencies"] = ["go_e2e_deps"]
             if 'variables' in new_job:
                 # Variables that reference the parent pipeline should be updated
                 for key, value in new_job['variables'].items():
@@ -205,6 +204,8 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
                 if 'E2E_PRE_INITIALIZED' in new_job['variables']:
                     del new_job['variables']['E2E_PRE_INITIALIZED']
             new_job["rules"] = [{"when": "always"}]
+            if i > 0:
+                new_job["needs"].append(f"{job}-{i - 1}")
             new_jobs[f"{job}-{i}"] = new_job
 
     with open("flake-finder-gitlab-ci.yml", "w") as f:
