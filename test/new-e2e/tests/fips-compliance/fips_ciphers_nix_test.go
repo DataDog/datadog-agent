@@ -152,7 +152,7 @@ func runFipsServer(v *fipsServerSuite, tc cipherTestCase, composeFiles string) {
 }
 
 func runAgentDiagnose(v *fipsServerSuite) {
-	_ = v.Env().Docker.Client.ExecuteCommand("datadog-agent", `sh`, `-c`, `DD_DD_URL=https://dd-fips-server:443 agent diagnose --include connectivity-datadog-core-endpoints --local`)
+	_ = v.Env().Docker.Client.ExecuteCommand("datadog-agent", `sh`, `-c`, `GOFIPS=1 DD_DD_URL=https://dd-fips-server:443 agent diagnose --include connectivity-datadog-core-endpoints --local`)
 }
 
 func stopFipsServer(v *fipsServerSuite, composeFiles string) {
