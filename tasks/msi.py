@@ -13,7 +13,7 @@ from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.common.utils import download_to_tempfile, timed
-from tasks.libs.releasing.version import get_version, load_release_versions
+from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version, load_release_versions
 
 # Windows only import
 try:
@@ -80,6 +80,7 @@ def _get_env(ctx, major_version='7', release_version='nightly'):
     env['AGENT_FLAVOR'] = os.getenv("AGENT_FLAVOR", "")
     env['AGENT_INSTALLER_OUTPUT_DIR'] = BUILD_OUTPUT_DIR
     env['NUGET_PACKAGES_DIR'] = NUGET_PACKAGES_DIR
+    env['AGENT_PRODUCT_NAME_SUFFIX'] = ""
 
     return env
 
@@ -272,13 +273,15 @@ def _build_msi(ctx, env, outdir, name, allowlist):
 
 def _msi_output_name(env):
     if _is_fips_mode(env):
-        return f"datadog-fips-agent-{env['PACKAGE_VERSION']}-1-x86_64"
+        return f"datadog-fips-agent-{env['AGENT_PRODUCT_NAME_SUFFIX']}{env['PACKAGE_VERSION']}-1-x86_64"
     else:
-        return f"datadog-agent-{env['PACKAGE_VERSION']}-1-x86_64"
+        return f"datadog-agent-{env['AGENT_PRODUCT_NAME_SUFFIX']}{env['PACKAGE_VERSION']}-1-x86_64"
 
 
 @task
-def build(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
+def build(
+    ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False, build_upgrade=False
+):
     """
     Build the MSI installer for the agent
     """
@@ -320,12 +323,25 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', release_version
         # And copy it to the final output path as a build artifact
         shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
 
-    # if the optional upgrade test helper exists then build that too
-    optional_name = "datadog-agent-7.43.0~rc.3+git.485.14b9337-1-x86_64"
-    if os.path.exists(os.path.join(build_outdir, optional_name + ".wxs")):
+    # Build the optional upgrade test helper
+    if build_upgrade:
+        print("Building optional upgrade test helper")
+        upgrade_env = env.copy()
+        version = _create_version_from_match(VERSION_RE.search(env['PACKAGE_VERSION']))
+        next_version = version.next_version(bump_patch=True)
+        upgrade_env['PACKAGE_VERSION'] = upgrade_env['PACKAGE_VERSION'].replace(str(version), str(next_version))
+        upgrade_env['AGENT_PRODUCT_NAME_SUFFIX'] = "upgrade-test-"
+        _build_wxs(
+            ctx,
+            upgrade_env,
+            build_outdir,
+            'AgentCustomActions.CA.dll',
+        )
+        msi_name = _msi_output_name(upgrade_env)
+        print(os.path.join(build_outdir, msi_name + ".wxs"))
         with timed("Building optional MSI"):
-            _build_msi(ctx, env, build_outdir, optional_name, DATADOG_AGENT_MSI_ALLOW_LIST)
-            shutil.copy2(os.path.join(build_outdir, optional_name + '.msi'), OUTPUT_PATH)
+            _build_msi(ctx, env, build_outdir, msi_name, DATADOG_AGENT_MSI_ALLOW_LIST)
+            shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
 
 
 @task

@@ -6,7 +6,8 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+fixes:
   - |
-    Add ``apm_config.obfuscation.cache.max_size`` to set the maximum size of the
-    cache in bytes.
+    Fix an issue where the remote workloadmeta was not receiving some unset
+    events for ECS containers, causing incorrect billing in CWS, CSPM, CSM Pro, CSM
+    Enterprise, and DevSecOps Enterprise Containers.
