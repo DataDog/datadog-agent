@@ -22,6 +22,8 @@ import (
 type FallbackConstantFetcher struct {
 	kernelVersion *kernel.Version
 	res           map[string]uint64
+
+	callbacks map[string]func(*kernel.Version) uint64
 }
 
 // NewFallbackConstantFetcher returns a new FallbackConstantFetcher
@@ -29,6 +31,8 @@ func NewFallbackConstantFetcher(kv *kernel.Version) *FallbackConstantFetcher {
 	return &FallbackConstantFetcher{
 		kernelVersion: kv,
 		res:           make(map[string]uint64),
+
+		callbacks: computeFallbackTable(),
 	}
 }
 
@@ -36,151 +40,86 @@ func (f *FallbackConstantFetcher) String() string {
 	return "fallback"
 }
 
+func computeFallbackTable() map[string]func(*kernel.Version) uint64 {
+	return map[string]func(*kernel.Version) uint64{
+		SizeOfInode:                               getSizeOfStructInode,
+		OffsetNameSuperBlockStructSFlags:          getSuperBlockFlagsOffset,
+		OffsetNameSuperBlockStructSMagic:          getSuperBlockMagicOffset,
+		OffsetNameSignalStructStructTTY:           getSignalTTYOffset,
+		OffsetNameTTYStructStructName:             getTTYNameOffset,
+		OffsetNameCredStructUID:                   getCredsUIDOffset,
+		OffsetNameCredStructCapInheritable:        getCredCapInheritableOffset,
+		OffsetNameBPFMapStructID:                  getBpfMapIDOffset,
+		OffsetNameBPFMapStructName:                getBpfMapNameOffset,
+		OffsetNameBPFMapStructMapType:             getBpfMapTypeOffset,
+		OffsetNameBPFProgStructAux:                getBpfProgAuxOffset,
+		OffsetNameBPFProgStructTag:                getBpfProgTagOffset,
+		OffsetNameBPFProgStructType:               getBpfProgTypeOffset,
+		OffsetNameBPFProgStructExpectedAttachType: getBpfProgAttachTypeOffset,
+		OffsetNameBPFProgAuxStructID:              getBpfProgAuxIDOffset,
+		OffsetNameBPFProgAuxStructName:            getBpfProgAuxNameOffset,
+		OffsetNamePIDStructLevel:                  getPIDLevelOffset,
+		OffsetNamePIDStructNumbers:                getPIDNumbersOffset,
+		SizeOfUPID:                                getSizeOfUpid,
+		OffsetNameTaskStructPID:                   getTaskStructPIDOffset,
+		OffsetNameTaskStructPIDLink:               getTaskStructPIDLinkOffset,
+		OffsetNamePIDLinkStructPID:                getPIDLinkPIDOffset,
+		OffsetNameDentryStructDSB:                 getDentrySuperBlockOffset,
+		OffsetNamePipeInodeInfoStructBufs:         getPipeInodeInfoBufsOffset,
+		OffsetNamePipeInodeInfoStructNrbufs:       getPipeInodeInfoStructNrbufs,
+		OffsetNamePipeInodeInfoStructCurbuf:       getPipeInodeInfoStructCurbuf,
+		OffsetNamePipeInodeInfoStructBuffers:      getPipeInodeInfoStructBuffers,
+		OffsetNamePipeInodeInfoStructHead:         getPipeInodeInfoStructHead,
+		OffsetNamePipeInodeInfoStructRingsize:     getPipeInodeInfoStructRingsize,
+		OffsetNameNetDeviceStructIfIndex:          getNetDeviceIfindexOffset,
+		OffsetNameNetDeviceStructName:             getNetDeviceNameOffset,
+		OffsetNameNetStructNS:                     getNetNSOffset,
+		OffsetNameNetStructProcInum:               getNetProcINumOffset,
+		OffsetNameSockCommonStructSKCNet:          getSockCommonSKCNetOffset,
+		OffsetNameSocketStructSK:                  getSocketSockOffset,
+		OffsetNameNFConnStructCTNet:               getNFConnCTNetOffset,
+		OffsetNameSockCommonStructSKCFamily:       getSockCommonSKCFamilyOffset,
+		OffsetNameFlowI4StructSADDR:               getFlowi4SAddrOffset,
+		OffsetNameFlowI6StructSADDR:               getFlowi6SAddrOffset,
+		OffsetNameFlowI4StructULI:                 getFlowi4ULIOffset,
+		OffsetNameFlowI6StructULI:                 getFlowi6ULIOffset,
+		OffsetNameLinuxBinprmStructFile:           getBinPrmFileFieldOffset,
+		OffsetNameIoKiocbStructCtx:                getIoKcbCtxOffset,
+		OffsetNameLinuxBinprmP:                    getLinuxBinPrmPOffset,
+		OffsetNameLinuxBinprmArgc:                 getLinuxBinPrmArgcOffset,
+		OffsetNameLinuxBinprmEnvc:                 getLinuxBinPrmEnvcOffset,
+		OffsetNameVMAreaStructFlags:               getVMAreaStructFlagsOffset,
+		OffsetNameKernelCloneArgsExitSignal:       getKernelCloneArgsExitSignalOffset,
+		OffsetNameFileFinode:                      getFileFinodeOffset,
+		OffsetNameFileFpath:                       getFileFpathOffset,
+		OffsetNameDentryDSb:                       getDentryDsbOffset,
+		OffsetNameMountMntID:                      getMountIDOffset,
+		OffsetNameRenameStructOldDentry:           getRenameStructOldDentryOffset,
+		OffsetNameRenameStructNewDentry:           getRenameStructNewDentryOffset,
+		OffsetInodeIno:                            getInodeInoOffset,
+		OffsetInodeGid:                            getInodeGIDOffset,
+		OffsetInodeNlink:                          getInodeNlinkOffset,
+		OffsetInodeMtime:                          getInodeMtimeOffset,
+		OffsetInodeCtime:                          getInodeCtimeOffset,
+		OffsetNameSbDev:                           getSuperBlockDevOffset,
+		OffsetNameDentryDInode:                    getDentryDInodeOffset,
+		OffsetNamePathDentry:                      getPathDentryOffset,
+		OffsetNameInodeSuperblock:                 getInodeSuperblockOffset,
+		OffsetNamePathMnt:                         getPathMntOffset,
+		OffsetNameMountMntMountpoint:              getMountMntMountpointOffset,
+		OffsetNameMountpointDentry:                getMountpointDentryOffset,
+		OffsetNameVfsmountMntFlags:                getVfsmountMntFlagsOffset,
+		OffsetNameSuperblockSType:                 getSuperblockSTypeOffset,
+		OffsetNameVfsmountMntRoot:                 getVfsmountMntRootOffset,
+		OffsetNameDentryDName:                     getDentryDNameOffset,
+		OffsetNameVfsmountMntSb:                   getVfsmountMntSbOffset,
+	}
+}
+
 func (f *FallbackConstantFetcher) appendRequest(id string) {
 	var value = ErrorSentinel
-	switch id {
-	case SizeOfInode:
-		value = getSizeOfStructInode(f.kernelVersion)
-	case OffsetNameSuperBlockStructSFlags:
-		value = getSuperBlockFlagsOffset(f.kernelVersion)
-	case OffsetNameSuperBlockStructSMagic:
-		value = getSuperBlockMagicOffset(f.kernelVersion)
-	case OffsetNameSignalStructStructTTY:
-		value = getSignalTTYOffset(f.kernelVersion)
-	case OffsetNameTTYStructStructName:
-		value = getTTYNameOffset(f.kernelVersion)
-	case OffsetNameCredStructUID:
-		value = getCredsUIDOffset(f.kernelVersion)
-	case OffsetNameCredStructCapInheritable:
-		value = getCredCapInheritableOffset(f.kernelVersion)
-	case OffsetNameBPFMapStructID:
-		value = getBpfMapIDOffset(f.kernelVersion)
-	case OffsetNameBPFMapStructName:
-		value = getBpfMapNameOffset(f.kernelVersion)
-	case OffsetNameBPFMapStructMapType:
-		value = getBpfMapTypeOffset(f.kernelVersion)
-	case OffsetNameBPFProgStructAux:
-		value = getBpfProgAuxOffset(f.kernelVersion)
-	case OffsetNameBPFProgStructTag:
-		value = getBpfProgTagOffset(f.kernelVersion)
-	case OffsetNameBPFProgStructType:
-		value = getBpfProgTypeOffset(f.kernelVersion)
-	case OffsetNameBPFProgStructExpectedAttachType:
-		value = getBpfProgAttachTypeOffset(f.kernelVersion)
-	case OffsetNameBPFProgAuxStructID:
-		value = getBpfProgAuxIDOffset(f.kernelVersion)
-	case OffsetNameBPFProgAuxStructName:
-		value = getBpfProgAuxNameOffset(f.kernelVersion)
-	case OffsetNamePIDStructLevel:
-		value = getPIDLevelOffset(f.kernelVersion)
-	case OffsetNamePIDStructNumbers:
-		value = getPIDNumbersOffset(f.kernelVersion)
-	case SizeOfUPID:
-		value = getSizeOfUpid(f.kernelVersion)
-	case OffsetNameTaskStructPID:
-		value = getTaskStructPIDOffset(f.kernelVersion)
-	case OffsetNameTaskStructPIDLink:
-		value = getTaskStructPIDLinkOffset(f.kernelVersion)
-	case OffsetNamePIDLinkStructPID:
-		value = getPIDLinkPIDOffset(f.kernelVersion)
-	case OffsetNameDentryStructDSB:
-		value = getDentrySuperBlockOffset(f.kernelVersion)
-	case OffsetNamePipeInodeInfoStructBufs:
-		value = getPipeInodeInfoBufsOffset(f.kernelVersion)
-	case OffsetNamePipeInodeInfoStructNrbufs:
-		value = getPipeInodeInfoStructNrbufs(f.kernelVersion)
-	case OffsetNamePipeInodeInfoStructCurbuf:
-		value = getPipeInodeInfoStructCurbuf(f.kernelVersion)
-	case OffsetNamePipeInodeInfoStructBuffers:
-		value = getPipeInodeInfoStructBuffers(f.kernelVersion)
-	case OffsetNamePipeInodeInfoStructHead:
-		value = getPipeInodeInfoStructHead(f.kernelVersion)
-	case OffsetNamePipeInodeInfoStructRingsize:
-		value = getPipeInodeInfoStructRingsize(f.kernelVersion)
-	case OffsetNameNetDeviceStructIfIndex:
-		value = getNetDeviceIfindexOffset(f.kernelVersion)
-	case OffsetNameNetDeviceStructName:
-		value = getNetDeviceNameOffset(f.kernelVersion)
-	case OffsetNameNetStructNS:
-		value = getNetNSOffset(f.kernelVersion)
-	case OffsetNameNetStructProcInum:
-		value = getNetProcINumOffset(f.kernelVersion)
-	case OffsetNameSockCommonStructSKCNet:
-		value = getSockCommonSKCNetOffset(f.kernelVersion)
-	case OffsetNameSocketStructSK:
-		value = getSocketSockOffset(f.kernelVersion)
-	case OffsetNameNFConnStructCTNet:
-		value = getNFConnCTNetOffset(f.kernelVersion)
-	case OffsetNameSockCommonStructSKCFamily:
-		value = getSockCommonSKCFamilyOffset(f.kernelVersion)
-	case OffsetNameFlowI4StructSADDR:
-		value = getFlowi4SAddrOffset(f.kernelVersion)
-	case OffsetNameFlowI6StructSADDR:
-		value = getFlowi6SAddrOffset(f.kernelVersion)
-	case OffsetNameFlowI4StructULI:
-		value = getFlowi4ULIOffset(f.kernelVersion)
-	case OffsetNameFlowI6StructULI:
-		value = getFlowi6ULIOffset(f.kernelVersion)
-	case OffsetNameLinuxBinprmStructFile:
-		value = getBinPrmFileFieldOffset(f.kernelVersion)
-	case OffsetNameIoKiocbStructCtx:
-		value = getIoKcbCtxOffset(f.kernelVersion)
-	case OffsetNameLinuxBinprmP:
-		value = getLinuxBinPrmPOffset(f.kernelVersion)
-	case OffsetNameLinuxBinprmArgc:
-		value = getLinuxBinPrmArgcOffset(f.kernelVersion)
-	case OffsetNameLinuxBinprmEnvc:
-		value = getLinuxBinPrmEnvcOffset(f.kernelVersion)
-	case OffsetNameVMAreaStructFlags:
-		value = getVMAreaStructFlagsOffset(f.kernelVersion)
-	case OffsetNameKernelCloneArgsExitSignal:
-		value = getKernelCloneArgsExitSignalOffset(f.kernelVersion)
-	case OffsetNameFileFinode:
-		value = getFileFinodeOffset(f.kernelVersion)
-	case OffsetNameFileFpath:
-		value = getFileFpathOffset(f.kernelVersion)
-	case OffsetNameDentryDSb:
-		value = getDentryDsbOffset(f.kernelVersion)
-	case OffsetNameMountMntID:
-		value = getMountIDOffset(f.kernelVersion)
-	case OffsetNameRenameStructOldDentry:
-		value = getRenameStructOldDentryOffset(f.kernelVersion)
-	case OffsetNameRenameStructNewDentry:
-		value = getRenameStructNewDentryOffset(f.kernelVersion)
-	case OffsetInodeIno:
-		value = getInodeInoOffset(f.kernelVersion)
-	case OffsetInodeGid:
-		value = getInodeGIDOffset(f.kernelVersion)
-	case OffsetInodeNlink:
-		value = getInodeNlinkOffset(f.kernelVersion)
-	case OffsetInodeMtime:
-		value = getInodeMtimeOffset(f.kernelVersion)
-	case OffsetInodeCtime:
-		value = getInodeCtimeOffset(f.kernelVersion)
-	case OffsetNameSbDev:
-		value = getSuperBlockDevOffset(f.kernelVersion)
-	case OffsetNameDentryDInode:
-		value = getDentryDInodeOffset(f.kernelVersion)
-	case OffsetNamePathDentry:
-		value = getPathDentryOffset(f.kernelVersion)
-	case OffsetNameInodeSuperblock:
-		value = getInodeSuperblockOffset(f.kernelVersion)
-	case OffsetNamePathMnt:
-		value = getPathMntOffset(f.kernelVersion)
-	case OffsetNameMountMntMountpoint:
-		value = getMountMntMountpointOffset(f.kernelVersion)
-	case OffsetNameMountpointDentry:
-		value = getMountpointDentryOffset(f.kernelVersion)
-	case OffsetNameVfsmountMntFlags:
-		value = getVfsmountMntFlagsOffset(f.kernelVersion)
-	case OffsetNameSuperblockSType:
-		value = getSuperblockSTypeOffset(f.kernelVersion)
-	case OffsetNameVfsmountMntRoot:
-		value = getVfsmountMntRootOffset(f.kernelVersion)
-	case OffsetNameDentryDName:
-		value = getDentryDNameOffset(f.kernelVersion)
-	case OffsetNameVfsmountMntSb:
-		value = getVfsmountMntSbOffset(f.kernelVersion)
+	if cb, ok := f.callbacks[id]; ok {
+		value = cb(f.kernelVersion)
 	}
 	f.res[id] = value
 }
