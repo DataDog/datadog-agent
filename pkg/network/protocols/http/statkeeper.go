@@ -113,7 +113,7 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 // Close closes the stat keeper.
 func (h *StatKeeper) Close() {
 	h.oversizedLogLimit.Close()
-	h.ReleaseStats()
+	h.releaseStats()
 }
 
 func (h *StatKeeper) add(tx Transaction) {
@@ -164,8 +164,8 @@ func (h *StatKeeper) add(tx Transaction) {
 		}
 		h.telemetry.aggregations.Add(1)
 		stats = NewRequestStats()
-		h.stats[key] = stats
 		stats.Sketches = h.sketches
+		h.stats[key] = stats
 	}
 
 	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), tx.DynamicTags())
@@ -238,12 +238,13 @@ func newSketchPool() *ddsync.TypedPool[ddsketch.DDSketch] {
 	return sketchPool
 }
 
-// ReleaseStats releases stats objects.
-func (h *StatKeeper) ReleaseStats() {
+// releaseStats releases stats objects.
+func (h *StatKeeper) releaseStats() {
 	h.mux.Lock()
 	defer h.mux.Unlock()
 
 	for _, stats := range h.stats {
 		stats.ReleaseStats()
 	}
+	h.stats = make(map[Key]*RequestStats)
 }

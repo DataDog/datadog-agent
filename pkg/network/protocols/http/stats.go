@@ -226,7 +226,6 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 	if stats.Latencies == nil {
 		if r.Sketches != nil {
 			stats.Latencies = r.Sketches.Get()
-			stats.Latencies.Clear()
 		} else if err := stats.initSketch(); err != nil {
 			return
 		}
@@ -254,11 +253,12 @@ func (r *RequestStats) HalfAllCounts() {
 
 // ReleaseStats puts 'DDSketch' objects back to pool and deletes requests from the map.
 func (r *RequestStats) ReleaseStats() {
-	for statusCode, stats := range r.Data {
+	for _, stats := range r.Data {
 		if r.Sketches != nil && stats.Latencies != nil {
+			stats.Latencies.Clear()
 			r.Sketches.Put(stats.Latencies)
 			stats.Latencies = nil
 		}
-		delete(r.Data, statusCode)
 	}
+	r.Data = make(map[uint16]*RequestStat)
 }
