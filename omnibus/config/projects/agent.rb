@@ -341,6 +341,7 @@ if windows_target?
     # for signing.
     PYTHON_BINARIES = [
       "#{python_3_embedded}\\python.exe",
+      "#{python_3_embedded}\\pythonw.exe",
       "#{python_3_embedded}\\python3.dll",
       "#{python_3_embedded}\\python312.dll",
     ]
