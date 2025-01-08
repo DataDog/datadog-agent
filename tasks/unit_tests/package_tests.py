@@ -55,7 +55,7 @@ class TestCheckSize(unittest.TestCase):
             run={
                 'git merge-base HEAD origin/main': Result('25'),
                 f"dpkg-deb --info {flavor} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
-                f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(20000000),
+                f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(10100000),
             }
         )
         check_size(c, filename='tasks/unit_tests/testdata/package_sizes_real.json', dry_run=True)
@@ -82,7 +82,7 @@ class TestCheckSize(unittest.TestCase):
             run={
                 'git merge-base HEAD origin/main': Result('25'),
                 f"dpkg-deb --info {flavor} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
-                f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(20000000),
+                f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(10100000),
             }
         )
         check_size(c, filename='tasks/unit_tests/testdata/package_sizes_real.json', dry_run=True)
