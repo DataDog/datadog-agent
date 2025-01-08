@@ -131,6 +131,13 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	if err = chownRecursive("/opt/datadog-packages/datadog-agent/stable/", ddAgentUID, ddAgentGID, rootOwnedAgentPaths); err != nil {
 		return fmt.Errorf("failed to chown /opt/datadog-packages/datadog-agent/stable/: %v", err)
 	}
+	// Give root:datadog-agent permissions to system-probe and security-agent config files if they exist
+	if err = os.Chown("/etc/datadog-agent/system-probe.yaml", 0, ddAgentGID); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to chown /etc/datadog-agent/system-probe.yaml: %v", err)
+	}
+	if err = os.Chown("/etc/datadog-agent/security-agent.yaml", 0, ddAgentGID); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to chown /etc/datadog-agent/security-agent.yaml: %v", err)
+	}
 
 	if err = systemdReload(ctx); err != nil {
 		return fmt.Errorf("failed to reload systemd daemon: %v", err)
