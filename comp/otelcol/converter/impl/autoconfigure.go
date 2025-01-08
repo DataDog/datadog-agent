@@ -165,6 +165,12 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 			apiSite := apiMap["site"]
 			if (apiSite == nil || apiSite == "") && coreCfg.Get("site") != nil {
 				apiMap["site"] = coreCfg.Get("site")
+			} else if apiSite == "" && coreCfg.Get("site") == nil {
+				// if site is an empty string, and core config site is unset, set default 
+				// site. this is not necessary when site is unset, as it is set in default
+				// config: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.116.0/pkg/datadog/config/config.go#L313.
+				// Site defaults to an empty string in helm chart: https://github.com/DataDog/helm-charts/blob/datadog-3.86.0/charts/datadog/templates/_otel_agent_config.yaml#L24.
+				apiMap["site"] = "datadoghq.com"
 			}
 
 			// api::key
