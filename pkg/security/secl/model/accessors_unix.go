@@ -20,7 +20,7 @@ import (
 var _ = math.MaxUint16
 var _ = net.IP{}
 
-func (m *Model) GetEventTypes() []eval.EventType {
+func (_ *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
 		eval.EventType("accept"),
 		eval.EventType("bind"),
@@ -58,7 +58,7 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("utimes"),
 	}
 }
-func (m *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
+func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	switch field {
 	case "network.destination.ip":
 		return []eval.EventType{"dns", "imds"}
@@ -83,7 +83,7 @@ func (m *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	}
 	return nil
 }
-func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
+func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
 	case "accept.addr.family":
 		return &eval.IntEvaluator{

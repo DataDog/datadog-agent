@@ -20,7 +20,7 @@ import (
 var _ = math.MaxUint16
 var _ = net.IP{}
 
-func (m *Model) GetEventTypes() []eval.EventType {
+func (_ *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
 		eval.EventType("change_permission"),
 		eval.EventType("create"),
@@ -35,12 +35,12 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("write"),
 	}
 }
-func (m *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
+func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	switch field {
 	}
 	return nil
 }
-func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
+func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
 	case "change_permission.new_sd":
 		return &eval.StringEvaluator{

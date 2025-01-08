@@ -22,7 +22,7 @@ import (
 var _ = math.MaxUint16
 var _ = net.IP{}
 
-func (m *Model) GetEventTypes() []eval.EventType {
+func (_ *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
 		{{range $Name, $Exists := .EventTypes}}
 			{{- if ne $Name ""}}
@@ -32,7 +32,7 @@ func (m *Model) GetEventTypes() []eval.EventType {
 	}
 }
 
-func (m *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
+func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	switch field {
 	{{range $Name, $Field := .Fields}}
 	{{- if $Field.RestrictedTo }}
@@ -45,7 +45,7 @@ func (m *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	return nil
 }
 
-func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
+func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
 	{{range $Name, $Field := .Fields}}
 	{{- if $Field.GettersOnly }}
