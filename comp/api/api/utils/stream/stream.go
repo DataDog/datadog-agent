@@ -111,7 +111,7 @@ func OpenFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
 // EnsureDirExists checks if the directory for the given path exists, if not then create it.
 func EnsureDirExists(path string) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(filepath.Dir(dir), 0755); err != nil {
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 	return nil

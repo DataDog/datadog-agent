@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
@@ -22,14 +21,13 @@ import (
 	coresetting "github.com/DataDog/datadog-agent/comp/core/settings"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Requires defines the dependencies for the streamlogs component
 type Requires struct {
 	compdef.In
-	LogsAgent   optional.Option[logsAgent.Component]
+	LogsAgent   option.Option[logsAgent.Component]
 	Logger      logger.Component
 	Config      config.Component
 	CoreSetting coresetting.Component
@@ -107,70 +105,32 @@ func exportStreamLogs(la logsAgent.Component, logger logger.Component, streamLog
 	defer messageReceiver.SetEnabled(false)
 
 	done := make(chan struct{})
-	chanSize := pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size")
 	logChan := messageReceiver.Filter(nil, done)
-	writeChan := make(chan string, chanSize)
 
 	timer := time.NewTimer(streamLogParams.Duration)
-	defer timer.Stop()
-	var wg sync.WaitGroup
+	droppedLogs := 0
 
-	go func() {
-		<-timer.C
+	time.AfterFunc(streamLogParams.Duration, func() {
+		timer.Stop()
 		close(done)
-	}()
-
-	wg.Add(1)
-	go func() {
-		batchSize := chanSize
-		batch := make([]string, 0, batchSize) // Create a batch buffer
-		flushInterval := time.NewTicker(100 * time.Millisecond)
-		defer flushInterval.Stop()
-		defer wg.Done()
-
-		for {
-			select {
-			case log, ok := <-writeChan:
-				if !ok {
-					if len(batch) > 0 {
-						writeBatch(bufWriter, batch, logger)
-					}
-					return
-				}
-
-				batch = append(batch, log)
-
-				if len(batch) >= batchSize {
-					writeBatch(bufWriter, batch, logger)
-					batch = batch[:0]
-				}
-
-			case <-flushInterval.C:
-				if len(batch) > 0 {
-					writeBatch(bufWriter, batch, logger)
-					batch = batch[:0]
-				}
-			}
-		}
-	}()
+	})
 
 	for {
-		select {
-		case log, ok := <-logChan:
-			if !ok {
-				logger.Error("failed to read from log channel for streamlogs")
-				close(writeChan)
-				wg.Wait()
-				return nil
-			}
-			writeChan <- log
-
-		case <-done:
-			close(writeChan)
-			wg.Wait()
-			return nil
+		log, ok := <-logChan
+		if !ok {
+			break
+		}
+		if _, err := bufWriter.WriteString(log + "\n"); err != nil {
+			droppedLogs++
+			logger.Errorf("failed to write to file: %v", err)
 		}
 	}
+
+	if droppedLogs > 0 {
+		logger.Infof("Dropped %d logs from streamlogs", droppedLogs)
+	}
+
+	return nil
 }
 
 // exportStreamLogsIfEnabled streams logs to a file if the enable_streamlogs config is set
