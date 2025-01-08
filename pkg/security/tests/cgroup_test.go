@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -70,16 +69,15 @@ func newCGroup(name, kind string) (*testCGroup, error) {
 		if len(cg.Controllers) == 1 && cg.Controllers[0] == "" {
 			previousCGroupPath = cg.Path
 			break
-		} else {
-			if previousCGroupPath == "" {
-				previousCGroupPath = cg.Path
-			} else if previousCGroupPath == "/" {
-				previousCGroupPath = cg.Path
-			}
-			if slices.Contains(cg.Controllers, kind) || slices.Contains(cg.Controllers, "name="+kind) {
-				previousCGroupPath = cg.Path
-				break
-			}
+		}
+		if previousCGroupPath == "" {
+			previousCGroupPath = cg.Path
+		} else if previousCGroupPath == "/" {
+			previousCGroupPath = cg.Path
+		}
+		if slices.Contains(cg.Controllers, kind) || slices.Contains(cg.Controllers, "name="+kind) {
+			previousCGroupPath = cg.Path
+			break
 		}
 	}
 
@@ -243,6 +241,9 @@ ExecStart=/usr/bin/touch %s`, testFile2)
 
 func TestCGroupSnapshot(t *testing.T) {
 	_, cgroupContext, err := utils.GetProcContainerContext(uint32(os.Getpid()), uint32(os.Getpid()))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	testCGroup, err := newCGroup("cg2", "systemd")
 	if err != nil {
@@ -297,7 +298,7 @@ func TestCGroupSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
 		t.Skip("not supported")
 	}
@@ -349,7 +350,7 @@ func TestCGroupSnapshot(t *testing.T) {
 		// Check we filled the kernel maps correctly with the same values than userspace for the testsuite process
 		var newEntry *model.ProcessCacheEntry
 		ebpfProbe := test.probe.PlatformProbe.(*probe.EBPFProbe)
-		ebpfProbe.Resolvers.ProcessResolver.ResolveFromKernelMaps(uint32(os.Getpid()), uint32(os.Getpid()), testsuiteStats.Ino, func(entry *model.ProcessCacheEntry, err error) {
+		ebpfProbe.Resolvers.ProcessResolver.ResolveFromKernelMaps(uint32(os.Getpid()), uint32(os.Getpid()), testsuiteStats.Ino, func(entry *model.ProcessCacheEntry, _ error) {
 			newEntry = entry
 		})
 		assert.NotNil(t, newEntry)
@@ -359,7 +360,7 @@ func TestCGroupSnapshot(t *testing.T) {
 
 		// Check we filled the kernel maps correctly with the same values than userspace for the syscall tester process
 		newEntry = nil
-		ebpfProbe.Resolvers.ProcessResolver.ResolveFromKernelMaps(syscallTesterEntry.Pid, syscallTesterEntry.Pid, syscallTesterStats.Ino, func(entry *model.ProcessCacheEntry, err error) {
+		ebpfProbe.Resolvers.ProcessResolver.ResolveFromKernelMaps(syscallTesterEntry.Pid, syscallTesterEntry.Pid, syscallTesterStats.Ino, func(entry *model.ProcessCacheEntry, _ error) {
 			newEntry = entry
 		})
 		assert.NotNil(t, newEntry)
