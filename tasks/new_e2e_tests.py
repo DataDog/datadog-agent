@@ -38,6 +38,10 @@ class TestState:
     SUCCESS = False, False
     FLAKY_SUCCESS = False, True
 
+    @staticmethod
+    def get_human_readable_state(failing: bool, flaky: bool) -> str:
+        return f'{"Failing" if failing else "Successful"} / {"Flaky" if flaky else "Non-flaky"}'
+
 
 @task(
     iterable=['tags', 'targets', 'configparams'],
@@ -411,9 +415,7 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_f
             if not logs_to_print:
                 continue
 
-            print(
-                f'* {color_message("Failing" if failing else "Successful", Color.BOLD)} / {color_message("Flaky" if flaky else "Non-flaky", Color.BOLD)} job logs:'
-            )
+            print(f'* {color_message(TestState.get_human_readable_state(failing, flaky), Color.BOLD)} job logs:')
             # Print till the size limit is reached
             max_size -= pretty_print_test_logs(logs_to_print, max_size)
     except TooManyLogsError:
