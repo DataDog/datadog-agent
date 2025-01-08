@@ -36,6 +36,7 @@
 #include "on_demand.h"
 #include "chdir.h"
 
+#include "network/accept.h"
 #include "network/bind.h"
 #include "network/connect.h"
 

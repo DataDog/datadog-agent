@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -143,8 +145,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	}
 
 	// write installinfo before start, or the agent could write it
-	// TODO: add installer version properly
-	if err = installinfo.WriteInstallInfo("installer_package", "manual_update"); err != nil {
+	if err = installinfo.WriteInstallInfo("installer", fmt.Sprintf("installer-%s", version.AgentVersion), "manual_update"); err != nil {
 		return fmt.Errorf("failed to write install info: %v", err)
 	}
 
@@ -210,8 +211,11 @@ func RemoveAgent(ctx context.Context) error {
 }
 
 func chownRecursive(path string, uid int, gid int, ignorePaths []string) error {
-	return filepath.Walk(path, func(p string, _ os.FileInfo, err error) error {
+	return filepath.WalkDir(path, func(p string, _ fs.DirEntry, err error) error {
 		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
 			return err
 		}
 		relPath, err := filepath.Rel(path, p)
@@ -223,7 +227,11 @@ func chownRecursive(path string, uid int, gid int, ignorePaths []string) error {
 				return nil
 			}
 		}
-		return os.Chown(p, uid, gid)
+		err = os.Chown(p, uid, gid)
+		if err != nil && os.IsNotExist(err) {
+			return nil
+		}
+		return err
 	})
 }
 

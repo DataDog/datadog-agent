@@ -60,7 +60,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20250106110344-8b2a156e1132
+	github.com/DataDog/test-infra-definitions v0.0.0-20250108153557-f20e1dfc80f5
 	github.com/aws/aws-sdk-go-v2 v1.32.7
 	github.com/aws/aws-sdk-go-v2/config v1.28.7
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.190.0
@@ -217,7 +217,7 @@ require (
 	github.com/pulumi/esc v0.11.1 // indirect
 	github.com/pulumi/pulumi-command/sdk v1.0.1 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.8 // indirect
-	github.com/pulumi/pulumi-libvirt/sdk v0.5.3 // indirect
+	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.16.8 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 // indirect
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0 // indirect
@@ -311,7 +311,7 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.80.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.80.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.80.0 // indirect
-	github.com/pulumi/pulumi-eks/sdk/v3 v3.6.0 // indirect
+	github.com/pulumi/pulumi-eks/sdk/v3 v3.7.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
 	github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19 // indirect
 	github.com/x448/float16 v0.8.4 // indirect

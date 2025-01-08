@@ -1212,6 +1212,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.AcceptEventType:
+		if _, err = event.Accept.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode accept event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	case model.BindEventType:
 		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1658,8 +1663,6 @@ func (p *EBPFProbe) Close() error {
 	// perf map reader are ignored
 	p.cancelFnc()
 
-	close(p.newTCNetDevices)
-
 	// we wait until both the reorderer and the monitor are stopped
 	p.wg.Wait()
 
@@ -1679,6 +1682,8 @@ func (p *EBPFProbe) Close() error {
 	}
 
 	// when we reach this point, we do not generate nor consume events anymore, we can close the resolvers
+	close(p.newTCNetDevices)
+
 	return p.Resolvers.Close()
 }
 
@@ -2525,6 +2530,20 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeNlink, "struct inode", "i_nlink")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeMtime, "struct inode", "i_mtime", "__i_mtime")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeCtime, "struct inode", "i_ctime", "__i_ctime")
+
+	// fs
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSbDev, "struct super_block", "s_dev")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSuperblockSType, "struct super_block", "s_type")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDentryDInode, "struct dentry", "d_inode")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDentryDName, "struct dentry", "d_name")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePathDentry, "struct path", "dentry")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePathMnt, "struct path", "mnt")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeSuperblock, "struct inode", "i_sb")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameMountMntMountpoint, "struct mount", "mnt_mountpoint")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameMountpointDentry, "struct mountpoint", "m_dentry")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVfsmountMntFlags, "struct vfsmount", "mnt_flags")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVfsmountMntRoot, "struct vfsmount", "mnt_root")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVfsmountMntSb, "struct vfsmount", "mnt_sb")
 }
 
 // HandleActions handles the rule actions
