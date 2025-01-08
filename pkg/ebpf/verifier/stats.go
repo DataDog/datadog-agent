@@ -83,6 +83,48 @@ func BuildVerifierStats(opts *StatsOptions) (*StatsResult, map[string]struct{}, 
 	return results, failedToLoad, nil
 }
 
+// BuildConstantsList examines the elf file and creates a list of all user defined eBPF constants"
+func BuildConstantsList(file string, consts map[string]uint64) error {
+	loader := func(bc bytecode.AssetReader, opts manager.Options) error {
+		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
+		if err != nil {
+			return err
+		}
+
+		for _, p := range collectionSpec.Programs {
+			ins := p.Instructions
+			offsets := ins.ReferenceOffsets()
+
+			for off, _ := range offsets {
+				// ignore maps
+				if _, ok := collectionSpec.Maps[off]; !ok {
+					consts[off] = uint64(0)
+				}
+			}
+		}
+
+		return nil
+	}
+
+	if !isCOREAsset(file) {
+		bc, err := os.Open(file)
+		if err != nil {
+			return fmt.Errorf("couldn't open asset %s: %v", file, err)
+		}
+		defer bc.Close()
+
+		if err := loader(bc, manager.Options{}); err != nil {
+			return fmt.Errorf("failed to load non-core asset %s: %w", file, err)
+		}
+	} else {
+		if err := ddebpf.LoadCOREAsset(file, loader); err != nil {
+			return fmt.Errorf("failed to load core asset %s: %w", file, err)
+		}
+	}
+
+	return nil
+}
+
 func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult, failedToLoad map[string]struct{}) func(bytecode.AssetReader, manager.Options) error {
 	return func(bc bytecode.AssetReader, managerOptions manager.Options) error {
 		kversion, err := kernel.HostVersion()

@@ -135,6 +135,7 @@ def format_verifier_stats(verifier_stats) -> ComplexitySummary:
         "grep": "Regex to filter program statistics",
         "line_complexity": "Generate per-line complexity data",
         "save_verifier_logs": "Save verifier logs to disk for debugging purposes",
+        "constants": "Collect all user defined parametrized constants in the ebpf object files",
     },
     iterable=["filter_file", "grep"],
 )
@@ -146,6 +147,7 @@ def collect_verification_stats(
     grep: list[str] = None,  # type: ignore
     line_complexity=False,
     save_verifier_logs=False,
+    constants=False,
 ):
     sudo = "sudo -E" if not is_root() else ""
     if not skip_object_files:
@@ -184,6 +186,9 @@ def collect_verification_stats(
             "-complexity-data-dir",
             os.fspath(COMPLEXITY_DATA_DIR),
         ]
+
+    if constants:
+        args += ["-constants"]
 
     ctx.run(f"{sudo} ./main {' '.join(args)}", env=env)
 

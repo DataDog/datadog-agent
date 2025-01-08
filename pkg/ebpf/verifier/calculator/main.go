@@ -47,6 +47,7 @@ func main() {
 	verifierLogsDir := flag.String("verifier-logs", "", "Directory containing verifier logs. If not set, no logs will be saved.")
 	summaryOutput := flag.String("summary-output", "ebpf-calculator/summary.json", "File where JSON with the summary will be written")
 	complexityDataDir := flag.String("complexity-data-dir", "ebpf-calculator/complexity-data", "Directory where the complexity data will be written")
+	constantsList := flag.Bool("constants", false, "Get json list of all user defined constants")
 	flag.Var(&filterFiles, "filter-file", "Files to load ebpf programs from")
 	flag.Var(&filterPrograms, "filter-prog", "Only return statistics for programs matching one of these regex pattern")
 	flag.Parse()
@@ -210,6 +211,29 @@ func main() {
 			if err := os.WriteFile(destPath, contents, 0644); err != nil {
 				log.Fatalf("failed to write complexity data for %s: %v", progName, err)
 			}
+		}
+	}
+
+	if *constantsList {
+		ls := make(map[string]map[string]uint64)
+		for _, file := range files {
+			module := strings.Split(filepath.Base(file), ".")[0]
+			ls[module] = make(map[string]uint64)
+
+			if err := verifier.BuildConstantsList(file, ls[module]); err != nil {
+				log.Fatalf("failed to build constant list for file %s: %v", file, err)
+			}
+		}
+
+		jsonFile := filepath.Join("ebpf-calculator", "constants.json")
+		j, err := json.Marshal(ls)
+		if err != nil {
+			log.Fatalf("failed to marshal constants into json list: %v", err)
+		}
+
+		log.Printf("Writing constants to %s", jsonFile)
+		if err := os.WriteFile(jsonFile, j, 0644); err != nil {
+			log.Fatalf("failed to write json file %s: %v", jsonFile, err)
 		}
 	}
 }
