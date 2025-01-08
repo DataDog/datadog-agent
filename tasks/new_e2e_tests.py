@@ -30,6 +30,15 @@ from tasks.testwasher import TestWasher
 from tasks.tools.e2e_stacks import destroy_remote_stack
 
 
+class TestState:
+    """Describes the state of a test, if it has failed and if it is flaky."""
+
+    FAILED = True, False
+    FLAKY_FAILED = True, True
+    SUCCESS = False, False
+    FLAKY_SUCCESS = False, True
+
+
 @task(
     iterable=['tags', 'targets', 'configparams'],
     help={
@@ -364,7 +373,6 @@ def pretty_print_test_logs(logs_per_test: list[tuple[str, str, str]], max_size):
         raise TooManyLogsError
     for package, test, logs in logs_per_test:
         with gitlab_section("Complete logs for " + package + "." + test, collapsed=True):
-            print("Complete logs for " + package + "." + test)
             print("".join(logs))
 
     return size
@@ -395,12 +403,11 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_f
             package_flaky = all_known_flakes.get(package, set())
             package_failing = failing_tests.get(package, set())
             for test_name, logs in tests.items():
-                categorized_logs[test_name in package_failing, test_name in package_flaky].append(
-                    (package, test_name, logs)
-                )
+                state = test_name in package_failing, test_name in package_flaky
+                categorized_logs[state].append((package, test_name, logs))
 
-        for failing, flaky in [(True, False), (True, True), (False, False), (False, True)]:
-            logs_to_print = categorized_logs[(failing, flaky)]
+        for failing, flaky in [TestState.FAILED, TestState.FLAKY_FAILED, TestState.SUCCESS, TestState.FLAKY_SUCCESS]:
+            logs_to_print = categorized_logs[failing, flaky]
             if not logs_to_print:
                 continue
 
