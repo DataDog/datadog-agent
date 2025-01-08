@@ -84,5 +84,4 @@ func (s *mutuallyExclusiveInstallSuite) TestMutuallyExclusivePackage() {
 	s.Require().NoError(err)
 	// We don't use assert.Contains because it will print the very large logData on error
 	s.Assert().True(strings.Contains(string(logData), "This product cannot be installed at the same time as "))
-	s.Assert().Contains(string(logData), "This product cannot be installed at the same time as ")
 }
