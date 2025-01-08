@@ -64,6 +64,11 @@ http_archive(
     url = "https://python.org/ftp/python/{0}/Python-{0}.tgz".format(PYTHON3_VERSION),
     sha256="85a4c1be906d20e5c5a69f2466b00da769c221d6a684acfd3a514dbf5bf10a66",
     strip_prefix="Python-{0}".format(PYTHON3_VERSION),
+    patches = [
+        "//deps/python3:patches/0001-don-t-attempt-to-provide-soname.patch",
+    ],
+    patch_tool = "patch",
+    patch_args = ["-p1"],
 )
 
 ATTR_VERSION = "2.5.1"
