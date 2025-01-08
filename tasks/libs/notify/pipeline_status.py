@@ -1,9 +1,8 @@
-import os
 import re
 
 from tasks.libs.ciproviders.gitlab_api import get_commit, get_pipeline
 from tasks.libs.common.git import get_default_branch
-from tasks.libs.notify.utils import DEPLOY_PIPELINES_CHANNEL, PIPELINES_CHANNEL, PROJECT_NAME
+from tasks.libs.notify.utils import DEPLOY_PIPELINES_CHANNEL, PIPELINES_CHANNEL, PROJECT_NAME, get_pipeline_type
 from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
     base_message,
@@ -23,8 +22,8 @@ def should_send_message_to_author(git_ref: str, default_branch: str) -> bool:
     return not (git_ref == default_branch or release_ref_regex.match(git_ref) or release_ref_regex_rc.match(git_ref))
 
 
-def send_message(ctx, notification_type, dry_run):
-    pipeline = get_pipeline(PROJECT_NAME, os.environ["CI_PIPELINE_ID"])
+def send_message(ctx, pipeline_id, dry_run):
+    pipeline = get_pipeline(PROJECT_NAME, pipeline_id)
     commit = get_commit(PROJECT_NAME, pipeline.sha)
     failed_jobs = get_failed_jobs(pipeline)
 
@@ -40,15 +39,16 @@ def send_message(ctx, notification_type, dry_run):
     # For deploy pipelines not on the main branch, send notifications in a
     # dedicated channel.
     slack_channel = PIPELINES_CHANNEL
-    if notification_type == "deploy" and pipeline.ref != get_default_branch():
+    pipeline_type = get_pipeline_type(pipeline)
+    if pipeline_type == "deploy" and pipeline.ref != get_default_branch():
         slack_channel = DEPLOY_PIPELINES_CHANNEL
 
     header = ""
-    if notification_type == "merge":
+    if pipeline_type == "merge":
         header = f"{header_icon} :merged: datadog-agent merge"
-    elif notification_type == "deploy":
+    elif pipeline_type == "deploy":
         header = f"{header_icon} :rocket: datadog-agent deploy"
-    elif notification_type == "trigger":
+    elif pipeline_type == "trigger":
         header = f"{header_icon} :arrow_forward: datadog-agent triggered"
 
     message = SlackMessage(jobs=failed_jobs)
