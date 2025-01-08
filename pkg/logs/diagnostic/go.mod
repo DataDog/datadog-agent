@@ -41,7 +41,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.53.1-rc.5
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.53.1-rc.5
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.53.1-rc.5
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 )
 
 require (

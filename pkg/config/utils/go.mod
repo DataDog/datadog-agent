@@ -33,7 +33,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.53.1-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.53.1-rc.5
 	github.com/DataDog/datadog-agent/pkg/version v0.53.1-rc.5
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 )
 
 require (

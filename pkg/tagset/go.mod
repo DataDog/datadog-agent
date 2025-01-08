@@ -6,7 +6,7 @@ replace github.com/DataDog/datadog-agent/pkg/util/sort => ../util/sort/
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.53.1-rc.5
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/twmb/murmur3 v1.1.8
 )
 

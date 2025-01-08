@@ -63,7 +63,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.13.3
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.75.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/tinylib/msgp v1.1.8
 	go.opentelemetry.io/collector v0.91.0 // indirect
 	go.opentelemetry.io/collector/component v0.93.0

@@ -12,7 +12,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.53.1-rc.5
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
 	github.com/shirou/gopsutil/v3 v3.23.9
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	golang.org/x/sys v0.28.0
 )
 
