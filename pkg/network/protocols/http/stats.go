@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/mapping"
 )
 
 // Interner is used to intern strings to save memory allocations.
@@ -256,6 +257,13 @@ func (r *RequestStats) ReleaseStats() {
 	for _, stats := range r.Data {
 		if r.Sketches != nil && stats.Latencies != nil {
 			stats.Latencies.Clear()
+			// explicitly reset the index map, as the function 'Clear' does not release it.
+			m, err := mapping.NewDefaultMapping(RelativeAccuracy)
+			if err != nil {
+				log.Debugf("http release stats failed to reset index map, error: %v", err)
+			} else {
+				stats.Latencies.IndexMapping = m
+			}
 			r.Sketches.Put(stats.Latencies)
 			stats.Latencies = nil
 		}
