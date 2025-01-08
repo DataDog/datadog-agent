@@ -51,11 +51,12 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     from watchdog.observers import Observer
 
     class DDAgentEventHandler(FileSystemEventHandler):
-        def __init__(self, handler):
-            self.handler = handler
+        def __init__(self, ctx: Context, command: str):
+            self.ctx = ctx
+            self.command = command
 
         def on_any_event(self, event: FileSystemEvent) -> None:  # noqa # called by watchdog callback
-            self.handler(event.src_path)
+            _on_changed_path_run_command(self.ctx, event.src_path, self.command)
 
     # Ensure `test-infra-definitions` is cloned.
     if not os.path.isdir('../test-infra-definitions'):
@@ -95,22 +96,7 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     elapsed_time = time.time() - start_time
     print("♻️ Windows dev env started in", timedelta(seconds=elapsed_time))
 
-    # start file watcher and run rsync on changes
-    def on_change(path):
-        current_dir = os.getcwd()
-        relative_path = os.path.relpath(path, current_dir)
-        if relative_path.startswith(".git/"):
-            # ignore changes in .git directory
-            return
-        res = ctx.run(f"git check-ignore {relative_path} --quiet", warn=True, hide=True)
-        if res is not None and res.exited == 0:
-            # ignore changes in git ignored files
-            # see https://git-scm.com/docs/git-check-ignore#_exit_status
-            return
-        print("Syncing changes to the remote Windows development environment...")
-        ctx.run(rsync_command)
-
-    event_handler = DDAgentEventHandler(handler=on_change)
+    event_handler = DDAgentEventHandler(ctx=ctx, command=rsync_command)
     observer = Observer()
     observer.schedule(event_handler, ".", recursive=True)
     observer.start()
@@ -124,6 +110,22 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     print("♻️ Windows dev env sync stopped")
     print("Start it again with `inv windows_dev_env.start`")
     print("Destroy the Windows dev env with `inv windows-dev-env.stop`")
+
+
+# start file watcher and run rsync on changes
+def _on_changed_path_run_command(ctx: Context, path: str, command: str):
+    current_dir = os.getcwd()
+    relative_path = os.path.relpath(path, current_dir)
+    if relative_path.startswith(".git/"):
+        # ignore changes in .git directory
+        return
+    res = ctx.run(f"git check-ignore {relative_path} --quiet", warn=True, hide=True)
+    if res is not None and res.exited == 0:
+        # ignore changes in git ignored files
+        # see https://git-scm.com/docs/git-check-ignore#_exit_status
+        return
+    print("Syncing changes to the remote Windows development environment...")
+    ctx.run(command)
 
 
 def _stop_windows_dev_env(ctx, name: str = "windows-dev-env"):
