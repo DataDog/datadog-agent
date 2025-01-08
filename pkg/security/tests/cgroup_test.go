@@ -345,7 +345,7 @@ func TestCGroupSnapshot(t *testing.T) {
 		if err := unix.Stat(cgroupProcsPath, &stats); err != nil {
 			t.Fatal(err)
 		}
-		assert.Equal(t, testsuiteEntry.CGroup.CGroupFile.Inode, stats.Ino)
+		assert.Equal(t, stats.Ino, testsuiteEntry.CGroup.CGroupFile.Inode)
 
 		// Check we filled the kernel maps correctly with the same values than userspace for the testsuite process
 		var newEntry *model.ProcessCacheEntry
@@ -355,7 +355,7 @@ func TestCGroupSnapshot(t *testing.T) {
 		})
 		assert.NotNil(t, newEntry)
 		if newEntry != nil {
-			assert.Equal(t, newEntry.CGroup.CGroupFile.Inode, stats.Ino)
+			assert.Equal(t, stats.Ino, newEntry.CGroup.CGroupFile.Inode)
 		}
 
 		// Check we filled the kernel maps correctly with the same values than userspace for the syscall tester process
@@ -365,7 +365,7 @@ func TestCGroupSnapshot(t *testing.T) {
 		})
 		assert.NotNil(t, newEntry)
 		if newEntry != nil {
-			assert.Equal(t, newEntry.CGroup.CGroupFile.Inode, stats.Ino)
+			assert.Equal(t, stats.Ino, newEntry.CGroup.CGroupFile.Inode)
 		}
 	})
 
