@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -210,8 +211,11 @@ func RemoveAgent(ctx context.Context) error {
 }
 
 func chownRecursive(path string, uid int, gid int, ignorePaths []string) error {
-	return filepath.Walk(path, func(p string, _ os.FileInfo, err error) error {
+	return filepath.WalkDir(path, func(p string, _ fs.DirEntry, err error) error {
 		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
 			return err
 		}
 		relPath, err := filepath.Rel(path, p)
@@ -223,7 +227,11 @@ func chownRecursive(path string, uid int, gid int, ignorePaths []string) error {
 				return nil
 			}
 		}
-		return os.Chown(p, uid, gid)
+		err = os.Chown(p, uid, gid)
+		if err != nil && os.IsNotExist(err) {
+			return nil
+		}
+		return err
 	})
 }
 
