@@ -62,7 +62,7 @@ build do
         dest: "#{dest}/ssl/openssl.cnf.tmp",
         mode: 0644,
         vars: { install_dir: install_dir }
-    if windows_target?
+    unless windows_target?
       erb source: "fipsinstall.sh.erb",
           dest: "#{dest}/bin/fipsinstall.sh",
           mode: 0755,
