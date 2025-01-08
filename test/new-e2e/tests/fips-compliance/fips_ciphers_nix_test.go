@@ -182,7 +182,7 @@ func runFipsServer(v *fipsServerSuite, tc cipherTestCase, composeFiles string) {
 			envvar = fmt.Sprintf(`%s TLS_MAX="--tls-max %s"`, envvar, tc.tlsMax)
 		}
 
-		_, err := v.Env().RemoteHost.Execute(fmt.Sprintf("%s docker-compose -f %s --detach  --wait --timeout 300 up", envvar, strings.TrimSpace(composeFiles)))
+		_, err := v.Env().RemoteHost.Execute(fmt.Sprintf("%s docker-compose -f %s up --detach  --wait --timeout 300", envvar, strings.TrimSpace(composeFiles)))
 		if err != nil {
 			v.T().Logf("Error starting fips-server: %v", err)
 			require.NoError(t, err)
