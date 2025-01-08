@@ -133,6 +133,8 @@ func TestReplacer(t *testing.T) {
 					{"a", "b", "c"},
 					{"some.num", "1", "one!"},
 					{"some.dbl", "42.1", "42.5"},
+					{"is.potato", "true", "false"},
+					{"my.nums", "42", "100"},
 				},
 				got: map[string]*pb.AttributeAnyValue{
 					"http.url": {
@@ -151,6 +153,25 @@ func TestReplacer(t *testing.T) {
 						Type:        pb.AttributeAnyValue_DOUBLE_VALUE,
 						DoubleValue: 42.1,
 					},
+					"is.potato": {
+						Type:      pb.AttributeAnyValue_BOOL_VALUE,
+						BoolValue: true,
+					},
+					"my.nums": {
+						Type: pb.AttributeAnyValue_ARRAY_VALUE,
+						ArrayValue: &pb.AttributeArray{
+							Values: []*pb.AttributeArrayValue{
+								{
+									Type:     pb.AttributeArrayValue_INT_VALUE,
+									IntValue: 123,
+								},
+								{
+									Type:     pb.AttributeArrayValue_INT_VALUE,
+									IntValue: 42,
+								},
+							},
+						},
+					},
 				},
 				want: map[string]*pb.AttributeAnyValue{
 					"http.url": {
@@ -168,6 +189,25 @@ func TestReplacer(t *testing.T) {
 					"some.dbl": {
 						Type:        pb.AttributeAnyValue_DOUBLE_VALUE,
 						DoubleValue: 42.5,
+					},
+					"is.potato": {
+						Type:      pb.AttributeAnyValue_BOOL_VALUE,
+						BoolValue: false,
+					},
+					"my.nums": {
+						Type: pb.AttributeAnyValue_ARRAY_VALUE,
+						ArrayValue: &pb.AttributeArray{
+							Values: []*pb.AttributeArrayValue{
+								{
+									Type:     pb.AttributeArrayValue_INT_VALUE,
+									IntValue: 123,
+								},
+								{
+									Type:     pb.AttributeArrayValue_INT_VALUE,
+									IntValue: 100,
+								},
+							},
+						},
 					},
 				},
 			},
