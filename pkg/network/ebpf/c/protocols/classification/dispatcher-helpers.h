@@ -125,7 +125,12 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
     }
 
     protocol_stack_t *stack = get_protocol_stack_if_exists(&skb_tup);
-
+    if (stack) {
+        // This is used to signal the tracer program that this protocol stack
+        // is also shared with our USM program for the purposes of deletion.
+        // For more context refer to the comments in `delete_protocol_stack`
+        stack->flags |= FLAG_USM_ENABLED;
+    }
     protocol_t cur_fragment_protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     if (tcp_termination) {
         dispatcher_delete_protocol_stack(&skb_tup, stack);
