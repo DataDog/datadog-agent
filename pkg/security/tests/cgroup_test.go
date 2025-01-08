@@ -240,6 +240,12 @@ ExecStart=/usr/bin/touch %s`, testFile2)
 }
 
 func TestCGroupSnapshot(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping cgroup ID test in docker")
+	}
+
+	SkipIfNotAvailable(t)
+
 	_, cgroupContext, err := utils.GetProcContainerContext(uint32(os.Getpid()), uint32(os.Getpid()))
 	if err != nil {
 		t.Fatal(err)
