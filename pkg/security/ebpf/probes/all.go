@@ -78,6 +78,7 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, getNetDeviceProbes()...)
 	allProbes = append(allProbes, GetTCProbes(true, true)...)
 	allProbes = append(allProbes, getBindProbes(fentry)...)
+	allProbes = append(allProbes, getAcceptProbes()...)
 	allProbes = append(allProbes, getConnectProbes(fentry)...)
 	allProbes = append(allProbes, getSyscallMonitorProbes()...)
 	allProbes = append(allProbes, getChdirProbes(fentry)...)
