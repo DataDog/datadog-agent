@@ -3,6 +3,7 @@ Create a remote Windows development environment and keep it in sync with local c
 """
 
 import os
+import re
 import shutil
 import time
 from datetime import timedelta
@@ -76,7 +77,7 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
         )
         if result is None or not result:
             raise Exception("Failed to create the Windows development environment.")
-        connection_message_regex = re.compile(r"`ssh ([^@]+@\d+.\d+.\d+.\d+ [^`]+)`"
+        connection_message_regex = re.compile(r"`ssh ([^@]+@\d+.\d+.\d+.\d+ [^`]+)`")
         match = connection_message_regex.search(result.stdout)
         if match:
             connection_message = match.group(1)
