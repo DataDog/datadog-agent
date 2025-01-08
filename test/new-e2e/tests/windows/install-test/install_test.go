@@ -85,10 +85,7 @@ func (s *testInstallSuite) testCodeSignatures(t *Tester, remoteMSIPath string) {
 	}
 	ddSigned := []string{}
 	otherSigned := []string{}
-	for _, path := range paths {
-		ddSigned = append(ddSigned, path)
-		// If we have other sigs to check, add them to `otherSigned` instead and check below
-	}
+	ddSigned = append(ddSigned, paths...)
 	// MSI is signed by Datadog
 	if remoteMSIPath != "" {
 		ddSigned = append(ddSigned, remoteMSIPath)
