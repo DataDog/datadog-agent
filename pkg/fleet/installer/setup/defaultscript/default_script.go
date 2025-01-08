@@ -39,6 +39,7 @@ var (
 		"DD_AGENT_FLAVOR",
 		"DD_UPGRADE",
 		"DD_INSTALL_ONLY",
+		"DD_FIPS_MODE",
 	}
 
 	// supportedEnvVars are the environment variables that are supported by the default script to be reported
@@ -71,7 +72,9 @@ var (
 func SetupDefaultScript(s *common.Setup) error {
 	// Telemetry
 	telemetrySupportedEnvVars(s, supportedEnvVars...)
-	warnUnsupportedEnvVars(s, unsupportedEnvVars...)
+	if err := exitOnUnsupportedEnvVars(unsupportedEnvVars...); err != nil {
+		return err
+	}
 
 	// Installer management
 	setConfigInstallerDaemon(s)
@@ -80,10 +83,6 @@ func SetupDefaultScript(s *common.Setup) error {
 	// Config management
 	setConfigTags(s)
 	setConfigSecurityProducts(s)
-
-	if _, ok := os.LookupEnv("DD_FIPS_MODE"); ok {
-		return fmt.Errorf("the Datadog Installer doesn't support FIPS mode")
-	}
 
 	if url, ok := os.LookupEnv("DD_URL"); ok {
 		s.Config.DatadogYAML.DDURL = url
@@ -213,14 +212,17 @@ func getLibraryVersion(env *env.Env, library string) string {
 	return versionTag
 }
 
-func warnUnsupportedEnvVars(s *common.Setup, envVars ...string) {
-	var setUnsupported []string
+func exitOnUnsupportedEnvVars(envVars ...string) error {
+	var unsupported []string
 	for _, envVar := range envVars {
 		if _, ok := os.LookupEnv(envVar); ok {
-			setUnsupported = append(setUnsupported, envVar)
+			unsupported = append(unsupported, envVar)
 		}
 	}
-	s.Out.WriteString(fmt.Sprintf("Warning: options '%s' are not supported and will be ignored\n", strings.Join(setUnsupported, "', '")))
+	if len(unsupported) > 0 {
+		return fmt.Errorf("unsupported environment variables: %s, exiting setup", strings.Join(unsupported, ", "))
+	}
+	return nil
 }
 
 func telemetrySupportedEnvVars(s *common.Setup, envVars ...string) {
