@@ -339,6 +339,23 @@ if windows_target?
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
     ]
 
+    # Sign additional binaries from here.
+    # We can't request signing from the respective components/software definitions
+    # for now since the binaries may be restored from cache, which would
+    # shortcut the associated build directives, which would not schedule the files
+    # for signing.
+    BINARIES_TO_SIGN += [
+      "#{windows_safe_path(python_3_embedded)}\\python.exe",
+      "#{windows_safe_path(python_3_embedded)}\\python3.dll",
+      "#{windows_safe_path(python_3_embedded)}\\python312.dll",
+      "#{windows_safe_path(python_3_embedded)}\\DLLs\\libcrypto-3-x64.dll",
+      "#{windows_safe_path(python_3_embedded)}\\DLLs\\libssl-3-x64.dll",
+      "#{windows_safe_path(python_3_embedded)}\\bin\\openssl.exe",
+    ]
+    if fips_mode?
+      BINARIES_TO_SIGN += "#{windows_safe_path(python_3_embedded)}\\lib\\ossl-modules\\fips.dll"
+    end
+
     BINARIES_TO_SIGN.each do |bin|
       sign_file bin
     end
