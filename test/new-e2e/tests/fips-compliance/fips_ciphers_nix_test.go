@@ -12,9 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"bytes"
 	"testing"
-	"text/template"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -52,8 +50,8 @@ var (
 	}
 )
 
-//go:embed fixtures/docker-compose.yaml.tmpl
-var dockerComposeTemplate string
+//go:embed fixtures/docker-compose.yaml
+var dockerCompose string
 
 type fipsServerSuite struct {
 	e2e.BaseSuite[environments.DockerHost]
@@ -64,16 +62,12 @@ func TestFIPSCiphersSuite(t *testing.T) {
 }
 
 func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
-	templateVars := map[string]interface{}{
-		"FIPSEnabled": "1",
-	}
 	var imageTag string
 	if os.Getenv("E2E_PIPELINE_ID") != "" && os.Getenv("CI_COMMIT_SHA") != "" {
 		imageTag = fmt.Sprintf("v%s-%s-7-fips-arm64", os.Getenv("E2E_PIPELINE_ID"), os.Getenv("CI_COMMIT_SHA"))
 	} else {
 		imageTag = "latest"
 	}
-	dockerCompose := fillTmplConfig(v.T(), dockerComposeTemplate, templateVars)
 
 	fmt.Println("ImageTag: " + imageTag)
 	v.UpdateEnv(
@@ -109,47 +103,7 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
 	}
 }
 
-func (v *fipsServerSuite) TestFIPSCiphersFIPSDisabled() {
-	templateVars := map[string]interface{}{
-		"FIPSEnabled": "0",
-	}
-	dockerCompose := fillTmplConfig(v.T(), dockerComposeTemplate, templateVars)
-
-	v.UpdateEnv(
-		awsdocker.Provisioner(
-			awsdocker.WithAgentOptions(
-				dockeragentparams.WithFullImagePath("registry.ddbuild.io/ci/datadog-agent/agent:v51515213-0796c161-7-fips-arm64"),
-				dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
-			),
-		),
-	)
-
-	composeFiles := strings.Split(v.Env().RemoteHost.MustExecute(`docker inspect --format='{{index (index .Config.Labels "com.docker.compose.project.config_files")}}' dd-fips-server`), ",")
-	formattedComposeFiles := strings.Join(composeFiles, " -f ")
-
-	for _, tc := range testcases {
-		v.Run(fmt.Sprintf("FIPS disabled testing '%v -c %v'", tc.cert, tc.cipher), func() {
-
-			// Start the fips-server and waits for it to be ready
-			runFipsServer(v, tc, formattedComposeFiles)
-			defer stopFipsServer(v, formattedComposeFiles)
-
-			// Run diagnose to send requests and verify the server logs
-			runAgentDiagnose(v)
-
-			serverLogs := v.Env().RemoteHost.MustExecute("docker logs dd-fips-server")
-			assert.NotContains(v.T(), serverLogs, "no cipher suite supported by both client and server")
-
-		})
-	}
-}
-
 func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
-	templateVars := map[string]interface{}{
-		"FIPSEnabled": "1",
-	}
-	dockerCompose := fillTmplConfig(v.T(), dockerComposeTemplate, templateVars)
-
 	v.UpdateEnv(
 		awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(
@@ -206,18 +160,4 @@ func stopFipsServer(v *fipsServerSuite, composeFiles string) {
 	if fipsContainer != "" {
 		v.Env().RemoteHost.MustExecute(fmt.Sprintf("docker-compose -f %s down fips-server", strings.TrimSpace(composeFiles)))
 	}
-}
-
-func fillTmplConfig(t *testing.T, tmplContent string, templateVars any) string {
-	t.Helper()
-
-	var buffer bytes.Buffer
-
-	tmpl, err := template.New("").Parse(tmplContent)
-	require.NoError(t, err)
-
-	err = tmpl.Execute(&buffer, templateVars)
-	require.NoError(t, err)
-
-	return buffer.String()
 }

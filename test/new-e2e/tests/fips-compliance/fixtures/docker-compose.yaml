@@ -4,7 +4,7 @@ version: "3.9"
 services:
   agent:
     environment:
-      GOFIPS: {{.FIPSEnabled}}
+      GOFIPS: 1
       DD_SKIP_SSL_VALIDATION: "true"
 
   fips-server:
