@@ -87,8 +87,6 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
         # extract username and address from connection message
         host = connection_message.split()[0]
 
-    # add host to known hosts
-    ctx.run(f"ssh-keyscan -H {host} >> ~/.ssh/known_hosts")
     # sync local changes to the remote Windows development environment
     rsync_command = f"rsync -avzrcIR --delete --rsync-path='C:\\cygwin\\bin\\rsync.exe' --filter=':- .gitignore' --exclude /.git/ . {host}:/cygdrive/c/mnt/datadog-agent/"
     print("Syncing changes to the remote Windows development environment...")
