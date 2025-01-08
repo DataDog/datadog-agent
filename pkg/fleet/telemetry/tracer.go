@@ -50,17 +50,16 @@ func getTagsFromBinary() map[string]string {
 		return res
 	}
 	goPath := info.Path
-	var vcs, commitSha string
+	var commitSha string
 	for _, s := range info.Settings {
-		if s.Key == "vcs" {
-			vcs = s.Value
-		} else if s.Key == "vcs.revision" {
+		if s.Key == "vcs.revision" {
 			commitSha = s.Value
 		}
 	}
 	res["_dd.git.commit.sha"] = commitSha
 	res["_dd.go_path"] = goPath
-	res["_dd.git.repository_url"] = vcs
+	res["git.repository_url"] = "https://github.com/DataDog/datadog-agent"
+	res["git.repository.id"] = "github.com/datadog/datadog-agent"
 	return res
 }
 
