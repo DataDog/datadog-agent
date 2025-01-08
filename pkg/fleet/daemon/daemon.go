@@ -269,10 +269,6 @@ func (d *daemonImpl) Start(_ context.Context) error {
 			}
 		}
 	}()
-	if !d.env.RemoteUpdates {
-		log.Infof("Daemon: Remote updates are disabled")
-		return nil
-	}
 	d.rc.Start(d.handleCatalogUpdate, d.scheduleRemoteAPIRequest)
 	return nil
 }
