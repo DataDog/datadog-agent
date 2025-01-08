@@ -152,7 +152,10 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 
 func (c *CWSConsumer) onAPIConnectionEstablished() {
 	seclog.Infof("api client connected, starts sending events")
+	c.startRunningMetrics()
+}
 
+func (c *CWSConsumer) startRunningMetrics() {
 	c.ruleEngine.StartRunningMetrics(c.ctx)
 
 	if c.crtelemetry != nil {
@@ -209,6 +212,11 @@ func (c *CWSConsumer) Start() error {
 	}
 	if c.selfTester != nil {
 		go c.selfTester.WaitForResult(cb)
+	}
+
+	// do not wait external api connection, send directly running metrics
+	if c.config.SendEventFromSystemProbe {
+		c.startRunningMetrics()
 	}
 
 	return nil

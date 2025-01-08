@@ -22,7 +22,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -593,7 +592,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	as.collectOSReleaseData()
 
 	if as.msgSender == nil {
-		if pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe") {
+		if cfg.SendEventFromSystemProbe {
 			msgSender, err := NewDirectMsgSender(stopper)
 			if err != nil {
 				log.Errorf("failed to setup direct reporter: %v", err)
