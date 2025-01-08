@@ -220,6 +220,14 @@ func (l LocalRecommender) CalculateHorizontalRecommendations(dpai model.PodAutos
 	if recommendedReplicas.Replicas == 0 {
 		return nil, fmt.Errorf("No recommendation found for autoscaler: %s", dpai.ID())
 	}
+	telemetryHorizontalLocalRecommendations.Set(
+		float64(recommendedReplicas.Replicas),
+		namespace,
+		podOwnerName,
+		dpai.Name(),
+		string(recommendedReplicas.Source),
+		le.JoinLeaderValue,
+	)
 
 	return &model.ScalingValues{
 		Horizontal: &recommendedReplicas,
