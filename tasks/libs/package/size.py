@@ -84,8 +84,11 @@ def file_size(path):
 
 def directory_size(ctx, path):
     # HACK: For uncompressed size, fall back to native Unix utilities - computing a directory size with Python
+    # NOTE: We use the -A (--apparent-size) option to make the computation consistent. Otherwise, each file's size
+    # is counted as the number of blocks it uses, which means a file's size depends on how it is written to disk.
+    # See https://unix.stackexchange.com/questions/173947/du-s-apparent-size-vs-du-s
     # TODO: To make this work on other OSes, the complete directory walk would need to be implemented
-    return int(ctx.run(f"du -sB1 {path}", hide=True).stdout.split()[0])
+    return int(ctx.run(f"du -A -sB1 {path}", hide=True).stdout.split()[0])
 
 
 def compute_package_size_metrics(
