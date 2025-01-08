@@ -132,7 +132,10 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         container_id = (void *)container_qstr.name;
 
         u64 inode = get_dentry_ino(container_d);
-        resolver->key.ino = inode;
+        // On RHEL kernels, the inode is the one of the folder holding cgroup.procs.
+        // The + 2 is inferred from the code, that won't change since RHEL 7 is EOL.
+        resolver->key.ino = inode + 2;
+
         struct file_t *entry = bpf_map_lookup_elem(&exec_file_cache, &inode);
         if (entry == NULL) {
             return 0;
