@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/dogstatsd"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
+	"github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
@@ -31,6 +32,8 @@ const (
 	defaultVMName     = "dockervm"
 )
 
+type setupFn func(*aws.Environment, *remote.Host, *ProvisionerParams) error
+
 // ProvisionerParams contains all the parameters needed to create the environment
 type ProvisionerParams struct {
 	name string
@@ -38,6 +41,7 @@ type ProvisionerParams struct {
 	vmOptions         []ec2.VMOption
 	agentOptions      []dockeragentparams.Option
 	fakeintakeOptions []fakeintake.Option
+	setupCallbacks    []setupFn
 	extraConfigParams runner.ConfigMap
 	testingWorkload   bool
 }
@@ -130,6 +134,13 @@ func WithTestingWorkload() ProvisionerOption {
 	}
 }
 
+func WithSetupCallback(cb setupFn) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.setupCallbacks = append(params.setupCallbacks, cb)
+		return nil
+	}
+}
+
 // RunParams contains parameters for the run function
 type RunParams struct {
 	Environment       *aws.Environment
@@ -196,6 +207,12 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, runParams RunParams)
 	} else {
 		// Suite inits all fields by default, so we need to explicitly set it to nil
 		env.FakeIntake = nil
+	}
+
+	for _, cb := range params.setupCallbacks {
+		if err := cb(&awsEnv, host, params); err != nil {
+			return err
+		}
 	}
 
 	// Create Agent if required
