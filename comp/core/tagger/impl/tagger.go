@@ -470,7 +470,7 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 		// Accumulate tags for pod UID
 		if originInfo.ExternalData.PodUID != "" {
 			if err := t.AccumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.ExternalData.PodUID), cardinality, tb); err != nil {
-				t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.ContainerID, err)
+				t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.ExternalData.PodUID, err)
 			}
 		}
 

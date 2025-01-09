@@ -1113,6 +1113,7 @@ func TestEnrichTags(t *testing.T) {
 		tags          []string
 		originFromUDS string
 		originFromMsg []byte
+		localData     origindetection.LocalData
 		externalData  origindetection.ExternalData
 		conf          enrichConfig
 	}
@@ -1128,6 +1129,7 @@ func TestEnrichTags(t *testing.T) {
 			name: "empty tags, host=foo",
 			args: args{
 				originFromUDS: "",
+				localData:     origindetection.LocalData{},
 				externalData:  origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
@@ -1144,6 +1146,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:          []string{"env:prod"},
 				originFromUDS: "originID",
+				localData:     origindetection.LocalData{},
 				externalData:  origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
@@ -1160,6 +1163,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:          nil,
 				originFromUDS: "originID",
+				localData:     origindetection.LocalData{},
 				externalData:  origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
@@ -1176,6 +1180,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "my-id")},
 				originFromUDS: "originID",
+				localData:     origindetection.LocalData{},
 				externalData:  origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
@@ -1192,6 +1197,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "none")},
 				originFromUDS: "originID",
+				localData:     origindetection.LocalData{},
 				externalData:  origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
@@ -1208,6 +1214,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42")},
 				originFromUDS: "originID",
+				localData:     origindetection.LocalData{},
 				externalData:  origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
@@ -1224,6 +1231,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + types.HighCardinalityString},
 				originFromUDS: "originID",
+				localData:     origindetection.LocalData{},
 				externalData:  origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
@@ -1240,6 +1248,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + types.OrchestratorCardinalityString},
 				originFromUDS: "originID",
+				localData:     origindetection.LocalData{},
 				externalData:  origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
@@ -1256,6 +1265,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + types.LowCardinalityString},
 				originFromUDS: "originID",
+				localData:     origindetection.LocalData{},
 				externalData:  origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
@@ -1272,6 +1282,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + types.UnknownCardinalityString},
 				originFromUDS: "originID",
+				localData:     origindetection.LocalData{},
 				externalData:  origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
@@ -1288,6 +1299,7 @@ func TestEnrichTags(t *testing.T) {
 			args: args{
 				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix},
 				originFromUDS: "originID",
+				localData:     origindetection.LocalData{},
 				externalData:  origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
@@ -1305,14 +1317,24 @@ func TestEnrichTags(t *testing.T) {
 				tags:          []string{"env:prod", "dd.internal.entity_id:pod-uid"},
 				originFromUDS: "originID",
 				originFromMsg: []byte("container-id"),
-				externalData:  origindetection.ExternalData{},
+				localData: origindetection.LocalData{
+					ContainerID: "container-id",
+				},
+				externalData: origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname: "foo",
 				},
 			},
-			wantedTags:         []string{"env:prod"},
-			wantedHost:         "foo",
-			wantedOrigin:       taggertypes.OriginInfo{ContainerIDFromSocket: "originID", PodUID: "pod-uid", ContainerID: "container-id"},
+			wantedTags: []string{"env:prod"},
+			wantedHost: "foo",
+			wantedOrigin: taggertypes.OriginInfo{
+				ContainerIDFromSocket: "originID",
+				PodUID:                "pod-uid",
+				ContainerID:           "container-id",
+				LocalData: origindetection.LocalData{
+					ContainerID: "container-id",
+				},
+			},
 			wantedMetricSource: metrics.MetricSourceDogstatsd,
 		},
 		{
@@ -1321,14 +1343,23 @@ func TestEnrichTags(t *testing.T) {
 				tags:          []string{"env:prod"},
 				originFromUDS: "originID",
 				originFromMsg: []byte("container-id"),
-				externalData:  origindetection.ExternalData{},
+				localData: origindetection.LocalData{
+					ContainerID: "container-id",
+				},
+				externalData: origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname: "foo",
 				},
 			},
-			wantedTags:         []string{"env:prod"},
-			wantedHost:         "foo",
-			wantedOrigin:       taggertypes.OriginInfo{ContainerIDFromSocket: "originID", ContainerID: "container-id"},
+			wantedTags: []string{"env:prod"},
+			wantedHost: "foo",
+			wantedOrigin: taggertypes.OriginInfo{
+				ContainerIDFromSocket: "originID",
+				ContainerID:           "container-id",
+				LocalData: origindetection.LocalData{
+					ContainerID: "container-id",
+				},
+			},
 			wantedMetricSource: metrics.MetricSourceDogstatsd,
 		},
 		{
@@ -1347,11 +1378,12 @@ func TestEnrichTags(t *testing.T) {
 			},
 			wantedTags: []string{"env:prod"},
 			wantedHost: "foo",
-			wantedOrigin: taggertypes.OriginInfo{ExternalData: origindetection.ExternalData{
-				Init:          false,
-				ContainerName: "container_name",
-				PodUID:        "pod_uid",
-			}},
+			wantedOrigin: taggertypes.OriginInfo{
+				ExternalData: origindetection.ExternalData{
+					Init:          false,
+					ContainerName: "container_name",
+					PodUID:        "pod_uid",
+				}},
 			wantedMetricSource: metrics.MetricSourceDogstatsd,
 		},
 		{
@@ -1360,6 +1392,9 @@ func TestEnrichTags(t *testing.T) {
 				tags:          []string{"env:prod", "dd.internal.entity_id:pod-uid"},
 				originFromUDS: "originID",
 				originFromMsg: []byte("container-id"),
+				localData: origindetection.LocalData{
+					ContainerID: "container-id",
+				},
 				externalData: origindetection.ExternalData{
 					Init:          false,
 					ContainerName: "container_name",
@@ -1375,6 +1410,9 @@ func TestEnrichTags(t *testing.T) {
 				ContainerIDFromSocket: "originID",
 				PodUID:                "pod-uid",
 				ContainerID:           "container-id",
+				LocalData: origindetection.LocalData{
+					ContainerID: "container-id",
+				},
 				ExternalData: origindetection.ExternalData{
 					Init:          false,
 					ContainerName: "container_name",
@@ -1388,7 +1426,7 @@ func TestEnrichTags(t *testing.T) {
 		tt.wantedOrigin.ProductOrigin = origindetection.ProductOriginDogStatsD
 
 		t.Run(tt.name, func(t *testing.T) {
-			tags, host, origin, metricSource := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, tt.args.originFromMsg, tt.args.externalData, tt.args.conf)
+			tags, host, origin, metricSource := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, tt.args.localData, tt.args.externalData, tt.args.conf)
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedHost, host)
 			assert.Equal(t, tt.wantedOrigin, origin)
@@ -1436,7 +1474,7 @@ func TestEnrichTagsWithJMXCheckName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags, _, _, metricSource := extractTagsMetadata(tt.tags, "", []byte{}, origindetection.ExternalData{}, enrichConfig{})
+			tags, _, _, metricSource := extractTagsMetadata(tt.tags, "", origindetection.LocalData{}, origindetection.ExternalData{}, enrichConfig{})
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedMetricSource, metricSource)
 			assert.NotContains(t, tags, tt.jmxCheckName)
