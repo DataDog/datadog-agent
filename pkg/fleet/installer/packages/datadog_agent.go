@@ -77,11 +77,6 @@ func PrepareAgent(ctx context.Context) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "prepare_agent")
 	defer func() { span.Finish(err) }()
 
-	err = removeDebRPMPackage(ctx, "datadog-agent")
-	if err != nil {
-		return fmt.Errorf("failed to remove deb/rpm datadog-agent package: %w", err)
-	}
-
 	for _, unit := range stableUnits {
 		if err := stopUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
