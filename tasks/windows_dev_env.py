@@ -2,16 +2,19 @@
 Create a remote Windows development environment and keep it in sync with local changes.
 """
 
+import json
 import os
 import re
 import shutil
 import time
 from datetime import timedelta
+from typing import Any
 
 from invoke.context import Context
 from invoke.tasks import task
 
 AMI_WINDOWS_DEV_2022 = "ami-09b68440cb06b26d6"
+WIN_CONTAINER_NAME = "windows-dev-env"
 
 
 @task(
@@ -44,19 +47,25 @@ def stop(
     _stop_windows_dev_env(ctx, name)
 
 
+@task(
+    help={
+        'name': 'Override the default name of the development environment (windows-dev-env).',
+        'command': 'Command to run on a windows dev container',
+    },
+)
+def run(
+    ctx: Context,
+    name: str = "windows-dev-env",
+    command: str = "",
+):
+    """
+    Runs a command on a remote Windows development environment.
+    """
+    _run_on_windows_dev_env(ctx, name, command)
+
+
 def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     start_time = time.time()
-    # lazy load watchdog to avoid import error on the CI
-    from watchdog.events import FileSystemEvent, FileSystemEventHandler
-    from watchdog.observers import Observer
-
-    class DDAgentEventHandler(FileSystemEventHandler):
-        def __init__(self, ctx: Context, command: str):
-            self.ctx = ctx
-            self.command = command
-
-        def on_any_event(self, event: FileSystemEvent) -> None:  # noqa # called by watchdog callback
-            _on_changed_path_run_command(self.ctx, event.src_path, self.command)
 
     # Ensure `test-infra-definitions` is cloned.
     if not os.path.isdir('../test-infra-definitions'):
@@ -87,8 +96,33 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
         # extract username and address from connection message
         host = connection_message.split()[0]
 
+    # check if Windows dev container is already running
+    should_start_container = True
+    result = ctx.run(f"ssh {host} 'docker ps -q --filter name=windows-dev-env'", warn=True, hide=True)
+    if result is not None and result.exited == 0 and len(result.stdout) > 0:
+        print("🐳 Windows dev env already running")
+        should_start_container = False
+    # start the Windows dev container, if not already running
+    if should_start_container:
+        print("🐳 Starting Windows dev container")
+        ctx.run(
+            f"ssh {host} 'docker run -v C:\\mnt:c:\\mnt -w C:\\mnt\\datadog-agent -t -d --name {WIN_CONTAINER_NAME} datadog/agent-buildimages-windows_x64:ltsc2022 ping -t localhost'",
+        )
     # sync local changes to the remote Windows development environment
-    # -aqzrcIR
+    rsync_command = _build_rsync_command(host)
+    print("Syncing changes to the remote Windows development environment...")
+    ctx.run(rsync_command)
+    print("Syncing changes to the remote Windows development done")
+    # print the time taken to start the dev env
+    elapsed_time = time.time() - start_time
+    print("♻️ Windows dev env started in", timedelta(seconds=elapsed_time))
+    _run_command_on_local_changes(ctx, rsync_command)
+    print("♻️ Windows dev env sync stopped")
+    print("Start it again with `inv windows_dev_env.start`")
+    print("Destroy the Windows dev env with `inv windows-dev-env.stop`")
+
+
+def _build_rsync_command(host: str) -> str:
     # -a: archive mode; equals -rlptgoD (no -H)
     # -z: compress file data during the transfer
     # -r: recurse into directories
@@ -96,19 +130,26 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     # -I: --ignore-times
     # -P: same as --partial --progress, show partial progress during transfer
     # -R: use relative path names
-    rsync_command = f"rsync -azrcIPR --delete --rsync-path='C:\\cygwin\\bin\\rsync.exe' --filter=':- .gitignore' --exclude /.git/ . {host}:/cygdrive/c/mnt/datadog-agent/"
-    print("Syncing changes to the remote Windows development environment...")
-    ctx.run(rsync_command)
-    print("Syncing changes to the remote Windows development done")
-    # print the time taken to start the dev env
-    elapsed_time = time.time() - start_time
-    print("♻️ Windows dev env started in", timedelta(seconds=elapsed_time))
+    return f"rsync -azrcIPR --delete --rsync-path='C:\\cygwin\\bin\\rsync.exe' --filter=':- .gitignore' --exclude /.git/ . {host}:/cygdrive/c/mnt/datadog-agent/"
 
-    event_handler = DDAgentEventHandler(ctx=ctx, command=rsync_command)
+
+def _run_command_on_local_changes(ctx: Context, command: str):
+    # lazy load watchdog to avoid import error on the CI
+    from watchdog.events import FileSystemEvent, FileSystemEventHandler
+    from watchdog.observers import Observer
+
+    class DDAgentEventHandler(FileSystemEventHandler):
+        def __init__(self, ctx: Context, command: str):
+            self.ctx = ctx
+            self.command = command
+
+        def on_any_event(self, event: FileSystemEvent) -> None:  # noqa # called by watchdog callback
+            _on_changed_path_run_command(self.ctx, event.src_path, self.command)
+
+    event_handler = DDAgentEventHandler(ctx=ctx, command=command)
     observer = Observer()
     observer.schedule(event_handler, ".", recursive=True)
     observer.start()
-
     try:
         while True:
             time.sleep(1)
@@ -116,9 +157,6 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
         observer.stop()
     finally:
         observer.join()
-    print("♻️ Windows dev env sync stopped")
-    print("Start it again with `inv windows_dev_env.start`")
-    print("Destroy the Windows dev env with `inv windows-dev-env.stop`")
 
 
 # start file watcher and run rsync on changes
@@ -141,3 +179,43 @@ def _on_changed_path_run_command(ctx: Context, path: str, command: str):
 def _stop_windows_dev_env(ctx, name: str = "windows-dev-env"):
     with ctx.cd('../test-infra-definitions'):
         ctx.run(f"inv aws.destroy-vm --stack-name={name}")
+
+
+class RemoteHost:
+    def __init__(self, output: str):
+        remoteHost: Any = json.loads(output)
+        self.address: str = remoteHost["address"]
+        self.user: str = remoteHost["user"]
+        self.password: str | None = "password" in remoteHost and remoteHost["password"] or None
+        self.port: int | None = "port" in remoteHost and remoteHost["port"] or None
+
+
+def _run_on_windows_dev_env(ctx: Context, name: str = "windows-dev-env", command: str = ""):
+    with ctx.cd('../test-infra-definitions'):
+        # find connection info for the VM
+        result = ctx.run(f"inv aws.show-vm --stack-name={name}", hide=True)
+        if result is None or not result:
+            raise Exception("Failed to find the Windows development environment.")
+        host = RemoteHost(result.stdout)
+        # run the command on the Windows development environment
+        docker_command_parts = [
+            'docker',
+            'exec',
+            '-it',
+            WIN_CONTAINER_NAME,
+            'powershell',
+            f"'{command}'",
+        ]
+        command_parts = [
+            'ssh',
+            f'{host.user}@{host.address}',
+            '-p',
+            f'{host.port}',
+            '-t',
+            f'"{' '.join(docker_command_parts)}"',
+        ]
+        ctx.run(
+            ' '.join(command_parts),
+            pty=True,
+            warn=True,
+        )
