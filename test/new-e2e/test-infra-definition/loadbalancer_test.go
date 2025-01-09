@@ -18,18 +18,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type fakeintakeSuiteMetrics struct {
+type loadBalancerSuiteMetrics struct {
 	e2e.BaseSuite[environments.Host]
 }
 
 func TestLoadBalancer(t *testing.T) {
-	e2e.Run(t, &fakeintakeSuiteMetrics{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithFakeIntakeOptions(fakeintake.WithLoadBalancer()))))
+	e2e.Run(t, &loadBalancerSuiteMetrics{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithFakeIntakeOptions(fakeintake.WithLoadBalancer()))))
 }
 
-func (v *fakeintakeSuiteMetrics) Test1_FakeIntakeReceivesMetrics() {
+func (v *loadBalancerSuiteMetrics) Test_FakeIntakeReceivesMetrics() {
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		metricNames, err := v.Env().FakeIntake.Client().GetMetricNames()
 		assert.NoError(c, err)
 		assert.Greater(c, len(metricNames), 0)
-	}, 5*time.Minute, 10*time.Second)
+	}, 2*time.Minute, 10*time.Second)
 }
