@@ -144,15 +144,8 @@ func TestMultiFakeintakeSuite(t *testing.T) {
 //
 // TODO: handle APM traces
 func (v *multiFakeIntakeSuite) TestNSSFailover() {
-	pulumi.All(v.Env().Fakeintake1.Scheme, v.Env().Fakeintake2.Scheme).ApplyT(func(args []interface{}) error {
-		scheme1 := args[0].(string)
-		scheme2 := args[1].(string)
-
-		// Ensure that both fakeintakes are using the same scheme
-		v.Assert().Equal(scheme1, scheme2)
-
-		return nil
-	})
+	// Ensure that both fakeintakes are using the same scheme
+	v.Assert().Equal(v.Env().Fakeintake1.Scheme, v.Env().Fakeintake2.Scheme)
 
 	agentConfig, err := readTmplConfig(configTmplFile)
 	v.NoError(err)
