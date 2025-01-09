@@ -352,8 +352,8 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.ID = binary.NativeEndian.Uint64(data[0:8])
 	e.Size = binary.NativeEndian.Uint32(data[8:12])
-	if e.Size > MaxArgEnvSize {
-		e.Size = MaxArgEnvSize
+	if e.Size > sharedconsts.MaxArgEnvSize {
+		e.Size = sharedconsts.MaxArgEnvSize
 	}
 
 	argsEnvSize := int(e.Size)
