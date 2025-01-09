@@ -63,15 +63,14 @@ func (b *bucket) flush() *message.Message {
 	copy(content, data)
 
 	if lastWasTruncated {
-		// the previous line has been truncated because it was too long,
-		// the new line is just a remainder,
-		// adding the truncated flag at the beginning of the content
+		// The previous line has been truncated because it was too long,
+		// the new line is just the remainder. Add the truncated flag at
+		// the beginning of the content.
 		content = append(message.TruncatedFlag, content...)
 	}
 
 	if b.shouldTruncate {
-		// the line is too long, it needs to be cut off and send,
-		// adding the truncated flag the end of the content
+		// The current line is too long. Mark it truncated at the end.
 		content = append(content, message.TruncatedFlag...)
 	}
 
@@ -118,7 +117,7 @@ func NewAggregator(outputFn func(m *message.Message), maxContentSize int, flushT
 
 	return &Aggregator{
 		outputFn:           outputFn,
-		bucket:             &bucket{buffer: bytes.NewBuffer(nil), tagTruncatedLogs: tagTruncatedLogs, tagMultiLineLogs: tagMultiLineLogs, maxContentSize: maxContentSize, lineCount: 0, shouldTruncate: false},
+		bucket:             &bucket{buffer: bytes.NewBuffer(nil), tagTruncatedLogs: tagTruncatedLogs, tagMultiLineLogs: tagMultiLineLogs, maxContentSize: maxContentSize, lineCount: 0, shouldTruncate: false, needsTruncation: false},
 		maxContentSize:     maxContentSize,
 		flushTimeout:       flushTimeout,
 		multiLineMatchInfo: multiLineMatchInfo,
