@@ -12,20 +12,29 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // AddColdStartMetric adds the coldstart metric to the demultiplexer
 //
 //nolint:revive // TODO(SERV) Fix revive linter
 func AddColdStartMetric(metricPrefix string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
-	add(fmt.Sprintf("%v.enhanced.cold_start", metricPrefix), tags, time.Now(), demux)
+	if demux != nil {
+		add(fmt.Sprintf("%v.enhanced.cold_start", metricPrefix), tags, time.Now(), demux)
+	} else {
+		log.Debugf("Unable to add cold start metric. The metric agent is not running")
+	}
 }
 
 // AddShutdownMetric adds the shutdown metric to the demultiplexer
 //
 //nolint:revive // TODO(SERV) Fix revive linter
 func AddShutdownMetric(metricPrefix string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
-	add(fmt.Sprintf("%v.enhanced.shutdown", metricPrefix), tags, time.Now(), demux)
+	if demux != nil {
+		add(fmt.Sprintf("%v.enhanced.shutdown", metricPrefix), tags, time.Now(), demux)
+	} else {
+		log.Debugf("Unable to add shudtdown metric. The metric agent is not running")
+	}
 }
 
 func add(name string, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
