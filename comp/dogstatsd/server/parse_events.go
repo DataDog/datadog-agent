@@ -169,12 +169,10 @@ func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []b
 	case bytes.HasPrefix(optionalField, eventTagsPrefix):
 		newEvent.tags = p.parseTags(optionalField[len(eventTagsPrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, localDataPrefix):
-		newEvent.localData, err = origindetection.ParseLocalData(string(optionalField[len(localDataPrefix):]))
-		// If the container ID is not set in the Local Data, we try to resolve it from the cgroupv2 inode.
-		if newEvent.localData.ContainerID == "" {
-			newEvent.localData.ContainerID = p.resolveContainerIDFromInode(newEvent.localData.Inode)
+		newEvent.localData, err = p.resolveLocalData(optionalField[len(localDataPrefix):])
+		if err == nil {
+			newEvent.containerID = newEvent.localData.ContainerID
 		}
-		newEvent.containerID = newEvent.localData.ContainerID
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, externalDataPrefix):
 		newEvent.externalData, err = origindetection.ParseExternalData(string(optionalField[len(externalDataPrefix):]))
 	}
