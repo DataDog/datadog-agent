@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Introduce ``sql_obfuscation_mode`` parameter. The value ``obfuscate_and_normalizei`` is recommended for DBM customers to enhance APM/DBM correlation.
+    Introduce ``sql_obfuscation_mode`` parameter. The value ``obfuscate_and_normalize`` is recommended for DBM customers to enhance APM/DBM correlation.
