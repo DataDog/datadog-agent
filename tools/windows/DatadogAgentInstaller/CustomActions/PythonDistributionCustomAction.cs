@@ -218,8 +218,10 @@ namespace Datadog.CustomActions
             if (proc.ExitCode != 0)
             {
                 session.Log($"install script exited with code: {proc.ExitCode}");
+                proc.Close();
                 return ActionResult.Failure;
             }
+            proc.Close();
             return ActionResult.Success;
         }
 
