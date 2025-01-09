@@ -249,22 +249,20 @@ func (e *ebpfTelemetry) initializeHelperErrTelemetryMap(module names.ModuleName,
 	return nil
 }
 
-func PatchConstant(symbol string, p *ebpf.ProgramSpec, enable bool, eBPFKey uint64) error {
+func PatchConstant(symbol string, p *ebpf.ProgramSpec, eBPFKey uint64) error {
 	// do constant editing of programs for helper errors post-init
 	ins := p.Instructions
 	ldDWImm := asm.LoadImmOp(asm.DWord)
-	if enable {
-		offsets := ins.ReferenceOffsets()
-		indices := offsets[symbol]
-		if len(indices) > 0 {
-			for _, index := range indices {
-				load := &ins[index]
-				if load.OpCode != ldDWImm {
-					return fmt.Errorf("symbol %v: load: found %v instead of %v", symbol, load.OpCode, ldDWImm)
-				}
-
-				load.Constant = int64(eBPFKey)
+	offsets := ins.ReferenceOffsets()
+	indices := offsets[symbol]
+	if len(indices) > 0 {
+		for _, index := range indices {
+			load := &ins[index]
+			if load.OpCode != ldDWImm {
+				return fmt.Errorf("symbol %v: load: found %v instead of %v", symbol, load.OpCode, ldDWImm)
 			}
+
+			load.Constant = int64(eBPFKey)
 		}
 	}
 
@@ -289,13 +287,15 @@ func patchEBPFTelemetry(programSpecs map[string]*ebpf.ProgramSpec, enable bool, 
 	for _, p := range programSpecs {
 		ins := p.Instructions
 		// do constant editing of programs for helper errors post-init
-		programName := names.NewProgramNameFromProgramSpec(p)
-		tk := probeTelemetryKey(programName, mn)
-		key := eBPFHelperErrorKey(h, tk)
-		if err := PatchConstant(symbol, p, enable && bpfTelemetry != nil, key); err != nil {
-			return err
+		if enable && bpfTelemetry != nil {
+			programName := names.NewProgramNameFromProgramSpec(p)
+			tk := probeTelemetryKey(programName, mn)
+			key := eBPFHelperErrorKey(h, tk)
+			if err := PatchConstant(symbol, p, key); err != nil {
+				return err
+			}
+			bpfTelemetry.setProbe(tk, key)
 		}
-		bpfTelemetry.setProbe(tk, key)
 
 		// patch telemetry helper calls
 		const ebpfTelemetryPatchCall = -1

@@ -134,7 +134,6 @@ func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult,
 				ebpftelemetry.PatchConstant(
 					ebpftelemetry.MapTelemetryKeyName(mapName),
 					p,
-					activateBPFTelemetry,
 					ebpftelemetry.MapTelemetryErrorKey(h, mapName, mn),
 				)
 			}
