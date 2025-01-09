@@ -27,7 +27,8 @@ def entrypoint(**kwargs):
     )
     # Pull image locally to get on disk size
     ctx.run(f"crane pull {url} output.tar")
-    image_on_disk_size = ctx.run("tar -xzf output.tar --to-stdout | wc -c")
+    ctx.run("ls -la output.tar")
+    image_on_disk_size = ctx.run("tar -xf output.tar --to-stdout | wc -c")
 
     error_message = ""
     if image_on_wire_size > max_on_wire_size:
