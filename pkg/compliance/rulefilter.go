@@ -22,7 +22,8 @@ type seclRuleFilter struct {
 
 // newSECLRuleFilter returns a new agent version based rule filter
 func newSECLRuleFilter() (*seclRuleFilter, error) {
-	model, err := filtermodel.NewRuleFilterModel(nil, "")
+	cfg := filtermodel.RuleFilterEventConfig{}
+	model, err := filtermodel.NewRuleFilterModel(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create default SECL rule filter: %w", err)
 	}

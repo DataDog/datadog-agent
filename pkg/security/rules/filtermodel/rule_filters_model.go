@@ -13,6 +13,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 )
 
+// RuleFilterEventConfig holds the config used by the rule filter event
+type RuleFilterEventConfig struct {
+	COREEnabled bool
+	Origin      string
+}
+
 // Init inits the rule filter event
 func (e *RuleFilterEvent) Init() {}
 
