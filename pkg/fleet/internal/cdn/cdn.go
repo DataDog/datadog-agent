@@ -52,8 +52,8 @@ type CDN struct {
 }
 
 type configLayer struct {
-	ID     string          `json:"name"`
-	Config json.RawMessage `json:"config"`
+	ID      string          `json:"id"`
+	Configs json.RawMessage `json:"configs"`
 }
 
 // New creates a new CDN and chooses the implementation depending

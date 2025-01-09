@@ -51,7 +51,7 @@ func newAPMLibrariesConfig(hostTags []string, rawConfig []byte) (*apmLibrariesCo
 		return nil, err
 	}
 	apmLibsConfig := &apmLibrariesConfigRaw{}
-	if err := json.Unmarshal(config.Config, apmLibsConfig); err != nil {
+	if err := json.Unmarshal(config.Configs, apmLibsConfig); err != nil {
 		return nil, err
 	}
 	if len(apmLibsConfig.APMLibrariesConfig) == 0 {

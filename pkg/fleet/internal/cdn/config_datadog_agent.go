@@ -40,10 +40,10 @@ type agentConfig struct {
 // agentConfigRaw represents the raw agent configuration from the CDN.
 // The contents are YAML and are ready to be written on disk.
 type agentConfigRaw struct {
-	AgentConfig         map[string]interface{} `json:"agent"`
-	SecurityAgentConfig map[string]interface{} `json:"security_agent"`
-	SystemProbeConfig   map[string]interface{} `json:"system_probe"`
-	IntegrationsConfig  []integration          `json:"integrations,omitempty"`
+	AgentConfig         map[string]interface{} `json:"datadog.yaml"`
+	SecurityAgentConfig map[string]interface{} `json:"security-agent.yaml"`
+	SystemProbeConfig   map[string]interface{} `json:"system-probe.yaml"`
+	IntegrationsConfig  []integration          `json:"conf.d,omitempty"`
 }
 
 type integration struct {
@@ -70,7 +70,7 @@ func newAgentConfig(rawConfig []byte) (*agentConfig, error) {
 		return nil, err
 	}
 	datadogAgentConfig := &agentConfigRaw{}
-	if err := json.Unmarshal(config.Config, datadogAgentConfig); err != nil {
+	if err := json.Unmarshal(config.Configs, datadogAgentConfig); err != nil {
 		return nil, err
 	}
 	if datadogAgentConfig.AgentConfig == nil && datadogAgentConfig.SecurityAgentConfig == nil && datadogAgentConfig.SystemProbeConfig == nil && len(datadogAgentConfig.IntegrationsConfig) == 0 {

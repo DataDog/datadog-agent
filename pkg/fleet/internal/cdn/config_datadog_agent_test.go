@@ -27,8 +27,8 @@ func TestAgentConfig(t *testing.T) {
 	assert.NoError(t, err)
 
 	configLayer := &configLayer{
-		ID:     "policy",
-		Config: baseLayerRaw,
+		ID:      "policy",
+		Configs: baseLayerRaw,
 	}
 
 	configLayerRaw, err := json.Marshal(configLayer)
@@ -77,8 +77,8 @@ func TestAgentConfigWithIntegrations(t *testing.T) {
 	assert.NoError(t, err)
 
 	configLayer := &configLayer{
-		ID:     "policy",
-		Config: rawLayer,
+		ID:      "policy",
+		Configs: rawLayer,
 	}
 
 	configLayerRaw, err := json.Marshal(configLayer)
