@@ -154,7 +154,7 @@ func TestAPIInstall(t *testing.T) {
 		URL:     "oci://example.com/test-package@5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
 	}
 	api.i.On("GetPackage", testPackage.Name, testPackage.Version).Return(testPackage, nil)
-	api.i.On("Install", mock.Anything, testPackage.URL, []string(nil)).Return(nil)
+	api.i.On("Install", mock.Anything, testPackage.URL, []string(nil), []byte(nil)).Return(nil)
 
 	err := api.c.Install(testPackage.Name, testPackage.Version)
 
