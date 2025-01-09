@@ -233,18 +233,21 @@ def _add_parent_pipeline(needs):
     Add the parent pipeline to the need, only for the jobs that are not the artifacts deploy jobs.
     """
 
+    deps_to_keep = [
+        "tests_windows_secagent_x64",
+        "tests_windows_sysprobe_x64",
+        "go_e2e_deps",
+    ]  # Needs that should be kept on jobs, because the e2e test actually needs the artifact from these jobs
+
     new_needs = []
     for need in needs:
         if isinstance(need, str):
-            if need.startswith("deploy") or need.startswith("qa"):
+            if need not in deps_to_keep:
                 continue
             new_needs.append({"pipeline": "$PARENT_PIPELINE_ID", "job": need})
         elif isinstance(need, dict):
-            if "job" in need and (need["job"].startswith("deploy") or need["job"].startswith("qa")):
+            if "job" in need and need["job"] not in deps_to_keep:
                 continue
-            del need[
-                "optional"
-            ]  # Not supported in child pipeline, see: https://gitlab.com/gitlab-org/gitlab/-/issues/349538
             new_needs.append({**need, "pipeline": "$PARENT_PIPELINE_ID"})
         elif isinstance(need, list):
             new_needs.extend(_add_parent_pipeline(need))
