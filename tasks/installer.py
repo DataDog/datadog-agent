@@ -107,10 +107,6 @@ def build_linux_script(
     with open(INSTALL_SCRIPT_TEMPLATE) as f:
         install_script = f.read()
 
-    # default version on pipelines, using the commit sha instead
-    if version == "nightly-a7":
-        version = get_commit_sha(ctx)
-
     archs = ['amd64', 'arm64']
     for arch in archs:
         build_downloader(ctx, flavor=flavor, version=version, os='linux', arch=arch)
