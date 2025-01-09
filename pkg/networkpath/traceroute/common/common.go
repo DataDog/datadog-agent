@@ -120,6 +120,12 @@ func NewICMPTCPParser() *ICMPParser {
 	return icmpParser
 }
 
+func NewICMPUDPParser() *ICMPParser {
+	icmpParser := &ICMPParser{}
+	icmpParser.packetParser = gopacket.NewDecodingLayerParser(layers.LayerTypeICMPv4, &icmpParser.icmpLayer, &icmpParser.innerIPLayer, &icmpParser.innerUDPLayer)
+	return icmpParser
+}
+
 func (p *ICMPParser) Parse(header *ipv4.Header, payload []byte) (*ICMPResponse, error) {
 	// in addition to parsing, it is probably not a bad idea to do some validation
 	// so we can ignore the ICMP packets we don't care about
@@ -127,6 +133,12 @@ func (p *ICMPParser) Parse(header *ipv4.Header, payload []byte) (*ICMPResponse, 
 		header.Src == nil || header.Dst == nil {
 		return nil, fmt.Errorf("invalid IP header for ICMP packet: %+v", header)
 	}
+
+	// clear layers between each run
+	p.icmpLayer = layers.ICMPv4{}
+	p.innerIPLayer = layers.IPv4{}
+	p.innerTCPLayer = layers.TCP{}
+	p.innerUDPLayer = layers.UDP{}
 
 	p.icmpResponse = &ICMPResponse{} // ensure we get a fresh ICMPResponse each run
 	p.icmpResponse.SrcIP = header.Src
@@ -140,7 +152,7 @@ func (p *ICMPParser) Parse(header *ipv4.Header, payload []byte) (*ICMPResponse, 
 		return p.parseWithInnerTCP(payload)
 	}
 
-	return p.ParseWithInnerUDP(header, payload)
+	return p.parseWithInnerUDP(payload)
 }
 
 func (p *ICMPParser) parseWithInnerTCP(payload []byte) (*ICMPResponse, error) {
@@ -186,8 +198,26 @@ func (p *ICMPParser) parseWithInnerTCP(payload []byte) (*ICMPResponse, error) {
 	return p.icmpResponse, nil
 }
 
-func (p *ICMPParser) ParseWithInnerUDP(header *ipv4.Header, payload []byte) (*ICMPResponse, error) {
-	return nil, nil
+func (p *ICMPParser) parseWithInnerUDP(payload []byte) (*ICMPResponse, error) {
+	p.decoded = []gopacket.LayerType{}
+	if err := p.packetParser.DecodeLayers(payload, &p.decoded); err != nil {
+		return nil, fmt.Errorf("failed to decode ICMP packet: %w", err)
+	}
+	// since we ignore unsupported layers, we need to check if we actually decoded
+	// anything
+	if len(p.decoded) < 1 {
+		return nil, fmt.Errorf("failed to decode ICMP packet, no layers decoded")
+	}
+	p.icmpResponse.TypeCode = p.icmpLayer.TypeCode
+
+	p.icmpResponse.InnerSrcIP = p.innerIPLayer.SrcIP
+	p.icmpResponse.InnerDstIP = p.innerIPLayer.DstIP
+	p.icmpResponse.InnerSrcPort = uint16(p.innerUDPLayer.SrcPort)
+	p.icmpResponse.InnerDstPort = uint16(p.innerUDPLayer.DstPort)
+	// the packet's checksum is used as the identifier for UDP packets
+	p.icmpResponse.InnerIdentifier = uint32(p.innerUDPLayer.Checksum)
+
+	return p.icmpResponse, nil
 }
 
 // ParseICMP takes in an IPv4 header and payload and tries to convert to an ICMP

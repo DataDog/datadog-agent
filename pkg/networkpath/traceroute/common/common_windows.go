@@ -87,10 +87,10 @@ func (w *Winrawsocket) SendRawPacket(destIP net.IP, destPort uint16, payload []b
 // If neither decoderFunc receives a matching packet within the timeout, a blank response is returned.
 // Once a matching packet is received by a decoderFunc, it will cause the other decoderFuncs to be
 // canceled, and data from the matching packet will be returned to the caller
-func (w *Winrawsocket) ListenPackets(timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, matcherFuncs map[int]MatcherFunc) (net.IP, time.Time, error) {
+func (w *Winrawsocket) ListenPackets(timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, matcherFuncs map[int]MatcherFunc) (net.IP, time.Time, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	ip, finished, err := w.handlePackets(ctx, localIP, localPort, remoteIP, remotePort, seqNum, matcherFuncs)
+	ip, finished, err := w.handlePackets(ctx, localIP, localPort, remoteIP, remotePort, innerIdentifier, matcherFuncs)
 	if err != nil {
 		_, canceled := err.(CanceledError)
 		if canceled {
@@ -109,7 +109,7 @@ func (w *Winrawsocket) ListenPackets(timeout time.Duration, localIP net.IP, loca
 // handlePackets in its current implementation should listen for the first matching
 // packet on the connection and then return. If no packet is received within the
 // timeout or if the listener is canceled, it should return a canceledError
-func (w *Winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, matcherFuncs map[int]MatcherFunc) (net.IP, time.Time, error) {
+func (w *Winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, matcherFuncs map[int]MatcherFunc) (net.IP, time.Time, error) {
 	buf := make([]byte, 512)
 	for {
 		select {
@@ -151,7 +151,7 @@ func (w *Winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 		if !ok {
 			continue
 		}
-		ip, err := matcherFunc(header, packet, localIP, localPort, remoteIP, remotePort, seqNum)
+		ip, err := matcherFunc(header, packet, localIP, localPort, remoteIP, remotePort, innerIdentifier)
 		if err != nil {
 			// if packet is NOT a match continue, otherwise log
 			// the error

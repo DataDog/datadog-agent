@@ -7,21 +7,20 @@ package udp
 import (
 	"fmt"
 	"math/rand/v2"
+	"net"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/windows"
 )
 
-// Traceroute runs a traceroute in parallel where all packets
-// are sent simultaneously and all responses are received in parallel
+// TracerouteSequential runs a traceroute
 func (u *UDPv4) TracerouteSequential() (*common.Results, error) {
 	log.Debugf("Running UDP traceroute to %+v", u)
 	// Get local address for the interface that connects to this
 	// host and store in in the probe
-	//
-	// TODO: ensure we hold the UDP port created here since we can
-	addr, conn, err := common.LocalAddrForHost(u.Target, u.DestPort)
+	addr, conn, err := common.LocalAddrForHost(u.Target, u.TargetPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local address for target: %w", err)
 	}
@@ -56,43 +55,42 @@ func (u *UDPv4) TracerouteSequential() (*common.Results, error) {
 		Source:     u.srcIP,
 		SourcePort: u.srcPort,
 		Target:     u.Target,
-		DstPort:    u.DestPort,
+		DstPort:    u.TargetPort,
 		Hops:       hops,
 	}, nil
 }
 
 func (u *UDPv4) sendAndReceive(rs *common.Winrawsocket, ttl int, seqNum uint32, timeout time.Duration) (*common.Hop, error) {
-	// _, buffer, udpChecksum, _, err := createRawUDPBuffer(u.srcIP, u.srcPort, u.Target, u.DestPort, ttl)
-	// if err != nil {
-	// 	log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
-	// 	return nil, err
-	// }
+	_, buffer, udpChecksum, _, err := createRawUDPBuffer(u.srcIP, u.srcPort, u.Target, u.TargetPort, ttl)
+	if err != nil {
+		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
+		return nil, err
+	}
 
-	// err = rs.SendRawPacket(u.Target, u.DestPort, buffer)
-	// if err != nil {
-	// 	log.Errorf("failed to send UDP packet: %s", err.Error())
-	// 	return nil, err
-	// }
+	err = rs.SendRawPacket(u.Target, u.TargetPort, buffer)
+	if err != nil {
+		log.Errorf("failed to send UDP packet: %s", err.Error())
+		return nil, err
+	}
 
-	// matcherFuncs := map[int]common.MatcherFunc{
-	// 	windows.IPPROTO_ICMP: common.MatchICMP,
-	// }
-	// start := time.Now() // TODO: is this the best place to start?
-	// hopIP, end, err := rs.ListenPackets(timeout, u.srcIP, u.srcPort, u.Target, u.DestPort)
-	// if err != nil {
-	// 	log.Errorf("failed to listen for packets: %s", err.Error())
-	// 	return nil, err
-	// }
+	matcherFuncs := map[int]common.MatcherFunc{
+		windows.IPPROTO_ICMP: u.icmpParser.MatchICMP,
+	}
+	start := time.Now() // TODO: is this the best place to start?
+	hopIP, end, err := rs.ListenPackets(timeout, u.srcIP, u.srcPort, u.Target, u.TargetPort, uint32(udpChecksum), matcherFuncs)
+	if err != nil {
+		log.Errorf("failed to listen for packets: %s", err.Error())
+		return nil, err
+	}
 
-	// rtt := time.Duration(0)
-	// if !hopIP.Equal(net.IP{}) {
-	// 	rtt = end.Sub(start)
-	// }
+	rtt := time.Duration(0)
+	if !hopIP.Equal(net.IP{}) {
+		rtt = end.Sub(start)
+	}
 
-	// return &common.Hop{
-	// 	IP:     hopIP,
-	// 	RTT:    rtt,
-	// 	IsDest: hopIP.Equal(u.Target),
-	// }, nil
-	return nil, nil
+	return &common.Hop{
+		IP:     hopIP,
+		RTT:    rtt,
+		IsDest: hopIP.Equal(u.Target),
+	}, nil
 }

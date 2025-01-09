@@ -9,23 +9,41 @@ package udp
 import (
 	"net"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 )
 
 type (
 	// UDPv4 encapsulates the data needed to run
 	// a UDPv4 traceroute
 	UDPv4 struct {
-		Target   net.IP
-		srcIP    net.IP // calculated internally
-		srcPort  uint16 // calculated internally
-		DestPort uint16
-		NumPaths uint16
-		MinTTL   uint8
-		MaxTTL   uint8
-		Delay    time.Duration // delay between sending packets (not applicable if we go the serial send/receive route)
-		Timeout  time.Duration // full timeout for all packets
+		Target     net.IP
+		TargetPort uint16
+		srcIP      net.IP // calculated internally
+		srcPort    uint16 // calculated internally
+		NumPaths   uint16
+		MinTTL     uint8
+		MaxTTL     uint8
+		Delay      time.Duration // delay between sending packets (not applicable if we go the serial send/receive route)
+		Timeout    time.Duration // full timeout for all packets
+		icmpParser *common.ICMPParser
 	}
 )
+
+func NewUDPv4(target net.IP, targetPort uint16, numPaths uint16, minTTL uint8, maxTTL uint8, delay time.Duration, timeout time.Duration) *UDPv4 {
+	icmpParser := common.NewICMPUDPParser()
+
+	return &UDPv4{
+		Target:     target,
+		TargetPort: targetPort,
+		NumPaths:   numPaths,
+		MinTTL:     minTTL,
+		MaxTTL:     maxTTL,
+		Delay:      delay,
+		Timeout:    timeout,
+		icmpParser: icmpParser,
+	}
+}
 
 // Close doesn't to anything yet, but we should
 // use this to close out long running sockets

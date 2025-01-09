@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"runtime"
 	"sort"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/tcp"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/udp"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -149,10 +151,18 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 		}
 	case payload.ProtocolUDP:
 		log.Tracef("Running UDP traceroute for: %+v", cfg)
-		pathResult, err = r.runUDP(cfg, hname, dest, maxTTL, timeout)
-		if err != nil {
-			tracerouteRunnerTelemetry.failedRuns.Inc()
-			return payload.NetworkPath{}, err
+		if runtime.GOOS == "windows" {
+			pathResult, err = r.runUDP(cfg, hname, dest, maxTTL, timeout)
+			if err != nil {
+				tracerouteRunnerTelemetry.failedRuns.Inc()
+				return payload.NetworkPath{}, err
+			}
+		} else {
+			pathResult, err = r.runDublinUDP(cfg, hname, dest, maxTTL, timeout)
+			if err != nil {
+				tracerouteRunnerTelemetry.failedRuns.Inc()
+				return payload.NetworkPath{}, err
+			}
 		}
 	default:
 		log.Errorf("Invalid protocol for: %+v", cfg)
@@ -163,7 +173,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 	return pathResult, nil
 }
 
-func (r *Runner) runUDP(cfg config.Config, hname string, dest net.IP, maxTTL uint8, timeout time.Duration) (payload.NetworkPath, error) {
+func (r *Runner) runDublinUDP(cfg config.Config, hname string, dest net.IP, maxTTL uint8, timeout time.Duration) (payload.NetworkPath, error) {
 	destPort, srcPort, useSourcePort := getPorts(cfg.DestPort)
 
 	dt := &probev4.UDPv4{
@@ -184,7 +194,7 @@ func (r *Runner) runUDP(cfg config.Config, hname string, dest net.IP, maxTTL uin
 		return payload.NetworkPath{}, fmt.Errorf("traceroute run failed: %s", err.Error())
 	}
 
-	pathResult, err := r.processUDPResults(results, hname, cfg.DestHostname, destPort, dest)
+	pathResult, err := r.processDublinResults(results, hname, cfg.DestHostname, destPort, dest)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}
@@ -214,7 +224,7 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 		return payload.NetworkPath{}, err
 	}
 
-	pathResult, err := r.processTCPResults(results, hname, cfg.DestHostname, destPort, target)
+	pathResult, err := r.processResults(results, payload.ProtocolTCP, hname, cfg.DestHostname, destPort, target)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}
@@ -223,11 +233,32 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 	return pathResult, nil
 }
 
-func (r *Runner) processTCPResults(res *common.Results, hname string, destinationHost string, destinationPort uint16, destinationIP net.IP) (payload.NetworkPath, error) {
+func (r *Runner) runUDP(cfg config.Config, hname string, target net.IP, maxTTL uint8, timeout time.Duration) (payload.NetworkPath, error) {
+	destPort := cfg.DestPort
+	if destPort == 0 {
+		destPort = 33434 // TODO: is this the default we want?
+	}
+
+	tr := udp.NewUDPv4(target, destPort, DefaultNumPaths, uint8(DefaultMinTTL), maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout)
+	results, err := tr.TracerouteSequential()
+	if err != nil {
+		return payload.NetworkPath{}, err
+	}
+
+	pathResult, err := r.processResults(results, payload.ProtocolUDP, hname, cfg.DestHostname, destPort, target)
+	if err != nil {
+		return payload.NetworkPath{}, err
+	}
+	log.Tracef("UDP Results: %+v", pathResult)
+
+	return pathResult, nil
+}
+
+func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, hname string, destinationHost string, destinationPort uint16, destinationIP net.IP) (payload.NetworkPath, error) {
 	traceroutePath := payload.NetworkPath{
 		AgentVersion: version.AgentVersion,
 		PathtraceID:  payload.NewPathtraceID(),
-		Protocol:     payload.ProtocolTCP,
+		Protocol:     protocol,
 		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
 			Hostname:  hname,
@@ -281,7 +312,7 @@ func (r *Runner) processTCPResults(res *common.Results, hname string, destinatio
 	return traceroutePath, nil
 }
 
-func (r *Runner) processUDPResults(res *results.Results, hname string, destinationHost string, destinationPort uint16, destinationIP net.IP) (payload.NetworkPath, error) {
+func (r *Runner) processDublinResults(res *results.Results, hname string, destinationHost string, destinationPort uint16, destinationIP net.IP) (payload.NetworkPath, error) {
 	type node struct {
 		node  string
 		probe *results.Probe
