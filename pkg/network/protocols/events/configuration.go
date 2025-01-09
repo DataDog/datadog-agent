@@ -26,16 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// defaultPerfBufferSize controls the amount of memory in bytes used *per CPU*
-// allocated for buffering perf event data
-var defaultPerfEventBufferSize = 16 * os.Getpagesize()
-
-// defaultPerfHandlerSize controls the size of the go channel that buffers perf
-// events (*ddebpf.PerfHandler). All perf events handled by this library have
-// fixed size (sizeof(batch_data_t)) which is ~4KB, so by choosing a value of
-// 100 we'll be buffering up to ~400KB of data in *Go* heap memory.
-const defaultPerfHandlerSize = 100
-
 // Configure a given `*manager.Manager` for event processing
 // This essentially instantiates the perf map/ring buffers and configure the
 // eBPF maps where events are enqueued.
