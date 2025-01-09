@@ -119,16 +119,13 @@ func TestStoreAndPurgeEntities(t *testing.T) {
 	}
 	storeInfo := store.GetStoreInfo()
 	assert.Equal(t, 2, len(storeInfo.StatsResults))
-	for id, statsResult := range storeInfo.StatsResults {
+	for _, statsResult := range storeInfo.StatsResults {
 		assert.Equal(t, numPayloads, statsResult.Count)
-		if id == 0 {
-			assert.Equal(t, "test", statsResult.Namespace)
-			assert.Equal(t, "redis_test", statsResult.PodOwner)
+		assert.Equal(t, "test", statsResult.Namespace)
+		assert.Contains(t, []string{"redis_test", "nginx_test"}, statsResult.PodOwner)
+		if statsResult.PodOwner == "redis_test" {
 			assert.Equal(t, "container.memory.usage", statsResult.MetricName)
-		} else {
-			assert.Equal(t, numPayloads, statsResult.Count)
-			assert.Equal(t, "test", statsResult.Namespace)
-			assert.Equal(t, "nginx_test", statsResult.PodOwner)
+		} else { // nginx_test
 			assert.Equal(t, "container.cpu.usage", statsResult.MetricName)
 		}
 	}
