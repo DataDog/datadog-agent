@@ -62,7 +62,7 @@ namespace Datadog.CustomActions
                 {
                     using var actionRecord = new Record(
                         "Decompress Python distribution",
-                        "Decompressing distribution",
+                        "Decompressing Python distribution",
                         ""
                     );
                     session.Message(InstallMessage.ActionStart, actionRecord);
@@ -123,6 +123,13 @@ namespace Datadog.CustomActions
             try
             {
                 // Installing FIPS flavor, we must run fipsinstall to prepare Python's OpenSSL FIPS module
+                using var actionRecord = new Record(
+                    "OpenSSL FIPS module installation",
+                    "Installing OpenSSL FIPS module",
+                    ""
+                );
+                session.Message(InstallMessage.ActionStart, actionRecord);
+
                 var projectLocation = session.Property("PROJECTLOCATION");
                 if (string.IsNullOrEmpty(projectLocation))
                 {
