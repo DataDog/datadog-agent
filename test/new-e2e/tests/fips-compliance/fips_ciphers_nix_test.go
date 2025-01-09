@@ -58,7 +58,7 @@ type fipsServerSuite struct {
 }
 
 func TestFIPSCiphersSuite(t *testing.T) {
-	e2e.Run(t, &fipsServerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner()))
+	e2e.Run(t, &fipsServerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner()), e2e.WithSkipDeleteOnFailure())
 }
 
 func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
@@ -91,7 +91,7 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
 			defer stopFipsServer(v, formattedComposeFiles)
 
 			// Run diagnose to send requests and verify the server logs
-			runAgentDiagnose(v)
+			runAgentDiagnose(v, formattedComposeFiles)
 
 			serverLogs := v.Env().RemoteHost.MustExecute("docker logs dd-fips-server")
 			if tc.want {
@@ -119,7 +119,7 @@ func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
 	runFipsServer(v, cipherTestCase{cert: "rsa", tlsMax: "1.1"}, formattedComposeFiles)
 	defer stopFipsServer(v, formattedComposeFiles)
 
-	runAgentDiagnose(v)
+	runAgentDiagnose(v, formattedComposeFiles)
 
 	serverLogs := v.Env().RemoteHost.MustExecute("docker logs dd-fips-server")
 	assert.Contains(v.T(), serverLogs, "tls: client offered only unsupported version")
@@ -151,8 +151,8 @@ func runFipsServer(v *fipsServerSuite, tc cipherTestCase, composeFiles string) {
 	}, 10*time.Second, 2*time.Second)
 }
 
-func runAgentDiagnose(v *fipsServerSuite) {
-	_ = v.Env().Docker.Client.ExecuteCommand("datadog-agent", `sh`, `-c`, `GOFIPS=1 DD_DD_URL=https://dd-fips-server:443 agent diagnose --include connectivity-datadog-core-endpoints --local`)
+func runAgentDiagnose(v *fipsServerSuite, composeFiles string) {
+	_ := v.Env().RemoteHost.MustExecute("docker-compose -f %s exec agent sh -c GOFIPS=1 DD_DD_URL=https://dd-fips-server:443 agent diagnose --include connectivity-datadog-core-endpoints --local`")
 }
 
 func stopFipsServer(v *fipsServerSuite, composeFiles string) {
