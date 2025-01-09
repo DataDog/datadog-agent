@@ -27,7 +27,7 @@ import (
 	usergrouputils "github.com/DataDog/datadog-agent/pkg/security/common/usergrouputils"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
@@ -280,13 +280,13 @@ func getPidTTY(pid int) string {
 
 func truncateArgs(list []string) ([]string, bool) {
 	truncated := false
-	if len(list) > model.MaxArgsEnvsSize {
-		list = list[:model.MaxArgsEnvsSize]
+	if len(list) > sharedconsts.MaxArgsEnvsSize {
+		list = list[:sharedconsts.MaxArgsEnvsSize]
 		truncated = true
 	}
 	for i, l := range list {
-		if len(l) > model.MaxArgEnvSize {
-			list[i] = l[:model.MaxArgEnvSize-4] + "..."
+		if len(l) > sharedconsts.MaxArgEnvSize {
+			list[i] = l[:sharedconsts.MaxArgEnvSize-4] + "..."
 			truncated = true
 		}
 	}
@@ -350,8 +350,8 @@ func truncateEnvs(it StringIterator) ([]string, bool) {
 		if len(text) > 0 {
 			envCounter++
 			if matchesOnePrefix(text, priorityEnvsPrefixes) {
-				if len(text) > model.MaxArgEnvSize {
-					text = text[:model.MaxArgEnvSize-4] + "..."
+				if len(text) > sharedconsts.MaxArgEnvSize {
+					text = text[:sharedconsts.MaxArgEnvSize-4] + "..."
 					truncated = true
 				}
 				priorityEnvs = append(priorityEnvs, text)
@@ -361,8 +361,8 @@ func truncateEnvs(it StringIterator) ([]string, bool) {
 
 	it.Reset()
 
-	if envCounter > model.MaxArgsEnvsSize {
-		envCounter = model.MaxArgsEnvsSize
+	if envCounter > sharedconsts.MaxArgsEnvsSize {
+		envCounter = sharedconsts.MaxArgsEnvsSize
 	}
 
 	// second pass collecting
@@ -370,7 +370,7 @@ func truncateEnvs(it StringIterator) ([]string, bool) {
 	envs = append(envs, priorityEnvs...)
 
 	for it.Next() {
-		if len(envs) >= model.MaxArgsEnvsSize {
+		if len(envs) >= sharedconsts.MaxArgsEnvsSize {
 			return envs, true
 		}
 
@@ -378,8 +378,8 @@ func truncateEnvs(it StringIterator) ([]string, bool) {
 		if len(text) > 0 {
 			// if it matches one prefix, it's already in the envs through priority envs
 			if !matchesOnePrefix(text, priorityEnvsPrefixes) {
-				if len(text) > model.MaxArgEnvSize {
-					text = text[:model.MaxArgEnvSize-4] + "..."
+				if len(text) > sharedconsts.MaxArgEnvSize {
+					text = text[:sharedconsts.MaxArgEnvSize-4] + "..."
 					truncated = true
 				}
 				envs = append(envs, text)

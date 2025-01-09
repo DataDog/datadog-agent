@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -305,7 +306,7 @@ func newIPPortFamilySerializer(c *model.IPPortContext, family string) IPPortFami
 
 func newExitEventSerializer(e *model.Event) *ExitEventSerializer {
 	return &ExitEventSerializer{
-		Cause: model.ExitCause(e.Exit.Cause).String(),
+		Cause: sharedconsts.ExitCause(e.Exit.Cause).String(),
 		Code:  e.Exit.Code,
 	}
 }
