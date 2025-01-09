@@ -101,8 +101,6 @@ func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult,
 			return fmt.Errorf("failed to load collection spec: %v", err)
 		}
 
-		printConstants(collectionSpec)
-
 		// Max entry has to be > 0 for all maps
 		for _, mapSpec := range collectionSpec.Maps {
 			if mapSpec.MaxEntries == 0 {
