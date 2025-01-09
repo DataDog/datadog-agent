@@ -64,7 +64,7 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
     if failed_jobs.all_mandatory_failures():  # At least one mandatory job failed
         header_icon = ":host-red:"
         state = "failed"
-        coda = "If there is something wrong with the notification please contact #agent-developer-experience"
+        coda = "If there is something wrong with the notification please contact <#C06PBHLD4DQ>"
     else:
         header_icon = ":host-green:"
         state = "succeeded"
@@ -310,7 +310,7 @@ On pipeline [{pipeline_id}]({pipeline_url}) ([CI Visibility](https://app.datadog
         msg += f"  - {job}\n"
     msg += "</details>\n"
     msg += "\n"
-    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to #agent-developer-experience"
+    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to <#C06PBHLD4DQ>"
     return msg
 
 
