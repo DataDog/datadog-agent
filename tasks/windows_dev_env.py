@@ -84,14 +84,22 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
             connection_message = match.group(1)
         else:
             raise Exception("Failed to find pulumi output in stdout.")
-        print(f"Pulumi output:\n============\n{connection_message}\n============\n")
         # extract username and address from connection message
         host = connection_message.split()[0]
 
     # sync local changes to the remote Windows development environment
-    rsync_command = f"rsync -avzrcIR --delete --rsync-path='C:\\cygwin\\bin\\rsync.exe' --filter=':- .gitignore' --exclude /.git/ . {host}:/cygdrive/c/mnt/datadog-agent/"
+    # -aqzrcIR
+    # -a: archive mode; equals -rlptgoD (no -H)
+    # -z: compress file data during the transfer
+    # -r: recurse into directories
+    # -c: skip based on checksum, not mod-time & size
+    # -I: --ignore-times
+    # -P: same as --partial --progress, show partial progress during transfer
+    # -R: use relative path names
+    rsync_command = f"rsync -azrcIPR --delete --rsync-path='C:\\cygwin\\bin\\rsync.exe' --filter=':- .gitignore' --exclude /.git/ . {host}:/cygdrive/c/mnt/datadog-agent/"
     print("Syncing changes to the remote Windows development environment...")
     ctx.run(rsync_command)
+    print("Syncing changes to the remote Windows development done")
     # print the time taken to start the dev env
     elapsed_time = time.time() - start_time
     print("♻️ Windows dev env started in", timedelta(seconds=elapsed_time))
@@ -100,6 +108,7 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     observer = Observer()
     observer.schedule(event_handler, ".", recursive=True)
     observer.start()
+
     try:
         while True:
             time.sleep(1)
@@ -126,6 +135,7 @@ def _on_changed_path_run_command(ctx: Context, path: str, command: str):
         return
     print("Syncing changes to the remote Windows development environment...")
     ctx.run(command)
+    print("Syncing changes to the remote Windows development environment done")
 
 
 def _stop_windows_dev_env(ctx, name: str = "windows-dev-env"):
