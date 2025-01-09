@@ -18,7 +18,6 @@ use_repo(toolchains, "zig_sdk")
 register_toolchains(
     "@zig_sdk//libc_aware/toolchain:linux_amd64_gnu.2.17",
     "@zig_sdk//libc_aware/toolchain:linux_arm64_gnu.2.23",
-    dev_dependency=True,
 )
 
 # Make our 3rd parties depencency repositories known

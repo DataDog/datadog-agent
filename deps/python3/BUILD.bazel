@@ -32,6 +32,7 @@ configure_make(
         ],
         "//conditions:default": []
     }),
+    install_prefix = "py_install",
     env = {
         "OPT": "-DNDEBUG -fwrapv",
         # manually provide some dependencies cflags/ldflags instead of
