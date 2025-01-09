@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed a bug reinstalling marketplace/extra integrations for rpm package after agent upgrade
