@@ -43,11 +43,13 @@ func main() {
 	var filterPrograms filters
 
 	debug := flag.Bool("debug", false, "Calculate statistics of debug builds")
+	nostats := flag.Bool("no-stats", false, "Do not gather verifier stats")
 	lineComplexity := flag.Bool("line-complexity", false, "Calculate line complexity, extracting data from the verifier logs")
 	verifierLogsDir := flag.String("verifier-logs", "", "Directory containing verifier logs. If not set, no logs will be saved.")
 	summaryOutput := flag.String("summary-output", "ebpf-calculator/summary.json", "File where JSON with the summary will be written")
 	complexityDataDir := flag.String("complexity-data-dir", "ebpf-calculator/complexity-data", "Directory where the complexity data will be written")
 	constantsList := flag.Bool("constants", false, "Get json list of all user defined constants")
+	constantsFile := flag.String("constants-file", "", "File containing list of known constants")
 	flag.Var(&filterFiles, "filter-file", "Files to load ebpf programs from")
 	flag.Var(&filterPrograms, "filter-prog", "Only return statistics for programs matching one of these regex pattern")
 	flag.Parse()
@@ -147,6 +149,90 @@ func main() {
 		files = append(files, dstPath)
 	}
 
+	// verify that the constants the stats gatherer is aware of match
+	// the constants in the object files
+	if *constantsFile != "" {
+		constants := make(map[string]map[string]uint64)
+
+		for _, file := range files {
+			module := strings.Split(filepath.Base(file), ".")[0]
+			constants[module] = make(map[string]uint64)
+
+			if err := verifier.BuildConstantsList(file, constants[module]); err != nil {
+				log.Fatalf("failed to build constant list for file %s: %v", file, err)
+			}
+		}
+
+		knownConstants := make(map[string]map[string]uint64)
+		j, err := os.ReadFile(*constantsFile)
+		if err != nil {
+			log.Fatalf("failed to read constants file %s: %v", *constantsFile, err)
+		}
+		if err := json.Unmarshal(j, &knownConstants); err != nil {
+			log.Fatalf("failed to unmarshal contents of json file %s: %v", *constantsFile, err)
+		}
+
+		var toremove []string
+		for file, _ := range knownConstants {
+			if _, ok := constants[file]; !ok {
+				toremove = append(toremove, file)
+			}
+		}
+		for _, file := range toremove {
+			delete(knownConstants, file)
+		}
+
+		if len(constants) != len(knownConstants) {
+			log.Fatalf("set of files present does not match the known set of files")
+		}
+
+		for f, consts := range constants {
+			if _, ok := knownConstants[f]; !ok {
+				log.Fatalf("no constants recorded for file %s.o", f)
+			}
+
+			if len(consts) != len(knownConstants[f]) {
+				log.Fatalf("set of constants in file %s.o do no match known constants", f)
+			}
+
+			for c, _ := range consts {
+				if _, ok := knownConstants[f][c]; !ok {
+					log.Fatalf("constants %s for file %s.o not known", c, f)
+				}
+			}
+		}
+	}
+
+	if *constantsList {
+		ls := make(map[string]map[string]uint64)
+		for _, file := range files {
+			module := strings.Split(filepath.Base(file), ".")[0]
+			ls[module] = make(map[string]uint64)
+
+			if err := verifier.BuildConstantsList(file, ls[module]); err != nil {
+				log.Fatalf("failed to build constant list for file %s: %v", file, err)
+			}
+		}
+
+		jsonFile := filepath.Join("ebpf-calculator", "constants.json")
+		j, err := json.MarshalIndent(ls, "", "	")
+		if err != nil {
+			log.Fatalf("failed to marshal constants into json list: %v", err)
+		}
+
+		log.Printf("Writing constants to %s", jsonFile)
+		if err := os.MkdirAll(filepath.Dir(jsonFile), 0755); err != nil {
+			log.Fatalf("failed to create directory %s: %v", filepath.Dir(jsonFile), err)
+		}
+		if err := os.WriteFile(jsonFile, j, 0644); err != nil {
+			log.Fatalf("failed to write json file %s: %v", jsonFile, err)
+		}
+	}
+
+	if *nostats {
+		return
+	}
+
 	var filterRegexp []*regexp.Regexp
 	for _, filter := range filterPrograms {
 		filterRegexp = append(filterRegexp, regexp.MustCompile(filter))
@@ -211,29 +297,6 @@ func main() {
 			if err := os.WriteFile(destPath, contents, 0644); err != nil {
 				log.Fatalf("failed to write complexity data for %s: %v", progName, err)
 			}
-		}
-	}
-
-	if *constantsList {
-		ls := make(map[string]map[string]uint64)
-		for _, file := range files {
-			module := strings.Split(filepath.Base(file), ".")[0]
-			ls[module] = make(map[string]uint64)
-
-			if err := verifier.BuildConstantsList(file, ls[module]); err != nil {
-				log.Fatalf("failed to build constant list for file %s: %v", file, err)
-			}
-		}
-
-		jsonFile := filepath.Join("ebpf-calculator", "constants.json")
-		j, err := json.MarshalIndent(ls, "", "	")
-		if err != nil {
-			log.Fatalf("failed to marshal constants into json list: %v", err)
-		}
-
-		log.Printf("Writing constants to %s", jsonFile)
-		if err := os.WriteFile(jsonFile, j, 0644); err != nil {
-			log.Fatalf("failed to write json file %s: %v", jsonFile, err)
 		}
 	}
 }

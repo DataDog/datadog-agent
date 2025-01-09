@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import itertools
 import shutil
+import copy
 
 from tasks.github_tasks import pr_commenter
 from tasks.kmt import download_complexity_data
@@ -189,6 +190,11 @@ def collect_verification_stats(
 
     if constants:
         args += ["-constants"]
+    else:
+        args += [
+            "-constants-file",
+            os.path.abspath("./pkg/ebpf/verifier/constants.json"),
+        ]
 
     ctx.run(f"{sudo} ./main {' '.join(args)}", env=env)
 
@@ -951,3 +957,54 @@ def _format_change(new: float, old: float):
             emoji = "🔴"
 
     return f"{emoji} {new:.1f} ({change_abs:+.1f}, {change_rel_str})"
+
+
+@task
+def regenerate_constants(ctx):
+    sudo = "sudo -E" if not is_root() else ""
+    build_object_files(ctx)
+    build_cws_object_files(ctx)
+
+    ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
+
+    arch = Arch.local()
+    env = {"DD_SYSTEM_PROBE_BPF_DIR": f"./{get_ebpf_build_dir(arch)}"}
+
+    args = (
+        ["-constants"]
+        + [f"-no-stats"]
+    )
+    ctx.run(f"{sudo} ./main {' '.join(args)}", env=env)
+    ctx.run(f"{sudo} chmod a+wr -R {VERIFIER_DATA_DIR}")
+    ctx.run(f"{sudo} find {VERIFIER_DATA_DIR} -type d -exec chmod a+xr {{}} +")
+
+    known_constants = Path("./pkg/ebpf/verifier/constants.json")
+    generated_constants = VERIFIER_DATA_DIR / "constants.json"
+
+    with open(known_constants) as f:
+        kc = json.load(f)
+
+    with open(generated_constants) as f:
+        gc = json.load(f)
+
+    # add new files and constants
+    for file, consts in gc.items():
+        if file not in kc:
+            kc[file] = gc[file]
+
+        for c, val in consts.items():
+            if c not in kc[file]:
+                kc[file][c] = val
+
+    # remove absent files and constants
+    new_kc = dict()
+    for file, consts in kc.items():
+        if file in gc:
+            new_kc[file] = dict()
+
+        for c, val in consts.items():
+            if c in gc[file]:
+                new_kc[file][c] = val
+
+    with open(known_constants, 'w') as f:
+        json.dump(new_kc, f, indent=4)
