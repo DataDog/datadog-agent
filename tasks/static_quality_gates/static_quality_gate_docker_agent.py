@@ -26,7 +26,7 @@ def entrypoint(**kwargs):
         + " | grep size | awk -F ':' '{sum+=$NF} END {print sum}'"
     )
     # Pull image locally to get on disk size
-    pull_stdout = ctx.run(f"docker pull {url}")
+    pull_stdout = ctx.run(f"crane pull {url}")
     local_docker_name = pull_stdout.split("\n")[-1].strip()
     image_on_disk_size = ctx.run("docker inspect -f \"{{ .Size }}\" " + local_docker_name)
 
