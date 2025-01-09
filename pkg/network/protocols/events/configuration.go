@@ -56,20 +56,22 @@ func Configure(cfg *config.Config, proto string, m *manager.Manager, o *manager.
 	useRingBuffer := cfg.EnableUSMRingBuffers && features.HaveMapType(ebpf.RingBuf) == nil
 	utils.AddBoolConst(o, useRingBuffer, "use_ring_buffer")
 
+	bufferSize := cfg.USMKernelBufferPages * os.Getpagesize()
+
 	if useRingBuffer {
-		setupPerfRing(proto, m, o, numCPUs)
+		setupPerfRing(proto, m, o, numCPUs, cfg.USMDataChannelSize, bufferSize)
 	} else {
-		setupPerfMap(proto, m)
+		setupPerfMap(proto, m, cfg.USMDataChannelSize, bufferSize)
 	}
 }
 
-func setupPerfMap(proto string, m *manager.Manager) {
-	handler := ddebpf.NewPerfHandler(defaultPerfHandlerSize)
+func setupPerfMap(proto string, m *manager.Manager, dataChannelSize, perfEventBufferSize int) {
+	handler := ddebpf.NewPerfHandler(dataChannelSize)
 	mapName := eventMapName(proto)
 	pm := &manager.PerfMap{
 		Map: manager.Map{Name: mapName},
 		PerfMapOptions: manager.PerfMapOptions{
-			PerfRingBufferSize: defaultPerfEventBufferSize,
+			PerfRingBufferSize: perfEventBufferSize,
 
 			// Our events are already batched on the kernel side, so it's
 			// desirable to have Watermark set to 1
@@ -90,10 +92,11 @@ func setupPerfMap(proto string, m *manager.Manager) {
 	setHandler(proto, handler)
 }
 
-func setupPerfRing(proto string, m *manager.Manager, o *manager.Options, numCPUs int) {
-	handler := ddebpf.NewRingBufferHandler(defaultPerfHandlerSize)
+func setupPerfRing(proto string, m *manager.Manager, o *manager.Options, numCPUs int, dataChannelSize, ringBufferSize int) {
+	handler := ddebpf.NewRingBufferHandler(dataChannelSize)
 	mapName := eventMapName(proto)
-	ringBufferSize := toPowerOf2(numCPUs * defaultPerfEventBufferSize)
+	// Adjusting ring buffer size with the number of CPUs and rounding it to the nearest power of 2
+	ringBufferSize = toPowerOf2(numCPUs * ringBufferSize)
 	rb := &manager.RingBuffer{
 		Map: manager.Map{Name: mapName},
 		RingBufferOptions: manager.RingBufferOptions{

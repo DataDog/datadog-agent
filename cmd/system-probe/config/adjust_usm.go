@@ -70,6 +70,8 @@ func adjustUSM(cfg model.Config) {
 	applyDefault(cfg, smNS("enable_ring_buffers"), true)
 	applyDefault(cfg, smNS("max_postgres_stats_buffered"), 100000)
 	applyDefault(cfg, smNS("max_redis_stats_buffered"), 100000)
+	applyDefault(cfg, smNS("kernel_buffer_pages"), 1024)
+	applyDefault(cfg, smNS("data_channel_size"), 100)
 
 	validateInt(cfg, smNS("http_notification_threshold"), cfg.GetInt(smNS("max_tracked_http_connections"))/2, func(v int) error {
 		limit := cfg.GetInt(smNS("max_tracked_http_connections"))

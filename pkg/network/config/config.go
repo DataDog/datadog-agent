@@ -288,6 +288,12 @@ type Config struct {
 	// EnableUSMEventStream enables USM to use the event stream instead
 	// of netlink for receiving process events.
 	EnableUSMEventStream bool
+
+	// USMKernelBufferPages defines the number of pages to allocate for the USM kernel buffer, used for either ring buffers or perf maps.
+	USMKernelBufferPages int
+
+	// USMDataChannelSize specifies the size of the data channel for USM, used to temporarily store data from the kernel in user mode before processing.
+	USMDataChannelSize int
 }
 
 // New creates a config for the network tracer
@@ -392,6 +398,8 @@ func New() *Config {
 		EnableUSMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_connection_rollup")),
 		EnableUSMRingBuffers:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_ring_buffers")),
 		EnableUSMEventStream:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
+		USMKernelBufferPages:      cfg.GetInt(sysconfig.FullKeyPath(smNS, "kernel_buffer_pages")),
+		USMDataChannelSize:        cfg.GetInt(sysconfig.FullKeyPath(smNS, "data_channel_size")),
 	}
 
 	httpRRKey := sysconfig.FullKeyPath(smNS, "http_replace_rules")
