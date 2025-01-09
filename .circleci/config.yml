@@ -5,8 +5,6 @@ version: 2
 # and https://learnxinyminutes.com/docs/yaml/
 
 experimental:
-  # For some reason filtering out notifications keeps being undocumented and
-  # marked as experimental but as of today, it's still working.
   notify:
     branches:
       only:
