@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
@@ -174,8 +173,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				statusimpl.Module(),
 				fetchonlyimpl.Module(),
 				configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
-				// Force the instantiation of the component
-				fx.Invoke(func(_ configsync.Component) {}),
 				autoexitimpl.Module(),
 				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 				fx.Provide(func(c config.Component) settings.Params {

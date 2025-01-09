@@ -1663,8 +1663,6 @@ func (p *EBPFProbe) Close() error {
 	// perf map reader are ignored
 	p.cancelFnc()
 
-	close(p.newTCNetDevices)
-
 	// we wait until both the reorderer and the monitor are stopped
 	p.wg.Wait()
 
@@ -1684,6 +1682,8 @@ func (p *EBPFProbe) Close() error {
 	}
 
 	// when we reach this point, we do not generate nor consume events anymore, we can close the resolvers
+	close(p.newTCNetDevices)
+
 	return p.Resolvers.Close()
 }
 
