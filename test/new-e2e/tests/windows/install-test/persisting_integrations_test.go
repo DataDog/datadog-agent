@@ -42,6 +42,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
 			windowsAgent.WithValidAPIKey(),
+			windowsAgent.WithIntegrationsPersistence("1"),
 		)
 		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
 	}) {
@@ -68,6 +69,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 			windowsAgent.WithPackage(s.upgradeAgentPackge),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
 			windowsAgent.WithValidAPIKey(),
+			windowsAgent.WithIntegrationsPersistence("1"),
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
