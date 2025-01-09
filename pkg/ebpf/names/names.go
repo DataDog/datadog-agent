@@ -21,11 +21,18 @@ type MapName struct {
 	n string
 }
 
-func (m *MapName) Name() string { //nolint:revive // TODO
+// Name returns the map name as a string
+func (m *MapName) Name() string {
 	return m.n
 }
 
-func NewMapNameFromManagerMap(m *manager.Map) MapName { //nolint:revive // TODO
+// NewMapNameFromManagerMap creates a MapName object from a *manager.Map
+func NewMapNameFromManagerMap(m *manager.Map) MapName {
+	return MapName{n: m.Name}
+}
+
+// NewMapNameFromMapSpec creates a MapName object from an *ebpf.MapSpec
+func NewMapNameFromMapSpec(m *ebpf.MapSpec) MapName {
 	return MapName{n: m.Name}
 }
 
@@ -36,23 +43,30 @@ type ProgramName struct {
 	n string
 }
 
-func (p *ProgramName) Name() string { //nolint:revive // TODO
+// Name returns the program name as a string
+func (p *ProgramName) Name() string {
 	return p.n
 }
 
-func NewProgramNameFromProgramSpec(spec *ebpf.ProgramSpec) ProgramName { //nolint:revive // TODO
+// NewProgramNameFromProgramSpec creates a ProgramName from a *ebpf.ProgramSpec
+func NewProgramNameFromProgramSpec(spec *ebpf.ProgramSpec) ProgramName {
 	return ProgramName{n: spec.Name}
 }
 
-type ModuleName struct { //nolint:revive // TODO
+// ModuleName represents a module name. It should be used in places where
+// we want guarantees that we are working with a string which was intended
+// by the programmer to be treated as a module name
+type ModuleName struct {
 	n string
 }
 
-func (mn *ModuleName) Name() string { //nolint:revive // TODO
+// Name returns the module name as a string
+func (mn *ModuleName) Name() string {
 	return mn.n
 }
 
-func NewModuleName(mn string) ModuleName { //nolint:revive // TODO
+// NewModuleName creates a ModuleName from a string
+func NewModuleName(mn string) ModuleName {
 	return ModuleName{n: mn}
 }
 

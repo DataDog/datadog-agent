@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
@@ -639,3 +640,32 @@ def check_qa_labels(_, labels: str):
     if len(qa_labels) > 1:
         raise Exit(f"More than one QA label set.\n{docs}", code=1)
     print("QA label set correctly")
+
+
+@task
+def print_pr_state(_, id):
+    """Print the PR merge state if the PR is stuck within the merge queue."""
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    query = """
+query {
+  repository (owner: "DataDog", name: "datadog-agent") {
+    pullRequest(number: ID) {
+      reviewDecision
+      state
+      statusCheckRollup {
+        state
+      }
+      mergeable
+      mergeStateStatus
+      locked
+    }
+  }
+}
+""".replace("ID", id)  # Use replace to avoid formatting issues with curly braces
+
+    gh = GithubAPI()
+    res = gh.graphql(query)
+
+    print(json.dumps(res, indent=2))

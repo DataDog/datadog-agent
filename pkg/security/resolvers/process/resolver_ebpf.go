@@ -40,6 +40,7 @@ import (
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	stime "github.com/DataDog/datadog-agent/pkg/util/ktime"
@@ -253,7 +254,7 @@ var argsEnvsInterner = utils.NewLRUStringInterner(argsEnvsValueCacheSize)
 func parseStringArray(data []byte) ([]string, bool) {
 	truncated := false
 	values, err := model.UnmarshalStringArray(data)
-	if err != nil || len(data) == model.MaxArgEnvSize {
+	if err != nil || len(data) == sharedconsts.MaxArgEnvSize {
 		if len(values) > 0 {
 			values[len(values)-1] += "..."
 		}
@@ -368,7 +369,7 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	// Get the file fields of the process binary
 	info, err := p.retrieveExecFileFields(procExecPath)
 	if err != nil {
-		if !os.IsNotExist(err) {
+		if !os.IsNotExist(err) && !errors.Is(err, lib.ErrKeyNotExist) {
 			seclog.Errorf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
 		}
 		return fmt.Errorf("snapshot failed for %d: couldn't retrieve inode info: %w", proc.Pid, err)
@@ -514,17 +515,21 @@ func (p *EBPFResolver) retrieveExecFileFields(procExecPath string) (*model.FileF
 	binary.NativeEndian.PutUint64(inodeb, inode)
 
 	data, err := p.execFileCacheMap.LookupBytes(inodeb)
+	// go back to a sane error value
+	if data == nil && err == nil {
+		err = lib.ErrKeyNotExist
+	}
 	if err != nil {
-		return nil, fmt.Errorf("unable to get filename for inode `%d`: %v", inode, err)
+		return nil, fmt.Errorf("unable to get filename for inode `%d`: %w", inode, err)
 	}
 
 	var fileFields model.FileFields
 	if _, err := fileFields.UnmarshalBinary(data); err != nil {
-		return nil, fmt.Errorf("unable to unmarshal entry for inode `%d`: %v", inode, err)
+		return nil, fmt.Errorf("unable to unmarshal entry for inode `%d`: %w", inode, err)
 	}
 
 	if fileFields.Inode == 0 {
-		return nil, fmt.Errorf("inode `%d` not found: %v", inode, err)
+		return nil, fmt.Errorf("inode `%d` not found: %w", inode, err)
 	}
 
 	return &fileFields, nil
