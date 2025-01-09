@@ -25,6 +25,7 @@ type bucket struct {
 	buffer          *bytes.Buffer
 	lineCount       int
 	shouldTruncate  bool
+	needsTruncation bool
 }
 
 func (b *bucket) add(msg *message.Message) {
@@ -48,13 +49,14 @@ func (b *bucket) reset() {
 	b.message = nil
 	b.lineCount = 0
 	b.originalDataLen = 0
+	b.needsTruncation = false
 }
 
 func (b *bucket) flush() *message.Message {
 	defer b.reset()
 
 	lastWasTruncated := b.shouldTruncate
-	b.shouldTruncate = b.buffer.Len() >= b.maxContentSize
+	b.shouldTruncate = b.buffer.Len() >= b.maxContentSize || b.needsTruncation
 
 	data := bytes.TrimSpace(b.buffer.Bytes())
 	content := make([]byte, len(data))
@@ -154,7 +156,8 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 
 	// At this point we either have `startGroup` with an empty bucket or `aggregate` with a non-empty bucket
 	// so we add the message to the bucket or flush if the bucket will overflow the max content size.
-	if msg.RawDataLen+a.bucket.buffer.Len() > a.maxContentSize {
+	if msg.RawDataLen+a.bucket.buffer.Len() >= a.maxContentSize {
+		a.bucket.needsTruncation = true
 		a.Flush()
 	}
 

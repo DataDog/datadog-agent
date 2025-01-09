@@ -159,7 +159,7 @@ func TestTagMultiLineLogs(t *testing.T) {
 	ag := NewAggregator(outputFn, 10, time.Duration(1*time.Second), false, true, status.NewInfoRegistry())
 
 	ag.Aggregate(newMessage("12345"), startGroup)
-	ag.Aggregate(newMessage("67890"), aggregate)
+	ag.Aggregate(newMessage("6789"), aggregate)
 	ag.Aggregate(newMessage("1"), aggregate) // Causes overflow, truncate and flush
 	ag.Aggregate(newMessage("2"), noAggregate)
 
@@ -167,7 +167,7 @@ func TestTagMultiLineLogs(t *testing.T) {
 	assert.True(t, msg.ParsingExtra.IsMultiLine)
 	assert.True(t, msg.ParsingExtra.IsTruncated)
 	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.MultiLineSourceTag("auto_multiline")})
-	assertMessageContent(t, msg, "12345\\n67890...TRUNCATED...")
+	assertMessageContent(t, msg, "12345\\n6789...TRUNCATED...")
 
 	msg = <-outputChan
 	assert.False(t, msg.ParsingExtra.IsMultiLine)
