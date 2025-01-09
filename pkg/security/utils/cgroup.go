@@ -71,8 +71,6 @@ func parseCgroupLine(line string) (string, string, string, error) {
 func parseProcControlGroupsData(data []byte, fnc func(string, string, string) bool) error {
 	data = bytes.TrimSpace(data)
 
-	var lastLine []byte
-
 	for len(data) != 0 {
 		eol := bytes.IndexByte(data, '\n')
 		if eol < 0 {
@@ -89,24 +87,11 @@ func parseProcControlGroupsData(data []byte, fnc func(string, string, string) bo
 			return nil
 		}
 
-		if bytes.ContainsRune(line, ':') {
-			lastLine = line
-		}
-
 		nextStart := eol + 1
 		if nextStart >= len(data) {
 			break
 		}
 		data = data[nextStart:]
-	}
-
-	id, ctrl, path, err := parseCgroupLine(string(lastLine))
-	if err != nil {
-		return err
-	}
-
-	if fnc(id, ctrl, path) {
-		return nil
 	}
 
 	return nil
@@ -176,6 +161,11 @@ func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, mode
 
 	if err := parseProcControlGroups(tgid, pid, func(id, ctrl, path string) bool {
 		if path == "/" {
+			return false
+		} else if ctrl != "" && !strings.HasPrefix(ctrl, "name=") {
+			// On cgroup v1 we choose to take the "name" ctrl entry (ID 1), as the ID 0 could be empty
+			// On cgroup v2, it's only a single line with ID 0 and no ctrl
+			// (Cf unit tests for examples)
 			return false
 		}
 		cgroup, err := makeControlGroup(id, ctrl, path)

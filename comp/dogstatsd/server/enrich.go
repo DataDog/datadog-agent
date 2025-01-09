@@ -37,7 +37,7 @@ type enrichConfig struct {
 }
 
 // extractTagsMetadata returns tags (client tags + host tag) and information needed to query tagger (origins, cardinality).
-func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []byte, externalData string, conf enrichConfig) ([]string, string, taggertypes.OriginInfo, metrics.MetricSource) {
+func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []byte, externalData origindetection.ExternalData, conf enrichConfig) ([]string, string, taggertypes.OriginInfo, metrics.MetricSource) {
 	host := conf.defaultHostname
 	metricSource := metrics.MetricSourceDogstatsd
 	origin := taggertypes.OriginInfo{
