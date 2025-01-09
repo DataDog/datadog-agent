@@ -4,9 +4,7 @@ import os
 import re
 import tempfile
 import traceback
-from collections import defaultdict
 from datetime import datetime
-from typing import Dict
 
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
@@ -15,7 +13,7 @@ from tasks.libs.datadog_api import create_count, send_metrics
 from tasks.libs.pipeline_data import get_failed_jobs
 from tasks.libs.pipeline_notifications import base_message, check_for_missing_owners_slack_and_jira, send_slack_message
 from tasks.libs.pipeline_stats import get_failed_jobs_stats
-from tasks.libs.types import FailedJobs, SlackMessage, TeamMessage
+from tasks.libs.types import SlackMessage
 
 PROJECT_NAME = "DataDog/datadog-agent"
 AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
@@ -47,7 +45,7 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
     """
     try:
         failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
-        messages_to_send = generate_failure_messages(failed_jobs)
+        message = SlackMessage(jobs=failed_jobs)
     except Exception as e:
         buffer = io.StringIO()
         print(base_message("datadog-agent", "is in an unknown state"), file=buffer)
@@ -55,9 +53,7 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
         traceback.print_exc(limit=-1, file=buffer)
         print("See the notify job log for the full exception traceback.", file=buffer)
 
-        messages_to_send = {
-            "@DataDog/agent-all": SlackMessage(base=buffer.getvalue()),
-        }
+        message = (SlackMessage(base=buffer.getvalue()),)
         # Print traceback on job log
         print(e)
         traceback.print_exc()
@@ -81,16 +77,15 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
         header = f"{header_icon} :rocket: datadog-agent deploy"
     base = base_message(header, state)
 
-    # Send messages
-    for _, message in messages_to_send.items():
-        # We don't generate one message per owner, only the global one
-        channel = "#agent-agent6-ops"
-        message.base_message = base
-        message.coda = coda
-        if print_to_stdout:
-            print(f"Would send to {channel}:\n{str(message)}")
-        else:
-            send_slack_message(channel, str(message))  # TODO: use channel variable
+    # Send message
+    # We don't generate one message per owner, only the global one
+    channel = "#agent-agent6-ops"
+    message.base_message = base
+    message.coda = coda
+    if print_to_stdout:
+        print(f"Would send to {channel}:\n{str(message)}")
+    else:
+        send_slack_message(channel, str(message))  # TODO: use channel variable
 
 
 @task
@@ -161,19 +156,6 @@ def send_stats(_, print_to_stdout=False):
         print(f"Sent pipeline metrics: {series}")
     else:
         print(f"Would send: {series}")
-
-
-# Tasks to trigger pipeline notifications
-
-
-def generate_failure_messages(failed_jobs: FailedJobs) -> Dict[str, SlackMessage]:
-    all_teams = "@DataDog/agent-all"
-
-    # Generate messages for each team
-    messages_to_send = defaultdict(TeamMessage)
-    messages_to_send[all_teams] = SlackMessage(jobs=failed_jobs)
-
-    return messages_to_send
 
 
 @task

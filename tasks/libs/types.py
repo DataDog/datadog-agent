@@ -158,9 +158,3 @@ class SlackMessage:
         if self.coda:
             print(self.coda, file=buffer)
         return buffer.getvalue()
-
-
-class TeamMessage(SlackMessage):
-    JOBS_SECTION_HEADER = "Failed jobs you own:"
-    OPTIONAL_JOBS_SECTION_HEADER = "Failed jobs (allowed to fail) you own:"
-    TEST_SECTION_HEADER = "Failed unit tests you own:"
