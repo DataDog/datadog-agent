@@ -74,7 +74,11 @@ func (c *WLANCheck) Run() error {
 	if bssid == "" {
 		bssid = "unknown"
 	}
+
 	hardwareAddress := strings.ToLower(strings.Replace(wifiInfo.HardwareAddress, " ", "_", -1))
+	if hardwareAddress == "" {
+		hardwareAddress = "unknown"
+	}
 
 	tags := []string{}
 	tags = append(tags, "ssid:"+ssid)

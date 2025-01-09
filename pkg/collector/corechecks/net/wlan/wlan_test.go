@@ -123,7 +123,7 @@ func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
 	mockSender.AssertMetricTaggedWith(t, "Count", "wlan.channel_swap_events", expectedTags)
 }
 
-func TestWLANEmptySSIDandBSSID(t *testing.T) {
+func TestWLANEmptyHardwareAddress(t *testing.T) {
 	// setup mocks
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
@@ -133,7 +133,7 @@ func TestWLANEmptySSIDandBSSID(t *testing.T) {
 			Channel:         1,
 			Noise:           20,
 			TransmitRate:    4.0,
-			HardwareAddress: "hardware-address",
+			HardwareAddress: "",
 			ActivePHYMode:   6,
 		}, nil
 	}
@@ -142,7 +142,7 @@ func TestWLANEmptySSIDandBSSID(t *testing.T) {
 		getWiFiInfo = GetWiFiInfo
 	}()
 
-	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address"}
+	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:unknown"}
 
 	wlanCheck := new(WLANCheck)
 
