@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add the possibility in ``kubernetes_state_core`` check to collect metrics for Kubernetes custom resources
+    Add the capability in ``kubernetes_state_core`` check to collect metrics for Kubernetes custom resources
