@@ -25,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 )
 
 func validateReadSize(size, read int) (int, error) {
@@ -316,14 +317,14 @@ func (e *ExitEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	exitStatus := binary.NativeEndian.Uint32(data[0:4])
 	if exitStatus&0x7F == 0x00 { // process terminated normally
-		e.Cause = uint32(ExitExited)
+		e.Cause = uint32(sharedconsts.ExitExited)
 		e.Code = (exitStatus >> 8) & 0xFF
 	} else if exitStatus&0x7F != 0x7F { // process terminated because of a signal
 		if exitStatus&0x80 == 0x80 { // coredump signal
-			e.Cause = uint32(ExitCoreDumped)
+			e.Cause = uint32(sharedconsts.ExitCoreDumped)
 			e.Code = exitStatus & 0x7F
 		} else { // other signals
-			e.Cause = uint32(ExitSignaled)
+			e.Cause = uint32(sharedconsts.ExitSignaled)
 			e.Code = exitStatus & 0x7F
 		}
 	}
