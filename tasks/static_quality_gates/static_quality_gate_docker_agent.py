@@ -1,12 +1,14 @@
 import os
 
+import invoke
+
 from tasks.libs.common.color import color_message
 from tasks.static_quality_gates.lib.gates_lib import argument_extractor
 
 
 def entrypoint(**kwargs):
     arguments = argument_extractor(kwargs, max_on_wire_size=None, max_on_disk_size=None, ctx=None)
-    ctx = arguments.ctx
+    ctx: invoke.Context = arguments.ctx
     max_on_wire_size = arguments.max_on_wire_size
     max_on_disk_size = arguments.max_on_disk_size
     pipeline_id = os.environ["CI_PIPELINE_ID"]
@@ -27,8 +29,8 @@ def entrypoint(**kwargs):
     )
     # Pull image locally to get on disk size
     ctx.run(f"crane pull {url} output.tar")
-    ctx.run("ls -la output.tar")
     image_on_disk_size = ctx.run("tar -xf output.tar --to-stdout | wc -c")
+    image_on_disk_size = int(image_on_disk_size.stdout)
 
     error_message = ""
     if image_on_wire_size > max_on_wire_size:
