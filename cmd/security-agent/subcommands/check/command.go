@@ -31,7 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -94,6 +95,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),
 				core.Bundle(),
+				logscompressionfx.Module(),
 				dogstatsd.ClientBundle,
 			)
 		},
@@ -110,7 +112,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 }
 
 // RunCheck runs a check
-func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsdComp statsd.Component, checkArgs *CliParams, compression compression.Component) error {
+func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsdComp statsd.Component, checkArgs *CliParams, compression logscompression.Component) error {
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return err
@@ -242,7 +244,7 @@ func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) er
 	return nil
 }
 
-func reportComplianceEvents(log log.Component, events []*compliance.CheckEvent, compression compression.Component) error {
+func reportComplianceEvents(log log.Component, events []*compliance.CheckEvent, compression logscompression.Component) error {
 	hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.Background())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)

@@ -66,6 +66,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
@@ -204,6 +206,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					proccontainers.InitSharedContainerProvider(wmeta, tagger)
 				}),
 				haagentfx.Module(),
+				logscompressionfx.Module(),
+				metricscompressionfx.Module(),
 			)
 		},
 	}

@@ -55,7 +55,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgCompliance "github.com/DataDog/datadog-agent/pkg/compliance"
@@ -126,7 +127,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
 					return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
 				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, wmeta workloadmeta.Component, compression compression.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, wmeta workloadmeta.Component, compression logscompression.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
 					hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
@@ -144,7 +145,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
 					return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
 				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component, compression compression.Component) (status.InformationProvider, *pkgCompliance.Agent, error) {
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component, compression logscompression.Component) (status.InformationProvider, *pkgCompliance.Agent, error) {
 					hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
@@ -189,6 +190,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				settingsimpl.Module(),
+				logscompressionfx.Module(),
 			)
 		},
 	}

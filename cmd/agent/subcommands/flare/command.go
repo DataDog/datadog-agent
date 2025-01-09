@@ -51,6 +51,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel/inventoryotelimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
+	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -145,6 +147,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				core.Bundle(),
 				haagentfx.Module(),
+				logscompressorfx.Module(),
+				metricscompressorfx.Module(),
 			)
 		},
 	}

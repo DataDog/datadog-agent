@@ -7,6 +7,8 @@
 package fx
 
 import (
+	"go.uber.org/fx"
+
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
@@ -27,8 +29,10 @@ func (*component) NewCompressor(kind string, level int) compression.Compressor {
 // Module defines the fx options for the component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(
-			&component{},
+		fx.Provide(
+			func() logscompression.Component {
+				return &component{}
+			},
 		),
 	)
 }

@@ -54,6 +54,8 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -166,6 +168,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			}),
 			fx.Provide(func() remoteagentregistry.Component { return nil }),
 			haagentfx.Module(),
+			logscompression.Module(),
+			metricscompression.Module(),
 		)
 	}
 

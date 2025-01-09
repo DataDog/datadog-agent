@@ -51,6 +51,8 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -126,6 +128,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					proccontainers.InitSharedContainerProvider(wmeta, tagger)
 				}),
 				haagentfx.Module(),
+				logscompressionfx.Module(),
+				metricscompressionfx.Module(),
 			)
 		},
 	}

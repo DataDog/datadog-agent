@@ -25,6 +25,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
@@ -83,6 +84,7 @@ func complianceLoadCommand(globalParams *command.GlobalParams) *cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),
 				core.Bundle(),
+				logscompressionfx.Module(),
 			)
 		},
 	}
@@ -161,6 +163,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),
 				core.Bundle(),
+				logscompressionfx.Module(),
 			)
 		},
 		Hidden: true,

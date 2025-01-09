@@ -123,7 +123,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/rcservicemrfimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
-	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
@@ -475,7 +474,6 @@ func getSharedFxOption() fx.Option {
 		remoteagentregistryfx.Module(),
 		haagentfx.Module(),
 		metricscompressorfx.Module(),
-		logscompressorfx.Module(),
 	)
 }
 
