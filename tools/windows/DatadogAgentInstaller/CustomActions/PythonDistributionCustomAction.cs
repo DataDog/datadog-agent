@@ -4,7 +4,6 @@ using Microsoft.Deployment.WindowsInstaller;
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Text;
 
 namespace Datadog.CustomActions
 {
@@ -76,25 +75,9 @@ namespace Datadog.CustomActions
                         session.Message(InstallMessage.Progress, record);
                     }
 
-                    var psi = new ProcessStartInfo
-                    {
-                        CreateNoWindow = true,
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        FileName = Path.Combine(projectLocation, "bin", "7zr.exe"),
-                        // The archive already contains the name of the embedded folder
-                        // so pass the projectLocation to 7z instead.
-                        Arguments = $"x \"{embedded}\" -o\"{projectLocation}\""
-                    };
-                    var proc = new Process();
-                    proc.StartInfo = psi;
-                    proc.OutputDataReceived += (_, args) => session.Log(args.Data);
-                    proc.ErrorDataReceived += (_, args) => session.Log(args.Data);
-                    proc.Start();
-                    proc.BeginOutputReadLine();
-                    proc.BeginErrorReadLine();
-                    proc.WaitForExit();
+                    Process proc = session.RunCommand(
+                        Path.Combine(projectLocation, "bin", "7zr.exe"),
+                        $"x \"{embedded}\" -o\"{projectLocation}\"");
                     if (proc.ExitCode != 0)
                     {
                         throw new Exception($"extracting embedded python exited with code: {proc.ExitCode}");
@@ -125,6 +108,86 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
+        /// <summary>
+        /// Configure Python's OpenSSL FIPS module
+        /// </summary>
+        /// <remarks>
+        /// The OpenSSL security policy states:
+        /// "The Module shall have the self-tests run, and the Module config file output generated on each
+        ///  platform where it is intended to be used. The Module config file output data shall not be copied from
+        ///  one machine to another."
+        /// https://github.com/openssl/openssl/blob/master/README-FIPS.md
+        /// </remarks>
+        private static ActionResult FinalizeOpenSSLFIPSInstall(ISession session)
+        {
+            try
+            {
+                // Installing FIPS flavor, we must run fipsinstall to prepare Python's OpenSSL FIPS module
+                var projectLocation = session.Property("PROJECTLOCATION");
+                if (string.IsNullOrEmpty(projectLocation))
+                {
+                    throw new Exception("PROJECTLOCATION property is not set");
+                }
+                var embeddedPath = Path.Combine(projectLocation, "embedded3");
+                var opensslPath = Path.Combine(embeddedPath, "bin", "openssl.exe");
+                var fipsConfPath = Path.Combine(embeddedPath, "ssl", "fipsmodule.cnf");
+                var fipsProviderPath = Path.Combine(embeddedPath, "lib", "ossl-modules", "fips.dll");
+                var opensslConfPath = Path.Combine(embeddedPath, "ssl", "openssl.cnf");
+                var opensslConfTemplate = opensslConfPath + ".tmp";
+
+                // Run fipsinstall command to generate fipsmodule.cnf
+                session.Log("Running openssl fipsinstall");
+                Process proc = session.RunCommand(
+                    opensslPath,
+                    $"fipsinstall -module \"{fipsProviderPath}\" -out \"{fipsConfPath}\"");
+                if (proc.ExitCode != 0)
+                {
+                    throw new Exception($"openssl fipsinstall exited with code: {proc.ExitCode}");
+                }
+
+                // Run again with -verify option
+                session.Log("Running openssl fipsinstall -verify");
+                proc = session.RunCommand(
+                    opensslPath,
+                    $"fipsinstall -module \"{fipsProviderPath}\" -in \"{fipsConfPath}\" -verify");
+                if (proc.ExitCode != 0)
+                {
+                    throw new Exception($"openssl fipsinstall verification of FIPS compliance failed, exited with code: {proc.ExitCode}");
+                }
+
+                // Now we need to update the openssl.cnf file to include the fipsmodule.cnf
+                var lines = File.ReadAllLines(opensslConfTemplate);
+                using var writer = new StreamWriter(opensslConfPath);
+                foreach (var line in lines)
+                {
+                    if (line.Contains(".include") && line.Contains("fipsmodule.cnf"))
+                    {
+                        // The template generated at build time includes the default installation path
+                        // but the Windows Agent can be installed in custom locations, so we need to replace it.
+                        // We must use an absolute path for the .include directive.
+                        // https://docs.openssl.org/master/man5/config/#directives
+                        // "As a general rule, the pathname should be an absolute path; ... If the pathname is
+                        //  still relative, it is interpreted based on the current working directory."
+                        // config needs forward slashes for the path
+                        var pathForConfig = fipsConfPath.Replace("\\", "/");
+                        writer.WriteLine($".include {pathForConfig}");
+                    }
+                    else
+                    {
+                        // write line as is
+                        writer.WriteLine(line);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                session.Log($"Error while finalizing OpenSSL FIPS install: {e}");
+                return ActionResult.Failure;
+            }
+
+            return ActionResult.Success;
+        }
+
         private static ActionResult DecompressPythonDistributions(ISession session)
         {
             var size = 0;
@@ -133,7 +196,22 @@ namespace Datadog.CustomActions
             {
                 size = int.Parse(embedded3Size);
             }
-            return DecompressPythonDistribution(session, "embedded3", "embedded3.COMPRESSED", size);
+            ActionResult res = DecompressPythonDistribution(session, "embedded3", "embedded3.COMPRESSED", size);
+            if (res != ActionResult.Success)
+            {
+                return res;
+            }
+
+            if (session.Property("AgentFlavor") == Constants.FipsFlavor)
+            {
+                res = FinalizeOpenSSLFIPSInstall(session);
+                if (res != ActionResult.Success)
+                {
+                    return res;
+                }
+            }
+
+            return ActionResult.Success;
         }
 
         public static ActionResult DecompressPythonDistributions(Session session)
