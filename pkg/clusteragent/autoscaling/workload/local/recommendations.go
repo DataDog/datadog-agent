@@ -431,5 +431,5 @@ func convertCpuRequestToNanocores(cpuRequests float64) float64 {
 	// Current implementation takes Mi value and returns .AsApproximateFloat64()*100
 	// For 100m, AsApproximate returns 0.1; we return 10%
 	// This helper converts value to nanocore units (default from loadstore)
-	return (cpuRequests / 100) * 1000000000
+	return (cpuRequests / 100) * 1e9
 }
