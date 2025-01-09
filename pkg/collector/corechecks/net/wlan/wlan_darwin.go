@@ -12,9 +12,12 @@ package wlan
 #cgo CFLAGS: -I .
 #cgo LDFLAGS: -framework CoreWLAN -framework CoreLocation -framework Foundation
 #include "wlan_darwin.h"
+#include <stdlib.h>
 */
 import "C"
 import (
+	"unsafe"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,14 +26,24 @@ func GetWiFiInfo() (WiFiInfo, error) {
 	log.Info("Initialized Location Manager")
 
 	info := C.GetWiFiInformation()
+
+	ssid := C.GoString(info.ssid)
+	bssid := C.GoString(info.bssid)
+	hardwareAddress := C.GoString(info.hardwareAddress)
+
+	// important: free the strings that we manually copied (strdup) on the Objective C side
+	C.free(unsafe.Pointer(info.ssid))
+	C.free(unsafe.Pointer(info.bssid))
+	C.free(unsafe.Pointer(info.hardwareAddress))
+
 	return WiFiInfo{
 		Rssi:            int(info.rssi),
-		Ssid:            C.GoString(info.ssid),
-		Bssid:           C.GoString(info.bssid),
+		Ssid:            ssid,
+		Bssid:           bssid,
 		Channel:         int(info.channel),
 		Noise:           int(info.noise),
 		TransmitRate:    float64(info.transmitRate),
-		HardwareAddress: C.GoString(info.hardwareAddress),
+		HardwareAddress: hardwareAddress,
 		ActivePHYMode:   int(info.activePHYMode),
 	}, nil
 }
