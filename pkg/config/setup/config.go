@@ -319,6 +319,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// library support will not work reliably in those environments)
 	config.BindEnvAndSetDefault("allow_python_path_heuristics_failure", false)
 
+	config.BindEnvAndSetDefault("python_loader_check_module_paths", true)
+	config.BindEnvAndSetDefault("python_paths_exec_timeout", 1*time.Second)
+
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
 	// compatibility with Agent5 behavior/win

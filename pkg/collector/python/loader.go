@@ -8,15 +8,21 @@
 package python
 
 import (
+	"context"
 	"errors"
 	"expvar"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"unsafe"
 
 	"github.com/mohae/deepcopy"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -41,14 +47,16 @@ import (
 import "C"
 
 var (
-	pyLoaderStats    *expvar.Map
-	configureErrors  map[string][]string
-	py3Linted        map[string]struct{}
-	py3Warnings      map[string][]string
-	statsLock        sync.RWMutex
-	py3LintedLock    sync.Mutex
-	linterLock       sync.Mutex
-	agentVersionTags []string
+	pyLoaderStats      *expvar.Map
+	configureErrors    map[string][]string
+	py3Linted          map[string]struct{}
+	py3Warnings        map[string][]string
+	statsLock          sync.RWMutex
+	py3LintedLock      sync.Mutex
+	linterLock         sync.Mutex
+	agentVersionTags   []string
+	pythonExecSysPaths []string
+	pythonPathsOnce    sync.Once
 )
 
 const (
@@ -112,13 +120,92 @@ func (cl *PythonCheckLoader) Name() string {
 	return "python"
 }
 
+func isDirectory(path string) bool {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return fi.IsDir()
+}
+
+// isOnPythonPath returns whether there is a module with the given name on the python path.
+// If it returns false then the module is not on the python path and should not be loaded with Python.
+// It can return false positives, but should not return false negatives.
+func isOnPythonPath(moduleName string) bool {
+	if strings.Contains(moduleName, ".") {
+		// should not happen, avoid having to handle splitting and checking each module
+		return true
+	}
+
+	// if the pythonPaths are not known then we can't check if the module is on the python path
+	// assume it is in that case
+	if pythonExecSysPaths == nil {
+		return true
+	}
+
+	for _, path := range pythonExecSysPaths {
+		for _, modPath := range []string{
+			filepath.Join(path, moduleName),
+			filepath.Join(path, wheelNamespace, moduleName),
+		} {
+			if isDirectory(modPath) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// getPythonExecSysPaths updates pythonExecSysPaths with the sys.path from the python executable
+func getPythonExecSysPaths() {
+	allowPathHeuristicsFailure := pkgconfigsetup.Datadog().GetBool("allow_python_path_heuristics_failure")
+	pythonPath, err := resolvePythonExecPath(allowPathHeuristicsFailure)
+	if err != nil {
+		log.Warnf("Failed to resolve python binary path: %s", err)
+		return
+	}
+
+	execTimeout := pkgconfigsetup.Datadog().GetDuration("python_paths_exec_timeout")
+	ctx, cancel := context.WithTimeout(context.Background(), execTimeout)
+	defer cancel()
+
+	// get the default path + PYTHONPATH (if applicable)
+	cmd := exec.CommandContext(ctx, pythonPath, "-c", `import sys; print(*sys.path, sep='\n')`)
+	// forward PYTHONPATH env var to the python process
+	cmd.Env = []string{}
+	if pythonPathVar, ok := os.LookupEnv("PYTHONPATH"); ok &&
+		!(runtime.GOOS == "windows" && pkgconfigsetup.Datadog().GetBool("windows_use_pythonpath")) {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("PYTHONPATH=%s", pythonPathVar))
+	}
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Warnf("Failed to get python paths: %s", err)
+		return
+	}
+
+	pythonExecSysPaths = strings.Split(string(out), "\n")
+	// add the paths that we add when loading python
+	pythonExecSysPaths = append(pythonExecSysPaths, common.GetPythonPaths()...)
+}
+
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
 func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+	moduleName := config.Name
+
+	if pkgconfigsetup.Datadog().GetBool("python_loader_check_module_paths") {
+		pythonPathsOnce.Do(getPythonExecSysPaths)
+
+		if !isOnPythonPath(moduleName) {
+			return nil, fmt.Errorf("module %s is not on the python path", moduleName)
+		}
+	}
+
 	if rtloader == nil {
 		return nil, fmt.Errorf("python is not initialized")
 	}
-	moduleName := config.Name
+
 	// FastDigest is used as check id calculation does not account for tags order
 	configDigest := config.FastDigest()
 
