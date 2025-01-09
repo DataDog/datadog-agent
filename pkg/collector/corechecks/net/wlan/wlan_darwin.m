@@ -87,12 +87,12 @@ WiFiInfo GetWiFiInformation() {
     WiFiInfo info;
 
     info.rssi = (int)wifiInterface.rssiValue;
-    info.ssid = [[wifiInterface ssid] UTF8String];
-    info.bssid = [[wifiInterface bssid] UTF8String];
+    info.ssid = strdup([[wifiInterface ssid] UTF8String]);
+    info.bssid = strdup([[wifiInterface bssid] UTF8String]);
     info.channel = (int)wifiInterface.wlanChannel.channelNumber;
     info.noise = (int)wifiInterface.noiseMeasurement;
     info.transmitRate = wifiInterface.transmitRate;
-    info.hardwareAddress = [[wifiInterface hardwareAddress] UTF8String];
+    info.hardwareAddress = strdup([[wifiInterface hardwareAddress] UTF8String]);
     info.activePHYMode = (int)wifiInterface.activePHYMode;
     
     return info;
