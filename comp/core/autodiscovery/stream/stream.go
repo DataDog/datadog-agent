@@ -7,7 +7,7 @@
 package stream
 
 import (
-	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/proto"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -49,11 +48,21 @@ type scheduler struct {
 	done chan error
 }
 
-func (s *scheduler) Schedule(config []integration.Config) {
-	s.handleEvent(config, pb.ConfigEventType_SCHEDULE)
+func (s *scheduler) Schedule(configs []integration.Config) {
+	names := make([]string, len(configs))
+	for i, config := range configs {
+		names[i] = config.Name
+	}
+	log.Infof("sending schedule autodiscovery event with config names: %s", strings.Join(names, ", "))
+	s.handleEvent(configs, pb.ConfigEventType_SCHEDULE)
 }
 
 func (s *scheduler) Unschedule(configs []integration.Config) {
+	names := make([]string, len(configs))
+	for i, config := range configs {
+		names[i] = config.Name
+	}
+	log.Infof("sending unschedule autodiscovery event with config names: %s", strings.Join(names, ", "))
 	s.handleEvent(configs, pb.ConfigEventType_UNSCHEDULE)
 }
 
@@ -62,7 +71,7 @@ func (s *scheduler) Stop() {
 }
 
 func (s *scheduler) handleEvent(configs []integration.Config, eventType pb.ConfigEventType) {
-	configs = filterOutGoConfigs(configs)
+	// configs = filterOutGoConfigs(configs)
 
 	protobufConfigs := protobufConfigFromAutodiscoveryConfigs(configs, eventType)
 
@@ -82,16 +91,16 @@ func (s *scheduler) handleEvent(configs []integration.Config, eventType pb.Confi
 	}
 }
 
-func filterOutGoConfigs(configs []integration.Config) []integration.Config {
-	goChecksNames := corechecks.GetRegisteredFactoryKeys()
-	res := make([]integration.Config, 0, len(configs))
-	for _, c := range configs {
-		if !slices.Contains(goChecksNames, c.Name) {
-			res = append(res, c)
-		}
-	}
-	return res
-}
+// func filterOutGoConfigs(configs []integration.Config) []integration.Config {
+// 	goChecksNames := corechecks.GetRegisteredFactoryKeys()
+// 	res := make([]integration.Config, 0, len(configs))
+// 	for _, c := range configs {
+// 		if !slices.Contains(goChecksNames, c.Name) {
+// 			res = append(res, c)
+// 		}
+// 	}
+// 	return res
+// }
 
 func protobufConfigFromAutodiscoveryConfigs(config []integration.Config, eventType pb.ConfigEventType) []*pb.Config {
 	res := make([]*pb.Config, 0, len(config))

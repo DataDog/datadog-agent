@@ -314,7 +314,7 @@ func startScheduler(ctx context.Context, f context.CancelFunc, client core.Agent
 				continue
 			}
 		}
-		fmt.Printf("autodiscoveryStream: %+v\n", autodiscoveryStream.autodiscoveryStream)
+		log.Infof("autodiscoveryStream: %+v\n", autodiscoveryStream.autodiscoveryStream)
 
 		streamConfigs, err := autodiscoveryStream.autodiscoveryStream.Recv()
 
