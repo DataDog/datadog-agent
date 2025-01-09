@@ -158,16 +158,6 @@ remove_fips_module()
     rm -rf "${INSTALL_DIR}/embedded/ssl/fipsmodule.cnf" || true
 }
 
-case "$*" in
-    1)
-        # We're upgrading.
-        if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
-            ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/pre.py" "${INSTALL_DIR}" || true
-        fi
-    ;;
-    *)
-    ;;
-esac
 stop_agent
 deregister_agent
 remove_sysprobe_core_files

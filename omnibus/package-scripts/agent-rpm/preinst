@@ -53,6 +53,10 @@ if ! getent passwd dd-agent >/dev/null; then
     fi
 fi
 
+if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
+    ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/pre.py" "${INSTALL_DIR}" || true
+fi
+
 # Starting with 6.10, integrations are also uninstalled on package removal
 
 # Since 6.18.0, a file containing all integrations files which have been installed by
