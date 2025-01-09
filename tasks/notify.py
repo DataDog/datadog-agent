@@ -13,13 +13,7 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.datadog_api import create_count, send_metrics
 from tasks.libs.pipeline_data import get_failed_jobs
-from tasks.libs.pipeline_notifications import (
-    base_message,
-    check_for_missing_owners_slack_and_jira,
-    find_job_owners,
-    get_failed_tests,
-    send_slack_message,
-)
+from tasks.libs.pipeline_notifications import base_message, check_for_missing_owners_slack_and_jira, send_slack_message
 from tasks.libs.pipeline_stats import get_failed_jobs_stats
 from tasks.libs.types import FailedJobs, SlackMessage, TeamMessage
 
@@ -53,7 +47,7 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
     """
     try:
         failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
-        messages_to_send = generate_failure_messages(PROJECT_NAME, failed_jobs)
+        messages_to_send = generate_failure_messages(failed_jobs)
     except Exception as e:
         buffer = io.StringIO()
         print(base_message("datadog-agent", "is in an unknown state"), file=buffer)
@@ -172,28 +166,12 @@ def send_stats(_, print_to_stdout=False):
 # Tasks to trigger pipeline notifications
 
 
-def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dict[str, SlackMessage]:
+def generate_failure_messages(failed_jobs: FailedJobs) -> Dict[str, SlackMessage]:
     all_teams = "@DataDog/agent-all"
 
     # Generate messages for each team
     messages_to_send = defaultdict(TeamMessage)
     messages_to_send[all_teams] = SlackMessage(jobs=failed_jobs)
-
-    failed_job_owners = find_job_owners(failed_jobs)
-    for owner, jobs in failed_job_owners.items():
-        if owner == "@DataDog/multiple":
-            for job in jobs.all_non_infra_failures():
-                for test in get_failed_tests(project_name, job):
-                    messages_to_send[all_teams].add_test_failure(test, job)
-        elif owner == "@DataDog/do-not-notify":
-            # Jobs owned by @DataDog/do-not-notify do not send team messages
-            pass
-        elif owner == all_teams:
-            # Jobs owned by @DataDog/agent-all will already be in the global
-            # message, do not overwrite the failed jobs list
-            pass
-        else:
-            messages_to_send[owner].failed_jobs = jobs
 
     return messages_to_send
 

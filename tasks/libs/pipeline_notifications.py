@@ -1,15 +1,10 @@
-import json
 import os
 import pathlib
 import re
 import subprocess
-from collections import defaultdict
 from typing import Dict
 
 import yaml
-
-from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
-from tasks.libs.types import FailedJobs, Test
 
 
 def load_and_validate(file_name: str, default_placeholder: str, default_value: str) -> Dict[str, str]:
@@ -54,55 +49,6 @@ def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_fil
             if print_missing_teams:
                 print(f"The team {path[2][0][1]} doesn't have a jira project assigned !!")
     return error
-
-
-def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
-    owners = read_owners(owners_file)
-    try:
-        test_output = gitlab.artifact(job["id"], "test_output.json", ignore_not_found=True)
-    except Exception as e:
-        print("Ignoring test fetching error", e)
-        test_output = None
-    failed_tests = {}  # type: dict[tuple[str, str], Test]
-    if test_output:
-        for line in test_output.iter_lines():
-            json_test = json.loads(line)
-            if 'Test' in json_test:
-                name = json_test['Test']
-                package = json_test['Package']
-                action = json_test["Action"]
-
-                if action == "fail":
-                    # Ignore subtests, only the parent test should be reported for now
-                    # to avoid multiple reports on the same test
-                    # NTH: maybe the Test object should be more flexible to incorporate
-                    # subtests? This would require some postprocessing of the Test objects
-                    # we yield here to merge child Test objects with their parents.
-                    if '/' in name:  # Subtests have a name of the form "Test/Subtest"
-                        continue
-                    failed_tests[(package, name)] = Test(owners, name, package)
-                elif action == "pass" and (package, name) in failed_tests:
-                    print(f"Test {name} from package {package} passed after retry, removing from output")
-                    del failed_tests[(package, name)]
-
-    return failed_tests.values()
-
-
-def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNERS") -> Dict[str, FailedJobs]:
-    owners = read_owners(owners_file)
-    owners_to_notify = defaultdict(FailedJobs)
-
-    for job in failed_jobs.all_non_infra_failures():
-        job_owners = owners.of(job["name"])
-        # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
-        # eg. [('TEAM', '@DataDog/agent-ci-experience')]
-
-        for kind, owner in job_owners:
-            if kind == "TEAM":
-                owners_to_notify[owner].add_failed_job(job)
-
-    return owners_to_notify
 
 
 def base_message(header, state):

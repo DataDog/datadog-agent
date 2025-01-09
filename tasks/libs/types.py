@@ -69,9 +69,6 @@ class FailedJobs:
         else:
             self.mandatory_job_failures.append(job)
 
-    def all_non_infra_failures(self):
-        return self.mandatory_job_failures + self.optional_job_failures
-
     def all_mandatory_failures(self):
         return self.mandatory_job_failures + self.mandatory_infra_job_failures
 
@@ -98,9 +95,6 @@ class SlackMessage:
         self.failed_jobs = jobs
         self.failed_tests = defaultdict(list)
         self.coda = ""
-
-    def add_test_failure(self, test, job):
-        self.failed_tests[test.key].append(job)
 
     def __render_jobs_section(self, header: str, jobs: list, buffer: io.StringIO):
         if not jobs:
