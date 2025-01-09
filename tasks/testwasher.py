@@ -230,13 +230,18 @@ def _clean_job(job):
 
 def _add_parent_pipeline(needs):
     """
-    Add the parent pipeline to the need
+    Add the parent pipeline to the need, only for the jobs that are not the artifacts deploy jobs.
     """
+
     new_needs = []
     for need in needs:
         if isinstance(need, str):
+            if need.startswith("deploy") or need.startswith("qa"):
+                continue
             new_needs.append({"pipeline": "$PARENT_PIPELINE_ID", "job": need})
         elif isinstance(need, dict):
+            if "job" in need and (need["job"].startswith("deploy") or need["job"].startswith("qa")):
+                continue
             del need[
                 "optional"
             ]  # Not supported in child pipeline, see: https://gitlab.com/gitlab-org/gitlab/-/issues/349538
