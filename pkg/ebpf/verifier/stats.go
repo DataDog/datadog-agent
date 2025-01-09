@@ -131,11 +131,13 @@ func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult,
 		for _, mapSpec := range collectionSpec.Maps {
 			mapName := names.NewMapNameFromMapSpec(mapSpec)
 			for _, p := range collectionSpec.Programs {
-				ebpftelemetry.PatchConstant(
+				if err := ebpftelemetry.PatchConstant(
 					ebpftelemetry.MapTelemetryKeyName(mapName),
 					p,
 					ebpftelemetry.MapTelemetryErrorKey(h, mapName, mn),
-				)
+				); err != nil {
+					return err
+				}
 			}
 		}
 

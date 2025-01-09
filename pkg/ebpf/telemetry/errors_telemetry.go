@@ -249,6 +249,7 @@ func (e *ebpfTelemetry) initializeHelperErrTelemetryMap(module names.ModuleName,
 	return nil
 }
 
+// PatchConstant replaces the value for the provided relocation entry in the bpf bytecode
 func PatchConstant(symbol string, p *ebpf.ProgramSpec, eBPFKey uint64) error {
 	// do constant editing of programs for helper errors post-init
 	ins := p.Instructions
@@ -269,6 +270,7 @@ func PatchConstant(symbol string, p *ebpf.ProgramSpec, eBPFKey uint64) error {
 	return nil
 }
 
+// PatchEBPFTelemetry performs bytecode patching to support eBPF helper error telemetry collection
 func PatchEBPFTelemetry(programSpecs map[string]*ebpf.ProgramSpec, enable bool, mn names.ModuleName) error {
 	if errorsTelemetry == nil {
 		return errors.New("errorsTelemetry not initialized")

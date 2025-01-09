@@ -20,9 +20,9 @@ import (
 )
 
 const (
-	// MapErrTelemetryMap is the map storing the map error telemetry
+	// MapErrTelemetryMapName is the map storing the map error telemetry
 	MapErrTelemetryMapName string = "map_err_telemetry_map"
-	// HelperErrTelemetryMap is the map storing the helper error telemetry
+	// HelperErrTelemetryMapName is the map storing the helper error telemetry
 	HelperErrTelemetryMapName string = "helper_err_telemetry_map"
 )
 
@@ -54,10 +54,12 @@ func getMapNames(m *manager.Manager) ([]names.MapName, error) {
 	return mapNames, nil
 }
 
+// MapTelemetryKeyName builds the name of the parameterized constant used in bpf code
 func MapTelemetryKeyName(mapName names.MapName) string {
 	return mapName.Name() + "_telemetry_key"
 }
 
+// MapTelemetryErrorKey returns the key for map errors
 func MapTelemetryErrorKey(h hash.Hash64, mapName names.MapName, module names.ModuleName) uint64 {
 	return eBPFMapErrorKey(h, mapTelemetryKey(mapName, module))
 }
