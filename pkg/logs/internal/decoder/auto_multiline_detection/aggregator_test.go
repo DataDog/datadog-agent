@@ -146,12 +146,7 @@ func TestTagTruncatedLogs(t *testing.T) {
 	msg = <-outputChan
 	assert.True(t, msg.ParsingExtra.IsTruncated)
 	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
-	assertMessageContent(t, msg, "...TRUNCATED...12345...TRUNCATED...")
-
-	msg = <-outputChan
-	assert.True(t, msg.ParsingExtra.IsTruncated)
-	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
-	assertMessageContent(t, msg, "...TRUNCATED...6789")
+	assertMessageContent(t, msg, "...TRUNCATED...12345\\n6789...TRUNCATED...")
 
 	msg = <-outputChan
 	assert.False(t, msg.ParsingExtra.IsTruncated)
@@ -187,14 +182,58 @@ func TestTagMultiLineLogs(t *testing.T) {
 	assertMessageContent(t, msg, "2")
 }
 
-func TestStartGruopIsNotTruncatedWithoutAggreagation(t *testing.T) {
+func TestSingleLineTooLongTruncation(t *testing.T) {
 	outputChan, outputFn := makeHandler()
 	ag := NewAggregator(outputFn, 5, time.Duration(1*time.Second), false, true, status.NewInfoRegistry())
 
+	// Multi line log where each message is too large except the last one
 	ag.Aggregate(newMessage("123456"), startGroup)
+	ag.Aggregate(newMessage("123456"), aggregate)
+	ag.Aggregate(newMessage("123456"), aggregate)
+	ag.Aggregate(newMessage("123"), aggregate)
 	// Force a flush
 	ag.Aggregate(newMessage(""), startGroup)
 
 	msg := <-outputChan
-	assertMessageContent(t, msg, "123456")
+	assertMessageContent(t, msg, "123456...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "...TRUNCATED...123456...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "...TRUNCATED...123456...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "...TRUNCATED...123")
+
+	// Single line logs where each message is too large except the last
+	ag.Aggregate(newMessage("123456"), startGroup)
+	ag.Aggregate(newMessage("123456"), startGroup)
+	ag.Aggregate(newMessage("123456"), startGroup)
+	ag.Aggregate(newMessage("123"), startGroup)
+	// Force a flush
+	ag.Aggregate(newMessage(""), startGroup)
+
+	msg = <-outputChan
+	assertMessageContent(t, msg, "123456...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "...TRUNCATED...123456...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "...TRUNCATED...123456...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "...TRUNCATED...123")
+
+	// No aggregate logs should never be truncated from the previous message (Could break a JSON payload)
+	ag.Aggregate(newMessage("123456"), startGroup)
+	ag.Aggregate(newMessage("123456"), noAggregate)
+	ag.Aggregate(newMessage("123456"), startGroup)
+	ag.Aggregate(newMessage("123"), startGroup)
+	// Force a flush
+	ag.Aggregate(newMessage(""), startGroup)
+
+	msg = <-outputChan
+	assertMessageContent(t, msg, "123456...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "123456...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "...TRUNCATED...123456...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "...TRUNCATED...123")
 }

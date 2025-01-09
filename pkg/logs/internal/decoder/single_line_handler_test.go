@@ -64,7 +64,7 @@ func TestSingleLineHandlerProcess(t *testing.T) {
 				string(message.TruncatedFlag) + "aaaaaaaaaaaaaaaaaaaa" + string(message.TruncatedFlag),
 				string(message.TruncatedFlag) + "wait, how many a's?",
 			},
-			expTags:          [][]string{{truncateTag}, {truncateTag, truncateTag}, {truncateTag}},
+			expTags:          [][]string{{truncateTag}, {truncateTag}, {truncateTag}},
 			tagTruncatedLogs: true,
 		},
 		{

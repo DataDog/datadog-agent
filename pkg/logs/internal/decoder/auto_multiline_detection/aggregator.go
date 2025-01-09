@@ -18,12 +18,13 @@ import (
 type bucket struct {
 	tagTruncatedLogs bool
 	tagMultiLineLogs bool
+	maxContentSize   int
 
 	message         *message.Message
 	originalDataLen int
 	buffer          *bytes.Buffer
 	lineCount       int
-	truncated       bool
+	shouldTruncate  bool
 }
 
 func (b *bucket) add(msg *message.Message) {
@@ -42,23 +43,35 @@ func (b *bucket) isEmpty() bool {
 	return b.originalDataLen == 0
 }
 
-func (b *bucket) truncate() {
-	b.buffer.Write(message.TruncatedFlag)
-	b.truncated = true
+func (b *bucket) reset() {
+	b.buffer.Reset()
+	b.message = nil
+	b.lineCount = 0
+	b.originalDataLen = 0
 }
 
 func (b *bucket) flush() *message.Message {
-	defer func() {
-		b.buffer.Reset()
-		b.message = nil
-		b.lineCount = 0
-		b.originalDataLen = 0
-		b.truncated = false
-	}()
+	defer b.reset()
+
+	lastWasTruncated := b.shouldTruncate
+	b.shouldTruncate = b.buffer.Len() >= b.maxContentSize
 
 	data := bytes.TrimSpace(b.buffer.Bytes())
 	content := make([]byte, len(data))
 	copy(content, data)
+
+	if lastWasTruncated {
+		// the previous line has been truncated because it was too long,
+		// the new line is just a remainder,
+		// adding the truncated flag at the beginning of the content
+		content = append(message.TruncatedFlag, content...)
+	}
+
+	if b.shouldTruncate {
+		// the line is too long, it needs to be cut off and send,
+		// adding the truncated flag the end of the content
+		content = append(content, message.TruncatedFlag...)
+	}
 
 	msg := message.NewRawMessage(content, b.message.Status, b.originalDataLen, b.message.ParsingExtra.Timestamp)
 	tlmTags := []string{"false", "single_line"}
@@ -71,7 +84,7 @@ func (b *bucket) flush() *message.Message {
 		}
 	}
 
-	if b.truncated {
+	if lastWasTruncated || b.shouldTruncate {
 		msg.ParsingExtra.IsTruncated = true
 		tlmTags[0] = "true"
 		if b.tagTruncatedLogs {
@@ -103,7 +116,7 @@ func NewAggregator(outputFn func(m *message.Message), maxContentSize int, flushT
 
 	return &Aggregator{
 		outputFn:           outputFn,
-		bucket:             &bucket{buffer: bytes.NewBuffer(nil), tagTruncatedLogs: tagTruncatedLogs, tagMultiLineLogs: tagMultiLineLogs},
+		bucket:             &bucket{buffer: bytes.NewBuffer(nil), tagTruncatedLogs: tagTruncatedLogs, tagMultiLineLogs: tagMultiLineLogs, maxContentSize: maxContentSize, lineCount: 0, shouldTruncate: false},
 		maxContentSize:     maxContentSize,
 		flushTimeout:       flushTimeout,
 		multiLineMatchInfo: multiLineMatchInfo,
@@ -120,13 +133,16 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 	// If `noAggregate` - flush the bucket immediately and then flush the next message.
 	if label == noAggregate {
 		a.Flush()
-		a.outputFn(msg)
+		a.bucket.shouldTruncate = false // noAggregate messages should never be truncated at the beginning (Could break JSON formatted messages)
+		a.bucket.add(msg)
+		a.Flush()
 		return
 	}
 
 	// If `aggregate` and the bucket is empty - flush the next message.
 	if label == aggregate && a.bucket.isEmpty() {
-		a.outputFn(msg)
+		a.bucket.add(msg)
+		a.Flush()
 		return
 	}
 
@@ -138,10 +154,8 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 
 	// At this point we either have `startGroup` with an empty bucket or `aggregate` with a non-empty bucket
 	// so we add the message to the bucket or flush if the bucket will overflow the max content size.
-	if msg.RawDataLen+a.bucket.buffer.Len() > a.maxContentSize && !a.bucket.isEmpty() {
-		a.bucket.truncate() // Truncate the end of the current bucket
+	if msg.RawDataLen+a.bucket.buffer.Len() > a.maxContentSize {
 		a.Flush()
-		a.bucket.truncate() // Truncate the start of the next bucket
 	}
 
 	if !a.bucket.isEmpty() {
@@ -184,6 +198,7 @@ func (a *Aggregator) FlushChan() <-chan time.Time {
 // Flush flushes the aggregator.
 func (a *Aggregator) Flush() {
 	if a.bucket.isEmpty() {
+		a.bucket.reset()
 		return
 	}
 	a.outputFn(a.bucket.flush())
