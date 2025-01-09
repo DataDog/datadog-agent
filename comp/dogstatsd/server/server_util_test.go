@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -54,6 +56,7 @@ type depsWithoutServer struct {
 	Debug         serverdebug.Component
 	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
+	Tagger        tagger.Component
 }
 
 type serverDeps struct {
@@ -67,6 +70,7 @@ type serverDeps struct {
 	Debug         serverdebug.Component
 	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
+	Tagger        tagger.Component
 	Server        Component
 }
 
@@ -86,6 +90,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		taggermock.Module(),
 		Module(Params{Serverless: false}),
 	))
 }
@@ -102,6 +107,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		taggermock.Module(),
 		Module(Params{Serverless: false}),
 	))
 }
@@ -121,9 +127,10 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		taggermock.Module(),
 	))
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.Tagger)
 
 	return deps, s
 }

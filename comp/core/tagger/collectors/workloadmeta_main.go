@@ -12,16 +12,14 @@ import (
 	"github.com/gobwas/glob"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
 )
 
 const (
@@ -90,37 +88,17 @@ func (c *WorkloadMetaCollector) initK8sResourcesMetaAsTags(resourcesLabelsAsTags
 
 // Run runs the continuous event watching loop and sends new tags to the
 // tagger based on the events sent by the workloadmeta.
-func (c *WorkloadMetaCollector) Run(ctx context.Context, datadogConfig config.Component) {
-	c.collectStaticGlobalTags(ctx, datadogConfig)
+func (c *WorkloadMetaCollector) Run(ctx context.Context) {
 	c.stream(ctx)
 }
 
 func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, datadogConfig config.Component) {
-	c.staticTags = tagutil.GetStaticTags(ctx, datadogConfig)
-	if _, exists := c.staticTags[clusterTagNamePrefix]; flavor.GetFlavor() == flavor.ClusterAgent && !exists {
-		// If we are running the cluster agent, we want to set the kube_cluster_name tag as a global tag if we are able
-		// to read it, for the instances where we are running in an environment where hostname cannot be detected.
-		if cluster := clustername.GetClusterNameTagValue(ctx, ""); cluster != "" {
-			if c.staticTags == nil {
-				c.staticTags = make(map[string][]string, 1)
-			}
-			if _, exists := c.staticTags[clusterTagNamePrefix]; !exists {
-				c.staticTags[clusterTagNamePrefix] = []string{}
-			}
-			c.staticTags[clusterTagNamePrefix] = append(c.staticTags[clusterTagNamePrefix], cluster)
-		}
-	}
-	// These are the global tags that should only be applied to the internal global entity on DCA.
-	// Whereas the static tags are applied to containers and pods directly as well.
-	globalEnvTags := tagutil.GetGlobalEnvTags(datadogConfig)
+	c.staticTags = common.GetStaticTags(ctx, datadogConfig)
 
 	tagList := taglist.NewTagList()
-
-	for _, tags := range []map[string][]string{c.staticTags, globalEnvTags} {
-		for tagKey, valueList := range tags {
-			for _, value := range valueList {
-				tagList.AddLow(tagKey, value)
-			}
+	for tagKey, valueList := range c.staticTags {
+		for _, value := range valueList {
+			tagList.AddLow(tagKey, value)
 		}
 	}
 
@@ -172,7 +150,7 @@ func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 }
 
 // NewWorkloadMetaCollector returns a new WorkloadMetaCollector.
-func NewWorkloadMetaCollector(_ context.Context, cfg config.Component, store workloadmeta.Component, p processor) *WorkloadMetaCollector {
+func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store workloadmeta.Component, p processor) *WorkloadMetaCollector {
 	c := &WorkloadMetaCollector{
 		tagProcessor:                      p,
 		store:                             store,
@@ -195,6 +173,9 @@ func NewWorkloadMetaCollector(_ context.Context, cfg config.Component, store wor
 	// kubernetes resources metadata as tags
 	metadataAsTags := configutils.GetMetadataAsTags(cfg)
 	c.initK8sResourcesMetaAsTags(metadataAsTags.GetResourcesLabelsAsTags(), metadataAsTags.GetResourcesAnnotationsAsTags())
+
+	// initializes with the static global tags
+	c.collectStaticGlobalTags(ctx, cfg)
 
 	return c
 }

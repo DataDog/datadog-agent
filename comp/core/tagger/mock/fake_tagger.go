@@ -9,6 +9,8 @@ import (
 	"context"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
@@ -35,19 +37,27 @@ type FakeTagger struct {
 	store  *tagstore.TagStore
 }
 
-// Provides is a struct containing the mock and the endpoint
+// Dependencies is the mock dependencies for the tagger component
+type Dependencies struct {
+	Config config.Component
+}
+
+// Provides is a struct containing the mock
 type Provides struct {
-	Comp Mock
+	Comp tagger.Component
 }
 
 // New instantiates a new fake tagger
-func New() Provides {
-	return Provides{
-		Comp: &FakeTagger{
-			errors: make(map[string]error),
-			store:  tagstore.NewTagStore(nil),
-		},
+func New(deps Dependencies) Provides {
+	fakeTagger := &FakeTagger{
+		errors: make(map[string]error),
+		store:  tagstore.NewTagStore(nil),
 	}
+
+	// Initialize the fakeTagger similar to localTagger start()
+	_ = collectors.NewWorkloadMetaCollector(context.Background(), deps.Config, nil, fakeTagger.store)
+
+	return Provides{Comp: fakeTagger}
 }
 
 // SetTags allows to set tags in store for a given source, entity

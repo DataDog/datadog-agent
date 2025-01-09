@@ -20,6 +20,8 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
@@ -40,7 +42,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
 	statutil "github.com/DataDog/datadog-agent/pkg/util/stat"
-	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
 )
 
 var (
@@ -79,6 +80,7 @@ type dependencies struct {
 	Params    Params
 	WMeta     option.Option[workloadmeta.Component]
 	Telemetry telemetry.Component
+	Tagger    tagger.Component
 }
 
 type provides struct {
@@ -184,7 +186,7 @@ func initTelemetry() {
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) provides {
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.Tagger)
 
 	if deps.Config.GetBool("use_dogstatsd") {
 		deps.Lc.Append(fx.Hook{
@@ -199,7 +201,7 @@ func newServer(deps dependencies) provides {
 	}
 }
 
-func newServerCompat(cfg model.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
+func newServerCompat(cfg model.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component, tagger tagger.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *statutil.Stats
@@ -237,9 +239,12 @@ func newServerCompat(cfg model.Reader, log log.Component, capture replay.Compone
 
 	// if the server is running in a context where static tags are required, add those
 	// to extraTags.
-	if staticTags := tagutil.GetStaticTagsSlice(context.TODO(), cfg); staticTags != nil {
-		extraTags = append(extraTags, staticTags...)
+	staticTags, err := tagger.GlobalTags(types.LowCardinality)
+	log.Errorf("GABE: got staticTags from tagger: %v", staticTags)
+	if err != nil {
+		log.Errorf("Dogstatsd: unable to get static tags: %s", err)
 	}
+	extraTags = append(extraTags, staticTags...)
 	sort.UniqInPlace(extraTags)
 
 	entityIDPrecedenceEnabled := cfg.GetBool("dogstatsd_entity_id_precedence")

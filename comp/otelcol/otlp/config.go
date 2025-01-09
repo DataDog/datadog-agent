@@ -8,7 +8,6 @@
 package otlp
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -17,10 +16,11 @@ import (
 	"github.com/go-viper/mapstructure/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
-	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
 )
 
 func portToUint(v int) (port uint, err error) {
@@ -32,7 +32,7 @@ func portToUint(v int) (port uint, err error) {
 }
 
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
-func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
+func FromAgentConfig(cfg config.Reader, tagger tagger.Component) (PipelineConfig, error) {
 	var errs []error
 	otlpConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPReceiverSection)
 	tracePort, err := portToUint(cfg.GetInt(coreconfig.OTLPTracePort))
@@ -52,7 +52,8 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 		metricsConfigMap["apm_stats_receiver_addr"] = fmt.Sprintf("http://localhost:%s/v0.6/stats", coreconfig.Datadog().GetString("apm_config.receiver_port"))
 	}
 
-	tags := strings.Join(tagutil.GetStaticTagsSlice(context.TODO(), cfg), ",")
+	tagSlice, _ := tagger.GlobalTags(types.LowCardinality)
+	tags := strings.Join(tagSlice, ",")
 	if tags != "" {
 		metricsConfigMap["tags"] = tags
 	}
