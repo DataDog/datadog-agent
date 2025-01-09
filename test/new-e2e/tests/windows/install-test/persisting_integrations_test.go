@@ -60,6 +60,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 
 	// install pip package
 	err = s.installPipPackage(vm, "grpcio")
+	s.Require().NoError(err, "should install pip package")
 
 	// upgrade to test agent
 	if !s.Run(fmt.Sprintf("upgrade to %s", s.upgradeAgentPackge.AgentVersion()), func() {
