@@ -4,6 +4,8 @@ import os
 import re
 import tempfile
 
+from tasks.libs.pipeline.notifications import HELP_SLACK_CHANNEL
+
 
 def create_msg(pipeline_id, pipeline_url, job_list):
     msg = f"""
@@ -19,7 +21,7 @@ On pipeline [{pipeline_id}]({pipeline_url}) ([CI Visibility](https://app.datadog
         msg += f"  - {job}\n"
     msg += "</details>\n"
     msg += "\n"
-    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to #agent-devx-help"
+    msg += f"If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to {HELP_SLACK_CHANNEL}"
     return msg
 
 
