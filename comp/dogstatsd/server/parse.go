@@ -206,7 +206,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 			rawLocalData := string(optionalField[len(localDataPrefix):])
 			localData, err = origindetection.ParseLocalData(rawLocalData)
 			if err != nil {
-				return dogstatsdMetricSample{}, fmt.Errorf("failed to parse OriginInfo.LocalData %s: %v", rawLocalData, err)
+				return dogstatsdMetricSample{}, fmt.Errorf("failed to parse c: field containing Local Data %s: %v", rawLocalData, err)
 			}
 			// If the container ID is not set in the Local Data, we try to resolve it from the cgroupv2 inode.
 			if localData.ContainerID == "" {
@@ -217,7 +217,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 			rawExternalData := string(optionalField[len(externalDataPrefix):])
 			externalData, err = origindetection.ParseExternalData(rawExternalData)
 			if err != nil {
-				return dogstatsdMetricSample{}, fmt.Errorf("failed to parse OriginInfo.ExternalData %s: %v", rawExternalData, err)
+				return dogstatsdMetricSample{}, fmt.Errorf("failed to parse e: field containing External Data %s: %v", rawExternalData, err)
 			}
 		}
 	}
