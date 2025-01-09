@@ -134,6 +134,7 @@ func WithTestingWorkload() ProvisionerOption {
 	}
 }
 
+// WithSetupCallback adds a callback between host setup end and the agent starting up.
 func WithSetupCallback(cb setupFn) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.setupCallbacks = append(params.setupCallbacks, cb)
