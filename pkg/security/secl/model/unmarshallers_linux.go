@@ -161,7 +161,7 @@ func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
 	e.FSGID = binary.NativeEndian.Uint32(data[20:24])
 	e.AUID = binary.NativeEndian.Uint32(data[24:28])
 	if binary.NativeEndian.Uint32(data[28:32]) != 1 {
-		e.AUID = AuditUIDUnset
+		e.AUID = sharedconsts.AuditUIDUnset
 	}
 	e.CapEffective = binary.NativeEndian.Uint64(data[32:40])
 	e.CapPermitted = binary.NativeEndian.Uint64(data[40:48])
