@@ -52,9 +52,6 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 	productVersionPre, err := windowsAgent.GetDatadogProductVersion(vm)
 	s.Require().NoError(err, "should get product version")
 
-	// enable persisting integrations
-	s.enableIntegrationsPersistence(vm)
-
 	// install third party integration
 	err = s.installThirdPartyIntegration(vm, "datadog-ping==1.0.2")
 	s.Require().NoError(err, "should install third party integration")
@@ -101,14 +98,6 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 
 	s.uninstallAgentAndRunUninstallTests(t)
 
-}
-
-// enableIntegrationsPersistence enables the persisting integrations feature
-func (s *testPersistingIntegrationsSuite) enableIntegrationsPersistence(vm *components.RemoteHost) {
-	// create the .install_python_third_party_deps file
-	installPythonThirdPartyDepsFile := filepath.Join("C:\\ProgramData\\Datadog\\protected\\", ".install_python_third_party_deps")
-	_, err := vm.Execute(fmt.Sprintf("echo %s > %s", "1", installPythonThirdPartyDepsFile))
-	s.Require().NoError(err, "should create .install_python_third_party_deps file")
 }
 
 // install third party integration
