@@ -66,16 +66,16 @@ type Entity struct {
 
 // EntityValue represents a value with a timestamp.
 type EntityValue struct {
-	value     ValueType
-	timestamp Timestamp
+	Value     ValueType
+	Timestamp Timestamp
 }
 
 // String returns a string representation of the EntityValue.
 func (ev *EntityValue) String() string {
 	// Convert the timestamp to a time.Time object assuming the timestamp is in seconds.
 	// If the timestamp is in milliseconds, use time.UnixMilli(ev.timestamp) instead.
-	readableTime := time.Unix(int64(ev.timestamp), 0).Local().Format(time.RFC3339)
-	return fmt.Sprintf("Value: %f, Timestamp: %s", ev.value, readableTime)
+	readableTime := time.Unix(int64(ev.Timestamp), 0).Local().Format(time.RFC3339)
+	return fmt.Sprintf("Value: %f, Timestamp: %s", ev.Value, readableTime)
 }
 
 // EntityValueQueue represents a queue with a fixed capacity that removes the front element when full
