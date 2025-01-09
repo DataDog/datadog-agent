@@ -57,11 +57,20 @@ build do
     elsif windows_target?
       copy "providers/fips.dll", "#{dest}/lib/ossl-modules/fips.dll"
     end
+    if linux_target?
+      embedded_ssl_dir = "#{install_dir}/embedded/ssl"
+    elsif windows_target?
+      # Use the default installation directory instead of install_dir which is just a build path.
+      # This simpifies container setup because we don't need to modify the config file.
+      # The MSI contains logic to replace the path at install time.
+      # Note: We intentionally use forward slashes here
+      embedded_ssl_dir = "C:/Program Files/Datadog/Datadog Agent/embedded3/ssl"
+    end
 
     erb source: "openssl.cnf.erb",
         dest: "#{dest}/ssl/openssl.cnf.tmp",
         mode: 0644,
-        vars: { install_dir: install_dir }
+        vars: { embedded_ssl_dir: embedded_ssl_dir }
     unless windows_target?
       erb source: "fipsinstall.sh.erb",
           dest: "#{dest}/bin/fipsinstall.sh",
