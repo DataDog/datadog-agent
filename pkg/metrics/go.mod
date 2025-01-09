@@ -7,6 +7,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../comp/core/secrets
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection => ../../comp/core/tagger/origindetection
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry/
 	github.com/DataDog/datadog-agent/comp/def => ../../comp/def/
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey/
@@ -54,6 +55,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0 // indirect
@@ -99,7 +101,7 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_golang v1.20.5 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
-	github.com/prometheus/common v0.60.1 // indirect
+	github.com/prometheus/common v0.61.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/shirou/gopsutil/v4 v4.24.11 // indirect
 	github.com/spf13/afero v1.11.0 // indirect

@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -571,10 +572,7 @@ func (p *EBPFProbe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
-	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := serializers.MarshalEvent(event, nil)
-		return eventJSON, event.GetEventType(), err
-	})
+	logTraceEvent(event.GetEventType(), event)
 
 	// filter out event if already present on a profile
 	if p.config.RuntimeSecurity.SecurityProfileEnabled {
@@ -1214,6 +1212,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.AcceptEventType:
+		if _, err = event.Accept.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode accept event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	case model.BindEventType:
 		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1660,8 +1663,6 @@ func (p *EBPFProbe) Close() error {
 	// perf map reader are ignored
 	p.cancelFnc()
 
-	close(p.newTCNetDevices)
-
 	// we wait until both the reorderer and the monitor are stopped
 	p.wg.Wait()
 
@@ -1681,6 +1682,8 @@ func (p *EBPFProbe) Close() error {
 	}
 
 	// when we reach this point, we do not generate nor consume events anymore, we can close the resolvers
+	close(p.newTCNetDevices)
+
 	return p.Resolvers.Close()
 }
 
@@ -2162,6 +2165,16 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		)
 	}
 
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+		manager.ConstantEditor{
+			Name: "fentry_func_argc",
+			ValueCallback: func(prog *lib.ProgramSpec) interface{} {
+				// use a separate function to make sure we always return a uint64
+				return getFuncArgCount(prog)
+			},
+		},
+	)
+
 	// tail calls
 	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, config.Probe.NetworkRawPacketEnabled, useMmapableMaps)
 	if !config.Probe.ERPCDentryResolutionEnabled || useMmapableMaps {
@@ -2243,6 +2256,20 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	p.zeroEvent()
 
 	return p, nil
+}
+
+func getFuncArgCount(prog *lib.ProgramSpec) uint64 {
+	if !strings.HasPrefix(prog.SectionName, "fexit/") {
+		return 0 // this value should never be used
+	}
+
+	argc, err := constantfetch.GetBTFFunctionArgCount(prog.AttachTo)
+	if err != nil {
+		seclog.Errorf("failed to get function argument count for %s: %v", prog.AttachTo, err)
+		return 0
+	}
+
+	return uint64(argc)
 }
 
 // GetProfileManagers returns the security profile managers
@@ -2503,6 +2530,20 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeNlink, "struct inode", "i_nlink")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeMtime, "struct inode", "i_mtime", "__i_mtime")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetInodeCtime, "struct inode", "i_ctime", "__i_ctime")
+
+	// fs
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSbDev, "struct super_block", "s_dev")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSuperblockSType, "struct super_block", "s_type")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDentryDInode, "struct dentry", "d_inode")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDentryDName, "struct dentry", "d_name")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePathDentry, "struct path", "dentry")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePathMnt, "struct path", "mnt")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeSuperblock, "struct inode", "i_sb")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameMountMntMountpoint, "struct mount", "mnt_mountpoint")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameMountpointDentry, "struct mountpoint", "m_dentry")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVfsmountMntFlags, "struct vfsmount", "mnt_flags")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVfsmountMntRoot, "struct vfsmount", "mnt_root")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVfsmountMntSb, "struct vfsmount", "mnt_sb")
 }
 
 // HandleActions handles the rule actions

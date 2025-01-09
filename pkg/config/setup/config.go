@@ -730,6 +730,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
 	config.BindEnvAndSetDefault("clc_runner_remote_tagger_enabled", false)
 
+	// Remote tagger
+	config.BindEnvAndSetDefault("remote_tagger.max_concurrent_sync", 3)
+
 	// Admission controller
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.validation.enabled", true)
@@ -1283,7 +1286,11 @@ func telemetry(config pkgconfigmodel.Setup) {
 
 	// Agent Telemetry
 	config.BindEnvAndSetDefault("agent_telemetry.enabled", true)
+	// default compression first setup inside the next bindEnvAndSetLogsConfigKeys() function ...
 	bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
+	// ... and overridden by the following two lines - do not switch these 3 lines order
+	config.BindEnvAndSetDefault("agent_telemetry.compression_level", 1)
+	config.BindEnvAndSetDefault("agent_telemetry.use_compression", true)
 }
 
 func serializer(config pkgconfigmodel.Setup) {
@@ -1560,6 +1567,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// Experimental auto multiline detection settings (these are subject to change until the feature is no longer experimental)
 	config.BindEnvAndSetDefault("logs_config.experimental_auto_multi_line_detection", false)
+	config.BindEnv("logs_config.auto_multi_line_detection_custom_samples")
 	config.SetKnown("logs_config.auto_multi_line_detection_custom_samples")
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_detection", true)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_datetime_detection", true)

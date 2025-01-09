@@ -120,8 +120,6 @@ typedef struct {
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
     __u64 udp_dropped_conns;
-    __u64 double_flush_attempts_close;
-    __u64 double_flush_attempts_done;
     __u64 unsupported_tcp_failures;
     __u64 tcp_done_missing_pid;
     __u64 tcp_connect_failed_tuple;

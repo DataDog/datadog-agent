@@ -166,6 +166,13 @@ updates:
       - dependency-name: github.com/pulumi*
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
+    groups:
+      aws-sdk-go-v2:
+        patterns:
+          - "github.com/aws/aws-sdk-go-v2*"
+      k8s-io:
+        patterns:
+          - "k8s.io/*"
 
     schedule:
       interval: weekly

@@ -67,6 +67,7 @@ enum Runtime {
   CRIO = 3;
   GARDEN = 4;
   ECS_FARGATE = 5;
+  UNKNOWN = 6;
 }
 
 enum ContainerStatus {
