@@ -82,18 +82,20 @@ void InitLocationServices() {
 
 // GetWiFiInformation return wifi data
 WiFiInfo GetWiFiInformation() {
-    CWInterface *wifiInterface = [[CWWiFiClient sharedWiFiClient] interface];
+    @autoreleasepool {
+        CWInterface *wifiInterface = [[CWWiFiClient sharedWiFiClient] interface];
 
-    WiFiInfo info;
+        WiFiInfo info;
 
-    info.rssi = (int)wifiInterface.rssiValue;
-    info.ssid = strdup([[wifiInterface ssid] UTF8String]);
-    info.bssid = strdup([[wifiInterface bssid] UTF8String]);
-    info.channel = (int)wifiInterface.wlanChannel.channelNumber;
-    info.noise = (int)wifiInterface.noiseMeasurement;
-    info.transmitRate = wifiInterface.transmitRate;
-    info.hardwareAddress = strdup([[wifiInterface hardwareAddress] UTF8String]);
-    info.activePHYMode = (int)wifiInterface.activePHYMode;
-    
-    return info;
+        info.rssi = (int)wifiInterface.rssiValue;
+        info.ssid = strdup([[wifiInterface ssid] UTF8String]);
+        info.bssid = strdup([[wifiInterface bssid] UTF8String]);
+        info.channel = (int)wifiInterface.wlanChannel.channelNumber;
+        info.noise = (int)wifiInterface.noiseMeasurement;
+        info.transmitRate = wifiInterface.transmitRate;
+        info.hardwareAddress = strdup([[wifiInterface hardwareAddress] UTF8String]);
+        info.activePHYMode = (int)wifiInterface.activePHYMode;
+        
+        return info;
+    }
 }
