@@ -28,23 +28,8 @@ notify:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
-    - |
-      # Do not send notifications if this is a child pipeline of another repo
-      # The triggering repo should already have its own notification system
-      if [ "$CI_PIPELINE_SOURCE" != "pipeline" ]; then
-        if [ "$DEPLOY_AGENT" = "true" ]; then
-          invoke -e notify.send-message --notification-type "deploy"
-        elif [ "$CI_PIPELINE_SOURCE" != "push" ]; then
-          invoke -e notify.send-message --notification-type "trigger"
-        else
-          invoke -e notify.send-message --notification-type "merge"
-        fi
-        if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
-          invoke notify.check-consistent-failures
-        fi
-      else
-        echo "This pipeline was triggered by another repository, skipping notification."
-      fi
+    - invoke -e notify.send-message -p $CI_PIPELINE_ID
+    - invoke -e notify.check-consistent-failures -p $CI_PIPELINE_ID
 
 send_pipeline_stats:
   stage: notify

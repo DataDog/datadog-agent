@@ -506,6 +506,10 @@ namespace Datadog.CustomActions
                     _session.Log("Ignoring provided password because account is a service account");
                     ddAgentUserPassword = null;
                 }
+                else if (!string.IsNullOrEmpty(ddAgentUserPassword))
+                {
+                    TestValidAgentUserPassword(ddAgentUserPassword);
+                }
 
                 _session["DDAGENTUSER_PROCESSED_PASSWORD"] = ddAgentUserPassword;
             }
@@ -524,6 +528,17 @@ namespace Datadog.CustomActions
             }
 
             return ActionResult.Success;
+        }
+
+        private void TestValidAgentUserPassword(string ddAgentUserPassword)
+        {
+            // password cannot contain semicolon
+            // semicolon is the delimiter for CustomActionData, and we don't have special handling for this.
+            // TODO: WINA-1226
+            if (ddAgentUserPassword.Contains(";"))
+            {
+                throw new InvalidAgentUserConfigurationException("The password provided contains an invalid character. Please provide a password that does not contain a semicolon.");
+            }
         }
 
         public static ActionResult ProcessDdAgentUserCredentials(Session session)

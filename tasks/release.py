@@ -122,6 +122,13 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
         for module in modules.values():
             for dependency in module.dependencies:
                 dependency_mod = modules[dependency]
+                if (
+                    agent_version.startswith('6')
+                    and 'pkg/util/optional' in dependency_mod.dependency_path(agent_version)
+                    and 'test/new-e2e' in module.go_mod_path()
+                ):
+                    # Skip this dependency update in new-e2e for Agent 6, as it's incompatible.
+                    continue
                 ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
 
 
@@ -1029,19 +1036,18 @@ def generate_release_metrics(ctx, milestone, freeze_date, release_date):
     print(code_stats)
 
 
-# TODO rename to freeze_date to cutoff_date
 @task
-def create_schedule(_, version, freeze_date):
+def create_schedule(_, version, cutoff_date):
     """Create confluence pages for the release schedule.
 
     Args:
-        freeze_date: Date when the code cut-off happened. Expected format YYYY-MM-DD, like '2022-02-01'
+        cutoff_date: Date when the code cut-off happened. Expected format YYYY-MM-DD, like '2022-02-01'
     """
 
     required_environment_variables = ["ATLASSIAN_USERNAME", "ATLASSIAN_PASSWORD"]
     if not all(key in os.environ for key in required_environment_variables):
         raise Exit(f"You must set {required_environment_variables} environment variables to use this task.", code=1)
-    release_page = create_release_page(version, date.fromisoformat(freeze_date))
+    release_page = create_release_page(version, date.fromisoformat(cutoff_date))
     print(f"Release schedule pages {release_page['url']} {color_message('successfully created', 'green')}")
 
 
