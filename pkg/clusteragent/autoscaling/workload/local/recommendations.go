@@ -9,6 +9,7 @@
 package local
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"time"
@@ -19,15 +20,16 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 
-	// "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/shared"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type LocalRecommender struct {
 	PodWatcher shared.PodWatcher
-	// Store     *loadstore.EntityStore
+	Store      loadstore.Store
 }
 
 type ValueType float64
@@ -59,46 +61,6 @@ var (
 		corev1.ResourceCPU:    "container.cpu.usage",
 		corev1.ResourceMemory: "container.memory.usage",
 	}
-
-	// Example data
-	ev1 = EntityValue{value: 0.1, timestamp: 1}
-	ev2 = EntityValue{value: 0.2, timestamp: 2}
-	ev3 = EntityValue{value: 0.3, timestamp: 3}
-	ev4 = EntityValue{value: 0.4, timestamp: 4}
-	ev5 = EntityValue{value: 0.5, timestamp: 5}
-
-	// Sample PodResult
-	podResult1 = PodResult{
-		PodName: "podName-1",
-		ContainerValues: map[string][]EntityValue{
-			"containerName1": {ev1, ev2, ev3},
-			"containerName2": {ev4, ev5},
-		},
-	}
-
-	podResult2 = PodResult{
-		PodName: "podName-2",
-		ContainerValues: map[string][]EntityValue{
-			"containerName3": {ev1, ev2, ev3},
-		},
-		PodLevelValue: []EntityValue{ev1, ev2, ev3},
-	}
-
-	// Sample QueryResult
-	queryResult = QueryResult{
-		results: []PodResult{podResult1, podResult2},
-	}
-
-	queryResultContainerFiltered = QueryResult{
-		results: []PodResult{
-			{
-				PodName: "podName-2",
-				ContainerValues: map[string][]EntityValue{
-					"containerName1": {ev1, ev2, ev3},
-				},
-			},
-		},
-	}
 )
 
 type resourceRecommenderSettings struct {
@@ -113,6 +75,13 @@ type UtilizationResult struct {
 	PodToUtilization        map[string]float64
 	MissingPods             []string
 	RecommendationTimestamp time.Time
+}
+
+func newLocalRecommender(podWatcher shared.PodWatcher, loadStore loadstore.Store) LocalRecommender {
+	return LocalRecommender{
+		PodWatcher: podWatcher,
+		Store:      loadStore,
+	}
 }
 
 func newResourceRecommenderSettings(target datadoghq.DatadogPodAutoscalerTarget) (*resourceRecommenderSettings, error) {
@@ -167,6 +136,15 @@ func getOptionsFromContainerResource(target *datadoghq.DatadogPodAutoscalerConta
 	return recSettings, nil
 }
 
+func (l LocalRecommender) ReinitLoadstore(ctx context.Context) error {
+	lStore := loadstore.GetWorkloadMetricStore(ctx)
+	if lStore == nil {
+		return fmt.Errorf("Failed to reinitialize local recommender loadstore")
+	}
+	l.Store = lStore
+	return nil
+}
+
 // CalculateHorizontalRecommendations is the entrypoint to calculate the horizontal recommendation for a given DatadogPodAutoscaler
 func (l LocalRecommender) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal) (*model.ScalingValues, error) {
 	currentTime := time.Now()
@@ -201,12 +179,14 @@ func (l LocalRecommender) CalculateHorizontalRecommendations(dpai model.PodAutos
 			return nil, fmt.Errorf("Failed to get resource recommender settings: %s", err)
 		}
 
-		// queryResult := GetMetricsRaw(recSettings.MetricName, namespace, podOwnerName, recSettings.ContainerName)
+		queryResult := l.Store.GetMetricsRaw(recSettings.MetricName, namespace, podOwnerName, recSettings.ContainerName)
 		rec, ts, err := recSettings.recommend(currentTime, pods, queryResult, float64(*dpai.CurrentReplicas()))
 		if err != nil {
 			log.Debugf("Got error calculating recommendation: %s", err)
 			break
 		}
+
+		log.Debugf("LOCAL-REC: Recommendation for %s: %d", recSettings.MetricName, rec)
 
 		// always choose the highest recommendation given
 		if rec > recommendedReplicas.Replicas {
@@ -234,13 +214,15 @@ func (l LocalRecommender) CalculateHorizontalRecommendations(dpai model.PodAutos
 	}, nil
 }
 
-func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*workloadmeta.KubernetesPod, queryResult QueryResult, currentReplicas float64) (int32, time.Time, error) {
+func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*workloadmeta.KubernetesPod, queryResult loadstore.QueryResult, currentReplicas float64) (int32, time.Time, error) {
 	utilizationResult, err := r.calculateUtilization(pods, queryResult, currentTime)
 	if err != nil {
 		return 0, time.Time{}, err
 	}
+	log.Debugf("LOCAL-REC: Utilization result: %+v", utilizationResult)
 
 	recommendedReplicas := r.calculateReplicas(currentReplicas, utilizationResult.AverageUtilization)
+	log.Debugf("LOCAL-REC: Recommended replicas: %d", recommendedReplicas)
 
 	scaleDirection := shared.GetScaleDirection(int32(currentReplicas), recommendedReplicas)
 	// account for missing pods
@@ -254,12 +236,13 @@ func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*wo
 		} else {
 			recommendedReplicas = newRecommendation
 		}
+		log.Debugf("LOCAL-REC: missing pods adjusted recommendation: %d", recommendedReplicas)
 	}
 
 	return recommendedReplicas, utilizationResult.RecommendationTimestamp, nil
 }
 
-func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.KubernetesPod, queryResult QueryResult, currentTime time.Time) (UtilizationResult, error) {
+func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.KubernetesPod, queryResult loadstore.QueryResult, currentTime time.Time) (UtilizationResult, error) {
 	totalPodUtilization := 0.0
 	podCount := 0
 	podUtilization := make(map[string]float64)
@@ -270,15 +253,17 @@ func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.
 		return UtilizationResult{}, fmt.Errorf("No pods found")
 	}
 
-	if len(queryResult.results) == 0 {
+	if len(queryResult.Results) == 0 {
 		return UtilizationResult{}, fmt.Errorf("Issue fetching metrics data")
 	}
 
 	for _, pod := range pods {
+		log.Debugf("LOCAL-REC: Processing pod: %s | %+v", pod.Name, pod)
 		totalUsage := 0.0
 		totalRequests := 0.0
 
 		for _, container := range pod.Containers {
+			log.Debugf("LOCAL-REC: Processing container: %s | %+v", container.Name, container)
 			if r.ContainerName != "" && container.Name != r.ContainerName {
 				continue
 			}
@@ -286,17 +271,19 @@ func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.
 			if r.MetricName == "container.memory.usage" && container.Resources.MemoryRequest != nil {
 				totalRequests += float64(*container.Resources.MemoryRequest)
 			} else if r.MetricName == "container.cpu.usage" && container.Resources.CPURequest != nil {
-				totalRequests += convertCpuRequestToMillicores(*container.Resources.CPURequest)
+				totalRequests += convertCpuRequestToNanocores(*container.Resources.CPURequest)
 			} else {
 				continue // skip; no request information
 			}
 
 			series := getContainerMetrics(queryResult, pod.Name, container.Name)
+			log.Debugf("LOCAL-REC: Processing series: %+v", series)
 			if len(series) == 0 { // no metrics data
 				continue
 			}
 
 			averageValue, lastTimestamp, err := processAverageContainerMetricValue(series, currentTime)
+			log.Debugf("LOCAL-REC - averageValue: %f | lastTimestamp: %s | err: %v", averageValue, lastTimestamp, err)
 			if err != nil {
 				continue // skip; no usage information
 			}
@@ -307,10 +294,18 @@ func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.
 		}
 
 		if totalRequests > 0 && totalUsage > 0 {
-			podUtilization[pod.Name] = totalUsage / totalRequests
+			utilization := totalUsage / totalRequests
+			if utilization > 1.0 || utilization < 0 { // validate utilization is percentage 0-1
+				log.Debugf("LOCAL-REC utilization is not percentage %f; skipping pod %s", utilization, pod.Name)
+				missingPods = append(missingPods, pod.Name)
+				continue
+			}
+			podUtilization[pod.Name] = utilization
 			totalPodUtilization += podUtilization[pod.Name]
 			podCount++
+			log.Debugf("LOCAL-REC: Pod %s utilization: %f", pod.Name, podUtilization[pod.Name])
 		} else {
+			log.Debugf("LOCAL-REC missing usage information for pod %s", pod.Name)
 			missingPods = append(missingPods, pod.Name)
 		}
 	}
@@ -335,9 +330,9 @@ func getAveragePodUtilization(podToUtilization map[string]float64) float64 {
 	return totalUtilization / float64(len(podToUtilization))
 }
 
-// GetContainerMetrics retrieves the metrics for a specific container in a pod
-func getContainerMetrics(queryResult QueryResult, podName, containerName string) []EntityValue {
-	for _, result := range queryResult.results {
+// getContainerMetrics retrieves the metrics for a specific container in a pod
+func getContainerMetrics(queryResult loadstore.QueryResult, podName, containerName string) []loadstore.EntityValue {
+	for _, result := range queryResult.Results {
 		if result.PodName == podName {
 			if series, ok := result.ContainerValues[containerName]; ok {
 				return series
@@ -350,17 +345,17 @@ func getContainerMetrics(queryResult QueryResult, podName, containerName string)
 // processAverageContainerMetricValue takes a series of metrics and processes them to return the final metric value and
 // corresponding timestamp to use to generate a recommendation
 // TODO: handle missing containers here?
-func processAverageContainerMetricValue(series []EntityValue, currentTime time.Time) (float64, time.Time, error) {
-	values := []ValueType{}
+func processAverageContainerMetricValue(series []loadstore.EntityValue, currentTime time.Time) (float64, time.Time, error) {
+	values := []loadstore.ValueType{}
 	lastTimestamp := time.Time{}
 
 	for _, entity := range series {
 		// Discard stale metrics
-		if isStaleMetric(currentTime, entity.timestamp) {
+		if isStaleMetric(currentTime, entity.Timestamp) {
 			continue
 		}
-		values = append(values, entity.value)
-		ts := convertTimestampToTime(entity.timestamp)
+		values = append(values, entity.Value)
+		ts := convertTimestampToTime(entity.Timestamp)
 		if ts.After(lastTimestamp) {
 			lastTimestamp = ts
 		}
@@ -415,26 +410,26 @@ func (r *resourceRecommenderSettings) calculateReplicas(currentReplicas float64,
 }
 
 // Helpers //
-func isStaleMetric(currentTime time.Time, metricTimestamp Timestamp) bool {
+func isStaleMetric(currentTime time.Time, metricTimestamp loadstore.Timestamp) bool {
 	return currentTime.Unix()-int64(metricTimestamp) > staleDataThresholdSeconds
 }
 
-func average(series []ValueType) float64 {
-	average := ValueType(0)
+func average(series []loadstore.ValueType) float64 {
+	average := loadstore.ValueType(0)
 	for _, val := range series {
 		average += val
 	}
-	average /= ValueType(len(series))
+	average /= loadstore.ValueType(len(series))
 	return float64(average)
 }
 
-func convertTimestampToTime(timestamp Timestamp) time.Time {
+func convertTimestampToTime(timestamp loadstore.Timestamp) time.Time {
 	return time.Unix(int64(timestamp), 0)
 }
 
-func convertCpuRequestToMillicores(cpuRequests float64) float64 {
+func convertCpuRequestToNanocores(cpuRequests float64) float64 {
 	// Current implementation takes Mi value and returns .AsApproximateFloat64()*100
 	// For 100m, AsApproximate returns 0.1; we return 10%
-	// This helper converts value back to Mi units
-	return cpuRequests / 100
+	// This helper converts value to nanocore units (default from loadstore)
+	return (cpuRequests / 100) * 1000000000
 }

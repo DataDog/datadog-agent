@@ -23,6 +23,7 @@ import (
 	// "github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -220,7 +221,7 @@ func TestProcessAverageContainerMetricValue(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		series        []EntityValue
+		series        []loadstore.EntityValue
 		currentTime   time.Time
 		averageMetric float64
 		lastTimestamp time.Time
@@ -228,25 +229,25 @@ func TestProcessAverageContainerMetricValue(t *testing.T) {
 	}{
 		{
 			name:          "Empty series",
-			series:        []EntityValue{},
+			series:        []loadstore.EntityValue{},
 			averageMetric: 0.0,
 			lastTimestamp: time.Time{},
 			err:           fmt.Errorf("Missing usage metrics"),
 		},
 		{
 			name: "Series with valid values (non-stale)",
-			series: []EntityValue{
+			series: []loadstore.EntityValue{
 				{
-					timestamp: Timestamp(testTime.Unix() - 15),
-					value:     ValueType(2),
+					Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
+					Value:     loadstore.ValueType(2),
 				},
 				{
-					timestamp: Timestamp(testTime.Unix() - 30),
-					value:     ValueType(3),
+					Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
+					Value:     loadstore.ValueType(3),
 				},
 				{
-					timestamp: Timestamp(testTime.Unix() - 45),
-					value:     ValueType(4),
+					Timestamp: loadstore.Timestamp(testTime.Unix() - 45),
+					Value:     loadstore.ValueType(4),
 				},
 			},
 			currentTime:   testTime,
@@ -256,18 +257,18 @@ func TestProcessAverageContainerMetricValue(t *testing.T) {
 		},
 		{
 			name: "Series with some stale values",
-			series: []EntityValue{
+			series: []loadstore.EntityValue{
 				{
-					timestamp: Timestamp(testTime.Unix() - 15),
-					value:     ValueType(2),
+					Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
+					Value:     loadstore.ValueType(2),
 				},
 				{
-					timestamp: Timestamp(testTime.Unix() - 30),
-					value:     ValueType(4),
+					Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
+					Value:     loadstore.ValueType(4),
 				},
 				{
-					timestamp: Timestamp(testTime.Unix() - 270),
-					value:     ValueType(4),
+					Timestamp: loadstore.Timestamp(testTime.Unix() - 270),
+					Value:     loadstore.ValueType(4),
 				},
 			},
 			currentTime:   testTime,
@@ -296,7 +297,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 	tests := []struct {
 		name        string
 		pods        []*workloadmeta.KubernetesPod
-		queryResult QueryResult
+		queryResult loadstore.QueryResult
 		currentTime time.Time
 		want        UtilizationResult
 		err         error
@@ -304,7 +305,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 		{
 			name:        "Empty pods",
 			pods:        []*workloadmeta.KubernetesPod{},
-			queryResult: QueryResult{},
+			queryResult: loadstore.QueryResult{},
 			currentTime: time.Time{},
 			want:        UtilizationResult{},
 			err:         fmt.Errorf("No pods found"),
@@ -325,14 +326,14 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 						{
 							ID: "container-id1",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
 					},
 				},
 			},
-			queryResult: QueryResult{},
+			queryResult: loadstore.QueryResult{},
 			currentTime: testTime,
 			want:        UtilizationResult{},
 			err:         fmt.Errorf("Issue fetching metrics data"),
@@ -353,26 +354,26 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 						{
 							ID: "container-id1",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
 					},
 				},
 			},
-			queryResult: QueryResult{
-				results: []PodResult{
+			queryResult: loadstore.QueryResult{
+				Results: []loadstore.PodResult{
 					{
 						PodName: "pod-name2",
-						ContainerValues: map[string][]EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-1": {
 								{
-									value:     ValueType(2),
-									timestamp: Timestamp(time.Now().Unix()),
+									Value:     loadstore.ValueType(200),
+									Timestamp: loadstore.Timestamp(time.Now().Unix()),
 								},
 								{
-									value:     ValueType(3),
-									timestamp: Timestamp(time.Now().Unix() - 15),
+									Value:     loadstore.ValueType(300),
+									Timestamp: loadstore.Timestamp(time.Now().Unix() - 15),
 								},
 							},
 						},
@@ -400,26 +401,26 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 							ID:   "container-id1",
 							Name: "container-name1",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
 					},
 				},
 			},
-			queryResult: QueryResult{
-				results: []PodResult{
+			queryResult: loadstore.QueryResult{
+				Results: []loadstore.PodResult{
 					{
 						PodName: "pod-name1",
-						ContainerValues: map[string][]EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
 								{
-									value:     ValueType(2),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(250),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(3),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(300),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
 						},
@@ -428,10 +429,10 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want: UtilizationResult{
-				AverageUtilization: 2.5,
+				AverageUtilization: 0.275,
 				MissingPods:        []string{},
 				PodToUtilization: map[string]float64{
-					"pod-name1": 2.5,
+					"pod-name1": 0.275,
 				},
 				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
@@ -454,7 +455,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 							ID:   "container-id1",
 							Name: "container-name1",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
@@ -462,36 +463,36 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 							ID:   "container-id2",
 							Name: "container-name2",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
 					},
 				},
 			},
-			queryResult: QueryResult{
-				results: []PodResult{
+			queryResult: loadstore.QueryResult{
+				Results: []loadstore.PodResult{
 					{
 						PodName: "pod-name1",
-						ContainerValues: map[string][]EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
 								{
-									value:     ValueType(2),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(200),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(3),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(300),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
 							"container-name2": {
 								{
-									value:     ValueType(2),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(200),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(4),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(400),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
 						},
@@ -500,10 +501,10 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want: UtilizationResult{
-				AverageUtilization: 2.75,
+				AverageUtilization: 0.275,
 				MissingPods:        []string{},
 				PodToUtilization: map[string]float64{
-					"pod-name1": 2.75,
+					"pod-name1": .275,
 				},
 				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
@@ -526,7 +527,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 							ID:   "container-id1",
 							Name: "container-name1",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
@@ -546,41 +547,41 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 							ID:   "container-id2",
 							Name: "container-name2",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
 					},
 				},
 			},
-			queryResult: QueryResult{
-				results: []PodResult{
+			queryResult: loadstore.QueryResult{
+				Results: []loadstore.PodResult{
 					{
 						PodName: "pod-name1",
-						ContainerValues: map[string][]EntityValue{
-							"container-name1": []EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-name1": {
 								{
-									value:     ValueType(2),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(200),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(3),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(300),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
 						},
 					},
 					{
 						PodName: "pod-name2",
-						ContainerValues: map[string][]EntityValue{
-							"container-name2": []EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-name2": {
 								{
-									value:     ValueType(2),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(200),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(4),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(400),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
 						},
@@ -589,11 +590,11 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want: UtilizationResult{
-				AverageUtilization: 2.75,
+				AverageUtilization: 0.275,
 				MissingPods:        []string{},
 				PodToUtilization: map[string]float64{
-					"pod-name1": 2.5,
-					"pod-name2": 3.0,
+					"pod-name1": 0.25,
+					"pod-name2": 0.30,
 				},
 				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
@@ -616,7 +617,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 							ID:   "container-id1",
 							Name: "container-name1",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
@@ -636,26 +637,26 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 							ID:   "container-id2",
 							Name: "container-name2",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
 					},
 				},
 			},
-			queryResult: QueryResult{
-				results: []PodResult{
+			queryResult: loadstore.QueryResult{
+				Results: []loadstore.PodResult{
 					{
 						PodName: "pod-name1",
-						ContainerValues: map[string][]EntityValue{
-							"container-name1": []EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-name1": []loadstore.EntityValue{
 								{
-									value:     ValueType(2),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(200),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(3),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(300),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
 						},
@@ -664,10 +665,10 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want: UtilizationResult{
-				AverageUtilization: 2.5,
+				AverageUtilization: 0.25,
 				MissingPods:        []string{"pod-name2"},
 				PodToUtilization: map[string]float64{
-					"pod-name1": 2.5,
+					"pod-name1": 0.25,
 				},
 				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
@@ -704,7 +705,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 	tests := []struct {
 		name        string
 		pods        []*workloadmeta.KubernetesPod
-		queryResult QueryResult
+		queryResult loadstore.QueryResult
 		currentTime time.Time
 		want        UtilizationResult
 		err         error
@@ -712,7 +713,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 		{
 			name:        "Empty pods",
 			pods:        []*workloadmeta.KubernetesPod{},
-			queryResult: QueryResult{},
+			queryResult: loadstore.QueryResult{},
 			currentTime: time.Time{},
 			want:        UtilizationResult{},
 			err:         fmt.Errorf("No pods found"),
@@ -733,14 +734,14 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 						{
 							ID: "container-id1",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
 					},
 				},
 			},
-			queryResult: QueryResult{},
+			queryResult: loadstore.QueryResult{},
 			currentTime: testTime,
 			want:        UtilizationResult{},
 			err:         fmt.Errorf("Issue fetching metrics data"),
@@ -761,26 +762,26 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 						{
 							ID: "container-id1",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
 					},
 				},
 			},
-			queryResult: QueryResult{
-				results: []PodResult{
+			queryResult: loadstore.QueryResult{
+				Results: []loadstore.PodResult{
 					{
 						PodName: "pod-name2",
-						ContainerValues: map[string][]EntityValue{
-							"container-1": []EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-1": {
 								{
-									value:     ValueType(2),
-									timestamp: Timestamp(time.Now().Unix()),
+									Value:     loadstore.ValueType(200),
+									Timestamp: loadstore.Timestamp(time.Now().Unix()),
 								},
 								{
-									value:     ValueType(3),
-									timestamp: Timestamp(time.Now().Unix() - 15),
+									Value:     loadstore.ValueType(300),
+									Timestamp: loadstore.Timestamp(time.Now().Unix() - 15),
 								},
 							},
 						},
@@ -808,26 +809,26 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 							ID:   "container-id1",
 							Name: "container-name1",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
 					},
 				},
 			},
-			queryResult: QueryResult{
-				results: []PodResult{
+			queryResult: loadstore.QueryResult{
+				Results: []loadstore.PodResult{
 					{
 						PodName: "pod-name1",
-						ContainerValues: map[string][]EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
 								{
-									value:     ValueType(2),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(200),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(3),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(300),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
 						},
@@ -836,10 +837,10 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want: UtilizationResult{
-				AverageUtilization: 2.5,
+				AverageUtilization: 0.25,
 				MissingPods:        []string{},
 				PodToUtilization: map[string]float64{
-					"pod-name1": 2.5,
+					"pod-name1": 0.25,
 				},
 				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
@@ -862,7 +863,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 							ID:   "container-id1",
 							Name: "container-name1",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
@@ -870,36 +871,36 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 							ID:   "container-id2",
 							Name: "container-name2",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
 					},
 				},
 			},
-			queryResult: QueryResult{
-				results: []PodResult{
+			queryResult: loadstore.QueryResult{
+				Results: []loadstore.PodResult{
 					{
 						PodName: "pod-name1",
-						ContainerValues: map[string][]EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
 								{
-									value:     ValueType(2),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(200),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(3),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(300),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
-							"container-name2": []EntityValue{
+							"container-name2": []loadstore.EntityValue{
 								{
-									value:     ValueType(2),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(200),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(4),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(400),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
 						},
@@ -908,10 +909,10 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want: UtilizationResult{
-				AverageUtilization: 2.5,
+				AverageUtilization: 0.25,
 				MissingPods:        []string{},
 				PodToUtilization: map[string]float64{
-					"pod-name1": 2.5,
+					"pod-name1": 0.25,
 				},
 				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
@@ -934,7 +935,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 							ID:   "container-id1-1",
 							Name: "container-name1",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
@@ -954,41 +955,41 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 							ID:   "container-id1-2",
 							Name: "container-name1",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
 					},
 				},
 			},
-			queryResult: QueryResult{
-				results: []PodResult{
+			queryResult: loadstore.QueryResult{
+				Results: []loadstore.PodResult{
 					{
 						PodName: "pod-name1",
-						ContainerValues: map[string][]EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
 								{
-									value:     ValueType(2),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(200),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(3),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(300),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
 						},
 					},
 					{
 						PodName: "pod-name2",
-						ContainerValues: map[string][]EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
 								{
-									value:     ValueType(2),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(200),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(4),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(400),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
 						},
@@ -997,11 +998,11 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want: UtilizationResult{
-				AverageUtilization: 2.75,
+				AverageUtilization: 0.275,
 				MissingPods:        []string{},
 				PodToUtilization: map[string]float64{
-					"pod-name1": 2.5,
-					"pod-name2": 3.0,
+					"pod-name1": 0.25,
+					"pod-name2": 0.30,
 				},
 				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
@@ -1024,7 +1025,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 							ID:   "container-id1",
 							Name: "container-name1",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
@@ -1044,26 +1045,26 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 							ID:   "container-id1-2",
 							Name: "container-name1",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(0.1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
 					},
 				},
 			},
-			queryResult: QueryResult{
-				results: []PodResult{
+			queryResult: loadstore.QueryResult{
+				Results: []loadstore.PodResult{
 					{
 						PodName: "pod-name1",
-						ContainerValues: map[string][]EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
 								{
-									value:     ValueType(2),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(200),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(3),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(300),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
 						},
@@ -1072,10 +1073,10 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want: UtilizationResult{
-				AverageUtilization: 2.5,
+				AverageUtilization: 0.25,
 				MissingPods:        []string{"pod-name2"},
 				PodToUtilization: map[string]float64{
-					"pod-name1": 2.5,
+					"pod-name1": 0.25,
 				},
 				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
@@ -1171,7 +1172,7 @@ func TestRecommend(t *testing.T) {
 	tests := []struct {
 		name                    string
 		pods                    []*workloadmeta.KubernetesPod
-		queryResult             QueryResult
+		queryResult             loadstore.QueryResult
 		currentTime             time.Time
 		currentReplicas         float64
 		recommendedReplicas     int32
@@ -1201,7 +1202,7 @@ func TestRecommend(t *testing.T) {
 					},
 				},
 			},
-			queryResult:             QueryResult{},
+			queryResult:             loadstore.QueryResult{},
 			currentTime:             testTime,
 			currentReplicas:         4,
 			recommendedReplicas:     0,
@@ -1224,26 +1225,26 @@ func TestRecommend(t *testing.T) {
 						{
 							ID: "container-id1",
 							Resources: workloadmeta.ContainerResources{
-								CPURequest:    func(f float64) *float64 { return &f }(1),
+								CPURequest:    func(f float64) *float64 { return &f }(100), // 1
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
 							},
 						},
 					},
 				},
 			},
-			queryResult: QueryResult{
-				results: []PodResult{
+			queryResult: loadstore.QueryResult{
+				Results: []loadstore.PodResult{
 					{
 						PodName: "pod-name2",
-						ContainerValues: map[string][]EntityValue{
-							"container-1": []EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-1": {
 								{
-									value:     ValueType(2),
-									timestamp: Timestamp(time.Now().Unix()),
+									Value:     loadstore.ValueType(200),
+									Timestamp: loadstore.Timestamp(time.Now().Unix()),
 								},
 								{
-									value:     ValueType(3),
-									timestamp: Timestamp(time.Now().Unix() - 15),
+									Value:     loadstore.ValueType(300),
+									Timestamp: loadstore.Timestamp(time.Now().Unix() - 15),
 								},
 							},
 						},
@@ -1288,29 +1289,29 @@ func TestRecommend(t *testing.T) {
 					},
 				},
 			},
-			queryResult: QueryResult{
-				results: []PodResult{
+			queryResult: loadstore.QueryResult{
+				Results: []loadstore.PodResult{
 					{
 						PodName: "pod-name1",
-						ContainerValues: map[string][]EntityValue{
-							"container-name1": []EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-name1": {
 								{
-									value:     ValueType(100),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(100),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(123),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(123),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
-							"container-name2": []EntityValue{
+							"container-name2": {
 								{
-									value:     ValueType(140),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(140),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(154),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(154),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
 						},
@@ -1355,29 +1356,29 @@ func TestRecommend(t *testing.T) {
 					},
 				},
 			},
-			queryResult: QueryResult{
-				results: []PodResult{
+			queryResult: loadstore.QueryResult{
+				Results: []loadstore.PodResult{
 					{
 						PodName: "pod-name1",
-						ContainerValues: map[string][]EntityValue{
-							"container-name1": []EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-name1": {
 								{
-									value:     ValueType(240),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(240),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(230),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(230),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
-							"container-name2": []EntityValue{
+							"container-name2": {
 								{
-									value:     ValueType(244),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(244),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(230),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(230),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
 						},
@@ -1434,19 +1435,19 @@ func TestRecommend(t *testing.T) {
 					},
 				},
 			},
-			queryResult: QueryResult{
-				results: []PodResult{
+			queryResult: loadstore.QueryResult{
+				Results: []loadstore.PodResult{
 					{
 						PodName: "pod-name1",
-						ContainerValues: map[string][]EntityValue{
-							"container-name1": []EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-name1": {
 								{
-									value:     ValueType(240),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(240),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(230),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(230),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
 						},
@@ -1503,19 +1504,19 @@ func TestRecommend(t *testing.T) {
 					},
 				},
 			},
-			queryResult: QueryResult{
-				results: []PodResult{
+			queryResult: loadstore.QueryResult{
+				Results: []loadstore.PodResult{
 					{
 						PodName: "pod-name1",
-						ContainerValues: map[string][]EntityValue{
-							"container-name1": []EntityValue{
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-name1": {
 								{
-									value:     ValueType(5),
-									timestamp: Timestamp(testTime.Unix() - 15),
+									Value:     loadstore.ValueType(5),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
 								},
 								{
-									value:     ValueType(15),
-									timestamp: Timestamp(testTime.Unix() - 30),
+									Value:     loadstore.ValueType(15),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
 						},

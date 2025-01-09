@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/shared"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,9 +29,10 @@ type RecommenderInterface struct {
 	context          context.Context
 }
 
-func NewInterface(podWatcher shared.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) (*RecommenderInterface, error) {
+func NewInterface(ctx context.Context, podWatcher shared.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) (*RecommenderInterface, error) {
 	localRecommender := LocalRecommender{
 		PodWatcher: podWatcher,
+		Store:      loadstore.GetWorkloadMetricStore(ctx),
 	}
 
 	return &RecommenderInterface{
@@ -56,7 +58,7 @@ func (ri *RecommenderInterface) Run(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
-				ri.process()
+				ri.process(ctx)
 			case <-ctx.Done():
 				log.Debugf("Stopping autoscaling interface")
 				return
@@ -66,21 +68,29 @@ func (ri *RecommenderInterface) Run(ctx context.Context) {
 	log.Infof("Stopping autoscaling interface")
 }
 
-func (ri *RecommenderInterface) process() {
+func (ri *RecommenderInterface) process(ctx context.Context) {
 	podAutoscalers := ri.store.GetAll()
 	for _, podAutoscaler := range podAutoscalers {
 		if podAutoscaler.CustomRecommenderConfiguration() != nil {
 			// TODO: Process custom recommender
 			continue
 		} else {
+			if ri.localRecommender.Store == nil {
+				if err := ri.localRecommender.ReinitLoadstore(ctx); err != nil {
+					log.Debugf("Skipping local recommendation for pod autoscaler %s: %s", podAutoscaler.ID(), err)
+					continue
+				}
+			}
 			horizontalRecommendation, err := ri.localRecommender.CalculateHorizontalRecommendations(podAutoscaler)
 			if err != nil || horizontalRecommendation == nil {
-				log.Errorf("Error calculating horizontal recommendations for pod autoscaler %s: %s", podAutoscaler.ID(), err)
+				log.Debugf("Error calculating horizontal recommendations for pod autoscaler %s: %s", podAutoscaler.ID(), err)
 				continue
 			}
 			log.Debugf("Updating local fallback values for pod autoscaler %s", podAutoscaler.ID())
+			log.Debugf("LOCAL-REC got rec for %s: %+v", podAutoscaler.ID(), horizontalRecommendation)
 			podAutoscaler.UpdateFromLocalValues(*horizontalRecommendation)
 			ri.store.Set(podAutoscaler.ID(), podAutoscaler, localRecommenderID) // should we be holding the lock here??
+			log.Debugf("Updated local fallback values for pod autoscaler %s", podAutoscaler.ID())
 		}
 	}
 }
