@@ -211,7 +211,7 @@ namespace WixSetup.Datadog_Agent
             // to prevent them from being installed side-by-side.
             foreach (var flavorType in AgentFlavorFactory.GetAllAgentFlavors())
             {
-                var flavor = (IAgentFlavor)Activator.CreateInstance(flavorType, _agentVersion);
+                IAgentFlavor flavor = AgentFlavorFactory.New(flavorType, _agentVersion);
                 if (flavor.UpgradeCode == _agentFlavor.UpgradeCode)
                 {
                     continue;

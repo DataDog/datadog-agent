@@ -1,21 +1,29 @@
 using System;
-using System.Linq;
 
 namespace WixSetup.Datadog_Agent
 {
     internal static class AgentFlavorFactory
     {
-        public static Type[] GetAllAgentFlavors()
+        private const string FipsFlavor = "fips";
+        private const string BaseFlavor = "base";
+
+        public static string[] GetAllAgentFlavors()
         {
-            return typeof(AgentFlavorFactory).Assembly.GetTypes()
-                .Where(t => typeof(IAgentFlavor).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
-                .ToArray();
+            return new[]
+            {
+                BaseFlavor,
+                FipsFlavor
+            };
         }
 
         public static IAgentFlavor New(AgentVersion agentVersion)
         {
             var flavor = Environment.GetEnvironmentVariable("AGENT_FLAVOR");
+            return New(flavor, agentVersion);
+        }
 
+        public static IAgentFlavor New(string flavor, AgentVersion agentVersion)
+        {
             return flavor switch
             {
                 "fips" => new FIPSAgent(agentVersion),
