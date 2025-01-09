@@ -165,6 +165,7 @@ func testObfuscaterConfig(t *testing.T) {
 		},
 		Cache: obfuscate.CacheConfig{
 			Enabled: true,
+			MaxSize: 5000000,
 		},
 	}
 	assert.Equal(t, expected, obfuscaterConfig)

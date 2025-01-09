@@ -573,7 +573,7 @@ func TestParseContainerID(t *testing.T) {
 	// Testing with a container ID
 	sample, err := parseMetricSample(t, cfg, []byte("metric:1234|g|c:1234567890abcdef"))
 	require.NoError(t, err)
-	assert.Equal(t, []byte("1234567890abcdef"), sample.containerID)
+	assert.Equal(t, "1234567890abcdef", sample.containerID)
 
 	// Testing with an Inode
 	deps := newServerDeps(t, fx.Replace(config.MockParams{Overrides: cfg}))
@@ -590,5 +590,5 @@ func TestParseContainerID(t *testing.T) {
 
 	sample, err = parseMetricSample(t, cfg, []byte("metric:1234|g|c:in-1234567890"))
 	require.NoError(t, err)
-	assert.Equal(t, []byte("1234567890abcdef"), sample.containerID)
+	assert.Equal(t, "1234567890abcdef", sample.containerID)
 }
