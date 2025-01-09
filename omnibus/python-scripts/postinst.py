@@ -10,14 +10,14 @@ import os
 import sys
 import packages
 
-def postinst(install_directory, storage_location):
+def postinst(install_directory, storage_location, skip_flag=False):
     try:
         install_directory = sys.argv[1]
         if os.path.exists(install_directory) and os.path.exists(storage_location):
             postinst_python_installed_packages_file = packages.postinst_python_installed_packages_file(storage_location)
             packages.create_python_installed_packages_file(postinst_python_installed_packages_file)
             flag_path = os.path.join(storage_location, ".install_python_third_party_deps")
-            if os.path.exists(flag_path):
+            if os.path.exists(flag_path) or skip_flag:
                 print(f"File '{flag_path}' found")
                 diff_python_installed_packages_file = packages.diff_python_installed_packages_file(storage_location)
                 if os.path.exists(diff_python_installed_packages_file):
@@ -48,7 +48,7 @@ if os.name == 'nt':
         if not packages.check_all_files_owner_system_windows(data_dog_data_dir):
             print("Files are not owned by system.")
             return 1
-        postinst(install_directory, data_dog_data_dir)
+        postinst(install_directory, data_dog_data_dir, skip_flag=True)
 else:
     def main():
         if len(sys.argv) != 2:

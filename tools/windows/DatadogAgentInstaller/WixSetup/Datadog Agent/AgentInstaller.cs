@@ -102,6 +102,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("INSTALL_PYTHON_THIRD_PARTY_DEPS")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // set this property to anything to indicate to the merge module that on install rollback, it should
                 // execute the install custom action rollback; otherwise it won't.
                 new Property("DDDRIVERROLLBACK_NPM", "1"),

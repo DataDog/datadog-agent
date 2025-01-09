@@ -225,7 +225,16 @@ namespace Datadog.CustomActions
 
         public static ActionResult RunPostInstPythonScript(Session session)
         {
-            return RunPythonScript(new SessionWrapper(session), "postinst.py");
+            ISession sessionWrapper = new SessionWrapper(session);
+            // check if INSTALL_PYTHON_THIRD_PARTY_DEPS property is set
+            var installPythonThirdPartyDeps = sessionWrapper.Property("INSTALL_PYTHON_THIRD_PARTY_DEPS");
+            if (string.IsNullOrEmpty(installPythonThirdPartyDeps))
+            {
+                sessionWrapper.Log("Skipping python script execution");
+                return ActionResult.Success;
+            }
+
+            return RunPythonScript(sessionWrapper, "postinst.py");
         }
 
         public static ActionResult RunPreRemovePythonScript(Session session)
