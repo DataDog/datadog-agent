@@ -252,7 +252,7 @@ func detectNVML(features FeatureMap) {
 	// which is 1MB in size and would increase the agent binary size, when we don't really
 	// need it for anything else.
 	if err := system.CheckLibraryExists(defaultNVMLLibraryName); err != nil {
-		log.Infof("Agent did not find NVML library: %v", err)
+		log.Debugf("Agent did not find NVML library: %v", err)
 		return
 	}
 
