@@ -237,6 +237,9 @@ def _add_parent_pipeline(needs):
         if isinstance(need, str):
             new_needs.append({"pipeline": "$PARENT_PIPELINE_ID", "job": need})
         elif isinstance(need, dict):
+            del need[
+                "optional"
+            ]  # Not supported in child pipeline, see: https://gitlab.com/gitlab-org/gitlab/-/issues/349538
             new_needs.append({**need, "pipeline": "$PARENT_PIPELINE_ID"})
         elif isinstance(need, list):
             new_needs.extend(_add_parent_pipeline(need))
