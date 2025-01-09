@@ -155,13 +155,17 @@ def install_dependency_package(pip, package):
     Install python dependency running pip install command
     """
     print(f"Installing python dependency: '{package}'")
-    run_command(f'"{pip}" install {package}')
+    run_command(f'{pip} install {package}')
 
 def install_diff_packages_file(install_directory, filename, exclude_filename):
     """
     Install all Datadog integrations and python dependencies from a file
     """
-    pip = os.path.join(install_directory, "embedded", "bin", "pip")
+    if os.name == 'nt':
+        python_path = os.path.join(install_directory, "embedded3", "python.exe")
+        pip = f'"{python_path}" -m pip'
+    else:
+        pip = os.path.join(install_directory, "embedded", "bin", "pip")
     print(f"Installing python packages from: '{filename}'")
     install_packages = load_requirements(filename)
     exclude_packages = load_requirements(exclude_filename)

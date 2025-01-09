@@ -58,6 +58,9 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 	err = s.installThirdPartyIntegration(vm, "datadog-ping==1.0.2")
 	s.Require().NoError(err, "should install third party integration")
 
+	// install pip package
+	err = s.installPipPackage(vm, "grpcio")
+
 	// upgrade to test agent
 	if !s.Run(fmt.Sprintf("upgrade to %s", s.upgradeAgentPackge.AgentVersion()), func() {
 		_, err := s.InstallAgent(vm,
@@ -88,7 +91,10 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 	assert.NotEqual(s.T(), productVersionPre, productVersionPost, "product version should be different after upgrade")
 
 	// check that the third party integration is still installed
-	s.CheckIntegrationInstall(vm, "datadog-ping==1.0.2")
+	s.checkIntegrationInstall(vm, "datadog-ping==1.0.2")
+
+	// check that the pip package is still installed
+	s.checkPipPackageInstalled(vm, "grpcio")
 
 	s.uninstallAgentAndRunUninstallTests(t)
 
@@ -117,7 +123,36 @@ func (s *testPersistingIntegrationsSuite) installThirdPartyIntegration(vm *compo
 	return err
 }
 
-func (s *testPersistingIntegrationsSuite) CheckIntegrationInstall(vm *components.RemoteHost, integration string) {
+// install pip package
+func (s *testPersistingIntegrationsSuite) installPipPackage(vm *components.RemoteHost, packageToInstall string) error {
+	installPath, err := windowsAgent.GetInstallPathFromRegistry(s.Env().RemoteHost)
+	s.Require().NoError(err, "should get install path from registry")
+
+	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip install %s`, installPath, packageToInstall)
+	out, err := vm.Execute(cmd)
+
+	if err != nil && out != "" {
+		s.T().Logf("Error installing pip package %s:\n%s", packageToInstall, out)
+	}
+
+	return err
+}
+
+// check pip package is installed
+func (s *testPersistingIntegrationsSuite) checkPipPackageInstalled(vm *components.RemoteHost, packageToCheck string) {
+	installPath, err := windowsAgent.GetInstallPathFromRegistry(vm)
+	s.Require().NoError(err, "should get install path from registry")
+
+	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, packageToCheck)
+	out, err := vm.Execute(cmd)
+	s.Require().NoError(err, "should show pip package")
+
+	// check to make sure it is installed
+	packageCheck := fmt.Sprintf("Name: %s", packageToCheck)
+	assert.True(s.T(), strings.Contains(out, packageCheck), "pip package should be installed")
+}
+
+func (s *testPersistingIntegrationsSuite) checkIntegrationInstall(vm *components.RemoteHost, integration string) {
 	// check that the third party integration is still installed
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(vm)
 	s.Require().NoError(err, "should get install path from registry")
