@@ -91,3 +91,4 @@ apm_config:
       luhn: true
     cache:
       enabled: true
+      max_size: 5555555

@@ -224,6 +224,18 @@ func (h *Host) FileExists(path string) (bool, error) {
 	return info.Mode().IsRegular(), nil
 }
 
+// EnsureFileIsReadable add readable rights to a remote file
+func (h *Host) EnsureFileIsReadable(path string) error {
+	// ensure the file is readable on the remote host
+	if h.osFamily != oscomp.WindowsFamily {
+		_, err := h.Execute(fmt.Sprintf("sudo chmod +r %s", path))
+		if err != nil {
+			return fmt.Errorf("failed to make file readable: %w", err)
+		}
+	}
+	return nil
+}
+
 // GetFile create a sftp session and copy a single file from the remote host through SSH
 func (h *Host) GetFile(src string, dst string) error {
 	h.context.T().Logf("Copying file from remote %s to local %s", src, dst)

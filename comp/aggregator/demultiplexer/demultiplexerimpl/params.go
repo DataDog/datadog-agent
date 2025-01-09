@@ -8,7 +8,7 @@ package demultiplexerimpl
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Params contains the parameters for the demultiplexer
@@ -16,7 +16,7 @@ type Params struct {
 	continueOnMissingHostname bool
 
 	// This is an optional field to override the default flush interval only if it is set
-	flushInterval optional.Option[time.Duration]
+	flushInterval option.Option[time.Duration]
 
 	useDogstatsdNoAggregationPipelineConfig bool
 }
@@ -43,7 +43,7 @@ func WithContinueOnMissingHostname() Option {
 // WithFlushInterval sets the flushInterval field to the provided duration
 func WithFlushInterval(duration time.Duration) Option {
 	return func(p *Params) {
-		p.flushInterval = optional.NewOption(duration)
+		p.flushInterval = option.New(duration)
 	}
 }
 
