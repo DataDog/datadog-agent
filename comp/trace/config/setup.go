@@ -429,7 +429,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 		if err = addReplaceRule(c, "exception.stacktrace", `(?s).*`, "?"); err != nil {
 			return err
-		} // TODO: is this how we want to do this for span events?
+		}
 	}
 	c.Obfuscation.Memcached.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.enabled")
 	c.Obfuscation.Memcached.KeepCommand = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.keep_command")
