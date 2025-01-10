@@ -11,8 +11,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 )
 
 const (
@@ -63,6 +64,9 @@ func (l language) libVersionAnnotationExtractor(registry string) annotationExtra
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyFormat, l),
 		do: func(version string) (libInfo, error) {
+			if version == defaultVersionMagicString {
+				version = l.defaultLibVersion()
+			}
 			return l.libInfo("", l.libImageName(registry, version)), nil
 		},
 	}
@@ -81,6 +85,9 @@ func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string) annotat
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr, l),
 		do: func(version string) (libInfo, error) {
+			if version == defaultVersionMagicString {
+				version = l.defaultLibVersion()
+			}
 			return l.libInfo(ctr, l.libImageName(registry, version)), nil
 		},
 	}
@@ -111,6 +118,10 @@ func (l language) isSupported() bool {
 func (l language) isEnabledByDefault() bool {
 	return l != "php"
 }
+
+// defaultVersionMagicString is a magic string that indicates that the user
+// wishes to utilize the default version found in languageVersions.
+const defaultVersionMagicString = "default"
 
 // languageVersions defines the major library versions we consider "default" for each
 // supported language. If not set, we will default to "latest", see defaultLibVersion.
