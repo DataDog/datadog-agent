@@ -31,7 +31,6 @@ type mutuallyExclusiveInstallSuite struct {
 //
 // This test uses the last stable base Agent package and the pipeline produced FIPS Agent package.
 func TestFIPSAgentDoesNotInstallOverAgent(t *testing.T) {
-	flake.Mark(s.T())
 	s := &mutuallyExclusiveInstallSuite{}
 	os.Setenv(windowsAgent.PackageFlavorEnvVar, "base")
 	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
@@ -46,7 +45,6 @@ func TestFIPSAgentDoesNotInstallOverAgent(t *testing.T) {
 // This test uses the pipeline produced MSI packages for both flavors. This is necessary for now
 // because the previous Agent versions do not contain the changes to detect mutually exclusive products.
 func TestAgentDoesNotInstallOverFIPSAgent(t *testing.T) {
-	flake.Mark(s.T())
 	s := &mutuallyExclusiveInstallSuite{}
 	os.Setenv(windowsAgent.PackageFlavorEnvVar, "fips")
 	previousAgentPackage, err := windowsAgent.GetPackageFromEnv()
