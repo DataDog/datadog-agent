@@ -12,6 +12,7 @@ import (
 	common "github.com/DataDog/datadog-agent/pkg/util/compression"
 	implgzip "github.com/DataDog/datadog-agent/pkg/util/compression/impl-gzip"
 	implnoop "github.com/DataDog/datadog-agent/pkg/util/compression/impl-noop"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewCompressor returns a new Compressor based on serializer_compressor_kind
