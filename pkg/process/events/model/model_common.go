@@ -61,7 +61,7 @@ type ProcessEvent struct {
 	ContainerID    string    `json:"container_id" msg:"container_id" copy:"GetContainerId;event:*"`
 	Ppid           uint32    `json:"ppid" msg:"ppid" copy:"GetProcessPpid;event:*"`
 	UID            uint32    `json:"uid" msg:"uid" copy_linux:"GetProcessUid;event:*"`
-	GID            uint32    `json:"gid" msg:"gid" copy_linux:"GetProcessUid;event:*"`
+	GID            uint32    `json:"gid" msg:"gid" copy_linux:"GetProcessGid;event:*"`
 	Username       string    `json:"username" msg:"username" copy_linux:"GetProcessUser;event:*"`
 	Group          string    `json:"group" msg:"group" copy_linux:"GetProcessGroup;event:*"`
 	Exe            string    `json:"exe" msg:"exe" copy_linux:"GetExecFilePath;event:*"`
