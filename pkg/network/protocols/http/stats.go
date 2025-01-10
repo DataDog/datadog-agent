@@ -25,6 +25,8 @@ type Method uint8
 // will be between 99 and 101
 const RelativeAccuracy = 0.01
 
+const maxLatenciesStore = 4
+
 const (
 	// MethodUnknown represents an unknown request method
 	MethodUnknown Method = iota
@@ -132,7 +134,7 @@ type RequestStat struct {
 
 func newRequestStat() *RequestStat {
 	return &RequestStat{
-		latenciesStore: make([]float64, 0),
+		latenciesStore: make([]float64, 0, maxLatenciesStore),
 	}
 }
 
@@ -142,6 +144,30 @@ func (r *RequestStat) initSketch() (err error) {
 		log.Debugf("error recording http transaction latency: could not create new ddsketch: %v", err)
 	}
 	return
+}
+
+func (r *RequestStat) updateLatencies(latency float64) {
+	if len(r.latenciesStore) >= maxLatenciesStore {
+		if r.Latencies == nil {
+			if err := r.initSketch(); err != nil {
+				return
+			}
+
+			// Add the deferred latency sample
+			if err := r.Latencies.Add(r.FirstLatencySample); err != nil {
+				log.Debugf("could not add request latency to ddsketch: %v", err)
+			}
+		}
+
+		for _, latency := range r.latenciesStore {
+			if err := r.Latencies.Add(latency); err != nil {
+				log.Debugf("could not add request latency to ddsketch: %v", err)
+			}
+		}
+		r.latenciesStore = r.latenciesStore[:0]
+	} else {
+		r.latenciesStore = append(r.latenciesStore, latency)
+	}
 }
 
 // processLatencies move latencies to sketch
@@ -154,20 +180,15 @@ func (r *RequestStat) processLatencies() {
 		// Add the deferred latency sample
 		if err := r.Latencies.Add(r.FirstLatencySample); err != nil {
 			log.Debugf("could not add request latency to ddsketch: %v", err)
-		} else {
-			log.Debugf("RequestStat.processLatencies add first latency: %f", r.FirstLatencySample)
 		}
 	}
 	for _, latency := range r.latenciesStore {
 		if err := r.Latencies.Add(latency); err != nil {
 			log.Debugf("could not add request latency to ddsketch: %v", err)
-		} else {
-			log.Debugf("RequestStat.processLatencies add latency: %f", latency)
 		}
 	}
 	if len(r.latenciesStore) > 0 {
-		r.latenciesStore = make([]float64, 0)
-		log.Errorf("RequestStat.processLatencies size: %d", len(r.latenciesStore))
+		r.latenciesStore = r.latenciesStore[:0]
 	}
 }
 
@@ -256,7 +277,7 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 		stats.FirstLatencySample = latency
 		return
 	}
-	stats.latenciesStore = append(stats.latenciesStore, latency)
+	stats.updateLatencies(latency)
 }
 
 // HalfAllCounts sets the count of all stats for each status class to half their current value.
@@ -275,8 +296,5 @@ func (r *RequestStats) ProcessLatencies() {
 		if rs.Count > 1 {
 			rs.processLatencies()
 		}
-	}
-	if len(r.Data) > 0 {
-		log.Errorf("RequestStats.ProcessLatencies Data size: %d", len(r.Data))
 	}
 }
