@@ -669,7 +669,7 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string, config
 	defer func() { span.Finish(err) }()
 
 	switch pkg {
-	case packageDatadogAgent, packageAPMInjector, packageAPMLibraries:
+	case packageDatadogAgent:
 		config, err := i.cdn.FromBytes(pkg, configBytes)
 		if err != nil {
 			return fmt.Errorf("could not get %s CDN config: %w", pkg, err)
