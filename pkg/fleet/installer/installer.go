@@ -211,16 +211,16 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string, 
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
 	}
-	if pkg.Name == packageDatadogInstaller {
-		// We must handle the configuration of some packages that are not
-		// don't have an OCI. To properly configure their configuration repositories,
-		// we call configurePackage when setting up the installer; which is the only
-		// package that is always installed.
-		err = i.configurePackage(ctx, packageAPMLibraries, configBytes)
-		if err != nil {
-			return fmt.Errorf("could not configure package: %w", err)
-		}
-	}
+	// if pkg.Name == packageDatadogInstaller {
+	// 	// We must handle the configuration of some packages that are not
+	// 	// don't have an OCI. To properly configure their configuration repositories,
+	// 	// we call configurePackage when setting up the installer; which is the only
+	// 	// package that is always installed.
+	// 	err = i.configurePackage(ctx, packageAPMLibraries, configBytes)
+	// 	if err != nil {
+	// 		return fmt.Errorf("could not configure package: %w", err)
+	// 	}
+	// }
 	err = i.setupPackage(ctx, pkg.Name, args) // Postinst
 	if err != nil {
 		return fmt.Errorf("could not setup package: %w", err)

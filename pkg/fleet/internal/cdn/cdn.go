@@ -187,9 +187,8 @@ func (c *CDN) FromBytes(pkg string, config []byte) (Config, error) {
 	switch pkg {
 	case "datadog-agent":
 		return newAgentConfig(config)
-	// TODO: uncomment it when the PR is ready
-	// case "datadog-apm-libraries":
-	// 	return newAPMLibrariesConfig(c.hostTagsGetter.get(), config)
+	case "datadog-apm-libraries":
+		return newAPMLibrariesConfig(c.hostTagsGetter.get(), config)
 	default:
 		return nil, ErrProductNotSupported
 	}
