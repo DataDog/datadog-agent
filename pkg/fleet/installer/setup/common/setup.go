@@ -111,7 +111,7 @@ func (s *Setup) Run() (err error) {
 	for _, p := range packages {
 		s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", p.name, p.version))
 	}
-	err = s.installPackage("datadog-installer", installerOCILayoutURL, nil) // TODO -- grab flavor config
+	err = s.installPackage("datadog-installer", installerOCILayoutURL, []byte("")) // TODO -- grab flavor config
 	if err != nil {
 		return fmt.Errorf("failed to install installer: %w", err)
 	}
@@ -121,7 +121,7 @@ func (s *Setup) Run() (err error) {
 	}
 	for _, p := range packages {
 		url := oci.PackageURL(s.Env, p.name, p.version)
-		err = s.installPackage(p.name, url, nil) // TODO -- grab flavor config
+		err = s.installPackage(p.name, url, []byte("")) // TODO -- grab flavor config
 		if err != nil {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}
