@@ -178,3 +178,21 @@ class TestGetLastTag(unittest.TestCase):
         )
         _, name = get_last_release_tag(c, "woof", "7.57.*")
         self.assertEqual(name, "7.57.0-rc.7")
+
+    def test_final_and_rc_tag_on_same_commit(self):
+        c = MockContext(
+            run={
+                # 'git ls-remote -t https://github.com/DataDog/baubau "7.61.*"': Result("8dd145cf716b5c047e81bb287dc58e150b8c2b94\trefs/tags/7.61.0\n45f19a6a26c01dae9fdfce944d3fceae7f4e6498\trefs/tags/7.61.0^{}\n1cfbd72c75d6fcfe920707b2d08764ee89ec8793\trefs/tags/7.61.0-rc.1\n52fd18ccf4391ed5da0647dad2c1fdeea8a8a70c\trefs/tags/7.61.0-rc.1^{}\n3b7310d32b0ad4d347fa64f60a02261caf910a99\trefs/tags/7.61.0-rc.4\n3944948c0c26ddcbc4026b98c2709c188d95b702\trefs/tags/7.61.0-rc.4^{}\nc54e5d5694879c51ae5ff8675dacc92976630587\trefs/tags/7.61.0-rc.5\n45f19a6a26c01dae9fdfce944d3fceae7f4e6498\trefs/tags/7.61.0-rc.5^{}\n")})
+                'git ls-remote -t https://github.com/DataDog/baubau "7.61.*"': Result("""8dd145cf716b5c047e81bb287dc58e150b8c2b94	refs/tags/7.61.0
+45f19a6a26c01dae9fdfce944d3fceae7f4e6498	refs/tags/7.61.0^{}
+1cfbd72c75d6fcfe920707b2d08764ee89ec8793	refs/tags/7.61.0-rc.1
+52fd18ccf4391ed5da0647dad2c1fdeea8a8a70c	refs/tags/7.61.0-rc.1^{}
+3b7310d32b0ad4d347fa64f60a02261caf910a99	refs/tags/7.61.0-rc.4
+3944948c0c26ddcbc4026b98c2709c188d95b702	refs/tags/7.61.0-rc.4^{}
+c54e5d5694879c51ae5ff8675dacc92976630587	refs/tags/7.61.0-rc.5
+45f19a6a26c01dae9fdfce944d3fceae7f4e6498	refs/tags/7.61.0-rc.5^{}""")
+            }
+        )
+
+        commit, _ = get_last_release_tag(c, "baubau", "7.61.*")
+        self.assertEqual(commit, "45f19a6a26c01dae9fdfce944d3fceae7f4e6498")
