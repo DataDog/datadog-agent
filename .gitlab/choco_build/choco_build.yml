@@ -6,7 +6,7 @@
 .windows_choco_7_x64:
   rules:
     !reference [.on_deploy_stable_or_beta_repo_branch]
-  stage: choco_and_install_script_build
+  stage: choco_build
   extends: .windows_docker_default
   variables:
     ARCH: "x64"
