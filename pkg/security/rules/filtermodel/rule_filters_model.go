@@ -10,7 +10,7 @@ import (
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 )
 
 // Init inits the rule filter event
@@ -58,7 +58,7 @@ func (m *RuleFilterModel) GetFieldRestrictions(_ eval.Field) []eval.EventType {
 }
 
 func getHostname() string {
-	hostname, err := utils.GetHostname()
+	hostname, err := hostnameutils.GetHostname()
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}
