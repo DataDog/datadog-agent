@@ -75,6 +75,6 @@ agent_oci:
 
 installer_oci:
   extends: .package_oci
-  needs: ["installer-arm64-oci", "installer-amd64-oci", "windows-installer-amd64", "go_tools_deps"]
+  needs: ["installer-arm64-oci", "installer-amd64-oci", "go_tools_deps"]
   variables:
     OCI_PRODUCT: "datadog-installer"
