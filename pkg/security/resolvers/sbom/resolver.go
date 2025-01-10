@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
@@ -217,7 +218,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 
 func (r *Resolver) prepareContextTags() {
 	// add hostname tag
-	hostname, err := utils.GetHostname()
+	hostname, err := hostnameutils.GetHostname()
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}

@@ -345,9 +345,6 @@ variables:
 .if_installer_tests: &if_installer_tests
   if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on" || $DDR_WORKFLOW_ID != null) && $RUN_E2E_TESTS != "off"
 
-.if_testing_cleanup: &if_testing_cleanup
-  if: $TESTING_CLEANUP == "true"
-
 .if_run_all_e2e_tests: &if_run_all_e2e_tests
   if: $RUN_E2E_TESTS == "on"
 
@@ -666,13 +663,6 @@ workflow:
   - <<: *if_auto_e2e_tests
     variables:
       E2E_OSVERS: $E2E_BRANCH_OSVERS
-
-.on_main_or_testing_cleanup:
-  - <<: *if_main_branch
-  - <<: *if_testing_cleanup
-
-.on_testing_cleanup:
-  - <<: *if_testing_cleanup
 
 .security_agent_change_paths: &security_agent_change_paths
   - pkg/ebpf/**/*
@@ -1206,6 +1196,6 @@ workflow:
 # windows_docker_default configures the job to use the default Windows Server runners
 # Use in jobs that may need to have their version updated in the future.
 #
-# Current default: Windows Server 2019
+# Current default: Windows Server 2022
 .windows_docker_default:
-  extends: .windows_docker_2019
+  extends: .windows_docker_2022

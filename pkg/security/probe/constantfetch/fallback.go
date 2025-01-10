@@ -22,6 +22,9 @@ import (
 type FallbackConstantFetcher struct {
 	kernelVersion *kernel.Version
 	res           map[string]uint64
+
+	raws      map[string]uint64
+	callbacks map[string]func(*kernel.Version) uint64
 }
 
 // NewFallbackConstantFetcher returns a new FallbackConstantFetcher
@@ -29,6 +32,9 @@ func NewFallbackConstantFetcher(kv *kernel.Version) *FallbackConstantFetcher {
 	return &FallbackConstantFetcher{
 		kernelVersion: kv,
 		res:           make(map[string]uint64),
+
+		raws:      computeRawsTable(),
+		callbacks: computeCallbacksTable(),
 	}
 }
 
@@ -36,133 +42,93 @@ func (f *FallbackConstantFetcher) String() string {
 	return "fallback"
 }
 
+func computeRawsTable() map[string]uint64 {
+	return map[string]uint64{
+		OffsetInodeIno:                            64,
+		OffsetInodeGid:                            8,
+		OffsetInodeNlink:                          72,
+		OffsetInodeMtime:                          104,
+		OffsetInodeCtime:                          120,
+		OffsetNameSuperBlockStructSFlags:          80,
+		OffsetNameBPFMapStructMapType:             24,
+		OffsetNameBPFProgStructType:               4,
+		OffsetNameBPFProgStructExpectedAttachType: 8,
+		OffsetNamePIDStructLevel:                  4,
+		OffsetNameNetStructProcInum:               72,
+		OffsetNameSockCommonStructSKCNet:          48,
+		OffsetNameSockCommonStructSKCFamily:       16,
+		OffsetNameDentryDSb:                       104,
+		OffsetNameNetDeviceStructName:             0,
+		OffsetNameRenameStructOldDentry:           16,
+		OffsetNameRenameStructNewDentry:           40,
+		OffsetNameSbDev:                           16,
+		OffsetNameDentryDInode:                    48,
+		OffsetNamePathDentry:                      8,
+		OffsetNameInodeSuperblock:                 40,
+		OffsetNamePathMnt:                         0,
+		OffsetNameMountMntMountpoint:              24,
+		OffsetNameMountpointDentry:                16,
+		OffsetNameVfsmountMntFlags:                16,
+		OffsetNameSuperblockSType:                 40,
+		OffsetNameVfsmountMntRoot:                 0,
+		OffsetNameDentryDName:                     32,
+		OffsetNameVfsmountMntSb:                   8,
+	}
+}
+
+func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
+	return map[string]func(*kernel.Version) uint64{
+		SizeOfInode:                           getSizeOfStructInode,
+		OffsetNameSuperBlockStructSMagic:      getSuperBlockMagicOffset,
+		OffsetNameSignalStructStructTTY:       getSignalTTYOffset,
+		OffsetNameTTYStructStructName:         getTTYNameOffset,
+		OffsetNameCredStructUID:               getCredsUIDOffset,
+		OffsetNameCredStructCapInheritable:    getCredCapInheritableOffset,
+		OffsetNameBPFMapStructID:              getBpfMapIDOffset,
+		OffsetNameBPFMapStructName:            getBpfMapNameOffset,
+		OffsetNameBPFProgStructAux:            getBpfProgAuxOffset,
+		OffsetNameBPFProgStructTag:            getBpfProgTagOffset,
+		OffsetNameBPFProgAuxStructID:          getBpfProgAuxIDOffset,
+		OffsetNameBPFProgAuxStructName:        getBpfProgAuxNameOffset,
+		OffsetNamePIDStructNumbers:            getPIDNumbersOffset,
+		SizeOfUPID:                            getSizeOfUpid,
+		OffsetNamePIDLinkStructPID:            getPIDLinkPIDOffset,
+		OffsetNameDentryStructDSB:             getDentrySuperBlockOffset,
+		OffsetNamePipeInodeInfoStructBufs:     getPipeInodeInfoBufsOffset,
+		OffsetNamePipeInodeInfoStructNrbufs:   getPipeInodeInfoStructNrbufs,
+		OffsetNamePipeInodeInfoStructCurbuf:   getPipeInodeInfoStructCurbuf,
+		OffsetNamePipeInodeInfoStructBuffers:  getPipeInodeInfoStructBuffers,
+		OffsetNamePipeInodeInfoStructHead:     getPipeInodeInfoStructHead,
+		OffsetNamePipeInodeInfoStructRingsize: getPipeInodeInfoStructRingsize,
+		OffsetNameNetDeviceStructIfIndex:      getNetDeviceIfindexOffset,
+		OffsetNameNetStructNS:                 getNetNSOffset,
+		OffsetNameSocketStructSK:              getSocketSockOffset,
+		OffsetNameNFConnStructCTNet:           getNFConnCTNetOffset,
+		OffsetNameFlowI4StructSADDR:           getFlowi4SAddrOffset,
+		OffsetNameFlowI6StructSADDR:           getFlowi6SAddrOffset,
+		OffsetNameFlowI4StructULI:             getFlowi4ULIOffset,
+		OffsetNameFlowI6StructULI:             getFlowi6ULIOffset,
+		OffsetNameLinuxBinprmStructFile:       getBinPrmFileFieldOffset,
+		OffsetNameIoKiocbStructCtx:            getIoKcbCtxOffset,
+		OffsetNameLinuxBinprmP:                getLinuxBinPrmPOffset,
+		OffsetNameLinuxBinprmArgc:             getLinuxBinPrmArgcOffset,
+		OffsetNameLinuxBinprmEnvc:             getLinuxBinPrmEnvcOffset,
+		OffsetNameVMAreaStructFlags:           getVMAreaStructFlagsOffset,
+		OffsetNameKernelCloneArgsExitSignal:   getKernelCloneArgsExitSignalOffset,
+		OffsetNameFileFinode:                  getFileFinodeOffset,
+		OffsetNameFileFpath:                   getFileFpathOffset,
+		OffsetNameMountMntID:                  getMountIDOffset,
+	}
+}
+
 func (f *FallbackConstantFetcher) appendRequest(id string) {
-	var value = ErrorSentinel
-	switch id {
-	case SizeOfInode:
-		value = getSizeOfStructInode(f.kernelVersion)
-	case OffsetNameSuperBlockStructSFlags:
-		value = getSuperBlockFlagsOffset(f.kernelVersion)
-	case OffsetNameSuperBlockStructSMagic:
-		value = getSuperBlockMagicOffset(f.kernelVersion)
-	case OffsetNameSignalStructStructTTY:
-		value = getSignalTTYOffset(f.kernelVersion)
-	case OffsetNameTTYStructStructName:
-		value = getTTYNameOffset(f.kernelVersion)
-	case OffsetNameCredStructUID:
-		value = getCredsUIDOffset(f.kernelVersion)
-	case OffsetNameCredStructCapInheritable:
-		value = getCredCapInheritableOffset(f.kernelVersion)
-	case OffsetNameBPFMapStructID:
-		value = getBpfMapIDOffset(f.kernelVersion)
-	case OffsetNameBPFMapStructName:
-		value = getBpfMapNameOffset(f.kernelVersion)
-	case OffsetNameBPFMapStructMapType:
-		value = getBpfMapTypeOffset(f.kernelVersion)
-	case OffsetNameBPFProgStructAux:
-		value = getBpfProgAuxOffset(f.kernelVersion)
-	case OffsetNameBPFProgStructTag:
-		value = getBpfProgTagOffset(f.kernelVersion)
-	case OffsetNameBPFProgStructType:
-		value = getBpfProgTypeOffset(f.kernelVersion)
-	case OffsetNameBPFProgStructExpectedAttachType:
-		value = getBpfProgAttachTypeOffset(f.kernelVersion)
-	case OffsetNameBPFProgAuxStructID:
-		value = getBpfProgAuxIDOffset(f.kernelVersion)
-	case OffsetNameBPFProgAuxStructName:
-		value = getBpfProgAuxNameOffset(f.kernelVersion)
-	case OffsetNamePIDStructLevel:
-		value = getPIDLevelOffset(f.kernelVersion)
-	case OffsetNamePIDStructNumbers:
-		value = getPIDNumbersOffset(f.kernelVersion)
-	case SizeOfUPID:
-		value = getSizeOfUpid(f.kernelVersion)
-	case OffsetNameTaskStructPID:
-		value = getTaskStructPIDOffset(f.kernelVersion)
-	case OffsetNameTaskStructPIDLink:
-		value = getTaskStructPIDLinkOffset(f.kernelVersion)
-	case OffsetNamePIDLinkStructPID:
-		value = getPIDLinkPIDOffset(f.kernelVersion)
-	case OffsetNameDentryStructDSB:
-		value = getDentrySuperBlockOffset(f.kernelVersion)
-	case OffsetNamePipeInodeInfoStructBufs:
-		value = getPipeInodeInfoBufsOffset(f.kernelVersion)
-	case OffsetNamePipeInodeInfoStructNrbufs:
-		value = getPipeInodeInfoStructNrbufs(f.kernelVersion)
-	case OffsetNamePipeInodeInfoStructCurbuf:
-		value = getPipeInodeInfoStructCurbuf(f.kernelVersion)
-	case OffsetNamePipeInodeInfoStructBuffers:
-		value = getPipeInodeInfoStructBuffers(f.kernelVersion)
-	case OffsetNamePipeInodeInfoStructHead:
-		value = getPipeInodeInfoStructHead(f.kernelVersion)
-	case OffsetNamePipeInodeInfoStructRingsize:
-		value = getPipeInodeInfoStructRingsize(f.kernelVersion)
-	case OffsetNameNetDeviceStructIfIndex:
-		value = getNetDeviceIfindexOffset(f.kernelVersion)
-	case OffsetNameNetDeviceStructName:
-		value = getNetDeviceNameOffset(f.kernelVersion)
-	case OffsetNameNetStructNS:
-		value = getNetNSOffset(f.kernelVersion)
-	case OffsetNameNetStructProcInum:
-		value = getNetProcINumOffset(f.kernelVersion)
-	case OffsetNameSockCommonStructSKCNet:
-		value = getSockCommonSKCNetOffset(f.kernelVersion)
-	case OffsetNameSocketStructSK:
-		value = getSocketSockOffset(f.kernelVersion)
-	case OffsetNameNFConnStructCTNet:
-		value = getNFConnCTNetOffset(f.kernelVersion)
-	case OffsetNameSockCommonStructSKCFamily:
-		value = getSockCommonSKCFamilyOffset(f.kernelVersion)
-	case OffsetNameFlowI4StructSADDR:
-		value = getFlowi4SAddrOffset(f.kernelVersion)
-	case OffsetNameFlowI6StructSADDR:
-		value = getFlowi6SAddrOffset(f.kernelVersion)
-	case OffsetNameFlowI4StructULI:
-		value = getFlowi4ULIOffset(f.kernelVersion)
-	case OffsetNameFlowI6StructULI:
-		value = getFlowi6ULIOffset(f.kernelVersion)
-	case OffsetNameLinuxBinprmStructFile:
-		value = getBinPrmFileFieldOffset(f.kernelVersion)
-	case OffsetNameIoKiocbStructCtx:
-		value = getIoKcbCtxOffset(f.kernelVersion)
-	case OffsetNameLinuxBinprmP:
-		value = getLinuxBinPrmPOffset(f.kernelVersion)
-	case OffsetNameLinuxBinprmArgc:
-		value = getLinuxBinPrmArgcOffset(f.kernelVersion)
-	case OffsetNameLinuxBinprmEnvc:
-		value = getLinuxBinPrmEnvcOffset(f.kernelVersion)
-	case OffsetNameVMAreaStructFlags:
-		value = getVMAreaStructFlagsOffset(f.kernelVersion)
-	case OffsetNameKernelCloneArgsExitSignal:
-		value = getKernelCloneArgsExitSignalOffset(f.kernelVersion)
-	case OffsetNameFileFinode:
-		value = getFileFinodeOffset(f.kernelVersion)
-	case OffsetNameFileFpath:
-		value = getFileFpathOffset(f.kernelVersion)
-	case OffsetNameDentryDSb:
-		value = getDentryDsbOffset(f.kernelVersion)
-	case OffsetNameMountMntID:
-		value = getMountIDOffset(f.kernelVersion)
-	case OffsetNameRenameStructOldDentry:
-		value = getRenameStructOldDentryOffset(f.kernelVersion)
-	case OffsetNameRenameStructNewDentry:
-		value = getRenameStructNewDentryOffset(f.kernelVersion)
-	case OffsetInodeIno:
-		value = getInodeInoOffset(f.kernelVersion)
-	case OffsetInodeGid:
-		value = getInodeGIDOffset(f.kernelVersion)
-	case OffsetInodeNlink:
-		value = getInodeNlinkOffset(f.kernelVersion)
-	case OffsetInodeMtime:
-		value = getInodeMtimeOffset(f.kernelVersion)
-	case OffsetInodeCtime:
-		value = getInodeCtimeOffset(f.kernelVersion)
-	case OffsetNameSbDev:
-		value = getSuperBlockDevOffset(f.kernelVersion)
-	case OffsetNameDentryDInode:
-		value = getDentryDInodeOffset(f.kernelVersion)
-	case OffsetNamePathDentry:
-		value = getPathDentryOffset(f.kernelVersion)
+	var value uint64
+	if raw, ok := f.raws[id]; ok {
+		value = raw
+	} else if cb, ok := f.callbacks[id]; ok {
+		value = cb(f.kernelVersion)
+	} else {
+		value = ErrorSentinel
 	}
 	f.res[id] = value
 }
@@ -250,30 +216,6 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	}
 
 	return sizeOf
-}
-
-func getInodeInoOffset(_ *kernel.Version) uint64 {
-	return uint64(64)
-}
-
-func getInodeGIDOffset(_ *kernel.Version) uint64 {
-	return uint64(8)
-}
-
-func getInodeNlinkOffset(_ *kernel.Version) uint64 {
-	return uint64(72)
-}
-
-func getInodeMtimeOffset(_ *kernel.Version) uint64 {
-	return uint64(104)
-}
-
-func getInodeCtimeOffset(_ *kernel.Version) uint64 {
-	return uint64(120)
-}
-
-func getSuperBlockFlagsOffset(_ *kernel.Version) uint64 {
-	return uint64(80)
 }
 
 func getSuperBlockMagicOffset(kv *kernel.Version) uint64 {
@@ -443,10 +385,6 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 	return nameOffset
 }
 
-func getBpfMapTypeOffset(_ *kernel.Version) uint64 {
-	return uint64(24)
-}
-
 func getBpfProgAuxOffset(kv *kernel.Version) uint64 {
 	auxOffset := uint64(32)
 
@@ -474,14 +412,6 @@ func getBpfProgTagOffset(kv *kernel.Version) uint64 {
 	return progTagOffset
 }
 
-func getBpfProgTypeOffset(_ *kernel.Version) uint64 {
-	return uint64(4)
-}
-
-func getBpfProgAttachTypeOffset(_ *kernel.Version) uint64 {
-	return uint64(8)
-}
-
 func getBpfProgAuxIDOffset(kv *kernel.Version) uint64 {
 	idOffset := uint64(24)
 
@@ -505,7 +435,7 @@ func getBpfProgAuxIDOffset(kv *kernel.Version) uint64 {
 		idOffset = 24
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_13):
 		idOffset = 28
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
+	case kv.Code >= kernel.Kernel5_13:
 		idOffset = 32
 	}
 
@@ -553,15 +483,11 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 544
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_17, kernel.Kernel6_1):
 		nameOffset = 528
-	case kv.Code != 0 && kv.Code >= kernel.Kernel6_1:
+	case kv.Code >= kernel.Kernel6_1:
 		nameOffset = 912
 	}
 
 	return nameOffset
-}
-
-func getPIDLevelOffset(_ *kernel.Version) uint64 {
-	return uint64(4)
 }
 
 func getPIDNumbersOffset(kv *kernel.Version) uint64 {
@@ -662,7 +588,7 @@ func getPipeInodeInfoBufsOffset(kv *kernel.Version) uint64 {
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_6, kernel.Kernel5_8) ||
 		kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		offset = 144
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_8:
+	case kv.Code >= kernel.Kernel5_8:
 		offset = 152
 	}
 
@@ -799,14 +725,6 @@ func getNetNSOffset(kv *kernel.Version) uint64 {
 	}
 }
 
-func getNetProcINumOffset(_ *kernel.Version) uint64 {
-	return uint64(72)
-}
-
-func getSockCommonSKCNetOffset(_ *kernel.Version) uint64 {
-	return uint64(48)
-}
-
 func getSocketSockOffset(kv *kernel.Version) uint64 {
 	offset := uint64(32)
 
@@ -840,10 +758,6 @@ func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
 	default:
 		return 144
 	}
-}
-
-func getSockCommonSKCFamilyOffset(_ *kernel.Version) uint64 {
-	return 16
 }
 
 func getFlowi4SAddrOffset(kv *kernel.Version) uint64 {
@@ -1006,16 +920,6 @@ func getVMAreaStructFlagsOffset(kv *kernel.Version) uint64 {
 	return 80
 }
 
-func getTaskStructPIDOffset(_ *kernel.Version) uint64 {
-	// do not use fallback for offsets inside task_struct
-	return ErrorSentinel
-}
-
-func getTaskStructPIDLinkOffset(_ *kernel.Version) uint64 {
-	// do not use fallback for offsets inside task_struct
-	return ErrorSentinel
-}
-
 func getPIDLinkPIDOffset(kv *kernel.Version) uint64 {
 	offset := ErrorSentinel
 	if kv.HavePIDLinkStruct() {
@@ -1051,10 +955,6 @@ func getFileFpathOffset(kv *kernel.Version) uint64 {
 	}
 }
 
-func getDentryDsbOffset(_ *kernel.Version) uint64 {
-	return 104
-}
-
 func getMountIDOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsSuseKernel() || kv.Code >= kernel.Kernel5_12:
@@ -1064,28 +964,4 @@ func getMountIDOffset(kv *kernel.Version) uint64 {
 	default:
 		return 284
 	}
-}
-
-func getNetDeviceNameOffset(_ *kernel.Version) uint64 {
-	return 0
-}
-
-func getRenameStructOldDentryOffset(_ *kernel.Version) uint64 {
-	return 16
-}
-
-func getRenameStructNewDentryOffset(_ *kernel.Version) uint64 {
-	return 40
-}
-
-func getSuperBlockDevOffset(_ *kernel.Version) uint64 {
-	return 16
-}
-
-func getDentryDInodeOffset(_ *kernel.Version) uint64 {
-	return 48
-}
-
-func getPathDentryOffset(_ *kernel.Version) uint64 {
-	return 8
 }

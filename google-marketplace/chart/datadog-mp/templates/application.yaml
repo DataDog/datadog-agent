@@ -12,7 +12,7 @@ metadata:
 spec:
   descriptor:
     type: 'Datadog Agent'
-    version: '1.9.0'
+    version: '1.11.1'
     description: |-
       Datadog provides infrastructure monitoring, application performance monitoring,
       and log management in a single-pane-of-glass view so teams can
@@ -43,7 +43,7 @@ spec:
       It will allow the Datadog Operator to deploy the Datadog Agent following the default configuration found in `DatadogAgent` object.
 
       # Send custom metrics with DogStatsD
-      
+
       To enable the collection of custom metrics, the Datadog Agent ships with
       a lightweight DogStatsD server for metric collection and aggregation.
       To send metrics to a containerized DogStatsD, you can bind the container’s
