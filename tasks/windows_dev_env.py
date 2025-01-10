@@ -66,21 +66,58 @@ def run(
 
 def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     start_time = time.time()
+    _ensure_test_infra_definitions(ctx)
+    _ensure_rsync()
+    # Create the Windows development environment.
+    host = _provision_windows_environment(ctx, name)
+    _ensure_windows_dev_container_running(ctx, host)
+    # sync local changes to the remote Windows development environment
+    rsync_command = _build_rsync_command(host)
+    print("Syncing changes to the remote Windows development environment...")
+    ctx.run(rsync_command)
+    print("Syncing changes to the remote Windows development done")
+    # print the time taken to start the dev env
+    elapsed_time = time.time() - start_time
+    print("🏃 Windows dev env started in", timedelta(seconds=elapsed_time))
+    _run_command_on_local_changes(ctx, rsync_command)
+    print("⏹️ Windows dev env sync stopped")
+    print("▶️ Start it again with `inv windows_dev_env.start`")
+    print("🗑️ Destroy the Windows dev env with `inv windows-dev-env.stop`")
 
-    # Ensure `test-infra-definitions` is cloned.
-    if not os.path.isdir('../test-infra-definitions'):
-        with ctx.cd('..'):
-            ctx.run("git clone git@github.com:DataDog/test-infra-definitions.git")
-            with ctx.cd('test-infra-definitions'):
-                # setup test-infra-definitions
-                ctx.run("python3 -m pip install -r requirements.txt")
-                ctx.run("inv setup")
+
+def _ensure_windows_dev_container_running(ctx, host):
+    should_start_container = True
+    result = ctx.run(f"ssh {host} 'docker ps -q --filter name=windows-dev-env'", warn=True, hide=True)
+    if result is not None and result.exited == 0 and len(result.stdout) > 0:
+        print("🐳 Windows dev env already running")
+        should_start_container = False
+    # start the Windows dev container, if not already running
+    if should_start_container:
+        print("🐳 Starting Windows dev container")
+        ctx.run(
+            f"ssh {host} 'docker run -v C:\\mnt:c:\\mnt -w C:\\mnt\\datadog-agent -t -d --name {WIN_CONTAINER_NAME} datadog/agent-buildimages-windows_x64:ltsc2022 ping -t localhost'",
+        )
+
+
+def _build_rsync_command(host: str) -> str:
+    # -a: archive mode; equals -rlptgoD (no -H)
+    # -z: compress file data during the transfer
+    # -r: recurse into directories
+    # -c: skip based on checksum, not mod-time & size
+    # -I: --ignore-times
+    # -P: same as --partial --progress, show partial progress during transfer
+    # -R: use relative path names
+    return f"rsync -azrcIPR --delete --rsync-path='C:\\cygwin\\bin\\rsync.exe' --filter=':- .gitignore' --exclude /.git/ . {host}:/cygdrive/c/mnt/datadog-agent/"
+
+
+def _ensure_rsync():
     if shutil.which("rsync") is None:
         raise Exception(
             "rsync is not installed. Please install rsync by running `brew install rsync` on macOS and try again."
         )
-    # Create the Windows development environment.
-    host = ""
+
+
+def _provision_windows_environment(ctx, name):
     with ctx.cd('../test-infra-definitions'):
         result = ctx.run(
             f"inv aws.create-vm --ami-id={AMI_WINDOWS_DEV_2022} --os-family=windows --architecture=x86_64 --no-install-agent --stack-name={name} --no-interactive"
@@ -95,42 +132,17 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
             raise Exception("Failed to find pulumi output in stdout.")
         # extract username and address from connection message
         host = connection_message.split()[0]
-
-    # check if Windows dev container is already running
-    should_start_container = True
-    result = ctx.run(f"ssh {host} 'docker ps -q --filter name=windows-dev-env'", warn=True, hide=True)
-    if result is not None and result.exited == 0 and len(result.stdout) > 0:
-        print("🐳 Windows dev env already running")
-        should_start_container = False
-    # start the Windows dev container, if not already running
-    if should_start_container:
-        print("🐳 Starting Windows dev container")
-        ctx.run(
-            f"ssh {host} 'docker run -v C:\\mnt:c:\\mnt -w C:\\mnt\\datadog-agent -t -d --name {WIN_CONTAINER_NAME} datadog/agent-buildimages-windows_x64:ltsc2022 ping -t localhost'",
-        )
-    # sync local changes to the remote Windows development environment
-    rsync_command = _build_rsync_command(host)
-    print("Syncing changes to the remote Windows development environment...")
-    ctx.run(rsync_command)
-    print("Syncing changes to the remote Windows development done")
-    # print the time taken to start the dev env
-    elapsed_time = time.time() - start_time
-    print("♻️ Windows dev env started in", timedelta(seconds=elapsed_time))
-    _run_command_on_local_changes(ctx, rsync_command)
-    print("♻️ Windows dev env sync stopped")
-    print("Start it again with `inv windows_dev_env.start`")
-    print("Destroy the Windows dev env with `inv windows-dev-env.stop`")
+    return host
 
 
-def _build_rsync_command(host: str) -> str:
-    # -a: archive mode; equals -rlptgoD (no -H)
-    # -z: compress file data during the transfer
-    # -r: recurse into directories
-    # -c: skip based on checksum, not mod-time & size
-    # -I: --ignore-times
-    # -P: same as --partial --progress, show partial progress during transfer
-    # -R: use relative path names
-    return f"rsync -azrcIPR --delete --rsync-path='C:\\cygwin\\bin\\rsync.exe' --filter=':- .gitignore' --exclude /.git/ . {host}:/cygdrive/c/mnt/datadog-agent/"
+def _ensure_test_infra_definitions(ctx: Context):
+    if not os.path.isdir('../test-infra-definitions'):
+        with ctx.cd('..'):
+            ctx.run("git clone git@github.com:DataDog/test-infra-definitions.git")
+            with ctx.cd('test-infra-definitions'):
+                # setup test-infra-definitions
+                ctx.run("python3 -m pip install -r requirements.txt")
+                ctx.run("inv setup")
 
 
 def _run_command_on_local_changes(ctx: Context, command: str):
