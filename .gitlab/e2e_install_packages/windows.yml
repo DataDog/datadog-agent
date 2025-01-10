@@ -90,6 +90,10 @@ new-e2e-windows-agent-msi-windows-server-a7-x86_64:
     - !reference [.on_deploy]
     - !reference [.on_e2e_or_windows_installer_changes]
     - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - deploy_windows_testing-a7-fips
   timeout: 1h15m
 
 new-e2e-windows-agent-domain-tests-a7-x86_64:
