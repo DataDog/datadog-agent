@@ -51,7 +51,7 @@ func (p *ProcessConsumer) Copy(event *smodel.Event) any {
 	}
 
 	if event.GetEventType() == smodel.ForkEventType {
-		valueForkTime := event.GetProcessExecTime()
+		valueForkTime := event.GetProcessForkTime()
 		result.ForkTime = valueForkTime
 	}
 

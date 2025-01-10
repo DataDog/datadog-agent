@@ -66,7 +66,7 @@ type ProcessEvent struct {
 	Group          string    `json:"group" msg:"group" copy_linux:"GetProcessGroup;event:*"`
 	Exe            string    `json:"exe" msg:"exe" copy_linux:"GetExecFilePath;event:*"`
 	Cmdline        []string  `json:"cmdline" msg:"cmdline" copy_linux:"GetExecCmdargv;event:ExecEventType"`
-	ForkTime       time.Time `json:"fork_time,omitempty" msg:"fork_time,omitempty" copy_linux:"GetProcessExecTime;event:ForkEventType"`
+	ForkTime       time.Time `json:"fork_time,omitempty" msg:"fork_time,omitempty" copy_linux:"GetProcessForkTime;event:ForkEventType"`
 	ExecTime       time.Time `json:"exec_time,omitempty" msg:"exec_time,omitempty" copy:"GetProcessExecTime;event:ExecEventType"`
 	ExitTime       time.Time `json:"exit_time,omitempty" msg:"exit_time,omitempty" copy:"GetProcessExitTime;event:ExitEventType"`
 	ExitCode       uint32    `json:"exit_code,omitempty" msg:"exit_code,omitempty" copy:"GetExitCode;event:ExitEventType"`
