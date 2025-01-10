@@ -69,6 +69,7 @@ type StructField struct {
 	Alias            string
 	AliasPrefix      string
 	GettersOnly      bool
+	GenGetters       bool
 	Ref              string
 	RestrictedTo     []string
 	IsIterator       bool

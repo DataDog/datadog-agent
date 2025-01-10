@@ -12,12 +12,20 @@ import (
     {{range .Imports }}
         "{{.}}"
     {{end}}
+    "net"
     "time"
 
     "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+var _ = time.Time{}
+var _ = net.IP{}
+
 {{range $Name, $Field := .Fields}}
+
+{{if not $Field.GenGetters }}
+{{continue}}
+{{end}}
 
 {{if $Field.Ref}}
 {{$Ref := index $.Fields $Field.Ref}}
