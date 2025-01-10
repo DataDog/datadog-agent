@@ -150,7 +150,7 @@ func TestTagTruncatedLogs(t *testing.T) {
 
 	msg = <-outputChan
 	assert.False(t, msg.ParsingExtra.IsTruncated)
-	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
+	assert.Empty(t, msg.ParsingExtra.Tags)
 	assertMessageContent(t, msg, "6789")
 
 	msg = <-outputChan
