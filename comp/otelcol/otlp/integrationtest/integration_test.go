@@ -63,7 +63,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	otelcompression "github.com/DataDog/datadog-agent/comp/serializer/otelcompression/def"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/otelcompression/fx"
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
@@ -73,6 +75,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -117,13 +120,11 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			return logdef.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),
-		// We create strategy.ZlibStrategy directly to avoid build tags
+		logscompressionfx.Module(),
 		compressionfx.Module(),
-		/*
-			fx.Decorate(func(compression compression.Component) compression.Component {
-				// We directly select zlib
-				return compression.WithKindAndLevel("zlib", 0)
-			}),*/
+		fx.Provide(func(c otelcompression.Component) compression.Compressor {
+			return c
+		}),
 		fx.Provide(serializer.NewSerializer),
 		// For FX to provide the serializer.MetricSerializer from the serializer.Serializer
 		fx.Provide(func(s *serializer.Serializer) serializer.MetricSerializer {

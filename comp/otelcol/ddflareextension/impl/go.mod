@@ -155,7 +155,6 @@ require go.opentelemetry.io/collector/extension/extensiontest v0.115.0 // indire
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.0.0-20241217122454-175edb6c74f2 // indirect
-	github.com/DataDog/datadog-agent/comp/serializer/compressionfactory v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3 // indirect
 	github.com/knadh/koanf/maps v0.1.1 // indirect

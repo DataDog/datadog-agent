@@ -32,7 +32,10 @@ import (
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	otelcompression "github.com/DataDog/datadog-agent/comp/serializer/otelcompression/def"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/otelcompression/fx"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -166,13 +169,11 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),
+		logscompression.Module(),
 		compressionfx.Module(),
-		/*
-			fx.Decorate(func(compression compression.Component) compression.Component {
-				// We directly select zlib
-				return compression.WithKindAndLevel("zlib", 0)
-			}),
-		*/
+		fx.Provide(func(c otelcompression.Component) compression.Compressor {
+			return c
+		}),
 		fx.Provide(serializer.NewSerializer),
 		// For FX to provide the serializer.MetricSerializer from the serializer.Serializer
 		fx.Provide(func(s *serializer.Serializer) serializer.MetricSerializer {

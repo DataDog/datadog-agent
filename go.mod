@@ -64,6 +64,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./comp/otelcol/otlp/testutil
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression => ./comp/serializer/logscompression
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ./comp/serializer/metricscompression
+	github.com/DataDog/datadog-agent/comp/serializer/otelcompression => ./comp/serializer/otelcompression
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ./comp/trace/agent/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/def => ./comp/trace/compression/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ./comp/trace/compression/impl-gzip
@@ -160,7 +161,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1
-	github.com/DataDog/datadog-go/v5 v5.5.0
+	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/DataDog/datadog-operator v0.7.1-0.20241024104907-734366f3c0d1
 	github.com/DataDog/ebpf-manager v0.7.4
 	github.com/DataDog/gopsutil v1.2.2
@@ -680,6 +681,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.57.0-devel.0.20240718200853-81bf3b2e412d
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.59.0-rc.6
+	github.com/DataDog/datadog-agent/comp/serializer/otelcompression v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.59.0
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.59.0
