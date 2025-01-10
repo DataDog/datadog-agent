@@ -4,7 +4,7 @@ go 1.21.9
 
 require (
 	github.com/spf13/cobra v1.7.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.18.2
 )
 

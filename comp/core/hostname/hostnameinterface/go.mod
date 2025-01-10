@@ -6,7 +6,7 @@ replace github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.1-rc.5
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.18.2
 )
 

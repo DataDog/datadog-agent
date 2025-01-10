@@ -60,7 +60,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.53.1-rc.5
 	github.com/DataDog/datadog-agent/pkg/status/health v0.53.1-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.53.1-rc.5
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
 )
 
