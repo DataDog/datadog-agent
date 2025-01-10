@@ -94,9 +94,16 @@ def _ensure_windows_dev_container_running(ctx, host):
     # start the Windows dev container, if not already running
     if should_start_container:
         print("🐳 Starting Windows dev container")
-        ctx.run(
+        result = ctx.run(
             f"ssh {host} 'docker run -v C:\\mnt:c:\\mnt -w C:\\mnt\\datadog-agent -t -d --name {WIN_CONTAINER_NAME} datadog/agent-buildimages-windows_x64:ltsc2022 ping -t localhost'",
+            hide=True,
         )
+        if result is None or not result:
+            raise Exception("Failed to start the Windows development container.")
+        # init go environment
+        exit_code = _run_on_windows_dev_env(ctx, command="tasks\\winbuildscripts\\pre-go-build.ps1")
+        if exit_code != 0:
+            raise Exception("Failed to initialize the Windows development environment.")
 
 
 def _build_rsync_command(host: str) -> str:
