@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,9 +21,9 @@ import (
 )
 
 // NewDeploymentCollectorVersions builds the group of collector versions.
-func NewDeploymentCollectorVersions() collectors.CollectorVersions {
+func NewDeploymentCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewDeploymentCollector(),
+		NewDeploymentCollector(metadataAsTags),
 	)
 }
 
@@ -36,7 +37,11 @@ type DeploymentCollector struct {
 
 // NewDeploymentCollector creates a new collector for the Kubernetes Deployment
 // resource.
-func NewDeploymentCollector() *DeploymentCollector {
+func NewDeploymentCollector(metadataAsTags utils.MetadataAsTags) *DeploymentCollector {
+	resourceType := collectors.GetResourceType(collectors.K8sDeploymentName, collectors.K8sDeploymentVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &DeploymentCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -44,9 +49,11 @@ func NewDeploymentCollector() *DeploymentCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "deployments",
+			Name:                      collectors.K8sDeploymentName,
 			NodeType:                  orchestrator.K8sDeployment,
-			Version:                   "apps/v1",
+			Version:                   collectors.K8sDeploymentVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.DeploymentHandlers)),
 	}

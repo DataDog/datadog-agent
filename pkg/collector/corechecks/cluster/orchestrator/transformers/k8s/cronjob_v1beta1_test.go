@@ -8,10 +8,12 @@
 package k8s
 
 import (
+	"sort"
 	"testing"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
@@ -27,8 +29,10 @@ func TestExtractCronJobV1Beta1(t *testing.T) {
 	lastScheduleTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
 
 	tests := map[string]struct {
-		input    batchv1beta1.CronJob
-		expected model.CronJob
+		input             batchv1beta1.CronJob
+		labelsAsTags      map[string]string
+		annotationsAsTags map[string]string
+		expected          model.CronJob
 	}{
 		"full cron job (active)": {
 			input: batchv1beta1.CronJob{
@@ -67,6 +71,12 @@ func TestExtractCronJobV1Beta1(t *testing.T) {
 					LastScheduleTime: &lastScheduleTime,
 				},
 			},
+			labelsAsTags: map[string]string{
+				"app": "application",
+			},
+			annotationsAsTags: map[string]string{
+				"annotation": "annotation_key",
+			},
 			expected: model.CronJob{
 				Metadata: &model.Metadata{
 					Annotations:       []string{"annotation:my-annotation"},
@@ -98,6 +108,10 @@ func TestExtractCronJobV1Beta1(t *testing.T) {
 					},
 					LastScheduleTime: lastScheduleTime.Unix(),
 				},
+				Tags: []string{
+					"application:my-app",
+					"annotation_key:my-annotation",
+				},
 			},
 		},
 		"cronjob with resources": {
@@ -119,7 +133,14 @@ func TestExtractCronJobV1Beta1(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, &tc.expected, ExtractCronJobV1Beta1(&tc.input))
+			pctx := &processors.K8sProcessorContext{
+				LabelsAsTags:      tc.labelsAsTags,
+				AnnotationsAsTags: tc.annotationsAsTags,
+			}
+			actual := ExtractCronJobV1Beta1(pctx, &tc.input)
+			sort.Strings(actual.Tags)
+			sort.Strings(tc.expected.Tags)
+			assert.Equal(t, &tc.expected, actual)
 		})
 	}
 }

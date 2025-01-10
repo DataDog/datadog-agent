@@ -58,7 +58,7 @@ func (h *NodeHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourc
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NodeHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*corev1.Node)
-	return k8sTransformers.ExtractNode(r)
+	return k8sTransformers.ExtractNode(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

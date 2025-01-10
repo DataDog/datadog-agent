@@ -48,6 +48,8 @@ type CollectorMetadata struct {
 	Version                   string
 	IsSkipped                 bool
 	SkippedReason             string
+	LabelsAsTags              map[string]string
+	AnnotationsAsTags         map[string]string
 }
 
 // FullName returns a string that contains the collector name and version.

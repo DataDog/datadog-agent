@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 	netv1 "k8s.io/api/networking/v1"
 
@@ -16,7 +17,7 @@ import (
 
 // ExtractIngress returns the protobuf model corresponding to a Kubernetes
 // Ingress resource.
-func ExtractIngress(in *netv1.Ingress) *model.Ingress {
+func ExtractIngress(ctx processors.ProcessorContext, in *netv1.Ingress) *model.Ingress {
 	ingress := model.Ingress{
 		Metadata: extractMetadata(&in.ObjectMeta),
 		Spec:     &model.IngressSpec{},
@@ -43,7 +44,9 @@ func ExtractIngress(in *netv1.Ingress) *model.Ingress {
 		ingress.Status = extractIngressStatus(in.Status)
 	}
 
+	pctx := ctx.(*processors.K8sProcessorContext)
 	ingress.Tags = append(ingress.Tags, transformers.RetrieveUnifiedServiceTags(in.ObjectMeta.Labels)...)
+	ingress.Tags = append(ingress.Tags, transformers.RetrieveMetadataTags(in.ObjectMeta.Labels, in.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return &ingress
 }

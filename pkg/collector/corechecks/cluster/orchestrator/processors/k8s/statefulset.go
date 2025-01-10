@@ -57,7 +57,7 @@ func (h *StatefulSetHandlers) BuildMessageBody(ctx processors.ProcessorContext, 
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *StatefulSetHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*appsv1.StatefulSet)
-	return k8sTransformers.ExtractStatefulSet(r)
+	return k8sTransformers.ExtractStatefulSet(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

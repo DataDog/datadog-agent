@@ -9,14 +9,14 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-	appsv1 "k8s.io/api/apps/v1"
-
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
+	appsv1 "k8s.io/api/apps/v1"
 )
 
 // ExtractDaemonSet returns the protobuf model corresponding to a Kubernetes
 // DaemonSet resource.
-func ExtractDaemonSet(ds *appsv1.DaemonSet) *model.DaemonSet {
+func ExtractDaemonSet(ctx processors.ProcessorContext, ds *appsv1.DaemonSet) *model.DaemonSet {
 	daemonSet := model.DaemonSet{
 		Metadata: extractMetadata(&ds.ObjectMeta),
 		Spec: &model.DaemonSetSpec{
@@ -55,7 +55,10 @@ func ExtractDaemonSet(ds *appsv1.DaemonSet) *model.DaemonSet {
 	}
 
 	daemonSet.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(ds.Spec.Template)
+
+	pctx := ctx.(*processors.K8sProcessorContext)
 	daemonSet.Tags = append(daemonSet.Tags, transformers.RetrieveUnifiedServiceTags(ds.ObjectMeta.Labels)...)
+	daemonSet.Tags = append(daemonSet.Tags, transformers.RetrieveMetadataTags(ds.ObjectMeta.Labels, ds.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return &daemonSet
 }

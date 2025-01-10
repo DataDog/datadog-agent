@@ -58,7 +58,7 @@ func (h *RoleHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourc
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *RoleHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*rbacv1.Role)
-	return k8sTransformers.ExtractRole(r)
+	return k8sTransformers.ExtractRole(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

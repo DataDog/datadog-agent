@@ -72,5 +72,7 @@ func NewK8sProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadat
 		},
 		APIClient:          rcfg.APIClient,
 		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", metadata.Version),
+		LabelsAsTags:       metadata.LabelsAsTags,
+		AnnotationsAsTags:  metadata.AnnotationsAsTags,
 	}
 }

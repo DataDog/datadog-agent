@@ -34,7 +34,7 @@ func NewTaskCollector(tagger tagger.Component) *TaskCollector {
 			IsStable:           false,
 			IsMetadataProducer: true,
 			IsManifestProducer: false,
-			Name:               "ecstasks",
+			Name:               collectors.ECSTaskName,
 			NodeType:           orchestrator.ECSTask,
 		},
 		processor: processors.NewProcessor(ecs.NewTaskHandlers(tagger)),
