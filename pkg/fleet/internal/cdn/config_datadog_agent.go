@@ -55,6 +55,11 @@ type integration struct {
 
 // State returns the agent policies state
 func (a *agentConfig) State() *pbgo.PoliciesState {
+	if a == nil {
+		return &pbgo.PoliciesState{
+			Version: "noversion",
+		}
+	}
 	return &pbgo.PoliciesState{
 		MatchedPolicies: []string{a.policy},
 		Version:         a.version,
