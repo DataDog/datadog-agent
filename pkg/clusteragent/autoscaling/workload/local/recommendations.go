@@ -53,13 +53,15 @@ type QueryResult struct { // return value for GetMetricsRaw
 }
 
 const (
-	staleDataThresholdSeconds = 180 // 3 minutes
+	staleDataThresholdSeconds      = 180 // 3 minutes
+	containerCpuUsageMetricName    = "container.cpu.usage"
+	containerMemoryUsageMetricName = "container.memory.usage"
 )
 
 var (
 	resourceToMetric = map[corev1.ResourceName]string{
-		corev1.ResourceCPU:    "container.cpu.usage",
-		corev1.ResourceMemory: "container.memory.usage",
+		corev1.ResourceCPU:    containerCpuUsageMetricName,
+		corev1.ResourceMemory: containerMemoryUsageMetricName,
 	}
 )
 
@@ -186,9 +188,7 @@ func (l LocalRecommender) CalculateHorizontalRecommendations(dpai model.PodAutos
 			break
 		}
 
-		log.Debugf("LOCAL-REC: Recommendation for %s: %d", recSettings.MetricName, rec)
-
-		// always choose the highest recommendation given
+		// Always choose the highest recommendation given
 		if rec > recommendedReplicas.Replicas {
 			recommendedReplicas.Replicas = rec
 			recommendedReplicas.Timestamp = ts
@@ -196,10 +196,10 @@ func (l LocalRecommender) CalculateHorizontalRecommendations(dpai model.PodAutos
 		}
 	}
 
-	// TODO: need error handling in caller to check err and not to update (we don't want to recommend 0)
 	if recommendedReplicas.Replicas == 0 {
 		return nil, fmt.Errorf("No recommendation found for autoscaler: %s", dpai.ID())
 	}
+
 	telemetryHorizontalLocalRecommendations.Set(
 		float64(recommendedReplicas.Replicas),
 		namespace,
@@ -219,13 +219,10 @@ func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*wo
 	if err != nil {
 		return 0, time.Time{}, err
 	}
-	log.Debugf("LOCAL-REC: Utilization result: %+v", utilizationResult)
 
 	recommendedReplicas := r.calculateReplicas(currentReplicas, utilizationResult.AverageUtilization)
-	log.Debugf("LOCAL-REC: Recommended replicas: %d", recommendedReplicas)
 
 	scaleDirection := shared.GetScaleDirection(int32(currentReplicas), recommendedReplicas)
-	// account for missing pods
 	if scaleDirection != shared.NoScale && len(utilizationResult.MissingPods) > 0 {
 		adjustedPodToUtilization := adjustMissingPods(scaleDirection, utilizationResult.PodToUtilization, utilizationResult.MissingPods)
 		newRecommendation := r.calculateReplicas(currentReplicas, getAveragePodUtilization(adjustedPodToUtilization))
@@ -236,7 +233,6 @@ func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*wo
 		} else {
 			recommendedReplicas = newRecommendation
 		}
-		log.Debugf("LOCAL-REC: missing pods adjusted recommendation: %d", recommendedReplicas)
 	}
 
 	return recommendedReplicas, utilizationResult.RecommendationTimestamp, nil
@@ -258,12 +254,10 @@ func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.
 	}
 
 	for _, pod := range pods {
-		log.Debugf("LOCAL-REC: Processing pod: %s | %+v", pod.Name, pod)
 		totalUsage := 0.0
 		totalRequests := 0.0
 
 		for _, container := range pod.Containers {
-			log.Debugf("LOCAL-REC: Processing container: %s | %+v", container.Name, container)
 			if r.ContainerName != "" && container.Name != r.ContainerName {
 				continue
 			}
@@ -277,13 +271,11 @@ func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.
 			}
 
 			series := getContainerMetrics(queryResult, pod.Name, container.Name)
-			log.Debugf("LOCAL-REC: Processing series: %+v", series)
 			if len(series) == 0 { // no metrics data
 				continue
 			}
 
 			averageValue, lastTimestamp, err := processAverageContainerMetricValue(series, currentTime)
-			log.Debugf("LOCAL-REC - averageValue: %f | lastTimestamp: %s | err: %v", averageValue, lastTimestamp, err)
 			if err != nil {
 				continue // skip; no usage information
 			}
@@ -295,17 +287,10 @@ func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.
 
 		if totalRequests > 0 && totalUsage > 0 {
 			utilization := totalUsage / totalRequests
-			if utilization > 1.0 || utilization < 0 { // validate utilization is percentage 0-1
-				log.Debugf("LOCAL-REC utilization is not percentage %f; skipping pod %s", utilization, pod.Name)
-				missingPods = append(missingPods, pod.Name)
-				continue
-			}
 			podUtilization[pod.Name] = utilization
 			totalPodUtilization += podUtilization[pod.Name]
 			podCount++
-			log.Debugf("LOCAL-REC: Pod %s utilization: %f", pod.Name, podUtilization[pod.Name])
 		} else {
-			log.Debugf("LOCAL-REC missing usage information for pod %s", pod.Name)
 			missingPods = append(missingPods, pod.Name)
 		}
 	}
@@ -344,7 +329,6 @@ func getContainerMetrics(queryResult loadstore.QueryResult, podName, containerNa
 
 // processAverageContainerMetricValue takes a series of metrics and processes them to return the final metric value and
 // corresponding timestamp to use to generate a recommendation
-// TODO: handle missing containers here?
 func processAverageContainerMetricValue(series []loadstore.EntityValue, currentTime time.Time) (float64, time.Time, error) {
 	values := []loadstore.ValueType{}
 	lastTimestamp := time.Time{}
@@ -409,7 +393,7 @@ func (r *resourceRecommenderSettings) calculateReplicas(currentReplicas float64,
 	return recommendedReplicas
 }
 
-// Helpers //
+// Helpers
 func isStaleMetric(currentTime time.Time, metricTimestamp loadstore.Timestamp) bool {
 	return currentTime.Unix()-int64(metricTimestamp) > staleDataThresholdSeconds
 }

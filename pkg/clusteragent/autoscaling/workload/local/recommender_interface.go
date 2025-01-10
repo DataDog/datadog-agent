@@ -30,10 +30,7 @@ type RecommenderInterface struct {
 }
 
 func NewInterface(ctx context.Context, podWatcher shared.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) (*RecommenderInterface, error) {
-	localRecommender := LocalRecommender{
-		PodWatcher: podWatcher,
-		Store:      loadstore.GetWorkloadMetricStore(ctx),
-	}
+	localRecommender := newLocalRecommender(podWatcher, loadstore.GetWorkloadMetricStore(ctx))
 
 	return &RecommenderInterface{
 		localRecommender: localRecommender,
@@ -60,12 +57,11 @@ func (ri *RecommenderInterface) Run(ctx context.Context) {
 			case <-ticker.C:
 				ri.process(ctx)
 			case <-ctx.Done():
-				log.Debugf("Stopping autoscaling interface")
+				log.Infof("Stopping autoscaling interface")
 				return
 			}
 		}
 	}()
-	log.Infof("Stopping autoscaling interface")
 }
 
 func (ri *RecommenderInterface) process(ctx context.Context) {
@@ -86,10 +82,9 @@ func (ri *RecommenderInterface) process(ctx context.Context) {
 				log.Debugf("Error calculating horizontal recommendations for pod autoscaler %s: %s", podAutoscaler.ID(), err)
 				continue
 			}
-			log.Debugf("Updating local fallback values for pod autoscaler %s", podAutoscaler.ID())
-			log.Debugf("LOCAL-REC got rec for %s: %+v", podAutoscaler.ID(), horizontalRecommendation)
+
 			podAutoscaler.UpdateFromLocalValues(*horizontalRecommendation)
-			ri.store.Set(podAutoscaler.ID(), podAutoscaler, localRecommenderID) // should we be holding the lock here??
+			ri.store.Set(podAutoscaler.ID(), podAutoscaler, localRecommenderID)
 			log.Debugf("Updated local fallback values for pod autoscaler %s", podAutoscaler.ID())
 		}
 	}

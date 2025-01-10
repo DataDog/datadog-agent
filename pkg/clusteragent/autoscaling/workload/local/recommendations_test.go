@@ -17,11 +17,6 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	"github.com/google/go-cmp/cmp"
 
-	// logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	// workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	// workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	// "github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
