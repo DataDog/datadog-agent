@@ -61,7 +61,7 @@ def run(
     """
     Runs a command on a remote Windows development environment.
     """
-    _run_on_windows_dev_env(ctx, name, command)
+    exit(_run_on_windows_dev_env(ctx, name, command))
 
 
 def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
@@ -190,7 +190,7 @@ class RemoteHost:
         self.port: int | None = "port" in remoteHost and remoteHost["port"] or None
 
 
-def _run_on_windows_dev_env(ctx: Context, name: str = "windows-dev-env", command: str = ""):
+def _run_on_windows_dev_env(ctx: Context, name: str = "windows-dev-env", command: str = "") -> int:
     with ctx.cd('../test-infra-definitions'):
         # find connection info for the VM
         result = ctx.run(f"inv aws.show-vm --stack-name={name}", hide=True)
@@ -214,8 +214,11 @@ def _run_on_windows_dev_env(ctx: Context, name: str = "windows-dev-env", command
             '-t',
             f'"{' '.join(docker_command_parts)}"',
         ]
-        ctx.run(
+        result = ctx.run(
             ' '.join(command_parts),
             pty=True,
             warn=True,
         )
+        if result is None or not result:
+            raise Exception("Failed to run the command on the Windows development environment.")
+        return result.exited
