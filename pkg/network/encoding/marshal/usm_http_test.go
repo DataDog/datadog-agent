@@ -53,6 +53,8 @@ func TestFormatHTTPStats(t *testing.T) {
 	for _, i := range statusCodes {
 		httpStats2.AddRequest(i, 20, 1<<(i/100-1), nil)
 	}
+	httpStats1.ProcessLatencies()
+	httpStats2.ProcessLatencies()
 
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
@@ -111,7 +113,7 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 	httpReqStats.AddRequest(100, 12.5, tagGnuTLS, nil)
 	httpReqStats.AddRequest(405, 3.5, tagOpenSSL, nil)
 	httpReqStats.AddRequest(405, 3.5, 0, nil)
-
+	httpReqStats.ProcessLatencies()
 	// Verify the latency data is correct prior to serialization
 
 	latencies := httpReqStats.Data[100].Latencies
@@ -206,6 +208,7 @@ func TestIDCollisionRegression(t *testing.T) {
 		http.MethodGet,
 	)
 	httpStats.AddRequest(104, 1.0, 0, nil)
+	httpStats.ProcessLatencies()
 
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
@@ -265,6 +268,7 @@ func TestLocalhostScenario(t *testing.T) {
 		http.MethodGet,
 	)
 	httpStats.AddRequest(103, 1.0, 0, nil)
+	httpStats.ProcessLatencies()
 
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
@@ -357,6 +361,7 @@ func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Conne
 	httpStats.AddRequest(300, 10, 0, nil)
 	httpStats.AddRequest(400, 10, 0, nil)
 	httpStats.AddRequest(500, 10, 0, nil)
+	httpStats.ProcessLatencies()
 
 	for sport := uint16(0); sport < sourcePortsMax; sport++ {
 		for dport := uint16(0); dport < destPortsMax; dport++ {

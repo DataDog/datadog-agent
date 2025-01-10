@@ -75,6 +75,9 @@ func (s *HTTP2Suite) TestFormatHTTP2Stats() {
 		http2Stats2.AddRequest(i, 20, 1<<(i/100-1), nil)
 	}
 
+	http2Stats1.ProcessLatencies()
+	http2Stats2.ProcessLatencies()
+
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
@@ -131,6 +134,8 @@ func (s *HTTP2Suite) TestFormatHTTP2StatsByPath() {
 	http2ReqStats.AddRequest(100, 12.5, tagGnuTLS, nil)
 	http2ReqStats.AddRequest(405, 3.5, tagOpenSSL, nil)
 	http2ReqStats.AddRequest(405, 3.5, 0, nil)
+
+	http2ReqStats.ProcessLatencies()
 
 	// Verify the latency data is correct prior to serialization
 
@@ -228,6 +233,7 @@ func (s *HTTP2Suite) TestHTTP2IDCollisionRegression() {
 		http.MethodGet,
 	)
 	http2Stats.AddRequest(104, 1.0, 0, nil)
+	http2Stats.ProcessLatencies()
 
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
@@ -291,6 +297,7 @@ func (s *HTTP2Suite) TestHTTP2LocalhostScenario() {
 		http.MethodGet,
 	)
 	http2Stats.AddRequest(103, 1.0, 0, nil)
+	http2Stats.ProcessLatencies()
 
 	in := &network.Connections{
 		BufferedData: network.BufferedData{

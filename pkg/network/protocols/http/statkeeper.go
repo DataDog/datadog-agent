@@ -88,6 +88,9 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 
 		// Rotate stats
 		stats = h.stats
+		for _, rs := range stats {
+			rs.ProcessLatencies()
+		}
 		h.stats = make(map[Key]*RequestStats)
 
 		// Rotate ConnectionAggregator

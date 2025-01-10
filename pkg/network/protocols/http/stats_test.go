@@ -20,6 +20,8 @@ func TestAddRequest(t *testing.T) {
 	stats.AddRequest(405, 15.0, 2, nil)
 	stats.AddRequest(405, 20.0, 3, nil)
 
+	stats.ProcessLatencies()
+
 	assert.Nil(t, stats.Data[100])
 	assert.Nil(t, stats.Data[200])
 	assert.Nil(t, stats.Data[300])
@@ -48,6 +50,11 @@ func TestCombineWith(t *testing.T) {
 	stats2.AddRequest(405, 10.0, 2, nil)
 	stats3.AddRequest(405, 15.0, 3, nil)
 	stats4.AddRequest(405, 20.0, 4, nil)
+
+	stats.ProcessLatencies()
+	stats2.ProcessLatencies()
+	stats3.ProcessLatencies()
+	stats4.ProcessLatencies()
 
 	stats.CombineWith(stats2)
 	stats.CombineWith(stats3)

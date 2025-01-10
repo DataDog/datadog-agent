@@ -126,6 +126,14 @@ type RequestStat struct {
 
 	// Dynamic tags (if attached)
 	DynamicTags []string
+
+	latenciesStore []float64
+}
+
+func newRequestStat() *RequestStat {
+	return &RequestStat{
+		latenciesStore: make([]float64, 0),
+	}
 }
 
 func (r *RequestStat) initSketch() (err error) {
@@ -134,6 +142,33 @@ func (r *RequestStat) initSketch() (err error) {
 		log.Debugf("error recording http transaction latency: could not create new ddsketch: %v", err)
 	}
 	return
+}
+
+// processLatencies move latencies to sketch
+func (r *RequestStat) processLatencies() {
+	if r.Latencies == nil {
+		if err := r.initSketch(); err != nil {
+			return
+		}
+
+		// Add the deferred latency sample
+		if err := r.Latencies.Add(r.FirstLatencySample); err != nil {
+			log.Debugf("could not add request latency to ddsketch: %v", err)
+		} else {
+			log.Debugf("RequestStat.processLatencies add first latency: %f", r.FirstLatencySample)
+		}
+	}
+	for _, latency := range r.latenciesStore {
+		if err := r.Latencies.Add(latency); err != nil {
+			log.Debugf("could not add request latency to ddsketch: %v", err)
+		} else {
+			log.Debugf("RequestStat.processLatencies add latency: %f", latency)
+		}
+	}
+	if len(r.latenciesStore) > 0 {
+		r.latenciesStore = make([]float64, 0)
+		log.Errorf("RequestStat.processLatencies size: %d", len(r.latenciesStore))
+	}
 }
 
 // RequestStats stores HTTP request statistics.
@@ -165,12 +200,14 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 		if newRequests.Count == 1 {
 			// The other bucket has a single latency sample, so we "manually" add it
 			r.AddRequest(statusCode, newRequests.FirstLatencySample, newRequests.StaticTags, newRequests.DynamicTags)
+			r.ProcessLatencies()
 			continue
 		}
+		newRequests.processLatencies()
 
 		stats, exists := r.Data[statusCode]
 		if !exists {
-			stats = &RequestStat{}
+			stats = newRequestStat()
 			r.Data[statusCode] = stats
 		}
 
@@ -204,7 +241,7 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 
 	stats, exists := r.Data[statusCode]
 	if !exists {
-		stats = &RequestStat{}
+		stats = newRequestStat()
 		r.Data[statusCode] = stats
 	}
 
@@ -219,21 +256,7 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 		stats.FirstLatencySample = latency
 		return
 	}
-
-	if stats.Latencies == nil {
-		if err := stats.initSketch(); err != nil {
-			return
-		}
-
-		// Add the deferred latency sample
-		if err := stats.Latencies.Add(stats.FirstLatencySample); err != nil {
-			log.Debugf("could not add request latency to ddsketch: %v", err)
-		}
-	}
-
-	if err := stats.Latencies.Add(latency); err != nil {
-		log.Debugf("could not add request latency to ddsketch: %v", err)
-	}
+	stats.latenciesStore = append(stats.latenciesStore, latency)
 }
 
 // HalfAllCounts sets the count of all stats for each status class to half their current value.
@@ -243,5 +266,17 @@ func (r *RequestStats) HalfAllCounts() {
 		if stats != nil {
 			stats.Count = stats.Count / 2
 		}
+	}
+}
+
+// ProcessLatencies move latencies to sketch
+func (r *RequestStats) ProcessLatencies() {
+	for _, rs := range r.Data {
+		if rs.Count > 1 {
+			rs.processLatencies()
+		}
+	}
+	if len(r.Data) > 0 {
+		log.Errorf("RequestStats.ProcessLatencies Data size: %d", len(r.Data))
 	}
 }
