@@ -16,6 +16,7 @@ import (
 
 var _ = time.Time{}
 var _ = net.IP{}
+var _ = eval.NewContext
 
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerCreatedAt() int {

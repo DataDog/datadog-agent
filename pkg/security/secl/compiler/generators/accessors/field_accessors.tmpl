@@ -9,9 +9,6 @@
 package {{.Name}}
 
 import (
-    {{range .Imports }}
-        "{{.}}"
-    {{end}}
     "net"
     "time"
 
@@ -20,6 +17,7 @@ import (
 
 var _ = time.Time{}
 var _ = net.IP{}
+var _ = eval.NewContext
 
 {{range $Name, $Field := .Fields}}
 
