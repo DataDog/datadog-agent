@@ -122,7 +122,7 @@ func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 		t.Run(name, func(t *testing.T) {
 			cfg := getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled)
 			cfg.BPFDebug = debug
-			setupUSMTLSMonitor(t, cfg)
+			setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 		})
 	}
 }
@@ -191,7 +191,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 		return count * 2
 	}
 
-	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS), useExistingConsumer)
 	if isTLS {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 	}
@@ -720,7 +720,7 @@ func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 	t := s.T()
 
 	// Creating the monitor
-	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled))
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled), useExistingConsumer)
 
 	wg := sync.WaitGroup{}
 
@@ -924,7 +924,7 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 	require.NoError(t, postgres.RunServer(t, serverHost, postgresPort, isTLS))
 	waitForPostgresServer(t, serverAddress, isTLS)
 
-	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS), useExistingConsumer)
 	if isTLS {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 	}

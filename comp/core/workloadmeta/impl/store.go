@@ -401,6 +401,28 @@ func (w *workloadmeta) ListKubernetesMetadata(filterFunc wmdef.EntityFilterFunc[
 	return metadata
 }
 
+// GetGPU implements Store#GetGPU.
+func (w *workloadmeta) GetGPU(id string) (*wmdef.GPU, error) {
+	entity, err := w.getEntityByKind(wmdef.KindGPU, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.GPU), nil
+}
+
+// ListGPUs implements Store#ListGPUs.
+func (w *workloadmeta) ListGPUs() []*wmdef.GPU {
+	entities := w.listEntitiesByKind(wmdef.KindGPU)
+
+	gpuList := make([]*wmdef.GPU, 0, len(entities))
+	for i := range entities {
+		gpuList = append(gpuList, entities[i].(*wmdef.GPU))
+	}
+
+	return gpuList
+}
+
 // Notify implements Store#Notify
 func (w *workloadmeta) Notify(events []wmdef.CollectorEvent) {
 	if len(events) > 0 {
