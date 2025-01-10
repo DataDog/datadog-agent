@@ -215,7 +215,8 @@ def _run_on_windows_dev_env(ctx: Context, name: str = "windows-dev-env", command
             'exec',
             '-it',
             WIN_CONTAINER_NAME,
-            'powershell',
+            'powershell.exe',
+            '-Command',
             f"'{command}'",
         ]
         command_parts = [
