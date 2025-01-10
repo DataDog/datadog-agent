@@ -152,6 +152,10 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	case names.Container, names.Kubernetes, names.KubeContainer:
 		// config attached to a container label or a pod annotation
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
+		if err != nil {
+			log.Errorf("Error parsing logs config from Kubernetes label or pod annotation (container=%q service=%q source=%q name=%q): %v",
+			names.Container, config.ServiceID, config.Source, config.Name, err)
+		}
 	case names.RemoteConfig:
 		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {
 			// config supplied by remote config
