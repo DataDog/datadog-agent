@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -39,9 +40,11 @@ type dogstatsdEvent struct {
 	alertType      alertType
 	tags           []string
 	// containerID represents the container ID of the sender (optional).
-	containerID []byte
+	containerID string
+	// localData is used for Origin Detection
+	localData origindetection.LocalData
 	// externalData is used for Origin Detection
-	externalData string
+	externalData origindetection.ExternalData
 }
 
 type eventHeader struct {
@@ -166,9 +169,12 @@ func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []b
 	case bytes.HasPrefix(optionalField, eventTagsPrefix):
 		newEvent.tags = p.parseTags(optionalField[len(eventTagsPrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, localDataPrefix):
-		newEvent.containerID = p.resolveContainerIDFromLocalData(optionalField)
+		newEvent.localData, err = p.resolveLocalData(optionalField[len(localDataPrefix):])
+		if err == nil {
+			newEvent.containerID = newEvent.localData.ContainerID
+		}
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, externalDataPrefix):
-		newEvent.externalData = string(optionalField[len(externalDataPrefix):])
+		newEvent.externalData, err = origindetection.ParseExternalData(string(optionalField[len(externalDataPrefix):]))
 	}
 	if err != nil {
 		return event, err

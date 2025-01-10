@@ -20,6 +20,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/shirou/gopsutil/v4/process"
 )
@@ -306,7 +307,7 @@ func EnvVars(priorityEnvsPrefixes []string, pid uint32, maxEnvVars int) ([]strin
 	envs = append(envs, priorityEnvs...)
 
 	for scanner.Scan() {
-		if len(envs) >= model.MaxArgsEnvsSize {
+		if len(envs) >= sharedconsts.MaxArgsEnvsSize {
 			return envs, true, nil
 		}
 

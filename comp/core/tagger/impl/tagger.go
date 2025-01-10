@@ -17,8 +17,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -43,21 +41,6 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
-
-const (
-	// External Data Prefixes
-	// These prefixes are used to build the External Data Environment Variable.
-	// This variable is then used for Origin Detection.
-	externalDataInitPrefix          = "it-"
-	externalDataContainerNamePrefix = "cn-"
-	externalDataPodUIDPrefix        = "pu-"
-)
-
-type externalData struct {
-	init          bool
-	containerName string
-	podUID        string
-}
 
 // Requires defines the dependencies of the tagger component.
 type Requires struct {
@@ -484,51 +467,23 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.PodUID, err)
 		}
 
-		// Tag using External Data.
-		// External Data is a list that contain prefixed-items, split by a ','. Current items are:
-		// * "it-<init>" if the container is an init container.
-		// * "cn-<container-name>" for the container name.
-		// * "pu-<pod-uid>" for the pod UID.
-		// Order does not matter.
-		// Possible values:
-		// * "it-false,cn-nginx,pu-3413883c-ac60-44ab-96e0-9e52e4e173e2"
-		// * "cn-init,pu-cb4aba1d-0129-44f1-9f1b-b4dc5d29a3b3,it-true"
-		if originInfo.ExternalData != "" {
-			// Parse the external data and get the tags for the entity
-			var parsedExternalData externalData
-			var initParsingError error
-			for _, item := range strings.Split(originInfo.ExternalData, ",") {
-				switch {
-				case strings.HasPrefix(item, externalDataInitPrefix):
-					parsedExternalData.init, initParsingError = strconv.ParseBool(item[len(externalDataInitPrefix):])
-					if initParsingError != nil {
-						t.log.Tracef("Cannot parse bool from %s: %s", item[len(externalDataInitPrefix):], initParsingError)
-					}
-				case strings.HasPrefix(item, externalDataContainerNamePrefix):
-					parsedExternalData.containerName = item[len(externalDataContainerNamePrefix):]
-				case strings.HasPrefix(item, externalDataPodUIDPrefix):
-					parsedExternalData.podUID = item[len(externalDataPodUIDPrefix):]
-				}
+		// Accumulate tags for pod UID
+		if originInfo.ExternalData.PodUID != "" {
+			if err := t.AccumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.ExternalData.PodUID), cardinality, tb); err != nil {
+				t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.ExternalData.PodUID, err)
 			}
+		}
 
-			// Accumulate tags for pod UID
-			if parsedExternalData.podUID != "" {
-				if err := t.AccumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, parsedExternalData.podUID), cardinality, tb); err != nil {
-					t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.ContainerID, err)
-				}
-			}
+		// Generate container ID from External Data
+		generatedContainerID, err := t.generateContainerIDFromExternalData(originInfo.ExternalData, metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector())
+		if err != nil {
+			t.log.Tracef("Failed to generate container ID from %s: %s", originInfo.ExternalData, err)
+		}
 
-			// Generate container ID from External Data
-			generatedContainerID, err := t.generateContainerIDFromExternalData(parsedExternalData, metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector())
-			if err != nil {
-				t.log.Tracef("Failed to generate container ID from %s: %s", originInfo.ExternalData, err)
-			}
-
-			// Accumulate tags for generated container ID
-			if generatedContainerID != "" {
-				if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb); err != nil {
-					t.log.Tracef("Cannot get tags for entity %s: %s", generatedContainerID, err)
-				}
+		// Accumulate tags for generated container ID
+		if generatedContainerID != "" {
+			if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb); err != nil {
+				t.log.Tracef("Cannot get tags for entity %s: %s", generatedContainerID, err)
 			}
 		}
 	}
@@ -544,8 +499,8 @@ func (t *TaggerWrapper) GenerateContainerIDFromOriginInfo(originInfo origindetec
 }
 
 // generateContainerIDFromExternalData generates a container ID from the External Data.
-func (t *TaggerWrapper) generateContainerIDFromExternalData(e externalData, metricsProvider provider.ContainerIDForPodUIDAndContNameRetriever) (string, error) {
-	return metricsProvider.ContainerIDForPodUIDAndContName(e.podUID, e.containerName, e.init, time.Second)
+func (t *TaggerWrapper) generateContainerIDFromExternalData(e origindetection.ExternalData, metricsProvider provider.ContainerIDForPodUIDAndContNameRetriever) (string, error) {
+	return metricsProvider.ContainerIDForPodUIDAndContName(e.PodUID, e.ContainerName, e.Init, time.Second)
 }
 
 // ChecksCardinality defines the cardinality of tags we should send for check metrics
