@@ -11,6 +11,9 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -160,6 +163,15 @@ func start(
 	ctx, cancel := context.WithCancel(context.Background())
 
 	defer StopAgent(cancel, log)
+
+	go func() {
+		port := config.GetString("checks_agent_debug_port")
+		addr := net.JoinHostPort("localhost", port)
+		err := http.ListenAndServe(addr, nil)
+		if err != nil {
+			log.Warnf("pprof server: %s", err)
+		}
+	}()
 
 	token := authToken.Get()
 
