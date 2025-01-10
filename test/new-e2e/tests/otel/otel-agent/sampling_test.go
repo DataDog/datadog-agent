@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
@@ -27,7 +26,6 @@ type samplingTestSuite struct {
 var samplingConfig string
 
 func TestOTelAgentSampling(t *testing.T) {
-	flake.Mark(t) // incident-33599
 	t.Parallel()
 	e2e.Run(t, &samplingTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(samplingConfig)))))
 }

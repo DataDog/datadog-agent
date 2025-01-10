@@ -14,6 +14,46 @@ import (
 	"time"
 )
 
+// GetAcceptAddrFamily returns the value of the field, resolving if necessary
+func (ev *Event) GetAcceptAddrFamily() uint16 {
+	if ev.GetEventType().String() != "accept" {
+		return uint16(0)
+	}
+	return ev.Accept.AddrFamily
+}
+
+// GetAcceptAddrIp returns the value of the field, resolving if necessary
+func (ev *Event) GetAcceptAddrIp() net.IPNet {
+	if ev.GetEventType().String() != "accept" {
+		return net.IPNet{}
+	}
+	return ev.Accept.Addr.IPNet
+}
+
+// GetAcceptAddrIsPublic returns the value of the field, resolving if necessary
+func (ev *Event) GetAcceptAddrIsPublic() bool {
+	if ev.GetEventType().String() != "accept" {
+		return false
+	}
+	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Accept.Addr)
+}
+
+// GetAcceptAddrPort returns the value of the field, resolving if necessary
+func (ev *Event) GetAcceptAddrPort() uint16 {
+	if ev.GetEventType().String() != "accept" {
+		return uint16(0)
+	}
+	return ev.Accept.Addr.Port
+}
+
+// GetAcceptRetval returns the value of the field, resolving if necessary
+func (ev *Event) GetAcceptRetval() int64 {
+	if ev.GetEventType().String() != "accept" {
+		return int64(0)
+	}
+	return ev.Accept.SyscallEvent.Retval
+}
+
 // GetBindAddrFamily returns the value of the field, resolving if necessary
 func (ev *Event) GetBindAddrFamily() uint16 {
 	if ev.GetEventType().String() != "bind" {

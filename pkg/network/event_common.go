@@ -80,6 +80,9 @@ type ConnectionFamily uint8
 type ConnectionDirection uint8
 
 const (
+	// UNKNOWN represents connections where the direction is not known (yet)
+	UNKNOWN ConnectionDirection = 0
+
 	// INCOMING represents connections inbound to the host
 	INCOMING ConnectionDirection = 1 // incoming
 

@@ -21,7 +21,6 @@ import (
 
 	"github.com/cilium/ebpf/btf"
 
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -120,7 +119,7 @@ type orderedBTFLoader struct {
 	userBTFPath string
 	embeddedDir string
 
-	result         ebpftelemetry.BTFResult
+	result         BTFResult
 	resultMetadata BTFResultMetadata
 	loadFunc       funcs.CachedFunc[returnBTF]
 	delayedFlusher *time.Timer
@@ -130,7 +129,7 @@ func initBTFLoader(cfg *Config) *orderedBTFLoader {
 	btfLoader := &orderedBTFLoader{
 		userBTFPath: cfg.BTFPath,
 		embeddedDir: filepath.Join(cfg.BPFDir, "co-re", "btf"),
-		result:      ebpftelemetry.BtfNotFound,
+		result:      BtfNotFound,
 	}
 	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, loadKernelSpec.Flush)
 	btfLoader.delayedFlusher = time.AfterFunc(btfFlushDelay, btfLoader.Flush)
@@ -140,12 +139,12 @@ func initBTFLoader(cfg *Config) *orderedBTFLoader {
 type btfLoaderFunc func() (*returnBTF, error)
 
 // Get returns BTF for the running kernel
-func (b *orderedBTFLoader) Get() (*returnBTF, ebpftelemetry.COREResult, error) {
+func (b *orderedBTFLoader) Get() (*returnBTF, COREResult, error) {
 	ret, err := b.loadFunc.Do()
 	if ret != nil && ret.vmlinux != nil {
 		b.delayedFlusher.Reset(btfFlushDelay)
 	}
-	return ret, ebpftelemetry.COREResult(b.result), err
+	return ret, COREResult(b.result), err
 }
 
 // Flush deletes any cached BTF
@@ -158,13 +157,13 @@ func (b *orderedBTFLoader) get() (*returnBTF, error) {
 	b.resultMetadata.numLoadAttempts++
 
 	loaders := []struct {
-		result ebpftelemetry.BTFResult
+		result BTFResult
 		loader btfLoaderFunc
 		desc   string
 	}{
-		{ebpftelemetry.SuccessCustomBTF, b.loadUser, "configured BTF file"},
-		{ebpftelemetry.SuccessDefaultBTF, b.loadKernel, "kernel"},
-		{ebpftelemetry.SuccessEmbeddedBTF, b.loadEmbedded, "embedded collection"},
+		{SuccessCustomBTF, b.loadUser, "configured BTF file"},
+		{SuccessDefaultBTF, b.loadKernel, "kernel"},
+		{SuccessEmbeddedBTF, b.loadEmbedded, "embedded collection"},
 	}
 	var err error
 	var ret *returnBTF
