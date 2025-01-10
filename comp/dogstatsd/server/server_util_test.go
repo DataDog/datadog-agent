@@ -91,6 +91,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		taggermock.Module(),
+		fx.Provide(func(mock taggermock.Mock) tagger.Component { return mock }),
 		Module(Params{Serverless: false}),
 	))
 }
@@ -108,6 +109,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		taggermock.Module(),
+		fx.Provide(func(mock taggermock.Mock) tagger.Component { return mock }),
 		Module(Params{Serverless: false}),
 	))
 }
@@ -128,6 +130,7 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		taggermock.Module(),
+		fx.Provide(func(mock taggermock.Mock) tagger.Component { return mock }),
 	))
 
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.Tagger)

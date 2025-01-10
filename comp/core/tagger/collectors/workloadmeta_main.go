@@ -173,7 +173,9 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 	c.initK8sResourcesMetaAsTags(metadataAsTags.GetResourcesLabelsAsTags(), metadataAsTags.GetResourcesAnnotationsAsTags())
 
 	// initializes with the static global tags
-	c.collectStaticGlobalTags(ctx, cfg)
+	if c.tagProcessor != nil {
+		c.collectStaticGlobalTags(ctx, cfg)
+	}
 
 	return c
 }
