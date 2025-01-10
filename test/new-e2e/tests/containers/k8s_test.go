@@ -922,7 +922,12 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
 			deployment, err := suite.Env().KubernetesCluster.Client().AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 			if !assert.NoError(c, err) {
+				c.Errorf("deployment with name %s in namespace %s not found", name, namespace)
 				return
+			}
+
+			if deployment.Status.AvailableReplicas == 0 {
+				c.Errorf("deployment with name %s in namespace %s has 0 available replicas", name, namespace)
 			}
 
 			detectedLangsLabelIsSet := false
