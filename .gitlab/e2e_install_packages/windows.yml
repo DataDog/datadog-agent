@@ -114,6 +114,7 @@ new-e2e-windows-agent-a7-x86_64-fips:
     - .new-e2e_agent_a7
   needs:
     - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
     - deploy_windows_testing-a7-fips
   rules:
     - !reference [.on_deploy]
