@@ -12,6 +12,65 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestParseLocalData(t *testing.T) {
+	tests := []struct {
+		name         string
+		rawLocalData string
+		expected     LocalData
+		expectError  bool
+	}{
+		{
+			name:         "Empty string",
+			rawLocalData: "",
+			expected:     LocalData{},
+			expectError:  false,
+		},
+		{
+			name:         "Single container ID",
+			rawLocalData: "ci-abc123",
+			expected:     LocalData{ContainerID: "abc123"},
+			expectError:  false,
+		},
+		{
+			name:         "Single inode",
+			rawLocalData: "in-12345",
+			expected:     LocalData{Inode: 12345},
+			expectError:  false,
+		},
+		{
+			name:         "Multiple values",
+			rawLocalData: "ci-abc123,in-12345",
+			expected:     LocalData{ContainerID: "abc123", Inode: 12345},
+			expectError:  false,
+		},
+		{
+			name:         "Invalid inode",
+			rawLocalData: "in-invalid",
+			expected:     LocalData{},
+			expectError:  true,
+		},
+		{
+			name:         "Old container format",
+			rawLocalData: "abc123",
+			expected:     LocalData{ContainerID: "abc123"},
+			expectError:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := ParseLocalData(tc.rawLocalData)
+
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.Equal(t, tc.expected, result)
+			}
+
+		})
+	}
+}
+
 func TestParseExternalData(t *testing.T) {
 	tests := []struct {
 		name          string

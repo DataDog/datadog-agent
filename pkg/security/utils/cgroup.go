@@ -12,14 +12,20 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/moby/sys/mountinfo"
+
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"golang.org/x/sys/unix"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // ContainerIDLen is the length of a container ID is the length of the hex representation of a sha256 hash
@@ -44,51 +50,70 @@ func (cg ControlGroup) GetContainerContext() (containerutils.ContainerID, contai
 	return containerutils.ContainerID(id), containerutils.CGroupFlags(flags)
 }
 
-// GetContainerID returns the container id extracted from the path of the control group
-func (cg ControlGroup) GetContainerID() containerutils.ContainerID {
-	id, _ := containerutils.FindContainerID(containerutils.CGroupID(cg.Path))
-	return containerutils.ContainerID(id)
+func parseCgroupLine(line string) (string, string, string, error) {
+	id, rest, ok := strings.Cut(line, ":")
+	if !ok {
+		return "", "", "", fmt.Errorf("invalid cgroup line: %s", line)
+	}
+
+	ctrl, path, ok := strings.Cut(rest, ":")
+	if !ok {
+		return "", "", "", fmt.Errorf("invalid cgroup line: %s", line)
+	}
+
+	if rest == "/" {
+		return "", "", "", fmt.Errorf("invalid cgroup line: %s", line)
+	}
+
+	return id, ctrl, path, nil
 }
 
-// GetLastProcControlGroups returns the first cgroup membership of the specified task.
-func GetLastProcControlGroups(tgid, pid uint32) (ControlGroup, error) {
-	data, err := os.ReadFile(CgroupTaskPath(tgid, pid))
-	if err != nil {
-		return ControlGroup{}, err
-	}
-
+func parseProcControlGroupsData(data []byte, fnc func(string, string, string) bool) error {
 	data = bytes.TrimSpace(data)
 
-	index := bytes.LastIndexByte(data, '\n')
-	if index < 0 {
-		index = 0
-	} else {
-		index++ // to skip the \n
-	}
-	if index >= len(data) {
-		return ControlGroup{}, fmt.Errorf("invalid cgroup data: %s", data)
+	for len(data) != 0 {
+		eol := bytes.IndexByte(data, '\n')
+		if eol < 0 {
+			eol = len(data)
+		}
+		line := data[:eol]
+
+		id, ctrl, path, err := parseCgroupLine(string(line))
+		if err != nil {
+			return err
+		}
+
+		if fnc(id, ctrl, path) {
+			return nil
+		}
+
+		nextStart := eol + 1
+		if nextStart >= len(data) {
+			break
+		}
+		data = data[nextStart:]
 	}
 
-	lastLine := string(data[index:])
+	return nil
+}
 
-	idstr, rest, ok := strings.Cut(lastLine, ":")
-	if !ok {
-		return ControlGroup{}, fmt.Errorf("invalid cgroup line: %s", lastLine)
+func parseProcControlGroups(tgid, pid uint32, fnc func(string, string, string) bool) error {
+	data, err := os.ReadFile(CgroupTaskPath(tgid, pid))
+	if err != nil {
+		return err
 	}
+	return parseProcControlGroupsData(data, fnc)
+}
 
-	id, err := strconv.Atoi(idstr)
+func makeControlGroup(id, ctrl, path string) (ControlGroup, error) {
+	idInt, err := strconv.Atoi(id)
 	if err != nil {
 		return ControlGroup{}, err
-	}
-
-	controllers, path, ok := strings.Cut(rest, ":")
-	if !ok {
-		return ControlGroup{}, fmt.Errorf("invalid cgroup line: %s", lastLine)
 	}
 
 	return ControlGroup{
-		ID:          id,
-		Controllers: strings.Split(controllers, ","),
+		ID:          idInt,
+		Controllers: strings.Split(ctrl, ","),
 		Path:        path,
 	}, nil
 }
@@ -103,18 +128,17 @@ func GetProcControlGroups(tgid, pid uint32) ([]ControlGroup, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
 		t := scanner.Text()
-		parts := strings.Split(t, ":")
-		var ID int
-		ID, err = strconv.Atoi(parts[0])
+		id, ctrl, path, err := parseCgroupLine(t)
 		if err != nil {
-			continue
+			return nil, err
 		}
-		c := ControlGroup{
-			ID:          ID,
-			Controllers: strings.Split(parts[1], ","),
-			Path:        parts[2],
+
+		cgroup, err := makeControlGroup(id, ctrl, path)
+		if err != nil {
+			return nil, err
 		}
-		cgroups = append(cgroups, c)
+
+		cgroups = append(cgroups, cgroup)
 	}
 	return cgroups, nil
 }
@@ -129,15 +153,33 @@ func GetProcContainerID(tgid, pid uint32) (containerutils.ContainerID, error) {
 // GetProcContainerContext returns the container ID which the process belongs to along with its manager. Returns "" if the process does not belong
 // to a container.
 func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, model.CGroupContext, error) {
-	cgroup, err := GetLastProcControlGroups(tgid, pid)
-	if err != nil {
-		return "", model.CGroupContext{}, err
-	}
+	var (
+		containerID   containerutils.ContainerID
+		runtime       containerutils.CGroupFlags
+		cgroupContext model.CGroupContext
+	)
 
-	containerID, runtime := cgroup.GetContainerContext()
-	cgroupContext := model.CGroupContext{
-		CGroupID:    containerutils.CGroupID(cgroup.Path),
-		CGroupFlags: runtime,
+	if err := parseProcControlGroups(tgid, pid, func(id, ctrl, path string) bool {
+		if path == "/" {
+			return false
+		} else if ctrl != "" && !strings.HasPrefix(ctrl, "name=") {
+			// On cgroup v1 we choose to take the "name" ctrl entry (ID 1), as the ID 0 could be empty
+			// On cgroup v2, it's only a single line with ID 0 and no ctrl
+			// (Cf unit tests for examples)
+			return false
+		}
+		cgroup, err := makeControlGroup(id, ctrl, path)
+		if err != nil {
+			return false
+		}
+
+		containerID, runtime = cgroup.GetContainerContext()
+		cgroupContext.CGroupID = containerutils.CGroupID(cgroup.Path)
+		cgroupContext.CGroupFlags = runtime
+
+		return true
+	}); err != nil {
+		return "", model.CGroupContext{}, err
 	}
 
 	var fileStats unix.Statx_t
@@ -148,4 +190,106 @@ func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, mode
 	}
 
 	return containerID, cgroupContext, nil
+}
+
+var defaultCGroupMountpoints = []string{
+	"/sys/fs/cgroup",
+	"/sys/fs/cgroup/unified",
+}
+
+// ErrNoCGroupMountpoint is returned when no cgroup mount point is found
+var ErrNoCGroupMountpoint = errors.New("no cgroup mount point found")
+
+// CGroupFS is a helper type used to find the cgroup context of a process
+type CGroupFS struct {
+	cGroupMountPoints []string
+}
+
+// NewCGroupFS creates a new CGroupFS instance
+func NewCGroupFS(cgroupMountPoints ...string) *CGroupFS {
+	cfs := &CGroupFS{}
+
+	var cgroupMnts []string
+	if len(cgroupMountPoints) == 0 {
+		cgroupMnts = defaultCGroupMountpoints
+	} else {
+		cgroupMnts = cgroupMountPoints
+	}
+
+	for _, mountpoint := range cgroupMnts {
+		hostMountpoint := filepath.Join(kernel.SysFSRoot(), strings.TrimPrefix(mountpoint, "/sys/"))
+		if mounted, _ := mountinfo.Mounted(hostMountpoint); mounted {
+			cfs.cGroupMountPoints = append(cfs.cGroupMountPoints, hostMountpoint)
+		}
+	}
+
+	return cfs
+}
+
+// FindCGroupContext returns the container ID, cgroup context and sysfs cgroup path the process belongs to.
+// Returns "" as container ID and sysfs cgroup path, and an empty CGroupContext if the process does not belong to a container.
+func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.ContainerID, model.CGroupContext, string, error) {
+	if len(cfs.cGroupMountPoints) == 0 {
+		return "", model.CGroupContext{}, "", ErrNoCGroupMountpoint
+	}
+
+	var (
+		containerID     containerutils.ContainerID
+		cgroupContext   model.CGroupContext
+		sysFScGroupPath string
+	)
+
+	err := parseProcControlGroups(tgid, pid, func(_, ctrl, path string) bool {
+		if path == "/" {
+			return false
+		} else if ctrl != "" && !strings.HasPrefix(ctrl, "name=") {
+			// On cgroup v1 we choose to take the "name" ctrl entry (ID 1), as the ID 0 could be empty
+			// On cgroup v2, it's only a single line with ID 0 and no ctrl
+			// (Cf unit tests for examples)
+			return false
+		}
+
+		ctrlDirectory := strings.TrimPrefix(ctrl, "name=")
+		for _, mountpoint := range cfs.cGroupMountPoints {
+			cgroupPath := filepath.Join(mountpoint, ctrlDirectory, path)
+			if exists, err := checkPidExists(cgroupPath, pid); err == nil && exists {
+				cgroupID := containerutils.CGroupID(path)
+				ctrID, flags := containerutils.FindContainerID(cgroupID)
+				cgroupContext.CGroupID = cgroupID
+				cgroupContext.CGroupFlags = containerutils.CGroupFlags(flags)
+				containerID = ctrID
+				sysFScGroupPath = cgroupPath
+
+				var fileStatx unix.Statx_t
+				var fileStats unix.Stat_t
+				if err := unix.Statx(unix.AT_FDCWD, sysFScGroupPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStatx); err == nil {
+					cgroupContext.CGroupFile.MountID = uint32(fileStatx.Mnt_id)
+					cgroupContext.CGroupFile.Inode = fileStatx.Ino
+				} else if err := unix.Stat(sysFScGroupPath, &fileStats); err == nil {
+					cgroupContext.CGroupFile.Inode = fileStats.Ino
+				}
+				return true
+			}
+		}
+		return false
+	})
+	if err != nil {
+		return "", model.CGroupContext{}, "", err
+	}
+
+	return containerID, cgroupContext, sysFScGroupPath, nil
+}
+
+func checkPidExists(sysFScGroupPath string, expectedPid uint32) (bool, error) {
+	data, err := os.ReadFile(filepath.Join(sysFScGroupPath, "cgroup.procs"))
+	if err != nil {
+		return false, err
+	}
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil && uint32(pid) == expectedPid {
+			return true, nil
+		}
+	}
+	return false, nil
 }

@@ -69,6 +69,10 @@ func (m *mockAPI) FetchOrgStatus(ctx context.Context) (*pbgo.OrgStatusResponse, 
 	return args.Get(0).(*pbgo.OrgStatusResponse), args.Error(1)
 }
 
+func (m *mockAPI) UpdatePARJWT(jwt string) {
+	m.Called(jwt)
+}
+
 type mockUptane struct {
 	mock.Mock
 }

@@ -56,7 +56,7 @@ import (
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const datadogConfigPath = "datadog.yaml"
@@ -85,7 +85,7 @@ func main() {
 		logscompressionfx.Module(),
 		fx.Supply(secrets.NewEnabledParams()),
 		secretsimpl.Module(),
-		fx.Provide(func(secrets secrets.Component) optional.Option[secrets.Component] { return optional.NewOption(secrets) }),
+		fx.Provide(func(secrets secrets.Component) option.Option[secrets.Component] { return option.New(secrets) }),
 		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "off", true)),
 		logfx.Module(),
 		nooptelemetry.Module(),

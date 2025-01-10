@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -34,7 +35,7 @@ func BenchmarkExtractTagsMetadata(b *testing.B) {
 			sb.ResetTimer()
 
 			for n := 0; n < sb.N; n++ {
-				tags, _, _, _ = extractTagsMetadata(baseTags, "", []byte{}, "", conf)
+				tags, _, _, _ = extractTagsMetadata(baseTags, "", origindetection.LocalData{}, origindetection.ExternalData{}, conf)
 			}
 		})
 	}

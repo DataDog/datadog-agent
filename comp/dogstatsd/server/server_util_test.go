@@ -39,7 +39,7 @@ import (
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // This is a copy of the serverDeps struct, but without the server field.
@@ -53,7 +53,7 @@ type depsWithoutServer struct {
 	Replay        replay.Component
 	PidMap        pidmap.Component
 	Debug         serverdebug.Component
-	WMeta         optional.Option[workloadmeta.Component]
+	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
 }
 
@@ -66,7 +66,7 @@ type serverDeps struct {
 	Replay        replay.Component
 	PidMap        pidmap.Component
 	Debug         serverdebug.Component
-	WMeta         optional.Option[workloadmeta.Component]
+	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
 	Server        Component
 }
