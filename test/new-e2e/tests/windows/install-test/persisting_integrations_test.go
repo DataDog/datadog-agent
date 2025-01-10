@@ -11,7 +11,9 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
+	servicetest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
 
 	"testing"
 
@@ -19,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestUpgrade tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestPersistingIntegrations tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
 func TestPersistingIntegrations(t *testing.T) {
 	s := &testPersistingIntegrationsSuite{}
 	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
@@ -97,6 +99,52 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 	s.checkPipPackageInstalled(vm, "grpcio")
 
 	s.uninstallAgentAndRunUninstallTests(t)
+
+}
+
+// TestPersistingIntegrations tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+func TestIntegrationInstallFailure(t *testing.T) {
+	s := &testIntegrationInstallFailure{}
+	run(t, s)
+}
+
+type testIntegrationInstallFailure struct {
+	baseAgentMSISuite
+}
+
+func (s *testIntegrationInstallFailure) TestIntegrationInstallFailure() {
+	vm := s.Env().RemoteHost
+
+	// install previous version
+	previousAgentPackage := s.installAndTestLastStable(vm)
+
+	// upgrade to the new version, but intentionally fail with our persistence flag
+	if !s.Run(fmt.Sprintf("upgrade to %s with rollback", s.AgentPackage.AgentVersion()), func() {
+		_, err := windowsAgent.InstallAgent(vm,
+			windowsAgent.WithPackage(s.AgentPackage),
+			windowsAgent.WithWixFailWhenDeferred(),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
+			windowsAgent.WithIntegrationsPersistence("1"),
+		)
+		s.Require().Error(err, "should fail to install agent %s", s.AgentPackage.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	// TODO: we shouldn't have to start the agent manually after rollback
+	//       but the kitchen tests did too.
+	err := windowsCommon.StartService(vm, "DatadogAgent")
+	s.Require().NoError(err, "agent service should start after rollback")
+
+	// the previous version should be functional
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), previousAgentPackage.AgentVersion())
+
+	// Ensure services are still installed
+	// NOTE: will need to update this if we add or remove services
+	_, err = windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServices())
+	s.Assert().NoError(err, "services should still be installed")
+
+	s.uninstallAgent()
 
 }
 

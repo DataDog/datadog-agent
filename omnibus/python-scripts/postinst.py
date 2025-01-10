@@ -26,7 +26,7 @@ def postinst(install_directory, storage_location, skip_flag=False):
                     packages.cleanup_files(diff_python_installed_packages_file)
                 else:
                     print(f"File '{diff_python_installed_packages_file}' not found.")
-                    return 1
+                    return 0
             else:
                 print(f"File '{flag_path}' not found: no third party integration will be installed.")
                 return 1
