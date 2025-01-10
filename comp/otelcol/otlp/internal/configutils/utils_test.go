@@ -72,7 +72,6 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 				yamlprovider.NewFactory(),
 			},
 			ConverterFactories: []confmap.ConverterFactory{},
-			DefaultScheme:      "env",
 		},
 	}
 
