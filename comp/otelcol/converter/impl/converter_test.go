@@ -38,6 +38,7 @@ func newResolver(uris []string) (*confmap.Resolver, error) {
 			httpsprovider.NewFactory(),
 		},
 		ConverterFactories: []confmap.ConverterFactory{},
+		DefaultScheme:      "env",
 	})
 }
 

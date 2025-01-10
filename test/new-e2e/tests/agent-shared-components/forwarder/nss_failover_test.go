@@ -144,6 +144,9 @@ func TestMultiFakeintakeSuite(t *testing.T) {
 //
 // TODO: handle APM traces
 func (v *multiFakeIntakeSuite) TestNSSFailover() {
+	// Ensure that both fakeintakes are using the same scheme
+	v.Assert().Equal(v.Env().Fakeintake1.Scheme, v.Env().Fakeintake2.Scheme)
+
 	agentConfig, err := readTmplConfig(configTmplFile)
 	v.NoError(err)
 
@@ -162,7 +165,7 @@ func (v *multiFakeIntakeSuite) TestNSSFailover() {
 	agentOptions := []agentparams.Option{
 		agentparams.WithAgentConfig(agentConfig),
 		agentparams.WithLogs(),
-		agentparams.WithIntakeHostname(intakeName),
+		agentparams.WithIntakeHostname(v.Env().Fakeintake1.Scheme, intakeName),
 		agentparams.WithIntegration("custom_logs.d", customLogsConfig),
 	}
 	v.UpdateEnv(multiFakeIntakeAWS(agentOptions...))
