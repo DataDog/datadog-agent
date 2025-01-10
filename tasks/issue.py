@@ -93,7 +93,7 @@ def ask_reviews(_, pr_id):
                 (chan for team, chan in GITHUB_SLACK_REVIEW_MAP.items() if team.casefold() == reviewer.casefold()),
                 HELP_SLACK_CHANNEL,
             )
-            message = f'Hello :{random.choice(WAVES)}:!\n*{actor}* would like you to review <{pr.html_url}/s|{pr.title}>?\nThanks in advance!'
+            message = f'Hello :{random.choice(WAVES)}:!\n*{actor}* is asking review for PR <{pr.html_url}/s|{pr.title}>.\nCould you please have a look?\nThanks in advance!'
             if channel == HELP_SLACK_CHANNEL:
                 message = f'Hello :{random.choice(WAVES)}:!\nA review channel is missing for {reviewer}, can you please ask them to update `github_slack_review_map.yaml` and transfer them this review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
             try:

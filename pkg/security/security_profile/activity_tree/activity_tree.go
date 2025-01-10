@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 )
 
 // NodeDroppedReason is used to list the reasons to drop a node
@@ -893,7 +894,7 @@ func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[st
 				at.visitFileNode(file, func(fileNode *FileNode) {
 					path, ok := modifiedPaths[fileNode.File.PathnameStr]
 					if !ok {
-						modifiedPaths[fileNode.File.PathnameStr] = utils.CheckForPatterns(fileNode.File.PathnameStr)
+						modifiedPaths[fileNode.File.PathnameStr] = pathutils.CheckForPatterns(fileNode.File.PathnameStr)
 						path = modifiedPaths[fileNode.File.PathnameStr]
 					}
 					if len(path) > 0 {
@@ -905,7 +906,7 @@ func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[st
 
 		execPath, ok := modifiedPaths[processNode.Process.FileEvent.PathnameStr]
 		if !ok {
-			modifiedPaths[processNode.Process.FileEvent.PathnameStr] = utils.CheckForPatterns(processNode.Process.FileEvent.PathnameStr)
+			modifiedPaths[processNode.Process.FileEvent.PathnameStr] = pathutils.CheckForPatterns(processNode.Process.FileEvent.PathnameStr)
 			execPath = modifiedPaths[processNode.Process.FileEvent.PathnameStr]
 		}
 
