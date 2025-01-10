@@ -10,13 +10,15 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type mutuallyExclusiveInstallSuite struct {
@@ -29,6 +31,7 @@ type mutuallyExclusiveInstallSuite struct {
 //
 // This test uses the last stable base Agent package and the pipeline produced FIPS Agent package.
 func TestFIPSAgentDoesNotInstallOverAgent(t *testing.T) {
+	flake.Mark(s.T())
 	s := &mutuallyExclusiveInstallSuite{}
 	os.Setenv(windowsAgent.PackageFlavorEnvVar, "base")
 	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
@@ -43,6 +46,7 @@ func TestFIPSAgentDoesNotInstallOverAgent(t *testing.T) {
 // This test uses the pipeline produced MSI packages for both flavors. This is necessary for now
 // because the previous Agent versions do not contain the changes to detect mutually exclusive products.
 func TestAgentDoesNotInstallOverFIPSAgent(t *testing.T) {
+	flake.Mark(s.T())
 	s := &mutuallyExclusiveInstallSuite{}
 	os.Setenv(windowsAgent.PackageFlavorEnvVar, "fips")
 	previousAgentPackage, err := windowsAgent.GetPackageFromEnv()
@@ -66,6 +70,7 @@ func (s *mutuallyExclusiveInstallSuite) SetupSuite() {
 }
 
 func (s *mutuallyExclusiveInstallSuite) TestMutuallyExclusivePackage() {
+	flake.Mark(s.T())
 	host := s.Env().RemoteHost
 
 	// Install second Agent
