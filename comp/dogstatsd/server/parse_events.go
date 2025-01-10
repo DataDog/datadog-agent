@@ -167,9 +167,9 @@ func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []b
 	case bytes.HasPrefix(optionalField, eventTagsPrefix):
 		newEvent.tags = p.parseTags(optionalField[len(eventTagsPrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, localDataPrefix):
-		newEvent.localData, err = origindetection.ParseLocalData(string(optionalField[len(localDataPrefix):]))
+		newEvent.localData = p.parseLocalData(optionalField[len(localDataPrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, externalDataPrefix):
-		newEvent.externalData, err = origindetection.ParseExternalData(string(optionalField[len(externalDataPrefix):]))
+		newEvent.externalData = p.parseExternalData(optionalField[len(externalDataPrefix):])
 	}
 	if err != nil {
 		return event, err

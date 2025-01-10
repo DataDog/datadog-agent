@@ -101,9 +101,9 @@ func (p *parser) applyServiceCheckOptionalField(serviceCheck dogstatsdServiceChe
 	case bytes.HasPrefix(optionalField, serviceCheckMessagePrefix):
 		newServiceCheck.message = string(optionalField[len(serviceCheckMessagePrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, localDataPrefix):
-		newServiceCheck.localData, err = origindetection.ParseLocalData(string(optionalField[len(localDataPrefix):]))
+		newServiceCheck.localData = p.parseLocalData(optionalField[len(localDataPrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, externalDataPrefix):
-		newServiceCheck.externalData, err = origindetection.ParseExternalData(string(optionalField[len(externalDataPrefix):]))
+		newServiceCheck.externalData = p.parseExternalData(optionalField[len(externalDataPrefix):])
 	}
 	if err != nil {
 		return serviceCheck, err
