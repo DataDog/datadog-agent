@@ -47,8 +47,6 @@ type dogstatsdMetricSample struct {
 	metricType metricType
 	sampleRate float64
 	tags       []string
-	// containerID represents the container ID of the sender (optional).
-	containerID string
 	// localData is used for Origin Detection
 	localData origindetection.LocalData
 	// externalData is used for Origin Detection
