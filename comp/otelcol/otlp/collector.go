@@ -234,7 +234,6 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentCha
 				ProviderSettings: confmap.ProviderSettings{
 					Logger: zap.New(zapCore),
 				},
-				DefaultScheme: "env",
 			},
 		},
 		LoggingOptions: options,

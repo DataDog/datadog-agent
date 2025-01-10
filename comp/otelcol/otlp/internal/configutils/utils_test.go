@@ -60,7 +60,6 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 				NewProviderFactory(cfgMap),
 			},
 			ConverterFactories: []confmap.ConverterFactory{},
-			DefaultScheme:      "env",
 		},
 	}
 	// build default provider from same data
