@@ -13,7 +13,8 @@ exporters:
       resource_attributes_as_tags: true
     hostname: "otelcol-test-olivierg2"
     api:
-      key: ${DD_API_KEY}
+      key: ${env:DD_API_KEY}
+      site: ${env:DD_SITE}
 processors:
   batch:
 connectors:
