@@ -12,6 +12,7 @@ telemetry.enabled: true
 telemetry.checks: '*'
 
 apm_config:
+  features: ["enable_receive_resource_spans_v2"]
   enabled: true
   apm_dd_url: http://127.0.0.1:9091
   # set an arbitrarily high sample set
