@@ -98,6 +98,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
 								{{$Check = $SubName | printf "element%s"}}
 								if !{{$Check}}() {
+									ctx.Error = &eval.ErrNotSupported{Field: field}
 									return append(results, {{$Field.GetDefaultScalarReturnValue}})
 								}
 							{{end}}
@@ -145,6 +146,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
 								{{$Check = $SubName | printf "pce%s"}}
 								if !{{$Check}}() {
+									ctx.Error = &eval.ErrNotSupported{Field: field}
 									{{if $Field.GetArrayPrefix}}
 									return nil
 									{{else}}
@@ -192,6 +194,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					{{range $Check := $Checks}}
 						{{$Check = $Check | printf "ev.%s"}}
 						if !{{$Check}}() {
+							ctx.Error = &eval.ErrNotSupported{Field: field}
 							return {{$Field.GetDefaultReturnValue}}
 						}
 					{{end}}
@@ -282,6 +285,9 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	ctx := eval.NewContext(ev)
 	value := evaluator.Eval(ctx)
+	if ctx.Error != nil {
+		return nil, ctx.Error
+	}
 	return value, nil
 }
 
