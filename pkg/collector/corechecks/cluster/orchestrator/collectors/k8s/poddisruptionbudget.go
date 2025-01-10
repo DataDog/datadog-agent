@@ -38,7 +38,7 @@ type PodDisruptionBudgetCollector struct {
 // NewPodDisruptionBudgetCollectorVersion creates a new collector for the Kubernetes Pod Disruption Budget
 // resource.
 func NewPodDisruptionBudgetCollectorVersion(metadataAsTags utils.MetadataAsTags) *PodDisruptionBudgetCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sPodDisruptionBudgetName, collectors.K8sPodDisruptionBudgetVersion)
+	resourceType := getResourceType(podDisruptionBudgetName, podDisruptionBudgetVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -51,9 +51,9 @@ func NewPodDisruptionBudgetCollectorVersion(metadataAsTags utils.MetadataAsTags)
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sPodDisruptionBudgetName,
+			Name:                      podDisruptionBudgetName,
 			NodeType:                  orchestrator.K8sPodDisruptionBudget,
-			Version:                   collectors.K8sPodDisruptionBudgetVersion,
+			Version:                   podDisruptionBudgetVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

@@ -45,9 +45,9 @@ func NewCRDCollector() *CRDCollector {
 			IsManifestProducer:        true,
 			IsMetadataProducer:        false,
 			SupportsManifestBuffering: false,
-			Name:                      collectors.K8sCRDName,
+			Name:                      crdName,
 			NodeType:                  orchestrator.K8sCRD,
-			Version:                   collectors.K8sCRDVersion,
+			Version:                   crdVersion,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.CRDHandlers)),
 	}

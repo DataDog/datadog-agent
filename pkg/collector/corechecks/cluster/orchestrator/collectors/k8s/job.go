@@ -37,7 +37,7 @@ type JobCollector struct {
 
 // NewJobCollector creates a new collector for the Kubernetes Job resource.
 func NewJobCollector(metadataAsTags utils.MetadataAsTags) *JobCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sJobName, collectors.K8sJobVersion)
+	resourceType := getResourceType(jobName, jobVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -48,9 +48,9 @@ func NewJobCollector(metadataAsTags utils.MetadataAsTags) *JobCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sJobName,
+			Name:                      jobName,
 			NodeType:                  orchestrator.K8sJob,
-			Version:                   collectors.K8sJobVersion,
+			Version:                   jobVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

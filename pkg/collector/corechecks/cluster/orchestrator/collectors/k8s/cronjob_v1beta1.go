@@ -30,7 +30,7 @@ type CronJobV1Beta1Collector struct {
 
 // NewCronJobV1Beta1Collector creates a new collector for the Kubernetes Job resource.
 func NewCronJobV1Beta1Collector(metadataAsTags utils.MetadataAsTags) *CronJobV1Beta1Collector {
-	resourceType := collectors.GetResourceType(collectors.K8sCronJobName, collectors.K8sCronJobVersionV1Beta1)
+	resourceType := getResourceType(cronJobName, cronJobVersionV1Beta1)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -41,9 +41,9 @@ func NewCronJobV1Beta1Collector(metadataAsTags utils.MetadataAsTags) *CronJobV1B
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sCronJobName,
+			Name:                      cronJobName,
 			NodeType:                  orchestrator.K8sCronJob,
-			Version:                   collectors.K8sCronJobVersionV1Beta1,
+			Version:                   cronJobVersionV1Beta1,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

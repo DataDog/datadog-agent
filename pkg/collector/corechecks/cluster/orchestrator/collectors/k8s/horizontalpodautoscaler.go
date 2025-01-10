@@ -39,7 +39,7 @@ type HorizontalPodAutoscalerCollector struct {
 // NewHorizontalPodAutoscalerCollector creates a new collector for the Kubernetes
 // HorizontalPodAutoscaler resource.
 func NewHorizontalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *HorizontalPodAutoscalerCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sHPAName, collectors.K8sHPAVersion)
+	resourceType := getResourceType(hpaName, hpaVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -50,9 +50,9 @@ func NewHorizontalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *H
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sHPAName,
+			Name:                      hpaName,
 			NodeType:                  orchestrator.K8sHorizontalPodAutoscaler,
-			Version:                   collectors.K8sHPAVersion,
+			Version:                   hpaVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

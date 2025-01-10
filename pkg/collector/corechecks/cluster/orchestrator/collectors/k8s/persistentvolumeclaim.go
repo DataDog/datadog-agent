@@ -38,7 +38,7 @@ type PersistentVolumeClaimCollector struct {
 // NewPersistentVolumeClaimCollector creates a new collector for the Kubernetes
 // PersistentVolumeClaim resource.
 func NewPersistentVolumeClaimCollector(metadataAsTags utils.MetadataAsTags) *PersistentVolumeClaimCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sPersistentVolumeClaimName, collectors.K8sPersistentVolumeClaimVersion)
+	resourceType := getResourceType(persistentVolumeClaimName, persistentVolumeClaimVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -49,9 +49,9 @@ func NewPersistentVolumeClaimCollector(metadataAsTags utils.MetadataAsTags) *Per
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sPersistentVolumeClaimName,
+			Name:                      persistentVolumeClaimName,
 			NodeType:                  orchestrator.K8sPersistentVolumeClaim,
-			Version:                   collectors.K8sPersistentVolumeClaimVersion,
+			Version:                   persistentVolumeClaimVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

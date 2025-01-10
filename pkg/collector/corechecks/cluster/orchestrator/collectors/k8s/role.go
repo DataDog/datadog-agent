@@ -37,7 +37,7 @@ type RoleCollector struct {
 
 // NewRoleCollector creates a new collector for the Kubernetes Role resource.
 func NewRoleCollector(metadataAsTags utils.MetadataAsTags) *RoleCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sRoleName, collectors.K8sRoleVersion)
+	resourceType := getResourceType(roleName, roleVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -48,9 +48,9 @@ func NewRoleCollector(metadataAsTags utils.MetadataAsTags) *RoleCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sRoleName,
+			Name:                      roleName,
 			NodeType:                  orchestrator.K8sRole,
-			Version:                   collectors.K8sRoleVersion,
+			Version:                   roleVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

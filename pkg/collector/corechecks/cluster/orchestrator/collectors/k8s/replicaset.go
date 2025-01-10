@@ -38,7 +38,7 @@ type ReplicaSetCollector struct {
 // NewReplicaSetCollector creates a new collector for the Kubernetes ReplicaSet
 // resource.
 func NewReplicaSetCollector(metadataAsTags utils.MetadataAsTags) *ReplicaSetCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sReplicaSetName, collectors.K8sReplicaSetVersion)
+	resourceType := getResourceType(replicaSetName, replicaSetVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -49,9 +49,9 @@ func NewReplicaSetCollector(metadataAsTags utils.MetadataAsTags) *ReplicaSetColl
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sReplicaSetName,
+			Name:                      replicaSetName,
 			NodeType:                  orchestrator.K8sReplicaSet,
-			Version:                   collectors.K8sReplicaSetVersion,
+			Version:                   replicaSetVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

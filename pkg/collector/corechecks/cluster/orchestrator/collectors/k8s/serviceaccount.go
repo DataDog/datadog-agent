@@ -38,7 +38,7 @@ type ServiceAccountCollector struct {
 // NewServiceAccountCollector creates a new collector for the Kubernetes
 // ServiceAccount resource.
 func NewServiceAccountCollector(metadataAsTags utils.MetadataAsTags) *ServiceAccountCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sServiceAccountName, collectors.K8sServiceAccountVersion)
+	resourceType := getResourceType(serviceAccountName, serviceAccountVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -49,9 +49,9 @@ func NewServiceAccountCollector(metadataAsTags utils.MetadataAsTags) *ServiceAcc
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sServiceAccountName,
+			Name:                      serviceAccountName,
 			NodeType:                  orchestrator.K8sServiceAccount,
-			Version:                   collectors.K8sServiceAccountVersion,
+			Version:                   serviceAccountVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

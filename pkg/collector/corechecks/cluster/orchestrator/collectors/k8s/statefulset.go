@@ -38,7 +38,7 @@ type StatefulSetCollector struct {
 // NewStatefulSetCollector creates a new collector for the Kubernetes
 // StatefulSet resource.
 func NewStatefulSetCollector(metadataAsTags utils.MetadataAsTags) *StatefulSetCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sStatefulSetName, collectors.K8sStatefulSetVersion)
+	resourceType := getResourceType(statefulSetName, statefulSetVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -49,9 +49,9 @@ func NewStatefulSetCollector(metadataAsTags utils.MetadataAsTags) *StatefulSetCo
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sStatefulSetName,
+			Name:                      statefulSetName,
 			NodeType:                  orchestrator.K8sStatefulSet,
-			Version:                   collectors.K8sStatefulSetVersion,
+			Version:                   statefulSetVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

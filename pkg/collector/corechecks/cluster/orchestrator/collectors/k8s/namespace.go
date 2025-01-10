@@ -38,7 +38,7 @@ type NamespaceCollector struct {
 // NewNamespaceCollector creates a new collector for the Kubernetes
 // Namespace resource.
 func NewNamespaceCollector(metadataAsTags utils.MetadataAsTags) *NamespaceCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sNamespaceName, collectors.K8sNamespaceVersion)
+	resourceType := getResourceType(namespaceName, namespaceVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -49,9 +49,9 @@ func NewNamespaceCollector(metadataAsTags utils.MetadataAsTags) *NamespaceCollec
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sNamespaceName,
+			Name:                      namespaceName,
 			NodeType:                  orchestrator.K8sNamespace,
-			Version:                   collectors.K8sNamespaceVersion,
+			Version:                   namespaceVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

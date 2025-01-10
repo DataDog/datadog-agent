@@ -42,7 +42,7 @@ type UnassignedPodCollector struct {
 // NewUnassignedPodCollector creates a new collector for the Kubernetes Pod
 // resource that is not assigned to any node.
 func NewUnassignedPodCollector(cfg config.Component, store workloadmeta.Component, tagger tagger.Component, metadataAsTags utils.MetadataAsTags) *UnassignedPodCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sPodName, collectors.K8sPodVersion)
+	resourceType := getResourceType(podName, podVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -53,9 +53,9 @@ func NewUnassignedPodCollector(cfg config.Component, store workloadmeta.Componen
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sPodName,
+			Name:                      podName,
 			NodeType:                  orchestrator.K8sPod,
-			Version:                   collectors.K8sPodVersion,
+			Version:                   podVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

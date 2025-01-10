@@ -39,7 +39,7 @@ type ClusterRoleCollector struct {
 // NewClusterRoleCollector creates a new collector for the Kubernetes
 // ClusterRole resource.
 func NewClusterRoleCollector(metadataAsTags utils.MetadataAsTags) *ClusterRoleCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sClusterRoleName, collectors.K8sClusterRoleVersion)
+	resourceType := getResourceType(clusterRoleName, clusterRoleVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -52,9 +52,9 @@ func NewClusterRoleCollector(metadataAsTags utils.MetadataAsTags) *ClusterRoleCo
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sClusterRoleName,
+			Name:                      clusterRoleName,
 			NodeType:                  orchestrator.K8sClusterRole,
-			Version:                   collectors.K8sClusterRoleVersion,
+			Version:                   clusterRoleVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

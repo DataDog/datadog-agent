@@ -38,7 +38,7 @@ type RoleBindingCollector struct {
 // NewRoleBindingCollector creates a new collector for the Kubernetes
 // RoleBinding resource.
 func NewRoleBindingCollector(metadataAsTags utils.MetadataAsTags) *RoleBindingCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sRoleBindingName, collectors.K8sRoleBindingVersion)
+	resourceType := getResourceType(roleBindingName, roleBindingVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -49,9 +49,9 @@ func NewRoleBindingCollector(metadataAsTags utils.MetadataAsTags) *RoleBindingCo
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sRoleBindingName,
+			Name:                      roleBindingName,
 			NodeType:                  orchestrator.K8sRoleBinding,
-			Version:                   collectors.K8sRoleBindingVersion,
+			Version:                   roleBindingVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

@@ -39,7 +39,7 @@ type VerticalPodAutoscalerCollector struct {
 // NewVerticalPodAutoscalerCollector creates a new collector for the Kubernetes
 // VerticalPodAutoscaler resource.
 func NewVerticalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *VerticalPodAutoscalerCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sVPAName, collectors.K8sVPAVersion)
+	resourceType := getResourceType(vpaName, vpaVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -50,9 +50,9 @@ func NewVerticalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *Ver
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sVPAName,
+			Name:                      vpaName,
 			NodeType:                  orchestrator.K8sVerticalPodAutoscaler,
-			Version:                   collectors.K8sVPAVersion,
+			Version:                   vpaVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

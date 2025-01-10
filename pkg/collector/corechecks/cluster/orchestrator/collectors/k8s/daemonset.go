@@ -38,7 +38,7 @@ type DaemonSetCollector struct {
 // NewDaemonSetCollector creates a new collector for the Kubernetes DaemonSet
 // resource.
 func NewDaemonSetCollector(metadataAsTags utils.MetadataAsTags) *DaemonSetCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sDaemonSetName, collectors.K8sDaemonSetVersion)
+	resourceType := getResourceType(daemonSetName, daemonSetVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -49,9 +49,9 @@ func NewDaemonSetCollector(metadataAsTags utils.MetadataAsTags) *DaemonSetCollec
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sDaemonSetName,
+			Name:                      daemonSetName,
 			NodeType:                  orchestrator.K8sDaemonSet,
-			Version:                   collectors.K8sDaemonSetVersion,
+			Version:                   daemonSetVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

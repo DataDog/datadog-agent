@@ -38,7 +38,7 @@ type DeploymentCollector struct {
 // NewDeploymentCollector creates a new collector for the Kubernetes Deployment
 // resource.
 func NewDeploymentCollector(metadataAsTags utils.MetadataAsTags) *DeploymentCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sDeploymentName, collectors.K8sDeploymentVersion)
+	resourceType := getResourceType(deploymentName, deploymentVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -49,9 +49,9 @@ func NewDeploymentCollector(metadataAsTags utils.MetadataAsTags) *DeploymentColl
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sDeploymentName,
+			Name:                      deploymentName,
 			NodeType:                  orchestrator.K8sDeployment,
-			Version:                   collectors.K8sDeploymentVersion,
+			Version:                   deploymentVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

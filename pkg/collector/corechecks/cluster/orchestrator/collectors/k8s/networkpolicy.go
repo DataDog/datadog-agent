@@ -38,7 +38,7 @@ type NetworkPolicyCollector struct {
 // NewNetworkPolicyCollector creates a new collector for the Kubernetes
 // NetworkPolicy resource.
 func NewNetworkPolicyCollector(metadataAsTags utils.MetadataAsTags) *NetworkPolicyCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sNetworkPolicyName, collectors.K8sNetworkPolicyVersion)
+	resourceType := getResourceType(networkPolicyName, networkPolicyVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -49,9 +49,9 @@ func NewNetworkPolicyCollector(metadataAsTags utils.MetadataAsTags) *NetworkPoli
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sNetworkPolicyName,
+			Name:                      networkPolicyName,
 			NodeType:                  orchestrator.K8sNetworkPolicy,
-			Version:                   collectors.K8sNetworkPolicyVersion,
+			Version:                   networkPolicyVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

@@ -38,7 +38,7 @@ type IngressCollector struct {
 // NewIngressCollector creates a new collector for the Kubernetes Ingress
 // resource.
 func NewIngressCollector(metadataAsTags utils.MetadataAsTags) *IngressCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sIngressName, collectors.K8sIngressVersion)
+	resourceType := getResourceType(ingressName, ingressVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -49,9 +49,9 @@ func NewIngressCollector(metadataAsTags utils.MetadataAsTags) *IngressCollector 
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sIngressName,
+			Name:                      ingressName,
 			NodeType:                  orchestrator.K8sIngress,
-			Version:                   collectors.K8sIngressVersion,
+			Version:                   ingressVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

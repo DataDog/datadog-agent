@@ -38,7 +38,7 @@ type LimitRangeCollector struct {
 // NewLimitRangeCollector creates a new collector for the Kubernetes
 // LimitRange resource.
 func NewLimitRangeCollector(metadataAsTags utils.MetadataAsTags) *LimitRangeCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sLimitRangeName, collectors.K8sLimitRangeVersion)
+	resourceType := getResourceType(limitRangeName, limitRangeVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -49,9 +49,9 @@ func NewLimitRangeCollector(metadataAsTags utils.MetadataAsTags) *LimitRangeColl
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sLimitRangeName,
+			Name:                      limitRangeName,
 			NodeType:                  orchestrator.K8sLimitRange,
-			Version:                   collectors.K8sLimitRangeVersion,
+			Version:                   limitRangeVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

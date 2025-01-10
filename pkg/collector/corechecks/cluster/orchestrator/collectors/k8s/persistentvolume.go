@@ -38,7 +38,7 @@ type PersistentVolumeCollector struct {
 // NewPersistentVolumeCollector creates a new collector for the Kubernetes
 // PersistentVolume resource.
 func NewPersistentVolumeCollector(metadataAsTags utils.MetadataAsTags) *PersistentVolumeCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sPersistentVolumeName, collectors.K8sPersistentVolumeVersion)
+	resourceType := getResourceType(persistentVolumeName, persistentVolumeVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -49,9 +49,9 @@ func NewPersistentVolumeCollector(metadataAsTags utils.MetadataAsTags) *Persiste
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sPersistentVolumeName,
+			Name:                      persistentVolumeName,
 			NodeType:                  orchestrator.K8sPersistentVolume,
-			Version:                   collectors.K8sPersistentVolumeVersion,
+			Version:                   persistentVolumeVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

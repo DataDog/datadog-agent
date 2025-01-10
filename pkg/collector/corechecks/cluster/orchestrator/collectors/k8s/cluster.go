@@ -44,7 +44,7 @@ func NewClusterCollector() *ClusterCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "clusters",
+			Name:                      clusterName,
 			NodeType:                  orchestrator.K8sCluster,
 		},
 		processor: k8sProcessors.NewClusterProcessor(),

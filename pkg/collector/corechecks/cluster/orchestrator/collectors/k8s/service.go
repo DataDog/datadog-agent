@@ -38,7 +38,7 @@ type ServiceCollector struct {
 // NewServiceCollector creates a new collector for the Kubernetes Service
 // resource.
 func NewServiceCollector(metadataAsTags utils.MetadataAsTags) *ServiceCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sServiceName, collectors.K8sServiceVersion)
+	resourceType := getResourceType(serviceName, serviceVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -49,9 +49,9 @@ func NewServiceCollector(metadataAsTags utils.MetadataAsTags) *ServiceCollector 
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sServiceName,
+			Name:                      serviceName,
 			NodeType:                  orchestrator.K8sService,
-			Version:                   collectors.K8sServiceVersion,
+			Version:                   serviceVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

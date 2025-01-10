@@ -38,7 +38,7 @@ type StorageClassCollector struct {
 // NewStorageClassCollector creates a new collector for the Kubernetes
 // StorageClass resource.
 func NewStorageClassCollector(metadataAsTags utils.MetadataAsTags) *StorageClassCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sStorageClassName, collectors.K8sStorageClassVersion)
+	resourceType := getResourceType(storageClassName, storageClassVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -49,9 +49,9 @@ func NewStorageClassCollector(metadataAsTags utils.MetadataAsTags) *StorageClass
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sStorageClassName,
+			Name:                      storageClassName,
 			NodeType:                  orchestrator.K8sStorageClass,
-			Version:                   collectors.K8sStorageClassVersion,
+			Version:                   storageClassVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},

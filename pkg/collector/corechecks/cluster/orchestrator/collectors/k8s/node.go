@@ -37,7 +37,7 @@ type NodeCollector struct {
 
 // NewNodeCollector creates a new collector for the Kubernetes Node resource.
 func NewNodeCollector(metadataAsTags utils.MetadataAsTags) *NodeCollector {
-	resourceType := collectors.GetResourceType(collectors.K8sNodeName, collectors.K8sNodeVersion)
+	resourceType := getResourceType(nodeName, nodeVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -48,9 +48,9 @@ func NewNodeCollector(metadataAsTags utils.MetadataAsTags) *NodeCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      collectors.K8sNodeName,
+			Name:                      nodeName,
 			NodeType:                  orchestrator.K8sNode,
-			Version:                   collectors.K8sNodeVersion,
+			Version:                   nodeVersion,
 			LabelsAsTags:              labelsAsTags,
 			AnnotationsAsTags:         annotationsAsTags,
 		},
