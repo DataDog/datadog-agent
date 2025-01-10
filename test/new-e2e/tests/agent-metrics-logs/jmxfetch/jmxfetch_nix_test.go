@@ -377,4 +377,3 @@ func withInstance(manifestYaml string, cb func(*checkInstance)) (string, error) 
 
 	return string(manifestBytes), nil
 }
-
