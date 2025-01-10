@@ -86,7 +86,7 @@ deploy_installer_packages_windows-x64:
       --include "datadog-installer-*-1-x86_64.zip"
       --include "datadog-installer-*-1-x86_64.exe"
       $OMNIBUS_PACKAGE_DIR $S3_RELEASE_INSTALLER_ARTIFACTS_URI/msi/x86_64/
-    - $S3_CP_CMD $WINDOWS_POWERSHELL_DIR/Install-Datadog.ps1 $OMNIBUS_PACKAGE_DIR $S3_RELEASE_INSTALLER_ARTIFACTS_URI
+    - $S3_CP_CMD $WINDOWS_POWERSHELL_DIR/Install-Datadog.ps1 $S3_RELEASE_INSTALLER_ARTIFACTS_URI
 
 deploy_packages_windows-x64-7-fips:
   rules:
