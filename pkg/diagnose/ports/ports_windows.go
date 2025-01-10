@@ -7,7 +7,7 @@ package ports
 
 import (
 	"fmt"
-	"path"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"unicode/utf16"
@@ -113,7 +113,7 @@ func RetrieveProcessName(pid int, _ string) (string, error) {
 	imageName := unicodeStringToString(info.ImageName)
 
 	// Extract the base name of the process, remove .exe extension if present
-	imageName = path.Base(imageName)
+	imageName = filepath.Base(imageName)
 	imageName = strings.TrimSuffix(imageName, ".exe")
 
 	return imageName, nil
