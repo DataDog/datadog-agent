@@ -62,7 +62,7 @@ func TestSetupDataproc(t *testing.T) {
 		wantTags []string
 	}{
 		{
-			name: "basic fields json",
+			name: "master node",
 			wantTags: []string{
 				"cluster_id:test-cluster-uuid",
 				"dataproc_cluster_id:test-cluster-uuid",
