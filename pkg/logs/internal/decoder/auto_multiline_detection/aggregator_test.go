@@ -146,7 +146,12 @@ func TestTagTruncatedLogs(t *testing.T) {
 	msg = <-outputChan
 	assert.True(t, msg.ParsingExtra.IsTruncated)
 	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
-	assertMessageContent(t, msg, "...TRUNCATED...12345\\n6789...TRUNCATED...")
+	assertMessageContent(t, msg, "...TRUNCATED...12345")
+
+	msg = <-outputChan
+	assert.False(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
+	assertMessageContent(t, msg, "6789")
 
 	msg = <-outputChan
 	assert.False(t, msg.ParsingExtra.IsTruncated)
@@ -187,19 +192,19 @@ func TestSingleLineTooLongTruncation(t *testing.T) {
 	ag := NewAggregator(outputFn, 5, time.Duration(1*time.Second), false, true, status.NewInfoRegistry())
 
 	// Multi line log where each message is too large except the last one
-	ag.Aggregate(newMessage("123456"), startGroup)
-	ag.Aggregate(newMessage("123456"), aggregate)
+	ag.Aggregate(newMessage("123"), startGroup)
+	ag.Aggregate(newMessage("456"), aggregate)
 	ag.Aggregate(newMessage("123456"), aggregate)
 	ag.Aggregate(newMessage("123"), aggregate)
 	// Force a flush
 	ag.Aggregate(newMessage(""), startGroup)
 
 	msg := <-outputChan
+	assertMessageContent(t, msg, "123...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "...TRUNCATED...456")
+	msg = <-outputChan
 	assertMessageContent(t, msg, "123456...TRUNCATED...")
-	msg = <-outputChan
-	assertMessageContent(t, msg, "...TRUNCATED...123456...TRUNCATED...")
-	msg = <-outputChan
-	assertMessageContent(t, msg, "...TRUNCATED...123456...TRUNCATED...")
 	msg = <-outputChan
 	assertMessageContent(t, msg, "...TRUNCATED...123")
 

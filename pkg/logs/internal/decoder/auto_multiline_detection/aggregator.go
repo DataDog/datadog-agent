@@ -158,6 +158,13 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 	if msg.RawDataLen+a.bucket.buffer.Len() >= a.maxContentSize {
 		a.bucket.needsTruncation = true
 		a.Flush()
+
+		// At this point, if we have an aggregate label, we need to break the current group so it doesn't join logs together forever.
+		if label == aggregate {
+			a.bucket.add(msg)
+			a.Flush()
+			return
+		}
 	}
 
 	if !a.bucket.isEmpty() {
