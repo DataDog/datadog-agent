@@ -146,6 +146,8 @@ func (dr *Resolver) SendStats() error {
 		}
 	}
 
+	_ = dr.statsdClient.Gauge(metrics.MetricDentryCacheSize, float64(dr.cache.Len()), []string{}, 1)
+
 	return dr.sendERPCStats()
 }
 
