@@ -11,6 +11,11 @@ Specifies the release version of the build. Default is the value of the environm
 .PARAMETER Flavor
 Specifies the flavor of the agent. Default is the value of the environment variable AGENT_FLAVOR.
 
+.PARAMETER BuildUpgrade
+Specifies whether to build the upgrade package. Default is false.
+
+Use this options to build an aditional MSI for testing upgrading the MSI.
+
 .PARAMETER BuildOutOfSource
 Specifies whether to build out of source. Default is $false.
 
@@ -38,7 +43,8 @@ param(
     [nullable[bool]] $CheckGoVersion,
     [bool] $InstallDeps = $true,
     [string] $ReleaseVersion = $env:RELEASE_VERSION,
-    [string] $Flavor = $env:AGENT_FLAVOR
+    [string] $Flavor = $env:AGENT_FLAVOR,
+    [bool] $BuildUpgrade = $false
 )
 
 . "$PSScriptRoot\common.ps1"
@@ -61,6 +67,10 @@ Invoke-BuildScript `
         $inv_args += "--flavor"
         $inv_args += $Flavor
         $env:AGENT_FLAVOR=$Flavor
+    }
+
+    if ($BuildUpgrade) {
+        $inv_args += "--build-upgrade"
     }
 
     Write-Host "inv -e winbuild.agent-package $inv_args"

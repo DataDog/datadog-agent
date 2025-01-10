@@ -11,7 +11,6 @@ import (
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -19,12 +18,12 @@ import (
 
 // ContainersRunningTelemetry reports environment information (e.g containers running) when the runtime security component is running
 type ContainersRunningTelemetry struct {
-	cfg        *config.RuntimeSecurityConfig
+	cfg        ContainersRunningTelemetryConfig
 	containers *ContainersTelemetry
 }
 
 // NewContainersRunningTelemetry creates a new ContainersRunningTelemetry instance
-func NewContainersRunningTelemetry(cfg *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface, wmeta workloadmeta.Component) (*ContainersRunningTelemetry, error) {
+func NewContainersRunningTelemetry(cfg ContainersRunningTelemetryConfig, statsdClient statsd.ClientInterface, wmeta workloadmeta.Component) (*ContainersRunningTelemetry, error) {
 	telemetrySender := NewSimpleTelemetrySenderFromStatsd(statsdClient)
 	containersTelemetry, err := NewContainersTelemetry(telemetrySender, wmeta)
 	if err != nil {

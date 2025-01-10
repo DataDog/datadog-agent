@@ -345,9 +345,6 @@ variables:
 .if_installer_tests: &if_installer_tests
   if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on" || $DDR_WORKFLOW_ID != null) && $RUN_E2E_TESTS != "off"
 
-.if_testing_cleanup: &if_testing_cleanup
-  if: $TESTING_CLEANUP == "true"
-
 .if_run_all_e2e_tests: &if_run_all_e2e_tests
   if: $RUN_E2E_TESTS == "on"
 
@@ -666,13 +663,6 @@ workflow:
   - <<: *if_auto_e2e_tests
     variables:
       E2E_OSVERS: $E2E_BRANCH_OSVERS
-
-.on_main_or_testing_cleanup:
-  - <<: *if_main_branch
-  - <<: *if_testing_cleanup
-
-.on_testing_cleanup:
-  - <<: *if_testing_cleanup
 
 .security_agent_change_paths: &security_agent_change_paths
   - pkg/ebpf/**/*
@@ -1186,3 +1176,26 @@ workflow:
         - test/new-e2e/tests/gpu/**/*
         - pkg/collector/corechecks/gpu/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+# windows_docker_2022 configures the job to use the Windows Server 2022 runners.
+# Use in jobs that need to run on Windows Server 2022 runners.
+.windows_docker_2022:
+  tags: ["runner:windows-docker", "windowsversion:2022"]
+  variables:
+    # Full image name for Agent windows build image, for use in docker run command
+    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${DATADOG_AGENT_WINBUILDIMAGES}
+
+# windows_docker_2019 configures the job to use the Windows Server 2019 runners.
+# Use in jobs that need to run on Windows Server 2019 runners.
+.windows_docker_2019:
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  variables:
+    # Full image name for Agent windows build image, for use in docker run command
+    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${DATADOG_AGENT_WINBUILDIMAGES}
+
+# windows_docker_default configures the job to use the default Windows Server runners
+# Use in jobs that may need to have their version updated in the future.
+#
+# Current default: Windows Server 2022
+.windows_docker_default:
+  extends: .windows_docker_2022

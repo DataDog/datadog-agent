@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 )
 
 const (
@@ -685,7 +686,7 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLess
 
 	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
-	hostname, err := utils.GetHostname()
+	hostname, err := hostnameutils.GetHostname()
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}

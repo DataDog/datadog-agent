@@ -2287,9 +2287,12 @@ func generateSyscallTestProfile(add ...model.Syscall) *dumpsv1.SecurityProfile {
 					267, // SysReadlinkat
 					273, // SysSetRobustList
 					281, // SysEpollPwait
+					290, // SysEventfd2
 					291, // SysEpollCreate1
 					293, // SysPipe2
+					302, // SysPrlimit64
 					317, // SysSeccomp
+					321, // SysBpf
 					334, // SysRseq
 					435, // SysClone3
 					439, // SysFaccessat2

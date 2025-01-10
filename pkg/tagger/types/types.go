@@ -12,8 +12,8 @@ import "github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 type OriginInfo struct {
 	ContainerIDFromSocket string                        // ContainerIDFromSocket is the origin resolved using Unix Domain Socket.
 	PodUID                string                        // PodUID is the origin resolved from the Kubernetes Pod UID.
-	ContainerID           string                        // ContainerID is the origin resolved from the container ID.
-	ExternalData          string                        // ExternalData is the external data list.
+	LocalData             origindetection.LocalData     // LocalData is the local data list.
+	ExternalData          origindetection.ExternalData  // ExternalData is the external data list.
 	Cardinality           string                        // Cardinality is the cardinality of the resolved origin.
 	ProductOrigin         origindetection.ProductOrigin // ProductOrigin is the product that sent the origin information.
 }
