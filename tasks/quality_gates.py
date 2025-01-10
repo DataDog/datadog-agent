@@ -1,5 +1,6 @@
 import yaml
 from invoke import task
+import traceback
 
 FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
@@ -41,9 +42,9 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
             getattr(quality_gates_mod, gate).entrypoint(**gateInputs)
             print(f"Gate {gate} succeeded !")
             gateStates.append({"name": gate, "state": True})
-        except Exception as e:
-            print(f"Gate {gate} failed with the following message :")
-            print(e)
+        except Exception:
+            print(f"Gate {gate} failed with the following stack trace :")
+            print(traceback.format_exc())
             finalState = False
             gateStates.append({"name": gate, "state": False})
     if not finalState:
