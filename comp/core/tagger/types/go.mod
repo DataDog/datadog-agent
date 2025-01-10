@@ -31,7 +31,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.61.0-rc.10
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.61.0
 	github.com/stretchr/testify v1.10.0
 )
 
