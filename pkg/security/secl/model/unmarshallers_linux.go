@@ -985,12 +985,13 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 	cursor += read
 
-	if len(data)-cursor < 8 {
+	if len(data)-cursor < 12 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.ConfigCookie = binary.NativeEndian.Uint64(data[cursor : cursor+8])
-	return cursor + 8, nil
+	e.Pid = binary.NativeEndian.Uint32(data[cursor+8 : cursor+12])
+	return cursor + 12, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
