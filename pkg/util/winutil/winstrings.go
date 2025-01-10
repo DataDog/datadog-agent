@@ -94,24 +94,3 @@ func UTF16PtrOrNilFromString(s string) (*uint16, error) {
 	}
 	return windows.UTF16PtrFromString(s)
 }
-
-// this definition taken from Winternl.h
-// Used in process.go and pkg/diagnose/ports/ports_windows.go
-type UnicodeString struct {
-	Length    uint16
-	MaxLength uint16
-	Buffer    uintptr
-}
-
-// UnicodeStringToString is a helper function to convert a UnicodeString to a Go string
-func UnicodeStringToString(u UnicodeString) string {
-	// Length is in bytes; divide by 2 for number of uint16 chars
-	length := int(u.Length / 2)
-	if length == 0 || u.Buffer == 0 {
-		return ""
-	}
-	// Convert from a pointer to a slice of uint16
-	buf := (*[1 << 20]uint16)(unsafe.Pointer(u.Buffer))[:length:length]
-	// Convert UTF-16 to Go string
-	return ConvertWindowsString16(buf)
-}

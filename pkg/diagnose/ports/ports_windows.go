@@ -7,12 +7,11 @@ package ports
 
 import (
 	"fmt"
-	"path/filepath"
+	"path"
 	"strings"
 	"syscall"
+	"unicode/utf16"
 	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 // NTSTATUS is the return type used by many native Windows functions.
@@ -27,10 +26,17 @@ const (
 	SystemProcessIDInformationClass = 88 // SystemProcessIDInformationClass gives access to process names without elevated privileges on Windows.
 )
 
+// unicodeString mirrors the Windows unicodeString struct.
+type unicodeString struct {
+	Length        uint16
+	MaximumLength uint16
+	Buffer        *uint16
+}
+
 // SystemProcessIDInformation mirrors the SystemProcessIdInformation struct used by NtQuerySystemInformation.
 type SystemProcessIDInformation struct {
 	ProcessID uintptr
-	ImageName winutil.UnicodeString
+	ImageName unicodeString
 }
 
 // Loading NtQuerySystemInformation
@@ -62,6 +68,19 @@ func NtQuerySystemInformation(
 	return NTSTATUS(r0)
 }
 
+// unicodeStringToString is a helper function to convert a unicodeString to a Go string
+func unicodeStringToString(u unicodeString) string {
+	// Length is in bytes; divide by 2 for number of uint16 chars
+	length := int(u.Length / 2)
+	if length == 0 || u.Buffer == nil {
+		return ""
+	}
+	// Convert from a pointer to a slice of uint16
+	buf := (*[1 << 20]uint16)(unsafe.Pointer(u.Buffer))[:length:length]
+	// Convert UTF-16 to Go string
+	return string(utf16.Decode(buf))
+}
+
 // RetrieveProcessName fetches the process name on Windows using NtQuerySystemInformation
 // with SystemProcessIDInformationClass, which does not require elevated privileges.
 func RetrieveProcessName(pid int, _ string) (string, error) {
@@ -73,8 +92,8 @@ func RetrieveProcessName(pid int, _ string) (string, error) {
 	var info SystemProcessIDInformation
 	info.ProcessID = uintptr(pid)
 	info.ImageName.Length = 0
-	info.ImageName.MaxLength = 256 * 2
-	info.ImageName.Buffer = uintptr(unsafe.Pointer(&buf[0]))
+	info.ImageName.MaximumLength = 256 * 2
+	info.ImageName.Buffer = &buf[0]
 
 	// Call NtQuerySystemInformation
 	var returnLength uint32
@@ -90,11 +109,11 @@ func RetrieveProcessName(pid int, _ string) (string, error) {
 		return "", fmt.Errorf("NtQuerySystemInformation failed with NTSTATUS 0x%X", status)
 	}
 
-	// Convert imageName, which is a UnicodeString, to Go string
-	imageName := winutil.UnicodeStringToString(info.ImageName)
+	// Convert unicodeString to Go string
+	imageName := unicodeStringToString(info.ImageName)
 
 	// Extract the base name of the process, remove .exe extension if present
-	imageName = filepath.Base(imageName)
+	imageName = path.Base(imageName)
 	imageName = strings.TrimSuffix(imageName, ".exe")
 
 	return imageName, nil
