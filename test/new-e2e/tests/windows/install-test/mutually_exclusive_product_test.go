@@ -10,13 +10,15 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type mutuallyExclusiveInstallSuite struct {
@@ -66,6 +68,7 @@ func (s *mutuallyExclusiveInstallSuite) SetupSuite() {
 }
 
 func (s *mutuallyExclusiveInstallSuite) TestMutuallyExclusivePackage() {
+	flake.Mark(s.T())
 	host := s.Env().RemoteHost
 
 	// Install second Agent

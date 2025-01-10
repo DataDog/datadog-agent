@@ -13,6 +13,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,6 +28,11 @@ const (
 
 // ErrorsTelemetryModifier is a modifier that sets up the manager to handle eBPF telemetry.
 type ErrorsTelemetryModifier struct{}
+
+// Ensure it implements the required interfaces
+var _ ddebpf.ModifierBeforeInit = &ErrorsTelemetryModifier{}
+var _ ddebpf.ModifierAfterInit = &ErrorsTelemetryModifier{}
+var _ ddebpf.ModifierBeforeStop = &ErrorsTelemetryModifier{}
 
 // String returns the name of the modifier.
 func (t *ErrorsTelemetryModifier) String() string {
@@ -172,7 +178,7 @@ func (t *ErrorsTelemetryModifier) AfterInit(m *manager.Manager, module names.Mod
 }
 
 // BeforeStop stops the perf collector from telemetry and removes the modules from the telemetry maps.
-func (t *ErrorsTelemetryModifier) BeforeStop(m *manager.Manager, module names.ModuleName) error {
+func (t *ErrorsTelemetryModifier) BeforeStop(m *manager.Manager, module names.ModuleName, _ manager.MapCleanupType) error {
 	if errorsTelemetry == nil {
 		return nil
 	}

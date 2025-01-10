@@ -158,7 +158,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.1
 	github.com/DataDog/datadog-go/v5 v5.6.0
-	github.com/DataDog/datadog-operator v0.7.1-0.20241219210556-f517775059d1
+	// TODO: pin to an operator released version once there is a release that includes the api module
+	github.com/DataDog/datadog-operator/api v0.0.0-20250109202733-a3e7eab6a736
 	github.com/DataDog/ebpf-manager v0.7.7
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.9
@@ -1018,6 +1019,7 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
+	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/collector/client v1.22.0 // indirect
 	go.opentelemetry.io/collector/component/componentstatus v0.116.0 // indirect
