@@ -517,13 +517,16 @@ def gitlab_section(section_name, collapsed=False, echo=False):
     try:
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
-            print(f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}")
+            print(
+                f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}",
+                flush=True,
+            )
         elif echo:
             print(color_message(f"> {section_name}...", 'bold'))
         yield
     finally:
         if in_ci:
-            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K")
+            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", flush=True)
 
 
 def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
