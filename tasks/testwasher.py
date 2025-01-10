@@ -182,14 +182,17 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
             if 'variables' in new_job:
                 # Variables that reference the parent pipeline should be updated
                 for key, value in new_job['variables'].items():
+                    new_value = value
                     if not isinstance(value, str):
                         continue
                     if "CI_PIPELINE_ID" in value:
-                        new_job['variables'][key] = value.replace("CI_PIPELINE_ID", "PARENT_PIPELINE_ID")
+                        new_value = new_value.replace("CI_PIPELINE_ID", "PARENT_PIPELINE_ID")
                     if "CI_COMMIT_SHA" in value:
-                        new_job['variables'][key] = value.replace("CI_COMMIT_SHA", "PARENT_COMMIT_SHA")
+                        new_value = new_value.replace("CI_COMMIT_SHA", "PARENT_COMMIT_SHA")
                     if "CI_COMMIT_SHORT_SHA" in value:
-                        new_job['variables'][key] = value.replace("CI_COMMIT_SHORT_SHA", "PARENT_COMMIT_SHORT_SHA")
+                        new_value = new_value.replace("CI_COMMIT_SHORT_SHA", "PARENT_COMMIT_SHORT_SHA")
+
+                    new_job['variables'][key] = new_value
 
                 if (
                     'E2E_PIPELINE_ID' in new_job['variables']
