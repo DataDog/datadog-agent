@@ -1101,6 +1101,7 @@ func TestUnmarshal(t *testing.T) {
 			ProviderFactories: []confmap.ProviderFactory{
 				configutils.NewProviderFactory(cfgMap),
 			},
+			DefaultScheme: "env",
 		},
 	}
 

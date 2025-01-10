@@ -60,6 +60,7 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 				NewProviderFactory(cfgMap),
 			},
 			ConverterFactories: []confmap.ConverterFactory{},
+			DefaultScheme:      "env",
 		},
 	}
 	// build default provider from same data
@@ -72,6 +73,7 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 				yamlprovider.NewFactory(),
 			},
 			ConverterFactories: []confmap.ConverterFactory{},
+			DefaultScheme:      "env",
 		},
 	}
 
