@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -51,11 +50,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
@@ -135,7 +133,7 @@ func (s *service) Run(svcctx context.Context) error {
 				return status.NewInformationProvider(nil), nil, err
 			}
 
-			hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
+			hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO())
 			if err != nil {
 				return status.NewInformationProvider(nil), nil, err
 			}
@@ -166,9 +164,7 @@ func (s *service) Run(svcctx context.Context) error {
 		statusimpl.Module(),
 
 		fetchonlyimpl.Module(),
-		configsyncimpl.OptionalModule(),
-		// Force the instantiation of the component
-		fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
+		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 		autoexitimpl.Module(),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{

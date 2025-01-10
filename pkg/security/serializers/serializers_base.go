@@ -8,12 +8,15 @@
 package serializers
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -303,7 +306,7 @@ func newIPPortFamilySerializer(c *model.IPPortContext, family string) IPPortFami
 
 func newExitEventSerializer(e *model.Event) *ExitEventSerializer {
 	return &ExitEventSerializer{
-		Cause: model.ExitCause(e.Exit.Cause).String(),
+		Cause: sharedconsts.ExitCause(e.Exit.Cause).String(),
 		Code:  e.Exit.Code,
 	}
 }
@@ -393,4 +396,28 @@ func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variab
 		}
 	}
 	return variables
+}
+
+// EventStringerWrapper an event stringer wrapper
+type EventStringerWrapper struct {
+	Event interface{} // can be model.Event or events.CustomEvent
+}
+
+func (e EventStringerWrapper) String() string {
+	var (
+		data []byte
+		err  error
+	)
+	switch evt := e.Event.(type) {
+	case *model.Event:
+		data, err = MarshalEvent(evt)
+	case *events.CustomEvent:
+		data, err = MarshalCustomEvent(evt)
+	default:
+		return "event can't be wrapped, not supported"
+	}
+	if err != nil {
+		return fmt.Sprintf("unable to marshal event: %s", err)
+	}
+	return string(data)
 }

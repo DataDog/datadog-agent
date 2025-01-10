@@ -239,6 +239,8 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
+	case "accept":
+		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Accept.Addr)
 	case "bind":
 		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr)
 	case "bpf":
@@ -533,6 +535,12 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Mkdir.File)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Mkdir.File)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mkdir.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Mkdir.SyscallContext)
 		}
 	case "mmap":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.MMap.File.FileFields)
@@ -852,6 +860,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Rmdir.File)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rmdir.File)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rmdir.SyscallContext)
 		}
 	case "selinux":
 		_ = ev.FieldHandlers.ResolveSELinuxBoolName(ev, &ev.SELinux)

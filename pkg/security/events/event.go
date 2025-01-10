@@ -28,6 +28,8 @@ type AgentContext struct {
 	OS            string            `json:"os,omitempty"`
 	Arch          string            `json:"arch,omitempty"`
 	Origin        string            `json:"origin,omitempty"`
+	KernelVersion string            `json:"kernel_version,omitempty"`
+	Distribution  string            `json:"distribution,omitempty"`
 }
 
 // BackendEvent - Rule event wrapper used to send an event to the backend

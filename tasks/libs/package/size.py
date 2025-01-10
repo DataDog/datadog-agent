@@ -37,22 +37,22 @@ SCANNED_BINARIES = {
 # The below template contains the relative increase threshold for each package type
 PACKAGE_SIZE_TEMPLATE = {
     'amd64': {
-        'datadog-agent': {'deb': 140 * pow(10, 6)},
-        'datadog-iot-agent': {'deb': 10 * pow(10, 6)},
-        'datadog-dogstatsd': {'deb': 10 * pow(10, 6)},
-        'datadog-heroku-agent': {'deb': 70 * pow(10, 6)},
+        'datadog-agent': {'deb': int(5e5)},
+        'datadog-iot-agent': {'deb': int(5e5)},
+        'datadog-dogstatsd': {'deb': int(5e5)},
+        'datadog-heroku-agent': {'deb': int(5e5)},
     },
     'x86_64': {
-        'datadog-agent': {'rpm': 140 * pow(10, 6), 'suse': 140 * pow(10, 6)},
-        'datadog-iot-agent': {'rpm': 10 * pow(10, 6), 'suse': 10 * pow(10, 6)},
-        'datadog-dogstatsd': {'rpm': 10 * pow(10, 6), 'suse': 10 * pow(10, 6)},
+        'datadog-agent': {'rpm': int(5e5), 'suse': int(5e5)},
+        'datadog-iot-agent': {'rpm': int(5e5), 'suse': int(5e5)},
+        'datadog-dogstatsd': {'rpm': int(5e5), 'suse': int(5e5)},
     },
     'arm64': {
-        'datadog-agent': {'deb': 140 * pow(10, 6)},
-        'datadog-iot-agent': {'deb': 10 * pow(10, 6)},
-        'datadog-dogstatsd': {'deb': 10 * pow(10, 6)},
+        'datadog-agent': {'deb': int(5e5)},
+        'datadog-iot-agent': {'deb': int(5e5)},
+        'datadog-dogstatsd': {'deb': int(5e5)},
     },
-    'aarch64': {'datadog-agent': {'rpm': 140 * pow(10, 6)}, 'datadog-iot-agent': {'rpm': 10 * pow(10, 6)}},
+    'aarch64': {'datadog-agent': {'rpm': int(5e5)}, 'datadog-iot-agent': {'rpm': int(5e5)}},
 }
 
 
@@ -84,8 +84,12 @@ def file_size(path):
 
 def directory_size(ctx, path):
     # HACK: For uncompressed size, fall back to native Unix utilities - computing a directory size with Python
+    # NOTE: We use the -b (--bytes, equivalent to --apparent-size --block-size 1) option to make the computation
+    # consistent. Otherwise, each file's size is counted as the number of blocks it uses, which means a file's size
+    # depends on how it is written to disk.
+    # See https://unix.stackexchange.com/questions/173947/du-s-apparent-size-vs-du-s
     # TODO: To make this work on other OSes, the complete directory walk would need to be implemented
-    return int(ctx.run(f"du -sB1 {path}", hide=True).stdout.split()[0])
+    return int(ctx.run(f"du --apparent-size -sB1 {path}", hide=True).stdout.split()[0])
 
 
 def compute_package_size_metrics(
@@ -177,25 +181,11 @@ def compare(ctx, package_sizes, ancestor, pkg_size):
     return pkg_size
 
 
-def mb(value):
-    return f"{value / 1000000:.2f}MB"
-
-
 def _get_uncompressed_size(ctx, package, os_name):
     if os_name == 'deb':
-        return _get_deb_uncompressed_size(ctx, package)
+        return (
+            int(ctx.run(f'dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs', hide=True).stdout)
+            * 1024
+        )
     else:
-        return _get_rpm_uncompressed_size(ctx, package)
-
-
-def _get_deb_uncompressed_size(ctx, package):
-    # the size returned by dpkg is a number of bytes divided by 1024
-    # so we multiply it back to get the same unit as RPM or stat
-    return (
-        int(ctx.run(f'dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs', hide=True).stdout)
-        * 1024
-    )
-
-
-def _get_rpm_uncompressed_size(ctx, package):
-    return int(ctx.run(f'rpm -qip {package} | grep Size | cut -d : -f 2 | xargs', hide=True).stdout)
+        return int(ctx.run(f'rpm -qip {package} | grep Size | cut -d : -f 2 | xargs', hide=True).stdout)

@@ -13,6 +13,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,9 +29,34 @@ const (
 // ErrorsTelemetryModifier is a modifier that sets up the manager to handle eBPF telemetry.
 type ErrorsTelemetryModifier struct{}
 
+// Ensure it implements the required interfaces
+var _ ddebpf.ModifierBeforeInit = &ErrorsTelemetryModifier{}
+var _ ddebpf.ModifierAfterInit = &ErrorsTelemetryModifier{}
+var _ ddebpf.ModifierBeforeStop = &ErrorsTelemetryModifier{}
+
 // String returns the name of the modifier.
 func (t *ErrorsTelemetryModifier) String() string {
 	return "ErrorsTelemetryModifier"
+}
+
+// getMapNames returns the names of the maps in the manager.
+func getMapNames(m *manager.Manager) ([]names.MapName, error) {
+	var mapNames []names.MapName
+
+	// we use map specs instead of iterating over the user defined `manager.Maps`
+	// because the user defined list may not contain shared maps passed to the manager
+	// via `manager.Options.MapEditors`. On the other hand, MapSpecs will include all maps
+	// referenced in the ELF file associated with the manager
+	specs, err := m.GetMapSpecs()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, spec := range specs {
+		mapNames = append(mapNames, names.NewMapNameFromMapSpec(spec))
+	}
+
+	return mapNames, nil
 }
 
 // BeforeInit sets up the manager to handle eBPF telemetry.
@@ -87,11 +113,16 @@ func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, module names.Mo
 		}
 		log.Tracef("module %s probes %d", module.Name(), opts.MapSpecEditors[helperErrTelemetryMapName].MaxEntries)
 
+		mapNames, err := getMapNames(m)
+		if err != nil {
+			return err
+		}
+
 		h := keyHash()
-		for _, ebpfMap := range m.Maps {
+		for _, mapName := range mapNames {
 			opts.ConstantEditors = append(opts.ConstantEditors, manager.ConstantEditor{
-				Name:  ebpfMap.Name + "_telemetry_key",
-				Value: eBPFMapErrorKey(h, mapTelemetryKey(names.NewMapNameFromManagerMap(ebpfMap), module)),
+				Name:  mapName.Name() + "_telemetry_key",
+				Value: eBPFMapErrorKey(h, mapTelemetryKey(mapName, module)),
 			})
 		}
 
@@ -108,28 +139,61 @@ func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, module names.Mo
 	return nil
 }
 
+// getErrMaps returns the mapErrMap and helperErrMap from the manager.
+func getErrMaps(m *manager.Manager) (mapErrMap *maps.GenericMap[uint64, mapErrTelemetry], helperErrMap *maps.GenericMap[uint64, helperErrTelemetry], err error) {
+	mapErrMap, err = maps.GetMap[uint64, mapErrTelemetry](m, mapErrTelemetryMapName)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get generic map %s: %w", mapErrTelemetryMapName, err)
+	}
+
+	helperErrMap, err = maps.GetMap[uint64, helperErrTelemetry](m, helperErrTelemetryMapName)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get generic map %s: %w", helperErrTelemetryMapName, err)
+	}
+
+	return mapErrMap, helperErrMap, nil
+}
+
 // AfterInit pre-populates the telemetry maps with entries corresponding to the ebpf program of the manager.
 func (t *ErrorsTelemetryModifier) AfterInit(m *manager.Manager, module names.ModuleName, _ *manager.Options) error {
 	if errorsTelemetry == nil {
 		return nil
 	}
 
-	var mapNames []names.MapName
-	for _, mp := range m.Maps {
-		mapNames = append(mapNames, names.NewMapNameFromManagerMap(mp))
+	genericMapErrMap, genericHelperErrMap, err := getErrMaps(m)
+	if err != nil {
+		return err
 	}
 
-	genericMapErrMap, err := maps.GetMap[uint64, mapErrTelemetry](m, mapErrTelemetryMapName)
+	mapNames, err := getMapNames(m)
 	if err != nil {
-		return fmt.Errorf("failed to get generic map %s: %w", mapErrTelemetryMapName, err)
-	}
-
-	genericHelperErrMap, err := maps.GetMap[uint64, helperErrTelemetry](m, helperErrTelemetryMapName)
-	if err != nil {
-		return fmt.Errorf("failed to get generic map %s: %w", helperErrTelemetryMapName, err)
+		return err
 	}
 
 	if err := errorsTelemetry.fill(mapNames, module, genericMapErrMap, genericHelperErrMap); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// BeforeStop stops the perf collector from telemetry and removes the modules from the telemetry maps.
+func (t *ErrorsTelemetryModifier) BeforeStop(m *manager.Manager, module names.ModuleName, _ manager.MapCleanupType) error {
+	if errorsTelemetry == nil {
+		return nil
+	}
+
+	genericMapErrMap, genericHelperErrMap, err := getErrMaps(m)
+	if err != nil {
+		return err
+	}
+
+	mapNames, err := getMapNames(m)
+	if err != nil {
+		return err
+	}
+
+	if err := errorsTelemetry.cleanup(mapNames, module, genericMapErrMap, genericHelperErrMap); err != nil {
 		return err
 	}
 

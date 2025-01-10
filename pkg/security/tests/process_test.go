@@ -39,6 +39,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -435,7 +436,7 @@ func TestProcessContext(t *testing.T) {
 
 			argv := strings.Split(args.(string), " ")
 			assert.Equal(t, 2, len(argv), "incorrect number of args: %s", argv)
-			assert.Equal(t, model.MaxArgEnvSize-1, len(argv[1]), "wrong arg length")
+			assert.Equal(t, sharedconsts.MaxArgEnvSize-1, len(argv[1]), "wrong arg length")
 			assert.Equal(t, true, strings.HasSuffix(argv[1], "..."), "args not truncated")
 
 			// truncated is reported if a single argument is truncated or if the list is truncated
@@ -480,8 +481,8 @@ func TestProcessContext(t *testing.T) {
 
 			argv := strings.Split(execArgs.(string), " ")
 			if ebpfLessEnabled {
-				assert.Equal(t, model.MaxArgsEnvsSize-1, len(argv), "incorrect number of args: %s", argv)
-				for i := 0; i != model.MaxArgsEnvsSize-1; i++ {
+				assert.Equal(t, sharedconsts.MaxArgsEnvsSize-1, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != sharedconsts.MaxArgsEnvsSize-1; i++ {
 					assert.Equal(t, args[i], argv[i], "expected arg not found")
 				}
 			} else {
@@ -530,11 +531,11 @@ func TestProcessContext(t *testing.T) {
 
 			argv := strings.Split(execArgs.(string), " ")
 			if ebpfLessEnabled {
-				assert.Equal(t, model.MaxArgsEnvsSize-1, len(argv), "incorrect number of args: %s", argv)
-				for i := 0; i != model.MaxArgsEnvsSize-1; i++ {
+				assert.Equal(t, sharedconsts.MaxArgsEnvsSize-1, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != sharedconsts.MaxArgsEnvsSize-1; i++ {
 					expected := args[i]
-					if len(expected) > model.MaxArgEnvSize {
-						expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+					if len(expected) > sharedconsts.MaxArgEnvSize {
+						expected = args[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
 					}
 					assert.Equal(t, expected, argv[i], "expected arg not found")
 				}
@@ -542,8 +543,8 @@ func TestProcessContext(t *testing.T) {
 				assert.Equal(t, 457, len(argv), "incorrect number of args: %s", argv)
 				for i := 0; i != 457; i++ {
 					expected := args[i]
-					if len(expected) > model.MaxArgEnvSize {
-						expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+					if len(expected) > sharedconsts.MaxArgEnvSize {
+						expected = args[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
 					}
 					assert.Equal(t, expected, argv[i], "expected arg not found")
 				}
@@ -594,7 +595,7 @@ func TestProcessContext(t *testing.T) {
 
 			envp := (execEnvp.([]string))
 			assert.Equal(t, 2, len(envp), "incorrect number of envs: %s", envp)
-			assert.Equal(t, model.MaxArgEnvSize-1, len(envp[1]), "wrong env length")
+			assert.Equal(t, sharedconsts.MaxArgEnvSize-1, len(envp[1]), "wrong env length")
 			assert.Equal(t, true, strings.HasSuffix(envp[1], "..."), "envs not truncated")
 
 			// truncated is reported if a single environment variable is truncated or if the list is truncated
@@ -645,8 +646,8 @@ func TestProcessContext(t *testing.T) {
 
 			envp := (execEnvp.([]string))
 			if ebpfLessEnabled {
-				assert.Equal(t, model.MaxArgsEnvsSize, len(envp), "incorrect number of envs: %s", envp)
-				for i := 0; i != model.MaxArgsEnvsSize; i++ {
+				assert.Equal(t, sharedconsts.MaxArgsEnvsSize, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != sharedconsts.MaxArgsEnvsSize; i++ {
 					assert.Equal(t, envs[i], envp[i], "expected env not found")
 				}
 			} else {
@@ -707,11 +708,11 @@ func TestProcessContext(t *testing.T) {
 
 			envp := (execEnvp.([]string))
 			if ebpfLessEnabled {
-				assert.Equal(t, model.MaxArgsEnvsSize, len(envp), "incorrect number of envs: %s", envp)
-				for i := 0; i != model.MaxArgsEnvsSize; i++ {
+				assert.Equal(t, sharedconsts.MaxArgsEnvsSize, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != sharedconsts.MaxArgsEnvsSize; i++ {
 					expected := envs[i]
-					if len(expected) > model.MaxArgEnvSize {
-						expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+					if len(expected) > sharedconsts.MaxArgEnvSize {
+						expected = envs[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
 					}
 					assert.Equal(t, expected, envp[i], "expected env not found")
 				}
@@ -719,8 +720,8 @@ func TestProcessContext(t *testing.T) {
 				assert.Equal(t, 863, len(envp), "incorrect number of envs: %s", envp)
 				for i := 0; i != 863; i++ {
 					expected := envs[i]
-					if len(expected) > model.MaxArgEnvSize {
-						expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+					if len(expected) > sharedconsts.MaxArgEnvSize {
+						expected = envs[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
 					}
 					assert.Equal(t, expected, envp[i], "expected env not found")
 				}
@@ -1811,7 +1812,7 @@ func TestProcessExit(t *testing.T) {
 			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_ok")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
-			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(sharedconsts.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
 			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
@@ -1830,7 +1831,7 @@ func TestProcessExit(t *testing.T) {
 			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_error")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
-			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(sharedconsts.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(1), event.Exit.Code, "wrong exit code")
 			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
@@ -1849,7 +1850,7 @@ func TestProcessExit(t *testing.T) {
 			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_coredump")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
-			assert.Equal(t, uint32(model.ExitCoreDumped), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(sharedconsts.ExitCoreDumped), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(syscall.SIGQUIT), event.Exit.Code, "wrong exit code")
 			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
@@ -1870,7 +1871,7 @@ func TestProcessExit(t *testing.T) {
 			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_signal")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
-			assert.Equal(t, uint32(model.ExitSignaled), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(sharedconsts.ExitSignaled), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(syscall.SIGKILL), event.Exit.Code, "wrong exit code")
 			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
@@ -1888,7 +1889,7 @@ func TestProcessExit(t *testing.T) {
 			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_time_1")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
-			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(sharedconsts.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
 			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
@@ -1906,7 +1907,7 @@ func TestProcessExit(t *testing.T) {
 			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_time_2")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
-			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(sharedconsts.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
 			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
