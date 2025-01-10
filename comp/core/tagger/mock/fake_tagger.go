@@ -44,7 +44,7 @@ type Dependencies struct {
 
 // Provides is a struct containing the mock
 type Provides struct {
-	Comp tagger.Component
+	Comp Mock
 }
 
 // New instantiates a new fake tagger

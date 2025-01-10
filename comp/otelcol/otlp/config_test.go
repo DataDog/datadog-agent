@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 )
@@ -46,6 +47,8 @@ func TestIsEnabledEnv(t *testing.T) {
 }
 
 func TestFromAgentConfigReceiver(t *testing.T) {
+	fakeTagger := mock.SetupFakeTagger(t)
+
 	tests := []struct {
 		path string
 		cfg  PipelineConfig
@@ -189,7 +192,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 		t.Run(testInstance.path, func(t *testing.T) {
 			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg)
+			pcfg, err := FromAgentConfig(cfg, fakeTagger)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
 				return
@@ -202,6 +205,8 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 }
 
 func TestFromEnvironmentVariables(t *testing.T) {
+	fakeTagger := mock.SetupFakeTagger(t)
+
 	tests := []struct {
 		name string
 		env  map[string]string
@@ -458,7 +463,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 			}
 			cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg)
+			pcfg, err := FromAgentConfig(cfg, fakeTagger)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
 				return
@@ -471,6 +476,8 @@ func TestFromEnvironmentVariables(t *testing.T) {
 }
 
 func TestFromAgentConfigMetrics(t *testing.T) {
+	fakeTagger := mock.SetupFakeTagger(t)
+
 	tests := []struct {
 		path string
 		cfg  PipelineConfig
@@ -510,7 +517,7 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 		t.Run(testInstance.path, func(t *testing.T) {
 			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg)
+			pcfg, err := FromAgentConfig(cfg, fakeTagger)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
 				return
@@ -523,6 +530,8 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 }
 
 func TestFromAgentConfigDebug(t *testing.T) {
+	fakeTagger := mock.SetupFakeTagger(t)
+
 	tests := []struct {
 		path      string
 		cfg       PipelineConfig
@@ -606,7 +615,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 		t.Run(testInstance.path, func(t *testing.T) {
 			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg)
+			pcfg, err := FromAgentConfig(cfg, fakeTagger)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
 				return

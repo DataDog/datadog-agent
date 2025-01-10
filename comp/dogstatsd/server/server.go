@@ -240,7 +240,6 @@ func newServerCompat(cfg model.Reader, log log.Component, capture replay.Compone
 	// if the server is running in a context where static tags are required, add those
 	// to extraTags.
 	staticTags, err := tagger.GlobalTags(types.LowCardinality)
-	log.Errorf("GABE: got staticTags from tagger: %v", staticTags)
 	if err != nil {
 		log.Errorf("Dogstatsd: unable to get static tags: %s", err)
 	}

@@ -2304,7 +2304,7 @@ func buildConfigComponent(t *testing.T, setHostnameInConfig bool, coreConfigOpti
 	}
 
 	taggerComponent := fxutil.Test[taggermock.Mock](t,
-		fx.Replace(coreConfig),
+		corecomp.MockModule(),
 		taggermock.Module(),
 	)
 

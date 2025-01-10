@@ -33,8 +33,6 @@ const (
 	processSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
 	kubeMetadataSource   = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
 	deploymentSource     = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
-
-	clusterTagNamePrefix = "kube_cluster_name"
 )
 
 // CollectorPriorities holds collector priorities
