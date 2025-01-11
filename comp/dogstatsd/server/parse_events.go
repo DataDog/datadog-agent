@@ -39,8 +39,6 @@ type dogstatsdEvent struct {
 	sourceType     string
 	alertType      alertType
 	tags           []string
-	// containerID represents the container ID of the sender (optional).
-	containerID string
 	// localData is used for Origin Detection
 	localData origindetection.LocalData
 	// externalData is used for Origin Detection
@@ -169,12 +167,9 @@ func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []b
 	case bytes.HasPrefix(optionalField, eventTagsPrefix):
 		newEvent.tags = p.parseTags(optionalField[len(eventTagsPrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, localDataPrefix):
-		newEvent.localData, err = p.resolveLocalData(optionalField[len(localDataPrefix):])
-		if err == nil {
-			newEvent.containerID = newEvent.localData.ContainerID
-		}
+		newEvent.localData = p.parseLocalData(optionalField[len(localDataPrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, externalDataPrefix):
-		newEvent.externalData, err = origindetection.ParseExternalData(string(optionalField[len(externalDataPrefix):]))
+		newEvent.externalData = p.parseExternalData(optionalField[len(externalDataPrefix):])
 	}
 	if err != nil {
 		return event, err

@@ -5,7 +5,7 @@
 
 //go:build !kubeapiserver
 
-package flare
+package clusteragent
 
 import (
 	"errors"
@@ -19,7 +19,7 @@ var (
 	ErrNotCompiled = errors.New("kubernetes apiserver support not compiled in")
 )
 
-// getAgentDaemonSet retrieves the DaemonSet manifest of the Agent
+// GetAgentDaemonSet retrieves the DaemonSet manifest of the Agent
 func getAgentDaemonSet() ([]byte, error) {
 	return nil, log.Errorf("getAgentDaemonSet not implemented %s", ErrNotCompiled.Error())
 }

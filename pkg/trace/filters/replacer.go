@@ -12,6 +12,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // Replacer is a filter which replaces tag values based on its
@@ -45,6 +46,15 @@ func (f Replacer) Replace(trace pb.Trace) {
 					}
 				}
 				s.Resource = re.ReplaceAllString(s.Resource, str)
+				for _, spanEvent := range s.SpanEvents {
+					if spanEvent != nil {
+						for keyAttr, val := range spanEvent.Attributes {
+							if !strings.HasPrefix(keyAttr, hiddenTagPrefix) {
+								spanEvent.Attributes[keyAttr] = f.replaceAttributeAnyValue(re, val, str)
+							}
+						}
+					}
+				}
 			case "resource.name":
 				s.Resource = re.ReplaceAllString(s.Resource, str)
 			default:
@@ -56,6 +66,13 @@ func (f Replacer) Replace(trace pb.Trace) {
 				if s.Metrics != nil {
 					if _, ok := s.Metrics[key]; ok {
 						f.replaceNumericTag(re, s, key, str)
+					}
+				}
+				for _, spanEvent := range s.SpanEvents {
+					if spanEvent != nil {
+						if val, ok := spanEvent.Attributes[key]; ok {
+							spanEvent.Attributes[key] = f.replaceAttributeAnyValue(re, val, str)
+						}
 					}
 				}
 			}
@@ -72,6 +89,109 @@ func (f Replacer) replaceNumericTag(re *regexp.Regexp, s *pb.Span, key string, s
 	} else {
 		s.Meta[key] = replacedValue
 		delete(s.Metrics, key)
+	}
+}
+
+func (f Replacer) replaceAttributeAnyValue(re *regexp.Regexp, val *pb.AttributeAnyValue, str string) *pb.AttributeAnyValue {
+	switch val.Type {
+	case pb.AttributeAnyValue_STRING_VALUE:
+		return &pb.AttributeAnyValue{
+			Type:        pb.AttributeAnyValue_STRING_VALUE,
+			StringValue: re.ReplaceAllString(val.StringValue, str),
+		}
+	case pb.AttributeAnyValue_INT_VALUE:
+		replacedValue := re.ReplaceAllString(strconv.FormatInt(val.IntValue, 10), str)
+		return attributeAnyValFromString(replacedValue)
+	case pb.AttributeAnyValue_DOUBLE_VALUE:
+		replacedValue := re.ReplaceAllString(strconv.FormatFloat(val.DoubleValue, 'f', -1, 64), str)
+		return attributeAnyValFromString(replacedValue)
+	case pb.AttributeAnyValue_BOOL_VALUE:
+		replacedValue := re.ReplaceAllString(strconv.FormatBool(val.BoolValue), str)
+		return attributeAnyValFromString(replacedValue)
+	case pb.AttributeAnyValue_ARRAY_VALUE:
+		for _, value := range val.ArrayValue.Values {
+			*value = *f.replaceAttributeArrayValue(re, value, str) //todo test me
+		}
+		return val
+	default:
+		log.Error("Unknown OTEL AttributeAnyValue type %v, replacer code must be updated, replacing unknown type with `?`")
+		return &pb.AttributeAnyValue{
+			Type:        pb.AttributeAnyValue_STRING_VALUE,
+			StringValue: "?",
+		}
+	}
+}
+
+func (f Replacer) replaceAttributeArrayValue(re *regexp.Regexp, val *pb.AttributeArrayValue, str string) *pb.AttributeArrayValue {
+	switch val.Type {
+	case pb.AttributeArrayValue_STRING_VALUE:
+		return &pb.AttributeArrayValue{
+			Type:        pb.AttributeArrayValue_STRING_VALUE,
+			StringValue: re.ReplaceAllString(val.StringValue, str),
+		}
+	case pb.AttributeArrayValue_INT_VALUE:
+		replacedValue := re.ReplaceAllString(strconv.FormatInt(val.IntValue, 10), str)
+		return attributeArrayValFromString(replacedValue)
+	case pb.AttributeArrayValue_DOUBLE_VALUE:
+		replacedValue := re.ReplaceAllString(strconv.FormatFloat(val.DoubleValue, 'f', -1, 64), str)
+		return attributeArrayValFromString(replacedValue)
+	case pb.AttributeArrayValue_BOOL_VALUE:
+		replacedValue := re.ReplaceAllString(strconv.FormatBool(val.BoolValue), str)
+		return attributeArrayValFromString(replacedValue)
+	default:
+		log.Error("Unknown OTEL AttributeArrayValue type %v, replacer code must be updated, replacing unknown type with `?`")
+		return &pb.AttributeArrayValue{
+			Type:        pb.AttributeArrayValue_STRING_VALUE,
+			StringValue: "?",
+		}
+	}
+}
+
+func attributeAnyValFromString(s string) *pb.AttributeAnyValue {
+	if rf, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return &pb.AttributeAnyValue{
+			Type:     pb.AttributeAnyValue_INT_VALUE,
+			IntValue: rf,
+		}
+	} else if rfFloat, err := strconv.ParseFloat(s, 64); err == nil {
+		return &pb.AttributeAnyValue{
+			Type:        pb.AttributeAnyValue_DOUBLE_VALUE,
+			DoubleValue: rfFloat,
+		}
+		// Restrict bool types to "true" "false" to avoid unexpected type changes
+	} else if s == "true" || s == "false" {
+		return &pb.AttributeAnyValue{
+			Type:      pb.AttributeAnyValue_BOOL_VALUE,
+			BoolValue: s == "true",
+		}
+	}
+	return &pb.AttributeAnyValue{
+		Type:        pb.AttributeAnyValue_STRING_VALUE,
+		StringValue: s,
+	}
+}
+
+func attributeArrayValFromString(s string) *pb.AttributeArrayValue {
+	if rf, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return &pb.AttributeArrayValue{
+			Type:     pb.AttributeArrayValue_INT_VALUE,
+			IntValue: rf,
+		}
+	} else if rfFloat, err := strconv.ParseFloat(s, 64); err == nil {
+		return &pb.AttributeArrayValue{
+			Type:        pb.AttributeArrayValue_DOUBLE_VALUE,
+			DoubleValue: rfFloat,
+		}
+		// Restrict bool types to "true" "false" to avoid unexpected type changes
+	} else if s == "true" || s == "false" {
+		return &pb.AttributeArrayValue{
+			Type:      pb.AttributeArrayValue_BOOL_VALUE,
+			BoolValue: s == "true",
+		}
+	}
+	return &pb.AttributeArrayValue{
+		Type:        pb.AttributeArrayValue_STRING_VALUE,
+		StringValue: s,
 	}
 }
 

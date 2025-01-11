@@ -610,6 +610,12 @@ func TestFullYamlConfig(t *testing.T) {
 			Repl:    "?",
 			Re:      regexp.MustCompile("(?s).*"),
 		},
+		{
+			Name:    "exception.stacktrace",
+			Pattern: "(?s).*",
+			Repl:    "?",
+			Re:      regexp.MustCompile("(?s).*"),
+		},
 	}, cfg.ReplaceTags)
 
 	assert.EqualValues(t, []string{"/health", "/500"}, cfg.Ignore["resource"])

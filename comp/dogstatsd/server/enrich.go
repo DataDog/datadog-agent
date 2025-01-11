@@ -42,7 +42,6 @@ func extractTagsMetadata(tags []string, originFromUDS string, localData originde
 	metricSource := metrics.MetricSourceDogstatsd
 	origin := taggertypes.OriginInfo{
 		ContainerIDFromSocket: originFromUDS,
-		ContainerID:           localData.ContainerID,
 		LocalData:             localData,
 		ExternalData:          externalData,
 		ProductOrigin:         origindetection.ProductOriginDogStatsD,

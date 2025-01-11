@@ -26,8 +26,8 @@ import (
 	authenticationv1 "k8s.io/api/authentication/v1"
 
 	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/injectcmd"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/k8sutils"
 )
 
 var (
@@ -113,7 +113,7 @@ func K8SUserSessionTest(executable string, openPath string) error {
 	}
 
 	// prepare K8S user session context
-	data, err := usersessions.PrepareK8SUserSessionContext(&authenticationv1.UserInfo{
+	data, err := k8sutils.PrepareK8SUserSessionContext(&authenticationv1.UserInfo{
 		Username: "qwerty.azerty@datadoghq.com",
 		UID:      "azerty.qwerty@datadoghq.com",
 		Groups: []string{

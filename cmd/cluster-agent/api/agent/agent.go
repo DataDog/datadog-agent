@@ -22,7 +22,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -129,7 +129,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
 
-	var profile flare.ProfileData
+	var profile clusterAgentFlare.ProfileData
 
 	if r.Body != http.NoBody {
 		body, err := io.ReadAll(r.Body)
@@ -148,7 +148,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	if logFile == "" {
 		logFile = defaultpaths.DCALogFile
 	}
-	filePath, err := flare.CreateDCAArchive(false, defaultpaths.GetDistPath(), logFile, profile, statusComponent)
+	filePath, err := clusterAgentFlare.CreateDCAArchive(false, defaultpaths.GetDistPath(), logFile, profile, statusComponent)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

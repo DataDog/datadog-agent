@@ -192,6 +192,7 @@ func newResolverSettings(uris []string, enhanced bool) confmap.ResolverSettings 
 			httpsprovider.NewFactory(),
 		},
 		ConverterFactories: newConverterFactory(enhanced),
+		DefaultScheme:      "env",
 	}
 }
 

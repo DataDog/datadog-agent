@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -119,11 +119,11 @@ func bundleParams(globalParams GlobalParams) core.BundleParams {
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func run(_ log.Component, _ config.Component, cliParams *cliParams) error {
-	if err := flare.GetClusterChecks(color.Output, cliParams.checkName); err != nil {
+	if err := clusterAgentFlare.GetClusterChecks(color.Output, cliParams.checkName); err != nil {
 		return err
 	}
 
-	return flare.GetEndpointsChecks(color.Output, cliParams.checkName)
+	return clusterAgentFlare.GetEndpointsChecks(color.Output, cliParams.checkName)
 }
 
 func rebalance(_ log.Component, config config.Component, cliParams *cliParams) error {

@@ -123,7 +123,7 @@ func (i *injector) requirements() libRequirement {
 		},
 		volumeMounts: []volumeMount{
 			volumeMountETCDPreloadAppContainer.prepended(),
-			v2VolumeMountInjector.readOnly().prepended(),
+			v2VolumeMountInjector.prepended(),
 		},
 		envVars: []envVar{
 			{

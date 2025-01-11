@@ -150,19 +150,19 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container"), "", "", false)
 	assert.NoError(err)
 	assert.Len(metrics, 1)
-	assert.Equal("metric-container", metrics[0].OriginInfo.ContainerID)
+	assert.Equal("metric-container", metrics[0].OriginInfo.LocalData.ContainerID)
 
 	// Event
 	event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "")
 	assert.NoError(err)
 	assert.NotNil(event)
-	assert.Equal("event-container", event.OriginInfo.ContainerID)
+	assert.Equal("event-container", event.OriginInfo.LocalData.ContainerID)
 
 	// Service check
 	serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "")
 	assert.NoError(err)
 	assert.NotNil(serviceCheck)
-	assert.Equal("service-check-container", serviceCheck.OriginInfo.ContainerID)
+	assert.Equal("service-check-container", serviceCheck.OriginInfo.LocalData.ContainerID)
 }
 
 func TestContainerIDParsing(t *testing.T) {
@@ -194,19 +194,19 @@ func TestOrigin(t *testing.T) {
 		metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container|#dd.internal.card:none"), "", "", false)
 		assert.NoError(err)
 		assert.Len(metrics, 1)
-		assert.Equal("metric-container", metrics[0].OriginInfo.ContainerID)
+		assert.Equal("metric-container", metrics[0].OriginInfo.LocalData.ContainerID)
 
 		// Event
 		event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container|#dd.internal.card:none"), "")
 		assert.NoError(err)
 		assert.NotNil(event)
-		assert.Equal("event-container", event.OriginInfo.ContainerID)
+		assert.Equal("event-container", event.OriginInfo.LocalData.ContainerID)
 
 		// Service check
 		serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container|#dd.internal.card:none"), "")
 		assert.NoError(err)
 		assert.NotNil(serviceCheck)
-		assert.Equal("service-check-container", serviceCheck.OriginInfo.ContainerID)
+		assert.Equal("service-check-container", serviceCheck.OriginInfo.LocalData.ContainerID)
 	})
 }
 

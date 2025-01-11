@@ -10,8 +10,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 )
 
 func TestIdentifyEvent(t *testing.T) {
@@ -110,24 +108,4 @@ func TestUnsafeParseInt(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, integer, unsafeInteger)
-}
-
-func TestResolveContainerIDFromInode(t *testing.T) {
-	deps := newServerDeps(t)
-	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	p := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
-	// Mock the provider to resolve the container ID from the inode
-	mockProvider := mock.NewMetricsProvider()
-	mockProvider.RegisterMetaCollector(&mock.MetaCollector{
-		CIDFromInode: map[uint64]string{
-			uint64(1234): "abcdef",
-		},
-	})
-	p.provider = mockProvider
-
-	containerID := p.resolveContainerIDFromInode(uint64(1234))
-	assert.Equal(t, "abcdef", containerID)
-
-	unsetInode := p.resolveContainerIDFromInode(uint64(0))
-	assert.Equal(t, "", unsetInode)
 }

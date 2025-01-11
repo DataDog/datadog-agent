@@ -90,7 +90,7 @@ func createTestCollector(telemetry ebpfErrorsTelemetry) prometheus.Collector {
 
 func TestEBPFErrorsCollector_NotInitialized(t *testing.T) {
 	//skip this test on unsupported kernel versions
-	if ok, _ := ebpfTelemetrySupported(); !ok {
+	if ok, _ := EBPFTelemetrySupported(); !ok {
 		t.SkipNow()
 	}
 	telemetry := &mockErrorsTelemetry{
@@ -116,7 +116,7 @@ func TestEBPFErrorsCollector_NotInitialized(t *testing.T) {
 
 func TestEBPFErrorsCollector_SingleCollect(t *testing.T) {
 	//skip this test on unsupported kernel versions
-	if ok, _ := ebpfTelemetrySupported(); !ok {
+	if ok, _ := EBPFTelemetrySupported(); !ok {
 		t.SkipNow()
 	}
 	mapErrorsMockValue, helperErrorsMockValue := uint64(20), uint64(100)
@@ -221,7 +221,7 @@ func TestEBPFErrorsCollector_SingleCollect(t *testing.T) {
 // TestEBPFErrorsCollector_DoubleCollect tests the case when the collector is called twice to validate the delta calculation of the Counter metric
 func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 	//skip this test on unsupported kernel versions
-	if ok, _ := ebpfTelemetrySupported(); !ok {
+	if ok, _ := EBPFTelemetrySupported(); !ok {
 		t.SkipNow()
 	}
 	mapErrorsMockValue1, helperErrorsMockValue1 := uint64(20), uint64(100)

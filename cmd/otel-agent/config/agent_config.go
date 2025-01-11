@@ -79,6 +79,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			httpprovider.NewFactory(),
 			httpsprovider.NewFactory(),
 		},
+		DefaultScheme: "env",
 	}
 
 	resolver, err := confmap.NewResolver(rs)

@@ -140,7 +140,7 @@ func (v volumeMount) mutateContainer(c *corev1.Container) error {
 	return nil
 }
 
-func (v volumeMount) readOnly() volumeMount {
+func (v volumeMount) readOnly() volumeMount { // nolint:unused
 	m := v.VolumeMount
 	m.ReadOnly = true
 	return volumeMount{m, v.Prepend}

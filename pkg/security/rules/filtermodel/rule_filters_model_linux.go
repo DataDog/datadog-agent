@@ -12,7 +12,6 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -20,26 +19,23 @@ import (
 // RuleFilterEvent defines a rule filter event
 type RuleFilterEvent struct {
 	*kernel.Version
-	origin string
-	cfg    *config.Config
+	cfg RuleFilterEventConfig
 }
 
 // RuleFilterModel defines a filter model
 type RuleFilterModel struct {
 	*kernel.Version
-	origin string
-	cfg    *config.Config
+	cfg RuleFilterEventConfig
 }
 
 // NewRuleFilterModel returns a new rule filter model
-func NewRuleFilterModel(cfg *config.Config, origin string) (*RuleFilterModel, error) {
+func NewRuleFilterModel(cfg RuleFilterEventConfig) (*RuleFilterModel, error) {
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
 		return nil, err
 	}
 	return &RuleFilterModel{
 		Version: kv,
-		origin:  origin,
 		cfg:     cfg,
 	}, nil
 }
@@ -48,7 +44,6 @@ func NewRuleFilterModel(cfg *config.Config, origin string) (*RuleFilterModel, er
 func (m *RuleFilterModel) NewEvent() eval.Event {
 	return &RuleFilterEvent{
 		Version: m.Version,
-		origin:  m.origin,
 		cfg:     m.cfg,
 	}
 }
@@ -191,7 +186,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eva
 		}, nil
 	case "origin":
 		return &eval.StringEvaluator{
-			Value: m.origin,
+			Value: m.cfg.Origin,
 			Field: field,
 		}, nil
 	case "hostname":
@@ -203,7 +198,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eva
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				revt := ctx.Event.(*RuleFilterEvent)
-				return revt.cfg != nil && revt.cfg.Probe.EnableCORE && revt.SupportCORE()
+				return revt.cfg.COREEnabled && revt.SupportCORE()
 			},
 			Field: field,
 		}, nil
@@ -273,11 +268,11 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "envs":
 		return os.Environ(), nil
 	case "origin":
-		return e.origin, nil
+		return e.cfg.Origin, nil
 	case "hostname":
 		return getHostname(), nil
 	case "kernel.core.enabled":
-		return e.cfg != nil && e.cfg.Probe.EnableCORE && e.SupportCORE(), nil
+		return e.cfg.COREEnabled && e.SupportCORE(), nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}

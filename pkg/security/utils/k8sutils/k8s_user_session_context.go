@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package usersessions holds model related to the user sessions resolver
-package usersessions
+// Package k8sutils holds kubernetes utils related to the user sessions resolver
+package k8sutils
 
 import (
 	"encoding/json"

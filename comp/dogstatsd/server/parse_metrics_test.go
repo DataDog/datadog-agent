@@ -14,7 +14,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 )
 
 func parseMetricSample(t *testing.T, overrides map[string]any, rawSample []byte) (dogstatsdMetricSample, error) {
@@ -573,22 +572,5 @@ func TestParseContainerID(t *testing.T) {
 	// Testing with a container ID
 	sample, err := parseMetricSample(t, cfg, []byte("metric:1234|g|c:1234567890abcdef"))
 	require.NoError(t, err)
-	assert.Equal(t, "1234567890abcdef", sample.containerID)
-
-	// Testing with an Inode
-	deps := newServerDeps(t, fx.Replace(config.MockParams{Overrides: cfg}))
-	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	p := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
-	mockProvider := mock.NewMetricsProvider()
-	mockProvider.RegisterMetaCollector(&mock.MetaCollector{
-		CIDFromInode: map[uint64]string{
-			1234567890: "1234567890abcdef",
-		},
-	})
-	p.provider = mockProvider
-	cfg["parser"] = p
-
-	sample, err = parseMetricSample(t, cfg, []byte("metric:1234|g|c:in-1234567890"))
-	require.NoError(t, err)
-	assert.Equal(t, "1234567890abcdef", sample.containerID)
+	assert.Equal(t, "1234567890abcdef", sample.localData.ContainerID)
 }

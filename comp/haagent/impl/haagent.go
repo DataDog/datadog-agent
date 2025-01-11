@@ -66,6 +66,10 @@ func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
 	}
 }
 
+func (h *haAgentImpl) resetAgentState() {
+	h.state.Store(string(haagent.Unknown))
+}
+
 // ShouldRunIntegration return true if the agent integrations should to run.
 // When ha-agent is disabled, the agent behave as standalone agent (non HA) and will always run all integrations.
 func (h *haAgentImpl) ShouldRunIntegration(integrationName string) bool {
@@ -77,6 +81,15 @@ func (h *haAgentImpl) ShouldRunIntegration(integrationName string) bool {
 
 func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	h.log.Debugf("Updates received: count=%d", len(updates))
+
+	// New updates arrived, but if the list of updates is empty,
+	// it means we don't have any updates applying to this agent anymore.
+	// In this case, reset HA Agent setting to default states.
+	if len(updates) == 0 {
+		h.log.Warn("Empty update received. Resetting Agent State to Unknown.")
+		h.resetAgentState()
+		return
+	}
 
 	for configPath, rawConfig := range updates {
 		h.log.Debugf("Received config %s: %s", configPath, string(rawConfig.Config))
