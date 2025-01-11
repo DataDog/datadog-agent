@@ -27,40 +27,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type LocalRecommender struct {
+// Recommender is the local recommender for autoscaling workloads
+type Recommender struct {
 	PodWatcher shared.PodWatcher
 	Store      loadstore.Store
 }
 
-type ValueType float64
-type Timestamp uint32
-
-// EntityValue represents a value with a timestamp.
-type EntityValue struct {
-	value     ValueType
-	timestamp Timestamp
-}
-
-// Structs from loadstore implementation //
-type PodResult struct {
-	PodName         string
-	ContainerValues map[string][]EntityValue // container name to a time series of entity values, e.g cpu usage from past three collection
-	PodLevelValue   []EntityValue            //  If Pod level value is not available, it will be empty
-}
-
-type QueryResult struct { // return value for GetMetricsRaw
-	results []PodResult
-}
-
 const (
 	staleDataThresholdSeconds      = 180 // 3 minutes
-	containerCpuUsageMetricName    = "container.cpu.usage"
+	containerCPUUsageMetricName    = "container.cpu.usage"
 	containerMemoryUsageMetricName = "container.memory.usage"
 )
 
 var (
 	resourceToMetric = map[corev1.ResourceName]string{
-		corev1.ResourceCPU:    containerCpuUsageMetricName,
+		corev1.ResourceCPU:    containerCPUUsageMetricName,
 		corev1.ResourceMemory: containerMemoryUsageMetricName,
 	}
 )
@@ -72,15 +53,15 @@ type resourceRecommenderSettings struct {
 	HighWatermark float64
 }
 
-type UtilizationResult struct {
-	AverageUtilization      float64
-	PodToUtilization        map[string]float64
-	MissingPods             []string
-	RecommendationTimestamp time.Time
+type utilizationResult struct {
+	averageUtilization      float64
+	podToUtilization        map[string]float64
+	missingPods             []string
+	recommendationTimestamp time.Time
 }
 
-func newLocalRecommender(podWatcher shared.PodWatcher, loadStore loadstore.Store) LocalRecommender {
-	return LocalRecommender{
+func newLocalRecommender(podWatcher shared.PodWatcher, loadStore loadstore.Store) Recommender {
+	return Recommender{
 		PodWatcher: podWatcher,
 		Store:      loadStore,
 	}
@@ -138,7 +119,8 @@ func getOptionsFromContainerResource(target *datadoghq.DatadogPodAutoscalerConta
 	return recSettings, nil
 }
 
-func (l LocalRecommender) ReinitLoadstore(ctx context.Context) error {
+// ReinitLoadstore reinitializes the loadstore for the local recommender
+func (l *Recommender) ReinitLoadstore(ctx context.Context) error {
 	lStore := loadstore.GetWorkloadMetricStore(ctx)
 	if lStore == nil {
 		return fmt.Errorf("Failed to reinitialize local recommender loadstore")
@@ -148,7 +130,7 @@ func (l LocalRecommender) ReinitLoadstore(ctx context.Context) error {
 }
 
 // CalculateHorizontalRecommendations is the entrypoint to calculate the horizontal recommendation for a given DatadogPodAutoscaler
-func (l LocalRecommender) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal) (*model.ScalingValues, error) {
+func (l Recommender) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal) (*model.ScalingValues, error) {
 	currentTime := time.Now()
 
 	// Get current pods for the target
@@ -220,12 +202,12 @@ func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*wo
 		return 0, time.Time{}, err
 	}
 
-	recommendedReplicas := r.calculateReplicas(currentReplicas, utilizationResult.AverageUtilization)
+	recommendedReplicas := r.calculateReplicas(currentReplicas, utilizationResult.averageUtilization)
 
 	scaleDirection := shared.GetScaleDirection(int32(currentReplicas), recommendedReplicas)
-	if scaleDirection != shared.NoScale && len(utilizationResult.MissingPods) > 0 {
-		adjustedPodToUtilization := adjustMissingPods(scaleDirection, utilizationResult.PodToUtilization, utilizationResult.MissingPods)
-		newRecommendation := r.calculateReplicas(currentReplicas, getAveragePodUtilization(adjustedPodToUtilization))
+	if scaleDirection != shared.NoScale && len(utilizationResult.missingPods) > 0 {
+		adjustedpodToUtilization := adjustmissingPods(scaleDirection, utilizationResult.podToUtilization, utilizationResult.missingPods)
+		newRecommendation := r.calculateReplicas(currentReplicas, getAveragePodUtilization(adjustedpodToUtilization))
 
 		// If scale direction is reversed, we should not scale
 		if shared.GetScaleDirection(int32(currentReplicas), newRecommendation) != scaleDirection {
@@ -235,10 +217,10 @@ func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*wo
 		}
 	}
 
-	return recommendedReplicas, utilizationResult.RecommendationTimestamp, nil
+	return recommendedReplicas, utilizationResult.recommendationTimestamp, nil
 }
 
-func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.KubernetesPod, queryResult loadstore.QueryResult, currentTime time.Time) (UtilizationResult, error) {
+func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.KubernetesPod, queryResult loadstore.QueryResult, currentTime time.Time) (utilizationResult, error) {
 	totalPodUtilization := 0.0
 	podCount := 0
 	podUtilization := make(map[string]float64)
@@ -246,11 +228,11 @@ func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.
 	lastValidTimestamp := time.Time{}
 
 	if len(pods) == 0 {
-		return UtilizationResult{}, fmt.Errorf("No pods found")
+		return utilizationResult{}, fmt.Errorf("No pods found")
 	}
 
 	if len(queryResult.Results) == 0 {
-		return UtilizationResult{}, fmt.Errorf("Issue fetching metrics data")
+		return utilizationResult{}, fmt.Errorf("Issue fetching metrics data")
 	}
 
 	for _, pod := range pods {
@@ -265,7 +247,7 @@ func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.
 			if r.MetricName == "container.memory.usage" && container.Resources.MemoryRequest != nil {
 				totalRequests += float64(*container.Resources.MemoryRequest)
 			} else if r.MetricName == "container.cpu.usage" && container.Resources.CPURequest != nil {
-				totalRequests += convertCpuRequestToNanocores(*container.Resources.CPURequest)
+				totalRequests += convertCPURequestToNanocores(*container.Resources.CPURequest)
 			} else {
 				continue // skip; no request information
 			}
@@ -296,14 +278,14 @@ func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.
 	}
 
 	if podCount == 0 {
-		return UtilizationResult{}, fmt.Errorf("Issue calculating pod utilization")
+		return utilizationResult{}, fmt.Errorf("Issue calculating pod utilization")
 	}
 
-	return UtilizationResult{
-		AverageUtilization:      totalPodUtilization / float64(podCount),
-		MissingPods:             missingPods,
-		PodToUtilization:        podUtilization,
-		RecommendationTimestamp: lastValidTimestamp,
+	return utilizationResult{
+		averageUtilization:      totalPodUtilization / float64(podCount),
+		missingPods:             missingPods,
+		podToUtilization:        podUtilization,
+		recommendationTimestamp: lastValidTimestamp,
 	}, nil
 }
 
@@ -352,7 +334,7 @@ func processAverageContainerMetricValue(series []loadstore.EntityValue, currentT
 	return average(values), lastTimestamp, nil
 }
 
-func adjustMissingPods(scaleDirection shared.ScaleDirection, podToUtilization map[string]float64, missingPods []string) map[string]float64 {
+func adjustmissingPods(scaleDirection shared.ScaleDirection, podToUtilization map[string]float64, missingPods []string) map[string]float64 {
 	for _, pod := range missingPods {
 		// adjust based on scale direction
 		if scaleDirection == shared.ScaleUp {
@@ -411,7 +393,7 @@ func convertTimestampToTime(timestamp loadstore.Timestamp) time.Time {
 	return time.Unix(int64(timestamp), 0)
 }
 
-func convertCpuRequestToNanocores(cpuRequests float64) float64 {
+func convertCPURequestToNanocores(cpuRequests float64) float64 {
 	// Current implementation takes Mi value and returns .AsApproximateFloat64()*100
 	// For 100m, AsApproximate returns 0.1; we return 10%
 	// This helper converts value to nanocore units (default from loadstore)

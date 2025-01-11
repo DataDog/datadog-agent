@@ -294,7 +294,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 		pods        []*workloadmeta.KubernetesPod
 		queryResult loadstore.QueryResult
 		currentTime time.Time
-		want        UtilizationResult
+		want        utilizationResult
 		err         error
 	}{
 		{
@@ -302,7 +302,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 			pods:        []*workloadmeta.KubernetesPod{},
 			queryResult: loadstore.QueryResult{},
 			currentTime: time.Time{},
-			want:        UtilizationResult{},
+			want:        utilizationResult{},
 			err:         fmt.Errorf("No pods found"),
 		},
 		{
@@ -330,7 +330,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 			},
 			queryResult: loadstore.QueryResult{},
 			currentTime: testTime,
-			want:        UtilizationResult{},
+			want:        utilizationResult{},
 			err:         fmt.Errorf("Issue fetching metrics data"),
 		},
 		{
@@ -376,7 +376,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 				},
 			},
 			currentTime: testTime,
-			want:        UtilizationResult{},
+			want:        utilizationResult{},
 			err:         fmt.Errorf("Issue calculating pod utilization"),
 		},
 		{
@@ -423,13 +423,13 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 				},
 			},
 			currentTime: testTime,
-			want: UtilizationResult{
-				AverageUtilization: 0.275,
-				MissingPods:        []string{},
-				PodToUtilization: map[string]float64{
+			want: utilizationResult{
+				averageUtilization: 0.275,
+				missingPods:        []string{},
+				podToUtilization: map[string]float64{
 					"pod-name1": 0.275,
 				},
-				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
 			err: nil,
 		},
@@ -495,13 +495,13 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 				},
 			},
 			currentTime: testTime,
-			want: UtilizationResult{
-				AverageUtilization: 0.275,
-				MissingPods:        []string{},
-				PodToUtilization: map[string]float64{
+			want: utilizationResult{
+				averageUtilization: 0.275,
+				missingPods:        []string{},
+				podToUtilization: map[string]float64{
 					"pod-name1": .275,
 				},
-				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
 			err: nil,
 		},
@@ -584,14 +584,14 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 				},
 			},
 			currentTime: testTime,
-			want: UtilizationResult{
-				AverageUtilization: 0.275,
-				MissingPods:        []string{},
-				PodToUtilization: map[string]float64{
+			want: utilizationResult{
+				averageUtilization: 0.275,
+				missingPods:        []string{},
+				podToUtilization: map[string]float64{
 					"pod-name1": 0.25,
 					"pod-name2": 0.30,
 				},
-				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
 			err: nil,
 		},
@@ -644,7 +644,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 					{
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
-							"container-name1": []loadstore.EntityValue{
+							"container-name1": {
 								{
 									Value:     loadstore.ValueType(2e8),
 									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
@@ -659,13 +659,13 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 				},
 			},
 			currentTime: testTime,
-			want: UtilizationResult{
-				AverageUtilization: 0.25,
-				MissingPods:        []string{"pod-name2"},
-				PodToUtilization: map[string]float64{
+			want: utilizationResult{
+				averageUtilization: 0.25,
+				missingPods:        []string{"pod-name2"},
+				podToUtilization: map[string]float64{
 					"pod-name1": 0.25,
 				},
-				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
 			err: nil,
 		},
@@ -702,7 +702,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 		pods        []*workloadmeta.KubernetesPod
 		queryResult loadstore.QueryResult
 		currentTime time.Time
-		want        UtilizationResult
+		want        utilizationResult
 		err         error
 	}{
 		{
@@ -710,7 +710,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			pods:        []*workloadmeta.KubernetesPod{},
 			queryResult: loadstore.QueryResult{},
 			currentTime: time.Time{},
-			want:        UtilizationResult{},
+			want:        utilizationResult{},
 			err:         fmt.Errorf("No pods found"),
 		},
 		{
@@ -738,7 +738,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			},
 			queryResult: loadstore.QueryResult{},
 			currentTime: testTime,
-			want:        UtilizationResult{},
+			want:        utilizationResult{},
 			err:         fmt.Errorf("Issue fetching metrics data"),
 		},
 		{
@@ -784,7 +784,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 				},
 			},
 			currentTime: testTime,
-			want:        UtilizationResult{},
+			want:        utilizationResult{},
 			err:         fmt.Errorf("Issue calculating pod utilization"),
 		},
 		{
@@ -831,13 +831,13 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 				},
 			},
 			currentTime: testTime,
-			want: UtilizationResult{
-				AverageUtilization: 0.25,
-				MissingPods:        []string{},
-				PodToUtilization: map[string]float64{
+			want: utilizationResult{
+				averageUtilization: 0.25,
+				missingPods:        []string{},
+				podToUtilization: map[string]float64{
 					"pod-name1": 0.25,
 				},
-				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
 			err: nil,
 		},
@@ -888,7 +888,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 								},
 							},
-							"container-name2": []loadstore.EntityValue{
+							"container-name2": {
 								{
 									Value:     loadstore.ValueType(2e8),
 									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
@@ -903,13 +903,13 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 				},
 			},
 			currentTime: testTime,
-			want: UtilizationResult{
-				AverageUtilization: 0.25,
-				MissingPods:        []string{},
-				PodToUtilization: map[string]float64{
+			want: utilizationResult{
+				averageUtilization: 0.25,
+				missingPods:        []string{},
+				podToUtilization: map[string]float64{
 					"pod-name1": 0.25,
 				},
-				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
 			err: nil,
 		},
@@ -992,14 +992,14 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 				},
 			},
 			currentTime: testTime,
-			want: UtilizationResult{
-				AverageUtilization: 0.275,
-				MissingPods:        []string{},
-				PodToUtilization: map[string]float64{
+			want: utilizationResult{
+				averageUtilization: 0.275,
+				missingPods:        []string{},
+				podToUtilization: map[string]float64{
 					"pod-name1": 0.25,
 					"pod-name2": 0.30,
 				},
-				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
 			err: nil,
 		},
@@ -1067,13 +1067,13 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 				},
 			},
 			currentTime: testTime,
-			want: UtilizationResult{
-				AverageUtilization: 0.25,
-				MissingPods:        []string{"pod-name2"},
-				PodToUtilization: map[string]float64{
+			want: utilizationResult{
+				averageUtilization: 0.25,
+				missingPods:        []string{"pod-name2"},
+				podToUtilization: map[string]float64{
 					"pod-name1": 0.25,
 				},
-				RecommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
 			err: nil,
 		},
@@ -1550,26 +1550,3 @@ func TestRecommend(t *testing.T) {
 		})
 	}
 }
-
-// func TestCalculateHorizontalRecommendations(t *testing.T) {
-// 	test := []struct {
-// 		name string
-// 		dpai model.PodAutoscalerInternal
-// 		want *model.HorizontalScalingValues
-// 		err  error
-// 	}{}
-
-// 	for _, tt := range test {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			wlm := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-// 				fx.Provide(func() log.Component { return logmock.New(t) }),
-// 				config.MockModule(),
-// 				fx.Supply(context.Background()),
-// 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-// 			))
-// 			pw := NewPodWatcher(wlm, nil)
-// 			ctx, cancel := context.WithCancel(context.Background())
-// 			go pw.Run(ctx)
-// 		})
-// 	}
-// }

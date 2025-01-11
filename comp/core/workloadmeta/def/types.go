@@ -477,13 +477,15 @@ type OrchestratorContainer struct {
 }
 
 // String returns a string representation of OrchestratorContainer.
-func (o OrchestratorContainer) String(_ bool) string {
+func (o OrchestratorContainer) String(verbose bool) string {
 	var sb strings.Builder
 	_, _ = fmt.Fprintln(&sb, "Name:", o.Name)
 	_, _ = fmt.Fprintln(&sb, "ID:", o.ID)
-	_, _ = fmt.Fprintln(&sb, "Image:", o.Image)
-	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
-	_, _ = fmt.Fprint(&sb, o.Resources.String(true))
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Image:", o.Image)
+		_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
+		_, _ = fmt.Fprint(&sb, o.Resources.String(true))
+	}
 	return sb.String()
 }
 
