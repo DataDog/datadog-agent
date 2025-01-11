@@ -67,8 +67,8 @@ func HTTP(stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Host
 
 			debug.ByStatus[status] = Stats{
 				Count:              stat.Count,
-				FirstLatencySample: stat.FirstLatencySample,
-				LatencyP50:         protocols.GetSketchQuantile(stat.Latencies, 0.5),
+				FirstLatencySample: stat.GetFirstLatency(),
+				LatencyP50:         protocols.GetSketchQuantile(stat.GetLatencies(), 0.5),
 			}
 		}
 

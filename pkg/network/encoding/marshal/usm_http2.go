@@ -75,14 +75,14 @@ func (e *http2Encoder) encodeData(connectionData *USMConnectionData[http.Key, *h
 					w.SetKey(int32(code))
 					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
 						w.SetCount(uint32(stats.Count))
-						if latencies := stats.Latencies; latencies != nil {
+						if latencies := stats.GetLatencies(); latencies != nil {
 
 							blob, _ := proto.Marshal(latencies.ToProto())
 							w.SetLatencies(func(b *bytes.Buffer) {
 								b.Write(blob)
 							})
 						} else {
-							w.SetFirstLatencySample(stats.FirstLatencySample)
+							w.SetFirstLatencySample(stats.GetFirstLatency())
 						}
 					})
 				})

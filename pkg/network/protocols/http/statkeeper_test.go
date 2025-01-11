@@ -54,13 +54,13 @@ func TestProcessHTTPTransactions(t *testing.T) {
 			s := stats.Data[uint16((i+1)*100)]
 			require.NotNil(t, s)
 			assert.Equal(t, 2, s.Count)
-			assert.Equal(t, 2.0, s.Latencies.GetCount())
+			assert.Equal(t, 2.0, s.GetLatencies().GetCount())
 
-			p50, err := s.Latencies.GetValueAtQuantile(0.5)
+			p50, err := s.GetLatencies().GetValueAtQuantile(0.5)
 			assert.Nil(t, err)
 
 			expectedLatency := float64(time.Duration(i+1) * time.Millisecond)
-			acceptableError := expectedLatency * s.Latencies.IndexMapping.RelativeAccuracy()
+			acceptableError := expectedLatency * s.GetLatencies().IndexMapping.RelativeAccuracy()
 			assert.True(t, p50 >= expectedLatency-acceptableError)
 			assert.True(t, p50 <= expectedLatency+acceptableError)
 		}

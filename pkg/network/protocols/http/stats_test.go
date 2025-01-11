@@ -28,11 +28,11 @@ func TestAddRequest(t *testing.T) {
 
 	if assert.NotNil(t, s) {
 		assert.Equal(t, 3, s.Count)
-		assert.Equal(t, 3.0, s.Latencies.GetCount())
+		assert.Equal(t, 3.0, s.GetLatencies().GetCount())
 
-		verifyQuantile(t, s.Latencies, 0.0, 10.0)  // min item
-		verifyQuantile(t, s.Latencies, 0.99, 15.0) // median
-		verifyQuantile(t, s.Latencies, 1.0, 20.0)  // max item
+		verifyQuantile(t, s.GetLatencies(), 0.0, 10.0)  // min item
+		verifyQuantile(t, s.GetLatencies(), 0.99, 15.0) // median
+		verifyQuantile(t, s.GetLatencies(), 1.0, 20.0)  // max item
 	}
 }
 
@@ -60,11 +60,11 @@ func TestCombineWith(t *testing.T) {
 	s := stats.Data[405]
 
 	if assert.NotNil(t, s) {
-		assert.Equal(t, 3.0, s.Latencies.GetCount())
+		assert.Equal(t, 3.0, s.GetLatencies().GetCount())
 
-		verifyQuantile(t, s.Latencies, 0.0, 10.0) // min item
-		verifyQuantile(t, s.Latencies, 0.5, 15.0) // median
-		verifyQuantile(t, s.Latencies, 1.0, 20.0) // max item
+		verifyQuantile(t, s.GetLatencies(), 0.0, 10.0) // min item
+		verifyQuantile(t, s.GetLatencies(), 0.5, 15.0) // median
+		verifyQuantile(t, s.GetLatencies(), 1.0, 20.0) // max item
 	}
 }
 

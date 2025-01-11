@@ -75,7 +75,7 @@ func (e *httpEncoder) encodeData(connectionData *USMConnectionData[http.Key, *ht
 					w.SetKey(int32(code))
 					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
 						w.SetCount(uint32(stats.Count))
-						if latencies := stats.Latencies; latencies != nil {
+						if latencies := stats.GetLatencies(); latencies != nil {
 
 							// TODO: can we get a streaming marshaller for latencies?
 							blob, _ := proto.Marshal(latencies.ToProto())
@@ -83,7 +83,7 @@ func (e *httpEncoder) encodeData(connectionData *USMConnectionData[http.Key, *ht
 								b.Write(blob)
 							})
 						} else {
-							w.SetFirstLatencySample(stats.FirstLatencySample)
+							w.SetFirstLatencySample(stats.GetFirstLatency())
 						}
 					})
 				})

@@ -114,11 +114,11 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 
 	// Verify the latency data is correct prior to serialization
 
-	latencies := httpReqStats.Data[100].Latencies
+	latencies := httpReqStats.Data[100].GetLatencies()
 	assert.Equal(t, 2.0, latencies.GetCount())
 	verifyQuantile(t, latencies, 0.5, 12.5)
 
-	latencies = httpReqStats.Data[405].Latencies
+	latencies = httpReqStats.Data[405].GetLatencies()
 	assert.Equal(t, 2.0, latencies.GetCount())
 	verifyQuantile(t, latencies, 0.5, 3.5)
 

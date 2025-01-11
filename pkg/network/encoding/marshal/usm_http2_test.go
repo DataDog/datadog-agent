@@ -134,11 +134,11 @@ func (s *HTTP2Suite) TestFormatHTTP2StatsByPath() {
 
 	// Verify the latency data is correct prior to serialization
 
-	latencies := http2ReqStats.Data[100].Latencies
+	latencies := http2ReqStats.Data[100].GetLatencies()
 	assert.Equal(t, 2.0, latencies.GetCount())
 	verifyQuantile(t, latencies, 0.5, 12.5)
 
-	latencies = http2ReqStats.Data[405].Latencies
+	latencies = http2ReqStats.Data[405].GetLatencies()
 	assert.Equal(t, 2.0, latencies.GetCount())
 	verifyQuantile(t, latencies, 0.5, 3.5)
 
