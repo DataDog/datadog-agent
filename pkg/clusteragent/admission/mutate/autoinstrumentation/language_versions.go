@@ -11,8 +11,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 )
 
 const (
@@ -139,9 +140,9 @@ type libInfo struct {
 	image   string
 }
 
-func (i libInfo) podMutator(v version, opts libRequirementOptions) podMutator {
+func (i libInfo) podMutator(v version, opts libRequirementOptions, withCSI bool) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		reqs, ok := i.libRequirement(v)
+		reqs, ok := i.libRequirement(v, withCSI)
 		if !ok {
 			return fmt.Errorf(
 				"language %q is not supported. Supported languages are %v",
@@ -174,7 +175,7 @@ func (i libInfo) initContainers(v version) []initContainer {
 			{
 				MountPath: v1VolumeMount.MountPath,
 				SubPath:   v2VolumeMountLibrary.SubPath + "/" + string(i.lang),
-				Name:      sourceVolume.Name,
+				Name:      volumeName,
 			},
 			// injector mount for the timestamps
 			v2VolumeMountInjector.VolumeMount,
@@ -284,15 +285,23 @@ func (i libInfo) envVars(v version) []envVar {
 	}
 }
 
-func (i libInfo) libRequirement(v version) (libRequirement, bool) {
+func (i libInfo) libRequirement(v version, withCSI bool) (libRequirement, bool) {
 	if !i.lang.isSupported() {
 		return libRequirement{}, false
 	}
 
+	var initContainers []initContainer
+	if withCSI {
+		// no need to inject init containers if we already have the libraries on the host thanks to CSI node server
+		initContainers = []initContainer{}
+	} else {
+		initContainers = i.initContainers(v)
+	}
+
 	return libRequirement{
 		envVars:        i.envVars(v),
-		initContainers: i.initContainers(v),
+		initContainers: initContainers,
 		volumeMounts:   []volumeMount{i.volumeMount(v)},
-		volumes:        []volume{sourceVolume},
+		volumes:        []volume{getSourceVolume(withCSI)},
 	}, true
 }
