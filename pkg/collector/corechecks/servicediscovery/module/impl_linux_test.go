@@ -44,6 +44,7 @@ import (
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
@@ -60,6 +61,8 @@ import (
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
+var mockedTime = time.Date(2024, 12, 1, 12, 12, 12, 2, time.UTC)
+
 func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContainerProvider) {
 	t.Helper()
 
@@ -72,6 +75,9 @@ func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContai
 	mockCtrl := gomock.NewController(t)
 	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
 
+	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
+
 	mux := gorillamux.NewRouter()
 	cfg := &types.Config{
 		Enabled: true,
@@ -83,7 +89,7 @@ func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContai
 		Name:             config.DiscoveryModule,
 		ConfigNamespaces: []string{"discovery"},
 		Fn: func(*types.Config, module.FactoryDependencies) (module.Module, error) {
-			module := newDiscovery(mockContainerProvider)
+			module := newDiscovery(mockContainerProvider, mTimeProvider)
 			module.config.cpuUsageUpdateDelay = time.Second
 
 			return module, nil
@@ -247,6 +253,7 @@ func TestBasic(t *testing.T) {
 	serviceMap := getServicesMap(t, url)
 	for _, pid := range expectedPIDs {
 		require.Contains(t, serviceMap[pid].Ports, uint16(expectedPorts[pid]))
+		require.Equal(t, serviceMap[pid].LastHeartbeat, mockedTime.Unix())
 		assertStat(t, serviceMap[pid])
 	}
 }
@@ -259,7 +266,7 @@ func TestPorts(t *testing.T) {
 	var expectedPorts []uint16
 	var unexpectedPorts []uint16
 
-	var startTCP = func(proto string) {
+	startTCP := func(proto string) {
 		serverf, server := startTCPServer(t, proto, "")
 		t.Cleanup(func() { serverf.Close() })
 		clientf, client := startTCPClient(t, proto, server)
@@ -269,7 +276,7 @@ func TestPorts(t *testing.T) {
 		unexpectedPorts = append(unexpectedPorts, uint16(client.Port))
 	}
 
-	var startUDP = func(proto string) {
+	startUDP := func(proto string) {
 		serverf, server := startUDPServer(t, proto, ":8083")
 		t.Cleanup(func() { _ = serverf.Close() })
 		clientf, client := startUDPClient(t, proto, server)
@@ -382,6 +389,7 @@ func TestServiceName(t *testing.T) {
 		assert.Equal(collect, string(usm.CommandLine), portMap[pid].GeneratedNameSource)
 		assert.False(collect, portMap[pid].DDServiceInjected)
 		assert.Equal(collect, portMap[pid].ContainerID, "")
+		assert.Equal(collect, portMap[pid].LastHeartbeat, mockedTime.Unix())
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -678,6 +686,7 @@ func TestNodeDocker(t *testing.T) {
 		assert.Equal(collect, string(usm.Nodejs), svcMap[pid].GeneratedNameSource)
 		assert.Equal(collect, svcMap[pid].GeneratedName, svcMap[pid].Name)
 		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
+		assert.Equal(collect, "web_service", svcMap[pid].Type)
 		assertStat(collect, svcMap[pid])
 		assertCPU(collect, url, pid)
 	}, 30*time.Second, 100*time.Millisecond)
@@ -862,6 +871,8 @@ func TestDocker(t *testing.T) {
 	require.Contains(t, portMap[pid1111].GeneratedNameSource, string(usm.CommandLine))
 	require.Contains(t, portMap[pid1111].ContainerServiceName, "foo_from_app_tag")
 	require.Contains(t, portMap[pid1111].ContainerServiceNameSource, "app")
+	require.Contains(t, portMap[pid1111].Type, "web_service")
+	require.Equal(t, portMap[pid1111].LastHeartbeat, mockedTime.Unix())
 }
 
 // Check that the cache is cleaned when procceses die.
@@ -871,7 +882,7 @@ func TestCache(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
 	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).MinTimes(1)
-	discovery := newDiscovery(mockContainerProvider)
+	discovery := newDiscovery(mockContainerProvider, realTime{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })

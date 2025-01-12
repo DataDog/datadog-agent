@@ -81,6 +81,7 @@ var (
 		DDServiceInjected:          true,
 		Ports:                      []uint16{8080},
 		APMInstrumentation:         string(apm.None),
+		Type:                       "web_service",
 		RSS:                        100 * 1024 * 1024,
 		CPUCores:                   1.5,
 		CommandLine:                []string{"test-service-1"},
@@ -98,6 +99,7 @@ var (
 		DDServiceInjected:          true,
 		Ports:                      []uint16{8080},
 		APMInstrumentation:         string(apm.None),
+		Type:                       "web_service",
 		RSS:                        200 * 1024 * 1024,
 		CPUCores:                   1.5,
 		CommandLine:                []string{"test-service-1"},
@@ -115,6 +117,7 @@ var (
 		DDServiceInjected:          true,
 		Ports:                      []uint16{8080},
 		APMInstrumentation:         string(apm.Injected),
+		Type:                       "web_service",
 		CommandLine:                []string{"test-service-1"},
 		StartTimeMilli:             procLaunchedMilli,
 		ContainerID:                dummyContainerID,
@@ -136,6 +139,7 @@ var (
 		ContainerServiceNameSource: "app",
 		Language:                   "python",
 		Ports:                      []uint16{5000},
+		Type:                       "web_service",
 		CommandLine:                pythonCommandLine,
 		StartTimeMilli:             procLaunchedMilli,
 		ContainerID:                dummyContainerID,
@@ -148,6 +152,7 @@ var (
 		ContainerServiceName:       "test-service-1-container",
 		ContainerServiceNameSource: "service",
 		Ports:                      []uint16{5432},
+		Type:                       "db",
 		CommandLine:                []string{"test-service-1"},
 		StartTimeMilli:             procLaunchedMilli,
 		ContainerID:                dummyContainerID,
@@ -612,6 +617,19 @@ func Test_linuxImpl(t *testing.T) {
 		},
 	}
 
+	makeServiceResponseWithTime := func(responseTime time.Time, resp *model.ServicesResponse) *model.ServicesResponse {
+		respWithTime := &model.ServicesResponse{
+			Services: make([]model.Service, 0, len(resp.Services)),
+		}
+
+		for _, service := range resp.Services {
+			service.LastHeartbeat = responseTime.Unix()
+			respWithTime.Services = append(respWithTime.Services, service)
+		}
+
+		return respWithTime
+	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
@@ -641,7 +659,7 @@ func Test_linuxImpl(t *testing.T) {
 
 				// set mocks
 				check.os.(*linuxImpl).getDiscoveryServices = func(_ *http.Client) (*model.ServicesResponse, error) {
-					return cr.servicesResp, nil
+					return makeServiceResponseWithTime(cr.time, cr.servicesResp), nil
 				}
 				check.os.(*linuxImpl).time = mTimer
 				check.sender.hostname = mHostname
