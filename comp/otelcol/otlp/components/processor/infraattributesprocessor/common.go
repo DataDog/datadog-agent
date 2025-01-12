@@ -25,18 +25,14 @@ var unifiedServiceTagMap = map[string][]string{
 	tags.Version: {conventions.AttributeServiceVersion},
 }
 
-// GenerateKubeMetadataEntityID is a function that generates an entity ID for a Kubernetes resource.
-type GenerateKubeMetadataEntityID func(group, resource, namespace, name string) string
-
 // processInfraTags collects entities/tags from resourceAttributes and adds infra tags to resourceAttributes
 func processInfraTags(
 	logger *zap.Logger,
 	tagger taggerClient,
 	cardinality types.TagCardinality,
-	generateID GenerateKubeMetadataEntityID,
 	resourceAttributes pcommon.Map,
 ) {
-	entityIDs := entityIDsFromAttributes(resourceAttributes, generateID)
+	entityIDs := entityIDsFromAttributes(resourceAttributes)
 	tagMap := make(map[string]string)
 
 	// Get all unique tags from resource attributes and global tags
@@ -91,7 +87,7 @@ func processInfraTags(
 // TODO: Replace OriginIDFromAttributes in opentelemetry-mapping-go with this method
 // entityIDsFromAttributes gets the entity IDs from resource attributes.
 // If not found, an empty string slice is returned.
-func entityIDsFromAttributes(attrs pcommon.Map, generateID GenerateKubeMetadataEntityID) []types.EntityID {
+func entityIDsFromAttributes(attrs pcommon.Map) []types.EntityID {
 	entityIDs := make([]types.EntityID, 0, 8)
 	// Prefixes come from pkg/util/kubernetes/kubelet and pkg/util/containers.
 	if containerID, ok := attrs.Get(conventions.AttributeContainerID); ok {
@@ -113,11 +109,11 @@ func entityIDsFromAttributes(attrs pcommon.Map, generateID GenerateKubeMetadataE
 		}
 	}
 	if namespace, ok := attrs.Get(conventions.AttributeK8SNamespaceName); ok {
-		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, generateID("", "namespaces", "", namespace.AsString())))
+		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, fmt.Sprintf("/namespaces//%s", namespace.AsString())))
 	}
 
 	if nodeName, ok := attrs.Get(conventions.AttributeK8SNodeName); ok {
-		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, generateID("", "nodes", "", nodeName.AsString())))
+		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, fmt.Sprintf("/nodes//%s", nodeName.AsString())))
 	}
 	if podUID, ok := attrs.Get(conventions.AttributeK8SPodUID); ok {
 		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesPodUID, podUID.AsString()))

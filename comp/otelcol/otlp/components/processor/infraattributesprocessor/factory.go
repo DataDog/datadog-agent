@@ -21,15 +21,18 @@ var processorCapabilities = consumer.Capabilities{MutatesData: true}
 // TODO: Remove tagger and generateID as depenendencies to enable future import of
 // infraattributesprocessor by external go packages like ocb
 type factory struct {
-	tagger     taggerClient
-	generateID GenerateKubeMetadataEntityID
+	tagger taggerClient
 }
 
 // NewFactory returns a new factory for the InfraAttributes processor.
-func NewFactory(tagger taggerClient, generateID GenerateKubeMetadataEntityID) processor.Factory {
+func NewFactory() processor.Factory {
+	return NewFactoryForAgent(nil)
+}
+
+// NewFactoryForAgent returns a new factory for the InfraAttributes processor.
+func NewFactoryForAgent(tagger taggerClient) processor.Factory {
 	f := &factory{
-		tagger:     tagger,
-		generateID: generateID,
+		tagger: tagger,
 	}
 
 	return processor.NewFactory(
@@ -53,7 +56,7 @@ func (f *factory) createMetricsProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Metrics,
 ) (processor.Metrics, error) {
-	iap, err := newInfraAttributesMetricProcessor(set, cfg.(*Config), f.tagger, f.generateID)
+	iap, err := newInfraAttributesMetricProcessor(set, cfg.(*Config), f.tagger)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +75,7 @@ func (f *factory) createLogsProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Logs,
 ) (processor.Logs, error) {
-	iap, err := newInfraAttributesLogsProcessor(set, cfg.(*Config), f.tagger, f.generateID)
+	iap, err := newInfraAttributesLogsProcessor(set, cfg.(*Config), f.tagger)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +94,7 @@ func (f *factory) createTracesProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (processor.Traces, error) {
-	iap, err := newInfraAttributesSpanProcessor(set, cfg.(*Config), f.tagger, f.generateID)
+	iap, err := newInfraAttributesSpanProcessor(set, cfg.(*Config), f.tagger)
 	if err != nil {
 		return nil, err
 	}

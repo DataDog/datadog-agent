@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
@@ -93,11 +92,6 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 	return enrichedTags
 }
 
-func generateID(group, resource, namespace, name string) string {
-
-	return string(util.GenerateKubeMetadataEntityID(group, resource, namespace, name))
-}
-
 func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component) (
 	otelcol.Factories,
 	error,
@@ -133,7 +127,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 
 	processorFactories := []processor.Factory{batchprocessor.NewFactory()}
 	if tagger != nil {
-		processorFactories = append(processorFactories, infraattributesprocessor.NewFactory(tagger, generateID))
+		processorFactories = append(processorFactories, infraattributesprocessor.NewFactoryForAgent(tagger))
 	}
 	processors, err := processor.MakeFactoryMap(processorFactories...)
 	if err != nil {
