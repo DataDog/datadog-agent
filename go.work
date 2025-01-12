@@ -1,6 +1,4 @@
-go 1.23.1
-
-toolchain go1.23.3
+go 1.23.3
 
 use (
 	.
@@ -17,11 +15,15 @@ use (
 	comp/core/secrets
 	comp/core/status
 	comp/core/status/statusimpl
+	comp/core/tagger/def
+	comp/core/tagger/generic_store
+	comp/core/tagger/impl-remote
 	comp/core/tagger/origindetection
+	comp/core/tagger/subscriber
 	comp/core/tagger/tags
+	comp/core/tagger/telemetry
 	comp/core/tagger/types
 	comp/core/tagger/utils
-	comp/core/telemetry
 	comp/def
 	comp/forwarder/defaultforwarder
 	comp/forwarder/orchestrator/orchestratorinterface
