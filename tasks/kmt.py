@@ -628,13 +628,13 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
         variables={"mode": "-m744"},
     )
 
-    verifier_files = glob("pkg/ebpf/verifier/**/*.go")
+    verifier_files = glob("pkg/ebpf/verifier/*")
     nw.build(
         rule="gobin",
         pool="gobuild",
-        inputs=["./pkg/ebpf/verifier/calculator/main.go"],
+        inputs=[os.path.abspath("./pkg/ebpf/verifier/calculator/main.go")],
         outputs=[os.fspath(kmt_paths.dependencies / "verifier-calculator")],
-        implicit=verifier_files,
+        implicit=[os.path.abspath(f) for f in verifier_files],
         variables={
             "go": go_path,
             "chdir": "true",
