@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Update Java auto-instrumentation support scripts. These scripts now allow tracking of OOMEs (OutOfMemoryErrors).
