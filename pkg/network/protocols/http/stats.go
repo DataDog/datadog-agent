@@ -109,9 +109,8 @@ func NewKeyWithConnection(connKey types.ConnectionKey, path []byte, fullPath boo
 
 // RequestStat stores stats for HTTP requests to a particular path
 type RequestStat struct {
-	latencies []float64
 	// this field order is intentional to help the GC pointer tracking
-	sketch *ddsketch.DDSketch
+	latencies []float64
 	// Note: every time we add a latency value to the DDSketch, it's possible for the sketch to discard that value
 	// (ie if it is outside the range that is tracked by the sketch). For that reason, in order to keep an accurate count
 	// the number of http transactions processed, we have our own count field (rather than relying on DDSketch.GetCount())
@@ -146,10 +145,7 @@ func (r *RequestStat) GetFirstLatency() float64 {
 
 // GetLatencies - fill and return DDSketch
 func (r *RequestStat) GetLatencies() *ddsketch.DDSketch {
-	if len(r.latencies) == 0 {
-		return r.sketch
-	}
-	if len(r.latencies) == 1 {
+	if len(r.latencies) <= 1 {
 		return nil
 	}
 	sketch, err := ddsketch.NewDefaultDDSketch(RelativeAccuracy)
@@ -157,14 +153,13 @@ func (r *RequestStat) GetLatencies() *ddsketch.DDSketch {
 		log.Debugf("error recording http transaction latency: could not create new ddsketch: %v", err)
 		return nil
 	}
-	r.sketch = sketch
 	for _, l := range r.latencies {
-		if err := r.sketch.Add(l); err != nil {
+		if err := sketch.Add(l); err != nil {
 			log.Debugf("could not add request latency to ddsketch: %v", err)
 		}
 	}
-	r.latencies = r.latencies[:0]
-	return r.sketch
+	//r.latencies = r.latencies[:0]
+	return sketch
 }
 
 func (r *RequestStat) copyLatencies(other *RequestStat) *ddsketch.DDSketch {
@@ -236,7 +231,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 	}
 }
 
-// AddRequest takes information about a HTTP transaction and adds it to the request stats
+// AddRequest takes information about an HTTP transaction and adds it to the request stats
 func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags uint64, dynamicTags []string) {
 	if !r.isValid(statusCode) {
 		return
