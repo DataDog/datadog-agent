@@ -31,6 +31,9 @@ type BoolEvaluator struct {
 
 	// used during compilation of partial
 	isDeterministic bool
+
+	// track bitmask related value
+	originField Field
 }
 
 // Eval returns the result of the evaluation
@@ -56,6 +59,14 @@ func (b *BoolEvaluator) IsStatic() bool {
 	return b.EvalFnc == nil
 }
 
+// OriginField returns the field involved in the sub expression
+func (b *BoolEvaluator) OriginField() Field {
+	if b.Field != "" {
+		return b.Field
+	}
+	return b.originField
+}
+
 // IntEvaluator returns an int as result of the evaluation
 type IntEvaluator struct {
 	EvalFnc     func(ctx *Context) int
@@ -65,10 +76,14 @@ type IntEvaluator struct {
 	OpOverrides *OpOverrides
 	Offset      int // position in the expression
 
-	// used during compilation of partial
-	isDeterministic           bool
 	isDuration                bool
 	isFromArithmeticOperation bool
+
+	// used during compilation of partial
+	isDeterministic bool
+
+	// track bitmask related value
+	originField Field
 }
 
 // Eval returns the result of the evaluation
@@ -94,6 +109,14 @@ func (i *IntEvaluator) IsStatic() bool {
 	return i.EvalFnc == nil
 }
 
+// OriginField returns the field involved in the sub expression
+func (i *IntEvaluator) OriginField() Field {
+	if i.Field != "" {
+		return i.Field
+	}
+	return i.originField
+}
+
 // StringEvaluator returns a string as result of the evaluation
 type StringEvaluator struct {
 	EvalFnc       func(ctx *Context) string
@@ -107,6 +130,9 @@ type StringEvaluator struct {
 
 	// used during compilation of partial
 	isDeterministic bool
+
+	// track bitmask related value
+	originField Field
 }
 
 // Eval returns the result of the evaluation
@@ -140,6 +166,14 @@ func (s *StringEvaluator) GetValue(ctx *Context) string {
 	return s.EvalFnc(ctx)
 }
 
+// OriginField returns the field involved in the sub expression
+func (s *StringEvaluator) OriginField() Field {
+	if s.Field != "" {
+		return s.Field
+	}
+	return s.originField
+}
+
 // ToStringMatcher returns a StringMatcher of the evaluator
 func (s *StringEvaluator) ToStringMatcher(opts StringCmpOpts) (StringMatcher, error) {
 	if !s.IsStatic() {
@@ -161,6 +195,9 @@ type StringArrayEvaluator struct {
 
 	// used during compilation of partial
 	isDeterministic bool
+
+	// track bitmask related value
+	originField Field
 }
 
 // Eval returns the result of the evaluation
@@ -191,15 +228,20 @@ func (s *StringArrayEvaluator) AppendValue(value string) {
 	s.Values = append(s.Values, value)
 }
 
+// OriginField returns the field involved in the sub expression
+func (s *StringArrayEvaluator) OriginField() Field {
+	if s.Field != "" {
+		return s.Field
+	}
+	return s.originField
+}
+
 // StringValuesEvaluator returns an array of strings
 type StringValuesEvaluator struct {
 	EvalFnc func(ctx *Context) *StringValues
 	Values  StringValues
 	Weight  int
 	Offset  int // position in the expression
-
-	// used during compilation of partial
-	isDeterministic bool
 }
 
 // Eval returns the result of the evaluation
@@ -212,7 +254,7 @@ func (s *StringValuesEvaluator) Eval(ctx *Context) interface{} {
 
 // IsDeterministicFor returns whether the evaluator is partial
 func (s *StringValuesEvaluator) IsDeterministicFor(_ Field) bool {
-	return s.isDeterministic
+	return false
 }
 
 // GetField returns field name used by this evaluator
@@ -300,6 +342,11 @@ func (i *IntArrayEvaluator) AppendValues(values ...int) {
 	i.Values = append(i.Values, values...)
 }
 
+// OriginField returns the field involved in the sub expression
+func (i *IntArrayEvaluator) OriginField() Field {
+	return ""
+}
+
 // BoolArrayEvaluator returns an array of bool
 type BoolArrayEvaluator struct {
 	EvalFnc     func(ctx *Context) []bool
@@ -311,6 +358,9 @@ type BoolArrayEvaluator struct {
 
 	// used during compilation of partial
 	isDeterministic bool
+
+	// track bitmask related value
+	originField Field
 }
 
 // Eval returns the result of the evaluation
@@ -339,6 +389,14 @@ func (b *BoolArrayEvaluator) IsStatic() bool {
 // AppendValues to the array evaluator
 func (b *BoolArrayEvaluator) AppendValues(values ...bool) {
 	b.Values = append(b.Values, values...)
+}
+
+// OriginField returns the field involved in the sub expression
+func (b *BoolArrayEvaluator) OriginField() Field {
+	if b.Field != "" {
+		return b.Field
+	}
+	return b.originField
 }
 
 // CIDREvaluator returns a net.IP
@@ -382,9 +440,6 @@ type CIDRValuesEvaluator struct {
 	Weight    int
 	ValueType FieldValueType
 	Offset    int // position in the expression
-
-	// used during compilation of partial
-	isDeterministic bool
 }
 
 // Eval returns the result of the evaluation
@@ -397,7 +452,7 @@ func (s *CIDRValuesEvaluator) Eval(ctx *Context) interface{} {
 
 // IsDeterministicFor returns whether the evaluator is partial
 func (s *CIDRValuesEvaluator) IsDeterministicFor(_ Field) bool {
-	return s.isDeterministic
+	return false
 }
 
 // GetField returns field name used by this evaluator
@@ -408,6 +463,11 @@ func (s *CIDRValuesEvaluator) GetField() string {
 // IsStatic returns whether the evaluator is a scalar
 func (s *CIDRValuesEvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
+}
+
+// OriginField returns the field involved in the sub expression
+func (s *CIDRValuesEvaluator) OriginField() Field {
+	return ""
 }
 
 // CIDRArrayEvaluator returns an array of net.IPNet
@@ -422,6 +482,9 @@ type CIDRArrayEvaluator struct {
 
 	// used during compilation of partial
 	isDeterministic bool
+
+	// track bitmask related value
+	originField Field
 }
 
 // Eval returns the result of the evaluation
@@ -445,4 +508,9 @@ func (s *CIDRArrayEvaluator) GetField() string {
 // IsStatic returns whether the evaluator is a scalar
 func (s *CIDRArrayEvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
+}
+
+// OriginField returns the field involved in the sub expression
+func (s *CIDRArrayEvaluator) OriginField() Field {
+	return ""
 }

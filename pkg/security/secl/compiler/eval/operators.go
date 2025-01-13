@@ -300,6 +300,7 @@ func IntNot(a *IntEvaluator, state *State) *IntEvaluator {
 			EvalFnc:         evalFnc,
 			Weight:          a.Weight,
 			isDeterministic: isDc,
+			originField:     a.OriginField(),
 		}
 	}
 
@@ -443,6 +444,7 @@ func Not(a *BoolEvaluator, state *State) *BoolEvaluator {
 			EvalFnc:         ea,
 			Weight:          a.Weight,
 			isDeterministic: isDc,
+			originField:     a.OriginField(),
 		}
 	}
 
@@ -468,6 +470,7 @@ func Minus(a *IntEvaluator, state *State) *IntEvaluator {
 			EvalFnc:         evalFnc,
 			Weight:          a.Weight,
 			isDeterministic: isDc,
+			originField:     a.OriginField(),
 		}
 	}
 

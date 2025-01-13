@@ -30,6 +30,7 @@ type Operator struct {
 	Commutative    bool
 	RangeLimit     string
 	StoreValue     bool
+	OriginField    bool
 }
 
 func main() {
@@ -52,14 +53,14 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	isDc := isArithmDeterministic(a, b, state)
 	{{ end }}
 
-	if a.Field != "" {
-		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: {{ .ValueType }}}); err != nil {
+	if field := a.OriginField(); field != "" {
+		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: {{ .ValueType }}}); err != nil {
 			return nil, err
 		}
 	}
 
-	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: a.Value, Type: {{ .ValueType }}}); err != nil {
+	if field := b.OriginField(); field != "" {
+		if err := state.UpdateFieldValues(field, FieldValue{Value: a.Value, Type: {{ .ValueType }}}); err != nil {
 			return nil, err
 		}
 	}
@@ -162,6 +163,9 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 			EvalFnc: evalFnc,
 			Weight: a.Weight,
 			isDeterministic: isDc,
+			{{- if .OriginField }}
+			originField: a.OriginField(),
+			{{- end }}
 		}, nil
 	}
 
@@ -197,6 +201,9 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 		EvalFnc: evalFnc,
 		Weight: b.Weight,
 		isDeterministic: isDc,
+		{{- if .OriginField }}
+		originField: b.OriginField(),
+		{{- end }}
 	}, nil
 }
 {{ end }}
@@ -210,16 +217,16 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	isDc := isArithmDeterministic(a, b, state)
 	{{ end }}
 
-	if a.Field != "" {
+	if field := a.OriginField(); field != "" {
 		for _, value := range b.Values {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+			if err := state.UpdateFieldValues(field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: a.Value, Type: ScalarValueType}); err != nil {
+	if field := b.OriginField(); field != "" {
+		if err := state.UpdateFieldValues(field, FieldValue{Value: a.Value, Type: ScalarValueType}); err != nil {
 			return nil, err
 		}
 	}
@@ -279,6 +286,9 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 			EvalFnc:   evalFnc,
 			Weight:    a.Weight + InArrayWeight*len(eb),
 			isDeterministic: isDc,
+			{{- if .OriginField }}
+			originField: a.OriginField(),
+			{{- end }}
 		}, nil
 	}
 
@@ -297,6 +307,9 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 		EvalFnc:   evalFnc,
 		Weight:    b.Weight,
 		isDeterministic: isDc,
+		{{- if .OriginField }}
+		originField: b.OriginField(),
+		{{- end }}
 	}, nil
 }
 {{end}}
@@ -348,6 +361,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "int",
 				Op:             stdCompare("&"),
 				ValueType:      "BitmaskValueType",
+				OriginField:    true,
 			},
 			{
 				FuncName:       "IntOr",
@@ -357,6 +371,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "int",
 				Op:             stdCompare("|"),
 				ValueType:      "BitmaskValueType",
+				OriginField:    true,
 			},
 			{
 				FuncName:       "IntXor",
@@ -366,6 +381,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "int",
 				Op:             stdCompare("^"),
 				ValueType:      "BitmaskValueType",
+				OriginField:    true,
 			},
 			{
 				FuncName:       "IntPlus",
@@ -375,6 +391,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "int",
 				Op:             stdCompare("+"),
 				ValueType:      "ScalarValueType",
+				OriginField:    true,
 			},
 			{
 				FuncName:       "IntMinus",
@@ -384,6 +401,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "int",
 				Op:             stdCompare("-"),
 				ValueType:      "ScalarValueType",
+				OriginField:    true,
 			},
 			{
 				FuncName:       "BoolEquals",
