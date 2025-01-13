@@ -161,7 +161,7 @@ def check_base_branch(branch, release_version):
     Checks if the given branch is either the default branch or the release branch associated
     with the given release version.
     """
-    return branch == get_default_branch() or branch == release_version.branch()
+    return branch == get_default_branch() or branch == release_version
 
 
 def try_git_command(ctx, git_command, non_interactive_retries=2, non_interactive_delay=5):

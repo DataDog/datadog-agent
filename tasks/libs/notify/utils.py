@@ -55,11 +55,7 @@ def should_notify(pipeline_id):
     from tasks.libs.ciproviders.gitlab_api import get_pipeline
 
     pipeline = get_pipeline(PROJECT_NAME, pipeline_id)
-    return (
-        pipeline.source != 'pipeline'
-        or pipeline.source == 'pipeline'
-        and all(var in os.environ for var in ['DDR', 'DDR_WORKFLOW_ID'])
-    )
+    return pipeline.source != 'pipeline' or pipeline.source == 'pipeline' and 'DDR_WORKFLOW_ID' in os.environ
 
 
 def get_pipeline_type(pipeline):
