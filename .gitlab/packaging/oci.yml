@@ -44,6 +44,8 @@
         echo "Generating OCI for $ARCH."
         echo "Extracting to temporary input dir $INPUT_FILE -> $INPUT_DIR"
         tar xJf ${INPUT_FILE} -C ${INPUT_DIR}
+        echo "Fixing rpath to point at the actual install dir (${INSTALL_DIR})"
+        inv omnibus.rpath-edit ${INPUT_DIR} ${INSTALL_DIR}
         echo "Creating OCI layer -> ${OUTPUT_DIR}/${OUTPUT_FILE}"
         if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
           EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent"
@@ -69,7 +71,7 @@
 
 agent_oci:
   extends: .package_oci
-  needs: ["datadog-agent-oci-x64-a7", "datadog-agent-oci-arm64-a7", "windows_msi_and_bosh_zip_x64-a7", "go_tools_deps"]
+  needs: ["datadog-agent-7-x64", "datadog-agent-7-arm64", "windows_msi_and_bosh_zip_x64-a7", "go_tools_deps"]
   variables:
     OCI_PRODUCT: "datadog-agent"
 
