@@ -22,8 +22,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
@@ -69,7 +68,7 @@ type Collector struct {
 	langScanner      langpkg.Scanner
 	vulnClient       vulnerability.Client
 	marshaler        cyclonedx.Marshaler
-	wmeta            optional.Option[workloadmeta.Component]
+	wmeta            option.Option[workloadmeta.Component]
 }
 
 var globalCollector *Collector
@@ -141,6 +140,7 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 		analyzer.TypeSBOM,
 		analyzer.TypeUbuntuESM,
 		analyzer.TypeLicenseFile,
+		analyzer.TypeRpmArchive,
 	)
 	return disabledAnalyzers
 }
@@ -151,7 +151,7 @@ func DefaultDisabledHandlers() []ftypes.HandlerType {
 }
 
 // NewCollector returns a new collector
-func NewCollector(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) (*Collector, error) {
+func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Component]) (*Collector, error) {
 	return &Collector{
 		config: collectorConfig{
 			clearCacheOnClose: cfg.GetBool("sbom.clear_cache_on_exit"),
@@ -167,7 +167,7 @@ func NewCollector(cfg config.Component, wmeta optional.Option[workloadmeta.Compo
 }
 
 // GetGlobalCollector gets the global collector
-func GetGlobalCollector(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) (*Collector, error) {
+func GetGlobalCollector(cfg config.Component, wmeta option.Option[workloadmeta.Component]) (*Collector, error) {
 	if globalCollector != nil {
 		return globalCollector, nil
 	}

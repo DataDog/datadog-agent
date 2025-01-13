@@ -38,6 +38,7 @@ func newResolver(uris []string) (*confmap.Resolver, error) {
 			httpsprovider.NewFactory(),
 		},
 		ConverterFactories: []confmap.ConverterFactory{},
+		DefaultScheme:      "env",
 	})
 }
 
@@ -147,6 +148,16 @@ func TestConvert(t *testing.T) {
 			name:           "receivers/no-receivers-defined",
 			provided:       "receivers/no-receivers-defined/config.yaml",
 			expectedResult: "receivers/no-receivers-defined/config-result.yaml",
+		},
+		{
+			name:           "receivers/empty-staticconfigs",
+			provided:       "receivers/empty-staticconfigs/config.yaml",
+			expectedResult: "receivers/empty-staticconfigs/config-result.yaml",
+		},
+		{
+			name:           "receivers/missing-staticconfigs-section",
+			provided:       "receivers/missing-staticconfigs-section/config.yaml",
+			expectedResult: "receivers/missing-staticconfigs-section/config-result.yaml",
 		},
 		{
 			name:           "processors/dd-connector",

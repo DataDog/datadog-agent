@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=servicediscovery_mock.go
@@ -82,14 +82,14 @@ type Check struct {
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
+func Factory() option.Option[func() check.Check] {
 	// Since service_discovery is enabled by default, we want to prevent returning an error in Configure() for platforms
 	// where the check is not implemented. Instead of that, we return an empty check.
 	if newOSImpl == nil {
-		return optional.NewNoneOption[func() check.Check]()
+		return option.None[func() check.Check]()
 	}
 
-	return optional.NewOption(func() check.Check {
+	return option.New(func() check.Check {
 		return newCheck()
 	})
 }

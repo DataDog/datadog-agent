@@ -25,6 +25,7 @@ import (
 	"time"
 
 	languagedetection "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v2/series"
 
 	"github.com/gorilla/mux"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -68,6 +69,10 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 
 	// API V1 Language Detection APIs
 	languagedetection.InstallLanguageDetectionEndpoints(ctx, apiRouter, w, cfg)
+
+	// API V2 Series APIs
+	v2ApiRouter := router.PathPrefix("/api/v2").Subrouter()
+	series.InstallNodeMetricsEndpoints(ctx, v2ApiRouter, cfg)
 
 	// Validate token for every request
 	router.Use(validateToken)
@@ -136,7 +141,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	// event size should be small enough to fit within the grpc max message size
 	maxEventSize := maxMessageSize / 2
 	pb.RegisterAgentSecureServer(grpcSrv, &serverSecure{
-		taggerServer: taggerserver.NewServer(taggerComp, maxEventSize),
+		taggerServer: taggerserver.NewServer(taggerComp, maxEventSize, cfg.GetInt("remote_tagger.max_concurrent_sync")),
 	})
 
 	timeout := pkgconfigsetup.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
@@ -192,6 +197,7 @@ func isExternalPath(path string) bool {
 	return strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 7 || // support for agents < 6.5.0
 		path == "/version" ||
 		path == "/api/v1/languagedetection" ||
+		path == "/api/v2/series" ||
 		strings.HasPrefix(path, "/api/v1/annotations/node/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/cf/apps") && len(strings.Split(path, "/")) == 5 ||
 		strings.HasPrefix(path, "/api/v1/cf/apps/") && len(strings.Split(path, "/")) == 6 ||

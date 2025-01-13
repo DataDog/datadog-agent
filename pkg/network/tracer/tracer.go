@@ -462,7 +462,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
 	conns.KernelHeaderFetchResult = int32(kernel.HeaderProvider.GetResult())
-	conns.CORETelemetryByAsset = ebpftelemetry.GetCORETelemetryByAsset()
+	conns.CORETelemetryByAsset = ddebpf.GetCORETelemetryByAsset()
 	conns.PrebuiltAssets = netebpf.GetModulesInUse()
 	t.lastCheck.Store(time.Now().Unix())
 

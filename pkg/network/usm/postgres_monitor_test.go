@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -34,6 +33,7 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
@@ -107,11 +107,7 @@ type postgresProtocolParsingSuite struct {
 func TestPostgresMonitoring(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !prebuilt.IsDeprecated() {
-		modes = append(modes, ebpftest.Prebuilt)
-	}
-	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(postgresProtocolParsingSuite))
 	})
 }
@@ -122,7 +118,7 @@ func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 		t.Run(name, func(t *testing.T) {
 			cfg := getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled)
 			cfg.BPFDebug = debug
-			setupUSMTLSMonitor(t, cfg)
+			setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 		})
 	}
 }
@@ -191,7 +187,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 		return count * 2
 	}
 
-	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS), useExistingConsumer)
 	if isTLS {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 	}
@@ -720,7 +716,7 @@ func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 	t := s.T()
 
 	// Creating the monitor
-	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled))
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled), useExistingConsumer)
 
 	wg := sync.WaitGroup{}
 
@@ -924,7 +920,7 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 	require.NoError(t, postgres.RunServer(t, serverHost, postgresPort, isTLS))
 	waitForPostgresServer(t, serverAddress, isTLS)
 
-	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS), useExistingConsumer)
 	if isTLS {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 	}

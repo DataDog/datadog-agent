@@ -30,7 +30,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type benchmarkDeps struct {
@@ -51,8 +51,8 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
 	sharedForwarder := forwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), deps.Log, forwarderOpts)
-	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname))
+	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname))
 	haAgent := haagentmock.NewMockHaAgent()
 	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, haAgent, deps.Compressor, taggerComponent, "hostname")
 	defer demux.Stop(true)

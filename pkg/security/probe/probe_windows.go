@@ -30,8 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
@@ -1060,10 +1060,7 @@ func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *WindowsProbe) DispatchEvent(event *model.Event) {
-	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := serializers.MarshalEvent(event, nil)
-		return eventJSON, event.GetEventType(), err
-	})
+	logTraceEvent(event.GetEventType(), event)
 
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.probe.sendEventToHandlers(event)
@@ -1305,7 +1302,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		return nil, err
 	}
 
-	hostname, err := utils.GetHostname()
+	hostname, err := hostnameutils.GetHostname()
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}

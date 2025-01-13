@@ -44,6 +44,9 @@ var (
 
 	// ErrRuleAgentFilter is returned when an agent rule was filtered
 	ErrRuleAgentFilter = errors.New("agent rule filtered")
+
+	// ErrMultipleEventCategories is returned when multile event categories are in the same expansion
+	ErrMultipleEventCategories = errors.New("multiple event categories in the same rule expansion")
 )
 
 // ErrFieldTypeUnknown is returned when a field has an unknown type

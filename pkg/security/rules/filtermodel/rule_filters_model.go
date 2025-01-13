@@ -10,36 +10,37 @@ import (
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 )
+
+// RuleFilterEventConfig holds the config used by the rule filter event
+type RuleFilterEventConfig struct {
+	COREEnabled bool
+	Origin      string
+}
 
 // Init inits the rule filter event
 func (e *RuleFilterEvent) Init() {}
-
-// GetFieldEventType returns the event type for the given field
-func (e *RuleFilterEvent) GetFieldEventType(_ eval.Field) (string, error) {
-	return "*", nil
-}
 
 // SetFieldValue sets the value for the given field
 func (e *RuleFilterEvent) SetFieldValue(field eval.Field, _ interface{}) error {
 	return &eval.ErrFieldNotFound{Field: field}
 }
 
-// GetFieldType get the type of the field
-func (e *RuleFilterEvent) GetFieldType(field eval.Field) (reflect.Kind, error) {
+// GetFieldMetadata get the type of the field
+func (e *RuleFilterEvent) GetFieldMetadata(field eval.Field) (eval.Field, reflect.Kind, error) {
 	switch field {
 	case "kernel.version.major", "kernel.version.minor", "kernel.version.patch", "kernel.version.abi":
-		return reflect.Int, nil
+		return "*", reflect.Int, nil
 	case "kernel.version.flavor",
 		"os", "os.id", "os.platform_id", "os.version_id", "envs", "origin", "hostname":
-		return reflect.String, nil
+		return "*", reflect.String, nil
 	case "os.is_amazon_linux", "os.is_cos", "os.is_debian", "os.is_oracle", "os.is_rhel", "os.is_rhel7",
 		"os.is_rhel8", "os.is_sles", "os.is_sles12", "os.is_sles15", "kernel.core.enabled":
-		return reflect.Bool, nil
+		return "*", reflect.Bool, nil
 	}
 
-	return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
 }
 
 // GetType returns the type for this event
@@ -63,7 +64,7 @@ func (m *RuleFilterModel) GetFieldRestrictions(_ eval.Field) []eval.EventType {
 }
 
 func getHostname() string {
-	hostname, err := utils.GetHostname()
+	hostname, err := hostnameutils.GetHostname()
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}
