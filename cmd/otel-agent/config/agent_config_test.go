@@ -83,6 +83,28 @@ func (suite *ConfigTestSuite) TestAgentConfigDefaults() {
 		c.Get("apm_config.features"))
 }
 
+func (suite *ConfigTestSuite) TestAgentConfigExpandEnvVars() {
+	t := suite.T()
+	fileName := "testdata/config_default_expand_envvar.yaml"
+	suite.T().Setenv("DD_API_KEY", "abc")
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	if err != nil {
+		t.Errorf("Failed to load agent config: %v", err)
+	}
+	assert.Equal(t, "abc", c.Get("api_key"))
+}
+
+func (suite *ConfigTestSuite) TestAgentConfigExpandEnvVars_Raw() {
+	t := suite.T()
+	fileName := "testdata/config_default_expand_envvar_raw.yaml"
+	suite.T().Setenv("DD_API_KEY", "abc")
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	if err != nil {
+		t.Errorf("Failed to load agent config: %v", err)
+	}
+	assert.Equal(t, "abc", c.Get("api_key"))
+}
+
 func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlDefaults() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
