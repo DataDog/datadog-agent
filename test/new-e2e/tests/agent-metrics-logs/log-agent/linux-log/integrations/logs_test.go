@@ -7,6 +7,7 @@ package integrationslogs
 
 import (
 	_ "embed"
+	"fmt"
 	"regexp"
 	"sort"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
@@ -95,7 +97,8 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 	// 3. Check the logs to ensure that each is unique, ensuring the rotation worked correctly.
 
 	tags := []string{"test:rotate"}
-	yamlData, err := generateYaml("a", true, 1024*255, 1, tags, "rotation_source", "rotation_service")
+	serviceString := fmt.Sprintf("%s_%s", uuid.NewString(), time.Now().String())
+	yamlData, err := generateYaml("a", true, 1024*255, 1, tags, "rotation_source", serviceString)
 	assert.NoError(v.T(), err)
 
 	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
@@ -110,7 +113,7 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 	// Accumulate logs until there are at least 5
 	var receivedLogs []*aggregator.Log
 	assert.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		receivedLogs, err = utils.FetchAndFilterLogs(v.Env().FakeIntake, "rotation_service", ".*counter: \\d+.*")
+		receivedLogs, err = utils.FetchAndFilterLogs(v.Env().FakeIntake, serviceString, ".*counter: \\d+.*")
 		assert.NoError(c, err)
 		assert.GreaterOrEqual(c, len(receivedLogs), 5)
 
