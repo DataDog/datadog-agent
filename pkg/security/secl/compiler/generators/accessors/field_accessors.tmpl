@@ -9,15 +9,21 @@
 package {{.Name}}
 
 import (
-    {{range .Imports }}
-        "{{.}}"
-    {{end}}
+    "net"
     "time"
 
     "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+var _ = time.Time{}
+var _ = net.IP{}
+var _ = eval.NewContext
+
 {{range $Name, $Field := .Fields}}
+
+{{if not $Field.GenGetters }}
+{{continue}}
+{{end}}
 
 {{if $Field.Ref}}
 {{$Ref := index $.Fields $Field.Ref}}

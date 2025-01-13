@@ -69,7 +69,7 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []*flaretypes.FlareFi
 		flaretypes.NewFiller(getRegistryJSON),
 		flaretypes.NewFiller(getVersionHistory),
 		flaretypes.NewFiller(getWindowsData),
-		flaretypes.NewFiller(getExpVar),
+		flaretypes.NewFiller(GetExpVar),
 		flaretypes.NewFiller(provideInstallInfo),
 		flaretypes.NewFiller(provideAuthTokenPerm),
 		flaretypes.NewFiller(provideDiagnoses(diagnoseDeps)),
@@ -81,7 +81,7 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []*flaretypes.FlareFi
 	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port"))
 
 	for filename, fromFunc := range map[string]func() ([]byte, error){
-		"envvars.log":         getEnvVars,
+		"envvars.log":         GetEnvVars,
 		"health.yaml":         getHealth,
 		"go-routine-dump.log": func() ([]byte, error) { return getHTTPCallContent(pprofURL) },
 		"telemetry.log":       func() ([]byte, error) { return getHTTPCallContent(telemetryURL) },
@@ -178,7 +178,8 @@ func getRegistryJSON(fb flaretypes.FlareBuilder) error {
 	return nil
 }
 
-func getLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
+// GetLogFiles copies log files to the flare archive.
+func GetLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
 	log.Flush()
 
 	fb.CopyDirToWithoutScrubbing(filepath.Dir(logFileDir), "logs", func(path string) bool { //nolint:errcheck
@@ -189,7 +190,8 @@ func getLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
 	})
 }
 
-func getExpVar(fb flaretypes.FlareBuilder) error {
+// GetExpVar copies expvar files to the flare archive.
+func GetExpVar(fb flaretypes.FlareBuilder) error {
 	variables := make(map[string]interface{})
 	expvar.Do(func(kv expvar.KeyValue) {
 		variable := make(map[string]interface{})
@@ -275,7 +277,8 @@ func getProcessAgentFullConfig() ([]byte, error) {
 	return bytes, nil
 }
 
-func getConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]string) {
+// GetConfigFiles copies configuration files to the flare archive.
+func GetConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]string) {
 	for prefix, filePath := range confSearchPaths {
 		fb.CopyDirTo(filePath, filepath.Join("etc", "confd", prefix), func(path string) bool { //nolint:errcheck
 			// ignore .example file
@@ -385,7 +388,7 @@ func getAgentTaggerList() ([]byte, error) {
 
 	taggerListURL := fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 
-	return getTaggerList(taggerListURL)
+	return GetTaggerList(taggerListURL)
 }
 
 func getProcessAgentTaggerList() ([]byte, error) {
@@ -400,10 +403,11 @@ func getProcessAgentTaggerList() ([]byte, error) {
 	}
 
 	taggerListURL := fmt.Sprintf("https://%s/agent/tagger-list", addressPort)
-	return getTaggerList(taggerListURL)
+	return GetTaggerList(taggerListURL)
 }
 
-func getTaggerList(remoteURL string) ([]byte, error) {
+// GetTaggerList fetches the tagger list from the given URL.
+func GetTaggerList(remoteURL string) ([]byte, error) {
 	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
 
 	r, err := apiutil.DoGet(c, remoteURL, apiutil.LeaveConnectionOpen)
@@ -429,10 +433,11 @@ func getAgentWorkloadList() ([]byte, error) {
 		return nil, err
 	}
 
-	return getWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")))
+	return GetWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")))
 }
 
-func getWorkloadList(url string) ([]byte, error) {
+// GetWorkloadList fetches the workload list from the given URL.
+func GetWorkloadList(url string) ([]byte, error) {
 	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
 
 	r, err := apiutil.DoGet(c, url, apiutil.LeaveConnectionOpen)
