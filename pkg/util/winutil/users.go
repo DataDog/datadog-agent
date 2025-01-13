@@ -43,7 +43,6 @@ func GetSidFromUser() (*windows.SID, error) {
 }
 
 // IsUserAnAdmin returns true is a user is a member of the Administrator's group
-// TODO: Microsoft does not recommend using this function, instead CheckTokenMembership should be used.
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/nf-shlobj_core-isuseranadmin
 //
