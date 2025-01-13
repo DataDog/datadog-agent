@@ -20,11 +20,9 @@ import (
 	"strings"
 
 	"github.com/moby/sys/mountinfo"
-
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -150,13 +148,21 @@ func GetProcContainerID(tgid, pid uint32) (containerutils.ContainerID, error) {
 	return id, err
 }
 
+// CGroupContext holds the cgroup context of a process
+type CGroupContext struct {
+	CGroupID          containerutils.CGroupID
+	CGroupFlags       containerutils.CGroupFlags
+	CGroupFileMountID uint32
+	CGroupFileInode   uint64
+}
+
 // GetProcContainerContext returns the container ID which the process belongs to along with its manager. Returns "" if the process does not belong
 // to a container.
-func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, model.CGroupContext, error) {
+func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, CGroupContext, error) {
 	var (
 		containerID   containerutils.ContainerID
 		runtime       containerutils.CGroupFlags
-		cgroupContext model.CGroupContext
+		cgroupContext CGroupContext
 	)
 
 	if err := parseProcControlGroups(tgid, pid, func(id, ctrl, path string) bool {
@@ -179,14 +185,14 @@ func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, mode
 
 		return true
 	}); err != nil {
-		return "", model.CGroupContext{}, err
+		return "", CGroupContext{}, err
 	}
 
 	var fileStats unix.Statx_t
 	taskPath := CgroupTaskPath(pid, pid)
 	if err := unix.Statx(unix.AT_FDCWD, taskPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStats); err == nil {
-		cgroupContext.CGroupFile.MountID = uint32(fileStats.Mnt_id)
-		cgroupContext.CGroupFile.Inode = fileStats.Ino
+		cgroupContext.CGroupFileMountID = uint32(fileStats.Mnt_id)
+		cgroupContext.CGroupFileInode = fileStats.Ino
 	}
 
 	return containerID, cgroupContext, nil
@@ -228,14 +234,14 @@ func NewCGroupFS(cgroupMountPoints ...string) *CGroupFS {
 
 // FindCGroupContext returns the container ID, cgroup context and sysfs cgroup path the process belongs to.
 // Returns "" as container ID and sysfs cgroup path, and an empty CGroupContext if the process does not belong to a container.
-func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.ContainerID, model.CGroupContext, string, error) {
+func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.ContainerID, CGroupContext, string, error) {
 	if len(cfs.cGroupMountPoints) == 0 {
-		return "", model.CGroupContext{}, "", ErrNoCGroupMountpoint
+		return "", CGroupContext{}, "", ErrNoCGroupMountpoint
 	}
 
 	var (
 		containerID     containerutils.ContainerID
-		cgroupContext   model.CGroupContext
+		cgroupContext   CGroupContext
 		sysFScGroupPath string
 	)
 
@@ -263,10 +269,10 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 				var fileStatx unix.Statx_t
 				var fileStats unix.Stat_t
 				if err := unix.Statx(unix.AT_FDCWD, sysFScGroupPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStatx); err == nil {
-					cgroupContext.CGroupFile.MountID = uint32(fileStatx.Mnt_id)
-					cgroupContext.CGroupFile.Inode = fileStatx.Ino
+					cgroupContext.CGroupFileMountID = uint32(fileStatx.Mnt_id)
+					cgroupContext.CGroupFileInode = fileStatx.Ino
 				} else if err := unix.Stat(sysFScGroupPath, &fileStats); err == nil {
-					cgroupContext.CGroupFile.Inode = fileStats.Ino
+					cgroupContext.CGroupFileInode = fileStats.Ino
 				}
 				return true
 			}
@@ -274,7 +280,7 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 		return false
 	})
 	if err != nil {
-		return "", model.CGroupContext{}, "", err
+		return "", CGroupContext{}, "", err
 	}
 
 	return containerID, cgroupContext, sysFScGroupPath, nil

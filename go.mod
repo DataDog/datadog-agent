@@ -586,7 +586,6 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0
 	github.com/shirou/gopsutil/v4 v4.24.11
 	go.opentelemetry.io/collector/component/componenttest v0.116.0
 )
@@ -713,7 +712,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.59.1
 	github.com/DataDog/datadog-agent/pkg/version v0.59.1
 	github.com/DataDog/go-libddwaf/v3 v3.5.1
-	github.com/DataDog/go-sqllexer v0.0.19
+	github.com/DataDog/go-sqllexer v0.0.20
 	github.com/Datadog/dublin-traceroute v0.0.2
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
 	github.com/aws/aws-sdk-go-v2/service/kms v1.37.6

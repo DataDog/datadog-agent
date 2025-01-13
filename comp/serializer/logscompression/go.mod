@@ -14,7 +14,6 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
-	go.uber.org/fx v1.23.0
 )
 
 require (
@@ -32,6 +31,7 @@ require (
 	github.com/stretchr/testify v1.10.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.18.0 // indirect
+	go.uber.org/fx v1.23.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect

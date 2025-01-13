@@ -161,7 +161,7 @@ func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
 	e.FSGID = binary.NativeEndian.Uint32(data[20:24])
 	e.AUID = binary.NativeEndian.Uint32(data[24:28])
 	if binary.NativeEndian.Uint32(data[28:32]) != 1 {
-		e.AUID = AuditUIDUnset
+		e.AUID = sharedconsts.AuditUIDUnset
 	}
 	e.CapEffective = binary.NativeEndian.Uint64(data[32:40])
 	e.CapPermitted = binary.NativeEndian.Uint64(data[40:48])
@@ -985,12 +985,13 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 	cursor += read
 
-	if len(data)-cursor < 8 {
+	if len(data)-cursor < 12 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.ConfigCookie = binary.NativeEndian.Uint64(data[cursor : cursor+8])
-	return cursor + 8, nil
+	e.Pid = binary.NativeEndian.Uint32(data[cursor+8 : cursor+12])
+	return cursor + 12, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
