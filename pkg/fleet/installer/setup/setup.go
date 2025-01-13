@@ -29,6 +29,7 @@ var flavors = map[string]flavor{
 	"databricks": {path: "djm/databricks.go", run: djm.SetupDatabricks},
 	"emr":        {path: "djm/emr.go", run: djm.SetupEmr},
 	"dataproc":   {path: "djm/dataproc.go", run: djm.SetupDataproc},
+	"mwaa":       {path: "djm/mwaa.go", run: djm.SetupMwaa},
 }
 
 // Setup installs Datadog.
