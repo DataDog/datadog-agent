@@ -16,6 +16,8 @@ import (
 	sqllexer "github.com/DataDog/go-sqllexer"
 )
 
+const emptyDBMS = ""
+
 var questionMark = []byte("?")
 
 // metadataFinderFilter is a filter which attempts to collect metadata from a query, such as comments and tables.
@@ -290,17 +292,18 @@ func (f *groupingFilter) Reset() {
 // ObfuscateSQLString quantizes and obfuscates the given input SQL query string. Quantization removes
 // some elements such as comments and aliases and obfuscation attempts to hide sensitive information
 // in strings and numbers by redacting them.
-func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
-	return o.ObfuscateSQLStringWithOptions(in, &o.opts.SQL)
+func (o *Obfuscator) ObfuscateSQLString(in string, dbms string) (*ObfuscatedQuery, error) {
+	return o.ObfuscateSQLStringWithOptions(in, dbms, &o.opts.SQL)
 }
 
 // ObfuscateSQLStringWithOptions accepts an optional SQLOptions to change the behavior of the obfuscator
 // to quantize and obfuscate the given input SQL query string. Quantization removes some elements such as comments
-// and aliases and obfuscation attempts to hide sensitive information in strings and numbers by redacting them.
-func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig) (*ObfuscatedQuery, error) {
+func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, dbms string, opts *SQLConfig) (*ObfuscatedQuery, error) {
+	// and aliases and obfuscation attempts to hide sensitive information in strings and numbers by redacting them.
 	if opts.ObfuscationMode != "" {
 		// If obfuscation mode is specified, we will use go-sqllexer pkg
 		// to obfuscate (and normalize) the query.
+		opts.DBMS = dbms
 		return o.ObfuscateWithSQLLexer(in, opts)
 	}
 

@@ -354,24 +354,24 @@ func TestObfuscator(t *testing.T) {
 		// needs https://datadoghq.atlassian.net/browse/DBM-2295
 		`UPDATE /* comment */ SET t n=1`,
 		`SELECT /* comment */ from dual`} {
-		obfuscatedStatement, err := o.ObfuscateSQLString(statement)
+		obfuscatedStatement, err := o.ObfuscateSQLString(statement, common.IntegrationName)
 		assert.NoError(t, err, "obfuscator error")
 		assert.NotContains(t, obfuscatedStatement.Query, "comment", "comment wasn't removed by the obfuscator")
 	}
 
-	_, err := o.ObfuscateSQLString(`SELECT TRUNC(SYSDATE@!) from dual`)
+	_, err := o.ObfuscateSQLString(`SELECT TRUNC(SYSDATE@!) from dual`, common.IntegrationName)
 	assert.NoError(t, err, "can't obfuscate @!")
 
 	sql := "begin null ; end;"
-	obfuscatedStatement, err := o.ObfuscateSQLString(sql)
+	obfuscatedStatement, err := o.ObfuscateSQLString(sql, common.IntegrationName)
 	assert.Equal(t, obfuscatedStatement.Query, "begin null; end;")
 
 	sql = "select count (*) from dual"
-	obfuscatedStatement, err = o.ObfuscateSQLString(sql)
+	obfuscatedStatement, err = o.ObfuscateSQLString(sql, common.IntegrationName)
 	assert.Equal(t, sql, obfuscatedStatement.Query)
 
 	sql = "select file# from dual"
-	obfuscatedStatement, err = o.ObfuscateSQLString(sql)
+	obfuscatedStatement, err = o.ObfuscateSQLString(sql, common.IntegrationName)
 	assert.Equal(t, sql, obfuscatedStatement.Query)
 }
 

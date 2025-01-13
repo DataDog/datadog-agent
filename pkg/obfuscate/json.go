@@ -86,7 +86,7 @@ func newJSONObfuscator(cfg *JSONConfig, o *Obfuscator) *jsonObfuscator {
 
 func sqlObfuscationTransformer(o *Obfuscator) func(string) string {
 	return func(s string) string {
-		result, err := o.ObfuscateSQLString(s)
+		result, err := o.ObfuscateSQLString(s, emptyDBMS)
 		if err != nil {
 			o.log.Debugf("Failed to obfuscate SQL string '%s': %s", s, err.Error())
 			// instead of returning an empty string we explicitly return an error string here within the result in order

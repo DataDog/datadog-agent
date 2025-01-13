@@ -433,7 +433,7 @@ func newCheck() check.Check {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string) (common.ObfuscatedStatement, error) {
-	obfuscatedStatement, err := o.ObfuscateSQLString(statement)
+	obfuscatedStatement, err := o.ObfuscateSQLString(statement, common.IntegrationName)
 	if err == nil {
 		return common.ObfuscatedStatement{
 			Statement:      obfuscatedStatement.Query,

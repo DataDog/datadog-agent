@@ -338,7 +338,7 @@ func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetr
 
 func handlePredicate(predicateType string, dbValue sql.NullString, payloadValue *string, statement StatementMetricsDB, c *Check, o *obfuscate.Obfuscator) {
 	if dbValue.Valid && dbValue.String != "" {
-		obfuscated, err := o.ObfuscateSQLString(dbValue.String)
+		obfuscated, err := o.ObfuscateSQLString(dbValue.String, common.IntegrationName)
 		if err == nil {
 			*payloadValue = obfuscated.Query
 		} else {
