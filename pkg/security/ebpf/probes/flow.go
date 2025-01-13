@@ -74,3 +74,30 @@ func getFlowProbes() []*manager.Probe {
 		},
 	}
 }
+
+// GetAllFlushNetworkStatsTaillCallFunctions returns the list of network flush tail call functions
+func GetAllFlushNetworkStatsTaillCallFunctions() []string {
+	return []string{
+		"tail_call_target_flush_network_stats_exec",
+		"tail_call_target_flush_network_stats_exit",
+	}
+}
+
+func getFlushNetworkStatsTailCallRoutes() []manager.TailCallRoute {
+	return []manager.TailCallRoute{
+		{
+			ProgArrayName: "flush_network_stats_progs",
+			Key:           FlushNetworkStatsExecKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tail_call_target_flush_network_stats_exec",
+			},
+		},
+		{
+			ProgArrayName: "flush_network_stats_progs",
+			Key:           FlushNetworkStatsExitKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tail_call_target_flush_network_stats_exit",
+			},
+		},
+	}
+}

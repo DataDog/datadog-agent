@@ -812,7 +812,6 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EnforcementDisarmerExecutablePeriod":        opts.enforcementDisarmerExecutablePeriod,
 		"EventServerRetention":                       opts.eventServerRetention,
 		"EnableSelfTests":                            opts.enableSelfTests,
-		"EventStreamUseFentry":                       opts.eventStreamUseFentry,
 		"NetworkFlowMonitorEnabled":                  opts.networkFlowMonitorEnabled,
 	}); err != nil {
 		return nil, nil, err

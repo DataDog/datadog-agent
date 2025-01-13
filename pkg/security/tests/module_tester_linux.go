@@ -73,9 +73,6 @@ system_probe_config:
   enable_runtime_compiler: true
 
 event_monitoring_config:
-  event_stream:
-    use_fentry_amd64: {{ .EventStreamUseFentry }}
-    use_fentry: {{ .EventStreamUseFentry }}
   socket: /tmp/test-event-monitor.sock
   custom_sensitive_words:
     - "*custom*"
@@ -1457,6 +1454,16 @@ func searchForBind(ad *dump.ActivityDump) bool {
 func searchForSyscalls(ad *dump.ActivityDump) bool {
 	for _, node := range ad.ActivityTree.ProcessNodes {
 		if len(node.Syscalls) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+//nolint:deadcode,unused
+func searchForNetworkFlowMonitorEvents(ad *dump.ActivityDump) bool {
+	for _, node := range ad.ActivityTree.ProcessNodes {
+		if len(node.NetworkDevices) > 0 {
 			return true
 		}
 	}

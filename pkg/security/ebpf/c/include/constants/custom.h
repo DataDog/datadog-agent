@@ -211,9 +211,9 @@ enum PID_ROUTE_TYPE
 
 enum FLUSH_NETWORK_STATS_TYPE
 {
-    NETWORK_STATS_TICKER,
     PID_EXIT,
     PID_EXEC,
+    NETWORK_STATS_TICKER,
 };
 
 static __attribute__((always_inline)) u64 get_network_monitor_period() {

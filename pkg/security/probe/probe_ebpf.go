@@ -231,6 +231,10 @@ func (p *EBPFProbe) isRawPacketNotSupported() bool {
 	return IsRawPacketNotSupported(p.kernelVersion)
 }
 
+func (p *EBPFProbe) isNetworkFlowMonitorNotSupported() bool {
+	return IsNetworkFlowMonitorNotSupported(p.kernelVersion)
+}
+
 func (p *EBPFProbe) sanityChecks() error {
 	// make sure debugfs is mounted
 	if _, err := tracefs.Root(); err != nil {
@@ -256,7 +260,7 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.NetworkFlowMonitorEnabled = false
 	}
 
-	if p.config.Probe.NetworkFlowMonitorEnabled && (!p.kernelVersion.IsMapValuesToMapHelpersAllowed() || !p.kernelVersion.HasBPFForEachMapElemHelper()) {
+	if p.config.Probe.NetworkFlowMonitorEnabled && p.isNetworkFlowMonitorNotSupported() {
 		seclog.Warnf("The network flow monitor feature of CWS requires a more recent kernel (at least 5.13) with support for SK storage in Tracing programs and the bpf_for_each_elem map helper, setting event_monitoring_config.network.flow_monitor.enabled to false")
 		p.config.Probe.NetworkFlowMonitorEnabled = false
 	}
@@ -2208,7 +2212,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	)
 
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, config.Probe.NetworkRawPacketEnabled, useMmapableMaps)
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, config.Probe.NetworkFlowMonitorEnabled, config.Probe.NetworkRawPacketEnabled, useMmapableMaps)
 	if !config.Probe.ERPCDentryResolutionEnabled || useMmapableMaps {
 		// exclude the programs that use the bpf_probe_write_user helper
 		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
@@ -2221,9 +2225,32 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetRawPacketTCProgramFunctions()...)
 	}
 
+	// prevent some tal calls from loading
+	if !p.config.Probe.NetworkFlowMonitorEnabled {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllFlushNetworkStatsTaillCallFunctions()...)
+	}
+
+	// prevent some helpers from loading
+	if !p.kernelVersion.HasBPFForEachMapElemHelper() {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.AllBPFForEachMapElemProgramFunctions()...)
+	}
+
 	if !p.kernelVersion.HasSKStorage() {
-		// prevent SK Storage map from being loaded
-		p.managerOptions.ExcludedMaps = append(p.managerOptions.ExcludedMaps, probes.AllSKStorageMaps()...)
+		// Edit each SK_Storage map and transform them to a basic hash maps so they can be loaded by older kernels.
+		// We need this so that the eBPF manager can link the SK_Storage maps in our eBPF programs, even if deadcode
+		// elimination will clean up the piece of code that work with them prior to running the verifier.
+		if p.managerOptions.MapSpecEditors == nil {
+			p.managerOptions.MapSpecEditors = make(map[string]manager.MapSpecEditor, len(probes.AllSKStorageMaps()))
+		}
+		for _, skMapName := range probes.AllSKStorageMaps() {
+			p.managerOptions.MapSpecEditors[skMapName] = manager.MapSpecEditor{
+				Type:       lib.Hash,
+				KeySize:    1,
+				ValueSize:  1,
+				MaxEntries: 1,
+				EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries,
+			}
+		}
 	}
 
 	if p.useFentry {

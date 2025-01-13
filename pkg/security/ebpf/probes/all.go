@@ -144,6 +144,13 @@ func AllSKStorageMaps() []string {
 	}
 }
 
+// AllBPFForEachMapElemProgramFunctions returns the list of programs that leverage the bpf_for_each_map_elem helper
+func AllBPFForEachMapElemProgramFunctions() []string {
+	return []string{
+		"network_stats_worker",
+	}
+}
+
 func getMaxEntries(numCPU int, min int, max int) uint32 {
 	maxEntries := int(math.Min(float64(max), float64(min*numCPU)/4))
 	if maxEntries < min {
@@ -277,7 +284,7 @@ func AllRingBuffers() []*manager.RingBuffer {
 }
 
 // AllTailRoutes returns the list of all the tail call routes
-func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, rawPacketEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
+func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, networkFlowMonitorEnabled, rawPacketEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
 	routes = append(routes, getExecTailCallRoutes()...)
@@ -285,6 +292,9 @@ func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, rawPacketEnabled
 	routes = append(routes, getSysExitTailCallRoutes()...)
 	if networkEnabled {
 		routes = append(routes, getTCTailCallRoutes(rawPacketEnabled)...)
+	}
+	if networkFlowMonitorEnabled {
+		routes = append(routes, getFlushNetworkStatsTailCallRoutes()...)
 	}
 
 	return routes

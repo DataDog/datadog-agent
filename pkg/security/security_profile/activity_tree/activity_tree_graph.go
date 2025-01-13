@@ -107,6 +107,8 @@ func (at *ActivityTree) prepareProcessNode(p *ProcessNode, data *utils.Graph, re
 		args = strings.ReplaceAll(args, "\n", " ")
 		args = strings.ReplaceAll(args, ">", "\\>")
 		args = strings.ReplaceAll(args, "|", "\\|")
+		args = strings.ReplaceAll(args, "}", "\\}")
+		args = strings.ReplaceAll(args, "{", "\\{")
 	}
 	panGraphID := utils.NewGraphID(utils.NewNodeIDFromPtr(p))
 	pan := &utils.Node{
