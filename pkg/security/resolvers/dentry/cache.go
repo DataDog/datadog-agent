@@ -82,15 +82,15 @@ func (tll *TwoLayersLRU[K1, K2, V]) RemoveKey1(k1 K1) bool {
 		return false
 	}
 
-	len := l2LRU.Len()
-	tll.len.Sub(uint64(len))
+	size := l2LRU.Len()
+	tll.len.Sub(uint64(size))
 
 	tll.cache.Remove(k1)
 
 	return true
 }
 
-// RemoveKey1 the whole layer 2 for the given key1.
+// RemoveKey2 remove the entry in the second layer
 func (tll *TwoLayersLRU[K1, K2, V]) RemoveKey2(k1 K1, k2 K2) bool {
 	tll.Lock()
 	defer tll.Unlock()
@@ -157,6 +157,7 @@ func (tll *TwoLayersLRU[K1, K2, V]) Len() int {
 	return int(tll.len.Load())
 }
 
+// Walk through all the keys
 func (tll *TwoLayersLRU[K1, K2, V]) Walk(cb func(k1 K1, k2 K2, v V)) {
 	tll.RLock()
 	defer tll.RUnlock()
