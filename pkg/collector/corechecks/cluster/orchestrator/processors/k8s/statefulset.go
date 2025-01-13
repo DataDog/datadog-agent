@@ -49,7 +49,7 @@ func (h *StatefulSetHandlers) BuildMessageBody(ctx processors.ProcessorContext, 
 		GroupId:      pctx.MsgGroupID,
 		GroupSize:    int32(groupSize),
 		StatefulSets: models,
-		Tags:         append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag)}
+		Tags:         pctx.Tags()}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.

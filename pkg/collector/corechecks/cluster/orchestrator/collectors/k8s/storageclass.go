@@ -39,14 +39,15 @@ type StorageClassCollector struct {
 func NewStorageClassCollector() *StorageClassCollector {
 	return &StorageClassCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "storageclasses",
-			NodeType:                  orchestrator.K8sStorageClass,
-			Version:                   "storage.k8s.io/v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "storageclasses",
+			NodeType:                             orchestrator.K8sStorageClass,
+			Version:                              "storage.k8s.io/v1",
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.StorageClassHandlers)),
 	}
@@ -75,7 +76,12 @@ func (c *StorageClassCollector) Run(rcfg *collectors.CollectorRunConfig) (*colle
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
+	return c.Process(rcfg, list, false)
+}
+
+// Process is used to process the list of resources and return the result.
+func (c *StorageClassCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}, isTerminatedResource bool) (*collectors.CollectorRunResult, error) {
+	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata, isTerminatedResource)
 
 	processResult, processed := c.processor.Process(ctx, list)
 
@@ -85,7 +91,7 @@ func (c *StorageClassCollector) Run(rcfg *collectors.CollectorRunConfig) (*colle
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
 		ResourcesProcessed: processed,
 	}
 

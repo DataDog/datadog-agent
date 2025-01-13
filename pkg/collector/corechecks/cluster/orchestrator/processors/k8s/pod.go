@@ -122,7 +122,7 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 		GroupSize:   int32(groupSize),
 		HostName:    pctx.HostName,
 		Pods:        models,
-		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:        pctx.Tags(),
 		Info:        pctx.SystemInfo,
 	}
 }

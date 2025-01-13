@@ -39,13 +39,14 @@ type ClusterCollector struct {
 func NewClusterCollector() *ClusterCollector {
 	return &ClusterCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "clusters",
-			NodeType:                  orchestrator.K8sCluster,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "clusters",
+			NodeType:                             orchestrator.K8sCluster,
+			SupportsTerminatedResourceCollection: false,
 		},
 		processor: k8sProcessors.NewClusterProcessor(),
 	}
@@ -74,7 +75,12 @@ func (c *ClusterCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
+	return c.Process(rcfg, list, false)
+}
+
+// Process is used to process the list of resources and return the result.
+func (c *ClusterCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}, isTerminatedResource bool) (*collectors.CollectorRunResult, error) {
+	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata, isTerminatedResource)
 
 	processResult, processed, err := c.processor.Process(ctx, list)
 

@@ -35,11 +35,12 @@ type ProcessorContext interface {
 
 // BaseProcessorContext is the base context for all processors
 type BaseProcessorContext struct {
-	Cfg              *config.OrchestratorConfig
-	NodeType         pkgorchestratormodel.NodeType
-	MsgGroupID       int32
-	ClusterID        string
-	ManifestProducer bool
+	Cfg                  *config.OrchestratorConfig
+	NodeType             pkgorchestratormodel.NodeType
+	MsgGroupID           int32
+	ClusterID            string
+	ManifestProducer     bool
+	IsTerminatedResource bool
 }
 
 // GetOrchestratorConfig returns the orchestrator config
@@ -75,6 +76,15 @@ type K8sProcessorContext struct {
 	//nolint:revive // TODO(CAPP) Fix revive linter
 	ApiGroupVersionTag string
 	SystemInfo         *model.SystemInfo
+}
+
+// Tags returns the tags generated from the context
+func (c K8sProcessorContext) Tags() []string {
+	tags := append(c.Cfg.ExtraTags, c.ApiGroupVersionTag)
+	if c.IsTerminatedResource {
+		tags = append(tags, "kube_terminated_resource:true")
+	}
+	return tags
 }
 
 // ECSProcessorContext holds ECS resource processing attributes

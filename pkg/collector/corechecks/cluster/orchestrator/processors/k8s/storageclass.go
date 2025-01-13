@@ -48,7 +48,7 @@ func (h *StorageClassHandlers) BuildMessageBody(ctx processors.ProcessorContext,
 		GroupId:        pctx.MsgGroupID,
 		GroupSize:      int32(groupSize),
 		StorageClasses: models,
-		Tags:           append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:           pctx.Tags(),
 	}
 }
 

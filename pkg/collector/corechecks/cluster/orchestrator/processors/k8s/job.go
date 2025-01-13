@@ -49,7 +49,7 @@ func (h *JobHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Jobs:        models,
-		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:        pctx.Tags(),
 	}
 }
 
