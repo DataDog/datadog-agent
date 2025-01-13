@@ -213,6 +213,8 @@ modules:
     used_by_otel: true
   pkg/util/buf:
     used_by_otel: true
+  pkg/util/compression:
+    used_by_otel: true
   pkg/util/cache: default
   pkg/util/cgroups:
     should_test_condition: is_linux

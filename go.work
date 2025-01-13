@@ -103,6 +103,7 @@ use (
 	pkg/util/cache
 	pkg/util/cgroups
 	pkg/util/common
+	pkg/util/compression
 	pkg/util/containers/image
 	pkg/util/defaultpaths
 	pkg/util/executable
