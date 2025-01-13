@@ -27,6 +27,7 @@ def entrypoint(**kwargs):
         + url
         + " | grep size | awk -F ':' '{sum+=$NF} END {print sum}'"
     )
+    image_on_wire_size = int(image_on_wire_size)
     # Pull image locally to get on disk size
     ctx.run(f"crane pull {url} output.tar")
     image_on_disk_size = ctx.run("tar -xf output.tar --to-stdout | wc -c")
