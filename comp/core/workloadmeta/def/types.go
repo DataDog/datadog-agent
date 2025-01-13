@@ -482,7 +482,7 @@ func (o OrchestratorContainer) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Name:", o.Name)
 	_, _ = fmt.Fprintln(&sb, "ID:", o.ID)
 	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Image:", o.Image)
+		_, _ = fmt.Fprintln(&sb, "Image:", o.Image.Name)
 		_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
 		_, _ = fmt.Fprint(&sb, o.Resources.String(true))
 	}

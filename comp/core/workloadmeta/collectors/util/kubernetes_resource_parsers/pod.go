@@ -92,6 +92,11 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		containersList = append(containersList, c)
 	}
 
+	// If this list is empty, we want to return nil instead of an empty list
+	if len(containersList) == 0 {
+		containersList = nil
+	}
+
 	return &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
