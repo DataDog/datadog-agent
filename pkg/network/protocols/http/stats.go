@@ -162,23 +162,6 @@ func (r *RequestStat) GetLatencies() *ddsketch.DDSketch {
 	return sketch
 }
 
-func (r *RequestStat) copyLatencies(other *RequestStat) *ddsketch.DDSketch {
-	if len(other.latencies) == 0 {
-		return nil
-	}
-	sketch, err := ddsketch.NewDefaultDDSketch(RelativeAccuracy)
-	if err != nil {
-		log.Debugf("error recording http transaction latency: could not create new ddsketch: %v", err)
-		return nil
-	}
-	for _, l := range other.latencies {
-		if err := sketch.Add(l); err != nil {
-			log.Debugf("could not add request latency to ddsketch: %v", err)
-		}
-	}
-	return sketch
-}
-
 // RequestStats stores HTTP request statistics.
 type RequestStats struct {
 	Data map[uint16]*RequestStat
