@@ -116,6 +116,11 @@ func (c *CheckWrapper) IsTelemetryEnabled() bool {
 	return c.inner.IsTelemetryEnabled()
 }
 
+// IsHACheck returns if the check is an HA Check
+func (c *CheckWrapper) IsHACheck() bool {
+	return c.inner.IsHACheck()
+}
+
 // InitConfig implements Check#InitConfig
 func (c *CheckWrapper) InitConfig() string {
 	return c.inner.InitConfig()

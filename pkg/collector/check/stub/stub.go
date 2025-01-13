@@ -59,6 +59,9 @@ func (c *StubCheck) GetSenderStats() (stats.SenderStats, error) { return stats.N
 // IsTelemetryEnabled returns false
 func (c *StubCheck) IsTelemetryEnabled() bool { return false }
 
+// IsHACheck returns false
+func (c *StubCheck) IsHACheck() bool { return false }
+
 // InitConfig returns the init_config configuration of the check
 func (c *StubCheck) InitConfig() string { return "" }
 

@@ -217,6 +217,11 @@ func (c *ProcessAgentCheck) IsTelemetryEnabled() bool {
 	return c.telemetry
 }
 
+// IsHACheck returns if the check is an HA Check
+func (c *ProcessAgentCheck) IsHACheck() bool {
+	return false
+}
+
 // Stop sends a termination signal to the process-agent process
 func (c *ProcessAgentCheck) Stop() {
 	if !c.running.Load() {
