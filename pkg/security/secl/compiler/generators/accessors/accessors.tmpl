@@ -81,7 +81,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					iterator := &{{$Field.Iterator.ReturnType}}{}
 
 					if regID != "" {
-						var results []{{$Field.ReturnType}}
 						{{if $Field.Iterator.IsOrigTypePtr}}
 						element := iterator.At(ctx, regID, ctx.Registers[regID])
 						if element == nil {
@@ -100,7 +99,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
 								{{$Check = $SubName | printf "element%s"}}
 								if !{{$Check}}() {
-									return append(results, {{$Field.GetDefaultScalarReturnValue}})
+									return []{{$Field.ReturnType}}{ {{$Field.GetDefaultScalarReturnValue}} }
 								}
 							{{end}}
 						{{end}}
@@ -125,12 +124,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						{{end}}
 
 						{{if not $Field.GetArrayPrefix}}
-						results = append(results, result)
+						return []{{$Field.ReturnType}}{result}
 						{{else}}
-						results = append(results, result...)
+						return result
 						{{end}}
-
-						return results
 					}
 
 					{{$Event := "nil"}}
