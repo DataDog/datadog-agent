@@ -63,6 +63,7 @@ type Event struct {
 	// network syscalls
 	Bind    BindEvent    `field:"bind" event:"bind"`       // [7.37] [Network] A bind was executed
 	Connect ConnectEvent `field:"connect" event:"connect"` // [7.60] [Network] A connect was executed
+	Accept  AcceptEvent  `field:"accept" event:"accept"`   // [7.60] [Network] An accept was executed
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -97,9 +98,9 @@ type Event struct {
 type CGroupContext struct {
 	CGroupID      containerutils.CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
 	CGroupFlags   containerutils.CGroupFlags `field:"-"`
-	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`Lifecycle manager of the cgroup`
+	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`[Experimental] Lifecycle manager of the cgroup`
 	CGroupFile    PathKey                    `field:"file"`
-	CGroupVersion int                        `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`Version of the cgroup API`
+	CGroupVersion int                        `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
 }
 
 // Merge two cgroup context
@@ -373,8 +374,13 @@ type LinkEvent struct {
 // MkdirEvent represents a mkdir event
 type MkdirEvent struct {
 	SyscallEvent
+	SyscallContext
 	File FileEvent `field:"file"`
 	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`Mode of the new directory` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`Rights of the new directory` Constants:`File mode constants`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:mkdir.syscall.str1"` // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallMode uint32 `field:"syscall.mode,ref:mkdir.syscall.int2"` // SECLDoc[syscall.mode] Definition:`Mode of the new directory`
 }
 
 // ArgsEnvsEvent defines a args/envs event
@@ -479,7 +485,11 @@ type RenameEvent struct {
 // RmdirEvent represents a rmdir event
 type RmdirEvent struct {
 	SyscallEvent
+	SyscallContext
 	File FileEvent `field:"file"`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:rmdir.syscall.str1"` // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
 }
 
 // SetXAttrEvent represents an extended attributes event
@@ -624,6 +634,7 @@ type CgroupTracingEvent struct {
 	ContainerContext ContainerContext
 	CGroupContext    CGroupContext
 	Config           ActivityDumpLoadConfig
+	Pid              uint32
 	ConfigCookie     uint64
 }
 
@@ -668,6 +679,14 @@ type ConnectEvent struct {
 	Addr       IPPortContext `field:"addr"`        // Connection address
 	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
 	Protocol   uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
+}
+
+// AcceptEvent represents an accept event
+type AcceptEvent struct {
+	SyscallEvent
+
+	Addr       IPPortContext `field:"addr"`        // Connection address
+	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
 }
 
 // NetDevice represents a network device

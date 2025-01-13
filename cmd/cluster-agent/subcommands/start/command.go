@@ -19,13 +19,6 @@ import (
 	"syscall"
 	"time"
 
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	admissioncmd "github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
@@ -66,6 +59,7 @@ import (
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
@@ -78,17 +72,22 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/gorilla/mux"
@@ -165,13 +164,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(config config.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config))
 				}),
-				fx.Provide(func() optional.Option[integrations.Component] {
-					return optional.NewNoneOption[integrations.Component]()
+				fx.Provide(func() option.Option[integrations.Component] {
+					return option.None[integrations.Component]()
 				}),
 				statusimpl.Module(),
 				collectorimpl.Module(),
-				fx.Provide(func() optional.Option[serializer.MetricSerializer] {
-					return optional.NewNoneOption[serializer.MetricSerializer]()
+				fx.Provide(func() option.Option[serializer.MetricSerializer] {
+					return option.None[serializer.MetricSerializer]()
 				}),
 				autodiscoveryimpl.Module(),
 				rcserviceimpl.Module(),
@@ -219,12 +218,12 @@ func start(log log.Component,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
-	dc optional.Option[datadogclient.Component],
+	dc option.Option[datadogclient.Component],
 	secretResolver secrets.Component,
 	statusComponent status.Component,
 	collector collector.Component,
-	rcService optional.Option[rccomp.Component],
-	logReceiver optional.Option[integrations.Component],
+	rcService option.Option[rccomp.Component],
+	logReceiver option.Option[integrations.Component],
 	_ healthprobe.Component,
 	settings settings.Component,
 	datadogConfig config.Component,
@@ -267,8 +266,10 @@ func start(log log.Component,
 		}
 	}()
 
-	// Setup the leader forwarder for language detection and cluster checks
-	if config.GetBool("cluster_checks.enabled") || (config.GetBool("language_detection.enabled") && config.GetBool("language_detection.reporting.enabled")) {
+	// Setup the leader forwarder for autoscaling failover store, language detection and cluster checks
+	if config.GetBool("cluster_checks.enabled") ||
+		(config.GetBool("language_detection.enabled") && config.GetBool("language_detection.reporting.enabled")) ||
+		config.GetBool("autoscaling.failover.enabled") {
 		apidca.NewGlobalLeaderForwarder(
 			config.GetInt("cluster_agent.cmd_port"),
 			config.GetInt("cluster_agent.max_connections"),
@@ -382,7 +383,7 @@ func start(log log.Component,
 
 	// Set up check collector
 	registerChecks(wmeta, taggerComp, config)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver, taggerComp), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, taggerComp), true)
 
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)

@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
@@ -62,7 +61,7 @@ import (
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -125,7 +124,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
 				}),
 				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, wmeta workloadmeta.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
-					hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
+					hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO())
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
@@ -143,7 +142,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
 				}),
 				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component) (status.InformationProvider, *pkgCompliance.Agent, error) {
-					hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
+					hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO())
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
@@ -173,9 +172,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				statusimpl.Module(),
 				fetchonlyimpl.Module(),
-				configsyncimpl.Module(),
-				// Force the instantiation of the component
-				fx.Invoke(func(_ configsync.Component) {}),
+				configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 				autoexitimpl.Module(),
 				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 				fx.Provide(func(c config.Component) settings.Params {

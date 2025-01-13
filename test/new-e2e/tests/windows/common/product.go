@@ -28,3 +28,24 @@ func GetProductCodeByName(host *components.RemoteHost, name string) (string, err
 	}
 	return val, nil
 }
+
+// GetProductVersionByName returns the product version for the given product name
+// Pulls version from MSI registry infomration
+func GetProductVersionByName(host *components.RemoteHost, name string) (string, error) {
+	// get GUID
+	guid, err := GetProductCodeByName(host, name)
+	if err != nil {
+		return "", err
+	}
+	// get verion string
+	cmd := fmt.Sprintf(`(Get-ItemProperty -Path "HKLM:SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\%s").DisplayVersion`, guid)
+	val, err := host.Execute(cmd)
+	if err != nil {
+		return "", err
+	}
+	val = strings.TrimSpace(val)
+	if val == "" {
+		return "", fmt.Errorf("display version not found")
+	}
+	return val, nil
+}

@@ -132,7 +132,11 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
-	ruleFilterModel, err := filtermodel.NewRuleFilterModel(e.probe.Config, e.probe.Origin())
+	rfmCfg := filtermodel.RuleFilterEventConfig{
+		COREEnabled: e.probe.Config.Probe.EnableCORE,
+		Origin:      e.probe.Origin(),
+	}
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}

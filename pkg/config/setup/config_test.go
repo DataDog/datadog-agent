@@ -25,7 +25,7 @@ import (
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -469,7 +469,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadDatadogCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -577,7 +577,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadDatadogCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -1501,6 +1501,7 @@ func TestAPMObfuscationDefaultValue(t *testing.T) {
 	assert.False(t, conf.GetBool("apm_config.obfuscation.credit_cards.luhn"))
 	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.credit_cards.keep_values"), 0)
 	assert.True(t, conf.GetBool("apm_config.obfuscation.cache.enabled"))
+	assert.Equal(t, int64(5000000), conf.GetInt64("apm_config.obfuscation.cache.max_size"))
 }
 
 func TestAgentConfigInit(t *testing.T) {
@@ -1528,7 +1529,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	_, err = LoadDatadogCustom(cfg, "test", optional.NewNoneOption[secrets.Component](), []string{})
+	_, err = LoadDatadogCustom(cfg, "test", option.None[secrets.Component](), []string{})
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'

@@ -12,12 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 const (
 	auidField               = "process.auid"
-	maxAUID                 = model.AuditUIDUnset - 1
+	maxAUID                 = sharedconsts.AuditUIDUnset - 1
 	auidApproversTable      = "auid_approvers"
 	auidRangeApproversTable = "auid_range_approvers"
 )
@@ -29,14 +30,14 @@ var processCapabilities = rules.FieldCapabilities{
 		FilterMode:       rules.ApproverOnlyMode,
 		RangeFilterValue: &rules.RangeFilterValue{Min: 0, Max: maxAUID},
 		FilterWeight:     100,
-		// convert  `!= model.AuditUIDUnset`` to the max range
+		// convert  `!= sharedconsts.AuditUIDUnset`` to the max range
 		HandleNotApproverValue: func(fieldValueType eval.FieldValueType, value interface{}) (eval.FieldValueType, interface{}, bool) {
 			if fieldValueType != eval.ScalarValueType {
 				return fieldValueType, value, false
 			}
 
-			if i, ok := value.(int); ok && uint32(i) == model.AuditUIDUnset {
-				return eval.RangeValueType, rules.RangeFilterValue{Min: 0, Max: model.AuditUIDUnset - 1}, true
+			if i, ok := value.(int); ok && uint32(i) == sharedconsts.AuditUIDUnset {
+				return eval.RangeValueType, rules.RangeFilterValue{Min: 0, Max: sharedconsts.AuditUIDUnset - 1}, true
 			}
 
 			return fieldValueType, value, false
