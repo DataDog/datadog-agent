@@ -1,11 +1,13 @@
 import os
 import random
+import re
 
 from invoke import task
 
 from tasks.libs.ciproviders.github_api import GithubAPI, ask_review_actor
 from tasks.libs.issue.assign import assign_with_model, assign_with_rules
 from tasks.libs.issue.model.actions import fetch_data_and_train_model
+from tasks.libs.owners.parsing import search_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP, GITHUB_SLACK_REVIEW_MAP, HELP_SLACK_CHANNEL
 
 
@@ -69,3 +71,44 @@ def ask_reviews(_, pr_id):
             except Exception as e:
                 message = f"An error occurred while sending a review message from {actor} for PR <{pr.html_url}/s|{pr.title}> to channel {channel}. Error: {e}"
                 client.chat_postMessage(channel='#agent-devx-ops', text=message)
+
+
+@task
+def add_reviewers(ctx, pr_id):
+    """
+    Add team labels and reviewers to a dependabot bump PR based on the changed dependencies
+    """
+
+    gh = GithubAPI()
+    pr = gh.repo.get_pull(int(pr_id))
+
+    if pr.user.login != "dependabot[bot]":
+        print("This is not a (dependabot) bump PR, this action should not be run on it.")
+        return
+
+    if pr.title.startswith("Bump the "):
+        match = re.match(r"^Bump the (\S+).*$", pr.title)
+    else:
+        match = re.match(r"^Bump (\S+) from (\S+) to (\S+)$", pr.title)
+    dependency = match.group(1)
+
+    # Find the responsible person for each file
+    owners = set()
+    git_files = ctx.run("git ls-files | grep \".go$\"", hide=True).stdout
+    for file in git_files.splitlines():
+        in_import = False
+        with open(file) as f:
+            for line in f:
+                # Look for the import block
+                if "import (" in line:
+                    in_import = True
+                if in_import:
+                    # Early exit at the end of the import block
+                    if ")" in line:
+                        break
+                    else:
+                        if re.search(dependency, line):
+                            owners.update(set(search_owners(file, ".github/CODEOWNERS")))
+                            break
+    pr.create_review_request(team_reviewers=[owner.replace("@DataDog/", "") for owner in owners])
+    pr.add_to_labels("ask-review")
