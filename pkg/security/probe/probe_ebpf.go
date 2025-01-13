@@ -231,6 +231,10 @@ func (p *EBPFProbe) isRawPacketNotSupported() bool {
 	return IsRawPacketNotSupported(p.kernelVersion)
 }
 
+func (p *EBPFProbe) isNetworkFlowMonitorNotSupported() bool {
+	return IsNetworkFlowMonitorNotSupported(p.kernelVersion)
+}
+
 func (p *EBPFProbe) sanityChecks() error {
 	// make sure debugfs is mounted
 	if _, err := tracefs.Root(); err != nil {
@@ -256,7 +260,7 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.NetworkFlowMonitorEnabled = false
 	}
 
-	if p.config.Probe.NetworkFlowMonitorEnabled && (!p.kernelVersion.IsMapValuesToMapHelpersAllowed() || !p.kernelVersion.HasBPFForEachMapElemHelper()) {
+	if p.config.Probe.NetworkFlowMonitorEnabled && p.isNetworkFlowMonitorNotSupported() {
 		seclog.Warnf("The network flow monitor feature of CWS requires a more recent kernel (at least 5.13) with support for SK storage in Tracing programs and the bpf_for_each_elem map helper, setting event_monitoring_config.network.flow_monitor.enabled to false")
 		p.config.Probe.NetworkFlowMonitorEnabled = false
 	}
@@ -2219,6 +2223,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
 	} else if !p.config.Probe.NetworkRawPacketEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetRawPacketTCProgramFunctions()...)
+	}
+
+	// prevent some helpers from loading
+	if !p.kernelVersion.HasBPFForEachMapElemHelper() {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.AllBPFForEachMapElemProgramFunctions()...)
 	}
 
 	if !p.kernelVersion.HasSKStorage() {

@@ -144,6 +144,13 @@ func AllSKStorageMaps() []string {
 	}
 }
 
+// AllBPFForEachMapElemProgramFunctions returns the list of programs that leverage the bpf_for_each_map_elem helper
+func AllBPFForEachMapElemProgramFunctions() []string {
+	return []string{
+		"network_stats_worker",
+	}
+}
+
 func getMaxEntries(numCPU int, min int, max int) uint32 {
 	maxEntries := int(math.Min(float64(max), float64(min*numCPU)/4))
 	if maxEntries < min {

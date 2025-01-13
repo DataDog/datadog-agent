@@ -23,7 +23,7 @@ import (
 
 var (
 	// TracedEventTypesReductionOrder is the order by which event types are reduced
-	TracedEventTypesReductionOrder = []model.EventType{model.BindEventType, model.IMDSEventType, model.NetworkFlowMonitorEventType, model.DNSEventType, model.SyscallsEventType, model.FileOpenEventType}
+	TracedEventTypesReductionOrder = []model.EventType{model.BindEventType, model.IMDSEventType, model.DNSEventType, model.SyscallsEventType, model.FileOpenEventType}
 
 	absoluteMinimumDumpTimeout = 10 * time.Second
 )
