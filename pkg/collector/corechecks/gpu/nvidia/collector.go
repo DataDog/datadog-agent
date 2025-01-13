@@ -18,6 +18,8 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -63,29 +65,38 @@ var allSubsystems = map[string]subsystemBuilder{
 	clocksCollectorName:       newClocksCollector,
 }
 
-// BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
-func BuildCollectors(lib nvml.Interface) ([]Collector, error) {
-	return buildCollectors(lib, allSubsystems)
+type CollectorDependencies struct {
+	Tagger tagger.Component
+	NVML   nvml.Interface
 }
 
-func buildCollectors(lib nvml.Interface, subsystems map[string]subsystemBuilder) ([]Collector, error) {
+// BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
+func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
+	return buildCollectors(deps, allSubsystems)
+}
+
+func buildCollectors(deps *CollectorDependencies, subsystems map[string]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
 
-	devCount, ret := lib.DeviceGetCount()
+	devCount, ret := deps.NVML.DeviceGetCount()
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to get device count: %s", nvml.ErrorString(ret))
 	}
 
 	for i := 0; i < devCount; i++ {
-		dev, ret := lib.DeviceGetHandleByIndex(i)
+		dev, ret := deps.NVML.DeviceGetHandleByIndex(i)
 		if ret != nvml.SUCCESS {
 			return nil, fmt.Errorf("failed to get device handle for index %d: %s", i, nvml.ErrorString(ret))
 		}
 
-		tags := getTagsFromDevice(dev)
+		tags, err := getTagsFromDevice(dev, deps.Tagger)
+		if err != nil {
+			log.Warnf("failed to get tags for device %s: %s", dev, err)
+			continue
+		}
 
 		for name, builder := range subsystems {
-			subsystem, err := builder(lib, dev, tags)
+			subsystem, err := builder(deps.NVML, dev, tags)
 			if errors.Is(err, errUnsupportedDevice) {
 				log.Warnf("device %s does not support collector %s", dev, name)
 				continue
@@ -102,22 +113,17 @@ func buildCollectors(lib nvml.Interface, subsystems map[string]subsystemBuilder)
 }
 
 // getTagsFromDevice returns the tags associated with the given NVML device.
-func getTagsFromDevice(dev nvml.Device) []string {
-	tags := []string{tagVendor}
-
+func getTagsFromDevice(dev nvml.Device, tagger tagger.Component) ([]string, error) {
 	uuid, ret := dev.GetUUID()
-	if ret == nvml.SUCCESS {
-		tags = append(tags, fmt.Sprintf("%s:%s", tagNameUUID, uuid))
-	} else {
-		log.Warnf("failed to get device UUID: %s", nvml.ErrorString(ret))
+	if ret != nvml.SUCCESS {
+		return nil, fmt.Errorf("failed to get device UUID: %s", nvml.ErrorString(ret))
 	}
 
-	name, ret := dev.GetName()
-	if ret == nvml.SUCCESS {
-		tags = append(tags, fmt.Sprintf("%s:%s", tagNameModel, name))
-	} else {
-		log.Warnf("failed to get device name: %s", nvml.ErrorString(ret))
+	entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
+	tags, err := tagger.Tag(entityID, tagger.ChecksCardinality())
+	if err != nil {
+		log.Errorf("Error collecting GPU tags for GPU UUID %s: %s", uuid, err)
 	}
 
-	return tags
+	return tags, nil
 }

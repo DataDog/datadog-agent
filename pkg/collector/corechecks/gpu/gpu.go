@@ -85,7 +85,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 
 	var err error
-	c.collectors, err = nvidia.BuildCollectors(c.nvmlLib)
+	c.collectors, err = nvidia.BuildCollectors(&nvidia.CollectorDependencies{NVML: c.nvmlLib, Tagger: c.tagger})
 	if err != nil {
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
@@ -162,21 +162,30 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 }
 
 func (c *Check) getTagsForKey(key model.StatsKey) []string {
-	entityID := taggertypes.NewEntityID(taggertypes.ContainerID, key.ContainerID)
-	tags, err := c.tagger.Tag(entityID, c.tagger.ChecksCardinality())
-	if err != nil {
-		log.Errorf("Error collecting container tags for process %d: %s", key.PID, err)
-	}
-
 	// Container ID tag will be added or not depending on the tagger configuration
-	// PID and GPU UUID are always added as they're not relying on the tagger yet
-	keyTags := []string{
+	// PID is always added
+	tags := []string{
 		// Per-PID metrics are subject to change due to high cardinality
 		fmt.Sprintf("pid:%d", key.PID),
-		fmt.Sprintf("gpu_uuid:%s", key.DeviceUUID),
 	}
 
-	return append(tags, keyTags...)
+	containerEntityID := taggertypes.NewEntityID(taggertypes.ContainerID, key.ContainerID)
+	containerTags, err := c.tagger.Tag(containerEntityID, c.tagger.ChecksCardinality())
+	if err != nil {
+		log.Errorf("Error collecting container tags for process %d: %s", key.PID, err)
+	} else {
+		tags = append(tags, containerTags...)
+	}
+
+	gpuEntityID := taggertypes.NewEntityID(taggertypes.GPU, key.DeviceUUID)
+	gpuTags, err := c.tagger.Tag(gpuEntityID, c.tagger.ChecksCardinality())
+	if err != nil {
+		log.Errorf("Error collecting GPU tags for process %d: %s", key.PID, err)
+	} else {
+		tags = append(tags, gpuTags...)
+	}
+
+	return tags
 }
 
 func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
