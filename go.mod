@@ -268,7 +268,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/skydive-project/go-debouncer v1.0.1
 	github.com/smira/go-xz v0.1.0
-	github.com/spf13/afero v1.11.0
+	github.com/spf13/afero v1.12.0
 	github.com/spf13/cast v1.7.1
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
@@ -316,7 +316,7 @@ require (
 	golang.org/x/time v0.9.0
 	golang.org/x/tools v0.29.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
-	google.golang.org/genproto v0.0.0-20240903143218-8af14fe29dc1 // indirect
+	google.golang.org/genproto v0.0.0-20241118233622-e639e219e697 // indirect
 	google.golang.org/grpc v1.69.2
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.36.1
@@ -344,7 +344,7 @@ require (
 )
 
 require (
-	cloud.google.com/go/compute/metadata v0.5.2
+	cloud.google.com/go/compute/metadata v0.6.0
 	code.cloudfoundry.org/cfhttp/v2 v2.0.0 // indirect
 	code.cloudfoundry.org/clock v1.0.0 // indirect
 	code.cloudfoundry.org/consuladapter v0.0.0-20200131002136-ac1daf48ba97 // indirect
@@ -415,7 +415,7 @@ require (
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
 	github.com/google/uuid v1.6.0
 	github.com/google/wire v0.6.0 // indirect
-	github.com/googleapis/gax-go/v2 v2.13.0 // indirect
+	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.24.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -537,10 +537,10 @@ require (
 	go.opentelemetry.io/proto/otlp v1.4.0 // indirect
 	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/mod v0.22.0
-	golang.org/x/oauth2 v0.24.0 // indirect
+	golang.org/x/oauth2 v0.25.0 // indirect
 	golang.org/x/term v0.28.0 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
-	google.golang.org/api v0.199.0 // indirect
+	google.golang.org/api v0.215.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
@@ -752,8 +752,8 @@ require (
 )
 
 require (
-	cloud.google.com/go/auth v0.9.5 // indirect
-	cloud.google.com/go/auth/oauth2adapt v0.2.4 // indirect
+	cloud.google.com/go/auth v0.13.0 // indirect
+	cloud.google.com/go/auth/oauth2adapt v0.2.6 // indirect
 	code.cloudfoundry.org/go-diodes v0.0.0-20240604201846-c756bfed2ed3 // indirect
 	code.cloudfoundry.org/go-loggregator v7.4.0+incompatible // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20201103192249-000122071b78 // indirect
