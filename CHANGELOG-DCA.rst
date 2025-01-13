@@ -2,6 +2,39 @@
 Release Notes
 =============
 
+.. _Release Notes_7.61.0:
+
+7.61.0
+======
+
+.. _Release Notes_7.61.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-01-10
+Pinned to datadog-agent v7.61.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7610>`_.
+
+.. _Release Notes_7.61.0_New Features:
+
+New Features
+------------
+
+- Implements the Kubernetes Admission Events webhooks. This new webhooks will emit Datadog Events
+  when receving Validation Admission requests. It will track deployments operations made by non-system
+  users.
+  The webhook is controlled by using the `admission_controller.kubernetes_admission_events.enabled` setting.
+
+
+.. _Release Notes_7.61.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The auto-instrumentation webhook no longer injects the default environment
+  variables when disabled.
+
+
 .. _Release Notes_7.60.1:
 
 7.60.1
