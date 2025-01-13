@@ -24,6 +24,7 @@ from tasks.libs.package.utils import (
 @task
 def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False):
     package_sizes = retrieve_package_sizes(ctx, filename, distant=not dry_run)
+    print("Checking package sizes with length ", len(package_sizes))
     on_main = os.environ['CI_COMMIT_REF_NAME'] == get_default_branch()
     ancestor = get_ancestor(ctx, package_sizes, on_main)
     if on_main:

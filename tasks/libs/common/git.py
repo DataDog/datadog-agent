@@ -122,7 +122,7 @@ def get_default_branch(major: int | None = None):
 def get_common_ancestor(ctx, branch, base=None) -> str:
     base = base or f"origin/{get_default_branch()}"
 
-    return ctx.run(f"git merge-base {branch} {base}", hide=True).stdout.strip()
+    return ctx.run(f"git merge-base {branch} {base}").stdout.strip()
 
 
 def check_uncommitted_changes(ctx):
