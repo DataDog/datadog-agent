@@ -35,7 +35,7 @@ import (
 const (
 	numAllowedMountIDsToResolvePerPeriod = 5
 	fallbackLimiterPeriod                = time.Second
-	redemptionTime                       = 2 * time.Second
+	redemptionTime                       = 5 * time.Second
 )
 
 type redemptionEntry struct {
