@@ -14,9 +14,11 @@ exporters:
   datadog:
     api:
       key: ggggg77777
+      site: datadoghq.com
   datadog/2:
     api: 
       key: ggggg77777
+      site: datadoghq.com
 extensions:
   pprof/user-defined:
   health_check/user-defined:
