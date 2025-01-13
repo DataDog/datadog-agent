@@ -1171,6 +1171,8 @@ workflow:
         - test/new-e2e/tests/gpu/**/*
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
+        - comp/core/autodiscovery/providers/gpu.go
+        - pkg/config/autodiscovery/autodiscovery.go
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 # windows_docker_2022 configures the job to use the Windows Server 2022 runners.
