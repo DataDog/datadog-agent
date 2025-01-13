@@ -294,8 +294,8 @@ func GetAnySymbolWithInfixPCLNTAB(elfFile *safeelf.File, infix string, minLength
 		return nil, err
 	}
 
-	for key := range symbols {
-		return symbols[key], nil
+	for _, value := range symbols {
+		return &value, nil
 	}
 
 	// Shouldn't happen
