@@ -288,13 +288,13 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionPeriodic() {
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.Equal(c, registerRecorder.CallsForPathID(fooPathID1), 1)
+		assert.Equal(c, 1, registerRecorder.CallsForPathID(fooPathID1))
 
 		// Check that we tried to attach to the process twice.  See w.sync() for
 		// why we do it.  We don't actually need to attempt the registration
 		// twice, we just need to ensure that the maps were scanned twice but we
 		// don't have a hook for that so this check should be good enough.
-		assert.Equal(c, registerRecorder.CallsForPathID(errorPathID), 2)
+		assert.Equal(c, 2, registerRecorder.CallsForPathID(errorPathID))
 	}, time.Second*10, 100*time.Millisecond, "")
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -312,7 +312,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionPeriodic() {
 	command2.Process.Wait()
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.Equal(c, unregisterRecorder.CallsForPathID(fooPathID1), 1)
+		assert.Equal(c, 1, unregisterRecorder.CallsForPathID(fooPathID1))
 	}, time.Second*10, 100*time.Millisecond)
 
 	// Check that clean up of dead processes works.
