@@ -89,7 +89,11 @@ func (b *bucket) flush() *message.Message {
 		msg.ParsingExtra.IsTruncated = true
 		tlmTags[0] = "true"
 		if b.tagTruncatedLogs {
-			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("auto_multiline"))
+			if b.lineCount > 1 {
+				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("auto_multiline"))
+			} else {
+				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
+			}
 		}
 	}
 
@@ -157,10 +161,15 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 	// so we add the message to the bucket or flush if the bucket will overflow the max content size.
 	if msg.RawDataLen+a.bucket.buffer.Len() >= a.maxContentSize {
 		a.bucket.needsTruncation = true
+		brokenMultiLine := a.bucket.lineCount > 1
 		a.Flush()
 
 		// At this point, if we have an aggregate label, we need to break the current group so it doesn't join logs together forever.
 		if label == aggregate {
+			// If the previous group was a multiline, we need to mark the next group as multiline so it's tagged correctly.
+			if brokenMultiLine {
+				a.bucket.lineCount++
+			}
 			a.bucket.add(msg)
 			a.Flush()
 			return
