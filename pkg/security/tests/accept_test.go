@@ -10,17 +10,19 @@ package tests
 
 import (
 	"context"
+	"math/rand/v2"
+	"strconv"
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/nettest"
 	"golang.org/x/sys/unix"
-	"math/rand/v2"
-	"strconv"
-	"testing"
 )
 
 func TestAcceptEvent(t *testing.T) {
+	SkipIfNotAvailable(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{

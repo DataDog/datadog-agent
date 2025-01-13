@@ -49,9 +49,9 @@ type Event struct {
 
 // FileEvent is the common file event type
 type FileEvent struct {
-	FileObject  uint64 `field:"-"`                                                                                  // handle numeric value
-	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"eval.WindowsPathCmp"`         // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
-	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "cmd.bat"` Description:`Matches the execution of any file named cmd.bat.`
+	FileObject  uint64 `field:"-"`                                                                                      // handle numeric value
+	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length|gen_getters" op_override:"eval.WindowsPathCmp"` // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
+	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"`     // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "cmd.bat"` Description:`Matches the execution of any file named cmd.bat.`
 }
 
 // FimFileEvent is the common file event type
@@ -76,12 +76,12 @@ type Process struct {
 
 	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
 
-	ExitTime time.Time `field:"exit_time,opts:getters_only"`
-	ExecTime time.Time `field:"exec_time,opts:getters_only"`
+	ExitTime time.Time `field:"exit_time,opts:getters_only|gen_getters"`
+	ExecTime time.Time `field:"exec_time,opts:getters_only|gen_getters"`
 
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
-	PPid uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
+	PPid uint32 `field:"ppid,opts:gen_getters"` // SECLDoc[ppid] Definition:`Parent process ID`
 
 	ArgsEntry *ArgsEntry `field:"-"`
 	EnvsEntry *EnvsEntry `field:"-"`
@@ -92,8 +92,8 @@ type Process struct {
 	OwnerSidString string `field:"user_sid"`                 // SECLDoc[user_sid] Definition:`Sid of the user of the process`
 	User           string `field:"user,handler:ResolveUser"` // SECLDoc[user] Definition:`User name`
 
-	Envs []string `field:"envs,handler:ResolveProcessEnvs,weight:100"` // SECLDoc[envs] Definition:`Environment variable names of the process`
-	Envp []string `field:"envp,handler:ResolveProcessEnvp,weight:100"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
+	Envs []string `field:"envs,handler:ResolveProcessEnvs,weight:100"`                  // SECLDoc[envs] Definition:`Environment variable names of the process`
+	Envp []string `field:"envp,handler:ResolveProcessEnvp,weight:100,opts:gen_getters"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
 
 	// cache version
 	Variables               eval.Variables `field:"-"`
@@ -107,7 +107,7 @@ type ExecEvent struct {
 
 // PIDContext holds the process context of an kernel event
 type PIDContext struct {
-	Pid uint32 `field:"pid"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
+	Pid uint32 `field:"pid,opts:gen_getters"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
 }
 
 // NetworkDeviceContext defines a network device context

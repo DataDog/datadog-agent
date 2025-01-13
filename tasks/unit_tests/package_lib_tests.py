@@ -141,7 +141,7 @@ class TestGetPreviousSize(unittest.TestCase):
     @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'puppet'})
     def test_not_found_on_dev(self):
         c = MockContext(run={'git merge-base HEAD origin/main': Result('grand_pa')})
-        self.assertEqual(get_ancestor(c, self.package_sizes, False), "grand_ma")
+        self.assertEqual(get_ancestor(c, self.package_sizes, False), "ma")
 
     @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'main'})
     def test_on_main(self):

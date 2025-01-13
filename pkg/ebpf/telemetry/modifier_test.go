@@ -99,7 +99,7 @@ func TestModifierAppliesMultipleTimes(t *testing.T) {
 		require.NotEmpty(t, metrics, "No metrics collected on try %d", i)
 
 		// Run our BeforeStop
-		err = modifier.BeforeStop(mgr, mname)
+		err = modifier.BeforeStop(mgr, mname, manager.CleanAll)
 		require.NoError(t, err, "BeforeStop failed on try %d", i)
 
 		// Stop the manager
