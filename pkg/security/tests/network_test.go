@@ -268,7 +268,7 @@ func TestNetworkFlowSendUDP4(t *testing.T) {
 	checkKernelCompatibility(t, "RHEL, SLES, SUSE and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
 		// OpenSUSE distributions are missing the dummy kernel module
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
+		return kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel() || probe.IsNetworkFlowMonitorNotSupported(kv)
 	})
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
@@ -288,7 +288,6 @@ func TestNetworkFlowSendUDP4(t *testing.T) {
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(
 		testOpts{
 			networkFlowMonitorEnabled: true,
-			eventStreamUseFentry:      true,
 		},
 	))
 	if err != nil {

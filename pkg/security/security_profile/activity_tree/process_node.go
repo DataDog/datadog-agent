@@ -10,16 +10,16 @@ package activitytree
 
 import (
 	"fmt"
-	"io"
-	"slices"
-	"sort"
-	"strconv"
-
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
+	"html"
+	"io"
+	"slices"
+	"sort"
+	"strconv"
 )
 
 // ProcessNodeParent is an interface used to identify the parent of a process node
@@ -101,12 +101,17 @@ func (pn *ProcessNode) getNodeLabel(args string) string {
 	label := tableHeader
 
 	label += "<TR><TD>Command</TD><TD><FONT POINT-SIZE=\"" + strconv.Itoa(bigText) + "\">"
+	var cmd string
 	if sprocess.IsBusybox(pn.Process.FileEvent.PathnameStr) {
 		arg0, _ := sprocess.GetProcessArgv0(&pn.Process)
-		label += fmt.Sprintf("%s %s", arg0, args) + "</FONT></TD></TR>"
+		cmd = fmt.Sprintf("%s %s", arg0, args)
 	} else {
-		label += fmt.Sprintf("%s %s", pn.Process.FileEvent.PathnameStr, args)
+		cmd = fmt.Sprintf("%s %s", pn.Process.FileEvent.PathnameStr, args)
 	}
+	if len(cmd) > 100 {
+		cmd = cmd[:100] + " ..."
+	}
+	label += html.EscapeString(cmd)
 	label += "</FONT></TD></TR>"
 
 	if len(pn.Process.FileEvent.PkgName) != 0 {

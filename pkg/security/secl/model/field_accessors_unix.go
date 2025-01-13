@@ -565,7 +565,7 @@ func (ev *Event) GetProcessAncestorsCmdargv() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveProcessCmdArgv(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -586,7 +586,7 @@ func (ev *Event) GetProcessAncestorsEnvp() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -607,7 +607,7 @@ func (ev *Event) GetProcessAncestorsFilePath() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent)
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -628,7 +628,7 @@ func (ev *Event) GetProcessAncestorsFilePathLength() []int {
 		element := (*ProcessCacheEntry)(ptr)
 		result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent))
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -649,7 +649,7 @@ func (ev *Event) GetProcessAncestorsGid() []uint32 {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.GID
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -670,7 +670,7 @@ func (ev *Event) GetProcessAncestorsGroup() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.Group
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -691,7 +691,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFilePath() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -712,7 +712,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFilePathLength() []int {
 		element := (*ProcessCacheEntry)(ptr)
 		result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -733,7 +733,7 @@ func (ev *Event) GetProcessAncestorsPid() []uint32 {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.PIDContext.Pid
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -754,7 +754,7 @@ func (ev *Event) GetProcessAncestorsPpid() []uint32 {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.PPid
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -775,7 +775,7 @@ func (ev *Event) GetProcessAncestorsUid() []uint32 {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.UID
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -796,7 +796,7 @@ func (ev *Event) GetProcessAncestorsUser() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.User
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1114,7 +1114,7 @@ func (ev *Event) GetPtraceTraceeAncestorsCmdargv() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveProcessCmdArgv(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1138,7 +1138,7 @@ func (ev *Event) GetPtraceTraceeAncestorsEnvp() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1162,7 +1162,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFilePath() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent)
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1186,7 +1186,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFilePathLength() []int {
 		element := (*ProcessCacheEntry)(ptr)
 		result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent))
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1210,7 +1210,7 @@ func (ev *Event) GetPtraceTraceeAncestorsGid() []uint32 {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.GID
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1234,7 +1234,7 @@ func (ev *Event) GetPtraceTraceeAncestorsGroup() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.Group
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1258,7 +1258,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFilePath() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1282,7 +1282,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFilePathLength() []int {
 		element := (*ProcessCacheEntry)(ptr)
 		result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1306,7 +1306,7 @@ func (ev *Event) GetPtraceTraceeAncestorsPid() []uint32 {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.PIDContext.Pid
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1330,7 +1330,7 @@ func (ev *Event) GetPtraceTraceeAncestorsPpid() []uint32 {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.PPid
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1354,7 +1354,7 @@ func (ev *Event) GetPtraceTraceeAncestorsUid() []uint32 {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.UID
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1378,7 +1378,7 @@ func (ev *Event) GetPtraceTraceeAncestorsUser() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.User
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1857,7 +1857,7 @@ func (ev *Event) GetSignalTargetAncestorsCmdargv() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveProcessCmdArgv(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1881,7 +1881,7 @@ func (ev *Event) GetSignalTargetAncestorsEnvp() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1905,7 +1905,7 @@ func (ev *Event) GetSignalTargetAncestorsFilePath() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent)
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1929,7 +1929,7 @@ func (ev *Event) GetSignalTargetAncestorsFilePathLength() []int {
 		element := (*ProcessCacheEntry)(ptr)
 		result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent))
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1953,7 +1953,7 @@ func (ev *Event) GetSignalTargetAncestorsGid() []uint32 {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.GID
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -1977,7 +1977,7 @@ func (ev *Event) GetSignalTargetAncestorsGroup() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.Group
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -2001,7 +2001,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFilePath() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -2025,7 +2025,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFilePathLength() []int {
 		element := (*ProcessCacheEntry)(ptr)
 		result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -2049,7 +2049,7 @@ func (ev *Event) GetSignalTargetAncestorsPid() []uint32 {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.PIDContext.Pid
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -2073,7 +2073,7 @@ func (ev *Event) GetSignalTargetAncestorsPpid() []uint32 {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.PPid
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -2097,7 +2097,7 @@ func (ev *Event) GetSignalTargetAncestorsUid() []uint32 {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.UID
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
@@ -2121,7 +2121,7 @@ func (ev *Event) GetSignalTargetAncestorsUser() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.User
 		values = append(values, result)
-		ptr = iterator.Next()
+		ptr = iterator.Next(ctx)
 	}
 	return values
 }
