@@ -213,9 +213,11 @@ func TestSingleLineTooLongTruncation(t *testing.T) {
 	ag.Aggregate(newMessage(""), startGroup)
 
 	msg := <-outputChan
-	assertMessageContent(t, msg, "123...TRUNCATED...")
+	assert.Equal(t, "123...TRUNCATED...", string(msg.GetContent()))
+	assert.Equal(t, msg.IsMultiLine, true)
 	msg = <-outputChan
-	assertMessageContent(t, msg, "...TRUNCATED...456")
+	assert.Equal(t, "...TRUNCATED...456", string(msg.GetContent()))
+	assert.Equal(t, msg.IsMultiLine, true)
 	msg = <-outputChan
 	assertMessageContent(t, msg, "123456...TRUNCATED...")
 	msg = <-outputChan

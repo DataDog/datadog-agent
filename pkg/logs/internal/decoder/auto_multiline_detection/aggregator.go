@@ -151,35 +151,36 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 		return
 	}
 
-	// If `startGroup` - flush the bucket.
+	// If `startGroup` - flush the old bucket to form a new group.
 	if label == startGroup {
-		a.multiLineMatchInfo.Add(1)
 		a.Flush()
+		a.multiLineMatchInfo.Add(1)
+		a.bucket.add(msg)
+		if msg.RawDataLen >= a.maxContentSize {
+			// Start group is too big to append anything to, flush it and reset.
+			a.Flush()
+		}
+		return
+
 	}
 
-	// At this point we either have `startGroup` with an empty bucket or `aggregate` with a non-empty bucket
-	// so we add the message to the bucket or flush if the bucket will overflow the max content size.
+	// Check for a total buffer size larger than the limit. This should only be reachable by an aggregate label
+	// following a smaller than max-size start group label, and will result in the reset (flush) of the entire bucket.
+	// This reset will intentionally break multi-line detection and aggregation for logs larger than the limit, because
+	// doing so is safer than assuming we will correctly get a new startGroup for subsequent single line logs.
 	if msg.RawDataLen+a.bucket.buffer.Len() >= a.maxContentSize {
 		a.bucket.needsTruncation = true
-		brokenMultiLine := a.bucket.lineCount > 1
+		a.bucket.lineCount++ // Account for the current (not yet processed) message being part of the same log
 		a.Flush()
 
-		// At this point, if we have an aggregate label, we need to break the current group so it doesn't join logs together forever.
-		if label == aggregate {
-			// If the previous group was a multiline, we need to mark the next group as multiline so it's tagged correctly.
-			if brokenMultiLine {
-				a.bucket.lineCount++
-			}
-			a.bucket.add(msg)
-			a.Flush()
-			return
-		}
+		a.bucket.lineCount++ // Account for the previous (now flushed) message being part of the same log
+		a.bucket.add(msg)
+		a.Flush()
+		return
 	}
 
-	if !a.bucket.isEmpty() {
-		a.linesCombinedInfo.Add(1)
-	}
-
+	// We're an aggregate label within a startGroup and within the maxContentSize. Append new multiline
+	a.linesCombinedInfo.Add(1)
 	a.bucket.add(msg)
 }
 
