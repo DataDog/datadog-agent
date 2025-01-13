@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"os"
 	"strconv"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/klauspost/compress/zstd"
@@ -28,9 +27,6 @@ type Provides struct {
 	Comp compression.Component
 }
 
-var globalencoder *zstd.Encoder
-var mutex sync.Mutex
-
 // ZstdNoCgoStrategy can be manually selected via component - it's not used by any selector / config option
 type ZstdNoCgoStrategy struct {
 	level   int
@@ -41,32 +37,34 @@ type ZstdNoCgoStrategy struct {
 func NewComponent(reqs Requires) Provides {
 	log.Debugf("Compressing native zstd at level %d", reqs.Level)
 
-	mutex.Lock()
-	if globalencoder == nil {
-		conc, err := strconv.Atoi(os.Getenv("ZSTD_NOCGO_CONCURRENCY"))
-		if err != nil {
-			conc = 1
-		}
-
-		window, err := strconv.Atoi(os.Getenv("ZSTD_NOCGO_WINDOW"))
-		if err != nil {
-			window = 1 << 15
-		}
-
-		log.Debugf("native zstd concurrency %d", conc)
-		log.Debugf("native zstd window size %d", window)
-		globalencoder, _ = zstd.NewWriter(nil,
-			zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(reqs.Level)),
-			zstd.WithEncoderConcurrency(conc),
-			zstd.WithLowerEncoderMem(true),
-			zstd.WithWindowSize(window))
+	conc, err := strconv.Atoi(os.Getenv("ZSTD_NOCGO_CONCURRENCY"))
+	if err != nil {
+		conc = 1
 	}
-	mutex.Unlock()
+
+	window, err := strconv.Atoi(os.Getenv("ZSTD_NOCGO_WINDOW"))
+	if err != nil {
+		window = 1 << 15
+	}
+
+	log.Debugf("native zstd concurrency %d", conc)
+	log.Debugf("native zstd window size %d", window)
+	encoder, err := zstd.NewWriter(nil,
+		zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(reqs.Level)),
+		zstd.WithEncoderConcurrency(conc),
+		zstd.WithLowerEncoderMem(true),
+		zstd.WithWindowSize(window))
+	if err != nil {
+		_ = log.Errorf("Error creating zstd encoder: %v", err)
+		return Provides{
+			Comp: nil,
+		}
+	}
 
 	return Provides{
 		Comp: &ZstdNoCgoStrategy{
 			level:   reqs.Level,
-			encoder: globalencoder,
+			encoder: encoder,
 		},
 	}
 }
