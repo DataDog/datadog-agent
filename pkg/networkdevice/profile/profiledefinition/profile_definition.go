@@ -70,7 +70,7 @@ func (p *ProfileDefinition) Clone() *ProfileDefinition {
 		Metadata:     CloneMap(p.Metadata),
 		MetricTags:   CloneSlice(p.MetricTags),
 		StaticTags:   slices.Clone(p.StaticTags),
-		Metrics:      slices.Clone(p.Metrics),
+		Metrics:      CloneSlice(p.Metrics),
 		Device: DeviceMeta{
 			Vendor: p.Device.Vendor,
 		},

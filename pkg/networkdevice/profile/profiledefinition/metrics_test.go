@@ -117,8 +117,8 @@ func TestCloneMetricTagConfig(t *testing.T) {
 }
 
 func TestCloneMetricsConfig(t *testing.T) {
-	buildConf := func() *MetricsConfig {
-		return &MetricsConfig{
+	buildConf := func() MetricsConfig {
+		return MetricsConfig{
 			MIB: "FOO-MIB",
 			Table: SymbolConfig{
 				OID:                  "1.2.3.4",
@@ -171,7 +171,7 @@ func TestCloneMetricsConfig(t *testing.T) {
 
 func TestCloneEmpty(t *testing.T) {
 	mc := MetricsConfig{}
-	assert.Equal(t, &mc, mc.Clone())
+	assert.Equal(t, mc, mc.Clone())
 	sym := SymbolConfig{}
 	assert.Equal(t, sym, sym.Clone())
 	tag := MetricTagConfig{}

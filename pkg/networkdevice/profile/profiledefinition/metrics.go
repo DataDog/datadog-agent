@@ -179,11 +179,8 @@ type MetricsConfig struct {
 }
 
 // Clone duplicates this MetricsConfig
-func (m *MetricsConfig) Clone() *MetricsConfig {
-	if m == nil {
-		return nil
-	}
-	return &MetricsConfig{
+func (m MetricsConfig) Clone() MetricsConfig {
+	return MetricsConfig{
 		MIB:        m.MIB,
 		Table:      m.Table.Clone(),
 		Symbol:     m.Symbol.Clone(),
