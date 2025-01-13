@@ -2,6 +2,9 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+//go:build test
+
 package metrics
 
 import (
@@ -698,6 +701,14 @@ func TestSendTmpEnhancedMetrics(t *testing.T) {
 		{
 			Name:       tmpMaxMetric,
 			Value:      550461440,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       tmpFreeMetric,
+			Value:      538331440,
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
 			SampleRate: 1,

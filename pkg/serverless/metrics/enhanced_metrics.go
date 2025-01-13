@@ -61,6 +61,7 @@ const (
 	totalNetworkMetric           = "aws.lambda.enhanced.total_network"
 	tmpUsedMetric                = "aws.lambda.enhanced.tmp_used"
 	tmpMaxMetric                 = "aws.lambda.enhanced.tmp_max"
+	tmpFreeMetric                = "aws.lambda.enhanced.tmp_free"
 	fdMaxMetric                  = "aws.lambda.enhanced.fd_max"
 	fdUseMetric                  = "aws.lambda.enhanced.fd_use"
 	threadsMaxMetric             = "aws.lambda.enhanced.threads_max"
@@ -521,6 +522,14 @@ func generateTmpEnhancedMetrics(args generateTmpEnhancedMetricsArgs) {
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       tmpMaxMetric,
 		Value:      args.TmpMax,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       tmpFreeMetric,
+		Value:      args.TmpMax - args.TmpUsed,
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
