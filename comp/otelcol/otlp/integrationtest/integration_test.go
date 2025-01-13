@@ -64,8 +64,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
-	otelcompression "github.com/DataDog/datadog-agent/comp/serializer/otelcompression/def"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/otelcompression/fx"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
+	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
@@ -121,8 +121,8 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		}),
 		logsagentpipelineimpl.Module(),
 		logscompressionfx.Module(),
-		compressionfx.Module(),
-		fx.Provide(func(c otelcompression.Component) compression.Compressor {
+		metricscompressionfx.Module(),
+		fx.Provide(func(c metricscompression.Component) compression.Compressor {
 			return c
 		}),
 		fx.Provide(serializer.NewSerializer),

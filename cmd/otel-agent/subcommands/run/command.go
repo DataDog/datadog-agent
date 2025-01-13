@@ -33,9 +33,7 @@ import (
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
-	otelcompression "github.com/DataDog/datadog-agent/comp/serializer/otelcompression/def"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/otelcompression/fx"
-	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -164,10 +162,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		}),
 		logsagentpipelineimpl.Module(),
 		logscompression.Module(),
-		compressionfx.Module(),
-		fx.Provide(func(c otelcompression.Component) compression.Compressor {
-			return c
-		}),
+		metricscompression.Module(),
 		fx.Provide(serializer.NewSerializer),
 		// For FX to provide the serializer.MetricSerializer from the serializer.Serializer
 		fx.Provide(func(s *serializer.Serializer) serializer.MetricSerializer {

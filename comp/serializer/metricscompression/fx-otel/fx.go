@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package fx provides the fx module for the serializer/logscompression component
+// Package fx provides the fx module that will be used by otel for the serializer/metricscompression component
 package fx
 
 import (
-	"github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
+	"github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -15,7 +15,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			impl.NewComponent,
+			impl.NewCompressorReqOtel,
 		),
 	)
 }

@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package logscompressor provides the component for logs compression
-package logscompressor
+// Package logscompression provides the component for logs compression
+package logscompression
+
+// team: agent-processing-and-routing
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
