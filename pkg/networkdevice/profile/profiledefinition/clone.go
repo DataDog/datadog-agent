@@ -13,12 +13,12 @@ type Cloneable[T any] interface {
 }
 
 // CloneSlice clones all the objects in a slice into a new slice.
-func CloneSlice[T Cloneable[T]](t []T) []T {
-	if t == nil {
+func CloneSlice[Slice ~[]T, T Cloneable[T]](s Slice) Slice {
+	if s == nil {
 		return nil
 	}
-	result := make([]T, 0, len(t))
-	for _, v := range t {
+	result := make(Slice, 0, len(s))
+	for _, v := range s {
 		result = append(result, v.Clone())
 	}
 	return result
@@ -26,11 +26,11 @@ func CloneSlice[T Cloneable[T]](t []T) []T {
 
 // CloneMap clones a map[K]T for any cloneable type T.
 // The map keys are shallow-copied; values are cloned.
-func CloneMap[K comparable, T Cloneable[T]](m map[K]T) map[K]T {
+func CloneMap[Map ~map[K]T, K comparable, T Cloneable[T]](m Map) Map {
 	if m == nil {
 		return nil
 	}
-	result := make(map[K]T, len(m))
+	result := make(Map, len(m))
 	for k, v := range m {
 		result[k] = v.Clone()
 	}
