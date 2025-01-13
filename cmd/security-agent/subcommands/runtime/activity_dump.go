@@ -30,6 +30,7 @@ import (
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -761,7 +762,7 @@ func activityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets
 	}
 
 	generatedRules := dump.GenerateRules(ads, opts)
-	generatedRules = utils.BuildPatterns(generatedRules)
+	generatedRules = pathutils.BuildPatterns(generatedRules)
 
 	policyDef := rules.PolicyDef{
 		Rules: generatedRules,

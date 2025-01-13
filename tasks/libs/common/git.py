@@ -161,7 +161,7 @@ def check_base_branch(branch, release_version):
     Checks if the given branch is either the default branch or the release branch associated
     with the given release version.
     """
-    return branch == get_default_branch() or branch == release_version.branch()
+    return branch == get_default_branch() or branch == release_version
 
 
 def try_git_command(ctx, git_command, non_interactive_retries=2, non_interactive_delay=5):
@@ -273,7 +273,7 @@ def get_last_release_tag(ctx, repo, pattern):
             code=1,
         )
 
-    release_pattern = re.compile(r'.*7\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$')
+    release_pattern = re.compile(r'^.*7\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?(\^{})?$')
     tags_without_suffix = [
         line for line in tags.splitlines() if not line.endswith("^{}") and release_pattern.match(line)
     ]
