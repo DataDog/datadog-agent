@@ -126,7 +126,7 @@ func NewTaggerClient(params tagger.Params, cfg config.Component, wmeta workloadm
 	var err error
 	telemetryStore := telemetry.NewStore(telemetryComp)
 	if params.UseFakeTagger {
-		defaultTagger = taggermock.New().Comp
+		defaultTagger = taggermock.New(taggermock.Dependencies{Config: cfg}).Comp
 	} else {
 		defaultTagger, err = newLocalTagger(cfg, wmeta, telemetryStore)
 	}

@@ -269,7 +269,7 @@ func (p *Pipeline) Stop() {
 // NewPipelineFromAgentConfig creates a new pipeline from the given agent configuration, metric serializer and logs channel. It returns
 // any potential failure.
 func NewPipelineFromAgentConfig(cfg config.Component, s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component) (*Pipeline, error) {
-	pcfg, err := FromAgentConfig(cfg)
+	pcfg, err := FromAgentConfig(cfg, tagger)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("config error: %w", err))
 		return nil, pipelineError.Load()

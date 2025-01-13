@@ -78,6 +78,8 @@ func TestStartPipeline(t *testing.T) {
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
+	fakeTagger := mock.SetupFakeTagger(t)
+
 	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
 	defer pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
 
@@ -101,7 +103,7 @@ func TestStartPipelineFromConfig(t *testing.T) {
 		t.Run(testInstance.path, func(t *testing.T) {
 			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg)
+			pcfg, err := FromAgentConfig(cfg, fakeTagger)
 			require.NoError(t, err)
 			if testInstance.err == "" {
 				AssertSucessfulRun(t, pcfg)

@@ -11,6 +11,7 @@ package mock
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -23,5 +24,8 @@ func Module() fxutil.Module {
 
 // SetupFakeTagger calls fxutil.Test to create a mock tagger for testing
 func SetupFakeTagger(t testing.TB) Mock {
-	return fxutil.Test[Mock](t, Module())
+	return fxutil.Test[Mock](t,
+		config.MockModule(),
+		Module(),
+	)
 }
