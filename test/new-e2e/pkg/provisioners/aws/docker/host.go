@@ -32,18 +32,18 @@ const (
 	defaultVMName     = "dockervm"
 )
 
-type setupFn func(*aws.Environment, *remote.Host, *ProvisionerParams) error
+type preAgentInstallHook func(*aws.Environment, *remote.Host) (pulumi.Resource, error)
 
 // ProvisionerParams contains all the parameters needed to create the environment
 type ProvisionerParams struct {
 	name string
 
-	vmOptions         []ec2.VMOption
-	agentOptions      []dockeragentparams.Option
-	fakeintakeOptions []fakeintake.Option
-	setupCallbacks    []setupFn
-	extraConfigParams runner.ConfigMap
-	testingWorkload   bool
+	vmOptions            []ec2.VMOption
+	agentOptions         []dockeragentparams.Option
+	fakeintakeOptions    []fakeintake.Option
+	preAgentInstallHooks []preAgentInstallHook
+	extraConfigParams    runner.ConfigMap
+	testingWorkload      bool
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -134,10 +134,10 @@ func WithTestingWorkload() ProvisionerOption {
 	}
 }
 
-// WithSetupCallback adds a callback between host setup end and the agent starting up.
-func WithSetupCallback(cb setupFn) ProvisionerOption {
+// WithPreAgentInstallHook adds a callback between host setup end and the agent starting up.
+func WithPreAgentInstallHook(cb preAgentInstallHook) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
-		params.setupCallbacks = append(params.setupCallbacks, cb)
+		params.preAgentInstallHooks = append(params.preAgentInstallHooks, cb)
 		return nil
 	}
 }
@@ -210,9 +210,13 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, runParams RunParams)
 		env.FakeIntake = nil
 	}
 
-	for _, cb := range params.setupCallbacks {
-		if err := cb(&awsEnv, host, params); err != nil {
+	for _, hook := range params.preAgentInstallHooks {
+		res, err := hook(&awsEnv, host)
+		if err != nil {
 			return err
+		}
+		if res != nil {
+			params.agentOptions = append(params.agentOptions, dockeragentparams.WithPulumiDependsOn(utils.PulumiDependsOn(res)))
 		}
 	}
 

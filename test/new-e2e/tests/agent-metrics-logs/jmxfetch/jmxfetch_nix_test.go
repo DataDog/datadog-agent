@@ -74,7 +74,7 @@ func testJMXFetchNix(t *testing.T, mtls bool, fips bool) {
 				choice(fips, dockeragentparams.WithFIPS(), none),
 				dockeragentparams.WithExtraComposeInlineManifest(extraManifests...),
 			),
-			choice(mtls, awsdocker.WithSetupCallback(fetchCertificates), none),
+			choice(mtls, awsdocker.WithPreAgentInstallHook(fetchCertificates), none),
 		)),
 		e2e.WithStackName(fmt.Sprintf("jmxfetchnixtest-fips_%v-mtls_%v", fips, mtls)),
 	}
@@ -198,14 +198,14 @@ func choice[T any](cond bool, then, otherwise T) T {
 	return otherwise
 }
 
-func fetchCertificates(awsEnv *aws.Environment, h *remote.Host, params *awsdocker.ProvisionerParams) error {
+func fetchCertificates(awsEnv *aws.Environment, h *remote.Host) (pulumi.Resource, error) {
 	args := secretsmanager.LookupSecretVersionOutputArgs{SecretId: pulumi.String(testCertsARN)}
 	certs := secretsmanager.LookupSecretVersionOutput(awsEnv.Ctx(), args, awsEnv.WithProvider(config.ProviderAWS))
 
 	// Commands here are queued and executed later.
 	mkdirCmd, path, err := h.OS.FileManager().HomeDirectory("certs")
 	if err != nil {
-		return fmt.Errorf("failed to create mkdir command: %w", err)
+		return nil, fmt.Errorf("failed to create mkdir command: %w", err)
 	}
 	runner := h.OS.Runner()
 
@@ -215,12 +215,10 @@ func fetchCertificates(awsEnv *aws.Environment, h *remote.Host, params *awsdocke
 	}, utils.PulumiDependsOn(mkdirCmd))
 
 	if err != nil {
-		return fmt.Errorf("failed to create decode command: %w", err)
+		return nil, fmt.Errorf("failed to create decode command: %w", err)
 	}
 
-	awsdocker.WithAgentOptions(dockeragentparams.WithPulumiDependsOn(utils.PulumiDependsOn(unpack)))(params)
-
-	return nil
+	return unpack, nil
 }
 
 type serviceDesc struct {
