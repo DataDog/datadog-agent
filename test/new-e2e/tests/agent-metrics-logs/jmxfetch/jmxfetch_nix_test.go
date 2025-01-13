@@ -39,7 +39,7 @@ import (
 //go:embed testdata/docker-labels.yaml
 var jmxFetchADLabels string
 
-const testCertsARN = "arn:aws:secretsmanager:us-east-1:376334461865:secret:agent-e2e-jmxfetch-test-certs-20250107-zDSge7"
+const testCertsARN = "arn:aws:secretsmanager:us-east-1:376334461865:secret:agent-e2e-jmxfetch-test-certs-20250107-d3WPao"
 
 type jmxfetchNixTest struct {
 	e2e.BaseSuite[environments.DockerHost]
