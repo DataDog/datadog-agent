@@ -64,25 +64,12 @@
     }
 }
 
-- (void)locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray<CLLocation *> *)locations {
-    CLLocation *location = [locations lastObject];
-    NSLog(@"Location updated: %@", location);
-}
-
-- (void)locationManager:(CLLocationManager *)manager didFailWithError:(NSError *)error {
-    NSLog(@"Location update failed with error: %@", error.localizedDescription);
-}
-
 @end
-
-// Wrapper function to start location updates
-void InitLocationServices() {
-    LocationManager *locationManager = [[LocationManager alloc] init];
-}
 
 // GetWiFiInformation return wifi data
 WiFiInfo GetWiFiInformation() {
     @autoreleasepool {
+        LocationManager *locationManager = [[LocationManager alloc] init];
         CWInterface *wifiInterface = [[CWWiFiClient sharedWiFiClient] interface];
 
         WiFiInfo info;

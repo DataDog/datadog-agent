@@ -17,14 +17,9 @@ package wlan
 import "C"
 import (
 	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func GetWiFiInfo() (WiFiInfo, error) {
-	C.InitLocationServices()
-	log.Info("Initialized Location Manager")
-
 	info := C.GetWiFiInformation()
 
 	ssid := C.GoString(info.ssid)
