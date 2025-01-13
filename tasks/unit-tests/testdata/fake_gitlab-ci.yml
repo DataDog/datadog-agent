@@ -416,7 +416,6 @@ workflow:
     when: on_success
     variables:
       AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
 .on_deploy_manual:
@@ -477,7 +476,6 @@ workflow:
     when: on_success
     variables:
       AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
   - when: manual
     allow_failure: true
@@ -505,7 +503,6 @@ workflow:
     when: on_success
     variables:
       AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
 .on_deploy_a7_manual:
@@ -518,13 +515,11 @@ workflow:
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent-dev
-      DSD_REPOSITORY: dogstatsd-dev
       IMG_REGISTRIES: dev
   - when: manual
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
 # rule to trigger job for internal image deployment if deploy is set or
@@ -554,13 +549,11 @@ workflow:
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent-dev
-      DSD_REPOSITORY: dogstatsd-dev
       IMG_REGISTRIES: dev
   - when: manual
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
 # This rule is a variation of on_deploy_a7_manual where
@@ -578,19 +571,16 @@ workflow:
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent-dev
-      DSD_REPOSITORY: dogstatsd-dev
       IMG_REGISTRIES: dev
   - <<: *if_rc_tag_on_beta_repo_branch
     when: on_success
     variables:
       AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
   - when: manual
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
 # This is used for image vulnerability scanning. Because agent 6
@@ -608,7 +598,6 @@ workflow:
     variables:
       AGENT_REPOSITORY: ci/datadog-agent/agent-release
       CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
-      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       IMG_REGISTRIES: internal-aws-ddbuild
 
 # Same as on_deploy_a7_manual_final, except the job is used to publish images
@@ -627,7 +616,6 @@ workflow:
     variables:
       AGENT_REPOSITORY: ci/datadog-agent/agent-release
       CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
-      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       IMG_REGISTRIES: internal-aws-ddbuild
 
 .on_deploy_nightly_repo_branch:
