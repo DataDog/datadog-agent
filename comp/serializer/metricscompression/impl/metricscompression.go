@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package impl provides the implementation for the serializer/metricscompression component
-package impl
+package metricscompressionimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"

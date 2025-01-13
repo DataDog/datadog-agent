@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package impl provides the implementation for the serializer/logscompression component
-package impl
+package logscompressionimpl
 
 import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
