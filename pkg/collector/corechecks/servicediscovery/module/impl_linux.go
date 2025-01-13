@@ -177,10 +177,7 @@ func (s *discovery) handleServices(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	resp := &model.ServicesResponse{
-		Services: *services,
-	}
-	utils.WriteAsJSON(w, resp)
+	utils.WriteAsJSON(w, services)
 }
 
 const prefix = "socket:["
@@ -718,7 +715,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 }
 
 // getStatus returns the list of currently running services.
-func (s *discovery) getServices() (*[]model.Service, error) {
+func (s *discovery) getServices() (*model.ServicesResponse, error) {
 	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
@@ -730,7 +727,10 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 		netNsInfo: make(map[uint32]*namespaceInfo),
 	}
 
-	var services []model.Service
+	response := &model.ServicesResponse{
+		Services:          make([]model.Service, 0, len(s.runningServices)+len(s.potentialServices)),
+	}
+
 	alivePids := make(pidSet, len(pids))
 	containers, _, pidToCid, err := s.containerProvider.GetContainers(1*time.Minute, nil)
 	if err != nil {
@@ -757,7 +757,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 		s.enrichContainerData(service, containersMap, pidToCid)
 
 		if _, ok := s.runningServices[pid]; ok {
-			services = append(services, *service)
+			response.Services = append(response.Services, *service)
 			continue
 		}
 
@@ -766,7 +766,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 			// is confirmed to be running.
 			s.runningServices.add(pid)
 			delete(s.potentialServices, pid)
-			services = append(services, *service)
+			response.Services = append(response.Services, *service)
 			continue
 		}
 
@@ -782,5 +782,5 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 		log.Warnf("updating services CPU stats: %s", err)
 	}
 
-	return &services, nil
+	return response, nil
 }
