@@ -74,7 +74,6 @@ type testOpts struct {
 	enforcementDisarmerExecutablePeriod        time.Duration
 	eventServerRetention                       time.Duration
 	discardRuntime                             bool
-	eventStreamUseFentry                       bool
 	networkFlowMonitorEnabled                  bool
 }
 
@@ -162,6 +161,5 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.enforcementDisarmerExecutablePeriod == opts.enforcementDisarmerExecutablePeriod &&
 		to.eventServerRetention == opts.eventServerRetention &&
 		to.discardRuntime == opts.discardRuntime &&
-		to.eventStreamUseFentry == opts.eventStreamUseFentry &&
 		to.networkFlowMonitorEnabled == opts.networkFlowMonitorEnabled
 }

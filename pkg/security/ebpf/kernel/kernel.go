@@ -366,11 +366,7 @@ func (k *Version) IsMapValuesToMapHelpersAllowed() bool {
 // HasBPFForEachMapElemHelper returns true if the kernel support the bpf_for_each_map_elem helper
 // See https://github.com/torvalds/linux/commit/69c087ba6225b574afb6e505b72cb75242a3d844
 func (k *Version) HasBPFForEachMapElemHelper() bool {
-	if !k.HaveFentrySupport() {
-		return false
-	}
-
-	if features.HaveProgramHelper(ebpf.Tracing, asm.FnForEachMapElem) == nil {
+	if features.HaveProgramHelper(ebpf.PerfEvent, asm.FnForEachMapElem) == nil {
 		return true
 	}
 	return k.Code != 0 && k.Code > Kernel5_13

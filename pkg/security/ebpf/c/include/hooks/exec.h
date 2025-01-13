@@ -273,8 +273,7 @@ int hook_do_coredump(ctx_t *ctx) {
     return 0;
 }
 
-HOOK_ENTRY("do_exit")
-int hook_do_exit(ctx_t *ctx) {
+int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
     u32 pid = pid_tgid;
@@ -283,11 +282,6 @@ int hook_do_exit(ctx_t *ctx) {
     if (ignored) {
         bpf_map_delete_elem(&pid_ignored, &pid);
         return 0;
-    }
-
-    if (is_network_flow_monitor_enabled()) {
-        // flush network stats
-        flush_pid_network_stats(tgid, ctx, PID_EXIT);
     }
 
     // delete netns entry
@@ -332,6 +326,29 @@ int hook_do_exit(ctx_t *ctx) {
     pop_syscall(EVENT_ANY);
 
     return 0;
+}
+
+TAIL_CALL_TARGET_WITH_HOOK_POINT("do_exit")
+int tail_call_target_flush_network_stats_exit(ctx_t *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = pid_tgid;
+    u32 tgid = pid_tgid >> 32;
+
+    void *ignored = bpf_map_lookup_elem(&pid_ignored, &pid);
+    if (ignored == NULL) {
+        // flush network stats
+        flush_pid_network_stats(tgid, ctx, PID_EXIT);
+    }
+
+    return handle_do_exit(ctx);
+}
+
+HOOK_ENTRY("do_exit")
+int hook_do_exit(ctx_t *ctx) {
+    if (is_network_flow_monitor_enabled()) {
+        bpf_tail_call_compat(ctx, &flush_network_stats_progs, PID_EXIT);
+    }
+    return handle_do_exit(ctx);
 }
 
 HOOK_ENTRY("exit_itimers")
@@ -666,11 +683,6 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     u64 now = bpf_ktime_get_ns();
     u32 tgid = pid_tgid >> 32;
 
-    if (is_network_flow_monitor_enabled()) {
-        // flush network stats
-        flush_pid_network_stats(tgid, ctx, PID_EXEC);
-    }
-
     bpf_map_delete_elem(&exec_pid_transfer, &tgid);
 
     struct proc_cache_t pc = {
@@ -767,8 +779,20 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     return 0;
 }
 
+TAIL_CALL_TARGET_WITH_HOOK_POINT("mprotect_fixup")
+int tail_call_target_flush_network_stats_exec(ctx_t *ctx) {
+    // flush network stats
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = pid_tgid >> 32;
+    flush_pid_network_stats(tgid, ctx, PID_EXEC);
+    return send_exec_event(ctx);
+}
+
 HOOK_ENTRY("mprotect_fixup")
 int hook_mprotect_fixup(ctx_t *ctx) {
+    if (is_network_flow_monitor_enabled()) {
+        bpf_tail_call_compat(ctx, &flush_network_stats_progs, PID_EXEC);
+    }
     return send_exec_event(ctx);
 }
 
