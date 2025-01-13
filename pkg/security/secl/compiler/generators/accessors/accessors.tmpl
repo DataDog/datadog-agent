@@ -77,20 +77,22 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return result
 					}
 
-					var results []{{$Field.ReturnType}}
 
 					iterator := &{{$Field.Iterator.ReturnType}}{}
 
 					if regID != "" {
+						var results []{{$Field.ReturnType}}
+						{{if $Field.Iterator.IsOrigTypePtr}}
+						element := iterator.At(ctx, regID, ctx.Registers[regID])
+						if element == nil {
+							return nil
+						}
+						{{else}}
 						value := iterator.At(ctx, regID, ctx.Registers[regID])
 						if value == nil {
-							return results
+							return nil
 						}
-
-						{{if $Field.Iterator.IsOrigTypePtr}}
-							element := value
-						{{else}}
-							element := *value
+						element := *value
 						{{end}}
 
 						{{range $Check := $Checks}}
@@ -139,7 +141,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					{{if $Field.GetArrayPrefix}}
 						{{$AncestorFunc = "newAncestorsIteratorArray"}}
 					{{end}}
-					results = {{$AncestorFunc}}(iterator, ctx, {{$Event}}, func(ev *Event, pce *ProcessCacheEntry) {{$Field.GetArrayPrefix}}{{$Field.ReturnType}} {
+					results := {{$AncestorFunc}}(iterator, ctx, {{$Event}}, func(ev *Event, pce *ProcessCacheEntry) {{$Field.GetArrayPrefix}}{{$Field.ReturnType}} {
 						{{range $Check := $Checks}}
 							{{if $Field.Iterator.Name | HasPrefix $Check}}
 								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
