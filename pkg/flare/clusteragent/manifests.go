@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package flare
+package clusteragent
 
 import (
 	"bytes"

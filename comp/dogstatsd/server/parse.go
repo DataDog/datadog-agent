@@ -172,7 +172,6 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 
 	sampleRate := 1.0
 	var tags []string
-	var containerID string
 	var localData origindetection.LocalData
 	var externalData origindetection.ExternalData
 	var optionalField []byte
@@ -204,17 +203,10 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 			timestamp = time.Unix(ts, 0)
 		// local data
 		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, localDataPrefix):
-			localData, err = p.resolveLocalData(optionalField[len(localDataPrefix):])
-			if err == nil {
-				containerID = localData.ContainerID
-			}
+			localData = p.parseLocalData(optionalField[len(localDataPrefix):])
 		// external data
 		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, externalDataPrefix):
-			rawExternalData := string(optionalField[len(externalDataPrefix):])
-			externalData, err = origindetection.ParseExternalData(rawExternalData)
-			if err != nil {
-				log.Errorf("failed to parse e: field containing External Data %q: %v", rawExternalData, err)
-			}
+			externalData = p.parseExternalData(optionalField[len(externalDataPrefix):])
 		}
 	}
 
@@ -226,11 +218,36 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		metricType:   metricType,
 		sampleRate:   sampleRate,
 		tags:         tags,
-		containerID:  containerID,
 		localData:    localData,
 		externalData: externalData,
 		ts:           timestamp,
 	}, nil
+}
+
+// parseLocalData parses the local data string into a LocalData struct.
+func (p *parser) parseLocalData(rawLocalData []byte) origindetection.LocalData {
+	localDataString := string(rawLocalData)
+
+	localData, err := origindetection.ParseLocalData(localDataString)
+	if err != nil {
+		log.Errorf("failed to parse c: field containing Local Data %q: %v", localDataString, err)
+	}
+
+	// return localData even if there was a parsing error as some fields might have been parsed correctly.
+	return localData
+}
+
+// parseExternalData parses the external data string into an ExternalData struct.
+func (p *parser) parseExternalData(rawExternalData []byte) origindetection.ExternalData {
+	externalDataString := string(rawExternalData)
+
+	externalData, err := origindetection.ParseExternalData(externalDataString)
+	if err != nil {
+		log.Errorf("failed to parse e: field containing External Data %q: %v", externalDataString, err)
+	}
+
+	// return externalData even if there was a parsing error as some fields might have been parsed correctly.
+	return externalData
 }
 
 // parseFloat64List parses a list of float64 separated by colonSeparator.
@@ -268,37 +285,6 @@ func (p *parser) parseFloat64List(rawFloats []byte) ([]float64, error) {
 		return nil, fmt.Errorf("no value found")
 	}
 	return values, nil
-}
-
-// resolveContainerIDFromInode returns the container ID for the given cgroupv2 inode.
-// TODO: This method will be removed when Inode resolution has been moved to the Tagger.
-func (p *parser) resolveLocalData(rawLocalData []byte) (origindetection.LocalData, error) {
-	localDataString := string(rawLocalData)
-
-	var localData origindetection.LocalData
-	var err error
-	localData, err = origindetection.ParseLocalData(localDataString)
-	if err != nil {
-		log.Errorf("failed to parse c: field containing Local Data %q: %v", localDataString, err)
-	}
-
-	// If the container ID is not set in the Local Data, we try to resolve it from the cgroupv2 inode.
-	// TODO: This will be removed when Inode resolution has been moved to the Tagger.
-	if err == nil && localData.ContainerID == "" {
-		localData.ContainerID = p.resolveContainerIDFromInode(localData.Inode)
-	}
-
-	return localData, err
-}
-
-// resolveContainerIDFromInode returns the container ID for the given cgroupv2 inode.
-func (p *parser) resolveContainerIDFromInode(inode uint64) string {
-	containerID, err := p.provider.GetMetaCollector().GetContainerIDForInode(inode, cacheValidity)
-	if err != nil {
-		log.Debugf("Failed to get container ID, got %v", err)
-		return ""
-	}
-	return containerID
 }
 
 // the std API does not have methods to do []byte => float parsing
