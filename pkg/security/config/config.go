@@ -274,6 +274,9 @@ type RuntimeSecurityConfig struct {
 
 	// IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
 	IMDSIPv4 uint32
+
+	// SendEventFromSystemProbe defines when the event are sent directly from system-probe
+	SendEventFromSystemProbe bool
 }
 
 // Config defines a security config
@@ -458,6 +461,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// IMDS
 		IMDSIPv4: parseIMDSIPv4(),
+
+		// direct sender
+		SendEventFromSystemProbe: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe"),
 	}
 
 	if err := rsConfig.sanitize(); err != nil {
