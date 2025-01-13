@@ -106,7 +106,7 @@ dca_dev_branch:
 dca_dev_branch_multiarch:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_all_builds_manual]
+  rules: !reference [.manual]
   needs:
     - docker_build_cluster_agent_amd64
     - docker_build_cluster_agent_arm64
@@ -129,7 +129,7 @@ dca_dev_master:
 cws_instrumentation_dev_branch_multiarch:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_all_builds_manual]
+  rules: !reference [.manual]
   needs:
     - docker_build_cws_instrumentation_amd64
     - docker_build_cws_instrumentation_arm64
