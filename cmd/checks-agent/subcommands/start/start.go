@@ -55,6 +55,8 @@ import (
 	compressionimpl "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
+	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -207,6 +209,8 @@ func start(
 
 	// TODO: figure out how to initial.ize checks context
 	// check.InitializeInventoryChecksContext(invChecks)
+
+	corecheckLoader.RegisterCheck(oracle.OracleDbmCheckName, oracle.Factory())
 
 	scheduler := pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, option.None[integrations.Component](), tagger)
 
