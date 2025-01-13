@@ -729,6 +729,9 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 
 	response := &model.ServicesResponse{
 		Services:          make([]model.Service, 0, len(s.runningServices)+len(s.potentialServices)),
+		StartedServices:   make([]model.Service, 0, len(s.potentialServices)),
+		StoppedServices:   make([]model.Service, 0),
+		HeartbeatServices: make([]model.Service, 0),
 	}
 
 	alivePids := make(pidSet, len(pids))
@@ -767,6 +770,7 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 			s.runningServices.add(pid)
 			delete(s.potentialServices, pid)
 			response.Services = append(response.Services, *service)
+			response.StartedServices = append(response.StartedServices, *service)
 			continue
 		}
 
@@ -778,7 +782,7 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 	s.cleanCache(alivePids)
 	s.cleanPidSets(alivePids, s.ignorePids, s.runningServices, s.potentialServices)
 
-	if err = s.updateServicesCPUStats(services); err != nil {
+	if err = s.updateServicesCPUStats(response.StartedServices); err != nil {
 		log.Warnf("updating services CPU stats: %s", err)
 	}
 
