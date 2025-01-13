@@ -50,18 +50,52 @@ var _ module.Module = &discovery{}
 // serviceInfo holds process data that should be cached between calls to the
 // endpoint.
 type serviceInfo struct {
-	generatedName        string
-	generatedNameSource  string
-	containerServiceName string
-	ddServiceName        string
-	ddServiceInjected    bool
-	checkedContainerData bool
-	language             language.Language
-	apmInstrumentation   apm.Instrumentation
-	cmdLine              []string
-	startTimeMilli       uint64
-	cpuTime              uint64
-	cpuUsage             float64
+	name                       string
+	generatedName              string
+	generatedNameSource        string
+	containerServiceName       string
+	containerServiceNameSource string
+	ddServiceName              string
+	ddServiceInjected          bool
+	ports                      []uint16
+	checkedContainerData       bool
+	language                   language.Language
+	apmInstrumentation         apm.Instrumentation
+	cmdLine                    []string
+	startTimeMilli             uint64
+	rss                        uint64
+	cpuTime                    uint64
+	cpuUsage                   float64
+	containerID                string
+	lastHeartbeat              int64
+}
+
+// toModelService fills the model.Service struct pointed to by out, using the
+// service info to do it.
+func (i *serviceInfo) toModelService(pid int32, out *model.Service) {
+	if i == nil {
+		log.Warn("toModelService called with nil pointer")
+		return
+	}
+
+	out.PID = int(pid)
+	out.Name = i.name
+	out.GeneratedName = i.generatedName
+	out.GeneratedNameSource = i.generatedNameSource
+	out.ContainerServiceName = i.containerServiceName
+	out.ContainerServiceNameSource = i.containerServiceNameSource
+	out.DDService = i.ddServiceName
+	out.DDServiceInjected = i.ddServiceInjected
+	out.Ports = i.ports
+	out.APMInstrumentation = string(i.apmInstrumentation)
+	out.Language = string(i.language)
+	out.Type = string(servicetype.Detect(i.ports))
+	out.RSS = i.rss
+	out.CommandLine = i.cmdLine
+	out.StartTimeMilli = i.startTimeMilli
+	out.CPUCores = i.cpuUsage
+	out.ContainerID = i.containerID
+	out.LastHeartbeat = i.lastHeartbeat
 }
 
 type timeProvider interface {
@@ -442,7 +476,13 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	nameMeta := servicediscovery.GetServiceName(lang, ctx)
 	apmInstrumentation := apm.Detect(lang, ctx)
 
+	name := nameMeta.DDService
+	if name == "" {
+		name = nameMeta.Name
+	}
+
 	return &serviceInfo{
+		name:                name,
 		generatedName:       nameMeta.Name,
 		generatedNameSource: string(nameMeta.Source),
 		ddServiceName:       nameMeta.DDService,
@@ -545,31 +585,19 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		s.mux.Unlock()
 	}
 
-	name := info.ddServiceName
-	if name == "" {
-		name = info.generatedName
-	}
-	if s.shouldIgnoreService(name) {
+	if s.shouldIgnoreService(info.name) {
 		s.addIgnoredPid(pid)
 		return nil
 	}
 
-	return &model.Service{
-		PID:                 int(pid),
-		Name:                name,
-		GeneratedName:       info.generatedName,
-		GeneratedNameSource: info.generatedNameSource,
-		DDService:           info.ddServiceName,
-		DDServiceInjected:   info.ddServiceInjected,
-		Ports:               ports,
-		APMInstrumentation:  string(info.apmInstrumentation),
-		Language:            string(info.language),
-		Type:                string(servicetype.Detect(ports)),
-		RSS:                 rss,
-		CommandLine:         info.cmdLine,
-		StartTimeMilli:      info.startTimeMilli,
-		CPUCores:            info.cpuUsage,
-	}
+	s.mux.Lock()
+	info.ports = ports
+	info.rss = rss
+	s.mux.Unlock()
+
+	service := &model.Service{}
+	info.toModelService(pid, service)
+	return service
 }
 
 // cleanCache deletes dead PIDs from the cache. Note that this does not actually
@@ -709,7 +737,9 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	serviceInfo, ok := s.cache[int32(service.PID)]
 	if ok {
 		serviceInfo.containerServiceName = serviceName
+		serviceInfo.containerServiceNameSource = tagName
 		serviceInfo.checkedContainerData = true
+		serviceInfo.containerID = id
 	}
 	s.mux.Unlock()
 }
