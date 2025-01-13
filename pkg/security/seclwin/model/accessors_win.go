@@ -10,11 +10,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"math"
+	"net"
 	"reflect"
 )
 
 // to always require the math package
 var _ = math.MaxUint16
+var _ = net.IP{}
 
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
