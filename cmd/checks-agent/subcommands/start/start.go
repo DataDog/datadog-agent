@@ -59,7 +59,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type CLIParams struct {
@@ -104,8 +104,8 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		fx.Supply(log.ForDaemon("CA", "log_file", "/var/log/datadog/checks-agent.log")),
 
 		// Secrets management
-		fx.Provide(func(comp secrets.Component) optional.Option[secrets.Component] {
-			return optional.NewOption[secrets.Component](comp)
+		fx.Provide(func(comp secrets.Component) option.Option[secrets.Component] {
+			return option.New[secrets.Component](comp)
 		}),
 		fx.Supply(secrets.NewEnabledParams()),
 		secretsimpl.Module(),
@@ -124,8 +124,8 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 			return demuxInstance.Serializer()
 		}),
 
-		fx.Provide(func(ms serializer.MetricSerializer) optional.Option[serializer.MetricSerializer] {
-			return optional.NewOption[serializer.MetricSerializer](ms)
+		fx.Provide(func(ms serializer.MetricSerializer) option.Option[serializer.MetricSerializer] {
+			return option.New[serializer.MetricSerializer](ms)
 		}),
 		hostnameimpl.Module(),
 		remoteTagger.Module(tagger.RemoteParams{
@@ -208,7 +208,7 @@ func start(
 	// TODO: figure out how to initial.ize checks context
 	// check.InitializeInventoryChecksContext(invChecks)
 
-	scheduler := pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, optional.NewNoneOption[integrations.Component](), tagger)
+	scheduler := pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, option.None[integrations.Component](), tagger)
 
 	// // Start the scheduler
 	go startScheduler(ctx, StreamCancel, client, scheduler, log)
