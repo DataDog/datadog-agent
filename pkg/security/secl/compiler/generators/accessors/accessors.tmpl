@@ -179,12 +179,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				},
 			{{- else}}
 				{{- $ReturnType := $Field.ReturnType}}
-				EvalFnc: func(ctx *eval.Context) {{$Field.GetArrayPrefix}}{{$ReturnType}} {
-					ctx.AppendResolvedField(field)
-					{{- if not (and $Field.IsLength $Field.IsIterator)}}
-						ev := ctx.Event.(*Event)
-					{{end}}
-
+				EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) {{$Field.GetArrayPrefix}}{{$ReturnType}} {
 					{{$Return := $Field.Name | printf "ev.%s"}}
 
 					{{$Checks := $Field | GetChecks $.AllFields}}
@@ -235,7 +230,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					{{- else}}
 						return {{$Return}}
 					{{end -}}
-				},
+				}),
 			{{end -}}
 			Field: field,
 			{{- if $Field.Iterator}}

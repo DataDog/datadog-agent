@@ -8,6 +8,14 @@ package model
 
 import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 
+func simpleCombine[T any](field eval.Field, cb func(ctx *eval.Context, ev *Event) T) func(ctx *eval.Context) T {
+	return func(ctx *eval.Context) T {
+		ctx.AppendResolvedField(field)
+		ev := ctx.Event.(*Event)
+		return cb(ctx, ev)
+	}
+}
+
 func newAncestorsIterator[T any](iter *ProcessAncestorsIterator, ctx *eval.Context, ev *Event, perIter func(ev *Event, pce *ProcessCacheEntry) T) []T {
 	results := make([]T, 0, ctx.CachedAncestorsCount)
 	for pce := iter.Front(ctx); pce != nil; pce = iter.Next() {

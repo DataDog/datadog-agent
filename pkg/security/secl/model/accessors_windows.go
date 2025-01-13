@@ -44,825 +44,667 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	switch field {
 	case "change_permission.new_sd":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveNewSecurityDescriptor(ev, &ev.ChangePermission)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "change_permission.old_sd":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveOldSecurityDescriptor(ev, &ev.ChangePermission)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "change_permission.path":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.ChangePermission.ObjectName
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "change_permission.type":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.ChangePermission.ObjectType
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "change_permission.user_domain":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.ChangePermission.UserDomain
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "change_permission.username":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.ChangePermission.UserName
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "container.created_at":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "container.id":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "container.runtime":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "container.tags":
 		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) []string {
 				return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
-			},
+			}),
 			Field:  field,
 			Weight: 9999 * eval.HandlerWeight,
 		}, nil
 	case "create.file.device_path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.CreateNewFile.File)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "create.file.device_path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFimFilePath(ev, &ev.CreateNewFile.File))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "create.file.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.CreateNewFile.File)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "create.file.name.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.CreateNewFile.File))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "create.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "create.file.path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "create.registry.key_name":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.CreateRegistryKey.Registry.KeyName
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "create.registry.key_name.length":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.CreateRegistryKey.Registry.KeyName)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "create.registry.key_path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.CreateRegistryKey.Registry.KeyPath
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "create.registry.key_path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.CreateRegistryKey.Registry.KeyPath)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "create_key.registry.key_name":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.CreateRegistryKey.Registry.KeyName
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "create_key.registry.key_name.length":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.CreateRegistryKey.Registry.KeyName)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "create_key.registry.key_path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.CreateRegistryKey.Registry.KeyPath
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "create_key.registry.key_path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.CreateRegistryKey.Registry.KeyPath)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "delete.file.device_path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.DeleteFile.File)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "delete.file.device_path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFimFilePath(ev, &ev.DeleteFile.File))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "delete.file.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.DeleteFile.File)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "delete.file.name.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.DeleteFile.File))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "delete.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "delete.file.path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "delete.registry.key_name":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.DeleteRegistryKey.Registry.KeyName
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "delete.registry.key_name.length":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.DeleteRegistryKey.Registry.KeyName)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "delete.registry.key_path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.DeleteRegistryKey.Registry.KeyPath
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "delete.registry.key_path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.DeleteRegistryKey.Registry.KeyPath)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "delete_key.registry.key_name":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.DeleteRegistryKey.Registry.KeyName
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "delete_key.registry.key_name.length":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.DeleteRegistryKey.Registry.KeyName)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "delete_key.registry.key_path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.DeleteRegistryKey.Registry.KeyPath
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "delete_key.registry.key_path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.DeleteRegistryKey.Registry.KeyPath)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "event.hostname":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "event.origin":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.BaseEvent.Origin
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "event.os":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.BaseEvent.Os
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "event.service":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "event.timestamp":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return int(ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "exec.cmdline":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process)
-			},
+			}),
 			Field:  field,
 			Weight: 200 * eval.HandlerWeight,
 		}, nil
 	case "exec.container.id":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.Exec.Process.ContainerID
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "exec.created_at":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "exec.envp":
 		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) []string {
 				return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
-			},
+			}),
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "exec.envs":
 		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) []string {
 				return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
-			},
+			}),
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "exec.file.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "exec.file.name.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "exec.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "exec.file.path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "exec.pid":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return int(ev.Exec.Process.PIDContext.Pid)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "exec.ppid":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return int(ev.Exec.Process.PPid)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "exec.user":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveUser(ev, ev.Exec.Process)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "exec.user_sid":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.Exec.Process.OwnerSidString
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "exit.cause":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return int(ev.Exit.Cause)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "exit.cmdline":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process)
-			},
+			}),
 			Field:  field,
 			Weight: 200 * eval.HandlerWeight,
 		}, nil
 	case "exit.code":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return int(ev.Exit.Code)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "exit.container.id":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.Exit.Process.ContainerID
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "exit.created_at":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "exit.envp":
 		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) []string {
 				return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
-			},
+			}),
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "exit.envs":
 		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) []string {
 				return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
-			},
+			}),
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "exit.file.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "exit.file.name.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "exit.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "exit.file.path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "exit.pid":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return int(ev.Exit.Process.PIDContext.Pid)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "exit.ppid":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return int(ev.Exit.Process.PPid)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "exit.user":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveUser(ev, ev.Exit.Process)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "exit.user_sid":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.Exit.Process.OwnerSidString
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "open.registry.key_name":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.OpenRegistryKey.Registry.KeyName
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "open.registry.key_name.length":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.OpenRegistryKey.Registry.KeyName)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "open.registry.key_path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.OpenRegistryKey.Registry.KeyPath
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "open.registry.key_path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.OpenRegistryKey.Registry.KeyPath)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "open_key.registry.key_name":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.OpenRegistryKey.Registry.KeyName
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "open_key.registry.key_name.length":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.OpenRegistryKey.Registry.KeyName)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "open_key.registry.key_path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.OpenRegistryKey.Registry.KeyPath
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "open_key.registry.key_path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.OpenRegistryKey.Registry.KeyPath)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
@@ -1097,11 +939,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.ancestors.length":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				iterator := &ProcessAncestorsIterator{}
 				return iterator.Len(ctx)
-			},
+			}),
 			Field:  field,
 			Weight: eval.IteratorWeight,
 		}, nil
@@ -1205,645 +1046,529 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.cmdline":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process)
-			},
+			}),
 			Field:  field,
 			Weight: 200 * eval.HandlerWeight,
 		}, nil
 	case "process.container.id":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.BaseEvent.ProcessContext.Process.ContainerID
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "process.created_at":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.envp":
 		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) []string {
 				return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
-			},
+			}),
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "process.envs":
 		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) []string {
 				return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
-			},
+			}),
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "process.file.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.file.name.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.file.path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.parent.cmdline":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
 				return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.BaseEvent.ProcessContext.Parent)
-			},
+			}),
 			Field:  field,
 			Weight: 200 * eval.HandlerWeight,
 		}, nil
 	case "process.parent.container.id":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
 				return ev.BaseEvent.ProcessContext.Parent.ContainerID
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "process.parent.created_at":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
 				return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.BaseEvent.ProcessContext.Parent))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.parent.envp":
 		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) []string {
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return []string{}
 				}
 				return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)
-			},
+			}),
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "process.parent.envs":
 		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) []string {
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return []string{}
 				}
 				return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
-			},
+			}),
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "process.parent.file.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
 				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.parent.file.name.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.parent.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
 				return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.parent.file.path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.parent.pid":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
 				return int(ev.BaseEvent.ProcessContext.Parent.PIDContext.Pid)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "process.parent.ppid":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
 				return int(ev.BaseEvent.ProcessContext.Parent.PPid)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "process.parent.user":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
 				return ev.FieldHandlers.ResolveUser(ev, ev.BaseEvent.ProcessContext.Parent)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.parent.user_sid":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
 				return ev.BaseEvent.ProcessContext.Parent.OwnerSidString
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "process.pid":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return int(ev.BaseEvent.ProcessContext.Process.PIDContext.Pid)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "process.ppid":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return int(ev.BaseEvent.ProcessContext.Process.PPid)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "process.user":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveUser(ev, &ev.BaseEvent.ProcessContext.Process)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.user_sid":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.BaseEvent.ProcessContext.Process.OwnerSidString
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "rename.file.destination.device_path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.New)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "rename.file.destination.device_path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.New))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "rename.file.destination.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.New)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "rename.file.destination.name.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.New))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "rename.file.destination.path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "rename.file.destination.path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "rename.file.device_path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.Old)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "rename.file.device_path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.Old))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "rename.file.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.Old)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "rename.file.name.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.Old))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "rename.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "rename.file.path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "set.registry.key_name":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.SetRegistryKeyValue.Registry.KeyName
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "set.registry.key_name.length":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.SetRegistryKeyValue.Registry.KeyName)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "set.registry.key_path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.SetRegistryKeyValue.Registry.KeyPath
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "set.registry.key_path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.SetRegistryKeyValue.Registry.KeyPath)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "set.registry.value_name":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.SetRegistryKeyValue.ValueName
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "set.registry.value_name.length":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.SetRegistryKeyValue.ValueName)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "set.value_name":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.SetRegistryKeyValue.ValueName
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "set_key_value.registry.key_name":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.SetRegistryKeyValue.Registry.KeyName
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "set_key_value.registry.key_name.length":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.SetRegistryKeyValue.Registry.KeyName)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "set_key_value.registry.key_path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.SetRegistryKeyValue.Registry.KeyPath
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "set_key_value.registry.key_path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.SetRegistryKeyValue.Registry.KeyPath)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "set_key_value.registry.value_name":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.SetRegistryKeyValue.ValueName
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "set_key_value.registry.value_name.length":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.SetRegistryKeyValue.ValueName)
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "set_key_value.value_name":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.SetRegistryKeyValue.ValueName
-			},
+			}),
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "write.file.device_path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.WriteFile.File)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "write.file.device_path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFimFilePath(ev, &ev.WriteFile.File))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "write.file.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.WriteFile.File)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "write.file.name.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.WriteFile.File))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "write.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) string {
 				return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File)
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "write.file.path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
+			EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) int {
 				return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File))
-			},
+			}),
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
