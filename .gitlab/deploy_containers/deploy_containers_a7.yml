@@ -213,7 +213,7 @@ deploy_containers_latest-a7:
         IMG_SOURCES: "%BASE%-winltsc2022-servercore-amd64"
         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-ltsc2022-jmx,${AGENT_REPOSITORY}:latest-servercore-ltsc2022-jmx
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
-        IMG_SOURCES: "%BASE%-winltsc1809-servercore-amd64"
+        IMG_SOURCES: "%BASE%-win1809-servercore-amd64"
         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-ltsc2019-jmx,${AGENT_REPOSITORY}:latest-servercore-ltsc2019-jmx
 
 deploy_containers_latest-a7_internal:
