@@ -28,45 +28,45 @@ import (
 // sysObjectID. In this case the returned profile will still be non-nil, and
 // will be the same as what you'd get for an inline profile.
 func (c *CheckConfig) BuildProfile(sysObjectID string) (profiledefinition.ProfileDefinition, error) {
-	var parentProfile *profiledefinition.ProfileDefinition
+	var rootProfile *profiledefinition.ProfileDefinition
 	var profileErr error
 
 	switch c.ProfileName {
 	case ProfileNameInline: // inline profile -> no parent
-		parentProfile = nil
+		rootProfile = nil
 	case ProfileNameAuto: // determine based on sysObjectID
 		// empty sysObjectID happens when we need the profile but couldn't connect to the device.
 		if sysObjectID != "" {
 			if profileConfig, err := c.ProfileProvider.GetProfileForSysObjectID(sysObjectID); err != nil {
 				profileErr = fmt.Errorf("failed to get profile for sysObjectID %q: %v", sysObjectID, err)
 			} else {
-				parentProfile = &profileConfig.Definition
-				log.Debugf("detected profile %q for sysobjectid %q", parentProfile.Name, sysObjectID)
+				rootProfile = &profileConfig.Definition
+				log.Debugf("detected profile %q for sysobjectid %q", rootProfile.Name, sysObjectID)
 			}
 		}
 	default:
 		if profile := c.ProfileProvider.GetProfile(c.ProfileName); profile == nil {
 			profileErr = fmt.Errorf("unknown profile %q", c.ProfileName)
 		} else {
-			parentProfile = &profile.Definition
+			rootProfile = &profile.Definition
 		}
 	}
 
 	profile := *profiledefinition.NewProfileDefinition()
 	profile.Metrics = slices.Clone(c.RequestedMetrics)
 	profile.MetricTags = slices.Clone(c.RequestedMetricTags)
-	if parentProfile != nil {
-		profile.Name = parentProfile.Name
-		profile.Version = parentProfile.Version
-		profile.StaticTags = append(profile.StaticTags, "snmp_profile:"+parentProfile.Name)
-		vendor := parentProfile.GetVendor()
+	if rootProfile != nil {
+		profile.Name = rootProfile.Name
+		profile.Version = rootProfile.Version
+		profile.StaticTags = append(profile.StaticTags, "snmp_profile:"+rootProfile.Name)
+		vendor := rootProfile.GetVendor()
 		if vendor != "" {
 			profile.StaticTags = append(profile.StaticTags, "device_vendor:"+vendor)
 		}
-		profile.StaticTags = append(profile.StaticTags, parentProfile.StaticTags...)
-		profile.Metadata = parentProfile.Metadata
-		profile.Metrics = append(profile.Metrics, parentProfile.Metrics...)
-		profile.MetricTags = append(profile.MetricTags, parentProfile.MetricTags...)
+		profile.StaticTags = append(profile.StaticTags, rootProfile.StaticTags...)
+		profile.Metadata = rootProfile.Metadata
+		profile.Metrics = append(profile.Metrics, rootProfile.Metrics...)
+		profile.MetricTags = append(profile.MetricTags, rootProfile.MetricTags...)
 	}
 	profile.Metadata = updateMetadataDefinitionWithDefaults(profile.Metadata, c.CollectTopology)
 
