@@ -55,11 +55,6 @@ type integration struct {
 
 // State returns the agent policies state
 func (a *agentConfig) State() *pbgo.PoliciesState {
-	if a == nil {
-		return &pbgo.PoliciesState{
-			Version: "noversion",
-		}
-	}
 	return &pbgo.PoliciesState{
 		MatchedPolicies: []string{a.policy},
 		Version:         a.version,
@@ -68,7 +63,10 @@ func (a *agentConfig) State() *pbgo.PoliciesState {
 
 func newAgentConfig(rawConfig []byte) (*agentConfig, error) {
 	if len(rawConfig) == 0 {
-		return nil, nil
+		return &agentConfig{
+			version: fmt.Sprintf("%x", sha256.Sum256([]byte{})),
+			policy:  "default",
+		}, nil
 	}
 	var config configLayer
 	if err := json.Unmarshal(rawConfig, &config); err != nil {
@@ -79,7 +77,10 @@ func newAgentConfig(rawConfig []byte) (*agentConfig, error) {
 		return nil, err
 	}
 	if datadogAgentConfig.AgentConfig == nil && datadogAgentConfig.SecurityAgentConfig == nil && datadogAgentConfig.SystemProbeConfig == nil && len(datadogAgentConfig.IntegrationsConfig) == 0 {
-		return nil, nil
+		return &agentConfig{
+			version: fmt.Sprintf("%x", sha256.Sum256([]byte{})),
+			policy:  "default",
+		}, nil
 	}
 
 	// Report applied policy
