@@ -52,7 +52,11 @@ func (s *dockerDiscoveryTestSuite) TestServiceDiscoveryContainerID() {
 
 	s.assertDockerAgentDiscoveryRunning()
 
-	s.Env().RemoteHost.MustExecute("docker pull " + pythonImage)
+	_, err = s.Env().RemoteHost.Execute("docker pull " + pythonImage)
+	if err != nil {
+		s.T().Skipf("could not pull docker image for service discovery E2E test: %s", err)
+	}
+
 	containerID := s.Env().RemoteHost.MustExecute("docker run -d --name e2e-test-python-server --publish 8090:8090 " + pythonImage + " python -m http.server 8090")
 	t.Cleanup(func() {
 		s.Env().RemoteHost.MustExecute("docker stop e2e-test-python-server && docker rm e2e-test-python-server")
