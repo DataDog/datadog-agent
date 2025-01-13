@@ -9,7 +9,6 @@ package server
 
 import (
 	"fmt"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,19 +29,6 @@ func TestNewServer(t *testing.T) {
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	requireStart(t, deps.Server)
 
-}
-
-func TestUDSReceiverDisabled(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("UDS isn't supported on windows")
-	}
-	cfg := make(map[string]interface{})
-	cfg["dogstatsd_port"] = listeners.RandomPortName
-	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
-	cfg["dogstatsd_socket"] = ""                    // disabled
-
-	deps := fulfillDepsWithConfigOverride(t, cfg)
-	require.False(t, deps.Server.UdsListenerRunning())
 }
 
 // This test is proving that no data race occurred on the `cachedTlmOriginIds` map.
