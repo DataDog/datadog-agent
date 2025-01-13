@@ -5,7 +5,7 @@ go 1.23.0
 require (
 	github.com/golangci/plugin-module-register v0.1.1
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/tools v0.28.0
+	golang.org/x/tools v0.29.0
 )
 
 require (
