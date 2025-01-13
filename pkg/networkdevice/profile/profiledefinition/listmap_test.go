@@ -35,6 +35,9 @@ func TestListMap_MarshalJSON(t *testing.T) {
 	bytes, err := json.Marshal(example)
 	require.NoError(t, err)
 
+	expected := "{\"mapping\":[{\"key\":\"1\",\"value\":\"aaa\"},{\"key\":\"2\",\"value\":\"bbb\"}]}"
+	assert.Equal(t, expected, string(bytes))
+
 	var expectedExample ExampleStruct
 	err = json.Unmarshal(bytes, &expectedExample)
 	require.NoError(t, err)
