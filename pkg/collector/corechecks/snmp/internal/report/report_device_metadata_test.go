@@ -209,7 +209,7 @@ profiles:
    definition_file: f5-big-ip.yaml
 `)
 
-	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	require.Nil(t, err)
 
 	layout := "2006-01-02 15:04:05"
