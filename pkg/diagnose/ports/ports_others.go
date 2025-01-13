@@ -4,13 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package ports
 
-import "path"
+import "path/filepath"
 
 // RetrieveProcessName returns the base name of the process on non-windows systems
 func RetrieveProcessName(_ int, processName string) (string, error) {
-	return path.Base(processName), nil
+	return filepath.Base(processName), nil
 }
