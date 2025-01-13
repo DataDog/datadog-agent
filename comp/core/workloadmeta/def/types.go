@@ -1365,6 +1365,12 @@ type GPU struct {
 	// specific.
 	Device     string
 	ActivePIDs []int
+
+	// Index is the index of the GPU in the host system. This is useful as sometimes
+	// GPUs will be identified by their index instead of their UUID. Note that the index
+	// is not guaranteed to be stable across reboots, nor is necessarily the same inside
+	// of containers.
+	Index int
 }
 
 var _ Entity = &GPU{}
@@ -1408,6 +1414,7 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Vendor:", g.Vendor)
 	_, _ = fmt.Fprintln(&sb, "Device:", g.Device)
 	_, _ = fmt.Fprintln(&sb, "Active PIDs:", g.ActivePIDs)
+	_, _ = fmt.Fprintln(&sb, "Index:", g.Index)
 
 	return sb.String()
 }

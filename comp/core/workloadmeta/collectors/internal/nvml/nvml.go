@@ -99,6 +99,7 @@ func (c *collector) Pull(_ context.Context) error {
 			},
 			Vendor: nvidiaVendor,
 			Device: name,
+			Index:  i,
 		}
 
 		event := workloadmeta.CollectorEvent{
