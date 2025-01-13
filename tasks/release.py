@@ -13,9 +13,12 @@ import sys
 import tempfile
 import time
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 from time import sleep
 
+from datadog_api_client import ApiClient, Configuration
+from datadog_api_client.v2.api.ci_visibility_pipelines_api import CIVisibilityPipelinesApi
+from dateutil.relativedelta import relativedelta
 from gitlab import GitlabError
 from invoke import task
 from invoke.exceptions import Exit
@@ -1266,3 +1269,33 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
             milestone_branch,
             next,
         )
+
+
+@task
+def send_slack_msg(ctx, channel_id, message, webhook=None):
+    webhook = webhook or os.environ.get("SLACK_DATADOG_AGENT_CI_WEBHOOK")
+    payload = {
+        'channel_id': channel_id,
+        'message': message,
+    }
+    ctx.run(f'curl -X POST -H "Content-Type: application/json" --data "{payload}" {webhook}')
+
+
+@task
+def check_agent6_build_status(ctx, channel_id):
+    """
+    Checks if there is an agent 6 build pipeline in the last week
+    """
+    configuration = Configuration()
+    with ApiClient(configuration) as api_client:
+        api_instance = CIVisibilityPipelinesApi(api_client)
+        response = api_instance.list_ci_app_pipeline_events(
+            filter_query='ci_level:pipeline @ci.pipeline.name:"DataDog/datadog-agent" @git.tag:6.53.* -@ci.pipeline.downstream:true',
+            filter_from=(datetime.now() + relativedelta(days=-1)),
+            filter_to=datetime.now(),
+            page_limit=5,
+        )
+        if not response.data:
+            err_msg = "\nAGENT 6 ERROR: No Agent 6 build pipelines have run in the past week. Please trigger a build pipeline for the next agent 6 release candidate."
+            send_slack_msg(ctx, channel_id, err_msg)
+            print(err_msg)
