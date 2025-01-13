@@ -216,17 +216,8 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 			stats = newRequestStat()
 			r.Data[statusCode] = stats
 		}
+		stats.latencies = append(stats.latencies, newRequests.latencies...)
 
-		// The other bucket (newStats) has multiple samples and therefore a DDSketch object
-		// We first ensure that the bucket we're merging to have a DDSketch object
-		if stats.GetLatencies() == nil {
-			stats.copyLatencies(newRequests)
-		} else {
-			err := stats.GetLatencies().MergeWith(newRequests.GetLatencies())
-			if err != nil {
-				log.Debugf("error merging http transactions: %v", err)
-			}
-		}
 		stats.Count += newRequests.Count
 	}
 }
