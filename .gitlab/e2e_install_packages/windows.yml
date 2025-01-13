@@ -79,6 +79,7 @@ new-e2e_windows_powershell_module_test:
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
+    - deploy_windows_testing-a7-fips
 
 ## full tests
 new-e2e-windows-agent-msi-windows-server-a7-x86_64:
