@@ -8,6 +8,7 @@ package ebpfless
 
 import (
 	"encoding/json"
+	"net"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
@@ -90,6 +91,12 @@ const (
 	SyscallTypeMount
 	// SyscallTypeUmount umount/umount2 type
 	SyscallTypeUmount
+	// SyscallTypeAccept accept
+	SyscallTypeAccept
+	// SyscallTypeConnect connect
+	SyscallTypeConnect
+	// SyscallTypeBind bind
+	SyscallTypeBind
 )
 
 // ContainerContext defines a container context
@@ -164,6 +171,12 @@ type DupSyscallFakeMsg struct {
 // PipeSyscallFakeMsg defines a pipe message
 type PipeSyscallFakeMsg struct {
 	FdsPtr uint64
+}
+
+// SocketSyscallFakeMsg represents the socket message
+type SocketSyscallFakeMsg struct {
+	AddressFamily uint16
+	Protocol      uint16
 }
 
 // ChdirSyscallMsg defines a chdir message
@@ -297,6 +310,31 @@ type UmountSyscallMsg struct {
 	Path string
 }
 
+// MsgSocketInfo defines the base information for a socket message
+type MsgSocketInfo struct {
+	AddressFamily uint16
+	Addr          net.IP
+	Port          uint16
+}
+
+// BindSyscallMsg defines a bind message
+type BindSyscallMsg struct {
+	MsgSocketInfo
+	Protocol uint16
+}
+
+// ConnectSyscallMsg defines a connect message
+type ConnectSyscallMsg struct {
+	MsgSocketInfo
+	Protocol uint16
+}
+
+// AcceptSyscallMsg defines an accept message
+type AcceptSyscallMsg struct {
+	MsgSocketInfo
+	SocketFd int32
+}
+
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
 	Type         SyscallType
@@ -328,10 +366,14 @@ type SyscallMsg struct {
 	Chdir        *ChdirSyscallMsg        `json:",omitempty"`
 	Mount        *MountSyscallMsg        `json:",omitempty"`
 	Umount       *UmountSyscallMsg       `json:",omitempty"`
+	Bind         *BindSyscallMsg         `json:",omitempty"`
+	Connect      *ConnectSyscallMsg      `json:",omitempty"`
+	Accept       *AcceptSyscallMsg       `json:",omitempty"`
 
 	// internals
-	Dup  *DupSyscallFakeMsg  `json:",omitempty"`
-	Pipe *PipeSyscallFakeMsg `json:",omitempty"`
+	Dup    *DupSyscallFakeMsg    `json:",omitempty"`
+	Pipe   *PipeSyscallFakeMsg   `json:",omitempty"`
+	Socket *SocketSyscallFakeMsg `json:",omitempty"`
 }
 
 // String returns string representation
