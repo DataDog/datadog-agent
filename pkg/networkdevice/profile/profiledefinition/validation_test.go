@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package configvalidation
+package profiledefinition
 
 import (
 	"fmt"
@@ -11,45 +11,43 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
 func Test_ValidateEnrichMetrics(t *testing.T) {
 	tests := []struct {
 		name            string
-		metrics         []profiledefinition.MetricsConfig
+		metrics         []MetricsConfig
 		expectedErrors  []string
-		expectedMetrics []profiledefinition.MetricsConfig
+		expectedMetrics []MetricsConfig
 	}{
 		{
 			name: "either table symbol or scalar symbol must be provided",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{},
 			},
 			expectedErrors: []string{
 				"either a table symbol or a scalar symbol must be provided",
 			},
-			expectedMetrics: []profiledefinition.MetricsConfig{
+			expectedMetrics: []MetricsConfig{
 				{},
 			},
 		},
 		{
 			name: "table column symbols and scalar symbol cannot be both provided",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbol: profiledefinition.SymbolConfig{
+					Symbol: SymbolConfig{
 						OID:  "1.2",
 						Name: "abc",
 					},
-					Symbols: []profiledefinition.SymbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{},
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{},
 					},
 				},
 			},
@@ -59,21 +57,21 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "multiple errors",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{},
 				{
-					Symbol: profiledefinition.SymbolConfig{
+					Symbol: SymbolConfig{
 						OID:  "1.2",
 						Name: "abc",
 					},
-					Symbols: []profiledefinition.SymbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{},
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{},
 					},
 				},
 			},
@@ -84,9 +82,9 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "missing symbol name",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbol: profiledefinition.SymbolConfig{
+					Symbol: SymbolConfig{
 						OID: "1.2.3",
 					},
 				},
@@ -97,9 +95,9 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "table column symbol name missing",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []profiledefinition.SymbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID: "1.2",
 						},
@@ -107,8 +105,8 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 							Name: "abc",
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{},
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{},
 					},
 				},
 			},
@@ -119,22 +117,22 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "table external metric column tag symbol error",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []profiledefinition.SymbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								OID: "1.2.3",
 							},
 						},
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								Name: "abc",
 							},
 						},
@@ -148,15 +146,15 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "missing MetricTags",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []profiledefinition.SymbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{},
+					MetricTags: MetricTagConfigList{},
 				},
 			},
 			expectedErrors: []string{
@@ -165,22 +163,22 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "table external metric column tag MIB error",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []profiledefinition.SymbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								OID: "1.2.3",
 							},
 						},
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								Name: "abc",
 							},
 						},
@@ -194,17 +192,17 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "missing match tags",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []profiledefinition.SymbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
@@ -219,17 +217,17 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "match cannot compile regex",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []profiledefinition.SymbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
@@ -247,22 +245,22 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "match cannot compile regex",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []profiledefinition.SymbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
 							Tag: "hello",
-							IndexTransform: []profiledefinition.MetricIndexTransform{
+							IndexTransform: []MetricIndexTransform{
 								{
 									Start: 2,
 									End:   1,
@@ -278,25 +276,25 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "compiling extract_value",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbol: profiledefinition.SymbolConfig{
+					Symbol: SymbolConfig{
 						OID:          "1.2.3",
 						Name:         "myMetric",
 						ExtractValue: `(\d+)C`,
 					},
 				},
 				{
-					Symbols: []profiledefinition.SymbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:          "1.2",
 							Name:         "hey",
 							ExtractValue: `(\d+)C`,
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								OID:          "1.2.3",
 								Name:         "abc",
 								ExtractValue: `(\d+)C`,
@@ -306,9 +304,9 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			expectedMetrics: []profiledefinition.MetricsConfig{
+			expectedMetrics: []MetricsConfig{
 				{
-					Symbol: profiledefinition.SymbolConfig{
+					Symbol: SymbolConfig{
 						OID:                  "1.2.3",
 						Name:                 "myMetric",
 						ExtractValue:         `(\d+)C`,
@@ -316,7 +314,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 				},
 				{
-					Symbols: []profiledefinition.SymbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:                  "1.2",
 							Name:                 "hey",
@@ -324,9 +322,9 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 							ExtractValueCompiled: regexp.MustCompile(`(\d+)C`),
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								OID:                  "1.2.3",
 								Name:                 "abc",
 								ExtractValue:         `(\d+)C`,
@@ -341,9 +339,9 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "error compiling extract_value",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbol: profiledefinition.SymbolConfig{
+					Symbol: SymbolConfig{
 						OID:          "1.2.3",
 						Name:         "myMetric",
 						ExtractValue: "[{",
@@ -356,17 +354,17 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "constant_value_one usage in column symbol",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []profiledefinition.SymbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							Name:             "abc",
 							ConstantValueOne: true,
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								Name: "abc",
 								OID:  "1.2.3",
 							},
@@ -379,9 +377,9 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "constant_value_one usage in scalar symbol",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbol: profiledefinition.SymbolConfig{
+					Symbol: SymbolConfig{
 						Name:             "myMetric",
 						ConstantValueOne: true,
 					},
@@ -393,9 +391,9 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "constant_value_one usage in scalar symbol with OID",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbol: profiledefinition.SymbolConfig{
+					Symbol: SymbolConfig{
 						OID:              "1.2.3",
 						Name:             "myMetric",
 						ConstantValueOne: true,
@@ -408,17 +406,17 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "constant_value_one usage in metric tags",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []profiledefinition.SymbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								Name:             "abc",
 								ConstantValueOne: true,
 							},
@@ -434,18 +432,18 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "metric_type usage in column symbol",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []profiledefinition.SymbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							Name:       "abc",
 							OID:        "1.2.3",
-							MetricType: profiledefinition.ProfileMetricTypeCounter,
+							MetricType: ProfileMetricTypeCounter,
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								Name: "abc",
 								OID:  "1.2.3",
 							},
@@ -458,12 +456,12 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "metric_type usage in scalar symbol",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbol: profiledefinition.SymbolConfig{
+					Symbol: SymbolConfig{
 						Name:       "abc",
 						OID:        "1.2.3",
-						MetricType: profiledefinition.ProfileMetricTypeCounter,
+						MetricType: ProfileMetricTypeCounter,
 					},
 				},
 			},
@@ -471,20 +469,20 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "ERROR metric_type usage in metric_tags",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []profiledefinition.SymbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							Name: "abc",
 							OID:  "1.2.3",
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								Name:       "abc",
 								OID:        "1.2.3",
-								MetricType: profiledefinition.ProfileMetricTypeCounter,
+								MetricType: ProfileMetricTypeCounter,
 							},
 							Tag: "hello",
 						},
@@ -497,18 +495,18 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "metric root forced_type converted to metric_type",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					ForcedType: profiledefinition.ProfileMetricTypeCounter,
-					Symbols: []profiledefinition.SymbolConfig{
+					ForcedType: ProfileMetricTypeCounter,
+					Symbols: []SymbolConfig{
 						{
 							Name: "abc",
 							OID:  "1.2.3",
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								Name: "abc",
 								OID:  "1.2.3",
 							},
@@ -517,18 +515,18 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			expectedMetrics: []profiledefinition.MetricsConfig{
+			expectedMetrics: []MetricsConfig{
 				{
-					MetricType: profiledefinition.ProfileMetricTypeCounter,
-					Symbols: []profiledefinition.SymbolConfig{
+					MetricType: ProfileMetricTypeCounter,
+					Symbols: []SymbolConfig{
 						{
 							Name: "abc",
 							OID:  "1.2.3",
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								Name: "abc",
 								OID:  "1.2.3",
 							},
@@ -540,17 +538,17 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "mapping used without tag",
-			metrics: []profiledefinition.MetricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []profiledefinition.SymbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								OID:  "1.2",
 								Name: "abc",
 							},
@@ -562,7 +560,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			expectedErrors: []string{"``tag` must be provided if `mapping` (`map[1:abc 2:def]`) is defined"},
+			expectedErrors: []string{"`tag` must be provided if `mapping` (`map[1:abc 2:def]`) is defined"},
 		},
 	}
 	for _, tt := range tests {
@@ -582,23 +580,23 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 func Test_ValidateEnrichMetricTags(t *testing.T) {
 	tests := []struct {
 		name            string
-		metrics         []profiledefinition.MetricTagConfig
+		metrics         []MetricTagConfig
 		expectedErrors  []string
-		expectedMetrics []profiledefinition.MetricTagConfig
+		expectedMetrics []MetricTagConfig
 	}{
 		{
 			name: "Move OID to Symbol",
-			metrics: []profiledefinition.MetricTagConfig{
+			metrics: []MetricTagConfig{
 				{
 					OID: "1.2.3.4",
-					Symbol: profiledefinition.SymbolConfigCompat{
+					Symbol: SymbolConfigCompat{
 						Name: "mySymbol",
 					},
 				},
 			},
-			expectedMetrics: []profiledefinition.MetricTagConfig{
+			expectedMetrics: []MetricTagConfig{
 				{
-					Symbol: profiledefinition.SymbolConfigCompat{
+					Symbol: SymbolConfigCompat{
 						OID:  "1.2.3.4",
 						Name: "mySymbol",
 					},
@@ -607,10 +605,10 @@ func Test_ValidateEnrichMetricTags(t *testing.T) {
 		},
 		{
 			name: "Metric tag OID and symbol.OID cannot be both declared",
-			metrics: []profiledefinition.MetricTagConfig{
+			metrics: []MetricTagConfig{
 				{
 					OID: "1.2.3.4",
-					Symbol: profiledefinition.SymbolConfigCompat{
+					Symbol: SymbolConfigCompat{
 						OID:  "1.2.3.5",
 						Name: "mySymbol",
 					},
@@ -622,13 +620,13 @@ func Test_ValidateEnrichMetricTags(t *testing.T) {
 		},
 		{
 			name: "metric tag symbol and column cannot be both declared",
-			metrics: []profiledefinition.MetricTagConfig{
+			metrics: []MetricTagConfig{
 				{
-					Symbol: profiledefinition.SymbolConfigCompat{
+					Symbol: SymbolConfigCompat{
 						OID:  "1.2.3.5",
 						Name: "mySymbol",
 					},
-					Column: profiledefinition.SymbolConfig{
+					Column: SymbolConfig{
 						OID:  "1.2.3.5",
 						Name: "mySymbol",
 					},
@@ -640,9 +638,9 @@ func Test_ValidateEnrichMetricTags(t *testing.T) {
 		},
 		{
 			name: "Missing OID",
-			metrics: []profiledefinition.MetricTagConfig{
+			metrics: []MetricTagConfig{
 				{
-					Symbol: profiledefinition.SymbolConfigCompat{
+					Symbol: SymbolConfigCompat{
 						Name: "mySymbol",
 					},
 				},
@@ -669,18 +667,18 @@ func Test_ValidateEnrichMetricTags(t *testing.T) {
 func Test_validateEnrichMetadata(t *testing.T) {
 	tests := []struct {
 		name             string
-		metadata         profiledefinition.MetadataConfig
+		metadata         MetadataConfig
 		expectedErrors   []string
-		expectedMetadata profiledefinition.MetadataConfig
+		expectedMetadata MetadataConfig
 	}{
 		{
 			name: "both field symbol and value can be provided",
-			metadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
 						"name": {
 							Value: "hey",
-							Symbol: profiledefinition.SymbolConfig{
+							Symbol: SymbolConfig{
 								OID:  "1.2.3",
 								Name: "someSymbol",
 							},
@@ -688,12 +686,12 @@ func Test_validateEnrichMetadata(t *testing.T) {
 					},
 				},
 			},
-			expectedMetadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
+			expectedMetadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
 						"name": {
 							Value: "hey",
-							Symbol: profiledefinition.SymbolConfig{
+							Symbol: SymbolConfig{
 								OID:  "1.2.3",
 								Name: "someSymbol",
 							},
@@ -704,11 +702,11 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		},
 		{
 			name: "invalid regex pattern for symbol",
-			metadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
 						"name": {
-							Symbol: profiledefinition.SymbolConfig{
+							Symbol: SymbolConfig{
 								OID:          "1.2.3",
 								Name:         "someSymbol",
 								ExtractValue: "(\\w[)",
@@ -723,11 +721,11 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		},
 		{
 			name: "invalid regex pattern for multiple symbols",
-			metadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
 						"name": {
-							Symbols: []profiledefinition.SymbolConfig{
+							Symbols: []SymbolConfig{
 								{
 									OID:          "1.2.3",
 									Name:         "someSymbol",
@@ -744,11 +742,11 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		},
 		{
 			name: "field regex pattern is compiled",
-			metadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
 						"name": {
-							Symbol: profiledefinition.SymbolConfig{
+							Symbol: SymbolConfig{
 								OID:          "1.2.3",
 								Name:         "someSymbol",
 								ExtractValue: "(\\w)",
@@ -758,11 +756,11 @@ func Test_validateEnrichMetadata(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{},
-			expectedMetadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
+			expectedMetadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
 						"name": {
-							Symbol: profiledefinition.SymbolConfig{
+							Symbol: SymbolConfig{
 								OID:                  "1.2.3",
 								Name:                 "someSymbol",
 								ExtractValue:         "(\\w)",
@@ -775,9 +773,9 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		},
 		{
 			name: "invalid resource",
-			metadata: profiledefinition.MetadataConfig{
-				"invalid-res": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
+			metadata: MetadataConfig{
+				"invalid-res": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
 						"name": {
 							Value: "hey",
 						},
@@ -790,9 +788,9 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		},
 		{
 			name: "invalid field",
-			metadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
 						"invalid-field": {
 							Value: "hey",
 						},
@@ -805,16 +803,16 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		},
 		{
 			name: "invalid idtags",
-			metadata: profiledefinition.MetadataConfig{
-				"interface": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
+			metadata: MetadataConfig{
+				"interface": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
 						"invalid-field": {
 							Value: "hey",
 						},
 					},
-					IDTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+					IDTags: MetricTagConfigList{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
@@ -833,16 +831,16 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		},
 		{
 			name: "device resource does not support id_tags",
-			metadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
+			metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
 						"name": {
 							Value: "hey",
 						},
 					},
-					IDTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
+					IDTags: MetricTagConfigList{
+						MetricTagConfig{
+							Symbol: SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
