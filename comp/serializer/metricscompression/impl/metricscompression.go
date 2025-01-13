@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package impl provides the implementation for the serializer/metricscompression component
+// Package metricscompressionimpl provides the implementation for the serializer/metricscompression component
 package metricscompressionimpl
 
 import (

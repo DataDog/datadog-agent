@@ -5,6 +5,7 @@ go 1.23.3
 replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../core/config
 	github.com/DataDog/datadog-agent/pkg/util/compression => ../../../pkg/util/compression
+	github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib => ../../../pkg/util/compression/impl-zlib
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../pkg/util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../pkg/util/hostname/validate
