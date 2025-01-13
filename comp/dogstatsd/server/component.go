@@ -20,9 +20,6 @@ type Component interface {
 	// IsRunning returns true if the server is running
 	IsRunning() bool
 
-	// UdsListenerRunning returns true if the uds listener is running
-	UdsListenerRunning() bool
-
 	// ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
 	ServerlessFlush(time.Duration)
 

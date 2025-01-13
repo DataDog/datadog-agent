@@ -44,6 +44,14 @@ const (
 	jmxAllowAttachSelf                = " -Djdk.attach.allowAttachSelf=true"
 )
 
+type DSDStatus int
+
+const (
+	DSDStatusRunningUDSDatagram DSDStatus = iota + 1
+	DSDStatusRunningUDP
+	DSDStatusUnknown
+)
+
 var (
 	jmxLogLevelMap = map[string]string{
 		"trace":    "TRACE",
@@ -208,9 +216,16 @@ func (j *JMXFetch) Start(manage bool) error {
 	case ReporterJSON:
 		reporter = "json"
 	default:
-		if j.DSD != nil && j.DSD.UdsListenerRunning() {
+		dsdStatus := j.getDSDStatus()
+		if dsdStatus == DSDStatusRunningUDSDatagram {
 			reporter = fmt.Sprintf("statsd:unix://%s", pkgconfigsetup.Datadog().GetString("dogstatsd_socket"))
 		} else {
+			// We always use UDP if we don't definitively detect UDS running, but we want to let the user know if we
+			// actually detected that UDP should be running, or if we're just in fallback mode.
+			if dsdStatus == DSDStatusUnknown {
+				log.Warnf("DogStatsD status is unknown, falling back to UDP. JMXFetch may not be able to report metrics.")
+			}
+
 			bindHost := pkgconfigsetup.GetBindHost(pkgconfigsetup.Datadog())
 			if bindHost == "" || bindHost == "0.0.0.0" {
 				bindHost = "localhost"
@@ -495,4 +510,25 @@ func (j *JMXFetch) ConfigureFromInstance(instance integration.Data) error {
 	}
 
 	return nil
+}
+
+func (j *JMXFetch) getDSDStatus() DSDStatus {
+	// Three possible states: DSD is running in the Core Agent, DSD is running via ADP, or the DSD status is unknown.
+	//
+	// We detect these through the `use_dogstatsd` configuration and the `DD_ADP_ENABLED` environment variable, and we
+	// detect whether or not we're listening on UDS or UDP via the configuration settings that define their listening
+	// address.
+	dsdEnabledInternally := pkgconfigsetup.Datadog().GetBool("use_dogstatsd")
+	adpEnabled := os.Getenv("DD_ADP_ENABLED") == "true"
+	dsdEnabled := dsdEnabledInternally || adpEnabled
+	udsEnabled := pkgconfigsetup.Datadog().GetString("dogstatsd_socket") != ""
+	udpEnabled := pkgconfigsetup.Datadog().GetInt("dogstatsd_port") != 0
+
+	if dsdEnabled && udsEnabled {
+		return DSDStatusRunningUDSDatagram
+	} else if dsdEnabled && udpEnabled {
+		return DSDStatusRunningUDP
+	} else {
+		return DSDStatusUnknown
+	}
 }
