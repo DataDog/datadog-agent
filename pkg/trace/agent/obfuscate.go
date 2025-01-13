@@ -23,7 +23,7 @@ const (
 	tagOpenSearchBody   = "opensearch.body"
 	tagSQLQuery         = "sql.query"
 	tagHTTPURL          = "http.url"
-	tagDBMS             = "db.system"
+	tagDBMS             = "db.type"
 )
 
 const (
