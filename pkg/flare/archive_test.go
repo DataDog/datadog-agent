@@ -50,7 +50,7 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 	defer os.Remove("./test/system-probe.yaml")
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	getConfigFiles(mock.Fb, searchPaths{"": "./test/confd"})
+	GetConfigFiles(mock.Fb, searchPaths{"": "./test/confd"})
 
 	mock.AssertFileExists("etc", "datadog.yaml")
 	mock.AssertFileExists("etc", "system-probe.yaml")
@@ -60,7 +60,7 @@ func TestIncludeConfigFiles(t *testing.T) {
 	configmock.New(t)
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	getConfigFiles(mock.Fb, searchPaths{"": "./test/confd"})
+	GetConfigFiles(mock.Fb, searchPaths{"": "./test/confd"})
 
 	mock.AssertFileExists("etc/confd/test.yaml")
 	mock.AssertFileExists("etc/confd/test.Yml")
@@ -71,7 +71,7 @@ func TestIncludeConfigFilesWithPrefix(t *testing.T) {
 	configmock.New(t)
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	getConfigFiles(mock.Fb, searchPaths{"prefix": "./test/confd"})
+	GetConfigFiles(mock.Fb, searchPaths{"prefix": "./test/confd"})
 
 	mock.AssertFileExists("etc/confd/prefix/test.yaml")
 	mock.AssertFileExists("etc/confd/prefix/test.Yml")

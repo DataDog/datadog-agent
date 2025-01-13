@@ -36,8 +36,11 @@ dev_t __attribute__((always_inline)) get_sb_dev(struct super_block *sb) {
 }
 
 dev_t __attribute__((always_inline)) get_inode_dev(struct inode *inode) {
+    u64 offset;
+    LOAD_CONSTANT("inode_sb_offset", offset);
+
     struct super_block *sb;
-    bpf_probe_read(&sb, sizeof(sb), &inode->i_sb);
+    bpf_probe_read(&sb, sizeof(sb), (void *)inode + offset);
     return get_sb_dev(sb);
 }
 
@@ -81,10 +84,17 @@ int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount *mnt) {
     return mount_id;
 }
 
-int __attribute__((always_inline)) get_path_mount_id(struct path *path) {
+struct vfsmount* __attribute__((always_inline)) get_path_vfsmount(struct path *path) {
+    u64 offset;
+    LOAD_CONSTANT("path_mnt_offset", offset);
+
     struct vfsmount *mnt;
-    bpf_probe_read(&mnt, sizeof(mnt), &path->mnt);
-    return get_vfsmount_mount_id(mnt);
+    bpf_probe_read(&mnt, sizeof(mnt), (void *)path + offset);
+    return mnt;
+}
+
+int __attribute__((always_inline)) get_path_mount_id(struct path *path) {
+    return get_vfsmount_mount_id(get_path_vfsmount(path));
 }
 
 int __attribute__((always_inline)) get_file_mount_id(struct file *file) {
@@ -92,15 +102,16 @@ int __attribute__((always_inline)) get_file_mount_id(struct file *file) {
 }
 
 int __attribute__((always_inline)) get_vfsmount_mount_flags(struct vfsmount *mnt) {
+    u64 offset;
+    LOAD_CONSTANT("vfsmount_mnt_flags_offset", offset);
+
     int mount_flags;
-    bpf_probe_read(&mount_flags, sizeof(mount_flags), &mnt->mnt_flags);
+    bpf_probe_read(&mount_flags, sizeof(mount_flags), (void *)mnt + offset);
     return mount_flags;
 }
 
 int __attribute__((always_inline)) get_path_mount_flags(struct path *path) {
-    struct vfsmount *mnt;
-    bpf_probe_read(&mnt, sizeof(mnt), &path->mnt);
-    return get_vfsmount_mount_flags(mnt);
+    return get_vfsmount_mount_flags(get_path_vfsmount(path));
 }
 
 int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
@@ -112,8 +123,11 @@ int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
 }
 
 struct dentry *__attribute__((always_inline)) get_mount_mountpoint_dentry(struct mount *mnt) {
+	u64 mount_mnt_mountpoint_offset;
+	LOAD_CONSTANT("mount_mnt_mountpoint_offset", mount_mnt_mountpoint_offset);
+
     struct dentry *dentry;
-    bpf_probe_read(&dentry, sizeof(dentry), (char *)mnt + 24);
+    bpf_probe_read(&dentry, sizeof(dentry), (void *)mnt + mount_mnt_mountpoint_offset);
     return dentry;
 }
 
@@ -122,8 +136,11 @@ struct vfsmount *__attribute__((always_inline)) get_mount_vfsmount(void *mnt) {
 }
 
 struct dentry *__attribute__((always_inline)) get_vfsmount_dentry(struct vfsmount *mnt) {
+	u64 offset;
+	LOAD_CONSTANT("vfsmount_mnt_root_offset", offset);
+
     struct dentry *dentry;
-    bpf_probe_read(&dentry, sizeof(dentry), &mnt->mnt_root);
+    bpf_probe_read(&dentry, sizeof(dentry), (void *)mnt + offset);
     return dentry;
 }
 
@@ -137,22 +154,29 @@ struct super_block *__attribute__((always_inline)) get_dentry_sb(struct dentry *
 }
 
 struct file_system_type *__attribute__((always_inline)) get_super_block_fs(struct super_block *sb) {
+	u64 offset;
+	LOAD_CONSTANT("super_block_s_type_offset", offset);
+
     struct file_system_type *fs;
-    bpf_probe_read(&fs, sizeof(fs), &sb->s_type);
+    bpf_probe_read(&fs, sizeof(fs), (void *)sb + offset);
     return fs;
 }
 
 struct super_block *__attribute__((always_inline)) get_vfsmount_sb(struct vfsmount *mnt) {
+	u64 offset;
+	LOAD_CONSTANT("vfsmount_mnt_sb_offset", offset);
+
     struct super_block *sb;
-    bpf_probe_read(&sb, sizeof(sb), &mnt->mnt_sb);
+    bpf_probe_read(&sb, sizeof(sb), (void *)mnt + offset);
     return sb;
 }
 
 struct dentry *__attribute__((always_inline)) get_mountpoint_dentry(void *mntpoint) {
-    struct dentry *dentry;
+	u64 offset;
+	LOAD_CONSTANT("mountpoint_dentry_offset", offset);
 
-    // bpf_probe_read(&dentry, sizeof(dentry), (char *)mntpoint + offsetof(struct mountpoint, m_dentry));
-    bpf_probe_read(&dentry, sizeof(dentry), (char *)mntpoint + 16);
+    struct dentry *dentry;
+    bpf_probe_read(&dentry, sizeof(dentry), (void *)mntpoint + offset);
     return dentry;
 }
 
@@ -191,8 +215,11 @@ unsigned long __attribute__((always_inline)) get_path_ino(struct path *path) {
 }
 
 void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void *buffer, size_t n) {
+	u64 dentry_d_name_offset;
+	LOAD_CONSTANT("dentry_d_name_offset", dentry_d_name_offset);
+
     struct qstr qstr;
-    bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
+    bpf_probe_read(&qstr, sizeof(qstr), (void *)dentry + dentry_d_name_offset);
     bpf_probe_read_str(buffer, n, (void *)qstr.name);
 }
 
