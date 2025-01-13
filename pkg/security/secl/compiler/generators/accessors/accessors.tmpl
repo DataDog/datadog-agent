@@ -77,20 +77,21 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return result
 					}
 
-					var results []{{$Field.ReturnType}}
 
 					iterator := &{{$Field.Iterator.ReturnType}}{}
 
 					if regID != "" {
+						{{if $Field.Iterator.IsOrigTypePtr}}
+						element := iterator.At(ctx, regID, ctx.Registers[regID])
+						if element == nil {
+							return nil
+						}
+						{{else}}
 						value := iterator.At(ctx, regID, ctx.Registers[regID])
 						if value == nil {
-							return results
+							return nil
 						}
-
-						{{if $Field.Iterator.IsOrigTypePtr}}
-							element := value
-						{{else}}
-							element := *value
+						element := *value
 						{{end}}
 
 						{{range $Check := $Checks}}
@@ -99,7 +100,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 								{{$Check = $SubName | printf "element%s"}}
 								if !{{$Check}}() {
 									ctx.Error = &eval.ErrNotSupported{Field: field}
-									return append(results, {{$Field.GetDefaultScalarReturnValue}})
+									return []{{$Field.ReturnType}}{ {{$Field.GetDefaultScalarReturnValue}} }
 								}
 							{{end}}
 						{{end}}
@@ -124,12 +125,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						{{end}}
 
 						{{if not $Field.GetArrayPrefix}}
-						results = append(results, result)
+						return []{{$Field.ReturnType}}{result}
 						{{else}}
-						results = append(results, result...)
+						return result
 						{{end}}
-
-						return results
 					}
 
 					{{$Event := "nil"}}
@@ -140,7 +139,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					{{if $Field.GetArrayPrefix}}
 						{{$AncestorFunc = "newAncestorsIteratorArray"}}
 					{{end}}
-					results = {{$AncestorFunc}}(iterator, field, ctx, {{$Event}}, func(ev *Event, current *{{$Field.Iterator.OrigType}}) {{$Field.GetArrayPrefix}}{{$Field.ReturnType}} {
+					results := {{$AncestorFunc}}(iterator, field, ctx, {{$Event}}, func(ev *Event, current *{{$Field.Iterator.OrigType}}) {{$Field.GetArrayPrefix}}{{$Field.ReturnType}} {
 						{{range $Check := $Checks}}
 							{{if $Field.Iterator.Name | HasPrefix $Check}}
 								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
