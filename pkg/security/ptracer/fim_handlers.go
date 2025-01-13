@@ -612,6 +612,7 @@ func handlePipe2(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs sysc
 func handleClose(tracer *Tracer, process *Process, _ *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 	delete(process.FdRes.Fd, fd)
+	delete(process.FdToSocket, fd)
 	return nil
 }
 
