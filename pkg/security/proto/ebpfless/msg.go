@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"modernc.org/mathutil"
 )
 
@@ -137,7 +137,7 @@ type ForkSyscallMsg struct {
 // ExitSyscallMsg defines an exit message
 type ExitSyscallMsg struct {
 	Code  uint32
-	Cause model.ExitCause
+	Cause sharedconsts.ExitCause
 }
 
 // FileSyscallMsg defines a file message
