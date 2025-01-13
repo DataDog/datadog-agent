@@ -280,6 +280,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
 	cfg.BindEnv(join(smNS, "enable_ring_buffers"))
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_event_stream"), true)
+	cfg.BindEnv(join(smNS, "kernel_buffer_pages"))
+	cfg.BindEnv(join(smNS, "data_channel_size"))
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")

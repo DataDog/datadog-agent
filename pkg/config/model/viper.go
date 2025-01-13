@@ -185,7 +185,7 @@ func (c *safeConfig) Set(key string, newValue interface{}, source Source) {
 	// already overridden at the 'cli' level. If it the case we do nothing.
 	latestValue := c.Viper.Get(key)
 	if !reflect.DeepEqual(oldValue, latestValue) {
-		log.Infof("Updating setting '%s' for source '%s' with new value. notifying %d listeners", key, source, len(c.notificationReceivers))
+		log.Debugf("Updating setting '%s' for source '%s' with new value. notifying %d listeners", key, source, len(c.notificationReceivers))
 		// if the value has not changed, do not duplicate the slice so that no callback is called
 		receivers = slices.Clone(c.notificationReceivers)
 	} else {
