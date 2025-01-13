@@ -143,7 +143,6 @@ func GetAce(acl *ACL, index uint32, ace **ACCESS_ALLOWED_ACE) error {
 //revive:disable-next-line:var-naming Name is intended to match the Windows API name
 func CheckTokenMembership(token windows.Token, sid *windows.SID, isMember *bool) error {
 	var isMemberInt int32
-	isMemberInt = 0
 	ret, _, _ := procCheckTokenMembership.Call(
 		uintptr(token),
 		uintptr(unsafe.Pointer(sid)),
