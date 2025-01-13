@@ -74,3 +74,28 @@ func TestCloneMap(t *testing.T) {
 		"Item C": item("ccc", 100, 200),
 	}, mCopy)
 }
+
+func TestCustomSliceClone(t *testing.T) {
+	type customSlice []*cloneMe
+
+	items := customSlice{
+		item("a", 1, 2, 3, 4),
+		item("b", 1, 2),
+	}
+	itemsCopy := CloneSlice(items)
+
+	assert.IsType(t, customSlice{}, itemsCopy)
+	assert.Equal(t, items, itemsCopy)
+}
+
+func TestCustomMapClone(t *testing.T) {
+	type customMap map[string]*cloneMe
+
+	m := customMap{
+		"Item A": item("a", 1, 2, 3, 4),
+		"Item B": item("b", 1, 2),
+	}
+	mCopy := CloneMap(m)
+	assert.IsType(t, customMap{}, mCopy)
+	assert.Equal(t, m, mCopy)
+}
