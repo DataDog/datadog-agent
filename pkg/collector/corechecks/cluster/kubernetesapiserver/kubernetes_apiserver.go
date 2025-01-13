@@ -193,6 +193,11 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 		k.eventCollection.Filter = convertFilters(k.instance.FilteredEventTypes)
 	}
 
+	err = cluster.InitializeGlobalResourceTypeCache()
+	if err != nil {
+		log.Errorf("Could not initialize the global resource type cache: %s", err)
+	}
+
 	if k.instance.UnbundleEvents {
 		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, k.tagger, k.instance.CollectedEventTypes, k.instance.BundleUnspecifiedEvents, k.instance.FilteringEnabled)
 	} else {

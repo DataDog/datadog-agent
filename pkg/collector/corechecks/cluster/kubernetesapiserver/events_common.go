@@ -10,6 +10,7 @@ package kubernetesapiserver
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"strings"
 	"time"
 
@@ -275,14 +276,11 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 	case deploymentKind:
 		entityID = types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", involvedObject.Namespace, involvedObject.Name))
 	default:
-		var apiGroup string
-		apiVersionParts := strings.Split(involvedObject.APIVersion, "/")
-		if len(apiVersionParts) == 2 {
-			apiGroup = apiVersionParts[0]
-		} else {
-			apiGroup = ""
+		resourceType, err := cluster.GetResourceType(involvedObject.Kind, involvedObject.APIVersion)
+		if err == nil {
+			log.Warnf("error getting resource type for kind '%s' and version '%s': tags may be missing: %v", involvedObject.Kind, involvedObject.APIVersion, err)
 		}
-		resourceType := strings.ToLower(involvedObject.Kind) + "s"
+		apiGroup := getAPIGroup(involvedObject.APIVersion)
 		entityID = types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID(apiGroup, resourceType, involvedObject.Namespace, involvedObject.Name)))
 	}
 
@@ -457,4 +455,15 @@ func shouldCollect(ev *v1.Event, collectedTypes []collectedEventType) bool {
 	}
 
 	return false
+}
+
+func getAPIGroup(apiVersion string) string {
+	var apiGroup string
+	apiVersionParts := strings.Split(apiVersion, "/")
+	if len(apiVersionParts) == 2 {
+		apiGroup = apiVersionParts[0]
+	} else {
+		apiGroup = ""
+	}
+	return apiGroup
 }
