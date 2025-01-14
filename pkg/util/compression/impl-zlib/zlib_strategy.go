@@ -17,7 +17,7 @@ import (
 // ZlibStrategy is the strategy for when serializer_compressor_kind is zlib
 type ZlibStrategy struct{}
 
-// NewComponent returns a new ZlibStrategy
+// New returns a new ZlibStrategy
 func New() compression.Compressor {
 	return &ZlibStrategy{}
 }

@@ -24,7 +24,7 @@ type ZstdStrategy struct {
 	level int
 }
 
-// NewComponent returns a new ZstdStrategy
+// New returns a new ZstdStrategy
 func New(reqs Requires) compression.Compressor {
 	return &ZstdStrategy{
 		level: reqs.Level,

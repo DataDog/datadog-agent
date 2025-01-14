@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NewCompressorKind returns a new Compressor based on serializer_compressor_kind
+// NewCompressor returns a new Compressor based on serializer_compressor_kind
 // This function is called only when the zlib build tag is included
 func NewCompressor(kind string, level int) common.Compressor {
 	switch kind {

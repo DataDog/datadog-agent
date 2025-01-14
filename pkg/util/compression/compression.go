@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package common provides a set of constants describing the compression options
+// Package compression provides a set of constants describing the compression options
 package compression
 
 import (
@@ -32,6 +32,8 @@ const ZstdEncoding = "zstd"
 // GzipEncoding is the content-encoding value for Gzip
 const GzipEncoding = "gzip"
 
+// Compressor is the interface that a given compression algorithm
+// needs to implement
 type Compressor interface {
 	Compress(src []byte) ([]byte, error)
 	Decompress(src []byte) ([]byte, error)
@@ -40,7 +42,8 @@ type Compressor interface {
 	NewStreamCompressor(output *bytes.Buffer) StreamCompressor
 }
 
-// StreamCompressor is the interface that zlib and zstd should implement
+// StreamCompressor is the interface that the compression algorithm
+// should implement for streaming
 type StreamCompressor interface {
 	io.WriteCloser
 	Flush() error

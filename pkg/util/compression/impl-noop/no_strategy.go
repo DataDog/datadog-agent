@@ -15,7 +15,7 @@ import (
 // NoopStrategy is the strategy for when serializer_compressor_kind is neither zlib nor zstd
 type NoopStrategy struct{}
 
-// NewComponent returns a new NoopStrategy for when kind is neither zlib nor zstd
+// New returns a new NoopStrategy for when kind is neither zlib nor zstd
 func New() compression.Compressor {
 	return &NoopStrategy{}
 }

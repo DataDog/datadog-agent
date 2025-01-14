@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package compressionimpl provides a set of functions for compressing with zlib / zstd / gzip
+// Package gzipimpl provides a set of functions for compressing with zlib / zstd / gzip
 package gzipimpl
 
 import (
@@ -108,7 +108,7 @@ func (s *GzipStrategy) NewStreamCompressor(output *bytes.Buffer) compression.Str
 	// Ensure level is within a range that doesn't cause NewWriterLevel to error.
 	level := s.level
 	if level < gzip.HuffmanOnly {
-		log.Warnf("Gzip streaming log level set to %d, minimum is %d. Setting to minumum.", level, gzip.HuffmanOnly)
+		log.Warnf("Gzip streaming log level set to %d, minimum is %d. Setting to minimum.", level, gzip.HuffmanOnly)
 		level = gzip.HuffmanOnly
 	}
 
