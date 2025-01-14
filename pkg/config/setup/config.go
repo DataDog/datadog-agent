@@ -653,9 +653,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("expvar_port", "5000")
 
 	// internal profiling
-	config.BindEnvAndSetDefault("internal_profiling.enabled", false)
+	config.BindEnvAndSetDefault("internal_profiling.enabled", true)
 	config.BindEnv("internal_profiling.profile_dd_url")
-	config.BindEnvAndSetDefault("internal_profiling.unix_socket", "") // file system path to a unix socket, e.g. `/var/run/datadog/apm.socket`
+	config.BindEnvAndSetDefault("internal_profiling.unix_socket", "/var/run/datadog/apm.socket") // file system path to a unix socket, e.g. `/var/run/datadog/apm.socket`
 	config.BindEnvAndSetDefault("internal_profiling.period", 5*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.cpu_duration", 1*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
@@ -663,7 +663,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
 	config.BindEnvAndSetDefault("internal_profiling.enable_block_profiling", false)
 	config.BindEnvAndSetDefault("internal_profiling.enable_mutex_profiling", false)
-	config.BindEnvAndSetDefault("internal_profiling.delta_profiles", true)
+	config.BindEnvAndSetDefault("internal_profiling.delta_profiles", false)
 	config.BindEnvAndSetDefault("internal_profiling.extra_tags", []string{})
 	config.BindEnvAndSetDefault("internal_profiling.custom_attributes", []string{"check_id"})
 
