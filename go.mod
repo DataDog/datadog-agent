@@ -159,7 +159,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.1
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
-	github.com/DataDog/datadog-operator/api v0.0.0-20250109202733-a3e7eab6a736
+	github.com/DataDog/datadog-operator/api v0.0.0-20250114151552-463ab54482b4
 	github.com/DataDog/ebpf-manager v0.7.7
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.9
@@ -857,7 +857,7 @@ require (
 	github.com/google/cel-go v0.20.1 // indirect
 	github.com/google/certificate-transparency-go v1.1.8 // indirect
 	github.com/google/flatbuffers v24.3.25+incompatible // indirect
-	github.com/google/gnostic-models v0.6.9-0.20230804172637-c7be7c783f49 // indirect
+	github.com/google/gnostic-models v0.6.9 // indirect
 	github.com/google/go-github/v62 v62.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/s2a-go v0.1.8 // indirect
