@@ -135,8 +135,8 @@ def create_diff_installed_packages_file(directory, old_file, new_file):
             if old_req:
                 _, old_req_value = old_req
                 # Extract and compare versions
-                old_version_str = extract_version(str(old_req_value.specifier))
-                new_version_str = extract_version(str(new_req_value.specifier))
+                old_version_str = extract_version(str(old_req_value))
+                new_version_str = extract_version(str(new_req_value))
                 if old_version_str and new_version_str:
                     if packaging.version.parse(new_version_str) > packaging.version.parse(old_version_str):
                         f.write(f"{new_req_value}\n")
@@ -163,7 +163,7 @@ def install_dependency_package(pip, package):
     Install python dependency running pip install command
     """
     print(f"Installing python dependency: '{package}'")
-    args = pip.append(['install', package])
+    args = pip.extend(['install', package])
     run_command(args)
 
 def install_diff_packages_file(install_directory, filename, exclude_filename):
