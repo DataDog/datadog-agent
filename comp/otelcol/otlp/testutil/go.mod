@@ -41,8 +41,8 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.22.0
 	github.com/DataDog/sketches-go v1.4.6
 	github.com/stretchr/testify v1.10.0
-	go.opentelemetry.io/collector/pdata v1.22.0
-	google.golang.org/protobuf v1.36.1
+	go.opentelemetry.io/collector/pdata v1.23.0
+	google.golang.org/protobuf v1.36.2
 )
 
 require (
@@ -86,7 +86,7 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/shirou/gopsutil/v4 v4.24.11 // indirect
+	github.com/shirou/gopsutil/v4 v4.24.12 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
