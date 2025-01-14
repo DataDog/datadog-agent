@@ -633,7 +633,6 @@ func TestLexerNormalization(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
-	//cfg.Features["sqllexer"] = struct{}{}
 	cfg.SQLObfuscationMode = string(obfuscate.ObfuscateAndNormalize)
 	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	defer cancelFunc()
