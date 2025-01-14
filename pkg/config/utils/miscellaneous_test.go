@@ -6,11 +6,12 @@
 package utils
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestIsCoreAgentEnabled(t *testing.T) {
@@ -61,6 +62,49 @@ func TestIsCoreAgentEnabled(t *testing.T) {
 			assert.Equal(t,
 				test.expected, IsCoreAgentEnabled(mockConfig),
 				"Was expecting IsCoreAgentEnabled to return", test.expected)
+		})
+	}
+}
+
+func TestIsAPMEnabled(t *testing.T) {
+	tests := []struct {
+		name                                      string
+		apmEnabled, errorTrackingEnable, expected bool
+	}{
+		{
+			name:                "APM enabled and Error Tracking standalone disabled",
+			apmEnabled:          false,
+			errorTrackingEnable: false,
+			expected:            false,
+		},
+		{
+			name:                "APM enabled and Error Tracking standalone disabled",
+			apmEnabled:          true,
+			errorTrackingEnable: false,
+			expected:            true,
+		},
+		{
+			name:                "APM disabled and Error Tracking standalone enabled",
+			apmEnabled:          false,
+			errorTrackingEnable: true,
+			expected:            true,
+		},
+		{
+			name:                "APM enabled and Error Tracking standalone enabled",
+			apmEnabled:          true,
+			errorTrackingEnable: true,
+			expected:            true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("apm_config.enabled", test.apmEnabled)
+			mockConfig.SetWithoutSource("apm_config.error_tracking_standalone.enabled", test.errorTrackingEnable)
+			assert.Equal(t,
+				test.expected, IsAPMEnabled(mockConfig),
+				"Was expecting IsAPMEnabled to return", test.expected)
 		})
 	}
 }
