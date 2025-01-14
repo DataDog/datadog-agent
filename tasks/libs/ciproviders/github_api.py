@@ -260,8 +260,13 @@ class GithubAPI:
         issues = self._repository.get_issues(milestone=m, state='all', labels=labels)
         return [i.as_pull_request() for i in issues if i.pull_request is not None]
 
-    def get_pr_for_branch(self, branch_name):
-        return self._repository.get_pulls(state="open", head=f'DataDog:{branch_name}')
+    def get_pr_for_branch(self, head_branch_name=None, base_branch_name=None):
+        query_params = {"state": "open"}
+        if head_branch_name:
+            query_params["head"] = f'DataDog:{head_branch_name}'
+        if base_branch_name:
+            query_params["base"] = base_branch_name
+        return self._repository.get_pulls(**query_params)
 
     def get_tags(self, pattern=""):
         """

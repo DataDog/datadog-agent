@@ -1271,7 +1271,6 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
         )
 
 
-@task
 def send_slack_msg(ctx, channel_id, message, webhook=None):
     webhook = webhook or os.environ.get("SLACK_DATADOG_AGENT_CI_WEBHOOK")
     payload = {
@@ -1282,20 +1281,36 @@ def send_slack_msg(ctx, channel_id, message, webhook=None):
 
 
 @task
-def check_agent6_build_status(ctx, channel_id):
+def check_previous_agent6_rc(ctx):
     """
-    Checks if there is an agent 6 build pipeline in the last week
+    Validates that there are no existing Agent 6 release candidate pull requests
+    and checks if an Agent 6 build pipeline has been run in the past week
     """
+    err_msg = ""
+    agent6_prs = ""
+    github = GithubAPI()
+    prs = github.get_pr_for_branch(None, "6.53.x")
+    for pr in prs:
+        if "Update release.json and Go modules for 6.53" in pr.title:
+            agent6_prs += f"\n- {pr.title}: https://github.com/DataDog/datadog-agent/pull/{pr.number}"
+    if agent6_prs:
+        err_msg += "AGENT 6 ERROR: The following Agent 6 release candidate PRs already exist. Please address these PRs before creating a new release candidate"
+        err_msg += agent6_prs
+
     configuration = Configuration()
     with ApiClient(configuration) as api_client:
         api_instance = CIVisibilityPipelinesApi(api_client)
         response = api_instance.list_ci_app_pipeline_events(
-            filter_query='ci_level:pipeline @ci.pipeline.name:"DataDog/datadog-agent" @git.tag:6.53.* -@ci.pipeline.downstream:true',
-            filter_from=(datetime.now() + relativedelta(days=-7)),
+            filter_query='@ci.pipeline.name:"DataDog/datadog-agent" @git.tag:6.53.* -@ci.pipeline.downstream:true',
+            filter_from=(datetime.now() + relativedelta(minutes=-7)),
             filter_to=datetime.now(),
             page_limit=5,
         )
         if not response.data:
-            err_msg = "\nAGENT 6 ERROR: No Agent 6 build pipelines have run in the past week. Please trigger a build pipeline for the next agent 6 release candidate."
-            send_slack_msg(ctx, channel_id, err_msg)
-            print(err_msg)
+            err_msg += "\nAGENT 6 ERROR: No Agent 6 build pipelines have run in the past week. Please trigger a build pipeline for the next agent 6 release candidate."
+
+    if err_msg:
+        print(err_msg)
+        agent_ci_oncall_channel_id = 'C0701E5KYSX'
+        send_slack_msg(ctx, "C085P12CTFX", err_msg)
+        sys.exit(1)
