@@ -23,6 +23,8 @@ const (
 	AutoAdjustStrategyMaxThroughput = "max_throughput"
 	// AutoAdjustStrategyPerOrigin will adapt the number of pipelines for better container isolation
 	AutoAdjustStrategyPerOrigin = "per_origin"
+	// MaxPracticalWorkers sets an upper limit for DSD workers when pipeline auto-adjust is off
+	MaxPracticalWorkers = 5
 )
 
 // Demultiplexer is composed of multiple samplers (check and time/dogstatsd)
@@ -147,7 +149,6 @@ func sendIterableSeries(serializer serializer.MetricSerializer, start time.Time,
 // for the DogStatsD workers and how many DogStatsD pipeline should be running.
 func GetDogStatsDWorkerAndPipelineCount() (int, int) {
 	work, pipe := getDogStatsDWorkerAndPipelineCount(agentruntime.NumVCPU())
-	log.Infof("Dogstatsd configured to run with %d workers and %d pipelines", work, pipe)
 	return work, pipe
 }
 
@@ -181,6 +182,15 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 
 		if dsdWorkerCount < 2 {
 			dsdWorkerCount = 2
+		}
+		// Enforce a ceiling on the # of DSD workers.
+		// More workers enables more concurrent parsing, however they still submit
+		// to the same channel, which creates a contention point and a point of
+		// diminishing returns. In addition, each worker retains go heap memory due
+		// to the multiple string interners.
+		// The 'MaxPracticalWorkers' value here is a best-effort guess currently
+		if dsdWorkerCount > MaxPracticalWorkers {
+			dsdWorkerCount = MaxPracticalWorkers
 		}
 	} else if autoAdjustStrategy == AutoAdjustStrategyMaxThroughput {
 		// we will auto-adjust the pipeline and workers count to maximize throughput
