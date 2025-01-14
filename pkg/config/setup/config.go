@@ -1940,6 +1940,8 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		// these variables are used by source code integration
 		"DD_GIT_COMMIT_SHA":     {},
 		"DD_GIT_REPOSITORY_URL": {},
+		// signals whether or not ADP is enabled
+		"DD_ADP_ENABLED": {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}

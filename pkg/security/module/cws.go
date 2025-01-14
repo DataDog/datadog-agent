@@ -151,6 +151,20 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 	return c, nil
 }
 
+func (c *CWSConsumer) onAPIConnectionEstablished() {
+	seclog.Infof("api client connected, starts sending events")
+	c.startRunningMetrics()
+}
+
+func (c *CWSConsumer) startRunningMetrics() {
+	c.ruleEngine.StartRunningMetrics(c.ctx)
+
+	if c.crtelemetry != nil {
+		// Send containers running telemetry
+		go c.crtelemetry.Run(c.ctx)
+	}
+}
+
 // ID returns id for CWS
 func (c *CWSConsumer) ID() string {
 	return "CWS"
@@ -169,17 +183,12 @@ func (c *CWSConsumer) Start() error {
 	// start api server
 	c.apiServer.Start(c.ctx)
 
-	if err := c.ruleEngine.Start(c.ctx, c.reloader.Chan(), &c.wg); err != nil {
+	if err := c.ruleEngine.Start(c.ctx, c.reloader.Chan()); err != nil {
 		return err
 	}
 
 	c.wg.Add(1)
 	go c.statsSender()
-
-	if c.crtelemetry != nil {
-		// Send containers running telemetry
-		go c.crtelemetry.Run(c.ctx)
-	}
 
 	seclog.Infof("runtime security started")
 
@@ -204,6 +213,11 @@ func (c *CWSConsumer) Start() error {
 	}
 	if c.selfTester != nil {
 		go c.selfTester.WaitForResult(cb)
+	}
+
+	// do not wait external api connection, send directly running metrics
+	if c.config.SendEventFromSystemProbe {
+		c.startRunningMetrics()
 	}
 
 	return nil
@@ -273,9 +287,10 @@ func (c *CWSConsumer) Stop() {
 		c.apiServer.Stop()
 	}
 
+	c.cancelFnc()
+
 	c.ruleEngine.Stop()
 
-	c.cancelFnc()
 	c.wg.Wait()
 
 	c.grpcServer.Stop()

@@ -31,20 +31,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TODO: This is a temporary workaround to test the upgrade of the persisting integrations
-// Since we need the previous agent version to have produced these files
-// We will mock these files for now since this is the first release that will generate them
-// Once we have a release that generates these files we can remove this workaround and stop mocking these files
-
-//go:embed fixtures/diff.txt
-var diffPythonInstalledPackages string
-
-//go:embed fixtures/postinst.txt
-var postinstPythonInstalledPackages string
-
-//go:embed fixtures/requirements.txt
-var requirementsAgentRelease string
-
 var (
 	osVersion       = flag.String("osversion", "", "os version to test")
 	platform        = flag.String("platform", "", "platform to test")
@@ -52,12 +38,6 @@ var (
 	flavorName      = flag.String("flavor", "datadog-agent", "package flavor to install")
 	srcAgentVersion = flag.String("src-agent-version", "7", "start agent version")
 )
-
-var filesToMock = map[string]string{
-	"/opt/datadog-agent/.diff_python_installed_packages.txt":     diffPythonInstalledPackages,
-	"/opt/datadog-agent/.postinst_python_installed_packages.txt": postinstPythonInstalledPackages,
-	"/opt/datadog-agent/requirements-agent-release.txt":          requirementsAgentRelease,
-}
 
 type persistingIntegrationsSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -135,7 +115,6 @@ func (is *persistingIntegrationsSuite) TestIntegrationPersistsWithFileFlag() {
 
 	startAgentVersion := is.SetupAgentStartVersion(VMclient)
 	is.InstallNVMLIntegration(VMclient)
-	is.PrepareMockedFiles(VMclient)
 
 	// set the flag to install third party deps
 	is.EnableInstallThirdPartyDepsFlag(VMclient)
@@ -150,7 +129,6 @@ func (is *persistingIntegrationsSuite) TestIntegrationDoesNotPersistWithoutFileF
 
 	startAgentVersion := is.SetupAgentStartVersion(VMclient)
 	is.InstallNVMLIntegration(VMclient)
-	is.PrepareMockedFiles(VMclient)
 
 	// unset the flag to install third party deps if it was set
 	VMclient.Host.Execute("sudo rm -f /opt/datadog-agent/.install_python_third_party_deps")
@@ -167,12 +145,6 @@ func (is *persistingIntegrationsSuite) SetupTestClient() *common.TestClient {
 	unixHelper := helpers.NewUnix()
 	VMclient := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 	return VMclient
-}
-
-func (is *persistingIntegrationsSuite) PrepareMockedFiles(VMclient *common.TestClient) {
-	for file, content := range filesToMock {
-		VMclient.Host.MustExecute(fmt.Sprintf("sudo bash -c \"echo '%s' > %s\"", content, file))
-	}
 }
 
 func (is *persistingIntegrationsSuite) InstallNVMLIntegration(VMclient *common.TestClient) {
