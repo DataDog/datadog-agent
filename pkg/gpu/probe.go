@@ -155,7 +155,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
 
-	p.consumer = newCudaEventConsumer(sysCtx, p.eventHandler, p.cfg)
+	p.consumer = newCudaEventConsumer(sysCtx, p.eventHandler, p.cfg, deps.Telemetry)
 	//TODO: decouple this to avoid sharing streamHandlers between consumer and statsGenerator
 	p.statsGenerator = newStatsGenerator(sysCtx, p.consumer.streamHandlers)
 
