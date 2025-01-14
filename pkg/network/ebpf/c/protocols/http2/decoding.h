@@ -896,12 +896,12 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
     }
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
-    __u8 interesting_headers = 0;
-
     __u64 *global_dynamic_counter = get_dynamic_counter(tup);
     if (global_dynamic_counter == NULL) {
         goto delete_iteration;
     }
+    __u8 interesting_headers = 0;
+    __u8 continuation_frames = 0;
 
     #pragma unroll(HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL)
     for (__u16 index = 0; index < HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL; index++) {
@@ -915,6 +915,9 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         current_frame = frames_array[tail_call_state->iteration];
         tail_call_state->iteration += 1;
 
+        if (current_frame.frame.type == kContinuationFrame) {
+            continuation_frames++;
+        }
         if (current_frame.frame.type != kHeadersFrame) {
             continue;
         }
@@ -930,6 +933,7 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
         pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
     }
+    __sync_fetch_and_add(&http2_tel->continuation_frames, continuation_frames);
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
         tail_call_state->iteration < tail_call_state->frames_count &&
