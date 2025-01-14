@@ -644,11 +644,6 @@ workflow:
 .on_all_builds:
   - <<: *if_run_all_builds
 
-.on_all_builds_manual:
-  - <<: *if_run_all_builds
-    when: manual
-    allow_failure: true
-
 .on_e2e_tests:
   - <<: *if_installer_tests
 
