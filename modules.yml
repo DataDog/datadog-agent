@@ -84,9 +84,9 @@ modules:
     used_by_otel: true
   comp/otelcol/otlp/testutil:
     used_by_otel: true
-  comp/serializer/metricscompression:
-    used_by_otel: true
   comp/serializer/logscompression:
+    used_by_otel: true
+  comp/serializer/metricscompression:
     used_by_otel: true
   comp/trace/agent/def:
     used_by_otel: true
@@ -213,13 +213,13 @@ modules:
     used_by_otel: true
   pkg/util/buf:
     used_by_otel: true
-  pkg/util/compression:
-    used_by_otel: true
   pkg/util/cache: default
   pkg/util/cgroups:
     should_test_condition: is_linux
     used_by_otel: true
   pkg/util/common:
+    used_by_otel: true
+  pkg/util/compression:
     used_by_otel: true
   pkg/util/containers/image:
     used_by_otel: true
