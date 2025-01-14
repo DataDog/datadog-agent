@@ -66,4 +66,9 @@ $opensslConfPath = "$embeddedPath\ssl\openssl.cnf"
 $opensslConfTemplate = "$embeddedPath\ssl\openssl.cnf.tmp"
 Copy-Item "$opensslConfTemplate" "$opensslConfPath"
 
+# Configure Windows FIPS mode
+# This system-wide setting is used by Windows as well as the Microsoft Go fork used by the Agent
+# https://github.com/microsoft/go/blob/microsoft/main/eng/doc/fips/README.md#windows-fips-mode-cng
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy" -Name "Enabled" -Value 1 -Type DWORD
+
 Remove-TempFiles
