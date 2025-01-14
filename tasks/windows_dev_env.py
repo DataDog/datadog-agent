@@ -83,7 +83,7 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     host = ""
     with ctx.cd('../test-infra-definitions'):
         result = ctx.run(
-            f"inv aws.create-vm --ami-id={AMI_WINDOWS_DEV_2022} --os-family=windows --architecture=x86_64 --no-install-agent --stack-name={name} --no-interactive"
+            f"inv aws.create-vm --ami-id={AMI_WINDOWS_DEV_2022} --os-family=windows --architecture=x86_64 --no-install-agent --stack-name={name} --no-interactive --instance-type=t3.xlarge"
         )
         if result is None or not result:
             raise Exception("Failed to create the Windows development environment.")
@@ -106,7 +106,7 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     if should_start_container:
         print("🐳 Starting Windows dev container")
         ctx.run(
-            f"ssh {host} 'docker run -v C:\\mnt:c:\\mnt -w C:\\mnt\\datadog-agent -t -d --name {WIN_CONTAINER_NAME} datadog/agent-buildimages-windows_x64:ltsc2022 ping -t localhost'",
+            f"ssh {host} 'docker run -m 16384 -v C:\\mnt:c:\\mnt:rw -w C:\\mnt\\datadog-agent -t -d --name {WIN_CONTAINER_NAME} datadog/agent-buildimages-windows_x64:ltsc2022 tail -f /dev/null'",
         )
     # sync local changes to the remote Windows development environment
     rsync_command = _build_rsync_command(host)
