@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/cache"
 )
 
 var (
@@ -56,7 +57,7 @@ type Resolver struct {
 	erpcStats             [2]*lib.Map
 	bufferSelector        *lib.Map
 	activeERPCStatsBuffer uint32
-	cache                 *TwoLayersLRU[uint32, model.PathKey, PathEntry]
+	cache                 *cache.TwoLayersLRU[uint32, model.PathKey, PathEntry]
 	erpc                  *erpc.ERPC
 	erpcSegment           []byte
 	erpcSegmentSize       int
@@ -767,7 +768,7 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
-	cache, err := NewTwoLayersLRU[uint32, model.PathKey, PathEntry](8000)
+	cache, err := cache.NewTwoLayersLRU[uint32, model.PathKey, PathEntry](8000)
 	if err != nil {
 		return nil, err
 	}
