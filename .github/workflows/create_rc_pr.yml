@@ -49,6 +49,7 @@ jobs:
                     --repo "$GITHUB_REPOSITORY" \
                     --base "$AGENT6_RELEASE_BRANCH" \
                     --json url,title \
+                    --draft=false \
                     --search "Update release.json and Go modules for in:title")
                 if [ "$(echo "$prs" | jq 'length')" -gt 0 ]; then
                     pr_list=$(echo "$prs" | jq -r '.[] | "- \(.title): \(.url)"')
