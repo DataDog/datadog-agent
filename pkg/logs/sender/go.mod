@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/logs/sender
 
-go 1.23.3
+go 1.22.0
 
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../cmd/agent/common/path

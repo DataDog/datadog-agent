@@ -1,6 +1,6 @@
 module compression
 
-go 1.23.3
+go 1.22.0
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/compression => .
