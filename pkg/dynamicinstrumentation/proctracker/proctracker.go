@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -186,7 +186,7 @@ func (pt *ProcessTracker) registerProcess(binID binaryID, pid pid, mTime syscall
 }
 
 func getServiceName(pid uint32) string {
-	envVars, _, err := utils.EnvVars([]string{"DD"}, pid, model.MaxArgsEnvsSize)
+	envVars, _, err := utils.EnvVars([]string{"DD"}, pid, sharedconsts.MaxArgsEnvsSize)
 	if err != nil {
 		return ""
 	}

@@ -165,5 +165,19 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                 .Contain(kvp => kvp.Key == "DDAGENTUSER_RESET_PASSWORD" && string.IsNullOrEmpty(kvp.Value)).And
                 .Contain(kvp => kvp.Key == "DDAGENTUSER_PROCESSED_PASSWORD" && string.IsNullOrEmpty(kvp.Value));
         }
+
+        [Fact]
+        public void ProcessDdAgentUserCredentials_Catch_Semicolon_In_Password()
+        {
+            Test.Session
+                .Setup(session => session["DDAGENTUSER_NAME"]).Returns("ddagentuser");
+            Test.Session
+                .Setup(session => session["DDAGENTUSER_PASSWORD"]).Returns("password;123");
+
+            Test.Create()
+                .ProcessDdAgentUserCredentials()
+                .Should()
+                .Be(ActionResult.Failure);
+        }
     }
 }

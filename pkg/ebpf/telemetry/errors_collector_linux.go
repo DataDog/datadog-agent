@@ -39,7 +39,7 @@ type metricKey struct {
 
 // NewEBPFErrorsCollector initializes a new Collector object for ebpf helper and map operations errors
 func NewEBPFErrorsCollector() prometheus.Collector {
-	if supported, _ := ebpfTelemetrySupported(); !supported {
+	if supported, _ := EBPFTelemetrySupported(); !supported {
 		return nil
 	}
 

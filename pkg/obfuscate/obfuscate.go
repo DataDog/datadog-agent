@@ -277,6 +277,9 @@ type CreditCardsConfig struct {
 type CacheConfig struct {
 	// Enabled specifies whether caching should be enabled.
 	Enabled bool `mapstructure:"enabled"`
+
+	// MaxSize is the maximum size of the cache in bytes.
+	MaxSize int64 `mapstructure:"max_size"`
 }
 
 // NewObfuscator creates a new obfuscator
@@ -286,7 +289,7 @@ func NewObfuscator(cfg Config) *Obfuscator {
 	}
 	o := Obfuscator{
 		opts:              &cfg,
-		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd}),
+		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd, MaxSize: cfg.Cache.MaxSize}),
 		sqlLiteralEscapes: atomic.NewBool(false),
 		log:               cfg.Logger,
 	}

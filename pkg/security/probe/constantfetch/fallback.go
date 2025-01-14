@@ -435,7 +435,7 @@ func getBpfProgAuxIDOffset(kv *kernel.Version) uint64 {
 		idOffset = 24
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_13):
 		idOffset = 28
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_13:
+	case kv.Code >= kernel.Kernel5_13:
 		idOffset = 32
 	}
 
@@ -483,7 +483,7 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 544
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_17, kernel.Kernel6_1):
 		nameOffset = 528
-	case kv.Code != 0 && kv.Code >= kernel.Kernel6_1:
+	case kv.Code >= kernel.Kernel6_1:
 		nameOffset = 912
 	}
 
@@ -588,7 +588,7 @@ func getPipeInodeInfoBufsOffset(kv *kernel.Version) uint64 {
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_6, kernel.Kernel5_8) ||
 		kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		offset = 144
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_8:
+	case kv.Code >= kernel.Kernel5_8:
 		offset = 152
 	}
 

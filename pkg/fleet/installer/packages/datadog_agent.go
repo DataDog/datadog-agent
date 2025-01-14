@@ -77,11 +77,6 @@ func PrepareAgent(ctx context.Context) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "prepare_agent")
 	defer func() { span.Finish(err) }()
 
-	err = removeDebRPMPackage(ctx, "datadog-agent")
-	if err != nil {
-		return fmt.Errorf("failed to remove deb/rpm datadog-agent package: %w", err)
-	}
-
 	for _, unit := range stableUnits {
 		if err := stopUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
@@ -130,6 +125,13 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	}
 	if err = chownRecursive("/opt/datadog-packages/datadog-agent/stable/", ddAgentUID, ddAgentGID, rootOwnedAgentPaths); err != nil {
 		return fmt.Errorf("failed to chown /opt/datadog-packages/datadog-agent/stable/: %v", err)
+	}
+	// Give root:datadog-agent permissions to system-probe and security-agent config files if they exist
+	if err = os.Chown("/etc/datadog-agent/system-probe.yaml", 0, ddAgentGID); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to chown /etc/datadog-agent/system-probe.yaml: %v", err)
+	}
+	if err = os.Chown("/etc/datadog-agent/security-agent.yaml", 0, ddAgentGID); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to chown /etc/datadog-agent/security-agent.yaml: %v", err)
 	}
 
 	if err = systemdReload(ctx); err != nil {

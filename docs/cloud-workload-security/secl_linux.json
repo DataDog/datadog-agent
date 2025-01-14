@@ -24,12 +24,12 @@
         },
         {
           "name": "cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -144,12 +144,12 @@
         },
         {
           "name": "process.ancestors.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "process.ancestors.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -559,12 +559,12 @@
         },
         {
           "name": "process.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "process.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -924,12 +924,12 @@
         },
         {
           "name": "process.parent.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "process.parent.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -2069,12 +2069,12 @@
         },
         {
           "name": "exec.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "exec.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -2498,12 +2498,12 @@
         },
         {
           "name": "exit.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "exit.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -3933,12 +3933,12 @@
         },
         {
           "name": "ptrace.tracee.ancestors.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -4348,12 +4348,12 @@
         },
         {
           "name": "ptrace.tracee.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "ptrace.tracee.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -4713,12 +4713,12 @@
         },
         {
           "name": "ptrace.tracee.parent.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "ptrace.tracee.parent.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -5885,12 +5885,12 @@
         },
         {
           "name": "signal.target.ancestors.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "signal.target.ancestors.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -6300,12 +6300,12 @@
         },
         {
           "name": "signal.target.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "signal.target.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -6665,12 +6665,12 @@
         },
         {
           "name": "signal.target.parent.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "signal.target.parent.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -8752,7 +8752,7 @@
       "name": "*.manager",
       "link": "common-cgroupcontext-manager-doc",
       "type": "string",
-      "definition": "Lifecycle manager of the cgroup",
+      "definition": "[Experimental] Lifecycle manager of the cgroup",
       "prefixes": [
         "cgroup",
         "exec.cgroup",
@@ -9554,7 +9554,7 @@
       "name": "*.version",
       "link": "common-cgroupcontext-version-doc",
       "type": "int",
-      "definition": "Version of the cgroup API",
+      "definition": "[Experimental] Version of the cgroup API",
       "prefixes": [
         "cgroup",
         "exec.cgroup",
