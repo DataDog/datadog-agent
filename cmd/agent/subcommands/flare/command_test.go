@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	profiler "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	profilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	profilerimpl "github.com/DataDog/datadog-agent/comp/core/profiler/impl"
@@ -152,7 +152,7 @@ func (c *commandTestSuite) TestReadProfileData() {
 	data, err := profiler.ReadProfileData(10, func(string, ...interface{}) error { return nil })
 	require.NoError(t, err)
 
-	expected := flare.ProfileData{
+	expected := flaretypes.ProfileData{
 		"core-1st-heap.pprof":           []byte("heap_profile"),
 		"core-2nd-heap.pprof":           []byte("heap_profile"),
 		"core-block.pprof":              []byte("block"),
@@ -179,7 +179,7 @@ func (c *commandTestSuite) TestReadProfileData() {
 		"trace.trace":                   []byte("trace"),
 	}
 	if runtime.GOOS != "darwin" {
-		maps.Copy(expected, flare.ProfileData{
+		maps.Copy(expected, flaretypes.ProfileData{
 			"system-probe-1st-heap.pprof": []byte("heap_profile"),
 			"system-probe-2nd-heap.pprof": []byte("heap_profile"),
 			"system-probe-block.pprof":    []byte("block"),
@@ -220,7 +220,7 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 	require.Error(t, err)
 	require.Regexp(t, "^* error collecting trace agent profile: ", err.Error())
 
-	expected := flare.ProfileData{
+	expected := flaretypes.ProfileData{
 		"core-1st-heap.pprof":           []byte("heap_profile"),
 		"core-2nd-heap.pprof":           []byte("heap_profile"),
 		"core-block.pprof":              []byte("block"),
@@ -241,7 +241,7 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 		"security-agent.trace":          []byte("trace"),
 	}
 	if runtime.GOOS != "darwin" {
-		maps.Copy(expected, flare.ProfileData{
+		maps.Copy(expected, flaretypes.ProfileData{
 			"system-probe-1st-heap.pprof": []byte("heap_profile"),
 			"system-probe-2nd-heap.pprof": []byte("heap_profile"),
 			"system-probe-block.pprof":    []byte("block"),

@@ -8,9 +8,9 @@ package profiler
 
 // team: agent-shared-components
 
-import "github.com/DataDog/datadog-agent/comp/core/flare"
+import flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 
 // Component is the component type
 type Component interface {
-	ReadProfileData(seconds int, logFunc func(log string, params ...interface{}) error) (flare.ProfileData, error)
+	ReadProfileData(seconds int, logFunc func(log string, params ...interface{}) error) (flaretypes.ProfileData, error)
 }

@@ -38,9 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// ProfileData maps (pprof) profile names to the profile data.
-type ProfileData map[string][]byte
-
 type dependencies struct {
 	fx.In
 
@@ -145,7 +142,7 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 }
 
 func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request) {
-	var profile ProfileData
+	var profile types.ProfileData
 
 	if r.Body != http.NoBody {
 		body, err := io.ReadAll(r.Body)
@@ -201,7 +198,7 @@ func (f *flare) Send(flarePath string, caseID string, email string, source helpe
 // Create creates a new flare and returns the path to the final archive file.
 //
 // If providerTimeout is 0 or negative, the timeout from the configuration will be used.
-func (f *flare) Create(pdata ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
+func (f *flare) Create(pdata types.ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
 	return f.create(types.FlareArgs{}, providerTimeout, ipcError, pdata)
 }
 
@@ -209,10 +206,10 @@ func (f *flare) Create(pdata ProfileData, providerTimeout time.Duration, ipcErro
 //
 // If providerTimeout is 0 or negative, the timeout from the configuration will be used.
 func (f *flare) CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error) (string, error) {
-	return f.create(flareArgs, providerTimeout, ipcError, ProfileData{})
+	return f.create(flareArgs, providerTimeout, ipcError, types.ProfileData{})
 }
 
-func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, pdata ProfileData) (string, error) {
+func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, pdata types.ProfileData) (string, error) {
 	if providerTimeout <= 0 {
 		providerTimeout = f.config.GetDuration("flare_provider_timeout")
 	}
