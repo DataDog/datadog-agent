@@ -16,6 +16,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/kubetags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
@@ -115,6 +118,25 @@ type KSMConfig struct {
 	//   - nodes
 	//   - pods
 	Collectors []string `yaml:"collectors"`
+
+	// CustomResourceStateMetrics defines the custom resource states metrics
+	// https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/extend/customresourcestate-metrics.md
+	// Example: Enable custom resource state metrics for CRD mycrd.
+	// custom_resource:
+	//    spec:
+	//      resources:
+	//      - groupVersionKind:
+	//          group: "datadoghq.com"
+	//          kind: "DatadogAgent"
+	//          version: "v2alpha1"
+	//        metrics:
+	//          - name: "custom_metric"
+	//            help: "custom_metric"
+	//            each:
+	//              type: Gauge
+	//              gauge:
+	//                path: [status, agent, available]
+	CustomResource customresourcestate.Metrics `yaml:"custom_resource"`
 
 	// LabelJoins allows adding the tags to join from other KSM metrics.
 	// Example: Joining for deployment metrics. Based on:
@@ -259,6 +281,8 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	if err != nil {
 		return err
 	}
+
+	maps.Copy(k.metricNamesMapper, customresources.GetCustomMetricNamesMapper(k.instance.CustomResource.Spec.Resources))
 
 	// Retrieve cluster name
 	k.getClusterName()
@@ -481,6 +505,13 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		client, _ := f.CreateClient(nil)
 		clients[f.Name()] = client
 	}
+
+	customResourceFactories := customresources.GetCustomResourceFactories(k.instance.CustomResource, c)
+	customResourceClients, customResourceCollectors := customresources.GetCustomResourceClientsAndCollectors(k.instance.CustomResource.Spec.Resources, c)
+
+	collectors = lo.Uniq(append(collectors, customResourceCollectors...))
+	maps.Copy(clients, customResourceClients)
+	factories = append(factories, customResourceFactories...)
 
 	return customResources{
 		collectors: collectors,
