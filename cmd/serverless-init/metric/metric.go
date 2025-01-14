@@ -20,7 +20,6 @@ import (
 //nolint:revive // TODO(SERV) Fix revive linter
 func AddColdStartMetric(metricPrefix string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
 	add(fmt.Sprintf("%v.enhanced.cold_start", metricPrefix), tags, time.Now(), demux)
-
 }
 
 // AddShutdownMetric adds the shutdown metric to the demultiplexer
