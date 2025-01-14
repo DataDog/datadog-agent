@@ -13,7 +13,7 @@ env:
   AGENT_CI_ONCALL_CHANNEL: 'C085P12CTFX'
   SLACK_DATADOG_AGENT_CI_WEBHOOK: ${{ secrets.SLACK_DATADOG_AGENT_CI_WEBHOOK }}
   # IS_AGENT6_RELEASE: ${{ github.event.schedule == '0 9 * * 1' }}
-  IS_AGENT6_RELEASE: 'true'
+  IS_AGENT6_RELEASE: 'false'
 permissions: {}
 
 jobs:
