@@ -99,6 +99,19 @@ type Probe struct {
 	deps           ProbeDependencies
 	sysCtx         *systemContext
 	eventHandler   ddebpf.EventHandler
+	telemetry      *probeTelemetry
+}
+
+type probeTelemetry struct {
+	sentEntries telemetry.Counter
+}
+
+func newProbeTelemetry(tm telemetry.Component) *probeTelemetry {
+	subsystem := gpuTelemetryModule + "__probe"
+
+	return &probeTelemetry{
+		sentEntries: tm.NewCounter(subsystem, "sent_entries", nil, "Number of GPU events sent to the agent"),
+	}
 }
 
 // NewProbe creates and starts a GPU monitoring probe, containing relevant eBPF programs (uprobes), the
@@ -121,9 +134,10 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	}
 
 	p := &Probe{
-		cfg:    cfg,
-		deps:   deps,
-		sysCtx: sysCtx,
+		cfg:       cfg,
+		deps:      deps,
+		sysCtx:    sysCtx,
+		telemetry: newProbeTelemetry(deps.Telemetry),
 	}
 
 	allowRC := cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback
@@ -196,6 +210,7 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 		return nil, fmt.Errorf("error getting current time: %w", err)
 	}
 	stats := p.statsGenerator.getStats(now)
+	p.telemetry.sentEntries.Add(float64(len(stats.Metrics)))
 	p.cleanupFinished()
 
 	return stats, nil
