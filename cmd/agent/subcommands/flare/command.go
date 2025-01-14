@@ -32,9 +32,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	profiler "github.com/DataDog/datadog-agent/comp/core/profiler/def"
-	profilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
+	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	coresettings "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -140,7 +140,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				settingsimpl.Module(),
-				profilerfx.Module(),
 				localTaggerfx.Module(tagger.Params{}),
 				autodiscoveryimpl.Module(),
 				fx.Supply(option.None[collector.Component]()),
@@ -189,9 +188,9 @@ func makeFlare(flareComp flare.Component,
 	cliParams *cliParams,
 	_ option.Option[workloadmeta.Component],
 	_ tagger.Component,
-	profiler profiler.Component) error {
+	flareprofiler flareprofiler.Component) error {
 	var (
-		profile flare.ProfileData
+		profile flaretypes.ProfileData
 		err     error
 	)
 
@@ -245,7 +244,7 @@ func makeFlare(flareComp flare.Component,
 		}
 
 		err = settings.ExecWithRuntimeProfilingSettings(func() {
-			if profile, err = profiler.ReadProfileData(cliParams.profiling, logFunc); err != nil {
+			if profile, err = flareprofiler.ReadProfileData(cliParams.profiling, logFunc); err != nil {
 				fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", err)))
 			}
 		}, profilingOpts, c)
@@ -299,7 +298,7 @@ func makeFlare(flareComp flare.Component,
 	return nil
 }
 
-func requestArchive(flareComp flare.Component, pdata flare.ProfileData, providerTimeout time.Duration) (string, error) {
+func requestArchive(flareComp flare.Component, pdata flaretypes.ProfileData, providerTimeout time.Duration) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
@@ -349,7 +348,7 @@ func requestArchive(flareComp flare.Component, pdata flare.ProfileData, provider
 	return string(r), nil
 }
 
-func createArchive(flareComp flare.Component, pdata flare.ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
+func createArchive(flareComp flare.Component, pdata flaretypes.ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
 	filePath, err := flareComp.Create(pdata, providerTimeout, ipcError)
 	if err != nil {

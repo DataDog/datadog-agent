@@ -22,7 +22,6 @@ import (
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	profilercomp "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -63,10 +62,10 @@ type profiler struct {
 // This function is exposed via the public api to support the flare generation cli command. While the goal
 // is to move the profiling component completely into a flare provider, the existing architecture
 // expects an explicit and pre-emptive profiling run before the flare logic is properly called.
-func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params ...interface{}) error) (flare.ProfileData, error) {
+func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params ...interface{}) error) (flaretypes.ProfileData, error) {
 	type agentProfileCollector func(service string) error
 
-	pdata := flare.ProfileData{}
+	pdata := flaretypes.ProfileData{}
 	c := util.GetClient(false)
 
 	type pprofGetter func(path string) ([]byte, error)
@@ -200,6 +199,7 @@ func (p profiler) setProfilerSetting(settingName string, newValue int, fb flaret
 	err = p.settingsComponent.SetRuntimeSetting(settingName, newValue, model.SourceAgentRuntime)
 	if err != nil {
 		_ = fb.Logf("Unable to set the %s: %v", settingName, err)
+		return nil
 	}
 
 	return func() {
