@@ -64,7 +64,7 @@ func TestFIPSCiphersSuite(t *testing.T) {
 }
 
 func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
-	imageTage := fmt.Sprintf("%s-%s-fips", runner.GetProfile().GetParamStore().Get("E2E_PIPELINE_ID"), runner.GetProfile().GetParamStore().Get("CI_COMMIT_SHA"))
+	imageTag := fmt.Sprintf("%s-%s-fips", runner.GetProfile().GetParamStore().Get("E2E_PIPELINE_ID"), runner.GetProfile().GetParamStore().Get("CI_COMMIT_SHA"))
 
 	v.UpdateEnv(
 		awsdocker.Provisioner(
@@ -100,7 +100,7 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
 }
 
 func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
-	imageTage := fmt.Sprintf("%s-%s-fips", runner.GetProfile().GetParamStore().Get("E2E_PIPELINE_ID"), runner.GetProfile().GetParamStore().Get("CI_COMMIT_SHA"))
+	imageTag := fmt.Sprintf("%s-%s-fips", runner.GetProfile().GetParamStore().Get("E2E_PIPELINE_ID"), runner.GetProfile().GetParamStore().Get("CI_COMMIT_SHA"))
 	v.UpdateEnv(
 		awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(
