@@ -199,21 +199,21 @@ deploy_containers_latest-a7:
       # Windows only images
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
         IMG_SOURCES: "%BASE%-win1809-amd64"
-        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7,${AGENT_REPOSITORY}:latest-ltsc2019
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-ltsc2019,${AGENT_REPOSITORY}:latest-ltsc2019
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
         IMG_SOURCES: "%BASE%-winltsc2022-amd64"
-        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7,${AGENT_REPOSITORY}:latest-ltsc2022
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-ltsc2022,${AGENT_REPOSITORY}:latest-ltsc2022
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
         IMG_SOURCES: "%BASE%-win1809-servercore-amd64"
         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-ltsc2019,${AGENT_REPOSITORY}:latest-servercore-ltsc2019
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
-        IMG_SOURCES: "BASE%-winltsc2022-servercore-amd64"
+        IMG_SOURCES: "%BASE%-winltsc2022-servercore-amd64"
         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-ltsc2022,${AGENT_REPOSITORY}:latest-servercore-ltsc2022
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
         IMG_SOURCES: "%BASE%-winltsc2022-servercore-amd64"
         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-ltsc2022-jmx,${AGENT_REPOSITORY}:latest-servercore-ltsc2022-jmx
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
-        IMG_SOURCES: "%BASE%-winltsc1809-servercore-amd64"
+        IMG_SOURCES: "%BASE%-win1809-servercore-amd64"
         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-ltsc2019-jmx,${AGENT_REPOSITORY}:latest-servercore-ltsc2019-jmx
 
 deploy_containers_latest-a7_internal:

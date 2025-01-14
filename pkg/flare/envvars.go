@@ -160,9 +160,9 @@ func getAllowedEnvvars() []string {
 	return found
 }
 
-// getEnvVars collects allowed envvars that can affect the agent's
+// GetEnvVars collects allowed envvars that can affect the agent's
 // behaviour while not being handled by viper, in addition to the envvars handled by viper
-func getEnvVars() ([]byte, error) {
+func GetEnvVars() ([]byte, error) {
 	envvars := getAllowedEnvvars()
 
 	var b bytes.Buffer

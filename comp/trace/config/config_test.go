@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	_ "embed"
 	"encoding/json"
 	"errors"
@@ -555,6 +556,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal(t, "mymachine", cfg.Hostname)
 	assert.Equal(t, "https://user:password@proxy_for_https:1234", cfg.ProxyURL.String())
 	assert.True(t, cfg.SkipSSLValidation)
+	assert.Equal(t, uint16(tls.VersionTLS13), cfg.NewHTTPTransport().TLSClientConfig.MinVersion)
 	assert.Equal(t, 18125, cfg.StatsdPort)
 	assert.False(t, cfg.Enabled)
 	assert.Equal(t, "abc", cfg.LogFilePath)
@@ -606,6 +608,12 @@ func TestFullYamlConfig(t *testing.T) {
 		},
 		{
 			Name:    "error.stack",
+			Pattern: "(?s).*",
+			Repl:    "?",
+			Re:      regexp.MustCompile("(?s).*"),
+		},
+		{
+			Name:    "exception.stacktrace",
 			Pattern: "(?s).*",
 			Repl:    "?",
 			Re:      regexp.MustCompile("(?s).*"),

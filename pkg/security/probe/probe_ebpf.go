@@ -65,6 +65,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -731,6 +732,27 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 	return p.event
 }
 
+func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, cgroupFlags containerutils.CGroupFlags, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
+	pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, newEntryCb)
+	if pce != nil {
+		cgroupContext, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey, cgroupFlags)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resorve cgroup for pid %d: %w", pid, err)
+		}
+
+		pce.Process.CGroup = *cgroupContext
+		pce.CGroup = *cgroupContext
+		if cgroupContext.CGroupFlags.IsContainer() {
+			containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
+			pce.ContainerID = containerID
+			pce.Process.ContainerID = containerID
+		}
+	} else {
+		return nil, fmt.Errorf("entry not found for pid %d", pid)
+	}
+	return &pce.CGroup, nil
+}
+
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// handle play snapshot
 	if p.playSnapShotState.Swap(false) {
@@ -810,44 +832,25 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("shouldn't receive Cgroup event if activity dumps are disabled")
 			return
 		}
-
 		if _, err = event.CgroupTracing.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode cgroup tracing event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-
-		cgroupContext, err := p.Resolvers.ResolveCGroupContext(event.CgroupTracing.CGroupContext.CGroupFile, containerutils.CGroupFlags(event.CgroupTracing.CGroupContext.CGroupFlags))
-		if err != nil {
-			seclog.Debugf("Failed to resolve cgroup: %s", err)
+		if cgroupContext, err := p.resolveCGroup(event.CgroupTracing.Pid, event.CgroupTracing.CGroupContext.CGroupFile, event.CgroupTracing.CGroupContext.CGroupFlags, newEntryCb); err != nil {
+			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		} else {
 			event.CgroupTracing.CGroupContext = *cgroupContext
 			p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 		}
-
 		return
 	case model.CgroupWriteEventType:
 		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-
-		pce := p.Resolvers.ProcessResolver.Resolve(event.CgroupWrite.Pid, event.CgroupWrite.Pid, 0, false, newEntryCb)
-		if pce != nil {
-			cgroupContext, err := p.Resolvers.ResolveCGroupContext(event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags))
-			if err != nil {
-				seclog.Debugf("Failed to resolve cgroup: %s", err)
-			} else {
-				pce.Process.CGroup = *cgroupContext
-				pce.CGroup = *cgroupContext
-
-				if cgroupContext.CGroupFlags.IsContainer() {
-					containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
-					pce.ContainerID = containerID
-					pce.Process.ContainerID = containerID
-				}
-			}
+		if _, err := p.resolveCGroup(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags), newEntryCb); err != nil {
+			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		}
-
 		return
 	case model.UnshareMountNsEventType:
 		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
@@ -2213,7 +2216,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 
 	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
-	hostname, err := utils.GetHostname()
+	hostname, err := hostnameutils.GetHostname()
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}

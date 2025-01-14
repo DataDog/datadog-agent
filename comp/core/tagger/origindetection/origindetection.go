@@ -26,6 +26,14 @@ const (
 	// ProductOriginAPM is the ProductOrigin for APM.
 	ProductOriginAPM ProductOrigin = iota
 
+	// Local Data Prefixes
+	// These prefixes are used to build the Local Data list.
+
+	// LocalDataContainerIDPrefix is the prefix used for the Container ID sent in the Local Data list.
+	LocalDataContainerIDPrefix = "ci-"
+	// LocalDataInodePrefix is the prefix used for the Inode sent in the Local Data list.
+	LocalDataInodePrefix = "in-"
+
 	// External Data Prefixes
 	// These prefixes are used to build the External Data Environment Variable.
 
@@ -63,13 +71,49 @@ type ExternalData struct {
 // GenerateContainerIDFromExternalData generates a container ID from the external data.
 type GenerateContainerIDFromExternalData func(externalData ExternalData) (string, error)
 
+// ParseLocalData parses the local data string into a LocalData struct.
+func ParseLocalData(rawLocalData string) (LocalData, error) {
+	if rawLocalData == "" {
+		return LocalData{}, nil
+	}
+
+	var localData LocalData
+	var parsingError error
+
+	if strings.Contains(rawLocalData, ",") {
+		// The Local Data can contain a list.
+		items := strings.Split(rawLocalData, ",")
+		for _, item := range items {
+			if strings.HasPrefix(item, LocalDataContainerIDPrefix) {
+				localData.ContainerID = item[len(LocalDataContainerIDPrefix):]
+			} else if strings.HasPrefix(item, LocalDataInodePrefix) {
+				localData.Inode, parsingError = strconv.ParseUint(item[len(LocalDataInodePrefix):], 10, 64)
+			}
+		}
+	} else {
+		// The Local Data can contain a single value.
+		if strings.HasPrefix(rawLocalData, LocalDataContainerIDPrefix) {
+			localData.ContainerID = rawLocalData[len(LocalDataContainerIDPrefix):]
+		} else if strings.HasPrefix(rawLocalData, LocalDataInodePrefix) {
+			localData.Inode, parsingError = strconv.ParseUint(rawLocalData[len(LocalDataInodePrefix):], 10, 64)
+		} else {
+			// Container ID with old format: <container-id>
+			localData.ContainerID = rawLocalData
+		}
+	}
+
+	return localData, parsingError
+}
+
 // ParseExternalData parses the external data string into an ExternalData struct.
 func ParseExternalData(externalEnv string) (ExternalData, error) {
 	if externalEnv == "" {
 		return ExternalData{}, nil
 	}
+
 	var externalData ExternalData
 	var parsingError error
+
 	for _, item := range strings.Split(externalEnv, ",") {
 		switch {
 		case strings.HasPrefix(item, ExternalDataInitPrefix):
@@ -80,5 +124,6 @@ func ParseExternalData(externalEnv string) (ExternalData, error) {
 			externalData.PodUID = item[len(ExternalDataPodUIDPrefix):]
 		}
 	}
+
 	return externalData, parsingError
 }

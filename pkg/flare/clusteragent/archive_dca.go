@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package flare
+// Package clusteragent contains the logic to create the cluster agent flare archive.
+package clusteragent
 
 import (
 	"bufio"
@@ -12,14 +13,18 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,10 +64,10 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 
 	}
 
-	getLogFiles(fb, logFilePath)
-	getConfigFiles(fb, confSearchPaths)
+	flare.GetLogFiles(fb, logFilePath)
+	flare.GetConfigFiles(fb, confSearchPaths)
 	getClusterAgentConfigCheck(fb)                                                 //nolint:errcheck
-	getExpVar(fb)                                                                  //nolint:errcheck
+	flare.GetExpVar(fb)                                                            //nolint:errcheck
 	getMetadataMap(fb)                                                             //nolint:errcheck
 	getClusterAgentClusterChecks(fb)                                               //nolint:errcheck
 	getClusterAgentDiagnose(fb)                                                    //nolint:errcheck
@@ -70,7 +75,7 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment) //nolint:errcheck
 	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)                          //nolint:errcheck
 	fb.AddFileFromFunc("datadog-agent-cr.yaml", getDatadogAgentManifest)           //nolint:errcheck
-	fb.AddFileFromFunc("envvars.log", getEnvVars)                                  //nolint:errcheck
+	fb.AddFileFromFunc("envvars.log", flare.GetEnvVars)                            //nolint:errcheck
 	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)                           //nolint:errcheck
 	fb.AddFileFromFunc("tagger-list.json", getDCATaggerList)                       //nolint:errcheck
 	fb.AddFileFromFunc("workload-list.log", getDCAWorkloadList)                    //nolint:errcheck
@@ -158,6 +163,41 @@ func getClusterAgentConfigCheck(fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("config-check.log", b.Bytes())
 }
 
+// GetClusterAgentConfigCheck gets config check from the server for cluster agent
+func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
+	c := util.GetClient(false) // FIX: get certificates right then make this true
+
+	// Set session token
+	err := util.SetAuthToken(pkgconfigsetup.Datadog())
+	if err != nil {
+		return err
+	}
+
+	targetURL := url.URL{
+		Scheme: "https",
+		Host:   fmt.Sprintf("localhost:%v", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")),
+		Path:   "config-check",
+	}
+
+	r, err := util.DoGet(c, targetURL.String(), util.LeaveConnectionOpen)
+	if err != nil {
+		if r != nil && string(r) != "" {
+			return fmt.Errorf("the agent ran into an error while checking config: %s", string(r))
+		}
+		return fmt.Errorf("failed to query the agent (running?): %s", err)
+	}
+
+	cr := integration.ConfigCheckResponse{}
+	err = json.Unmarshal(r, &cr)
+	if err != nil {
+		return err
+	}
+
+	flare.PrintConfigCheck(w, cr, withDebug)
+
+	return nil
+}
+
 func getClusterAgentDiagnose(fb flaretypes.FlareBuilder) error {
 	var b bytes.Buffer
 
@@ -176,7 +216,7 @@ func getDCATaggerList() ([]byte, error) {
 
 	taggerListURL := fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
-	return getTaggerList(taggerListURL)
+	return flare.GetTaggerList(taggerListURL)
 }
 
 func getDCAWorkloadList() ([]byte, error) {
@@ -185,7 +225,7 @@ func getDCAWorkloadList() ([]byte, error) {
 		return nil, err
 	}
 
-	return getWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")))
+	return flare.GetWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")))
 }
 
 func getPerformanceProfileDCA(fb flaretypes.FlareBuilder, pdata ProfileData) {

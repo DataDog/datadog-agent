@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	complianceutils "github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -177,7 +177,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 }
 
 func eventRun(log log.Component, eventArgs *eventCliParams) error {
-	hostnameDetected, err := secutils.GetHostnameWithContextAndFallback(context.Background())
+	hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.Background())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
