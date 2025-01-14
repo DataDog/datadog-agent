@@ -290,11 +290,16 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionPeriodic() {
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.Equal(c, 1, registerRecorder.CallsForPathID(fooPathID1))
 
-		// Check that we tried to attach to the process twice.  See w.sync() for
-		// why we do it.  We don't actually need to attempt the registration
-		// twice, we just need to ensure that the maps were scanned twice but we
-		// don't have a hook for that so this check should be good enough.
-		assert.Equal(c, 2, registerRecorder.CallsForPathID(errorPathID))
+		// We expect at least one registration attempt to the error path, but
+		// there could be up to two since w.sync() can scan the maps file twice.
+		// We can't _guarantee_ there will be two registration attempts in this
+		// test though because the first attempt could have happened before the
+		// process opened the shared library (and we don't want to move the
+		// watcher start to after the process start since that would test the
+		// initial scan and not the periodic).
+		errorCalls := registerRecorder.CallsForPathID(errorPathID)
+		assert.GreaterOrEqual(c, errorCalls, 1)
+		assert.LessOrEqual(c, errorCalls, 2)
 	}, time.Second*10, 100*time.Millisecond, "")
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
