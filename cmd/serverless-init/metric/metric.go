@@ -19,25 +19,22 @@ import (
 //
 //nolint:revive // TODO(SERV) Fix revive linter
 func AddColdStartMetric(metricPrefix string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
-	if demux != nil {
-		add(fmt.Sprintf("%v.enhanced.cold_start", metricPrefix), tags, time.Now(), demux)
-	} else {
-		log.Debugf("Unable to add cold start metric. The metric agent is not running")
-	}
+	add(fmt.Sprintf("%v.enhanced.cold_start", metricPrefix), tags, time.Now(), demux)
+
 }
 
 // AddShutdownMetric adds the shutdown metric to the demultiplexer
 //
 //nolint:revive // TODO(SERV) Fix revive linter
 func AddShutdownMetric(metricPrefix string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
-	if demux != nil {
-		add(fmt.Sprintf("%v.enhanced.shutdown", metricPrefix), tags, time.Now(), demux)
-	} else {
-		log.Debugf("Unable to add shudtdown metric. The metric agent is not running")
-	}
+	add(fmt.Sprintf("%v.enhanced.shutdown", metricPrefix), tags, time.Now(), demux)
 }
 
 func add(name string, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
+	if demux == nil {
+		log.Debugf("Cannot add metric %s, the metric agent is not running", name)
+		return
+	}
 	metricTimestamp := float64(timestamp.UnixNano()) / float64(time.Second)
 	demux.AggregateSample(metrics.MetricSample{
 		Name:       name,

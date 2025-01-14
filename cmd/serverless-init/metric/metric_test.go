@@ -69,7 +69,7 @@ func TestNilDemuxDoesNotPanic(t *testing.T) {
 	timestamp := time.Now()
 	// Pass nil for demux to mimic when a port is blocked and dogstatsd does not start properly.
 	// This previously led to a panic and segmentation fault
-	AddColdStartMetric("gcp.run", []string{"taga:valuea", "tagb:valueb"}, timestamp, nil)
+	add("metric", []string{"taga:valuea", "tagb:valueb"}, timestamp, nil)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 0, len(generatedMetrics))
