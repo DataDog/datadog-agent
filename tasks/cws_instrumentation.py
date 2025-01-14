@@ -68,7 +68,7 @@ def build(
     strip_flags = "" if no_strip_binary else "-s -w"
 
     cmd = (
-        f'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
+        f'go build -trimpath -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
         f'-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags} {strip_flags}" {REPO_PATH}/cmd/cws-instrumentation'
     )
 
