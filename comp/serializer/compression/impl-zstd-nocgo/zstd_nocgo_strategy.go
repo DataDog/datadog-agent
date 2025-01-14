@@ -19,7 +19,7 @@ import (
 
 // Requires contains the compression level for zstd compression
 type Requires struct {
-	Level int
+	Level compression.ZstdCompressionLevel
 }
 
 // Provides contains the compression component
@@ -35,7 +35,8 @@ type ZstdNoCgoStrategy struct {
 
 // NewComponent returns a new ZstdNoCgoStrategy
 func NewComponent(reqs Requires) Provides {
-	log.Debugf("Compressing native zstd at level %d", reqs.Level)
+	level := int(reqs.Level)
+	log.Debugf("Compressing native zstd at level %d", level)
 
 	conc, err := strconv.Atoi(os.Getenv("ZSTD_NOCGO_CONCURRENCY"))
 	if err != nil {
@@ -46,11 +47,10 @@ func NewComponent(reqs Requires) Provides {
 	if err != nil {
 		window = 1 << 15
 	}
-
 	log.Debugf("native zstd concurrency %d", conc)
 	log.Debugf("native zstd window size %d", window)
 	encoder, err := zstd.NewWriter(nil,
-		zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(reqs.Level)),
+		zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)),
 		zstd.WithEncoderConcurrency(conc),
 		zstd.WithLowerEncoderMem(true),
 		zstd.WithWindowSize(window))
@@ -63,7 +63,7 @@ func NewComponent(reqs Requires) Provides {
 
 	return Provides{
 		Comp: &ZstdNoCgoStrategy{
-			level:   reqs.Level,
+			level:   level,
 			encoder: encoder,
 		},
 	}

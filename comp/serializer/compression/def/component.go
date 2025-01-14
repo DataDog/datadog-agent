@@ -33,3 +33,5 @@ type StreamCompressor interface {
 	io.WriteCloser
 	Flush() error
 }
+
+type ZstdCompressionLevel int
