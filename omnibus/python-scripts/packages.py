@@ -26,15 +26,14 @@ def run_command(args):
         print(f"Error: {e.stderr}")
         return e.stdout, e.stderr
 
-def extract_version(specifier):
+def extract_version(req):
     """
     Extract version from the specifier string using packaging.
     """
     try:
         # Parse the specifier and get the first version from the specifier set
-        requirement = packaging.requirements.Requirement(specifier)
-        version = next(iter(requirement.specifier), None)
-        return str(version) if version else None
+        version_spec = next(iter(req.specifier), None)
+        return str(version_spec.version) if version_spec else None
     except Exception as e:
         print(f"Error parsing specifier: {e}")
         return None
@@ -135,8 +134,8 @@ def create_diff_installed_packages_file(directory, old_file, new_file):
             if old_req:
                 _, old_req_value = old_req
                 # Extract and compare versions
-                old_version_str = extract_version(str(old_req_value))
-                new_version_str = extract_version(str(new_req_value))
+                old_version_str = extract_version(old_req_value)
+                new_version_str = extract_version(new_req_value)
                 if old_version_str and new_version_str:
                     if packaging.version.parse(new_version_str) > packaging.version.parse(old_version_str):
                         f.write(f"{new_req_value}\n")
@@ -163,8 +162,8 @@ def install_dependency_package(pip, package):
     Install python dependency running pip install command
     """
     print(f"Installing python dependency: '{package}'")
-    args = pip.extend(['install', package])
-    run_command(args)
+    pip.extend(['install', package])
+    run_command(pip)
 
 def install_diff_packages_file(install_directory, filename, exclude_filename):
     """
