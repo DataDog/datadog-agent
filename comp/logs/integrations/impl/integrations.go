@@ -27,6 +27,10 @@ func NewLogsIntegration() *Logsintegration {
 
 // RegisterIntegration registers an integration with the integrations component
 func (li *Logsintegration) RegisterIntegration(id string, config integration.Config) {
+	if config.LogsConfig == nil || len(config.LogsConfig) == 0 {
+		return
+	}
+
 	integrationConfig := integrations.IntegrationConfig{
 		IntegrationID: id,
 		Config:        config,

@@ -103,6 +103,26 @@ func (suite *LauncherTestSuite) TestSendLog() {
 	assert.Equal(suite.T(), expectedPath, <-filepathChan)
 }
 
+func (suite *LauncherTestSuite) TestEmptyConfig() {
+	mockConf := &integration.Config{}
+	mockConf.Provider = "container"
+	mockConf.LogsConfig = integration.Data(``)
+
+	id := "123456789"
+
+	suite.s.Start(nil, nil, nil, nil)
+	integrationChan := suite.integrationsComp.Subscribe()
+	suite.integrationsComp.RegisterIntegration(id, *mockConf)
+
+	select {
+	case msg := <-integrationChan:
+		assert.Fail(suite.T(), "Expected channel to not receive logs, instead got:", msg)
+	case <-time.After(10 * time.Millisecond):
+		assert.True(suite.T(), true, "Channel remained empty.")
+	}
+	assert.Equal(suite.T(), len(suite.s.sources.GetSources()), 0)
+}
+
 // TestNegativeCombinedUsageMax ensures errors in combinedUsageMax don't result
 // in panics from `deleteFile`
 func (suite *LauncherTestSuite) TestNegativeCombinedUsageMax() {
