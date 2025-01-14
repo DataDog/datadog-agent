@@ -59,7 +59,6 @@ func (h *SingleLineHandler) process(msg *message.Message) {
 		// the new line is just a remainder,
 		// adding the truncated flag at the beginning of the content
 		content = append(message.TruncatedFlag, content...)
-		addTruncatedTag(msg)
 	}
 
 	// how should we detect logs which are too long before rendering them?
@@ -67,6 +66,9 @@ func (h *SingleLineHandler) process(msg *message.Message) {
 		// the line is too long, it needs to be cut off and send,
 		// adding the truncated flag the end of the content
 		content = append(content, message.TruncatedFlag...)
+	}
+
+	if lastWasTruncated || h.shouldTruncate {
 		addTruncatedTag(msg)
 	}
 
