@@ -1,0 +1,23 @@
+static_quality_gates:
+  stage: functional_test
+  timeout: 1h10m
+  rules:
+    - !reference [.except_main_or_release_branch]
+    - when: on_success
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs:
+    - job: agent_deb-x64-a7
+      artifacts: true
+    - job: docker_build_agent7
+      artifacts: true
+  # Static Quality Gates aren't enforced until Q1
+  allow_failure: true
+  script:
+    # DockerHub login for build to limit rate limit when pulling base images
+    - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token | crane auth login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
+    # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+    - inv quality-gates.parse-and-trigger-gates

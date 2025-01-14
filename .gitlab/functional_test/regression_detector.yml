@@ -9,10 +9,6 @@ single-machine-performance-regression_detector:
   needs:
     - job: single_machine_performance-amd64-a7
       artifacts: false
-    - job: agent_deb-x64-a7
-      artifacts: true
-    - job: docker_build_agent7
-      artifacts: true
   artifacts:
     expire_in: 1 weeks
     paths:
@@ -40,7 +36,6 @@ single-machine-performance-regression_detector:
     # If we successfully get to the end of the script with no failures we will update the `smp_failure_mode` tag to `none` to convey this.
     # Note, we cannot apply a tag for timeouts with this approach. In order to identify jobs failed by timing out you can filter by error type or duration.
     # Note, in situations where the job times out the value of `smp_failure_mode` tag will be `unknown`.
-    - inv quality-gates.parse-and-trigger-gates
     - datadog-ci tag --level job --tags smp_failure_mode:"unknown"
     # Ensure output files exist for artifact downloads step
     - mkdir outputs # Also needed for smp job sync step

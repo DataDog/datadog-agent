@@ -1,8 +1,11 @@
+import os
 import traceback
 
 import yaml
 from invoke import task
 
+from tasks.github_tasks import pr_commenter
+from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import color_message
 
 FAIL_CHAR = "❌"
@@ -10,22 +13,40 @@ SUCCESS_CHAR = "✅"
 
 
 def display_pr_comment(ctx, finalState, gateStates):
-    body_head = f"""
+    title = f"Static quality checks {SUCCESS_CHAR if finalState else FAIL_CHAR}"
+    body_info = """### Info
+
     <details>
-    <summary><h1>
-    Static checks {SUCCESS_CHAR if finalState else FAIL_CHAR}
-    </h1></summary>
-    <ul dir:"auto">
+    <summary>Full details</summary>
+
+    |Result|Quality gate|Details|Run|
+    |----|----|----|----|
     """
-    body_gates = "\n".join(
-        [f"<li>{gate['name']} {SUCCESS_CHAR if gate['state'] else FAIL_CHAR}</li>" for gate in gateStates]
-    )
-    body_feet = """
-    </ul>
-    </details>
+    body_error = """### Error
+
+    <details>
+    <summary>Full details</summary>
+
+    |Result|Quality gate|Details|Run|
+    |----|----|----|----|
     """
-    return body_head + body_gates + body_feet
-    # pr_commenter(ctx, title="Uncompressed package size comparison", body=body)
+    withError = False
+    for gate in sorted(gateStates, key=lambda x: x["error_type"] is None):
+        if gate["error_type"] is None:
+            body_info += f"|✅|{gate['name']}|{gate['message']}| WIP |\n"
+        else:
+            body_error += f"|✅|{gate['name']}|{gate['message']}| WIP |\n"
+            withError = True
+    body_info += "\n</details>\n"
+    body_error += "\n</details>\n"
+
+    body = f"""Please find below the results from static quality gates
+    {body_info}
+
+    {body_error if withError else ""}
+    """
+
+    pr_commenter(ctx, title=title, body=body)
 
 
 def _print_quality_gates_report(gateStates):
@@ -36,14 +57,14 @@ def _print_quality_gates_report(gateStates):
         elif gate["error_type"] == "AssertionError":
             print(
                 color_message(
-                    f"Gate {gate['name']} failed ❌ because of the following assertion failures :\n{gate['error_message']}",
+                    f"Gate {gate['name']} failed ❌ because of the following assertion failures :\n{gate['message']}",
                     "red",
                 )
             )
         else:
             print(
                 color_message(
-                    f"Gate {gate['name']} failed ❌ with the following stack trace :\n{gate['error_message']}",
+                    f"Gate {gate['name']} failed ❌ with the following stack trace :\n{gate['message']}",
                     "red",
                 )
             )
@@ -66,16 +87,16 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
         try:
             getattr(quality_gates_mod, gate).entrypoint(**gateInputs)
             print(f"Gate {gate} succeeded !")
-            gateStates.append({"name": gate, "state": True, "error_type": None, "error_message": None})
+            gateStates.append({"name": gate, "state": True, "error_type": None, "message": None})
         except AssertionError as e:
             print(f"Gate {gate} failed ! (AssertionError)")
             finalState = False
-            gateStates.append({"name": gate, "state": False, "error_type": "AssertionError", "error_message": str(e)})
+            gateStates.append({"name": gate, "state": False, "error_type": "AssertionError", "message": str(e)})
         except Exception:
             print(f"Gate {gate} failed ! (StackTrace)")
             finalState = False
             gateStates.append(
-                {"name": gate, "state": False, "error_type": "StackTrace", "error_message": traceback.format_exc()}
+                {"name": gate, "state": False, "error_type": "StackTrace", "message": traceback.format_exc()}
             )
     if not finalState:
         ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"failed\"")
@@ -83,3 +104,8 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
         ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"passed\"")
 
     _print_quality_gates_report(gateStates)
+
+    github = GithubAPI()
+    branch = os.environ["CI_COMMIT_BRANCH"]
+    if len(github.get_pr_for_branch(branch)) > 0:
+        display_pr_comment(ctx, finalState, gateStates)
