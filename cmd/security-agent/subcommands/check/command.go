@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -242,7 +242,7 @@ func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) er
 }
 
 func reportComplianceEvents(log log.Component, events []*compliance.CheckEvent) error {
-	hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.Background())
+	hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.Background())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}

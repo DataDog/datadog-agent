@@ -164,14 +164,14 @@ func (c *ntmConfig) getTreeBySource(source model.Source) (InnerNode, error) {
 	case model.SourceCLI:
 		return c.cli, nil
 	}
-	return nil, fmt.Errorf("unknown source tree: %s", source)
+	return nil, fmt.Errorf("invalid source tree: %s", source)
 }
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	tree, err := c.getTreeBySource(source)
 	if err != nil {
-		log.Errorf("unknown source: %s", source)
+		log.Errorf("Set invalid source: %s", source)
 		return
 	}
 
@@ -519,6 +519,50 @@ func (c *ntmConfig) IsSet(key string) bool {
 	return true
 }
 
+func hasNoneDefaultsLeaf(node InnerNode) bool {
+	// We're on an InnerNode, we need to check if any child leaf are not defaults
+	for _, name := range node.ChildrenKeys() {
+		child, _ := node.GetChild(name)
+		if leaf, ok := child.(LeafNode); ok {
+			if leaf.Source().IsGreaterThan(model.SourceDefault) {
+				return true
+			}
+		}
+		if hasNoneDefaultsLeaf(child.(InnerNode)) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsConfigured checks if a key is set in the config but not from the defaults
+func (c *ntmConfig) IsConfigured(key string) bool {
+	c.RLock()
+	defer c.RUnlock()
+
+	if !c.isReady() {
+		log.Errorf("attempt to read key before config is constructed: %s", key)
+		return false
+	}
+
+	pathParts := splitKey(key)
+	var curr Node = c.root
+	for _, part := range pathParts {
+		next, err := curr.GetChild(part)
+		if err != nil {
+			return false
+		}
+		curr = next
+	}
+	// if key is a leaf, we just check the source
+	if leaf, ok := curr.(LeafNode); ok {
+		return leaf.Source().IsGreaterThan(model.SourceDefault)
+	}
+
+	// if the key was an InnerNode we need to check all the inner leaf node to check if one was set by the user
+	return hasNoneDefaultsLeaf(curr.(InnerNode))
+}
+
 // AllKeysLowercased returns all keys lower-cased from the default tree, but not keys that are merely marked as known
 func (c *ntmConfig) AllKeysLowercased() []string {
 	c.RLock()
@@ -620,6 +664,10 @@ func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...viper
 func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
+
+	if !c.isReady() {
+		return fmt.Errorf("attempt to MergeConfig before config is constructed")
+	}
 
 	content, err := io.ReadAll(in)
 	if err != nil {
@@ -781,11 +829,6 @@ func (c *ntmConfig) ConfigFileUsed() string {
 	c.RLock()
 	defer c.RUnlock()
 	return c.configFile
-}
-
-// SetTypeByDefaultValue is a no-op
-func (c *ntmConfig) SetTypeByDefaultValue(_in bool) {
-	// do nothing: nodetreemodel always does this conversion
 }
 
 // BindEnvAndSetDefault binds an environment variable and sets a default for the given key

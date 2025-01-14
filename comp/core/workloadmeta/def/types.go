@@ -47,6 +47,7 @@ const (
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
+	KindGPU                    Kind = "gpu"
 )
 
 // Source is the source name of an entity.
@@ -1349,3 +1350,64 @@ func (e EventBundle) Acknowledge() {
 // InitHelper this should be provided as a helper to allow passing the component into
 // the inithook for additional start-time configutation.
 type InitHelper func(context.Context, Component, config.Component) error
+
+// GPU represents a GPU resource.
+type GPU struct {
+	EntityID
+	EntityMeta
+	// Vendor is the name of the manufacturer of the device (e.g., NVIDIA)
+	Vendor string
+
+	// Device is the comercial name of the device (e.g., Tesla V100) as returned
+	// by the device driver (NVML for NVIDIA GPUs). Note that some models might
+	// have some additional information like the memory size (e.g., Tesla
+	// A100-SXM2-80GB), the exact format of this field is vendor and device
+	// specific.
+	Device     string
+	ActivePIDs []int
+}
+
+var _ Entity = &GPU{}
+
+// GetID implements Entity#GetID.
+func (g GPU) GetID() EntityID {
+	return g.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (g *GPU) Merge(e Entity) error {
+	gg, ok := e.(*GPU)
+	if !ok {
+		return fmt.Errorf("cannot merge GPU with different kind %T", e)
+	}
+
+	// If the source has active PIDs, remove the ones from the destination so merge() takes latest active PIDs from the soure
+	if gg.ActivePIDs != nil {
+		g.ActivePIDs = nil
+	}
+
+	return merge(g, gg)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (g GPU) DeepCopy() Entity {
+	cp := deepcopy.Copy(g).(GPU)
+	return &cp
+}
+
+// String implements Entity#String.
+func (g GPU) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, g.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprintln(&sb, g.EntityMeta.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "Vendor:", g.Vendor)
+	_, _ = fmt.Fprintln(&sb, "Device:", g.Device)
+	_, _ = fmt.Fprintln(&sb, "Active PIDs:", g.ActivePIDs)
+
+	return sb.String()
+}

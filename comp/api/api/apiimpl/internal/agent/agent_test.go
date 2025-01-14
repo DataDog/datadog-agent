@@ -40,7 +40,7 @@ import (
 	// package dependencies
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	// third-party dependencies
 	"github.com/gorilla/mux"
@@ -51,11 +51,11 @@ type handlerdeps struct {
 	fx.In
 
 	Wmeta          workloadmeta.Component
-	LogsAgent      optional.Option[logsAgent.Component]
+	LogsAgent      option.Option[logsAgent.Component]
 	HostMetadata   host.Component
 	SecretResolver secrets.Component
 	Demux          demultiplexer.Component
-	Collector      optional.Option[collector.Component]
+	Collector      option.Option[collector.Component]
 	Ac             autodiscovery.Mock
 	Tagger         taggermock.Mock
 }
@@ -65,14 +65,14 @@ func getComponentDeps(t *testing.T) handlerdeps {
 		t,
 		fx.Supply(context.Background()),
 		hostnameinterface.MockModule(),
-		fx.Provide(func() optional.Option[logsAgent.Component] {
-			return optional.NewNoneOption[logsAgent.Component]()
+		fx.Provide(func() option.Option[logsAgent.Component] {
+			return option.None[logsAgent.Component]()
 		}),
 		hostimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
 		secretsimpl.MockModule(),
-		fx.Provide(func() optional.Option[collector.Component] {
-			return optional.NewNoneOption[collector.Component]()
+		fx.Provide(func() option.Option[collector.Component] {
+			return option.None[collector.Component]()
 		}),
 		taggermock.Module(),
 		fx.Options(

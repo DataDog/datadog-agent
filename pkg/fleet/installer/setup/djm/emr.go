@@ -96,7 +96,7 @@ func SetupEmr(s *common.Setup) error {
 		return fmt.Errorf("failed to set tags: %w", err)
 	}
 	if isMaster {
-		setupEmrResourceManager(s, clusterName)
+		setupResourceManager(s, clusterName)
 	}
 	return nil
 }
@@ -115,7 +115,7 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 
 	setHostTag(s, "instance_group_id", info.InstanceGroupID)
 	setHostTag(s, "is_master_node", strconv.FormatBool(info.IsMaster))
-	s.Span.SetTag("host_tag."+"is_master_node", info.IsMaster)
+	s.Span.SetTag("host."+"is_master_node", info.IsMaster)
 
 	extraInstanceInfoRaw, err := os.ReadFile(filepath.Join(emrInfoPath, "extraInstanceData.json"))
 	if err != nil {
@@ -131,13 +131,13 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 	setHostTag(s, "emr_version", extraInfo.ReleaseLabel)
 	s.Span.SetTag("emr_version", extraInfo.ReleaseLabel)
 
-	clusterName := resolveClusterName(s, extraInfo.JobFlowID)
+	clusterName := resolveEmrClusterName(s, extraInfo.JobFlowID)
 	setHostTag(s, "cluster_name", clusterName)
 
 	return info.IsMaster, clusterName, nil
 }
 
-func setupEmrResourceManager(s *common.Setup, clusterName string) {
+func setupResourceManager(s *common.Setup, clusterName string) {
 
 	var sparkIntegration common.IntegrationConfig
 	var yarnIntegration common.IntegrationConfig
@@ -179,7 +179,7 @@ var executeCommandWithTimeout = func(s *common.Setup, command string, args ...st
 	return output, nil
 }
 
-func resolveClusterName(s *common.Setup, jobFlowID string) string {
+func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 	var err error
 	span, _ := telemetry.StartSpanFromContext(s.Ctx, "resolve.cluster_name")
 	defer func() { span.Finish(err) }()

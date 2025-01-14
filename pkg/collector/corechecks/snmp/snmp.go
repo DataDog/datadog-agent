@@ -18,9 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
@@ -28,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -198,8 +197,8 @@ func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 }
 
 // Factory creates a new check factory
-func Factory(agentConfig config.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory(agentConfig config.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return newCheck(agentConfig)
 	})
 }

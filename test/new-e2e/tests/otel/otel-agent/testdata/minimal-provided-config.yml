@@ -5,7 +5,7 @@ connectors:
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
       ignore_resources: []
-      peer_service_aggregation: false
+      peer_service_aggregation: true
       peer_tags: []
       peer_tags_aggregation: true
       resource_attributes_as_container_tags: []
@@ -90,14 +90,14 @@ exporters:
       reload_interval: 0s
       server_name_override: ""
     traces:
-      compute_stats_by_span_kind: false
+      compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
       dialer:
         timeout: 0s
       ignore_resources: []
-      peer_service_aggregation: false
+      peer_service_aggregation: true
       peer_tags: []
-      peer_tags_aggregation: false
+      peer_tags_aggregation: true
       span_name_as_resource_name: true
       span_name_remappings: {}
       trace_buffer: 0

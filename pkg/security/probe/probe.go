@@ -323,18 +323,12 @@ func (p *Probe) sendEventToConsumers(event *model.Event) {
 	}
 }
 
-func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) {
+func logTraceEvent(eventType model.EventType, event interface{}) {
 	if !seclog.DefaultLogger.IsTracing() {
 		return
 	}
 
-	eventJSON, eventType, err := marshaller()
-	if err != nil {
-		seclog.DefaultLogger.TraceTagf(eventType, fmt, err)
-		return
-	}
-
-	seclog.DefaultLogger.TraceTagf(eventType, fmt, string(eventJSON))
+	seclog.DefaultLogger.TraceTagf(eventType, "Dispatching event %s", serializers.EventStringerWrapper{Event: event})
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
@@ -344,10 +338,7 @@ func (p *Probe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
 
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
-	traceEvent("Dispatching custom event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := serializers.MarshalCustomEvent(event)
-		return eventJSON, event.GetEventType(), err
-	})
+	logTraceEvent(event.GetEventType(), event)
 
 	// send wildcard first
 	for _, handler := range p.customEventHandlers[model.UnknownEventType] {

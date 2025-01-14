@@ -95,7 +95,7 @@ func addPrometheusReceiver(conf *confmap.Conf, comp component) {
 					}
 					staticConfigSlice, ok := staticConfig.([]any)
 					if !ok {
-						return
+						continue
 					}
 					for _, staticConfig := range staticConfigSlice {
 						staticConfigMap, ok := staticConfig.(map[string]any)

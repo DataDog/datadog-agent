@@ -80,9 +80,20 @@ func (h *Host) setSystemdVersion() {
 // InstallDocker installs Docker on the host if it is not already installed.
 func (h *Host) InstallDocker() {
 	defer func() {
+		// This defer will basically restart docker from a clean state, to avoid any issues in between tests.
+		// It will:
+		// - 1. Stop docker (if it's running)
+		// - 2. Reset failed status
+		// - 3. Remove the network directory to avoid network collision
+		// - 4. Start docker again
+		_, _ = h.remote.Execute("sudo systemctl stop docker")
 		_, err := h.remote.Execute("sudo systemctl reset-failed docker")
 		if err != nil {
 			h.t.Logf("warn: failed to reset-failed for docker.d: %v", err)
+		}
+		_, err = h.remote.Execute("sudo rm -rf /var/lib/docker/network")
+		if err != nil {
+			h.t.Logf("warn: failed to remove /var/lib/docker/network: %v", err)
 		}
 		_, err = h.remote.Execute("sudo systemctl start docker")
 		require.NoErrorf(h.t, err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))

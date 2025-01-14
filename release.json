@@ -3,11 +3,11 @@
     "current_milestone": "7.63.0",
     "last_stable": {
         "6": "6.53.0",
-        "7": "7.60.0"
+        "7": "7.61.0"
     },
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "0059a287d5543305c01a098740ba328aef7fa8ff",
+        "OMNIBUS_SOFTWARE_VERSION": "8135c8dc77134b6c46edceca760e033279032a96",
         "OMNIBUS_RUBY_VERSION": "650e39bb0b7c8d57ddabe21eb0588b368986aede",
         "JMXFETCH_VERSION": "0.49.6",
         "JMXFETCH_HASH": "f06bdac1f8ec41daf9b9839ac883f1865a068b04810ea82197b8a6afb9369cb9",
@@ -26,7 +26,7 @@
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "0059a287d5543305c01a098740ba328aef7fa8ff",
+        "OMNIBUS_SOFTWARE_VERSION": "8135c8dc77134b6c46edceca760e033279032a96",
         "OMNIBUS_RUBY_VERSION": "650e39bb0b7c8d57ddabe21eb0588b368986aede",
         "JMXFETCH_VERSION": "0.49.6",
         "JMXFETCH_HASH": "f06bdac1f8ec41daf9b9839ac883f1865a068b04810ea82197b8a6afb9369cb9",

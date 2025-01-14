@@ -111,6 +111,7 @@ def get_releasing_teams():
         'single-machine-performance',
         'agent-all',
         'apm-core-reliability-and-performance',
+        'apm-ecosystems-performance',
         'debugger',
         'asm-go',
         'agent-e2e-testing',
