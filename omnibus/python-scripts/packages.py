@@ -11,13 +11,13 @@ import subprocess
 
 DO_NOT_REMOVE_WARNING_HEADER = "# DO NOT REMOVE/MODIFY - used internally by installation process\n"
 
-def run_command(command):
+def run_command(args):
     """
     Execute a shell command and return its output and errors.
     """
     try:
-        print(f"Running command: '{command}'")
-        result = subprocess.run(command, shell=True, text=True, capture_output=True, check=True)
+        print(f"Running command: '{args.join(' ')}'")
+        result = subprocess.run(args, text=True, capture_output=True, check=True)
         return result.stdout, result.stderr
     except subprocess.CalledProcessError as e:
         print(f"Command '{e.cmd}' failed with return code: {e.returncode}")
@@ -60,7 +60,7 @@ def requirements_agent_release_file(directory):
 
 def check_file_owner_system_windows(filename):
     """
-    Check if the file is owned by the dd-agent user on Windows.
+    Check if the file is owned by the SYSTEM or Administrators user on Windows.
     """
     # check if file exists
     if not os.path.exists(filename):
@@ -83,11 +83,11 @@ def check_file_owner_system_windows(filename):
 
 def check_all_files_owner_system_windows(directory):
     """
-    Check if all files in a used are owned by sytem.
-    This prevents issues with files created on first 
-    install being used to install dependencies on install.
-    Datadirectory permissions pervent deletion of file between check
-    and use.
+    Check if all files used by this feature are owned by SYSTEM or Administrators.
+    This prevents issues with files created prior to first install by unauthorized users
+    being used to install arbitrary packaged at install time.
+    The MSI sets the datadirectory permissions before running this script so we
+    don't have to worry about TOCTOU.
     """
     files = []
     files.append(directory)
@@ -97,6 +97,7 @@ def check_all_files_owner_system_windows(directory):
 
     for file in files:
         if not check_file_owner_system_windows(file):
+            print(f"{file} is not owned by SYSTEM or Administrators, it may have come from an untrusted source, aborting installation.")
             return False
     return True
     
@@ -146,9 +147,12 @@ def install_datadog_package(package, install_directory):
     """
     if os.name == 'nt':
         agent_cmd = os.path.join(install_directory, 'bin', 'agent.exe')
-        run_command(f'"{agent_cmd}" integration install -t {package} -r')
+        args = [agent_cmd, 'integration', 'install', '-t', package, '-r']
+        print(f"Running command: '{' '.join(args)}'")
     else:
-        run_command(f'datadog-agent integration install -t {package} -r')
+        args = ['datadog-agent', 'integration', 'install', '-t', package, '-r']
+    
+    run_command(args)
 
 def install_dependency_package(pip, package):
     """

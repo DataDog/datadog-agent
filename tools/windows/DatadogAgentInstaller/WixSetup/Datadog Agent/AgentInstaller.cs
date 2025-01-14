@@ -102,7 +102,7 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
-                new Property("INSTALL_PYTHON_THIRD_PARTY_DEPS")
+                new Property("INSTALL_PYTHON_THIRD_PARTY_DEPS", "0")
                 {
                     AttributesDefinition = "Secure=yes"
                 },

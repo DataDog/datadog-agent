@@ -29,7 +29,7 @@ def postinst(install_directory, storage_location, skip_flag=False):
                     return 0
             else:
                 print(f"File '{flag_path}' not found: no third party integration will be installed.")
-                return 1
+                return 0
         else:
             print(f"Directory '{install_directory}' and '{storage_location}' not found.")
             return 1
@@ -53,6 +53,8 @@ if os.name == 'nt':
         if not packages.check_all_files_owner_system_windows(data_dog_data_dir):
             print("Files are not owned by system.")
             return 1
+        # The MSI uses its own flag to control whether or not this script is executed
+        # so we skip/ignore the file-based flag used by other platforms.
         return postinst(install_directory, data_dog_data_dir, skip_flag=True)
 else:
     def main():

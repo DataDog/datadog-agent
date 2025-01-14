@@ -194,7 +194,7 @@ namespace Datadog.CustomActions
                 session.Log($"install script not found at {postInstScript}");
                 return ActionResult.Failure;
             }
-            // remove trailing backslash 
+            // remove trailing backslash, a backslash followed by a double quote causes the command line to be spit incorrectly 
             projectLocation = projectLocation.TrimEnd('\\');
             dataDirectory = dataDirectory.TrimEnd('\\');
 
@@ -230,9 +230,9 @@ namespace Datadog.CustomActions
             ISession sessionWrapper = new SessionWrapper(session);
             // check if INSTALL_PYTHON_THIRD_PARTY_DEPS property is set
             var installPythonThirdPartyDeps = sessionWrapper.Property("INSTALL_PYTHON_THIRD_PARTY_DEPS");
-            if (string.IsNullOrEmpty(installPythonThirdPartyDeps))
+            if (string.IsNullOrEmpty(installPythonThirdPartyDeps) || installPythonThirdPartyDeps != "1")
             {
-                sessionWrapper.Log("Skipping python script execution");
+                sessionWrapper.Log("Skipping installation of third-party Python deps. Set INSTALL_PYTHON_THIRD_PARTY_DEPS=1 to enable this feature.");
                 return ActionResult.Success;
             }
 

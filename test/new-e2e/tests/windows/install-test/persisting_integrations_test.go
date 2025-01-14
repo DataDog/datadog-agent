@@ -156,7 +156,7 @@ func (s *testPersistingIntegrationsSuite) installThirdPartyIntegration(vm *compo
 	cmd := fmt.Sprintf(`& "%s\bin\agent.exe" integration install -t %s`, installPath, integration)
 	out, err := vm.Execute(cmd)
 
-	if err != nil && out != "" {
+	if err != nil {
 		s.T().Logf("Error installing integration %s:\n%s", integration, out)
 	}
 
@@ -171,7 +171,7 @@ func (s *testPersistingIntegrationsSuite) installPipPackage(vm *components.Remot
 	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip install %s`, installPath, packageToInstall)
 	out, err := vm.Execute(cmd)
 
-	if err != nil && out != "" {
+	if err != nil {
 		s.T().Logf("Error installing pip package %s:\n%s", packageToInstall, out)
 	}
 
