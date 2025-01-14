@@ -3,7 +3,7 @@ This module provides functions for managing Datadog integrations and Python depe
 
 Usage:
 - The script should be run with a single argument specifying the installation directory.
-- Example: `python postinst.py /path/to/install/dir`
+- Example: `python post.py /path/to/install/dir`
 """
 
 import os
@@ -13,11 +13,11 @@ import packages
 def main():
     try:
         if len(sys.argv) != 2:
-            print("Usage: postinst.py <INSTALL_DIR>")
+            print("Usage: post.py <INSTALL_DIR>")
         install_directory = sys.argv[1]
         if os.path.exists(install_directory):
-            postinst_python_installed_packages_file = packages.postinst_python_installed_packages_file(install_directory)
-            packages.create_python_installed_packages_file(postinst_python_installed_packages_file)
+            post_python_installed_packages_file = packages.post_python_installed_packages_file(install_directory)
+            packages.create_python_installed_packages_file(post_python_installed_packages_file)
             flag_path = f"{install_directory}/.install_python_third_party_deps"
             if os.path.exists(flag_path):
                 print(f"File '{flag_path}' found")
