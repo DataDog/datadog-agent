@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	k8stypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -71,6 +72,9 @@ type DCAClientInterface interface {
 	GetClusterCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
 	GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
 	GetKubernetesClusterID() (string, error)
+
+	// GetOwnerReferences returns the owner references of a resource.
+	GetOwnerReferences(nsName string, resourceName string, group string, version string, kind string) ([]k8stypes.ObjectRelation, error)
 
 	PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error
 	SupportsNamespaceMetadataCollection() bool
@@ -208,6 +212,14 @@ func (c *DCAClient) initHTTPClient() error {
 	}
 
 	return nil
+}
+
+// GetOwnerReferences returns the owner references of a resource.
+func (c *DCAClient) GetOwnerReferences(nsName string, resourceName string, group string, version string, kind string) ([]k8stypes.ObjectRelation, error) {
+	var result []k8stypes.ObjectRelation
+	endpoint := fmt.Sprintf("api/v1/owners/%s/%s/%s/%s/%s/", nsName, resourceName, group, version, kind)
+	err := c.doJSONQuery(context.TODO(), endpoint, "GET", nil, &result, false)
+	return result, err
 }
 
 func (c *DCAClient) initLeaderClient() {

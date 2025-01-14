@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	k8stypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -119,6 +120,10 @@ func (f *FakeDCAClient) GetCFAppsMetadataForNode(_ string) (map[string][]string,
 }
 
 func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLanguageAnnotationRequest) error {
+	panic("implement me")
+}
+
+func (f *FakeDCAClient) GetOwnerReferences(_ string, _ string, _ string, _ string, _ string) ([]k8stypes.ObjectRelation, error) {
 	panic("implement me")
 }
 

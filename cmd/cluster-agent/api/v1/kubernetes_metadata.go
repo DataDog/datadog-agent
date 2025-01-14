@@ -8,11 +8,14 @@
 package v1
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -22,6 +25,7 @@ import (
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
+	k8stypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,10 +44,81 @@ func installKubernetesMetadataEndpoints(r *mux.Router, wmeta workloadmeta.Compon
 	r.HandleFunc("/tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", func(w http.ResponseWriter, r *http.Request) { getNamespaceLabels(w, r, wmeta) })).Methods("GET")
 	r.HandleFunc("/metadata/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceMetadata", func(w http.ResponseWriter, r *http.Request) { getNamespaceMetadata(w, r, wmeta) })).Methods("GET")
 	r.HandleFunc("/cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID)).Methods("GET")
+	r.HandleFunc("/owners/{ns}/{resourceName}/{group}/{version}/{kind}", api.WithTelemetryWrapper("getOwnerReferences", func(w http.ResponseWriter, r *http.Request) { getOwnerReferences(w, r, wmeta) })).Methods("GET")
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
+
+func getOwnerReferences(w http.ResponseWriter, r *http.Request, _ workloadmeta.Component) {
+	vars := mux.Vars(r)
+	name, ns, group, version, kind := vars["resourceName"], vars["ns"], vars["group"], vars["version"], vars["kind"]
+
+	childGVK := schema.GroupVersionKind{
+		Group:   group,
+		Version: version,
+		Kind:    kind,
+	}
+
+	apiClient, _ := as.GetAPIClient()
+
+	type queueEntry struct {
+		gvk  schema.GroupVersionKind
+		name string
+	}
+
+	queue := []queueEntry{{gvk: childGVK, name: name}}
+
+	outputOwnerReferences := make([]k8stypes.ObjectRelation, 0)
+
+	for len(queue) > 0 {
+		curr := queue[0]
+		queue = queue[1:]
+
+		// TODO: maybe store a cache of the GVK to GVR mapping
+		restMapping, _ := apiClient.RESTMapper.RESTMapping(curr.gvk.GroupKind(), curr.gvk.Version)
+
+		currGVR := schema.GroupVersionResource{
+			Group:    curr.gvk.Group,
+			Version:  curr.gvk.Version,
+			Resource: restMapping.Resource.Resource,
+		}
+
+		// TODO: maybe check if wmeta has the parent resource already?
+		// TODO: maybe store a cache of the resource
+		response, _ := apiClient.DynamicCl.Resource(currGVR).Namespace(ns).Get(context.TODO(), curr.name, metav1.GetOptions{})
+		// parentID := response.GetUID()
+		ownerReferences := response.GetOwnerReferences()
+
+		for _, ownerReference := range ownerReferences {
+
+			// Step 1: add owner into queue
+			groupVersion, _ := schema.ParseGroupVersion(ownerReference.APIVersion)
+			queue = append(queue, queueEntry{
+				gvk:  schema.GroupVersionKind{Group: groupVersion.Group, Version: groupVersion.Version, Kind: ownerReference.Kind},
+				name: ownerReference.Name,
+			})
+
+			// Step 2: record in outputOwnerReferences
+			outputOwnerReferences = append(outputOwnerReferences, k8stypes.ObjectRelation{
+				ParentAPIVersion: groupVersion.String(),
+				ParentKind:       ownerReference.Kind,
+				ParentName:       ownerReference.Name,
+
+				ChildAPIVersion: curr.gvk.GroupVersion().String(),
+				ChildKind:       curr.gvk.Kind,
+				ChildName:       curr.name,
+			})
+		}
+	}
+
+	metaBytes, _ := json.Marshal(outputOwnerReferences)
+
+	log.Errorf("Owner references: %s", string(metaBytes)) //nolint:errcheck
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(metaBytes)
+}
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels or annotations
 func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, f func(*workloadmeta.KubernetesMetadata) map[string]string, what string, filterList []string) {
