@@ -13,14 +13,14 @@ import packages
 def pre(install_directory, storage_location):
     try:
         if os.path.exists(install_directory) and os.path.exists(storage_location):
-            postinst_python_installed_packages_file = packages.postinst_python_installed_packages_file(storage_location)
-            if os.path.exists(postinst_python_installed_packages_file):
+            post_python_installed_packages_file = packages.post_python_installed_packages_file(storage_location)
+            if os.path.exists(post_python_installed_packages_file):
                 pre_python_installed_packages_file = packages.pre_python_installed_packages_file(storage_location)
                 packages.create_python_installed_packages_file(pre_python_installed_packages_file)
-                packages.create_diff_installed_packages_file(storage_location, postinst_python_installed_packages_file, pre_python_installed_packages_file)
-                packages.cleanup_files(postinst_python_installed_packages_file, pre_python_installed_packages_file)
+                packages.create_diff_installed_packages_file(storage_location, post_python_installed_packages_file, pre_python_installed_packages_file)
+                packages.cleanup_files(post_python_installed_packages_file, pre_python_installed_packages_file)
             else:
-                print(f"File {postinst_python_installed_packages_file} does not exist.")
+                print(f"File {post_python_installed_packages_file} does not exist.")
                 return 1
         else:
             print(f"Directory {install_directory} and {storage_location} do not exist.")
