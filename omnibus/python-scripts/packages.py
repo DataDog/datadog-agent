@@ -159,7 +159,8 @@ def install_dependency_package(pip, package):
     Install python dependency running pip install command
     """
     print(f"Installing python dependency: '{package}'")
-    run_command(f'{pip} install {package}')
+    args = [pip, 'install', package]
+    run_command(args)
 
 def install_diff_packages_file(install_directory, filename, exclude_filename):
     """
