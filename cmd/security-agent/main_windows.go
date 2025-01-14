@@ -50,7 +50,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -133,7 +133,7 @@ func (s *service) Run(svcctx context.Context) error {
 				return status.NewInformationProvider(nil), nil, err
 			}
 
-			hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
+			hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO())
 			if err != nil {
 				return status.NewInformationProvider(nil), nil, err
 			}

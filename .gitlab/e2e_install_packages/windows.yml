@@ -60,6 +60,8 @@
       - E2E_MSI_TEST: TestNPMInstallWithAddLocal
       - E2E_MSI_TEST: TestNPMUpgradeFromBeta
       - E2E_MSI_TEST: TestUpgradeFromV6
+      - E2E_MSI_TEST: TestFIPSAgentDoesNotInstallOverAgent
+      - E2E_MSI_TEST: TestAgentDoesNotInstallOverFIPSAgent
 
 new-e2e_windows_powershell_module_test:
   extends: .new_e2e_template

@@ -159,7 +159,6 @@ def _get_environment_for_cache() -> dict:
             "STATIC_BINARIES_DIR",
             "STATSD_URL",
             "SYSTEM_PROBE_BINARIES_DIR",
-            "TESTING_CLEANUP",
             "TIMEOUT",
             "TMPDIR",
             "TRACE_AGENT_URL",

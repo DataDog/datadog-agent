@@ -5,9 +5,11 @@ if not os.name == 'nt':
 else:
     import win32security
 import importlib.metadata
-import pkg_resources
-from packaging import version
+import packaging
 import subprocess
+
+import packaging.requirements
+import packaging.version
 
 DO_NOT_REMOVE_WARNING_HEADER = "# DO NOT REMOVE/MODIFY - used internally by installation process\n"
 
@@ -26,25 +28,28 @@ def run_command(args):
 
 def extract_version(specifier):
     """
-    Extract version from the specifier string.
+    Extract version from the specifier string using packaging.
     """
     try:
-        # Get the first version specifier from the specifier string
-        return str(next(iter(pkg_resources.Requirement.parse(f'{specifier}').specifier)))
-    except Exception:
+        # Parse the specifier and get the first version from the specifier set
+        requirement = packaging.requirements.Requirement(specifier)
+        version = next(iter(requirement.specifier), None)
+        return str(version) if version else None
+    except Exception as e:
+        print(f"Error parsing specifier: {e}")
         return None
 
-def prerm_python_installed_packages_file(directory):
+def pre_python_installed_packages_file(directory):
     """
-    Create prerm installed packages file path.
+    Create pre installed packages file path.
     """
-    return os.path.join(directory, '.prerm_python_installed_packages.txt')
+    return os.path.join(directory, '.pre_python_installed_packages.txt')
 
-def postinst_python_installed_packages_file(directory):
+def post_python_installed_packages_file(directory):
     """
-    Create postinst installed packages file path.
+    Create post installed packages file path.
     """
-    return os.path.join(directory, '.postinst_python_installed_packages.txt')
+    return os.path.join(directory, '.post_python_installed_packages.txt')
 
 def diff_python_installed_packages_file(directory):
     """
@@ -133,7 +138,7 @@ def create_diff_installed_packages_file(directory, old_file, new_file):
                 old_version_str = extract_version(str(old_req_value.specifier))
                 new_version_str = extract_version(str(new_req_value.specifier))
                 if old_version_str and new_version_str:
-                    if version.parse(new_version_str) > version.parse(old_version_str):
+                    if packaging.version.parse(new_version_str) > packaging.version.parse(old_version_str):
                         f.write(f"{new_req_value}\n")
             else:
                 # Package is new in the new file; include it
@@ -215,7 +220,11 @@ def load_requirements(filename):
             else:
                 # Add valid requirement to the list
                 valid_requirements.append(req_stripped)
-    return {req.name: (req_stripped, req) for req_stripped, req in zip(valid_requirements, pkg_resources.parse_requirements(valid_requirements))}
+    # Parse valid requirements using packaging
+    return {
+        req.name: (req_stripped, req)
+        for req_stripped, req in zip(valid_requirements, (packaging.requirements.Requirement(r) for r in valid_requirements))
+    }
 
 def cleanup_files(*files):
     """

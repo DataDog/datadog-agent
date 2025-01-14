@@ -211,6 +211,18 @@ namespace WixSetup.Datadog_Agent
                 "Automatic downgrades are not supported.  Uninstall the current version, and then reinstall the desired version.";
             project.ReinstallMode = "amus";
 
+            // Add upgrade elements for all agent flavors except the current one
+            // to prevent them from being installed side-by-side.
+            foreach (var flavorType in AgentFlavorFactory.GetAllAgentFlavors())
+            {
+                IAgentFlavor flavor = AgentFlavorFactory.New(flavorType, _agentVersion);
+                if (flavor.UpgradeCode == _agentFlavor.UpgradeCode)
+                {
+                    continue;
+                }
+                project.Add(new MutuallyExclusiveProducts(flavor.ProductFullName, flavor.UpgradeCode));
+            }
+
             project.Platform = Platform.x64;
             // MSI 5.0 was shipped in Windows Server 2012 R2.
             // https://learn.microsoft.com/en-us/windows/win32/msi/released-versions-of-windows-installer

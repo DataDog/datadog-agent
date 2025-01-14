@@ -119,6 +119,7 @@ func newConfigProviderSettings(uris []string, converter confmap.Converter, enhan
 				httpsprovider.NewFactory(),
 			},
 			ConverterFactories: converterFactories,
+			DefaultScheme:      "env",
 		},
 	}
 }

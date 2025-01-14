@@ -127,6 +127,9 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.Ag
 	}
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
 	cfg.GetAgentAuthToken = apiutil.GetAuthToken
+	cfg.HTTPTransportFunc = func() *http.Transport {
+		return httputils.CreateHTTPTransport(coreConfigObject)
+	}
 	return cfg, nil
 }
 
@@ -425,6 +428,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.Obfuscation.RemoveStackTraces = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.remove_stack_traces")
 	if c.Obfuscation.RemoveStackTraces {
 		if err = addReplaceRule(c, "error.stack", `(?s).*`, "?"); err != nil {
+			return err
+		}
+		if err = addReplaceRule(c, "exception.stacktrace", `(?s).*`, "?"); err != nil {
 			return err
 		}
 	}

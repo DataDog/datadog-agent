@@ -5,7 +5,7 @@
 
 //go:build test
 
-package utils
+package hostnameutils
 
 // SetCachedHostname test utility to set the cached hostname, to avoid fetching it from the core agent.
 func SetCachedHostname(name string) {

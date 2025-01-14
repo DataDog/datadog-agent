@@ -3,19 +3,19 @@ This module provides functions for managing Datadog integrations and Python depe
 
 Usage:
 - The script should be run with a single argument specifying the installation directory.
-- Example: `python postinst.py /path/to/install/dir`
+- Example: `python post.py /path/to/install/dir`
 """
 
 import os
 import sys
 import packages
 
-def postinst(install_directory, storage_location, skip_flag=False):
+def post(install_directory, storage_location, skip_flag=False):
     try:
         install_directory = sys.argv[1]
         if os.path.exists(install_directory) and os.path.exists(storage_location):
-            postinst_python_installed_packages_file = packages.postinst_python_installed_packages_file(storage_location)
-            packages.create_python_installed_packages_file(postinst_python_installed_packages_file)
+            post_python_installed_packages_file = packages.post_python_installed_packages_file(storage_location)
+            packages.create_python_installed_packages_file(post_python_installed_packages_file)
             flag_path = os.path.join(storage_location, ".install_python_third_party_deps")
             if os.path.exists(flag_path) or skip_flag:
                 print(f"File '{flag_path}' found")
@@ -41,7 +41,7 @@ def postinst(install_directory, storage_location, skip_flag=False):
 if os.name == 'nt':
     def main():
         if len(sys.argv) != 3:
-            print("Usage: postinst.py <INSTALL_DIR> <WINDOWS_DATADOG_DATA_DIR>")
+            print("Usage: post.py <INSTALL_DIR> <WINDOWS_DATADOG_DATA_DIR>")
             return 1
         install_directory = sys.argv[1]
         data_dog_data_dir = sys.argv[2]
@@ -55,14 +55,14 @@ if os.name == 'nt':
             return 1
         # The MSI uses its own flag to control whether or not this script is executed
         # so we skip/ignore the file-based flag used by other platforms.
-        return postinst(install_directory, data_dog_data_dir, skip_flag=True)
+        return post(install_directory, data_dog_data_dir, skip_flag=True)
 else:
     def main():
         if len(sys.argv) != 2:
-            print("Usage: postinst.py <INSTALL_DIR>")
+            print("Usage: post.py <INSTALL_DIR>")
             return 1
         install_directory = sys.argv[1]
-        return postinst(install_directory, install_directory)
+        return post(install_directory, install_directory)
 
 if __name__ == '__main__':
     sys.exit(main())

@@ -26,6 +26,7 @@ import (
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
@@ -105,8 +106,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func readProfileData(seconds int) (flare.ProfileData, error) {
-	pdata := flare.ProfileData{}
+func readProfileData(seconds int) (clusterAgentFlare.ProfileData, error) {
+	pdata := clusterAgentFlare.ProfileData{}
 	c := util.GetClient(false)
 
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from datadog-cluster-agent.", seconds))
@@ -152,7 +153,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 func run(cliParams *cliParams, _ config.Component) error {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var (
-		profile flare.ProfileData
+		profile clusterAgentFlare.ProfileData
 		e       error
 	)
 	c := util.GetClient(false) // FIX: get certificates right then make this true
@@ -208,7 +209,7 @@ func run(cliParams *cliParams, _ config.Component) error {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		filePath, e = flare.CreateDCAArchive(true, defaultpaths.GetDistPath(), logFile, profile, nil)
+		filePath, e = clusterAgentFlare.CreateDCAArchive(true, defaultpaths.GetDistPath(), logFile, profile, nil)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e
