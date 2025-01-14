@@ -23,8 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
@@ -106,7 +106,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 						msg += ", please check that the runtime security module is enabled in the system-probe.yaml config file"
 					}
 				}
-				log.Error(msg)
+				seclog.Errorf("%s", msg)
 			default:
 				// do nothing
 			}
@@ -119,7 +119,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 		if !rsa.connected.Load() {
 			rsa.connected.Store(true)
 
-			log.Info("Successfully connected to the runtime security module")
+			seclog.Infof("Successfully connected to the runtime security module")
 		}
 
 		for {
@@ -128,7 +128,10 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 			if err == io.EOF || in == nil {
 				break
 			}
-			log.Tracef("Got message from rule `%s` for event `%s`", in.RuleID, string(in.Data))
+
+			if seclog.DefaultLogger.IsTracing() {
+				seclog.DefaultLogger.Tracef("Got message from rule `%s` for event `%s`", in.RuleID, string(in.Data))
+			}
 
 			rsa.eventReceived.Inc()
 
@@ -157,7 +160,10 @@ func (rsa *RuntimeSecurityAgent) StartActivityDumpListener() {
 			if err == io.EOF || msg == nil {
 				break
 			}
-			log.Tracef("Got activity dump [%s]", msg.GetDump().GetMetadata().GetName())
+
+			if seclog.DefaultLogger.IsTracing() {
+				seclog.DefaultLogger.Tracef("Got activity dump [%s]", msg.GetDump().GetMetadata().GetName())
+			}
 
 			rsa.activityDumpReceived.Inc()
 
@@ -180,7 +186,7 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 	// parse dump from message
 	dump, err := dump.NewActivityDumpFromMessage(msg.GetDump())
 	if err != nil {
-		log.Errorf("%v", err)
+		seclog.Errorf("%v", err)
 		return
 	}
 	if rsa.profContainersTelemetry != nil {
@@ -192,7 +198,7 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 
 		for _, requests := range dump.StorageRequests {
 			if err := rsa.storage.PersistRaw(requests, dump, raw); err != nil {
-				log.Errorf("%v", err)
+				seclog.Errorf("%v", err)
 			}
 		}
 	}
