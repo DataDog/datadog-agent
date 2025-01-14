@@ -230,6 +230,12 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "dd-core-cfg/site/unset/acfg.yaml",
 		},
 		{
+			name:           "dd-core-cfg/site/unset-core-mptystr-col",
+			provided:       "dd-core-cfg/site/unset-core-mptystr-col/config.yaml",
+			expectedResult: "dd-core-cfg/site/unset-core-mptystr-col/config-result.yaml",
+			agentConfig:    "dd-core-cfg/site/unset-core-mptystr-col/acfg.yaml",
+		},
+		{
 			name:           "dd-core-cfg/site/api-set-no-site",
 			provided:       "dd-core-cfg/site/api-set-no-site/config.yaml",
 			expectedResult: "dd-core-cfg/site/api-set-no-site/config-result.yaml",

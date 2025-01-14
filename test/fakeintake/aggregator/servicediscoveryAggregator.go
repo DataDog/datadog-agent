@@ -34,6 +34,7 @@ type ServiceDiscoveryPayload struct {
 		ServiceNameSource    string  `json:"service_name_source,omitempty"`
 		RSSMemory            uint64  `json:"rss_memory"`
 		CPUCores             float64 `json:"cpu_cores"`
+		ContainerID          string  `json:"container_id"`
 	} `json:"payload"`
 }
 

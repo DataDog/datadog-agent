@@ -53,7 +53,7 @@ func extractTagsMetadata(tags []string, originFromUDS string, localData originde
 			host = tag[len(hostTagPrefix):]
 			continue
 		} else if strings.HasPrefix(tag, entityIDTagPrefix) {
-			origin.PodUID = tag[len(entityIDTagPrefix):]
+			origin.LocalData.PodUID = tag[len(entityIDTagPrefix):]
 			continue
 		} else if strings.HasPrefix(tag, CardinalityTagPrefix) {
 			origin.Cardinality = tag[len(CardinalityTagPrefix):]
