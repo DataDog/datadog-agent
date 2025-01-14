@@ -68,8 +68,6 @@ New Features
 
 - [ha-agent] Add haagent component used for HA Agent feature.
 
-- The cluster-agent now can collect pod disruption budgets from the cluster.
-
 - Added support for collecting container image metadata when running on a CRI-O runtime.
 
 - USM now monitors TLS traffic encrypted with Go TLS by default.
@@ -77,7 +75,7 @@ New Features
   configuration option to false.
 
 - USM now monitors traffic encrypted with Istio mTLS by default.
-  To disable this feature, set the `service_monitoring_config.tls.istio.enabled` configuration option to false. 
+  To disable this feature, set the `service_monitoring_config.tls.istio.enabled` configuration option to false.
 
 - Introduced a new configuration variable `logs_config.http_protocol`, allowing users to enforce HTTP/1.1 for outgoing HTTP connections in the Datadog Agent. This provides better control over transport protocols and improves compatibility with systems that do not support HTTP/2.
   By default, the log agent will now attempt to use HTTP/2 (unless a proxy is configured) and fall back to the best available protocol if HTTP/2 is not supported.
@@ -95,8 +93,6 @@ Enhancement Notes
 - [ha-agent] Run HA enabled integrations only on leader Agent
 
 - [ha-agent] Add agent_group tag to datadog.agent.running metric
-
-- Cluster Agent: ``DatadogAgent`` custom resource, cluster Agent deployment, and node Agent daemonset manifests are now added to the flare archive when the Cluster Agent is deployed with the Datadog Operator (version 1.11.0+).
 
 - Add new host tag `provider_kind` from the value of `DD_PROVIDER_KIND` for Agents running in GCE.
 
@@ -130,7 +126,7 @@ Enhancement Notes
 - Query Aurora instances per cluster to allow up to 100 instances per cluster
   rather than 100 instances total.
 
-- The AWS Lambda Extension is now  able to read the full 128-bit trace ID 
+- The AWS Lambda Extension is now  able to read the full 128-bit trace ID
   from the headers of the end-invocation HTTP request made by dd-trace or the
   datadog-lambda-go library.
 
@@ -146,10 +142,10 @@ Deprecation Notes
 
 - Remove deprecated config `otlp_config.metrics.instrumentation_library_metadata_as_tags`. Use `otlp_config.metrics.instrumentation_scope_metadata_as_tags` instead.
 
-- The remote tagger will attempt to connect to the core agent indefinitely until it is successful. 
+- The remote tagger will attempt to connect to the core agent indefinitely until it is successful.
   The ``remote_tagger_timeout_seconds`` configuration is removed, and the timeout is no longer configurable.
 
-- The remote tagger for the trace-agent and security-agent is now always enabled and can not be disabled 
+- The remote tagger for the trace-agent and security-agent is now always enabled and can not be disabled
   ``apm_config.remote_tagger``,  ``security_agent.remote_tagger``, and ``event_monitoring_config.remote_tagger`` config entries are removed.
 
 
@@ -167,8 +163,6 @@ Security Notes
 
 Bug Fixes
 ---------
-
-- Cluster Agent: Don't overwrite the LD_PRELOAD environment variable if it's already set, append the path to Datadog's injection library instead.
 
 - Fix an issue where the remote workloadmeta was not receiving some unset
   events for ECS containers, causing incorrect billing in CWS, CSPM, CSM Pro, CSM
@@ -249,11 +243,11 @@ Upgrade Notes
 -------------
 
 - * Parameter ``peer_tags_aggregation`` (a.k.a. environment variable ``DD_APM_PEER_TAGS_AGGREGATION``) is now enabled by default. This means that aggregation of peer related tags (e.g., `peer.service`, `db.instance`, etc.) now happens in the Agent, which enables statistics for Inferred Entities. If you want to disable this feature, set `peer_tags_aggregation` to `false` in your Agent configuration.
-  
+
   * Parameter ``compute_stats_by_span_kind`` (a.k.a. environment variable ``DD_APM_COMPUTE_STATS_BY_SPAN_KIND``) is now enabled by default. This means spans with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed. If you want to disable this feature, set `compute_stats_by_span_kind` to `false` in your Agent configuration.
-  
+
     Note: When using ``peer_tags_aggregation`` and ``compute_stats_by_span_kind``, a high cardinality of peer tags or APM resources can contribute to higher CPU and memory consumption. If enabling both causes the Agent to consume too many resources, try disabling `compute_stats_by_span_kind` first.
-  
+
   It is recommended that you update your tracing libraries according to the instructions `here <https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/?tab=java#apm-tracing-library-configuration>`_ and set ``DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED`` (or ``dd.trace.remove.integration-service-names.enabled``) to ``true``.
 
 - Upgraded JMXFetch to `0.49.5 <https://github.com/DataDog/jmxfetch/releases/0.49.5>`_ which adds support for ``UnloadedClassCount`` metric
@@ -268,7 +262,7 @@ New Features
 - `Inferred Service dependencies <https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/>`_ are now Generally Available (exiting Beta) and enabled by default. Inferred Services of all kinds now have trace metrics and are available in dependency maps. `apm_config.peer_tags_aggregation` and `apm_config.compute_stats_by_span_kind` both now default to `true` unless explicitly set to `false`.
 
 - Add `check_tag_cardinality` parameter config check.
-  
+
   By default `check_tag_cardinality` is not set which doesn't change the behavior of the checks.
   Once it is set in pod annotaions, it overrides the cardinality value provided in the base agent configuration.
   Example of usage:
@@ -276,7 +270,7 @@ New Features
   ad.datadoghq.com/redis.checks: |
     {
       "redisdb": {
-        "check_tag_cardinality": "high", 
+        "check_tag_cardinality": "high",
         "instances": [
           {
             "host": "%%host%%",
@@ -305,7 +299,7 @@ Enhancement Notes
   based paths in Network Path.
   A cache of reverse DNS lookups is used to reduce the number of DNS
   queries. Additionally, reverse DNS lookups are now performed only
-  for private IPs and not for public IPs. 
+  for private IPs and not for public IPs.
 
 - Agent flare now includes system-probe telemetry data via ``system-probe/system_probe_telemetry.log``.
 
@@ -440,7 +434,7 @@ Enhancement Notes
   information about the Datadog Agent. This may include diagnostic
   logs and crash dumps of the Datadog Agent with obfuscated stack
   traces to support and further improve the Datadog Agent.
-  
+
   More details could be found in the
   `docs <https://docs.datadoghq.com/data_security/agent/#telemetry-collection>`_
 
@@ -452,10 +446,10 @@ Enhancement Notes
 
 - Agents are now built with Go ``1.22.8``.
 
-- While using the AWS Lambda Extension, when a Lambda Function is invoked by 
+- While using the AWS Lambda Extension, when a Lambda Function is invoked by
   a [properly instrumented][1] Step Function, the Lambda Function will create
-  its Trace and Parent IDs deterministically based on the Step Function's 
-  execution context. 
+  its Trace and Parent IDs deterministically based on the Step Function's
+  execution context.
   [1]: https://docs.datadoghq.com/serverless/step_functions/installation/?tab=custom "Install Serverless Monitoring for AWS Step Functions"
 
 - Updates default .NET library used for auto-instrumentation from v2 to v3
@@ -630,8 +624,8 @@ New Features
 - [oracle] Add the ``active_session_history`` configuration parameter to optionally ingest Oracle active session history samples instead of query sampling.
 
 - Added config option ``logs_config.tag_truncated_logs``.  When
-  enabled, file logs will come with a tag ``truncated:true`` if 
-  they were truncated by the Agent. 
+  enabled, file logs will come with a tag ``truncated:true`` if
+  they were truncated by the Agent.
 
 
 .. _Release Notes_7.58.0_Enhancement Notes:
@@ -685,7 +679,7 @@ Bug Fixes
 
 - Fixed issue with openSUSE 15 RC 6 where the eBPF tracer wouldn't start due to a failed validation of the ``tcp_sendpage`` probe.
 
-- Fixed a rare issue where short-lived containers could cause 
+- Fixed a rare issue where short-lived containers could cause
   logs to be sent with the wrong container ID.
 
 - Fix Windows Process Agent argument stripping to account for spaces in the executable path.

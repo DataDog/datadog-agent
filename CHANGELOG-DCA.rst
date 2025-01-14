@@ -25,6 +25,18 @@ New Features
   users.
   The webhook is controlled by using the `admission_controller.kubernetes_admission_events.enabled` setting.
 
+- The cluster-agent now can collect pod disruption budgets from the cluster.
+
+
+.. _Release Notes_7.61.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Cluster Agent: ``DatadogAgent`` custom resource, cluster Agent deployment, and node Agent daemonset manifests are now added to the flare archive when the Cluster Agent is deployed with the Datadog Operator (version 1.11.0+).
+
+- Cluster Agent: Don't overwrite the LD_PRELOAD environment variable if it's already set, append the path to Datadog's injection library instead.
+
 
 .. _Release Notes_7.61.0_Bug Fixes:
 
@@ -181,7 +193,7 @@ Bug Fixes
 
 - Fixed an issue that prevented the Kubernetes autoscaler from evicting pods
   injected by the Admission Controller.
-  
+
 
 .. _Release Notes_7.57.1:
 
@@ -239,7 +251,7 @@ Bug Fixes
 
 - Library package versions for auto-instrumentation are now set to the latest major
   version of the library-package instead of `latest`.
-  
+
   * java:v1
   * dotnet:v2
   * python:v2
