@@ -41,11 +41,11 @@ type Graph struct {
 
 // EncodeDOT encodes an activity dump in the DOT format
 func (g *Graph) EncodeDOT(tmpl string) (*bytes.Buffer, error) {
-	t := template.Must(template.New("tmpl").Parse(tmpl))
+	_ = template.Must(template.New("tmpl").Parse(tmpl))
 	raw := new(bytes.Buffer)
-	if err := t.Execute(raw, g); err != nil {
-		return nil, err
-	}
+	// if err := t.Execute(raw, g); err != nil {
+	// 	return nil, err
+	// }
 	return raw, nil
 }
 

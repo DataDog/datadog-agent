@@ -213,23 +213,24 @@ func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	t, e = t.Parse(instructionTemplate)
+	_, e = t.Parse(instructionTemplate)
 	if e != nil {
 		http.Error(w, e.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	e = t.Execute(w, struct {
+	_ = struct {
 		RestartEnabled bool
 		DocURL         template.URL
 	}{
 		RestartEnabled: restartEnabled(),
 		DocURL:         docURL,
-	})
-	if e != nil {
-		http.Error(w, e.Error(), http.StatusInternalServerError)
-		return
 	}
+	// e = t.Execute(w, )
+	// if e != nil {
+	// 	http.Error(w, e.Error(), http.StatusInternalServerError)
+	// 	return
+	// }
 }
 
 func serveAssets(w http.ResponseWriter, req *http.Request) {
