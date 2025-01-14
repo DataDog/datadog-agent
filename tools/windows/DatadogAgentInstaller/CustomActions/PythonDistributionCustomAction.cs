@@ -236,12 +236,12 @@ namespace Datadog.CustomActions
                 return ActionResult.Success;
             }
 
-            return RunPythonScript(sessionWrapper, "postinst.py");
+            return RunPythonScript(sessionWrapper, "post.py");
         }
 
         public static ActionResult RunPreRemovePythonScript(Session session)
         {
-            return RunPythonScript(new SessionWrapper(session), "prerm.py");
+            return RunPythonScript(new SessionWrapper(session), "pre.py");
         }
     }
 }

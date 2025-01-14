@@ -96,8 +96,8 @@ def check_all_files_owner_system_windows(directory):
     """
     files = []
     files.append(directory)
-    files.append(prerm_python_installed_packages_file(directory))
-    files.append(postinst_python_installed_packages_file(directory))
+    files.append(pre_python_installed_packages_file(directory))
+    files.append(post_python_installed_packages_file(directory))
     files.append(diff_python_installed_packages_file(directory))
 
     for file in files:
