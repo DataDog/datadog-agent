@@ -13,38 +13,45 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	mwaaInjectorVersion     = "0.26.0-1"
+	mwaaPythonTracerVersion = "2.9.2-1"
+)
+
 // SetupMwaa sets up the DJM environment on Dataproc
 func SetupMwaa(s *common.Setup) error {
-
-	err := os.Setenv("OPENLINEAGE_API_KEY", s.Config.DatadogYAML.APIKey)
-	if err != nil {
-		return err
-	}
-
-	err = os.Setenv("OPENLINEAGE_URL", "https://data-obs-intake."+s.Config.DatadogYAML.Site)
-	if err != nil {
-		return err
-	}
-
-	err = os.Setenv("AIRFLOW__OPENLINEAGE__CONFIG_PATH", "")
-	if err != nil {
-		return err
-	}
-
-	err = os.Setenv("AIRFLOW__OPENLINEAGE__DISABLED_FOR_OPERATORS", "")
-	if err != nil {
-		return err
-	}
 
 	namespace, ok := os.LookupEnv("AIRFLOW_ENV_NAME")
 	if !ok {
 		log.Error("environment variable AIRFLOW_ENV_NAME is not set")
 		namespace = "default"
 	}
-	err = os.Setenv("AIRFLOW__OPENLINEAGE__NAMESPACE", namespace)
-	if err != nil {
-		return err
+	tracerEnvConfigMwaa := []common.InjectTracerConfigEnvVar{
+		{
+			Key:   "OPENLINEAGE_API_KEY",
+			Value: s.Config.DatadogYAML.APIKey,
+		},
+		{
+			Key:   "OPENLINEAGE_URL",
+			Value: "https://data-obs-intake." + s.Config.DatadogYAML.Site,
+		},
+		{
+			Key:   "AIRFLOW__OPENLINEAGE__CONFIG_PATH",
+			Value: "",
+		},
+		{
+			Key:   "AIRFLOW__OPENLINEAGE__DISABLED_FOR_OPERATORS",
+			Value: "",
+		},
+		{
+			Key:   "AIRFLOW__OPENLINEAGE__NAMESPACE",
+			Value: namespace,
+		},
 	}
 
+	s.Packages.Install(common.DatadogAPMInjectPackage, mwaaInjectorVersion)
+	s.Packages.Install(common.DatadogAPMLibraryPythonPackage, mwaaPythonTracerVersion)
+
+	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigMwaa
 	return nil
 }
