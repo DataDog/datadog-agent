@@ -70,8 +70,17 @@ type systemContext struct {
 	// workloadmeta is the workloadmeta component that we use to get necessary container metadata
 	workloadmeta workloadmeta.Component
 
+	// telemetry holds telemetry elements for the context
+	telemetry *contextTelemetry
+
 	// fatbinTelemetry holds telemetry counters and histograms for the fatbin parsing process
 	fatbinTelemetry *contextFatbinTelemetry
+}
+
+// contextTelemetry holds telemetry elements for the context
+type contextTelemetry struct {
+	symbolCacheSize telemetry.Gauge
+	activePIDs      telemetry.Gauge
 }
 
 // contextFatbinTelemetry holds telemetry counters and histograms for the fatbin parsing process
@@ -104,6 +113,7 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmet
 		selectedDeviceByPIDAndTID: make(map[int]map[int]int32),
 		visibleDevicesCache:       make(map[int][]nvml.Device),
 		workloadmeta:              wmeta,
+		telemetry:                 newContextTelemetry(tm),
 		fatbinTelemetry:           newContextFatbinTelemetry(tm),
 	}
 
@@ -123,6 +133,15 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmet
 	}
 
 	return ctx, nil
+}
+
+func newContextTelemetry(tm telemetry.Component) *contextTelemetry {
+	subsystem := gpuTelemetryModule + "__context"
+
+	return &contextTelemetry{
+		symbolCacheSize: tm.NewGauge(subsystem, "symbol_cache_size", nil, "Number of CUDA symbols in the cache"),
+		activePIDs:      tm.NewGauge(subsystem, "active_pids", nil, "Number of active PIDs being monitored"),
+	}
 }
 
 func newContextFatbinTelemetry(tm telemetry.Component) *contextFatbinTelemetry {
@@ -197,6 +216,8 @@ func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
 	wrapper.updateLastUsedTime()
 	ctx.cudaSymbols[path] = wrapper
 
+	ctx.telemetry.symbolCacheSize.Set(float64(len(ctx.cudaSymbols)))
+
 	return wrapper, nil
 }
 
@@ -228,6 +249,7 @@ func (ctx *systemContext) getProcessMemoryMaps(pid int) ([]*procfs.ProcMap, erro
 	}
 
 	ctx.pidMaps[pid] = maps
+	ctx.telemetry.activePIDs.Set(float64(len(ctx.pidMaps)))
 	return maps, nil
 }
 
@@ -236,6 +258,8 @@ func (ctx *systemContext) removeProcess(pid int) {
 	delete(ctx.pidMaps, pid)
 	delete(ctx.selectedDeviceByPIDAndTID, pid)
 	delete(ctx.visibleDevicesCache, pid)
+
+	ctx.telemetry.activePIDs.Set(float64(len(ctx.pidMaps)))
 }
 
 // cleanupOldEntries removes any old entries that have not been accessed in a while, to avoid
@@ -249,6 +273,8 @@ func (ctx *systemContext) cleanupOldEntries() {
 			delete(ctx.cudaSymbols, path)
 		}
 	}
+
+	ctx.telemetry.symbolCacheSize.Set(float64(len(ctx.cudaSymbols)))
 }
 
 // filterDevicesForContainer filters the available GPU devices for the given
