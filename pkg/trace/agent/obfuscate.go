@@ -23,6 +23,7 @@ const (
 	tagOpenSearchBody   = "opensearch.body"
 	tagSQLQuery         = "sql.query"
 	tagHTTPURL          = "http.url"
+	tagDBMS             = "db.system"
 )
 
 const (
@@ -51,7 +52,7 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 		if span.Resource == "" {
 			return
 		}
-		oq, err := o.ObfuscateSQLString(span.Resource)
+		oq, err := o.ObfuscateSQLStringForDBMS(span.Resource, span.Meta[tagDBMS])
 		if err != nil {
 			// we have an error, discard the SQL to avoid polluting user resources.
 			log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
@@ -166,7 +167,7 @@ func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
 
 	switch b.Type {
 	case "sql", "cassandra":
-		oq, err := o.ObfuscateSQLString(b.Resource)
+		oq, err := o.ObfuscateSQLStringForDBMS(b.Resource, b.DBType)
 		if err != nil {
 			log.Errorf("Error obfuscating stats group resource %q: %v", b.Resource, err)
 			b.Resource = textNonParsable
