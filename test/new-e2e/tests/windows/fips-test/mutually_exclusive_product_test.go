@@ -3,14 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package installtest
+package fipstest
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	installtest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -37,7 +38,7 @@ func TestFIPSAgentDoesNotInstallOverAgent(t *testing.T) {
 	require.NoError(t, err, "should get last stable agent package from env")
 	s.previousAgentPackage = previousAgentPackage
 	os.Setenv(windowsAgent.PackageFlavorEnvVar, "fips")
-	run(t, s)
+	installtest.Run[environments.WindowsHost](t, s)
 }
 
 // TestAgentDoesNotInstallOverFIPSAgent tests that the base Agent cannot be installed over the FIPS agent
@@ -51,7 +52,7 @@ func TestAgentDoesNotInstallOverFIPSAgent(t *testing.T) {
 	require.NoError(t, err, "should get Agent package from env")
 	s.previousAgentPackage = previousAgentPackage
 	os.Setenv(windowsAgent.PackageFlavorEnvVar, "base")
-	run(t, s)
+	installtest.Run[environments.WindowsHost](t, s)
 }
 
 func (s *mutuallyExclusiveInstallSuite) SetupSuite() {
@@ -68,7 +69,6 @@ func (s *mutuallyExclusiveInstallSuite) SetupSuite() {
 }
 
 func (s *mutuallyExclusiveInstallSuite) TestMutuallyExclusivePackage() {
-	flake.Mark(s.T())
 	host := s.Env().RemoteHost
 
 	// Install second Agent

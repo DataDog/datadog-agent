@@ -356,6 +356,8 @@ type AgentConfig struct {
 	MaxSenderRetries int
 	// HTTP client used in writer connections. If nil, default client values will be used.
 	HTTPClientFunc func() *http.Client `json:"-"`
+	// HTTP Transport used in writer connections. If nil, default transport values will be used.
+	HTTPTransportFunc func() *http.Transport `json:"-"`
 
 	// internal telemetry
 	StatsdEnabled  bool
@@ -611,6 +613,9 @@ func (c *AgentConfig) NewHTTPClient() *ResetClient {
 // NewHTTPTransport returns a new http.Transport to be used for outgoing connections to
 // the Datadog API.
 func (c *AgentConfig) NewHTTPTransport() *http.Transport {
+	if c.HTTPTransportFunc != nil {
+		return c.HTTPTransportFunc()
+	}
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.SkipSSLValidation},
 		// below field values are from http.DefaultTransport (go1.12)
