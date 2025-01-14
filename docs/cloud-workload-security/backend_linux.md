@@ -65,6 +65,20 @@ CSM Threats event for Linux systems have the following JSON schema:
             ],
             "description": "AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request"
         },
+        "AcceptEvent": {
+            "properties": {
+                "addr": {
+                    "$ref": "#/$defs/IPPortFamily",
+                    "description": "Bound address (if any)"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "addr"
+            ],
+            "description": "AcceptEventSerializer serializes a bind event to JSON"
+        },
         "AgentContext": {
             "properties": {
                 "rule_id": {
@@ -1772,6 +1786,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         "imds": {
             "$ref": "#/$defs/IMDSEvent"
         },
+        "accept": {
+            "$ref": "#/$defs/AcceptEvent"
+        },
         "bind": {
             "$ref": "#/$defs/BindEvent"
         },
@@ -1828,6 +1845,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `splice` | $ref | Please see [SpliceEvent](#spliceevent) |
 | `dns` | $ref | Please see [DNSEvent](#dnsevent) |
 | `imds` | $ref | Please see [IMDSEvent](#imdsevent) |
+| `accept` | $ref | Please see [AcceptEvent](#acceptevent) |
 | `bind` | $ref | Please see [BindEvent](#bindevent) |
 | `connect` | $ref | Please see [ConnectEvent](#connectevent) |
 | `mount` | $ref | Please see [MountEvent](#mountevent) |
@@ -1919,6 +1937,35 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `last_updated` | last_updated is the last time the credentials were updated |
 | `expiration` | expiration is the expiration date of the credentials |
 
+
+## `AcceptEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "addr": {
+            "$ref": "#/$defs/IPPortFamily",
+            "description": "Bound address (if any)"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "addr"
+    ],
+    "description": "AcceptEventSerializer serializes a bind event to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `addr` | Bound address (if any) |
+
+| References |
+| ---------- |
+| [IPPortFamily](#ipportfamily) |
 
 ## `AgentContext`
 

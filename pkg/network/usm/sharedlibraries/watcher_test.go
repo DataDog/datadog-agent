@@ -27,10 +27,10 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -55,12 +55,7 @@ func TestSharedLibrary(t *testing.T) {
 		t.Skip("shared library tracing not supported for this platform")
 	}
 
-	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !prebuilt.IsDeprecated() {
-		modes = append(modes, ebpftest.Prebuilt)
-	}
-
-	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		t.Run("netlink", func(t *testing.T) {
 			launchProcessMonitor(t, false)
 			suite.Run(t, new(SharedLibrarySuite))
@@ -293,13 +288,13 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionPeriodic() {
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.Equal(c, registerRecorder.CallsForPathID(fooPathID1), 1)
+		assert.Equal(c, 1, registerRecorder.CallsForPathID(fooPathID1))
 
 		// Check that we tried to attach to the process twice.  See w.sync() for
 		// why we do it.  We don't actually need to attempt the registration
 		// twice, we just need to ensure that the maps were scanned twice but we
 		// don't have a hook for that so this check should be good enough.
-		assert.Equal(c, registerRecorder.CallsForPathID(errorPathID), 2)
+		assert.Equal(c, 2, registerRecorder.CallsForPathID(errorPathID))
 	}, time.Second*10, 100*time.Millisecond, "")
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -317,7 +312,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionPeriodic() {
 	command2.Process.Wait()
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.Equal(c, unregisterRecorder.CallsForPathID(fooPathID1), 1)
+		assert.Equal(c, 1, unregisterRecorder.CallsForPathID(fooPathID1))
 	}, time.Second*10, 100*time.Millisecond)
 
 	// Check that clean up of dead processes works.

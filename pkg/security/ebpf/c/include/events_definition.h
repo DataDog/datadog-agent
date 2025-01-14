@@ -11,6 +11,18 @@ struct invalidate_dentry_event_t {
     u32 padding;
 };
 
+struct accept_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct syscall_t syscall;
+
+    u64 addr[2];
+    u16 family;
+    u16 port;
+};
+
 struct bind_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -122,6 +134,7 @@ struct cgroup_tracing_event_t {
     struct container_context_t container;
     struct activity_dump_config config;
     u64 cookie;
+    u32 pid;
 };
 
 struct cgroup_write_event_t {
