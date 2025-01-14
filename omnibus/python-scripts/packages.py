@@ -18,7 +18,7 @@ def run_command(args):
     Execute a shell command and return its output and errors.
     """
     try:
-        print(f"Running command: '{args.join(' ')}'")
+        print(f"Running command: '{' '.join(args)}'")
         result = subprocess.run(args, text=True, capture_output=True, check=True)
         return result.stdout, result.stderr
     except subprocess.CalledProcessError as e:
@@ -153,7 +153,6 @@ def install_datadog_package(package, install_directory):
     if os.name == 'nt':
         agent_cmd = os.path.join(install_directory, 'bin', 'agent.exe')
         args = [agent_cmd, 'integration', 'install', '-t', package, '-r']
-        print(f"Running command: '{' '.join(args)}'")
     else:
         args = ['datadog-agent', 'integration', 'install', '-t', package, '-r']
     
@@ -164,7 +163,7 @@ def install_dependency_package(pip, package):
     Install python dependency running pip install command
     """
     print(f"Installing python dependency: '{package}'")
-    args = [pip, 'install', package]
+    args = pip.append(['install', package])
     run_command(args)
 
 def install_diff_packages_file(install_directory, filename, exclude_filename):
@@ -173,9 +172,9 @@ def install_diff_packages_file(install_directory, filename, exclude_filename):
     """
     if os.name == 'nt':
         python_path = os.path.join(install_directory, "embedded3", "python.exe")
-        pip = f'"{python_path}" -m pip'
+        pip = [python_path, '-m', 'pip']
     else:
-        pip = os.path.join(install_directory, "embedded", "bin", "pip")
+        pip = [os.path.join(install_directory, "embedded", "bin", "pip")]
     print(f"Installing python packages from: '{filename}'")
     install_packages = load_requirements(filename)
     exclude_packages = load_requirements(exclude_filename)
