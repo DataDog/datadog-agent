@@ -33,8 +33,9 @@ import (
 )
 
 const (
-	gpuAttacherName = "gpu"
-	gpuModuleName   = gpuAttacherName
+	gpuAttacherName    = "gpu"
+	gpuModuleName      = gpuAttacherName
+	gpuTelemetryModule = gpuModuleName
 
 	// consumerChannelSize controls the size of the go channel that buffers ringbuffer
 	// events (*ddebpf.RingBufferHandler).
