@@ -175,7 +175,7 @@ func handleConnect(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, r
 	return nil
 }
 
-func handleSocket(tracer *Tracer, process *Process, _ *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+func handleSocket(tracer *Tracer, process *Process, _ *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	lastSocket := &SocketInfo{
 		AddressFamily: uint16(tracer.ReadArgInt32(regs, 0)),
 	}
@@ -222,17 +222,17 @@ func handleAcceptRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg,
 	return nil
 }
 
-func handleBindRet(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+func handleBindRet(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	msg.Retval = tracer.ReadRet(regs)
 	return nil
 }
 
-func handleConnectRet(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+func handleConnectRet(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	msg.Retval = tracer.ReadRet(regs)
 	return nil
 }
 
-func handleSocketRet(tracer *Tracer, process *Process, _ *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+func handleSocketRet(tracer *Tracer, process *Process, _ *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	ret := int32(tracer.ReadRet(regs))
 
 	if process.LastSocket != nil && ret != -1 {
