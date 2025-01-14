@@ -143,10 +143,16 @@ namespace Datadog.CustomActions
                 var opensslConfTemplate = opensslConfPath + ".tmp";
 
                 // Run fipsinstall command to generate fipsmodule.cnf
+                // We provide the -self_test_onload option to ensure that the install-status and install-mac options
+                // are NOT written to fipsmodule.cnf, this means the self tests will be run on every Agent start.
+                // Being a host install this is not strictly necessary but it is our preference because
+                // - it ensures compliance by always running the self tests (consider a golden image deployment scenario)
+                // - our container images are built with the same configuration
+                // https://docs.openssl.org/master/man5/fips_config
                 session.Log("Running openssl fipsinstall");
                 Process proc = session.RunCommand(
                     opensslPath,
-                    $"fipsinstall -module \"{fipsProviderPath}\" -out \"{fipsConfPath}\"");
+                    $"fipsinstall -module \"{fipsProviderPath}\" -out \"{fipsConfPath}\" -self_test_onload");
                 if (proc.ExitCode != 0)
                 {
                     throw new Exception($"openssl fipsinstall exited with code: {proc.ExitCode}");
