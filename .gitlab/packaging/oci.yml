@@ -45,12 +45,14 @@
         echo "Extracting to temporary input dir $INPUT_FILE -> $INPUT_DIR"
         tar xJf ${INPUT_FILE} -C ${INPUT_DIR}
         if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
+          # Order matters here. rpath-edit will only patch rpath that contain the input path
+          # we provide to it, so we need to patch first, and rename afterward.
+          echo "Fixing rpath to point at the actual install dir (${INSTALL_DIR})"
+          inv omnibus.rpath-edit ${INPUT_DIR}/opt/datadog-agent ${INSTALL_DIR}
           echo "Renaming folders to match OCI file hierarchy"
           mkdir -p ${INPUT_DIR}/${INSTALL_DIR}
           mv ${INPUT_DIR}/opt/datadog-agent/* ${INPUT_DIR}/${INSTALL_DIR}
           rm -rf ${INPUT_DIR}/opt/datadog-agent
-          echo "Fixing rpath to point at the actual install dir (${INSTALL_DIR})"
-          inv omnibus.rpath-edit ${INPUT_DIR}/${INSTALL_DIR} ${INSTALL_DIR}
         fi
         echo "Creating OCI layer -> ${OUTPUT_DIR}/${OUTPUT_FILE}"
         if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
