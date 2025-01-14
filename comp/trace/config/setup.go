@@ -127,6 +127,9 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.Ag
 	}
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
 	cfg.GetAgentAuthToken = apiutil.GetAuthToken
+	cfg.HTTPTransportFunc = func() *http.Transport {
+		return httputils.CreateHTTPTransport(coreConfigObject)
+	}
 	return cfg, nil
 }
 
