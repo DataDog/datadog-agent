@@ -767,7 +767,7 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
-	cache, err := NewTwoLayersLRU[uint32, model.PathKey, PathEntry](4096)
+	cache, err := NewTwoLayersLRU[uint32, model.PathKey, PathEntry](8000)
 	if err != nil {
 		return nil, err
 	}
