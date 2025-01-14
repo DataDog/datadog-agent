@@ -32,7 +32,38 @@ if ("$env:WITH_JMX" -ne "false") {
     cd \
 }
 
-# TODO: Run openssl fipsinstall command here when embedded Python work is completed
-# HERE
+# Configure Python's OpenSSL FIPS module
+# The OpenSSL security policy states:
+# "The Module shall have the self-tests run, and the Module config file output generated on each
+#  platform where it is intended to be used. The Module config file output data shall not be copied from
+#  one machine to another."
+# https://github.com/openssl/openssl/blob/master/README-FIPS.md
+# We provide the -self_test_onload option to ensure that the install-status and install-mac options
+# are NOT written to fipsmodule.cnf. This allows us to create the config during the image build,
+# and means the self tests will be run on every container start.
+# https://docs.openssl.org/master/man5/fips_config
+# Discussion about putting the commands in image vs entrypoint:
+# https://github.com/openssl/openssl/discussions/23920
+$embeddedPath = "C:\Program Files\Datadog\Datadog Agent\embedded3"
+$fipsProviderPath = "$embeddedPath\lib\ossl-modules\fips.dll"
+$fipsConfPath = "$embeddedPath\ssl\fipsmodule.cnf"
+& "$embeddedPath\bin\openssl.exe" fipsinstall -module "$fipsProviderPath" -out "$fipsConfPath" -self_test_onload
+$err = $LASTEXITCODE
+if ($err -ne 0) {
+    Write-Error ("openssl fipsinstall exited with code: {0}" -f $err)
+    exit $err
+}
+# Run again with -verify option
+& "$embeddedPath\bin\openssl.exe" fipsinstall -module "$fipsProviderPath" -in "$fipsConfPath" -verify
+$err = $LASTEXITCODE
+if ($err -ne 0) {
+    Write-Error ("openssl fipsinstall verification of FIPS compliance failed, exited with code: {0}" -f $err)
+    exit $err
+}
+# We don't need to modify the .include directive in openssl.cnf here because the container
+# always uses the default installation path.
+$opensslConfPath = "$embeddedPath\ssl\openssl.cnf"
+$opensslConfTemplate = "$embeddedPath\ssl\openssl.cnf.tmp"
+Copy-Item "$opensslConfTemplate" "$opensslConfPath"
 
 Remove-TempFiles
