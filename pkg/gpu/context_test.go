@@ -22,7 +22,7 @@ import (
 
 func TestFilterDevicesForContainer(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), wmetaMock)
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), wmetaMock, testutil.GetTelemetryMock(t))
 	require.NotNil(t, sysCtx)
 	require.NoError(t, err)
 
@@ -92,7 +92,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 	})
 
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), procFs, wmetaMock)
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), procFs, wmetaMock, testutil.GetTelemetryMock(t))
 	require.NotNil(t, sysCtx)
 	require.NoError(t, err)
 

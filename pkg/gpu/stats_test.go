@@ -31,7 +31,7 @@ func getMetricsEntry(key model.StatsKey, stats *model.GPUStats) *model.Utilizati
 }
 
 func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, map[streamKey]*StreamHandler, int64) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t))
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
 	require.NoError(t, err)
 	require.NotNil(t, sysCtx)
 

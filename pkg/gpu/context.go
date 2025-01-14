@@ -16,6 +16,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
@@ -68,6 +69,17 @@ type systemContext struct {
 
 	// workloadmeta is the workloadmeta component that we use to get necessary container metadata
 	workloadmeta workloadmeta.Component
+
+	// fatbinTelemetry holds telemetry counters and histograms for the fatbin parsing process
+	fatbinTelemetry *contextFatbinTelemetry
+}
+
+// contextFatbinTelemetry holds telemetry counters and histograms for the fatbin parsing process
+type contextFatbinTelemetry struct {
+	readErrors     telemetry.Counter
+	fatbinPayloads telemetry.Counter
+	kernelsPerFile telemetry.Histogram
+	kernelSizes    telemetry.Histogram
 }
 
 // symbolsEntry embeds cuda.Symbols adding a field for keeping track of the last
@@ -81,7 +93,7 @@ func (e *symbolsEntry) updateLastUsedTime() {
 	e.lastUsedTime = time.Now()
 }
 
-func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmeta.Component) (*systemContext, error) {
+func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmeta.Component, tm telemetry.Component) (*systemContext, error) {
 	ctx := &systemContext{
 		maxGpuThreadsPerDevice:    make(map[int]int),
 		deviceSmVersions:          make(map[int]int),
@@ -92,6 +104,7 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmet
 		selectedDeviceByPIDAndTID: make(map[int]map[int]int32),
 		visibleDevicesCache:       make(map[int][]nvml.Device),
 		workloadmeta:              wmeta,
+		fatbinTelemetry:           newContextFatbinTelemetry(tm),
 	}
 
 	if err := ctx.fillDeviceInfo(); err != nil {
@@ -110,6 +123,17 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmet
 	}
 
 	return ctx, nil
+}
+
+func newContextFatbinTelemetry(tm telemetry.Component) *contextFatbinTelemetry {
+	subsystem := gpuTelemetryModule + "__fatbin_parser"
+
+	return &contextFatbinTelemetry{
+		readErrors:     tm.NewCounter(subsystem, "read_errors", nil, "Number of errors reading fatbin data"),
+		fatbinPayloads: tm.NewCounter(subsystem, "fatbin_payloads", []string{"compression"}, "Number of fatbin payloads read"),
+		kernelsPerFile: tm.NewHistogram(subsystem, "kernels_per_file", nil, "Number of kernels per fatbin file", []float64{5, 10, 50, 100, 500}),
+		kernelSizes:    tm.NewHistogram(subsystem, "kernel_sizes", nil, "Size of kernels in bytes", []float64{100, 1000, 10000, 100000, 1000000, 10000000}),
+	}
 }
 
 func getDeviceSmVersion(device nvml.Device) (int, error) {
@@ -157,7 +181,16 @@ func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
 
 	data, err := cuda.GetSymbols(path)
 	if err != nil {
+		ctx.fatbinTelemetry.readErrors.Inc()
 		return nil, fmt.Errorf("error getting file data: %w", err)
+	}
+
+	ctx.fatbinTelemetry.fatbinPayloads.Add(float64(data.Fatbin.CompressedPayloads), "compressed")
+	ctx.fatbinTelemetry.fatbinPayloads.Add(float64(data.Fatbin.UncompressedPayloads), "uncompressed")
+	ctx.fatbinTelemetry.kernelsPerFile.Observe(float64(data.Fatbin.NumKernels()))
+
+	for kernel := range data.Fatbin.GetKernels() {
+		ctx.fatbinTelemetry.kernelsPerFile.Observe(float64(kernel.KernelSize))
 	}
 
 	wrapper := &symbolsEntry{Symbols: data}

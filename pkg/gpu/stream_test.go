@@ -22,7 +22,7 @@ import (
 )
 
 func getSystemContextForTest(t *testing.T) *systemContext {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t))
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
 	require.NoError(t, err)
 	require.NotNil(t, sysCtx)
 
