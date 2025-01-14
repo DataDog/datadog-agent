@@ -1,0 +1,14 @@
+protobuf_test:
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.except_main_or_release_branch]
+    - !reference [.except_disable_unit_tests]
+    - when: always
+  script:
+    # Python 3.12 changes default behavior how packages are installed.
+    # In particular, --break-system-packages command line option is 
+    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
+    - python3 -m pip install -r tasks/libs/requirements-github.txt --break-system-packages
+    - inv -e generate-protobuf
