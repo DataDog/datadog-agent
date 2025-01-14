@@ -91,11 +91,11 @@ const (
 	SyscallTypeMount
 	// SyscallTypeUmount umount/umount2 type
 	SyscallTypeUmount
-	// SyscallTypeAccept
+	// SyscallTypeAccept accept
 	SyscallTypeAccept
-	// SyscallTypeConnect
+	// SyscallTypeConnect connect
 	SyscallTypeConnect
-	// SyscallTypeBind
+	// SyscallTypeBind bind
 	SyscallTypeBind
 )
 

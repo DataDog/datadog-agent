@@ -53,6 +53,7 @@ func (f *FSResources) clone() *FSResources {
 	}
 }
 
+// SocketInfo represents the status of an open socket
 type SocketInfo struct {
 	AddressFamily uint16
 	Protocol      uint16
