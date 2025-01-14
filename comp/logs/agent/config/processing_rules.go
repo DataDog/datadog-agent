@@ -75,7 +75,7 @@ func CompileProcessingRules(rules []*ProcessingRule) error {
 			rule.Regex = re
 			rule.Placeholder = []byte(rule.ReplacePlaceholder)
 		case MultiLine:
-			rule.Regex, err = regexp.Compile("^" + rule.Pattern)
+			rule.Regex, err = regexp.Compile("^(?:" + rule.Pattern + ")")
 			if err != nil {
 				return err
 			}
