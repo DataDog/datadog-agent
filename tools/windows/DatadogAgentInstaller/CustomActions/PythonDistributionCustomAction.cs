@@ -150,22 +150,27 @@ namespace Datadog.CustomActions
                 // - our container images are built with the same configuration
                 // https://docs.openssl.org/master/man5/fips_config
                 session.Log("Running openssl fipsinstall");
-                Process proc = session.RunCommand(
-                    opensslPath,
-                    $"fipsinstall -module \"{fipsProviderPath}\" -out \"{fipsConfPath}\" -self_test_onload");
-                if (proc.ExitCode != 0)
+                using (Process proc = session.RunCommand(
+                           opensslPath,
+                           $"fipsinstall -module \"{fipsProviderPath}\" -out \"{fipsConfPath}\" -self_test_onload"))
                 {
-                    throw new Exception($"openssl fipsinstall exited with code: {proc.ExitCode}");
+                    if (proc.ExitCode != 0)
+                    {
+                        throw new Exception($"openssl fipsinstall exited with code: {proc.ExitCode}");
+                    }
                 }
+
 
                 // Run again with -verify option
                 session.Log("Running openssl fipsinstall -verify");
-                proc = session.RunCommand(
-                    opensslPath,
-                    $"fipsinstall -module \"{fipsProviderPath}\" -in \"{fipsConfPath}\" -verify");
-                if (proc.ExitCode != 0)
+                using (Process proc = session.RunCommand(
+                           opensslPath,
+                           $"fipsinstall -module \"{fipsProviderPath}\" -in \"{fipsConfPath}\" -verify"))
                 {
-                    throw new Exception($"openssl fipsinstall verification of FIPS compliance failed, exited with code: {proc.ExitCode}");
+                    if (proc.ExitCode != 0)
+                    {
+                        throw new Exception($"openssl fipsinstall verification of FIPS compliance failed, exited with code: {proc.ExitCode}");
+                    }
                 }
 
                 // Now we need to update the openssl.cnf file to include the fipsmodule.cnf
