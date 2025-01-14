@@ -406,6 +406,7 @@ func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, flav
 func (d *daemonImpl) startConfigExperiment(ctx context.Context, url string, flavor string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
+	span.SetTag("flavor", flavor)
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 

@@ -44,7 +44,10 @@ func (i *apmLibrariesConfig) State() *pbgo.PoliciesState {
 
 func newAPMLibrariesConfig(hostTags []string, rawConfig []byte) (*apmLibrariesConfig, error) {
 	if len(rawConfig) == 0 {
-		return nil, nil
+		return &apmLibrariesConfig{
+			version: fmt.Sprintf("%x", sha256.Sum256([]byte{})),
+			policy:  "default",
+		}, nil
 	}
 	var config configLayer
 	if err := json.Unmarshal(rawConfig, &config); err != nil {
@@ -55,7 +58,10 @@ func newAPMLibrariesConfig(hostTags []string, rawConfig []byte) (*apmLibrariesCo
 		return nil, err
 	}
 	if len(apmLibsConfig.APMLibrariesConfig) == 0 {
-		return nil, nil
+		return &apmLibrariesConfig{
+			version: fmt.Sprintf("%x", sha256.Sum256([]byte{})),
+			policy:  "default",
+		}, nil
 	}
 
 	apmLibsConfig.APMLibrariesConfig["host_tags"] = hostTags
