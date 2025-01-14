@@ -98,25 +98,10 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 		}
 	}
 	if lineHandler == nil {
-		if source.Config().ExperimentalAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
-			log.Infof("Experimental Auto multi line log detection enabled")
-			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo)
-
+		if source.Config().LegacyAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
+			lineHandler = getLegacyAutoMultilineHanlder(outputFn, multiLinePattern, maxContentSize, source, detectedPattern, tailerInfo)
 		} else if source.Config().AutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
-			log.Infof("Auto multi line log detection enabled")
-
-			if multiLinePattern != nil {
-				log.Info("Found a previously detected pattern - using multiline handler")
-
-				// Save the pattern again for the next rotation
-				detectedPattern.Set(multiLinePattern)
-
-				lh := NewMultiLineHandler(outputFn, multiLinePattern, config.AggregationTimeout(pkgconfigsetup.Datadog()), maxContentSize, true, tailerInfo, "legacy_auto_multi_line")
-				syncSourceInfo(source, lh)
-				lineHandler = lh
-			} else {
-				lineHandler = buildLegacyAutoMultilineHandlerFromConfig(outputFn, maxContentSize, source, detectedPattern, tailerInfo)
-			}
+			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo)
 		} else {
 			lineHandler = NewSingleLineHandler(outputFn, maxContentSize)
 		}
@@ -134,6 +119,23 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	framer := framer.NewFramer(lineParser.process, framing, maxContentSize)
 
 	return New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
+}
+
+func getLegacyAutoMultilineHanlder(outputFn func(*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {
+	log.Infof("Legacy Auto multiline log detection enabled")
+
+	if multiLinePattern != nil {
+		log.Info("Found a previously detected pattern - using multiline handler")
+
+		// Save the pattern again for the next rotation
+		detectedPattern.Set(multiLinePattern)
+
+		lh := NewMultiLineHandler(outputFn, multiLinePattern, config.AggregationTimeout(pkgconfigsetup.Datadog()), maxContentSize, true, tailerInfo, "legacy_auto_multi_line")
+		syncSourceInfo(source, lh)
+		return lh
+	} else {
+		return buildLegacyAutoMultilineHandlerFromConfig(outputFn, maxContentSize, source, detectedPattern, tailerInfo)
+	}
 }
 
 func buildLegacyAutoMultilineHandlerFromConfig(outputFn func(*message.Message), maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) *LegacyAutoMultilineHandler {

@@ -98,6 +98,15 @@ const (
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
 	DefaultLogsSenderBackoffRecoveryInterval = 2
 
+	// DefaultLogsLegacyMatchThreshold is deprecated and used for legacy auto multiline detection.
+	DefaultLogsLegacyMatchThreshold = 0.48
+
+	// DefaultLogsLegacyMatchTimeout is deprecated and used for legacy auto multiline detection.
+	DefaultLogsLegacyMatchTimeout = 30
+
+	// DefaultLogsLegacySampleSize is deprecated and used for legacy auto multiline detection.
+	DefaultLogsLegacySampleSize = 500
+
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
 
@@ -1558,15 +1567,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// the downstream logs pipeline to be ready to accept more data
 	config.BindEnvAndSetDefault("logs_config.windows_open_file_timeout", 5)
 
+	// Auto multiline detection settings
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
-	// The following auto_multi_line settings are experimental and may change
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 500)
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
-
-	// Experimental auto multiline detection settings (these are subject to change until the feature is no longer experimental)
-	config.BindEnvAndSetDefault("logs_config.experimental_auto_multi_line_detection", false)
 	config.BindEnv("logs_config.auto_multi_line_detection_custom_samples")
 	config.SetKnown("logs_config.auto_multi_line_detection_custom_samples")
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_detection", true)
@@ -1575,6 +1577,13 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_max_size", 20)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", 0.75)
+
+	// The following auto_multi_line settings are legacy settings.
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", DefaultLogsLegacySampleSize)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", DefaultLogsLegacyMatchTimeout) // Seconds
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", DefaultLogsLegacyMatchThreshold)
+
 	// Add a tag to logs that are multiline aggregated
 	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", false)
 	// Add a tag to logs that are truncated by the agent
