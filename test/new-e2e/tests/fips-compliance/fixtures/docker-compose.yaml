@@ -3,7 +3,6 @@ version: "3.9"
 
 services:
   agent:
-    image: "registry.ddbuild.io/ci/datadog-agent/agent:v51515213-0796c161-7-fips-arm64"
     environment:
       GOFIPS: 1
       DD_SKIP_SSL_VALIDATION: "true"

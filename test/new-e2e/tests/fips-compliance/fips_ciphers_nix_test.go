@@ -8,7 +8,6 @@ package fipscompliance
 import (
 	_ "embed"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/stretchr/testify/assert"
@@ -36,17 +36,19 @@ var (
 	testcases = []cipherTestCase{
 		{cert: "ecc", cipher: "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", want: true},
 		{cert: "ecc", cipher: "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384", want: true},
+		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", want: true},
+		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", want: true},
 		{cert: "ecc", cipher: "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256", want: false},
 		{cert: "ecc", cipher: "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA", want: false},
 		{cert: "ecc", cipher: "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA", want: false},
-		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", want: true},
-		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", want: true},
-		{cert: "rsa", cipher: "TLS_AES_128_GCM_SHA256", tlsMax: "1.3", want: true},
-		{cert: "rsa", cipher: "TLS_AES_256_GCM_SHA384", tlsMax: "1.3", want: true},
 		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256", want: false},
 		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", want: false},
 		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA", want: false},
 		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA", want: false},
+		// TODO: the below are approved for TLS 1.3 but not supported by our fips-server yet
+		//   see https://github.com/DataDog/test-infra-definitions/blob/221bbc806266eb15b90cb875deb79180e7591fbc/components/datadog/apps/fips/images/fips-server/src/tls.go#L48-L58
+		// {cert: "rsa", cipher: "TLS_AES_128_GCM_SHA256", tlsMax: "1.3", want: true},
+		// {cert: "rsa", cipher: "TLS_AES_256_GCM_SHA384", tlsMax: "1.3", want: true},
 	}
 )
 
@@ -58,23 +60,17 @@ type fipsServerSuite struct {
 }
 
 func TestFIPSCiphersSuite(t *testing.T) {
-	e2e.Run(t, &fipsServerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner()), e2e.WithSkipDeleteOnFailure())
+	e2e.Run(t, &fipsServerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner()))
 }
 
 func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
-	var imageTag string
-	if os.Getenv("E2E_PIPELINE_ID") != "" && os.Getenv("CI_COMMIT_SHA") != "" {
-		imageTag = fmt.Sprintf("v%s-%s-7-fips-arm64", os.Getenv("E2E_PIPELINE_ID"), os.Getenv("CI_COMMIT_SHA"))
-	} else {
-		imageTag = "latest"
-	}
+	imageTage := fmt.Sprintf("%s-%s-fips", runner.GetProfile().GetParamStore().Get("E2E_PIPELINE_ID"), runner.GetProfile().GetParamStore().Get("CI_COMMIT_SHA"))
 
-	fmt.Println("ImageTag: " + imageTag)
 	v.UpdateEnv(
 		awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(
-				// dockeragentparams.WithImageTag(imageTag), // "registry.ddbuild.io/ci/datadog-agent/agent:v51515213-0796c161-7-fips-arm64"),
-				dockeragentparams.WithImageTag("registry.ddbuild.io/ci/datadog-agent/agent:v51515213-0796c161-7-fips-arm64"),
+				dockeragentparams.WithImageTag(imageTag),
+				//dockeragentparams.WithFullImagePath("669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:52591054-61b96d15-fips"),
 				dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
 			),
 		),
@@ -95,7 +91,7 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
 
 			serverLogs := v.Env().RemoteHost.MustExecute("docker logs dd-fips-server")
 			if tc.want {
-				assert.NotContains(v.T(), serverLogs, "no cipher suite supported by both client and server")
+				assert.Contains(v.T(), serverLogs, fmt.Sprintf("Negotiated cipher suite: %s", tc.cipher))
 			} else {
 				assert.Contains(v.T(), serverLogs, "no cipher suite supported by both client and server")
 			}
@@ -104,10 +100,12 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
 }
 
 func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
+	imageTage := fmt.Sprintf("%s-%s-fips", runner.GetProfile().GetParamStore().Get("E2E_PIPELINE_ID"), runner.GetProfile().GetParamStore().Get("CI_COMMIT_SHA"))
 	v.UpdateEnv(
 		awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(
-				dockeragentparams.WithFullImagePath("registry.ddbuild.io/ci/datadog-agent/agent:v51515213-0796c161-7-fips-arm64"),
+				dockeragentparams.WithImageTag(imageTag),
+				//dockeragentparams.WithFullImagePath("669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:52591054-61b96d15-fips"),
 				dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
 			),
 		),
@@ -152,7 +150,7 @@ func runFipsServer(v *fipsServerSuite, tc cipherTestCase, composeFiles string) {
 }
 
 func runAgentDiagnose(v *fipsServerSuite, composeFiles string) {
-	_ = v.Env().RemoteHost.MustExecute(fmt.Sprintf("docker-compose -f %s exec agent sh -c GOFIPS=1 DD_DD_URL=https://dd-fips-server:443 agent diagnose --include connectivity-datadog-core-endpoints --local", composeFiles))
+	_ = v.Env().RemoteHost.MustExecute(fmt.Sprintf(`docker-compose -f %s exec agent sh -c "GOFIPS=1 DD_DD_URL=https://dd-fips-server:443 agent diagnose --include connectivity-datadog-core-endpoints --local"`, strings.TrimSpace(composeFiles)))
 }
 
 func stopFipsServer(v *fipsServerSuite, composeFiles string) {
