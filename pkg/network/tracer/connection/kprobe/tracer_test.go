@@ -10,14 +10,14 @@ package kprobe
 import (
 	"testing"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -306,15 +306,22 @@ func TestDefaultKprobeMaxActiveSet(t *testing.T) {
 	t.Run("CO-RE", func(t *testing.T) {
 		cfg := config.New()
 		cfg.EnableCORE = true
+		cfg.EnableRuntimeCompiler = false
 		cfg.AllowRuntimeCompiledFallback = false
+		cfg.AllowPrebuiltFallback = false
 		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil)
 		require.NoError(t, err)
 	})
 
 	t.Run("prebuilt", func(t *testing.T) {
+		if prebuilt.IsDeprecated() {
+			t.Skip("prebuilt not supported on this platform")
+		}
 		cfg := config.New()
 		cfg.EnableCORE = false
+		cfg.EnableRuntimeCompiler = false
 		cfg.AllowRuntimeCompiledFallback = false
+		cfg.AllowPrebuiltFallback = false
 		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil)
 		require.NoError(t, err)
 	})
@@ -322,7 +329,9 @@ func TestDefaultKprobeMaxActiveSet(t *testing.T) {
 	t.Run("runtime_compiled", func(t *testing.T) {
 		cfg := config.New()
 		cfg.EnableCORE = false
-		cfg.AllowRuntimeCompiledFallback = true
+		cfg.AllowPrebuiltFallback = false
+		cfg.AllowRuntimeCompiledFallback = false
+		cfg.EnableRuntimeCompiler = true
 		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil)
 		require.NoError(t, err)
 	})
