@@ -6,6 +6,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"math/rand"
@@ -16,12 +17,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func newTestSpan() *pb.Span {
@@ -622,4 +627,21 @@ func BenchmarkNormalization(b *testing.B) {
 
 		a.normalize(ts, span)
 	}
+}
+
+func TestLexerNormalization(t *testing.T) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	//cfg.Features["sqllexer"] = struct{}{}
+	cfg.SQLObfuscationMode = string(obfuscate.ObfuscateAndNormalize)
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	defer cancelFunc()
+	span := &pb.Span{
+		Resource: "SELECT * FROM [u].[users]",
+		Type:     "sql",
+		Meta:     map[string]string{"db.type": "sqlserver"},
+	}
+	agnt.obfuscateSpan(span)
+	assert.Equal(t, "SELECT * FROM u.users", span.Resource)
 }
