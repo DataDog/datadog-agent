@@ -446,6 +446,7 @@ def _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, fi
 @task
 def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
     # Collect mime types for all files inside the Agent installation
+    print(f'Patching rpath for files in {install_path} to point at {target_rpath_dd_folder}')
     files = ctx.run(rf"find {install_path} -type f -exec file --mime-type \{{\}} \+", hide=True).stdout
     for line in files.splitlines():
         if not line:
@@ -480,4 +481,5 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
         # if a binary has an rpath that use our installation path we are patching it
         if install_path in binary_rpath:
             new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
+            print(f'Patching {file} rpath to point at {new_rpath}')
             _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file)
