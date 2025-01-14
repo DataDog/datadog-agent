@@ -74,13 +74,16 @@ func parseAddrInfo(tracer *Tracer, process *Process, regs syscall.PtraceRegs, ad
 		return nil, errors.New("invalid address length")
 	}
 
+	if addrlen > 28 {
+		addrlen = 28
+	}
+
 	data, err := tracer.ReadArgData(process.Pid, regs, 1, uint(addrlen))
-
-	var addr addrInfo
-
 	if err != nil {
 		return nil, err
 	}
+
+	var addr addrInfo
 
 	buf := bytes.NewReader(data[0:2])
 	err = binary.Read(buf, binary.LittleEndian, &addr.af)
@@ -95,20 +98,12 @@ func parseAddrInfo(tracer *Tracer, process *Process, regs syscall.PtraceRegs, ad
 	}
 
 	if addr.af == unix.AF_INET {
-		data, err := tracer.ReadArgData(process.Pid, regs, 1, 16)
-		if err != nil {
-			return nil, err
-		}
 		addr.ip = data[4:8]
 	} else if addr.af == unix.AF_INET6 {
 		if addrlen < 28 {
 			return nil, errors.New("invalid address length")
 		}
 
-		data, err := tracer.ReadArgData(process.Pid, regs, 1, 28)
-		if err != nil {
-			return nil, err
-		}
 		addr.ip = data[8:24]
 	} else {
 		return nil, errors.New("unsupported address family")
@@ -211,7 +206,6 @@ func handleAcceptRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg,
 	addrlen, _ := tracer.ReadArgInt32Ptr(process.Pid, regs, 2)
 
 	addr, err := parseAddrInfo(tracer, process, regs, addrlen)
-
 	if err != nil {
 		return err
 	}
