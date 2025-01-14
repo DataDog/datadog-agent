@@ -39,7 +39,7 @@ func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, map[streamKey]*Str
 	require.NoError(t, err)
 
 	streamHandlers := make(map[streamKey]*StreamHandler)
-	statsGen := newStatsGenerator(sysCtx, streamHandlers)
+	statsGen := newStatsGenerator(sysCtx, streamHandlers, testutil.GetTelemetryMock(t))
 	statsGen.lastGenerationKTime = ktime
 	statsGen.currGenerationKTime = ktime
 	require.NotNil(t, statsGen)

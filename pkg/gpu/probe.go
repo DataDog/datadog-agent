@@ -171,7 +171,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 
 	p.consumer = newCudaEventConsumer(sysCtx, p.eventHandler, p.cfg, deps.Telemetry)
 	//TODO: decouple this to avoid sharing streamHandlers between consumer and statsGenerator
-	p.statsGenerator = newStatsGenerator(sysCtx, p.consumer.streamHandlers)
+	p.statsGenerator = newStatsGenerator(sysCtx, p.consumer.streamHandlers, deps.Telemetry)
 
 	if err = p.start(); err != nil {
 		return nil, err
