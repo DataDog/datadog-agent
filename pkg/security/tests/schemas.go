@@ -242,7 +242,7 @@ func (tm *testModule) validateBindSchema(t *testing.T, event *model.Event) bool 
 	if ebpfLessEnabled {
 		return true
 	}
-	
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///bind.schema.json")
 }
