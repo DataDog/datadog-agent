@@ -10,8 +10,7 @@ on:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   AGENT6_RELEASE_BRANCH: '6.53.x'
-  # IS_AGENT6_RELEASE: ${{ github.event.schedule == '0 9 * * 1' }}
-  IS_AGENT6_RELEASE: 'false'
+  IS_AGENT6_RELEASE: ${{ github.event.schedule == '0 9 * * 1' }}
 permissions: {}
 
 jobs:
@@ -40,7 +39,7 @@ jobs:
                 pip install -r tasks/libs/requirements-github.txt
                 pip install -r tasks/requirements_release_tasks.txt
 
-            - name: Check if agent 6 rc PR already exists
+            - name: Check previous agent 6 RC status
               if: ${{ env.IS_AGENT6_RELEASE == 'true' }}
               env:
                 DD_SITE: 'datadoghq.com'
@@ -65,57 +64,57 @@ jobs:
               run: |
                 echo "value=-w" >> $GITHUB_OUTPUT
 
-    # create_rc_pr:
-    #   runs-on: ubuntu-latest
-    #   needs: find_release_branches
-    #   permissions:
-    #     contents: write
-    #     pull-requests: write
-    #   strategy:
-    #     matrix:
-    #       value: ${{fromJSON(needs.find_release_branches.outputs.branches)}}
-    #     fail-fast: false
-    #   steps:
-    #         - name: Checkout the main branch
-    #           uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-    #           with:
-    #             persist-credentials: true
+    create_rc_pr:
+      runs-on: ubuntu-latest
+      needs: find_release_branches
+      permissions:
+        contents: write
+        pull-requests: write
+      strategy:
+        matrix:
+          value: ${{fromJSON(needs.find_release_branches.outputs.branches)}}
+        fail-fast: false
+      steps:
+            - name: Checkout the main branch
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+              with:
+                persist-credentials: true
 
-    #         - name: Install python
-    #           uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
-    #           with:
-    #             python-version-file: .python-version
-    #             cache: "pip"
+            - name: Install python
+              uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+              with:
+                python-version-file: .python-version
+                cache: "pip"
 
-    #         - name: Install Python dependencies
-    #           run: |
-    #             python -m pip install --upgrade pip
-    #             pip install -r requirements.txt
-    #             pip install -r tasks/libs/requirements-github.txt
-    #             pip install -r tasks/requirements_release_tasks.txt
+            - name: Install Python dependencies
+              run: |
+                python -m pip install --upgrade pip
+                pip install -r requirements.txt
+                pip install -r tasks/libs/requirements-github.txt
+                pip install -r tasks/requirements_release_tasks.txt
 
-    #         - name: Check for changes since last RC
-    #           id: check_for_changes
-    #           env:
-    #             ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
-    #             ATLASSIAN_PASSWORD: ${{ secrets.ATLASSIAN_PASSWORD }}
-    #             SLACK_API_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
-    #             MATRIX: ${{ matrix.value }}
-    #             WARNING: ${{ needs.find_release_branches.outputs.warning }}
-    #           run: |
-    #             if [ -n "${{ needs.find_release_branches.outputs.warning }}" ]; then
-    #               echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX" "$WARNING")" >> $GITHUB_OUTPUT
-    #             else
-    #               echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX")" >> $GITHUB_OUTPUT
-    #             fi
+            - name: Check for changes since last RC
+              id: check_for_changes
+              env:
+                ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
+                ATLASSIAN_PASSWORD: ${{ secrets.ATLASSIAN_PASSWORD }}
+                SLACK_API_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+                MATRIX: ${{ matrix.value }}
+                WARNING: ${{ needs.find_release_branches.outputs.warning }}
+              run: |
+                if [ -n "${{ needs.find_release_branches.outputs.warning }}" ]; then
+                  echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX" "$WARNING")" >> $GITHUB_OUTPUT
+                else
+                  echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX")" >> $GITHUB_OUTPUT
+                fi
 
-    #         - name: Create RC PR
-    #           if: ${{ steps.check_for_changes.outputs.CHANGES == 'true' || env.IS_AGENT6_RELEASE == 'true' }}
-    #           env:
-    #             MATRIX: ${{ matrix.value }}
-    #           run: |
-    #             if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
-    #               inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT6_RELEASE_SLACK_WEBHOOK }} --patch-version
-    #             else
-    #               inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }}
-    #             fi
+            - name: Create RC PR
+              if: ${{ steps.check_for_changes.outputs.CHANGES == 'true' || env.IS_AGENT6_RELEASE == 'true' }}
+              env:
+                MATRIX: ${{ matrix.value }}
+              run: |
+                if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
+                  inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT6_RELEASE_SLACK_WEBHOOK }} --patch-version
+                else
+                  inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }}
+                fi

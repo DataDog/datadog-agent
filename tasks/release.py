@@ -1311,6 +1311,6 @@ def check_previous_agent6_rc(ctx):
 
     if err_msg:
         print(err_msg)
-        agent_ci_oncall_channel_id = 'C0701E5KYSX'
-        send_slack_msg(ctx, "C085P12CTFX", err_msg)
+        # send slack message to #agent-ci-on-call channel
+        send_slack_msg(ctx, "C0701E5KYSX", err_msg)
         sys.exit(1)
