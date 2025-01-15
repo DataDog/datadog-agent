@@ -70,7 +70,6 @@ func (is *persistingIntegrationsSuite) AfterTest(suiteName, testName string) {
 }
 
 func TestPersistingIntegrations(t *testing.T) {
-	flake.Mark(t)
 
 	platformJSON := map[string]map[string]map[string]string{}
 
