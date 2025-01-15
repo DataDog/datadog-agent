@@ -7,7 +7,6 @@
 package status
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -85,14 +84,6 @@ The --list flag can be used to list all available status sections.`,
 	return []*cobra.Command{cmd}
 }
 
-func scrubMessage(message string) string {
-	msgScrubbed, err := scrubber.ScrubBytes([]byte(message))
-	if err == nil {
-		return string(msgScrubbed)
-	}
-	return "[REDACTED] - failure to clean the message"
-}
-
 func redactError(unscrubbedError error) error {
 	if unscrubbedError == nil {
 		return unscrubbedError
@@ -138,18 +129,7 @@ func setIpcURL(cliParams *cliParams) url.Values {
 }
 
 func renderResponse(res []byte, cliParams *cliParams) error {
-	var s string
-
-	// The rendering is done in the client so that the agent has less work to do
-	if cliParams.prettyPrintJSON {
-		var prettyJSON bytes.Buffer
-		json.Indent(&prettyJSON, res, "", "  ") //nolint:errcheck
-		s = prettyJSON.String()
-	} else if cliParams.jsonStatus {
-		s = string(res)
-	} else {
-		s = scrubMessage(string(res))
-	}
+	s := string(res)
 
 	if cliParams.statusFilePath != "" {
 		return os.WriteFile(cliParams.statusFilePath, []byte(s), 0644)
