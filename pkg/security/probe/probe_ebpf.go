@@ -737,7 +737,7 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext, event.CGroupContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, &event.CGroupContext)
 	if err != nil {
 		return 0, err
 	}
@@ -942,7 +942,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	case model.CgroupWriteEventType:
 		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode cgroup write event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 		if _, err := p.resolveCGroup(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags), newEntryCb); err != nil {
@@ -996,7 +996,15 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to insert exec event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
 			return
 		}
-
+	default:
+		if !event.CGroupContext.CGroupFile.IsNull() {
+			cgroupContext, err := p.resolveCGroup(event.PIDContext.Pid, event.CGroupContext.CGroupFile, event.CGroupContext.CGroupFlags, newEntryCb)
+			if err != nil {
+				seclog.Debugf("failed to resolve cgroup context for event %s: %s", err, eventType.String())
+			} else {
+				event.CGroupContext.Merge(cgroupContext)
+			}
+		}
 	}
 
 	if !p.setProcessContext(eventType, event, newEntryCb) {

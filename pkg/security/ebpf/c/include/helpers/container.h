@@ -12,7 +12,6 @@ static __attribute__((always_inline)) void copy_container_id(const container_id_
 
 static void __attribute__((always_inline)) fill_container_context(struct proc_cache_t *entry, struct container_context_t *context) {
     if (entry) {
-        copy_container_id(entry->container.container_id, context->container_id);
         context->cgroup_context = entry->container.cgroup_context;
     } else {
         context->container_id[0] = 0;
