@@ -9,6 +9,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
+func metricSourceToOriginProduct(ms metrics.MetricSource) int32 {
+	const serieMetadataOriginOriginProductAgentType = 10
+	const serieMetadataOriginOriginProductDatadogExporterType = 19
+	if ms >= metrics.MetricSourceOpenTelemetryCollectorUnknown && ms <= metrics.MetricSourceOpenTelemetryCollectorCouchdbReceiver {
+		return serieMetadataOriginOriginProductDatadogExporterType
+	}
+	return serieMetadataOriginOriginProductAgentType
+}
+
 func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 	// These constants map to specific fields in the 'OriginCategory' enum in origin.proto
 	switch ms {
@@ -711,6 +720,94 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 203
 	case metrics.MetricSourceInternal:
 		return 212
+
+	case metrics.MetricSourceOpenTelemetryCollectorUnknown:
+		return 0
+	case metrics.MetricSourceOpenTelemetryCollectorDockerstatsReceiver:
+		return 217
+	case metrics.MetricSourceOpenTelemetryCollectorElasticsearchReceiver:
+		return 218
+	case metrics.MetricSourceOpenTelemetryCollectorExpvarReceiver:
+		return 219
+	case metrics.MetricSourceOpenTelemetryCollectorFilestatsReceiver:
+		return 220
+	case metrics.MetricSourceOpenTelemetryCollectorFlinkmetricsReceiver:
+		return 221
+	case metrics.MetricSourceOpenTelemetryCollectorGitproviderReceiver:
+		return 222
+	case metrics.MetricSourceOpenTelemetryCollectorHaproxyReceiver:
+		return 223
+	case metrics.MetricSourceOpenTelemetryCollectorHostmetricsReceiver:
+		return 224
+	case metrics.MetricSourceOpenTelemetryCollectorHttpcheckReceiver:
+		return 225
+	case metrics.MetricSourceOpenTelemetryCollectorIisReceiver:
+		return 226
+	case metrics.MetricSourceOpenTelemetryCollectorK8sclusterReceiver:
+		return 227
+	case metrics.MetricSourceOpenTelemetryCollectorKafkametricsReceiver:
+		return 228
+	case metrics.MetricSourceOpenTelemetryCollectorKubeletstatsReceiver:
+		return 229
+	case metrics.MetricSourceOpenTelemetryCollectorMemcachedReceiver:
+		return 230
+	case metrics.MetricSourceOpenTelemetryCollectorMongodbatlasReceiver:
+		return 231
+	case metrics.MetricSourceOpenTelemetryCollectorMongodbReceiver:
+		return 232
+	case metrics.MetricSourceOpenTelemetryCollectorMysqlReceiver:
+		return 233
+	case metrics.MetricSourceOpenTelemetryCollectorNginxReceiver:
+		return 234
+	case metrics.MetricSourceOpenTelemetryCollectorNsxtReceiver:
+		return 235
+	case metrics.MetricSourceOpenTelemetryCollectorOracledbReceiver:
+		return 236
+	case metrics.MetricSourceOpenTelemetryCollectorPostgresqlReceiver:
+		return 237
+	case metrics.MetricSourceOpenTelemetryCollectorPrometheusReceiver:
+		return 238
+	case metrics.MetricSourceOpenTelemetryCollectorRabbitmqReceiver:
+		return 239
+	case metrics.MetricSourceOpenTelemetryCollectorRedisReceiver:
+		return 240
+	case metrics.MetricSourceOpenTelemetryCollectorRiakReceiver:
+		return 241
+	case metrics.MetricSourceOpenTelemetryCollectorSaphanaReceiver:
+		return 242
+	case metrics.MetricSourceOpenTelemetryCollectorSnmpReceiver:
+		return 243
+	case metrics.MetricSourceOpenTelemetryCollectorSnowflakeReceiver:
+		return 244
+	case metrics.MetricSourceOpenTelemetryCollectorSplunkenterpriseReceiver:
+		return 245
+	case metrics.MetricSourceOpenTelemetryCollectorSqlserverReceiver:
+		return 246
+	case metrics.MetricSourceOpenTelemetryCollectorSshcheckReceiver:
+		return 247
+	case metrics.MetricSourceOpenTelemetryCollectorStatsdReceiver:
+		return 248
+	case metrics.MetricSourceOpenTelemetryCollectorVcenterReceiver:
+		return 249
+	case metrics.MetricSourceOpenTelemetryCollectorZookeeperReceiver:
+		return 250
+	case metrics.MetricSourceOpenTelemetryCollectorActiveDirectorydsReceiver:
+		return 251
+	case metrics.MetricSourceOpenTelemetryCollectorAerospikeReceiver:
+		return 252
+	case metrics.MetricSourceOpenTelemetryCollectorApacheReceiver:
+		return 253
+	case metrics.MetricSourceOpenTelemetryCollectorApachesparkReceiver:
+		return 254
+	case metrics.MetricSourceOpenTelemetryCollectorAzuremonitorReceiver:
+		return 255
+	case metrics.MetricSourceOpenTelemetryCollectorBigipReceiver:
+		return 256
+	case metrics.MetricSourceOpenTelemetryCollectorChronyReceiver:
+		return 257
+	case metrics.MetricSourceOpenTelemetryCollectorCouchdbReceiver:
+		return 258
+
 	case metrics.MetricSourceArgoRollouts:
 		return 314
 	case metrics.MetricSourceArgoWorkflows:
