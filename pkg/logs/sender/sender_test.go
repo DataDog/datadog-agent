@@ -23,17 +23,18 @@ import (
 )
 
 type testAuditor struct {
-    output chan *message.Payload
+	output chan *message.Payload
 }
+
 func (a *testAuditor) Channel() chan *message.Payload {
-    return a.output
+	return a.output
 }
 func (a *testAuditor) Start() {
 }
 func (a *testAuditor) Stop() {
 }
-func (a *testAuditor) GetOffset(identifier string) string { return "" }
-func (a *testAuditor) GetTailingMode(identifier string) string { return "" }
+func (a *testAuditor) GetOffset(_ string) string      { return "" }
+func (a *testAuditor) GetTailingMode(_ string) string { return "" }
 
 func newMessage(content []byte, source *sources.LogSource, status string) *message.Payload {
 	return &message.Payload{
@@ -51,8 +52,8 @@ func TestSender(t *testing.T) {
 
 	input := make(chan *message.Payload, 1)
 	auditor := &testAuditor{
-    	output: make(chan *message.Payload, 1),
-    }
+		output: make(chan *message.Payload, 1),
+	}
 
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
@@ -82,8 +83,8 @@ func TestSenderSingleDestination(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
 	auditor := &testAuditor{
-    	output: make(chan *message.Payload, 1),
-    }
+		output: make(chan *message.Payload, 1),
+	}
 
 	respondChan := make(chan int)
 
@@ -112,8 +113,8 @@ func TestSenderDualReliableDestination(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
 	auditor := &testAuditor{
-    	output: make(chan *message.Payload, 1),
-    }
+		output: make(chan *message.Payload, 1),
+	}
 
 	respondChan1 := make(chan int)
 	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1, cfg)
@@ -149,8 +150,8 @@ func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
 	auditor := &testAuditor{
-    	output: make(chan *message.Payload, 1),
-    }
+		output: make(chan *message.Payload, 1),
+	}
 
 	respondChan1 := make(chan int)
 	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1, cfg)
@@ -183,8 +184,8 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
 	auditor := &testAuditor{
-    	output: make(chan *message.Payload, 1),
-    }
+		output: make(chan *message.Payload, 1),
+	}
 
 	reliableRespond := make(chan int)
 	reliableServer := http.NewTestServerWithOptions(200, 0, true, reliableRespond, cfg)
@@ -234,8 +235,8 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
 	auditor := &testAuditor{
-    	output: make(chan *message.Payload, 1),
-    }
+		output: make(chan *message.Payload, 1),
+	}
 
 	reliableRespond1 := make(chan int)
 	reliableServer1 := http.NewTestServerWithOptions(200, 0, true, reliableRespond1, cfg)
@@ -282,8 +283,8 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
 	auditor := &testAuditor{
-    	output: make(chan *message.Payload, 1),
-    }
+		output: make(chan *message.Payload, 1),
+	}
 
 	reliableRespond1 := make(chan int)
 	reliableServer1 := http.NewTestServerWithOptions(200, 0, true, reliableRespond1, cfg)
