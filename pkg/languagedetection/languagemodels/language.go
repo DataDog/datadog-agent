@@ -34,8 +34,18 @@ const (
 	Unknown LanguageName = ""
 )
 
+// IsUnknown returns true if the language is unknown.
+func (l LanguageName) IsUnknown() bool {
+	return l == Unknown
+}
+
 // Language contains metadata collected from the call to `DetectLanguage`
 type Language struct {
 	Name    LanguageName
 	Version string
+}
+
+// IsUnknown returns true if the language is unknown.
+func (l Language) IsUnknown() bool {
+	return l.Name.IsUnknown()
 }

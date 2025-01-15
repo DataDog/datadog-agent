@@ -126,7 +126,7 @@ func DetectLanguage(procs []languagemodels.Process, sysprobeConfig model.Reader)
 				continue
 			}
 
-			if lang.Name != languagemodels.Unknown {
+			if !lang.IsUnknown() {
 				langs[i] = &lang
 				break
 			}
@@ -138,12 +138,13 @@ func DetectLanguage(procs []languagemodels.Process, sysprobeConfig model.Reader)
 
 		exe := getExe(proc.GetCmdline())
 		languageName := languageNameFromCommand(exe)
-		if languageName == languagemodels.Unknown {
+		if languageName.IsUnknown() {
 			languageName = languageNameFromCommand(proc.GetCommand())
 		}
+
 		lang := &languagemodels.Language{Name: languageName}
 		langs[i] = lang
-		if lang.Name == languagemodels.Unknown {
+		if lang.IsUnknown() {
 			unknownPids = append(unknownPids, proc.GetPid())
 			langsToModify[proc.GetPid()] = lang
 		}
@@ -167,6 +168,7 @@ func DetectLanguage(procs []languagemodels.Process, sysprobeConfig model.Reader)
 			*langsToModify[pid] = privilegedLangs[i]
 		}
 	}
+
 	return langs
 }
 
@@ -210,6 +212,7 @@ func detectLanguage(client *http.Client, pids []int32) ([]languagemodels.Languag
 			Version: lang.Version,
 		}
 	}
+
 	return langs, nil
 }
 
