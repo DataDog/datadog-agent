@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
 
@@ -98,11 +99,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 		log.Warnf("could not register process-agent to system-probe: %s", err)
 	}
 
-	networkID, err := retryGetNetworkID(c.sysprobeClient)
-	if err != nil {
-		log.Infof("no network ID detected: %s", err)
-	}
-	c.networkID = networkID
+	go c.retrySetNetworkID(c.sysprobeClient)
 	c.processData = NewProcessData(c.config)
 	c.dockerFilter = parser.NewDockerProxy()
 	serviceExtractorEnabled := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.enabled")
@@ -540,4 +537,44 @@ func retryGetNetworkID(sysProbeClient *http.Client) (string, error) {
 		}
 	}
 	return networkID, err
+}
+
+// fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
+func (c *ConnectionsCheck) retrySetNetworkID(sysProbeUtil *http.Client) {
+	var networkID string
+	var err error
+
+	r := retry.Retrier{}
+	setupErr := r.SetupRetrier(&retry.Config{
+		Name:       "get-network-id",
+		Strategy:   retry.RetryCount,
+		RetryCount: 10, // match the remote system-probe client retrier config
+		RetryDelay: 30 * time.Second,
+		AttemptMethod: func() error {
+			networkID, err = cloudproviders.GetNetworkID(context.TODO())
+			if err != nil {
+				// If we failed to get locally, try via sysProbeUtil if it's available
+				if sysProbeUtil == nil {
+					return fmt.Errorf("sysProbeUtil is not ready yet: %w", err)
+				}
+				log.Infof("no network ID detected via cloudproviders: %s, retrying via system-probe", err)
+				networkID, err = net.GetNetworkID(sysProbeUtil)
+				if err != nil {
+					log.Infof("failed to get network ID from system-probe: %s", err)
+					return err // Let the retrier know this attempt failed
+				}
+			}
+			// If we got here, we succeeded and can stop retrying
+			return nil
+		},
+	})
+	if setupErr != nil {
+		log.Warnf("failed set up network ID retrier: %s", setupErr)
+	}
+	if err := r.TriggerRetry(); err != nil {
+		log.Warnf("failed to get network ID: %s", err)
+		return
+	}
+
+	c.networkID = networkID
 }
