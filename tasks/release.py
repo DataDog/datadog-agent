@@ -13,12 +13,9 @@ import sys
 import tempfile
 import time
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date
 from time import sleep
 
-from datadog_api_client import ApiClient, Configuration
-from datadog_api_client.v2.api.ci_visibility_pipelines_api import CIVisibilityPipelinesApi
-from dateutil.relativedelta import relativedelta
 from gitlab import GitlabError
 from invoke import task
 from invoke.exceptions import Exit
@@ -29,6 +26,7 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
     GITHUB_REPO_NAME,
 )
+from tasks.libs.common.datadog_api import get_ci_visibility
 from tasks.libs.common.git import (
     check_base_branch,
     check_clean_branch_state,
@@ -1297,20 +1295,14 @@ def check_previous_agent6_rc(ctx):
         err_msg += "AGENT 6 ERROR: The following Agent 6 release candidate PRs already exist. Please address these PRs before creating a new release candidate"
         err_msg += agent6_prs
 
-    configuration = Configuration()
-    with ApiClient(configuration) as api_client:
-        api_instance = CIVisibilityPipelinesApi(api_client)
-        response = api_instance.list_ci_app_pipeline_events(
-            filter_query='@ci.pipeline.name:"DataDog/datadog-agent" @git.tag:6.53.* -@ci.pipeline.downstream:true',
-            filter_from=(datetime.now() + relativedelta(days=-7)),
-            filter_to=datetime.now(),
-            page_limit=5,
-        )
-        if not response.data:
-            err_msg += "\nAGENT 6 ERROR: No Agent 6 build pipelines have run in the past week. Please trigger a build pipeline for the next agent 6 release candidate."
+    response = get_ci_visibility(
+        '@ci.pipeline.name:"DataDog/datadog-agent" @git.tag:6.53.* -@ci.pipeline.downstream:true'
+    )
+    if not response.data:
+        err_msg += "\nAGENT 6 ERROR: No Agent 6 build pipelines have run in the past week. Please trigger a build pipeline for the next agent 6 release candidate."
 
     if err_msg:
         print(err_msg)
         # send slack message to #agent-ci-on-call channel
-        send_slack_msg(ctx, "C0701E5KYSX", err_msg)
+        send_slack_msg(ctx, "C085P12CTFX", err_msg)
         sys.exit(1)
