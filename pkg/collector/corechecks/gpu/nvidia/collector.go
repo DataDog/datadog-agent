@@ -120,7 +120,7 @@ func getTagsFromDevice(dev nvml.Device, tagger tagger.Component) ([]string, erro
 	entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
 	tags, err := tagger.Tag(entityID, tagger.ChecksCardinality())
 	if err != nil {
-		log.Errorf("Error collecting GPU tags for GPU UUID %s: %s", uuid, err)
+		log.Warnf("Error collecting GPU tags for GPU UUID %s: %s", uuid, err)
 	}
 
 	return tags, nil
