@@ -31,6 +31,7 @@ import (
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/deprecatedresources"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -85,6 +86,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 		// Future validating webhooks can be added here.
 		validatingWebhooks = []types.Webhook{
 			kubernetesadmissionevents.NewWebhook(datadogConfig, demultiplexer, c.config.supportsMatchConditions()),
+			deprecatedresources.NewWebhook(datadogConfig, demultiplexer, c.config.supportsMatchConditions()),
 		}
 		webhooks = append(webhooks, validatingWebhooks...)
 	}
