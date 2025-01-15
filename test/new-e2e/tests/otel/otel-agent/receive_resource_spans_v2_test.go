@@ -21,7 +21,6 @@ type otelAgentSpanReceiverV2TestSuite struct {
 }
 
 func TestOTelAgentSpanReceiverV2(t *testing.T) {
-	t.Skip("Skipping broken test: incident-33599") // incident-33599
 	values := `
 datadog:
   logs:

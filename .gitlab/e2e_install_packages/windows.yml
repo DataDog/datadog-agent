@@ -35,6 +35,7 @@
       - E2E_MSI_TEST: TestInstall
       - E2E_MSI_TEST: TestRepair
       - E2E_MSI_TEST: TestUpgrade
+      - E2E_MSI_TEST: TestUpgradeFromLatest
       - E2E_MSI_TEST: TestUpgradeRollback
       - E2E_MSI_TEST: TestUpgradeRollbackWithoutCWS
       - E2E_MSI_TEST: TestUpgradeChangeUser
@@ -113,7 +114,13 @@ new-e2e-windows-agent-a7-x86_64-fips:
     - .new-e2e_agent_a7
   needs:
     - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
     - deploy_windows_testing-a7-fips
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestFIPSAgent$"
+      - EXTRA_PARAMS: --run "TestFIPSAgentDoesNotInstallOverAgent$"
+      - EXTRA_PARAMS: --run "TestAgentDoesNotInstallOverFIPSAgent$"
   rules:
     - !reference [.on_deploy]
     - !reference [.on_e2e_or_windows_installer_changes]

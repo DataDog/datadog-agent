@@ -18,9 +18,11 @@ import (
 
 // to always require the math package
 var _ = math.MaxUint16
+var _ = net.IP{}
 
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
+		eval.EventType("accept"),
 		eval.EventType("bind"),
 		eval.EventType("bpf"),
 		eval.EventType("capset"),
@@ -83,6 +85,56 @@ func (m *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 }
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
+	case "accept.addr.family":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Accept.AddrFamily)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "accept.addr.ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Accept.Addr.IPNet
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "accept.addr.is_public":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Accept.Addr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "accept.addr.port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Accept.Addr.Port)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "accept.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Accept.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "bind.addr.family":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -21029,6 +21081,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 }
 func (ev *Event) GetFields() []eval.Field {
 	return []eval.Field{
+		"accept.addr.family",
+		"accept.addr.ip",
+		"accept.addr.is_public",
+		"accept.addr.port",
+		"accept.retval",
 		"bind.addr.family",
 		"bind.addr.ip",
 		"bind.addr.is_public",
@@ -22458,6 +22515,16 @@ func (ev *Event) GetFields() []eval.Field {
 }
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
+	case "accept.addr.family":
+		return int(ev.Accept.AddrFamily), nil
+	case "accept.addr.ip":
+		return ev.Accept.Addr.IPNet, nil
+	case "accept.addr.is_public":
+		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Accept.Addr), nil
+	case "accept.addr.port":
+		return int(ev.Accept.Addr.Port), nil
+	case "accept.retval":
+		return int(ev.Accept.SyscallEvent.Retval), nil
 	case "bind.addr.family":
 		return int(ev.Bind.AddrFamily), nil
 	case "bind.addr.ip":
@@ -29229,6 +29296,16 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 }
 func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, error) {
 	switch field {
+	case "accept.addr.family":
+		return "accept", reflect.Int, nil
+	case "accept.addr.ip":
+		return "accept", reflect.Struct, nil
+	case "accept.addr.is_public":
+		return "accept", reflect.Bool, nil
+	case "accept.addr.port":
+		return "accept", reflect.Int, nil
+	case "accept.retval":
+		return "accept", reflect.Int, nil
 	case "bind.addr.family":
 		return "bind", reflect.Int, nil
 	case "bind.addr.ip":
@@ -32084,6 +32161,47 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
+	case "accept.addr.family":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "accept.addr.family"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "accept.addr.family"}
+		}
+		ev.Accept.AddrFamily = uint16(rv)
+		return nil
+	case "accept.addr.ip":
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "accept.addr.ip"}
+		}
+		ev.Accept.Addr.IPNet = rv
+		return nil
+	case "accept.addr.is_public":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "accept.addr.is_public"}
+		}
+		ev.Accept.Addr.IsPublic = rv
+		return nil
+	case "accept.addr.port":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "accept.addr.port"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "accept.addr.port"}
+		}
+		ev.Accept.Addr.Port = uint16(rv)
+		return nil
+	case "accept.retval":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "accept.retval"}
+		}
+		ev.Accept.SyscallEvent.Retval = int64(rv)
+		return nil
 	case "bind.addr.family":
 		rv, ok := value.(int)
 		if !ok {

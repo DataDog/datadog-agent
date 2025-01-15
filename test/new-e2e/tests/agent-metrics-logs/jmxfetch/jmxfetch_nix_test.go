@@ -7,6 +7,7 @@ package jmxfetch
 
 import (
 	_ "embed"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -37,25 +38,38 @@ var jmxFetchADLabelsDockerComposeManifest = docker.ComposeInlineManifest{
 
 type jmxfetchNixTest struct {
 	e2e.BaseSuite[environments.DockerHost]
+
+	fips bool
 }
 
-func TestJMXFetchNix(t *testing.T) {
+func testJMXFetchNix(t *testing.T, fips bool) {
 	t.Parallel()
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(
 		awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(
 				dockeragentparams.WithLogs(),
 				dockeragentparams.WithJMX(),
+				choice(fips, dockeragentparams.WithFIPS(), none),
 				dockeragentparams.WithExtraComposeInlineManifest(
 					jmxfetch.DockerComposeManifest,
 					jmxFetchADLabelsDockerComposeManifest,
 				),
-			)))}
+			))),
+		e2e.WithStackName(fmt.Sprintf("jmxfetchnixtest-fips-%v", fips)),
+	}
 
 	e2e.Run(t,
-		&jmxfetchNixTest{},
+		&jmxfetchNixTest{fips: fips},
 		suiteParams...,
 	)
+}
+
+func TestJMXFetchNix(t *testing.T) {
+	testJMXFetchNix(t, false)
+}
+
+func TestJMXFetchNixFIPS(t *testing.T) {
+	testJMXFetchNix(t, true)
 }
 
 func (j *jmxfetchNixTest) Test_FakeIntakeReceivesJMXFetchMetrics() {
@@ -134,4 +148,23 @@ func (j *jmxfetchNixTest) TestJMXListCollectedWithRateMetrics() {
 			j.T().Log(line)
 		}
 	}
+}
+
+func (j *jmxfetchNixTest) TestJMXFIPSMode() {
+	env, err := j.Env().Docker.Client.ExecuteCommandWithErr(j.Env().Agent.ContainerName, "env")
+	require.NoError(j.T(), err)
+	if j.fips {
+		assert.Contains(j.T(), env, "JAVA_TOOL_OPTIONS=--module-path")
+	} else {
+		assert.Contains(j.T(), env, "JAVA_TOOL_OPTIONS=\n")
+	}
+}
+
+func none[T any](_ T) error { return nil }
+
+func choice[T any](cond bool, then, otherwise T) T {
+	if cond {
+		return then
+	}
+	return otherwise
 }

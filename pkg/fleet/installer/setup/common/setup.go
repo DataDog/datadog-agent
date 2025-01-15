@@ -126,6 +126,10 @@ func (s *Setup) Run() (err error) {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}
 	}
+	err = s.restartServices(packages)
+	if err != nil {
+		return fmt.Errorf("failed to restart services: %w", err)
+	}
 	s.Out.WriteString(fmt.Sprintf("Successfully ran the %s install script in %s!\n", s.flavor, time.Since(s.start).Round(time.Second)))
 	return nil
 }

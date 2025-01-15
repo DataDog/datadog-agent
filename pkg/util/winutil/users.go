@@ -43,25 +43,32 @@ func GetSidFromUser() (*windows.SID, error) {
 }
 
 // IsUserAnAdmin returns true is a user is a member of the Administrator's group
-// TODO: Microsoft does not recommend using this function, instead CheckTokenMembership should be used.
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/nf-shlobj_core-isuseranadmin
 //
 //revive:disable-next-line:var-naming Name is intended to match the Windows API name
 func IsUserAnAdmin() (bool, error) {
-	shell32 := windows.NewLazySystemDLL("Shell32.dll")
-	defer windows.FreeLibrary(windows.Handle(shell32.Handle()))
-
-	isUserAnAdminProc := shell32.NewProc("IsUserAnAdmin")
-	ret, _, winError := isUserAnAdminProc.Call()
-
-	if winError != windows.NTE_OP_OK {
-		return false, fmt.Errorf("IsUserAnAdmin returns error code %d", winError)
+	var administratorsGroup *windows.SID
+	err := windows.AllocateAndInitializeSid(&windows.SECURITY_NT_AUTHORITY,
+		2,
+		windows.SECURITY_BUILTIN_DOMAIN_RID,
+		windows.DOMAIN_ALIAS_RID_ADMINS,
+		0, 0, 0, 0, 0, 0,
+		&administratorsGroup)
+	if err != nil {
+		return false, fmt.Errorf("could not get local system SID: %w", err)
 	}
-	if ret == 0 {
-		return false, nil
+	defer windows.FreeSid(administratorsGroup)
+
+	// call CheckTokenMembership to determine if the current user is a member of the administrators group
+	var isAdmin bool
+	err = CheckTokenMembership(0, administratorsGroup, &isAdmin)
+	if err != nil {
+		return false, fmt.Errorf("could not check token membership: %w", err)
 	}
-	return true, nil
+
+	return isAdmin, nil
+
 }
 
 // GetLocalSystemSID returns the SID of the Local System account
