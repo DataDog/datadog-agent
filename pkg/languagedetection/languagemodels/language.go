@@ -9,13 +9,28 @@ package languagemodels
 type LanguageName string
 
 const (
-	Go      LanguageName = "go"
-	Node    LanguageName = "node"
-	Dotnet  LanguageName = "dotnet"
-	Python  LanguageName = "python"
-	Java    LanguageName = "java"
-	Ruby    LanguageName = "ruby"
-	PHP     LanguageName = "php"
+	// Go is the name of the go language.
+	Go LanguageName = "go"
+
+	// Node is the name of the node language.
+	Node LanguageName = "node"
+
+	// Dotnet is the name of the dotnet language.
+	Dotnet LanguageName = "dotnet"
+
+	// Python is the name of the python language.
+	Python LanguageName = "python"
+
+	// Java is the name of the java language.
+	Java LanguageName = "java"
+
+	// Ruby is the name of the ruby language.
+	Ruby LanguageName = "ruby"
+
+	// PHP is the name of the php language.
+	PHP LanguageName = "php"
+
+	// Unknown is when we don't have a language.
 	Unknown LanguageName = ""
 )
 

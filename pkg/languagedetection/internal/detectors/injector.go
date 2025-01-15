@@ -21,6 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// NewInjectorDetector is a language Detector that uses
+// data written by APM auto_inject to detect a language
+// for a process.
 func NewInjectorDetector() model.Detector {
 	return injectorDetector{}
 }
