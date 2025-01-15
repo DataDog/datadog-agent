@@ -87,7 +87,7 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
 	//	),
 	//)
 
-	composeFiles := strings.Split(v.Env().RemoteHost.MustExecute(`docker inspect --format='{{index (index .Config.Labels "com.docker.compose.project.config_files")}}' dd-fips-server`), ",")
+	composeFiles := strings.Split(v.Env().RemoteHost.MustExecute(`docker inspect --format='{{index (index .Config.Labels "com.docker.compose.project.config_files")}}' datadog-agent`), ",")
 	formattedComposeFiles := strings.Join(composeFiles, " -f ")
 
 	for _, tc := range testcases {
@@ -123,7 +123,7 @@ func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
 	// 	),
 	// )
 
-	composeFiles := strings.Split(v.Env().RemoteHost.MustExecute(`docker inspect --format='{{index (index .Config.Labels "com.docker.compose.project.config_files")}}' dd-fips-server`), ",")
+	composeFiles := strings.Split(v.Env().RemoteHost.MustExecute(`docker inspect --format='{{index (index .Config.Labels "com.docker.compose.project.config_files")}}' datadog-agent`), ",")
 	formattedComposeFiles := strings.Join(composeFiles, " -f ")
 
 	runFipsServer(v, cipherTestCase{cert: "rsa", tlsMax: "1.1"}, formattedComposeFiles)
