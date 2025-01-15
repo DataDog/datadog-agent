@@ -9,6 +9,7 @@ package module
 import (
 	"fmt"
 
+	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -72,7 +73,7 @@ func (ds *DirectMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.Secur
 }
 
 // NewDirectMsgSender returns a new direct sender
-func NewDirectMsgSender(stopper startstop.Stopper) (*DirectMsgSender, error) {
+func NewDirectMsgSender(stopper startstop.Stopper, compression compression.Component) (*DirectMsgSender, error) {
 	useSecRuntimeTrack := pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.use_secruntime_track")
 
 	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
@@ -86,7 +87,7 @@ func NewDirectMsgSender(stopper startstop.Stopper) (*DirectMsgSender, error) {
 
 	// we set the hostname to the empty string to take advantage of the out of the box message hostname
 	// resolution
-	reporter, err := reporter.NewCWSReporter("", stopper, endpoints, destinationsCtx)
+	reporter, err := reporter.NewCWSReporter("", stopper, endpoints, destinationsCtx, compression)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
 	}

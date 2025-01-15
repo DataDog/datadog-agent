@@ -31,6 +31,7 @@ import (
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -82,6 +83,7 @@ type dependencies struct {
 	WMeta              option.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
+	Compression        logscompression.Component
 }
 
 type provides struct {
@@ -119,6 +121,7 @@ type logAgent struct {
 	wmeta                     option.Option[workloadmeta.Component]
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
+	compression               logscompression.Component
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -150,6 +153,7 @@ func newLogsAgent(deps dependencies) provides {
 			schedulerProviders: deps.SchedulerProviders,
 			integrationsLogs:   integrationsLogs,
 			tagger:             deps.Tagger,
+			compression:        deps.Compression,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,

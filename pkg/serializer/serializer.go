@@ -21,7 +21,6 @@ import (
 	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -31,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -107,7 +107,7 @@ type Serializer struct {
 	orchestratorForwarder orchestratorForwarder.Component
 	config                config.Component
 
-	Strategy                            compression.Component
+	Strategy                            compression.Compressor
 	seriesJSONPayloadBuilder            *stream.JSONPayloadBuilder
 	jsonExtraHeaders                    http.Header
 	protobufExtraHeaders                http.Header
@@ -133,7 +133,7 @@ type Serializer struct {
 }
 
 // NewSerializer returns a new Serializer initialized
-func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, compressor compression.Component, config config.Component, hostName string) *Serializer {
+func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, compressor compression.Compressor, config config.Component, hostName string) *Serializer {
 
 	streamAvailable := compressor.NewStreamCompressor(&bytes.Buffer{}) != nil
 
