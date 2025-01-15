@@ -77,20 +77,21 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return result
 					}
 
-					var results []{{$Field.ReturnType}}
 
 					iterator := &{{$Field.Iterator.ReturnType}}{}
 
 					if regID != "" {
+						{{if $Field.Iterator.IsOrigTypePtr}}
+						element := iterator.At(ctx, regID, ctx.Registers[regID])
+						if element == nil {
+							return nil
+						}
+						{{else}}
 						value := iterator.At(ctx, regID, ctx.Registers[regID])
 						if value == nil {
-							return results
+							return nil
 						}
-
-						{{if $Field.Iterator.IsOrigTypePtr}}
-							element := value
-						{{else}}
-							element := *value
+						element := *value
 						{{end}}
 
 						{{range $Check := $Checks}}
@@ -98,7 +99,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
 								{{$Check = $SubName | printf "element%s"}}
 								if !{{$Check}}() {
-									return append(results, {{$Field.GetDefaultScalarReturnValue}})
+									return []{{$Field.ReturnType}}{ {{$Field.GetDefaultScalarReturnValue}} }
 								}
 							{{end}}
 						{{end}}
@@ -123,12 +124,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						{{end}}
 
 						{{if not $Field.GetArrayPrefix}}
-						results = append(results, result)
+						return []{{$Field.ReturnType}}{result}
 						{{else}}
-						results = append(results, result...)
+						return result
 						{{end}}
-
-						return results
 					}
 
 					{{$Event := "nil"}}
@@ -139,7 +138,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					{{if $Field.GetArrayPrefix}}
 						{{$AncestorFunc = "newAncestorsIteratorArray"}}
 					{{end}}
-					results = {{$AncestorFunc}}(iterator, ctx, {{$Event}}, func(ev *Event, pce *ProcessCacheEntry) {{$Field.GetArrayPrefix}}{{$Field.ReturnType}} {
+					results := {{$AncestorFunc}}(iterator, ctx, {{$Event}}, func(ev *Event, pce *ProcessCacheEntry) {{$Field.GetArrayPrefix}}{{$Field.ReturnType}} {
 						{{range $Check := $Checks}}
 							{{if $Field.Iterator.Name | HasPrefix $Check}}
 								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
@@ -180,12 +179,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				},
 			{{- else}}
 				{{- $ReturnType := $Field.ReturnType}}
-				EvalFnc: func(ctx *eval.Context) {{$Field.GetArrayPrefix}}{{$ReturnType}} {
-					ctx.AppendResolvedField(field)
-					{{- if not (and $Field.IsLength $Field.IsIterator)}}
-						ev := ctx.Event.(*Event)
-					{{end}}
-
+				EvalFnc: simpleCombine(field, func(ctx *eval.Context, ev *Event) {{$Field.GetArrayPrefix}}{{$ReturnType}} {
 					{{$Return := $Field.Name | printf "ev.%s"}}
 
 					{{$Checks := $Field | GetChecks $.AllFields}}
@@ -236,7 +230,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					{{- else}}
 						return {{$Return}}
 					{{end -}}
-				},
+				}),
 			{{end -}}
 			Field: field,
 			{{- if $Field.Iterator}}
