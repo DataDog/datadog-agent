@@ -26,7 +26,7 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
     GITHUB_REPO_NAME,
 )
-from tasks.libs.common.datadog_api import get_ci_visibility
+from tasks.libs.common.datadog_api import get_ci_pipeline_events
 from tasks.libs.common.git import (
     check_base_branch,
     check_clean_branch_state,
@@ -1295,8 +1295,9 @@ def check_previous_agent6_rc(ctx):
         err_msg += "AGENT 6 ERROR: The following Agent 6 release candidate PRs already exist. Please address these PRs before creating a new release candidate"
         err_msg += agent6_prs
 
-    response = get_ci_visibility(
-        '@ci.pipeline.name:"DataDog/datadog-agent" @git.tag:6.53.* -@ci.pipeline.downstream:true'
+    response = get_ci_pipeline_events(
+        'ci_level:pipeline @ci.pipeline.name:"DataDog/datadog-agent" @git.tag:6.53.* -@ci.pipeline.downstream:true',
+        7,
     )
     if not response.data:
         err_msg += "\nAGENT 6 ERROR: No Agent 6 build pipelines have run in the past week. Please trigger a build pipeline for the next agent 6 release candidate."
@@ -1304,5 +1305,5 @@ def check_previous_agent6_rc(ctx):
     if err_msg:
         print(err_msg)
         # send slack message to #agent-ci-on-call channel
-        send_slack_msg(ctx, "C085P12CTFX", err_msg)
+        send_slack_msg(ctx, "C0701E5KYSX", err_msg)
         sys.exit(1)
