@@ -11,7 +11,7 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   AGENT6_RELEASE_BRANCH: '6.53.x'
   # IS_AGENT6_RELEASE: ${{ github.event.schedule == '0 9 * * 1' }}
-  IS_AGENT6_RELEASE: 'true'
+  IS_AGENT6_RELEASE: 'false'
 permissions: {}
 
 jobs:
