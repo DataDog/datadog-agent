@@ -35,16 +35,6 @@ type Provides struct {
 	Endpoint api.AgentEndpointProvider
 }
 
-// datadogConfig contains the configuration specific to Dogstatsd.
-type datadogConfig struct {
-	// dogstatsdEntityIDPrecedenceEnabled disable enriching Dogstatsd metrics with tags from "origin detection" when Entity-ID is set.
-	dogstatsdEntityIDPrecedenceEnabled bool
-	// dogstatsdOptOutEnabled If enabled, and cardinality is none no origin detection is performed.
-	dogstatsdOptOutEnabled bool
-	// originDetectionUnifiedEnabled If enabled, all origin detection mechanisms will be unified to use the same logic.
-	originDetectionUnifiedEnabled bool
-}
-
 // NewComponent returns a new owner detection client
 func NewComponent(req Requires) (Provides, error) {
 
@@ -72,20 +62,19 @@ func NewComponent(req Requires) (Provides, error) {
 // NewOwnerDetectionClient returns a new owner detection client
 func NewOwnerDetectionClient(cfg config.Component, wmeta workloadmeta.Component, log log.Component, telemetryComp coretelemetry.Component) (ownerdetection.Component, error) {
 	return &OwnerDetectionClient{
-		wmeta:         wmeta,
-		datadogConfig: datadogConfig{},
-		log:           log,
+		wmeta: wmeta,
+		log:   log,
 	}, nil
 }
 
 type OwnerDetectionClient struct {
-	wmeta         workloadmeta.Component
-	datadogConfig datadogConfig
-	log           log.Component
+	wmeta workloadmeta.Component
+	log   log.Component
 }
 
 // Start calls defaultTagger.Start
 func (odc *OwnerDetectionClient) Start(ctx context.Context) error {
+	odc.log.Info("OwnerDetectionClient is started")
 	return errors.New("Not implemented")
 }
 
