@@ -21,5 +21,5 @@ func TestCgoAlignment[K any](t *testing.T) {
 	rdr := bytes.NewReader(make([]byte, unsafe.Sizeof(x)))
 	err := binary.Read(rdr, binary.NativeEndian, &x)
 	require.NoError(t, err)
-	require.Zero(t, rdr.Len(), "type %%T has holes or size does match between C and Go. Check 'pahole -C <c_type_name> <ebpf_object_file.o>' for layout", x)
+	require.Zero(t, rdr.Len(), "type %T has holes or size does match between C and Go. Check 'pahole -C <c_type_name> <ebpf_object_file.o>' for layout", x)
 }
