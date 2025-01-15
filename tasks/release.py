@@ -1291,7 +1291,7 @@ def check_previous_agent6_rc(ctx):
     github = GithubAPI()
     prs = github.get_pr_for_branch(None, "6.53.x")
     for pr in prs:
-        if "Update release.json and Go modules for 6.53" in pr.title:
+        if "Update release.json and Go modules for 6.53" in pr.title and not pr.draft:
             agent6_prs += f"\n- {pr.title}: https://github.com/DataDog/datadog-agent/pull/{pr.number}"
     if agent6_prs:
         err_msg += "AGENT 6 ERROR: The following Agent 6 release candidate PRs already exist. Please address these PRs before creating a new release candidate"
