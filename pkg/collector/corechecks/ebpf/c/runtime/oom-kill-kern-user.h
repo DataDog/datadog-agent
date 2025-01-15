@@ -25,7 +25,7 @@ struct oom_stats {
     // OOM score adjustment of killed process
     __s16 score_adj;
 
-    // 2 bytes of padding to force cgroup_name to be 8 byte aligned. Fixes verifier for misaligned stack access.
+    // 2 bytes of padding to force cgroup_name to be 8 byte aligned for bpf_memset
     __s16 pad;
 
     char cgroup_name[129];
