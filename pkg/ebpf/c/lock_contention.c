@@ -2,6 +2,7 @@
 #include "lock_contention.h"
 #include "bpf_metadata.h"
 #include "bpf_helpers.h"
+#include "bpf_builtins.h"
 #include "bpf_tracing.h"
 #include "bpf_core_read.h"
 #include "bpf_builtins.h"
@@ -245,7 +246,7 @@ static __always_inline int record_ringbuf_locks(u32 fd, struct bpf_map *bm, u32 
         return err;
 
 
-    struct lock_range lr_rb_spinlock = {
+    struct lock_range lr_rb_spinlock __align_stack_8 = {
         .addr_start = (u64)&rb->spinlock,
         .range = sizeof(spinlock_t),
         .type = RINGBUF_SPINLOCK,
