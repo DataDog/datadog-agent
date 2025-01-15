@@ -414,6 +414,73 @@ func TestServiceName(t *testing.T) {
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
+func TestServiceLifetime(t *testing.T) {
+	url, mockContainerProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+
+	startService := func() (*exec.Cmd, context.CancelFunc) {
+		listener, err := net.Listen("tcp", "")
+		require.NoError(t, err)
+		f, err := listener.(*net.TCPListener).File()
+		listener.Close()
+
+		// Disable close-on-exec so that the sleep gets it
+		require.NoError(t, err)
+		t.Cleanup(func() { f.Close() })
+		disableCloseOnExec(t, f)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(func() { cancel() })
+
+		cmd := exec.CommandContext(ctx, "sleep", "1000")
+		cmd.Dir = "/tmp/"
+		cmd.Env = append(cmd.Env, "DD_SERVICE=foo_bar")
+		err = cmd.Start()
+		require.NoError(t, err)
+		f.Close()
+
+		return cmd, cancel
+	}
+
+	checkService := func(t assert.TestingT, service *model.Service) {
+		// Non-ASCII character removed due to normalization.
+		assert.Equal(t, "foo_bar", service.DDService)
+		assert.Equal(t, service.DDService, service.Name)
+		assert.Equal(t, "sleep", service.GeneratedName)
+		assert.Equal(t, string(usm.CommandLine), service.GeneratedNameSource)
+		assert.False(t, service.DDServiceInjected)
+		assert.Equal(t, service.ContainerID, "")
+		assert.Equal(t, service.LastHeartbeat, mockedTime.Unix())
+	}
+
+	stopService := func(cmd *exec.Cmd, cancel context.CancelFunc) {
+		cancel()
+		_ = cmd.Wait()
+	}
+
+	t.Run("stop", func(t *testing.T) {
+		// Start the service and check we found it.
+		cmd, cancel := startService()
+		pid := cmd.Process.Pid
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			resp := getServices(collect, url)
+			startEvent := findService(pid, resp.StartedServices)
+			require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
+			checkService(collect, startEvent)
+		}, 30*time.Second, 100*time.Millisecond)
+
+		// Stop the service, and look for the stop event.
+		stopService(cmd, cancel)
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			resp := getServices(collect, url)
+			stopEvent := findService(pid, resp.StoppedServices)
+			t.Logf("stopped service: %+v", resp.StoppedServices)
+			require.NotNilf(collect, stopEvent, "could not find stop event for pid %v", pid)
+			checkService(collect, stopEvent)
+		}, 30*time.Second, 100*time.Millisecond)
+	})
+}
+
 func TestInjectedServiceName(t *testing.T) {
 	url, mockContainerProvider := setupDiscoveryModule(t)
 	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()

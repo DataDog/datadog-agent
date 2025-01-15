@@ -117,6 +117,10 @@ func (s pidSet) add(pid int32) {
 	s[pid] = struct{}{}
 }
 
+func (s pidSet) remove(pid int32) {
+	delete(s, pid)
+}
+
 // discovery is an implementation of the Module interface for the discovery module.
 type discovery struct {
 	config *discoveryConfig
@@ -499,7 +503,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 const maxNumberOfPorts = 50
 
 // getService gets information for a single service.
-func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
+func (s *discovery) getService(context parsingContext, pid int32, now int64) *model.Service {
 	if s.shouldIgnorePid(pid) {
 		return nil
 	}
@@ -593,6 +597,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	s.mux.Lock()
 	info.ports = ports
 	info.rss = rss
+	info.lastHeartbeat = now
 	s.mux.Unlock()
 
 	service := &model.Service{}
@@ -744,6 +749,29 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	s.mux.Unlock()
 }
 
+func (s *discovery) handleStoppedServices(response *model.ServicesResponse, alivePids pidSet) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	for pid := range s.runningServices {
+		if alivePids.has(pid) {
+			continue
+		}
+
+		s.runningServices.remove(pid)
+		info, ok := s.cache[pid]
+		if !ok {
+			log.Warnf("could not get service from the cache to generate a stopped service event for PID %v", pid)
+			continue
+		}
+		delete(s.cache, pid)
+
+		// Build service struct in place in the slice
+		response.StoppedServices = append(response.StoppedServices, model.Service{})
+		info.toModelService(pid, &response.StoppedServices[len(response.StoppedServices)-1])
+	}
+}
+
 // getStatus returns the list of currently running services.
 func (s *discovery) getServices() (*model.ServicesResponse, error) {
 	procRoot := kernel.ProcFSRoot()
@@ -782,11 +810,10 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 	for _, pid := range pids {
 		alivePids.add(pid)
 
-		service := s.getService(context, pid)
+		service := s.getService(context, pid, now)
 		if service == nil {
 			continue
 		}
-		service.LastHeartbeat = now
 		s.enrichContainerData(service, containersMap, pidToCid)
 
 		if _, ok := s.runningServices[pid]; ok {
@@ -809,8 +836,9 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 		log.Debugf("[pid: %d] adding process to potential: %s", pid, service.Name)
 	}
 
+	s.handleStoppedServices(response, alivePids)
 	s.cleanCache(alivePids)
-	s.cleanPidSets(alivePids, s.ignorePids, s.runningServices, s.potentialServices)
+	s.cleanPidSets(alivePids, s.ignorePids, s.potentialServices)
 
 	if err = s.updateServicesCPUStats(response.StartedServices); err != nil {
 		log.Warnf("updating services CPU stats: %s", err)
