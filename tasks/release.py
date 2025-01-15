@@ -84,6 +84,7 @@ GITLAB_FILES_TO_UPDATE = [
 ]
 
 BACKPORT_LABEL_COLOR = "5319e7"
+TAG_BATCH_SIZE = 3
 
 
 @task
@@ -200,7 +201,9 @@ def tag_modules(
 
         if push:
             tags_list = ' '.join(tags)
-            ctx.run(f"git push origin {tags_list}{force_option}")
+            for idx in range(0, len(tags), TAG_BATCH_SIZE):
+                batch_tags = tags[idx : idx + TAG_BATCH_SIZE]
+                ctx.run(f"git push origin {' '.join(batch_tags)}{force_option}")
             print(f"Pushed tag {tags_list}")
         print(f"Created module tags for version {agent_version}")
 
