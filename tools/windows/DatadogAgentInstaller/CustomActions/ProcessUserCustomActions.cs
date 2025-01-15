@@ -277,7 +277,7 @@ namespace Datadog.CustomActions
         /// <summary>
         /// Throws an exception if the password is required but not provided.
         /// </summary>
-        private void TestIfPasswordIsRequiredAndProvidedForExistingAccount(string ddAgentUserName, string ddAgentUserPassword, bool isDomainController,
+        private void TestIfPasswordIsRequiredAndProvidedForExistingAccount(string ddAgentUserName, string ddAgentUserPassword,
             bool isServiceAccount, bool isDomainAccount, bool datadogAgentServiceExists)
         {
             var passwordProvided = !string.IsNullOrEmpty(ddAgentUserPassword);
@@ -298,7 +298,7 @@ namespace Datadog.CustomActions
             // Only look for $ at the end of the account name if it's a domain account, because
             // normal account names can end with $. In the case of a domain account that ends
             // in $ that is NOT intended to be a gMSA account, the user must provide a password.
-            if (isDomainController || isDomainAccount)
+            if (_isDomainController || isDomainAccount)
             {
                 if (ddAgentUserName.EndsWith("$") && !isServiceAccount)
                 {
@@ -307,7 +307,7 @@ namespace Datadog.CustomActions
                 }
             }
 
-            if (isDomainController)
+            if (_isDomainController)
             {
                 // We choose not to create/manage the account/password on domain controllers because
                 // the account can be replicated/used across the domain/forest.
@@ -442,7 +442,7 @@ namespace Datadog.CustomActions
                         $"\"{domain}\\{userName}\" ({securityIdentifier.Value}, {nameUse}) is a {(isDomainAccount ? "domain" : "local")} {(isServiceAccount ? "service " : string.Empty)}account");
 
                     TestAgentUserIsNotCurrentUser(securityIdentifier, isServiceAccount);
-                    TestIfPasswordIsRequiredAndProvidedForExistingAccount(userName, ddAgentUserPassword, _isDomainController, isServiceAccount, isDomainAccount, datadogAgentServiceExists);
+                    TestIfPasswordIsRequiredAndProvidedForExistingAccount(userName, ddAgentUserPassword, isServiceAccount, isDomainAccount, datadogAgentServiceExists);
                 }
                 else
                 {
