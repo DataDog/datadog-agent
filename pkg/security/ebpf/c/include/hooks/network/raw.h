@@ -26,13 +26,6 @@ int classifier_raw_packet_sender(struct __sk_buff *skb) {
     // process context
     fill_network_process_context(&evt->process, pkt);
 
-    struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
-    if (entry == NULL) {
-        evt->container.container_id[0] = 0;
-    } else {
-        copy_container_id_no_tracing(entry->container.container_id, &evt->container.container_id);
-    }
-
     fill_network_device_context(&evt->device, skb, pkt);
 
     u32 len = evt->len;
