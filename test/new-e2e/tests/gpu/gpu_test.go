@@ -158,3 +158,12 @@ func (v *gpuSuite) TestNvmlMetricsPresent() {
 		}
 	}, 5*time.Minute, 10*time.Second)
 }
+
+func (v *gpuSuite) TestWorkloadmetaHasGPUs() {
+	out, err := v.Env().RemoteHost.Execute("agent workload-list")
+	v.Require().NoError(err)
+	v.Contains(out, "=== Entity gpu sources(merged):[runtime] id: ")
+	if v.T().Failed() {
+		v.T().Log(out)
+	}
+}
