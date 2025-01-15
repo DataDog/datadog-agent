@@ -280,6 +280,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
 	cfg.BindEnv(join(smNS, "enable_ring_buffers"))
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_event_stream"), true)
+	cfg.BindEnv(join(smNS, "kernel_buffer_pages"))
+	cfg.BindEnv(join(smNS, "data_channel_size"))
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")
@@ -369,7 +371,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "custom_sensitive_words"), []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "erpc_dentry_resolution_enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "map_dentry_resolution_enabled"), true)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "dentry_cache_size"), 1024)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "dentry_cache_size"), 8000)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_monitor.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.lazy_interface_prefixes"), []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.classifier_priority"), 10)

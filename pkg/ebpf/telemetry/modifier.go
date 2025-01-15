@@ -9,24 +9,31 @@ package telemetry
 
 import (
 	"fmt"
+	"hash"
 	"slices"
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	// MapErrTelemetryMap is the map storing the map error telemetry
-	mapErrTelemetryMapName string = "map_err_telemetry_map"
-	// HelperErrTelemetryMap is the map storing the helper error telemetry
-	helperErrTelemetryMapName string = "helper_err_telemetry_map"
+	// MapErrTelemetryMapName is the map storing the map error telemetry
+	MapErrTelemetryMapName string = "map_err_telemetry_map"
+	// HelperErrTelemetryMapName is the map storing the helper error telemetry
+	HelperErrTelemetryMapName string = "helper_err_telemetry_map"
 )
 
 // ErrorsTelemetryModifier is a modifier that sets up the manager to handle eBPF telemetry.
 type ErrorsTelemetryModifier struct{}
+
+// Ensure it implements the required interfaces
+var _ ddebpf.ModifierBeforeInit = &ErrorsTelemetryModifier{}
+var _ ddebpf.ModifierAfterInit = &ErrorsTelemetryModifier{}
+var _ ddebpf.ModifierBeforeStop = &ErrorsTelemetryModifier{}
 
 // String returns the name of the modifier.
 func (t *ErrorsTelemetryModifier) String() string {
@@ -53,11 +60,21 @@ func getMapNames(m *manager.Manager) ([]names.MapName, error) {
 	return mapNames, nil
 }
 
+// MapTelemetryKeyName builds the name of the parameterized constant used in bpf code
+func MapTelemetryKeyName(mapName names.MapName) string {
+	return mapName.Name() + "_telemetry_key"
+}
+
+// MapTelemetryErrorKey returns the key for map errors
+func MapTelemetryErrorKey(h hash.Hash64, mapName names.MapName, module names.ModuleName) uint64 {
+	return eBPFMapErrorKey(h, mapTelemetryKey(mapName, module))
+}
+
 // BeforeInit sets up the manager to handle eBPF telemetry.
 // It will patch the instructions of all the manager probes and `undefinedProbes` provided.
 // Constants are replaced for map error and helper error keys with their respective values.
 func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, module names.ModuleName, opts *manager.Options) error {
-	activateBPFTelemetry, err := ebpfTelemetrySupported()
+	activateBPFTelemetry, err := EBPFTelemetrySupported()
 	if err != nil {
 		return err
 	}
@@ -66,20 +83,20 @@ func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, module names.Mo
 	}
 
 	// add telemetry maps to list of maps, if not present
-	if !slices.ContainsFunc(m.Maps, func(x *manager.Map) bool { return x.Name == mapErrTelemetryMapName }) {
-		m.Maps = append(m.Maps, &manager.Map{Name: mapErrTelemetryMapName})
+	if !slices.ContainsFunc(m.Maps, func(x *manager.Map) bool { return x.Name == MapErrTelemetryMapName }) {
+		m.Maps = append(m.Maps, &manager.Map{Name: MapErrTelemetryMapName})
 	}
-	if !slices.ContainsFunc(m.Maps, func(x *manager.Map) bool { return x.Name == helperErrTelemetryMapName }) {
-		m.Maps = append(m.Maps, &manager.Map{Name: helperErrTelemetryMapName})
+	if !slices.ContainsFunc(m.Maps, func(x *manager.Map) bool { return x.Name == HelperErrTelemetryMapName }) {
+		m.Maps = append(m.Maps, &manager.Map{Name: HelperErrTelemetryMapName})
 	}
 
 	// set a small max entries value if telemetry is not supported. We have to load the maps because the eBPF code
 	// references them even when we cannot track the telemetry.
-	opts.MapSpecEditors[mapErrTelemetryMapName] = manager.MapSpecEditor{
+	opts.MapSpecEditors[MapErrTelemetryMapName] = manager.MapSpecEditor{
 		MaxEntries: uint32(1),
 		EditorFlag: manager.EditMaxEntries,
 	}
-	opts.MapSpecEditors[helperErrTelemetryMapName] = manager.MapSpecEditor{
+	opts.MapSpecEditors[HelperErrTelemetryMapName] = manager.MapSpecEditor{
 		MaxEntries: uint32(1),
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -95,17 +112,17 @@ func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, module names.Mo
 			return fmt.Errorf("failed to get program specs from manager: %w", err)
 		}
 
-		opts.MapSpecEditors[mapErrTelemetryMapName] = manager.MapSpecEditor{
+		opts.MapSpecEditors[MapErrTelemetryMapName] = manager.MapSpecEditor{
 			MaxEntries: uint32(len(ebpfMaps)),
 			EditorFlag: manager.EditMaxEntries,
 		}
-		log.Tracef("module %s maps %d", module.Name(), opts.MapSpecEditors[mapErrTelemetryMapName].MaxEntries)
+		log.Tracef("module %s maps %d", module.Name(), opts.MapSpecEditors[MapErrTelemetryMapName].MaxEntries)
 
-		opts.MapSpecEditors[helperErrTelemetryMapName] = manager.MapSpecEditor{
+		opts.MapSpecEditors[HelperErrTelemetryMapName] = manager.MapSpecEditor{
 			MaxEntries: uint32(len(ebpfPrograms)),
 			EditorFlag: manager.EditMaxEntries,
 		}
-		log.Tracef("module %s probes %d", module.Name(), opts.MapSpecEditors[helperErrTelemetryMapName].MaxEntries)
+		log.Tracef("module %s probes %d", module.Name(), opts.MapSpecEditors[HelperErrTelemetryMapName].MaxEntries)
 
 		mapNames, err := getMapNames(m)
 		if err != nil {
@@ -115,8 +132,8 @@ func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, module names.Mo
 		h := keyHash()
 		for _, mapName := range mapNames {
 			opts.ConstantEditors = append(opts.ConstantEditors, manager.ConstantEditor{
-				Name:  mapName.Name() + "_telemetry_key",
-				Value: eBPFMapErrorKey(h, mapTelemetryKey(mapName, module)),
+				Name:  MapTelemetryKeyName(mapName),
+				Value: MapTelemetryErrorKey(h, mapName, module),
 			})
 		}
 
@@ -135,14 +152,14 @@ func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, module names.Mo
 
 // getErrMaps returns the mapErrMap and helperErrMap from the manager.
 func getErrMaps(m *manager.Manager) (mapErrMap *maps.GenericMap[uint64, mapErrTelemetry], helperErrMap *maps.GenericMap[uint64, helperErrTelemetry], err error) {
-	mapErrMap, err = maps.GetMap[uint64, mapErrTelemetry](m, mapErrTelemetryMapName)
+	mapErrMap, err = maps.GetMap[uint64, mapErrTelemetry](m, MapErrTelemetryMapName)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get generic map %s: %w", mapErrTelemetryMapName, err)
+		return nil, nil, fmt.Errorf("failed to get generic map %s: %w", MapErrTelemetryMapName, err)
 	}
 
-	helperErrMap, err = maps.GetMap[uint64, helperErrTelemetry](m, helperErrTelemetryMapName)
+	helperErrMap, err = maps.GetMap[uint64, helperErrTelemetry](m, HelperErrTelemetryMapName)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get generic map %s: %w", helperErrTelemetryMapName, err)
+		return nil, nil, fmt.Errorf("failed to get generic map %s: %w", HelperErrTelemetryMapName, err)
 	}
 
 	return mapErrMap, helperErrMap, nil
@@ -172,7 +189,7 @@ func (t *ErrorsTelemetryModifier) AfterInit(m *manager.Manager, module names.Mod
 }
 
 // BeforeStop stops the perf collector from telemetry and removes the modules from the telemetry maps.
-func (t *ErrorsTelemetryModifier) BeforeStop(m *manager.Manager, module names.ModuleName) error {
+func (t *ErrorsTelemetryModifier) BeforeStop(m *manager.Manager, module names.ModuleName, _ manager.MapCleanupType) error {
 	if errorsTelemetry == nil {
 		return nil
 	}

@@ -6,6 +6,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"math/rand"
@@ -16,12 +17,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func newTestSpan() *pb.Span {
@@ -75,9 +80,13 @@ func TestNormalizeServicePassThru(t *testing.T) {
 	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
+	s.Meta[peerServiceKey] = "foo"
+	s.Meta[baseServiceKey] = "bar"
 	before := s.Service
 	assert.NoError(t, a.normalize(ts, s))
 	assert.Equal(t, before, s.Service)
+	assert.Equal(t, "foo", s.Meta[peerServiceKey])
+	assert.Equal(t, "bar", s.Meta[baseServiceKey])
 	assert.Equal(t, newTagStats(), ts)
 }
 
@@ -86,8 +95,12 @@ func TestNormalizeEmptyServiceNoLang(t *testing.T) {
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Service = ""
+	s.Meta[peerServiceKey] = ""
+	s.Meta[baseServiceKey] = ""
 	assert.NoError(t, a.normalize(ts, s))
 	assert.Equal(t, traceutil.DefaultServiceName, s.Service)
+	assert.Equal(t, "", s.Meta[peerServiceKey]) // no fallback on peer service tag
+	assert.Equal(t, "", s.Meta[baseServiceKey]) // no fallback on base service tag
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{ServiceEmpty: *atomic.NewInt64(1)}), ts)
 }
 
@@ -97,8 +110,12 @@ func TestNormalizeEmptyServiceWithLang(t *testing.T) {
 	s := newTestSpan()
 	s.Service = ""
 	ts.Lang = "java"
+	s.Meta[peerServiceKey] = ""
+	s.Meta[baseServiceKey] = ""
 	assert.NoError(t, a.normalize(ts, s))
 	assert.Equal(t, s.Service, fmt.Sprintf("unnamed-%s-service", ts.Lang))
+	assert.Equal(t, "", s.Meta[peerServiceKey]) // no fallback on peer service tag
+	assert.Equal(t, "", s.Meta[baseServiceKey]) // no fallback on base service tag
 	tsExpected := tsMalformed(&info.SpansMalformed{ServiceEmpty: *atomic.NewInt64(1)})
 	tsExpected.Lang = ts.Lang
 	assert.Equal(t, tsExpected, ts)
@@ -109,9 +126,17 @@ func TestNormalizeLongService(t *testing.T) {
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Service = strings.Repeat("CAMEMBERT", 100)
+	s.Meta[peerServiceKey] = strings.Repeat("BRIE", 100)
+	s.Meta[baseServiceKey] = strings.Repeat("ROQUEFORT", 100)
 	assert.NoError(t, a.normalize(ts, s))
 	assert.Equal(t, s.Service, s.Service[:traceutil.MaxServiceLen])
-	assert.Equal(t, tsMalformed(&info.SpansMalformed{ServiceTruncate: *atomic.NewInt64(1)}), ts)
+	assert.Equal(t, s.Meta[peerServiceKey], s.Meta[peerServiceKey][:traceutil.MaxServiceLen])
+	assert.Equal(t, s.Meta[baseServiceKey], s.Meta[baseServiceKey][:traceutil.MaxServiceLen])
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{
+		ServiceTruncate:     *atomic.NewInt64(1),
+		PeerServiceTruncate: *atomic.NewInt64(1),
+		BaseServiceTruncate: *atomic.NewInt64(1),
+	}), ts)
 }
 
 func TestNormalizeNamePassThru(t *testing.T) {
@@ -423,8 +448,12 @@ func TestNormalizeServiceTag(t *testing.T) {
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Service = "retargeting(api-Staging "
+	s.Meta[peerServiceKey] = "retargeting(api-Peer "
+	s.Meta[baseServiceKey] = "retargeting(api-Base "
 	assert.NoError(t, a.normalize(ts, s))
 	assert.Equal(t, "retargeting_api-staging", s.Service)
+	assert.Equal(t, "retargeting_api-peer", s.Meta[peerServiceKey])
+	assert.Equal(t, "retargeting_api-base", s.Meta[baseServiceKey])
 	assert.Equal(t, newTagStats(), ts)
 }
 
@@ -598,4 +627,20 @@ func BenchmarkNormalization(b *testing.B) {
 
 		a.normalize(ts, span)
 	}
+}
+
+func TestLexerNormalization(t *testing.T) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.SQLObfuscationMode = string(obfuscate.ObfuscateAndNormalize)
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	defer cancelFunc()
+	span := &pb.Span{
+		Resource: "SELECT * FROM [u].[users]",
+		Type:     "sql",
+		Meta:     map[string]string{"db.type": "sqlserver"},
+	}
+	agnt.obfuscateSpan(span)
+	assert.Equal(t, "SELECT * FROM u.users", span.Resource)
 }

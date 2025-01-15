@@ -13,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 )
 
@@ -320,10 +321,10 @@ var (
 	}
 
 	// exitCauseConstants is the list of supported Exit causes
-	exitCauseConstants = map[string]ExitCause{
-		"EXITED":     ExitExited,
-		"COREDUMPED": ExitCoreDumped,
-		"SIGNALED":   ExitSignaled,
+	exitCauseConstants = map[string]sharedconsts.ExitCause{
+		"EXITED":     sharedconsts.ExitExited,
+		"COREDUMPED": sharedconsts.ExitCoreDumped,
+		"SIGNALED":   sharedconsts.ExitSignaled,
 	}
 
 	tlsVersionContants = map[string]uint16{
@@ -342,7 +343,6 @@ var (
 	l3ProtocolStrings    = map[L3Protocol]string{}
 	l4ProtocolStrings    = map[L4Protocol]string{}
 	addressFamilyStrings = map[uint16]string{}
-	exitCauseStrings     = map[ExitCause]string{}
 	tlsVersionStrings    = map[uint16]string{}
 )
 
@@ -423,7 +423,6 @@ func initAddressFamilyConstants() {
 func initExitCauseConstants() {
 	for k, v := range exitCauseConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
-		exitCauseStrings[v] = k
 	}
 }
 
@@ -779,20 +778,4 @@ const (
 	IPProtoMPLS L4Protocol = 137
 	// IPProtoRAW Raw IP packets
 	IPProtoRAW L4Protocol = 255
-)
-
-// ExitCause represents the cause of a process termination
-type ExitCause uint32
-
-func (cause ExitCause) String() string {
-	return exitCauseStrings[cause]
-}
-
-const (
-	// ExitExited Process exited normally
-	ExitExited ExitCause = iota
-	// ExitCoreDumped Process was terminated with a coredump signal
-	ExitCoreDumped
-	// ExitSignaled Process was terminated with a signal other than a coredump
-	ExitSignaled
 )

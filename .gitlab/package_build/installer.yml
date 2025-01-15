@@ -101,12 +101,13 @@ installer-install-scripts:
     RELEASE_VERSION: "$RELEASE_VERSION_7"
   script:
     - !reference [.retrieve_linux_go_deps]
-    - echo "About to build for $RELEASE_VERSION"
+    - VERSION="$(inv agent.version --url-safe)-1" || exit $?
+    - echo "About to build for $VERSION"
     - mkdir -p $OMNIBUS_PACKAGE_DIR
-    - inv -e installer.build-linux-script "default" "$RELEASE_VERSION"
-    - inv -e installer.build-linux-script "databricks" "$RELEASE_VERSION"
-    - inv -e installer.build-linux-script "emr" "$RELEASE_VERSION"
-    - inv -e installer.build-linux-script "dataproc" "$RELEASE_VERSION"
+    - inv -e installer.build-linux-script "default" "$VERSION"
+    - inv -e installer.build-linux-script "databricks" "$VERSION"
+    - inv -e installer.build-linux-script "emr" "$VERSION"
+    - inv -e installer.build-linux-script "dataproc" "$VERSION"
     - mv ./bin/installer/install-*.sh $OMNIBUS_PACKAGE_DIR/
     - ls -la $OMNIBUS_PACKAGE_DIR
   artifacts:
