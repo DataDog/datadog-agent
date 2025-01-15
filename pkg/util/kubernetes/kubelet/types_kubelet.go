@@ -40,6 +40,7 @@ type PodMetadata struct {
 
 // PodOwner contains fields for unmarshalling a Pod.Metadata.Owners
 type PodOwner struct {
+	APIVersion string `json:"apiVersion,omitempty"`
 	Kind       string `json:"kind,omitempty"`
 	Name       string `json:"name,omitempty"`
 	ID         string `json:"uid,omitempty"`
