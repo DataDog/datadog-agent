@@ -1,15 +1,11 @@
-module compression
+module github.com/DataDog/datadog-agent/pkg/util/compression
 
 go 1.22.0
 
-replace (
-	github.com/DataDog/datadog-agent/pkg/util/compression => .
-	github.com/DataDog/datadog-agent/pkg/util/log => ../log
-)
+replace github.com/DataDog/datadog-agent/pkg/util/log => ../log
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1
 	github.com/DataDog/zstd v1.5.6
 )
 
