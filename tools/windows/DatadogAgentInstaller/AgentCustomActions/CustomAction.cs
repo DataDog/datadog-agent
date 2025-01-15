@@ -94,6 +94,12 @@ namespace Datadog.AgentCustomActions
         {
             return Datadog.CustomActions.PythonDistributionCustomAction.RunPostInstPythonScript(session);
         }
+        
+        [CustomAction]
+        public static ActionResult RunPreRemovePythonScriptRollback(Session session)
+        {
+            return Datadog.CustomActions.PythonDistributionCustomAction.RunPreRemovePythonScriptRollback(session);
+        }
 
         [CustomAction]
         public static ActionResult RunPreRemovePythonScript(Session session)
