@@ -638,7 +638,7 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext, &event.CGroupContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, &event.CGroupContext)
 	if err != nil {
 		return 0, err
 	}
@@ -732,25 +732,31 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 	return p.event
 }
 
-func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, cgroupFlags containerutils.CGroupFlags, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
+func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, cgroupFlags containerutils.CGroupFlags, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, containerutils.ContainerID, error) {
 	pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, newEntryCb)
-	if pce != nil {
-		cgroupContext, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey, cgroupFlags)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resorve cgroup for pid %d: %w", pid, err)
-		}
-
-		pce.Process.CGroup = *cgroupContext
-		pce.CGroup = *cgroupContext
-		if cgroupContext.CGroupFlags.IsContainer() {
-			containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
-			pce.ContainerID = containerID
-			pce.Process.ContainerID = containerID
-		}
-	} else {
-		return nil, fmt.Errorf("entry not found for pid %d", pid)
+	if pce == nil {
+		return nil, "", fmt.Errorf("entry not found for pid %d", pid)
 	}
-	return &pce.CGroup, nil
+
+	cgroupContext, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey, cgroupFlags)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to reserve cgroup for pid %d: %w", pid, err)
+	}
+
+	pce.Process.CGroup = *cgroupContext
+	pce.CGroup = *cgroupContext
+
+	if cgroupContext.CGroupFlags.IsContainer() || cgroupContext.CGroupFlags == 0 {
+		containerID, parsedCgroupFlags := containerutils.FindContainerID(cgroupContext.CGroupID)
+		pce.ContainerID = containerID
+		pce.Process.ContainerID = containerID
+		if parsedCgroupFlags != 0 && parsedCgroupFlags != uint64(cgroupFlags) {
+			pce.Process.CGroup.CGroupFlags = containerutils.CGroupFlags(parsedCgroupFlags)
+			pce.CGroup.CGroupFlags = containerutils.CGroupFlags(parsedCgroupFlags)
+		}
+	}
+
+	return &pce.CGroup, pce.ContainerID, nil
 }
 
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
@@ -836,7 +842,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode cgroup tracing event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		if cgroupContext, err := p.resolveCGroup(event.CgroupTracing.Pid, event.CgroupTracing.CGroupContext.CGroupFile, event.CgroupTracing.CGroupContext.CGroupFlags, newEntryCb); err != nil {
+		if cgroupContext, _, err := p.resolveCGroup(event.CgroupTracing.Pid, event.CgroupTracing.CGroupContext.CGroupFile, event.CgroupTracing.CGroupContext.CGroupFlags, newEntryCb); err != nil {
 			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		} else {
 			event.CgroupTracing.CGroupContext = *cgroupContext
@@ -845,10 +851,10 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	case model.CgroupWriteEventType:
 		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode cgroup write event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		if _, err := p.resolveCGroup(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags), newEntryCb); err != nil {
+		if _, _, err := p.resolveCGroup(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags), newEntryCb); err != nil {
 			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		}
 		return
@@ -899,7 +905,16 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to insert exec event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
 			return
 		}
-
+	default:
+		if !event.CGroupContext.CGroupFile.IsNull() {
+			cgroupContext, containerID, err := p.resolveCGroup(event.PIDContext.Pid, event.CGroupContext.CGroupFile, event.CGroupContext.CGroupFlags, newEntryCb)
+			if err != nil {
+				seclog.Errorf("failed to resolve cgroup context for event %s: %s", err, eventType.String())
+			} else {
+				event.CGroupContext.Merge(cgroupContext)
+				event.ContainerContext.ContainerID = containerID
+			}
+		}
 	}
 
 	if !p.setProcessContext(eventType, event, newEntryCb) {
