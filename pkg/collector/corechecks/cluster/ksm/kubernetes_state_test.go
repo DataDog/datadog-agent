@@ -1426,55 +1426,68 @@ func TestKSMCheck_mergeLabelsMapper(t *testing.T) {
 	}
 }
 
-func TestKSMCheck_mergeAnnotationsAsTags(t *testing.T) {
+func TestKSMCheck_mergeLabelAnnotationsAsTags(t *testing.T) {
 	tests := []struct {
-		name     string
-		conf     map[string]map[string]string
-		extra    map[string]map[string]string
-		expected map[string]map[string]string
+		name                    string
+		shouldTransformResource bool
+		conf                    map[string]map[string]string
+		extra                   map[string]map[string]string
+		expected                map[string]map[string]string
 	}{
 		{
-			name:     "nominal",
-			conf:     make(map[string]map[string]string),
-			extra:    defaultAnnotationsAsTags(),
-			expected: defaultAnnotationsAsTags(),
+			name:                    "nominal",
+			shouldTransformResource: false,
+			conf:                    make(map[string]map[string]string),
+			extra:                   defaultAnnotationsAsTags(),
+			expected:                defaultAnnotationsAsTags(),
 		},
 		{
-			name:     "nil conf",
-			conf:     nil,
-			extra:    defaultAnnotationsAsTags(),
-			expected: defaultAnnotationsAsTags(),
+			name:                    "nil conf",
+			shouldTransformResource: false,
+			conf:                    nil,
+			extra:                   defaultAnnotationsAsTags(),
+			expected:                defaultAnnotationsAsTags(),
 		},
 		{
-			name:     "collision",
-			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
-			extra:    map[string]map[string]string{"pod": {"common_key": "extra_val", "foo": "bar"}},
-			expected: map[string]map[string]string{"pod": {"common_key": "in_val", "foo": "bar"}},
+			name:                    "collision",
+			shouldTransformResource: false,
+			conf:                    map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:                   map[string]map[string]string{"pod": {"common_key": "extra_val", "foo": "bar"}},
+			expected:                map[string]map[string]string{"pod": {"common_key": "in_val", "foo": "bar"}},
 		},
 		{
-			name:     "no collision",
-			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
-			extra:    map[string]map[string]string{"deployment": {"common_key": "extra_val", "foo": "bar"}},
-			expected: map[string]map[string]string{"pod": {"common_key": "in_val"}, "deployment": {"common_key": "extra_val", "foo": "bar"}},
+			name:                    "no collision",
+			shouldTransformResource: false,
+			conf:                    map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:                   map[string]map[string]string{"deployment": {"common_key": "extra_val", "foo": "bar"}},
+			expected:                map[string]map[string]string{"pod": {"common_key": "in_val"}, "deployment": {"common_key": "extra_val", "foo": "bar"}},
 		},
 		{
-			name:     "nil extra",
-			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
-			extra:    nil,
-			expected: map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			name:                    "nil extra",
+			shouldTransformResource: false,
+			conf:                    map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:                   nil,
+			expected:                map[string]map[string]string{"pod": {"common_key": "in_val"}},
 		},
 		{
-			name:     "conf nil values",
-			conf:     map[string]map[string]string{"job": nil, "deployment": nil, "statefulset": nil, "daemonset": nil},
-			extra:    defaultAnnotationsAsTags(),
-			expected: defaultAnnotationsAsTags(),
+			name:                    "conf nil values",
+			shouldTransformResource: false,
+			conf:                    map[string]map[string]string{"job": nil, "deployment": nil, "statefulset": nil, "daemonset": nil},
+			extra:                   defaultAnnotationsAsTags(),
+			expected:                defaultAnnotationsAsTags(),
+		},
+		{
+			name:                    "resource annotations as tags",
+			shouldTransformResource: true,
+			conf:                    map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:                   map[string]map[string]string{"endpoints.v1": {"foo": "bar"}, "daemonsets.apps/v1": {"fizz": "buzz"}},
+			expected:                map[string]map[string]string{"pod": {"common_key": "in_val"}, "endpoint": {"foo": "bar"}, "daemonset": {"fizz": "buzz"}},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			k := &KSMCheck{instance: &KSMConfig{AnnotationsAsTags: tt.conf}}
-			k.mergeAnnotationsAsTags(tt.extra)
-			assert.True(t, reflect.DeepEqual(tt.expected, k.instance.AnnotationsAsTags))
+			annotationsAsTags := mergeLabelAnnotationAsTags(tt.extra, tt.conf, tt.shouldTransformResource)
+			assert.True(t, reflect.DeepEqual(tt.expected, annotationsAsTags))
 		})
 	}
 }

@@ -16,6 +16,14 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v2"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/options"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/kubetags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
@@ -36,13 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"gopkg.in/yaml.v2"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
-	"k8s.io/kube-state-metrics/v2/pkg/customresource"
-	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
 
 const (
@@ -260,6 +261,8 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 		return err
 	}
 
+	metadataAsTags := configUtils.GetMetadataAsTags(pkgconfigsetup.Datadog())
+
 	// Retrieve cluster name
 	k.getClusterName()
 
@@ -274,9 +277,11 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.mergeLabelJoins(defaultLabelJoins())
 
 	k.processLabelJoins()
+	k.instance.LabelsAsTags = mergeLabelAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags, true)
 	k.processLabelsAsTags()
 
-	k.mergeAnnotationsAsTags(defaultAnnotationsAsTags())
+	k.instance.AnnotationsAsTags = mergeLabelAnnotationAsTags(defaultAnnotationsAsTags(), k.instance.AnnotationsAsTags, false)
+	k.instance.AnnotationsAsTags = mergeLabelAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), k.instance.AnnotationsAsTags, true)
 	k.processAnnotationsAsTags()
 
 	// Prepare labels mapper
@@ -773,33 +778,6 @@ func (k *KSMCheck) mergeLabelJoins(extra map[string]*JoinsConfigWithoutLabelsMap
 	}
 }
 
-// mergeAnnotationsAsTags adds extra annotations as tags to the configured mapping.
-// User-defined annotations as tags are prioritized.
-func (k *KSMCheck) mergeAnnotationsAsTags(extra map[string]map[string]string) {
-	if k.instance.AnnotationsAsTags == nil {
-		k.instance.AnnotationsAsTags = make(map[string]map[string]string)
-	}
-	// In the case of a misconfiguration issue, the value could be explicitly set to nil
-	for resource, mapping := range k.instance.AnnotationsAsTags {
-		if mapping == nil {
-			delete(k.instance.AnnotationsAsTags, resource)
-		}
-	}
-	for resource, mapping := range extra {
-		_, found := k.instance.AnnotationsAsTags[resource]
-		if !found {
-			k.instance.AnnotationsAsTags[resource] = make(map[string]string)
-			k.instance.AnnotationsAsTags[resource] = mapping
-			continue
-		}
-		for key, value := range mapping {
-			if _, found := k.instance.AnnotationsAsTags[resource][key]; !found {
-				k.instance.AnnotationsAsTags[resource][key] = value
-			}
-		}
-	}
-}
-
 func (k *KSMCheck) processLabelJoins() {
 	k.instance.labelJoins = make(map[string]*joinsConfig)
 	for metric, joinConf := range k.instance.LabelJoins {
@@ -995,6 +973,38 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 	}
 }
 
+// mergeLabelAnnotationsAsTags adds extra labels or annotations to the instance mapping
+func mergeLabelAnnotationAsTags(extra map[string]map[string]string, instanceMap map[string]map[string]string, shouldTransformResource bool) map[string]map[string]string {
+	if instanceMap == nil {
+		instanceMap = make(map[string]map[string]string)
+	}
+	// In the case of a misconfiguration issue, the value could be explicitly set to nil
+	for resource, mapping := range instanceMap {
+		if mapping == nil {
+			delete(instanceMap, resource)
+		}
+	}
+
+	for resource, mapping := range extra {
+		if shouldTransformResource {
+			resource = toSingularResourceName(resource)
+		}
+		_, found := instanceMap[resource]
+		if !found {
+			instanceMap[resource] = make(map[string]string)
+			instanceMap[resource] = mapping
+			continue
+		}
+		for key, value := range mapping {
+			if _, found := instanceMap[resource][key]; !found {
+				instanceMap[resource][key] = value
+			}
+		}
+	}
+
+	return instanceMap
+}
+
 // resourceNameFromMetric returns the resource name based on the metric name
 // It relies on the conventional KSM naming format kube_<resource>_suffix
 // returns an empty string otherwise
@@ -1121,4 +1131,10 @@ func labelsMapperOverride(metricName string) map[string]string {
 func toSnakeCase(s string) string {
 	snake := matchAllCap.ReplaceAllString(s, "${1}_${2}")
 	return strings.ToLower(snake)
+}
+
+func toSingularResourceName(s string) string {
+	// Expected input in the form of: resourceTypePlural.apiGroup
+	resourceType := strings.Split(s, ".")[0]
+	return strings.TrimSuffix(resourceType, "s")
 }
