@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	"golang.org/x/sys/windows"
 )
 
@@ -22,6 +23,7 @@ type GROUP_AFFINITY struct {
 	Group    uint16
 	Reserved [3]uint16
 }
+const sizeOfGroupAffinity = uint32(16)
 
 // NUMA_NODE_RELATIONSHIP represents information about a NUMA node
 // in a processor group.
@@ -45,7 +47,6 @@ type CACHE_RELATIONSHIP struct {
 	CacheSize     uint32
 	CacheType     int // enum in C
 	Reserved      [20]uint8
-	GroupMask     GROUP_AFFINITY
 }
 
 // PROCESSOR_GROUP_INFO represents the number and affinity of processors
@@ -98,7 +99,19 @@ type SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX struct {
 	// CACHE_RELATIONSHIP,
 	// GROUP_RELATIONSHIP
 }
-
+const ( // enum PROCESSOR_CACHE_TYPE
+	// CacheUnified is a unified cache.
+	CacheUnified = 0
+	// CacheInstruction is an instruction cache.
+	CacheInstruction = 1
+	// CacheData is a data cache.
+	CacheData = 2
+	// CacheTrace is a trace cache.
+	CacheTrace = 3
+)
+var (
+	buildNumber uint64
+)
 func byteArrayToGroupAffinity(data []byte) (affinity GROUP_AFFINITY, consumed uint32, err error) {
 	err = nil
 	affinity.Mask = uintptr(binary.LittleEndian.Uint64(data))
@@ -157,11 +170,48 @@ func byteArrayToRelationCache(data []byte) (cache CACHE_RELATIONSHIP, consumed u
 	cache.LineSize = binary.LittleEndian.Uint16(data[2:])
 	cache.CacheSize = binary.LittleEndian.Uint32(data[4:])
 	cache.CacheType = int(binary.LittleEndian.Uint32(data[8:]))
-	// skip 20 bytes
-	consumed = 32
-	ga, used, err := byteArrayToGroupAffinity(data[consumed:])
-	cache.GroupMask = ga
-	consumed += used
+	// cache_relationship changed for Win11/2022 build 20384
+	/*
+	
+typedef struct _CACHE_RELATIONSHIP {
+    BYTE  Level;
+    BYTE  Associativity;
+    WORD   LineSize;
+    DWORD CacheSize;
+    PROCESSOR_CACHE_TYPE Type;
+    BYTE  Reserved[18];
+    WORD   GroupCount;
+    union {
+        GROUP_AFFINITY GroupMask;
+        _Field_size_(GroupCount)
+        GROUP_AFFINITY GroupMasks[ANYSIZE_ARRAY];
+    } DUMMYUNIONNAME;
+	 */
+	 /*
+	 typedef struct _CACHE_RELATIONSHIP {
+		BYTE  Level;
+		BYTE  Associativity;
+		WORD   LineSize;
+		DWORD CacheSize;
+		PROCESSOR_CACHE_TYPE Type;
+		BYTE  Reserved[20];
+		GROUP_AFFINITY GroupMask;
+	*/
+	// we're not currently using the group affinity for anything
+	// adjust the consumed by the right size based on the windows
+	// version, but we're not parsing for now.
+	if buildNumber < 20384 {
+		consumed = 32
+
+		
+		consumed += sizeOfGroupAffinity
+	} else {
+		consumed = 30
+		groupCount := binary.LittleEndian.Uint16(data[30:])
+		consumed = 32
+		consumed += uint32(groupCount) * sizeOfGroupAffinity
+
+	}
 	return
 
 }
@@ -186,6 +236,13 @@ func byteArrayToRelationGroup(data []byte) (group GROUP_RELATIONSHIP, gi []PROCE
 }
 
 func computeCoresAndProcessors() (CPU_INFO, error) {
+	// we now need to get the windows build number to properly parse the structures
+	var err error
+	_, _, buildNumber, err = platform.FetchWindowsVersion()
+	if err != nil {
+		return CPU_INFO{}, err
+	}
+
 	var cpuInfo CPU_INFO
 	var mod = windows.NewLazyDLL("kernel32.dll")
 	var getProcInfo = mod.NewProc("GetLogicalProcessorInformationEx")
@@ -253,19 +310,24 @@ func computeCoresAndProcessors() (CPU_INFO, error) {
 			bufused += used
 			switch cache.Level {
 			case 1:
-				cpuInfo.l1CacheSize = cache.CacheSize
+				cpuInfo.l1CacheSize += cache.CacheSize
 			case 2:
-				cpuInfo.l2CacheSize = cache.CacheSize
+				cpuInfo.l2CacheSize += cache.CacheSize
 			case 3:
-				cpuInfo.l3CacheSize = cache.CacheSize
+				cpuInfo.l3CacheSize += cache.CacheSize
 			}
 		case RelationProcessorPackage:
+			cpuInfo.pkgcount++
+			fallthrough
+		
+		case RelationProcessorModule:
+		
 			_, _, used, decodeerr := byteArrayToProcessorRelationshipStruct(buf[bufused:])
 			if decodeerr != nil {
 				return cpuInfo, decodeerr
 			}
 			bufused += used
-			cpuInfo.pkgcount++
+			
 
 		case RelationGroup:
 			group, groupInfo, used, decodeerr := byteArrayToRelationGroup(buf[bufused:])

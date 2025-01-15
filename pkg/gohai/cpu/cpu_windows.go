@@ -37,6 +37,18 @@ const (
 	// RelationGroup retrieves information about logical processors
 	// that share a processor group.
 	RelationGroup = 4
+
+	// The specified logical processors share a single processor die.
+	RelationProcessorDie = 5
+
+	// Introduced in Windows Server 2022 (21H2, build 20348). Requests that the full affinity be 
+	// returned. Unlike the other relation types, RelationNumaNodeEx is not used on input. It is 
+	// simply a request for RelationNumaNode with full group information.
+	RelationNumaNodeEx = 6
+
+	// the docs don't describe this value
+	RelationProcessorModule = 7
+
 )
 
 // SYSTEM_INFO contains information about the current computer system.
