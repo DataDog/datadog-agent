@@ -29,23 +29,20 @@ var (
 // TelemetryHandler provides a http handler and emits requests telemetry for it.
 type TelemetryHandler struct {
 	handlerName string
-	handler     http.HandlerFunc
+	handler     func(w http.ResponseWriter, r *http.Request)
 }
 
 // WithTelemetryWrapper returns a http handler function that emits telemetry.
-func WithTelemetryWrapper(handlerName string, handler http.HandlerFunc) http.Handler {
-	return &TelemetryHandler{
+func WithTelemetryWrapper(handlerName string, handler func(w http.ResponseWriter, r *http.Request)) func(w http.ResponseWriter, r *http.Request) {
+	th := TelemetryHandler{
 		handlerName: handlerName,
 		handler:     handler,
 	}
+	return th.handle
 }
 
-func (t *TelemetryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	t.handler(&telemetryWriterWrapper{
-		ResponseWriter: w,
-		handlerName:    t.handlerName,
-		startTime:      time.Now(),
-	}, r)
+func (t *TelemetryHandler) handle(w http.ResponseWriter, r *http.Request) {
+	t.handler(&telemetryWriterWrapper{ResponseWriter: w, handlerName: t.handlerName, startTime: time.Now()}, r)
 }
 
 // Could be made generic, overwite http.ResponseWriter/WriteHeader
