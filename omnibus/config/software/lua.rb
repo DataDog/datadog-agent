@@ -30,14 +30,17 @@ relative_path "lua-#{version}"
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
-  patch source: "nodoc.patch", env: env # don't install documentation
-
   # lua compiles in a slightly interesting way, it has minimal configuration options
   # and only provides a makefile. We can't use use `-DLUA_USE_LINUX` or the `make linux`
   # methods because they make the assumption that the readline package has been installed.
   mycflags = "-I#{install_dir}/embedded/include -O2 -DLUA_USE_POSIX -DLUA_USE_DLOPEN -fpic"
   myldflags = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
   mylibs = "-ldl"
-  make "all MYCFLAGS='#{mycflags}' MYLDFLAGS='#{myldflags}' MYLIBS='#{mylibs}'", env: env, cwd: "#{project_dir}/src"
-  make "-j #{workers} install INSTALL_TOP=#{install_dir}/embedded", env: env
+  make "liblua.a MYCFLAGS='#{mycflags}' MYLDFLAGS='#{myldflags}' MYLIBS='#{mylibs}'", env: env, cwd: "#{project_dir}/src"
+  copy "#{project_dir}/src/liblua.a", "#{install_dir}/embedded/lib/"
+  copy "#{project_dir}/src/lua.h", "#{install_dir}/embedded/include/"
+  copy "#{project_dir}/src/luaconf.h", "#{install_dir}/embedded/include/"
+  copy "#{project_dir}/src/lualib.h", "#{install_dir}/embedded/include/"
+  copy "#{project_dir}/src/lauxlib.h", "#{install_dir}/embedded/include/"
+  copy "#{project_dir}/src/lua.hpp", "#{install_dir}/embedded/include/"
 end
