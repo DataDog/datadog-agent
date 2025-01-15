@@ -162,13 +162,13 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 }
 
 func (c *Check) getTagsForKey(key model.StatsKey) []string {
-	// Container ID tag will be added or not depending on the tagger configuration
 	// PID is always added
 	tags := []string{
 		// Per-PID metrics are subject to change due to high cardinality
 		fmt.Sprintf("pid:%d", key.PID),
 	}
 
+	// Container ID tag will be added or not depending on the tagger configuration
 	containerEntityID := taggertypes.NewEntityID(taggertypes.ContainerID, key.ContainerID)
 	containerTags, err := c.tagger.Tag(containerEntityID, c.tagger.ChecksCardinality())
 	if err != nil {
