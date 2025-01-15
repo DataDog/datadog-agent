@@ -9,8 +9,8 @@ package fx
 import (
 	//"go.uber.org/fx"
 
-	ownerdetection "github.com/DataDog/datadog-agent/comp/core/ownerdetection/def"
-	ownerdetectionimpl "github.com/DataDog/datadog-agent/comp/core/ownerdetection/impl"
+	ownerdetection "github.com/DataDog/datadog-agent/comp/ownerdetection/def"
+	ownerdetectionimpl "github.com/DataDog/datadog-agent/comp/ownerdetection/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

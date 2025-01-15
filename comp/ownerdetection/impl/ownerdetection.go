@@ -7,10 +7,10 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	ownerdetection "github.com/DataDog/datadog-agent/comp/core/ownerdetection/def"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	ownerdetection "github.com/DataDog/datadog-agent/comp/ownerdetection/def"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	//tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 )
