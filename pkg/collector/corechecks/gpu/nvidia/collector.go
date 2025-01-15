@@ -23,12 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	tagVendor    = "gpu_vendor:nvidia"
-	tagNameModel = "gpu_model"
-	tagNameUUID  = "gpu_uuid"
-)
-
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
 type Collector interface {
 	// Collect collects metrics from the given NVML device. This method should not fill the tags
@@ -65,9 +59,13 @@ var allSubsystems = map[string]subsystemBuilder{
 	clocksCollectorName:       newClocksCollector,
 }
 
+// CollectorDependencies holds the dependencies needed to create a set of collectors.
 type CollectorDependencies struct {
+	// Tagger is the tagger component used to tag the metrics.
 	Tagger tagger.Component
-	NVML   nvml.Interface
+
+	// NVML is the NVML library interface used to interact with the NVIDIA devices.
+	NVML nvml.Interface
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
