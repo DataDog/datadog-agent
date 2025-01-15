@@ -24,6 +24,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
@@ -70,7 +71,7 @@ func testOTelAPMStatsMatch(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	// fakeAgent1 has OTLP traces go through the old pipeline: ReceiveResourceSpan -> TraceWriter -> ... ->  Concentrator.Run
 	fakeAgent1.Ingest(ctx, traces)
 
-	obfuscator := stats.NewTestObfuscator(tcfg)
+	obfuscator := newTestObfuscator(tcfg)
 	// fakeAgent2 calls the new API in Concentrator that directly calculates APM stats for OTLP traces
 	inputs := stats.OTLPTracesToConcentratorInputsWithObfuscation(traces, tcfg, []string{semconv.AttributeContainerID, semconv.AttributeK8SContainerName}, peerTagKeys, obfuscator)
 	for _, input := range inputs {
@@ -202,4 +203,12 @@ func getTestTraces() ptrace.Traces {
 	root.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 
 	return traces
+}
+
+// newTestObfuscator creates a new obfuscator for testing
+func newTestObfuscator(conf *traceconfig.AgentConfig) *obfuscate.Obfuscator {
+	oconf := conf.Obfuscation.Export(conf)
+	oconf.Redis.Enabled = true
+	o := obfuscate.NewObfuscator(oconf)
+	return o
 }
