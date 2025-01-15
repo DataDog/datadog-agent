@@ -18,7 +18,7 @@ namespace Datadog.CustomActions.Rollback
         public FileStorageRollbackData(string filePath)
         {
             _filePath = filePath;
-            
+
             // check that file path exists
             if (!System.IO.File.Exists(filePath))
             {
@@ -27,10 +27,10 @@ namespace Datadog.CustomActions.Rollback
             else
             {
                 // read the content and base64 encode it
-                byte[] fileContent = System.IO.File.ReadAllBytes(filePath);
+                var fileContent = System.IO.File.ReadAllBytes(filePath);
                 _content = Convert.ToBase64String(fileContent);
             }
-            
+
         }
 
         /// <summary>
@@ -49,7 +49,7 @@ namespace Datadog.CustomActions.Rollback
                 System.IO.File.Create(_filePath).Close();
                 return;
             }
-            byte[] fileContent = Convert.FromBase64String(_content);
+            var fileContent = Convert.FromBase64String(_content);
             System.IO.File.WriteAllBytes(_filePath, fileContent);
             session.Log($"Restored file {_filePath}");
         }
