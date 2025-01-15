@@ -585,6 +585,7 @@ require (
 require (
 	github.com/shirou/gopsutil/v4 v4.24.11
 	go.opentelemetry.io/collector/component/componenttest v0.116.0
+	gvisor.dev/gvisor v0.0.0-20250111035124-3e96b7543593
 )
 
 require (
@@ -854,6 +855,7 @@ require (
 	github.com/godror/knownpb v0.1.0 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
+	github.com/google/btree v1.1.3 // indirect
 	github.com/google/cel-go v0.20.1 // indirect
 	github.com/google/certificate-transparency-go v1.1.8 // indirect
 	github.com/google/flatbuffers v24.3.25+incompatible // indirect
