@@ -23,9 +23,9 @@ func Test_mergeProfiles(t *testing.T) {
 		"profile-p2": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
 				Metadata: profiledefinition.MetadataConfig{
-					"device": profiledefinition.MetadataResourceConfig{
-						Fields: map[string]profiledefinition.MetadataField{
-							"name": {
+					Device: profiledefinition.DeviceMetadata{
+						Fields: profiledefinition.DeviceMetadataFields{
+							Name: profiledefinition.MetadataField{
 								Value: "foo",
 							},
 						},
@@ -45,9 +45,9 @@ func Test_mergeProfiles(t *testing.T) {
 		"profile-p3": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
 				Metadata: profiledefinition.MetadataConfig{
-					"device": profiledefinition.MetadataResourceConfig{
-						Fields: map[string]profiledefinition.MetadataField{
-							"name": {
+					Device: profiledefinition.DeviceMetadata{
+						Fields: profiledefinition.DeviceMetadataFields{
+							Name: profiledefinition.MetadataField{
 								Value: "bar",
 							},
 						},
@@ -62,10 +62,12 @@ func Test_mergeProfiles(t *testing.T) {
 
 	p2 := actualMergedProfiles["profile-p2"]
 	p2.Definition.Description = "abc"
-	p2.Definition.Metadata["device"] = profiledefinition.MetadataResourceConfig{
-		Fields: map[string]profiledefinition.MetadataField{
-			"name": {
-				Value: "foo2",
+	p2.Definition.Metadata = profiledefinition.MetadataConfig{
+		Device: profiledefinition.DeviceMetadata{
+			Fields: profiledefinition.DeviceMetadataFields{
+				Name: profiledefinition.MetadataField{
+					Value: "foo2",
+				},
 			},
 		},
 	}
@@ -73,10 +75,12 @@ func Test_mergeProfiles(t *testing.T) {
 
 	p3 := actualMergedProfiles["profile-p3"]
 	p3.Definition.Description = "abc"
-	p3.Definition.Metadata["device"] = profiledefinition.MetadataResourceConfig{
-		Fields: map[string]profiledefinition.MetadataField{
-			"name": {
-				Value: "bar2",
+	p3.Definition.Metadata = profiledefinition.MetadataConfig{
+		Device: profiledefinition.DeviceMetadata{
+			Fields: profiledefinition.DeviceMetadataFields{
+				Name: profiledefinition.MetadataField{
+					Value: "bar2",
+				},
 			},
 		},
 	}
@@ -93,9 +97,9 @@ func Test_mergeProfiles(t *testing.T) {
 			Definition: profiledefinition.ProfileDefinition{
 				Description: "abc",
 				Metadata: profiledefinition.MetadataConfig{
-					"device": profiledefinition.MetadataResourceConfig{
-						Fields: map[string]profiledefinition.MetadataField{
-							"name": {
+					Device: profiledefinition.DeviceMetadata{
+						Fields: profiledefinition.DeviceMetadataFields{
+							Name: profiledefinition.MetadataField{
 								Value: "foo2",
 							},
 						},
@@ -107,9 +111,9 @@ func Test_mergeProfiles(t *testing.T) {
 			Definition: profiledefinition.ProfileDefinition{
 				Description: "abc",
 				Metadata: profiledefinition.MetadataConfig{
-					"device": profiledefinition.MetadataResourceConfig{
-						Fields: map[string]profiledefinition.MetadataField{
-							"name": {
+					Device: profiledefinition.DeviceMetadata{
+						Fields: profiledefinition.DeviceMetadataFields{
+							Name: profiledefinition.MetadataField{
 								Value: "bar2",
 							},
 						},

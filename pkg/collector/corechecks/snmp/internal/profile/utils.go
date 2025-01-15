@@ -7,6 +7,7 @@ package profile
 
 import (
 	"os"
+	"reflect"
 
 	"github.com/mohae/deepcopy"
 )
@@ -28,4 +29,36 @@ func mergeProfiles(profilesA ProfileConfigMap, profilesB ProfileConfigMap) Profi
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
+}
+
+// isStructEmpty returns true if the given struct is empty
+func isStructEmpty(s interface{}) bool {
+	v := reflect.ValueOf(s)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+	if v.Kind() != reflect.Struct {
+		return false
+	}
+	for i := 0; i < v.NumField(); i++ {
+		if !reflect.DeepEqual(v.Field(i).Interface(), reflect.Zero(v.Field(i).Type()).Interface()) {
+			return false
+		}
+	}
+	return true
+}
+
+// isEmpty returns true if the given field is empty
+func isEmpty(field reflect.Value) bool {
+	switch field.Kind() {
+	case reflect.String:
+		return field.String() == ""
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return field.Int() == 0
+	case reflect.Bool:
+		return !field.Bool()
+	// Add other types as needed
+	default:
+		return false
+	}
 }

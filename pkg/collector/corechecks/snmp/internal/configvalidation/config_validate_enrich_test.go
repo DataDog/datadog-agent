@@ -671,14 +671,14 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		name             string
 		metadata         profiledefinition.MetadataConfig
 		expectedErrors   []string
-		expectedMetadata profiledefinition.MetadataConfig
+		expectedMetadata *profiledefinition.MetadataConfig
 	}{
 		{
 			name: "both field symbol and value can be provided",
 			metadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
-						"name": {
+				Device: profiledefinition.DeviceMetadata{
+					Fields: profiledefinition.DeviceMetadataFields{
+						Name: profiledefinition.MetadataField{
 							Value: "hey",
 							Symbol: profiledefinition.SymbolConfig{
 								OID:  "1.2.3",
@@ -688,10 +688,10 @@ func Test_validateEnrichMetadata(t *testing.T) {
 					},
 				},
 			},
-			expectedMetadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
-						"name": {
+			expectedMetadata: &profiledefinition.MetadataConfig{
+				Device: profiledefinition.DeviceMetadata{
+					Fields: profiledefinition.DeviceMetadataFields{
+						Name: profiledefinition.MetadataField{
 							Value: "hey",
 							Symbol: profiledefinition.SymbolConfig{
 								OID:  "1.2.3",
@@ -705,9 +705,9 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		{
 			name: "invalid regex pattern for symbol",
 			metadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
-						"name": {
+				Device: profiledefinition.DeviceMetadata{
+					Fields: profiledefinition.DeviceMetadataFields{
+						Name: profiledefinition.MetadataField{
 							Symbol: profiledefinition.SymbolConfig{
 								OID:          "1.2.3",
 								Name:         "someSymbol",
@@ -724,15 +724,13 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		{
 			name: "invalid regex pattern for multiple symbols",
 			metadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
-						"name": {
-							Symbols: []profiledefinition.SymbolConfig{
-								{
-									OID:          "1.2.3",
-									Name:         "someSymbol",
-									ExtractValue: "(\\w[)",
-								},
+				Device: profiledefinition.DeviceMetadata{
+					Fields: profiledefinition.DeviceMetadataFields{
+						Name: profiledefinition.MetadataField{
+							Symbol: profiledefinition.SymbolConfig{
+								OID:          "1.2.3",
+								Name:         "someSymbol",
+								ExtractValue: "(\\w[)",
 							},
 						},
 					},
@@ -745,9 +743,9 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		{
 			name: "field regex pattern is compiled",
 			metadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
-						"name": {
+				Device: profiledefinition.DeviceMetadata{
+					Fields: profiledefinition.DeviceMetadataFields{
+						Name: profiledefinition.MetadataField{
 							Symbol: profiledefinition.SymbolConfig{
 								OID:          "1.2.3",
 								Name:         "someSymbol",
@@ -758,10 +756,10 @@ func Test_validateEnrichMetadata(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{},
-			expectedMetadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
-						"name": {
+			expectedMetadata: &profiledefinition.MetadataConfig{
+				Device: profiledefinition.DeviceMetadata{
+					Fields: profiledefinition.DeviceMetadataFields{
+						Name: profiledefinition.MetadataField{
 							Symbol: profiledefinition.SymbolConfig{
 								OID:                  "1.2.3",
 								Name:                 "someSymbol",
@@ -774,44 +772,9 @@ func Test_validateEnrichMetadata(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid resource",
-			metadata: profiledefinition.MetadataConfig{
-				"invalid-res": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
-						"name": {
-							Value: "hey",
-						},
-					},
-				},
-			},
-			expectedErrors: []string{
-				"invalid resource: invalid-res",
-			},
-		},
-		{
-			name: "invalid field",
-			metadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
-						"invalid-field": {
-							Value: "hey",
-						},
-					},
-				},
-			},
-			expectedErrors: []string{
-				"invalid resource (device) field: invalid-field",
-			},
-		},
-		{
 			name: "invalid idtags",
 			metadata: profiledefinition.MetadataConfig{
-				"interface": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
-						"invalid-field": {
-							Value: "hey",
-						},
-					},
+				Interface: profiledefinition.InterfaceMetadata{
 					IDTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
 							Symbol: profiledefinition.SymbolConfigCompat{
@@ -827,32 +790,7 @@ func Test_validateEnrichMetadata(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"invalid resource (interface) field: invalid-field",
 				"cannot compile `match` (`([a-z)`)",
-			},
-		},
-		{
-			name: "device resource does not support id_tags",
-			metadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
-						"name": {
-							Value: "hey",
-						},
-					},
-					IDTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
-								OID:  "1.2.3",
-								Name: "abc",
-							},
-							Tag: "abc",
-						},
-					},
-				},
-			},
-			expectedErrors: []string{
-				"device resource does not support custom id_tags",
 			},
 		},
 	}
