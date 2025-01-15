@@ -16,9 +16,15 @@ import (
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 )
 
+// ProfileData maps (pprof) profile names to the profile data.
+type ProfileData map[string][]byte
+
 // FlareBuilder contains all the helpers to add files to a flare archive.
 // see the aliased type for the full description
 type FlareBuilder = flarebuilder.FlareBuilder
+
+// FlareBuilderFactory creates an instance of FlareBuilder
+type FlareBuilderFactory func(localFlare bool, flareArgs FlareArgs) (FlareBuilder, error)
 
 // FlareArgs contains the args passed in by the caller to the flare generation process
 // see the aliased type for the full description
