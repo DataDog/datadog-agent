@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -121,6 +121,26 @@ func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
 	}, 2*time.Minute, 10*time.Second)
 }
 
+func (v *gpuSuite) requireGPUTags(metric *aggregator.MetricSeries) {
+	foundRequiredTags := map[string]bool{
+		"gpu_uuid":   false,
+		"gpu_device": false,
+		"gpu_vendor": false,
+	}
+
+	for _, tag := range metric.Tags {
+		for requiredTag := range foundRequiredTags {
+			if strings.HasPrefix(tag, requiredTag+":") {
+				foundRequiredTags[requiredTag] = true
+			}
+		}
+	}
+
+	for requiredTag, found := range foundRequiredTags {
+		v.Require().True(found, "required tag %s not found in %v", requiredTag, metric)
+	}
+}
+
 func (v *gpuSuite) TestVectorAddProgramDetected() {
 	flake.Mark(v.T())
 
@@ -136,9 +156,7 @@ func (v *gpuSuite) TestVectorAddProgramDetected() {
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
 
 			for _, metric := range metrics {
-				assert.True(c, slices.ContainsFunc(metric.Tags, func(tag string) bool {
-					return strings.HasPrefix(tag, "gpu_uuid:")
-				}), "no gpu_uuid tag found in %v", metric)
+				v.requireGPUTags(metric)
 			}
 		}
 	}, 5*time.Minute, 10*time.Second)
@@ -155,6 +173,10 @@ func (v *gpuSuite) TestNvmlMetricsPresent() {
 			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName)
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no metric '%s' found")
+
+			for _, metric := range metrics {
+				v.requireGPUTags(metric)
+			}
 		}
 	}, 5*time.Minute, 10*time.Second)
 }
