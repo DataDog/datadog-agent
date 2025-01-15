@@ -35,3 +35,9 @@ checks:
     bounds:
       series: lost_bytes
       upper_bound: 0KiB
+
+  - name: intake_connections
+    description: "Connections established to intake APIs. This puts a bound on total connections per Agent instance."
+    bounds:
+      series: "connection.current"
+      upper_bound: 6
