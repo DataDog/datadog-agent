@@ -651,6 +651,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
+	config.BindEnvAndSetDefault("checks_agent_debug_port", "6060")
 
 	// internal profiling
 	config.BindEnvAndSetDefault("internal_profiling.enabled", false)

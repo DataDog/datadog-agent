@@ -306,6 +306,7 @@ if windows_target?
   GO_BINARIES = [
     "#{install_dir}\\bin\\agent\\agent.exe",
     "#{install_dir}\\bin\\agent\\trace-agent.exe",
+    "#{install_dir}\\bin\\agent\\checks-agent.exe",
     "#{install_dir}\\bin\\agent\\process-agent.exe",
     "#{install_dir}\\bin\\agent\\system-probe.exe"
   ]
