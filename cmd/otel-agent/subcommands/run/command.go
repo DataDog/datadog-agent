@@ -28,7 +28,6 @@ import (
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -220,7 +219,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			PIDFilePath: "",
 		}),
 		traceagentfx.Module(),
-		statusimpl.Module(),
+		//statusimpl.Module(),
 	)
 }
 

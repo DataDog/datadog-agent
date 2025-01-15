@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/run"
-	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/status"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
 	"go.opentelemetry.io/collector/featuregate"
 )
@@ -49,7 +48,6 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	}
 	commands := []*cobra.Command{
 		run.MakeCommand(globalConfGetter),
-		status.MakeCommand(globalConfGetter),
 		version.MakeCommand("otel-agent"),
 	}
 
