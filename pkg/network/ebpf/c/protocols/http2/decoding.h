@@ -575,10 +575,14 @@ static __always_inline bool pktbuf_find_relevant_frames(pktbuf_t pkt, http2_tail
         // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
         is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
         is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
-        if (iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS && (is_headers_or_rst_frame || is_data_end_of_stream)) {
-            iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
-            iteration_value->frames_array[iteration_value->frames_count].offset = pktbuf_data_offset(pkt);
-            iteration_value->frames_count++;
+        if (iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS) {
+            if (is_headers_or_rst_frame || is_data_end_of_stream) {
+                iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
+                iteration_value->frames_array[iteration_value->frames_count].offset = pktbuf_data_offset(pkt);
+                iteration_value->frames_count++;
+            } else if (current_frame.type == kContinuationFrame) {
+                __sync_fetch_and_add(&http2_tel->continuation_frames, 1);
+            }
         }
 
         pktbuf_advance(pkt, current_frame.length);
@@ -896,11 +900,12 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
     }
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
+    __u8 interesting_headers = 0;
+
     __u64 *global_dynamic_counter = get_dynamic_counter(tup);
     if (global_dynamic_counter == NULL) {
         goto delete_iteration;
     }
-    __u8 interesting_headers = 0;
 
     #pragma unroll(HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL)
     for (__u16 index = 0; index < HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL; index++) {
@@ -915,9 +920,6 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         tail_call_state->iteration += 1;
 
         if (current_frame.frame.type != kHeadersFrame) {
-             if (current_frame.frame.type == kContinuationFrame) {
-                __sync_fetch_and_add(&http2_tel->continuation_frames, 1);
-             }
             continue;
         }
 
