@@ -236,8 +236,84 @@ func (s *testIntegrationFolderPermissions) TestIntegrationFolderPermissions() {
 
 }
 
+// TestIntegrationRollback tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+func TestIntegrationRollback(t *testing.T) {
+	s := &testIntegrationRollback{}
+	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
+	require.NoError(t, err, "should get upgrade test package")
+	s.upgradeAgentPackge = upgradeAgentPackge
+	run(t, s)
+}
+
+type testIntegrationRollback struct {
+	baseAgentMSISuite
+	upgradeAgentPackge *windowsAgent.Package
+}
+
+func (s *testIntegrationRollback) TestIntegrationRollback() {
+	vm := s.Env().RemoteHost
+
+	// install current version
+	if !s.Run(fmt.Sprintf("install %s", s.AgentPackage.AgentVersion()), func() {
+		_, err := s.InstallAgent(vm,
+			windowsAgent.WithPackage(s.AgentPackage),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
+			windowsAgent.WithValidAPIKey(),
+			windowsAgent.WithIntegrationsPersistence("1"),
+		)
+		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	// install third party integration
+	err := s.installThirdPartyIntegration(vm, "datadog-ping==1.0.2")
+	s.Require().NoError(err, "should install third party integration")
+
+	// add package to .post_python_installed_packages.txt (this will be still there on rollback)
+
+	folderPath := "C:\\ProgramData\\Datadog\\protected"
+	filePath := filepath.Join(folderPath, ".post_python_installed_packages.txt")
+	_, err = vm.AppendFile("windows", filePath, []byte("test==1.0.0\n"))
+	s.Require().NoError(err, "should append file")
+
+	// upgrade to the new version, but intentionally fail with our persistence flag
+	if !s.Run(fmt.Sprintf("upgrade to %s with rollback", s.upgradeAgentPackge.AgentVersion()), func() {
+		_, err := windowsAgent.InstallAgent(vm,
+			windowsAgent.WithPackage(s.upgradeAgentPackge),
+			windowsAgent.WithWixFailWhenDeferred(),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
+			windowsAgent.WithIntegrationsPersistence("1"),
+		)
+		s.Require().Error(err, "should fail to install agent %s", s.upgradeAgentPackge.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	// verify that test==1.0.0 is still in .post_python_installed_packages.txt
+	out, err := vm.ReadFile(filePath)
+	s.Require().NoError(err, "should read file")
+	assert.Contains(s.T(), string(out), "test==1.0.0", "should contain test==1.0.0")
+
+	// TODO: we shouldn't have to start the agent manually after rollback
+	//       but the kitchen tests did too.
+	err = windowsCommon.StartService(vm, "DatadogAgent")
+	s.Require().NoError(err, "agent service should start after rollback")
+
+	// the previous version should be functional
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
+
+	// Ensure services are still installed
+	// NOTE: will need to update this if we add or remove services
+	_, err = windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServices())
+	s.Assert().NoError(err, "services should still be installed")
+
+	s.uninstallAgent()
+
+}
+
 // install third party integration
-func (s *testPersistingIntegrationsSuite) installThirdPartyIntegration(vm *components.RemoteHost, integration string) error {
+func (s *baseAgentMSISuite) installThirdPartyIntegration(vm *components.RemoteHost, integration string) error {
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	s.Require().NoError(err, "should get install path from registry")
 
@@ -252,7 +328,7 @@ func (s *testPersistingIntegrationsSuite) installThirdPartyIntegration(vm *compo
 }
 
 // install pip package
-func (s *testPersistingIntegrationsSuite) installPipPackage(vm *components.RemoteHost, packageToInstall string) error {
+func (s *baseAgentMSISuite) installPipPackage(vm *components.RemoteHost, packageToInstall string) error {
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	s.Require().NoError(err, "should get install path from registry")
 
@@ -267,7 +343,7 @@ func (s *testPersistingIntegrationsSuite) installPipPackage(vm *components.Remot
 }
 
 // check pip package is installed
-func (s *testPersistingIntegrationsSuite) checkPipPackageInstalled(vm *components.RemoteHost, packageToCheck string) {
+func (s *baseAgentMSISuite) checkPipPackageInstalled(vm *components.RemoteHost, packageToCheck string) {
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(vm)
 	s.Require().NoError(err, "should get install path from registry")
 
@@ -280,7 +356,7 @@ func (s *testPersistingIntegrationsSuite) checkPipPackageInstalled(vm *component
 	assert.True(s.T(), strings.Contains(out, packageCheck), "pip package should be installed")
 }
 
-func (s *testPersistingIntegrationsSuite) checkIntegrationInstall(vm *components.RemoteHost, integration string) {
+func (s *baseAgentMSISuite) checkIntegrationInstall(vm *components.RemoteHost, integration string) {
 	// check that the third party integration is still installed
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(vm)
 	s.Require().NoError(err, "should get install path from registry")
