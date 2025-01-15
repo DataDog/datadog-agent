@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook/types"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -47,7 +48,7 @@ type Webhook struct {
 	name            string
 	isEnabled       bool
 	endpoint        string
-	resources       map[string][]string
+	resources       types.ResourceRuleConfigList
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	ownerCacheTTL   time.Duration
@@ -58,10 +59,12 @@ type Webhook struct {
 // NewWebhook returns a new Webhook
 func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, injectionFilter mutatecommon.InjectionFilter) *Webhook {
 	return &Webhook{
-		name:            webhookName,
-		isEnabled:       datadogConfig.GetBool("admission_controller.inject_tags.enabled"),
-		endpoint:        datadogConfig.GetString("admission_controller.inject_tags.endpoint"),
-		resources:       map[string][]string{"": {"pods"}},
+		name:      webhookName,
+		isEnabled: datadogConfig.GetBool("admission_controller.inject_tags.enabled"),
+		endpoint:  datadogConfig.GetString("admission_controller.inject_tags.endpoint"),
+		resources: types.ResourceRuleConfigList{
+			types.GetPodsV1Resource(),
+		},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		ownerCacheTTL:   ownerCacheTTL(datadogConfig),
@@ -92,7 +95,7 @@ func (w *Webhook) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *Webhook) Resources() map[string][]string {
+func (w *Webhook) Resources() types.ResourceRuleConfigList {
 	return w.resources
 }
 

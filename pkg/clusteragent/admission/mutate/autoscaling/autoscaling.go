@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook/types"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 )
@@ -32,7 +33,7 @@ type Webhook struct {
 	name            string
 	isEnabled       bool
 	endpoint        string
-	resources       map[string][]string
+	resources       types.ResourceRuleConfigList
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	patcher         workload.PodPatcher
@@ -41,10 +42,12 @@ type Webhook struct {
 // NewWebhook returns a new Webhook
 func NewWebhook(patcher workload.PodPatcher, datadogConfig config.Component) *Webhook {
 	return &Webhook{
-		name:            webhookName,
-		isEnabled:       datadogConfig.GetBool("autoscaling.workload.enabled"),
-		endpoint:        webhookEndpoint,
-		resources:       map[string][]string{"": {"pods"}},
+		name:      webhookName,
+		isEnabled: datadogConfig.GetBool("autoscaling.workload.enabled"),
+		endpoint:  webhookEndpoint,
+		resources: types.ResourceRuleConfigList{
+			types.GetPodsV1Resource(),
+		},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		patcher:         patcher,
@@ -73,7 +76,7 @@ func (w *Webhook) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *Webhook) Resources() map[string][]string {
+func (w *Webhook) Resources() types.ResourceRuleConfigList {
 	return w.resources
 }
 
