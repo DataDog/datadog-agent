@@ -74,7 +74,7 @@ type systemContext struct {
 	telemetry *contextTelemetry
 
 	// fatbinTelemetry holds telemetry counters and histograms for the fatbin parsing process
-	fatbinTelemetry *contextFatbinTelemetry
+	fatbinTelemetry *fatbinTelemetry
 }
 
 // contextTelemetry holds telemetry elements for the context
@@ -83,8 +83,8 @@ type contextTelemetry struct {
 	activePIDs      telemetry.Gauge
 }
 
-// contextFatbinTelemetry holds telemetry counters and histograms for the fatbin parsing process
-type contextFatbinTelemetry struct {
+// fatbinTelemetry holds telemetry counters and histograms for the fatbin parsing process
+type fatbinTelemetry struct {
 	readErrors     telemetry.Counter
 	fatbinPayloads telemetry.Counter
 	kernelsPerFile telemetry.Histogram
@@ -114,7 +114,7 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmet
 		visibleDevicesCache:       make(map[int][]nvml.Device),
 		workloadmeta:              wmeta,
 		telemetry:                 newContextTelemetry(tm),
-		fatbinTelemetry:           newContextFatbinTelemetry(tm),
+		fatbinTelemetry:           newfatbinTelemetry(tm),
 	}
 
 	if err := ctx.fillDeviceInfo(); err != nil {
@@ -144,10 +144,10 @@ func newContextTelemetry(tm telemetry.Component) *contextTelemetry {
 	}
 }
 
-func newContextFatbinTelemetry(tm telemetry.Component) *contextFatbinTelemetry {
+func newfatbinTelemetry(tm telemetry.Component) *fatbinTelemetry {
 	subsystem := gpuTelemetryModule + "__fatbin_parser"
 
-	return &contextFatbinTelemetry{
+	return &fatbinTelemetry{
 		readErrors:     tm.NewCounter(subsystem, "read_errors", nil, "Number of errors reading fatbin data"),
 		fatbinPayloads: tm.NewCounter(subsystem, "fatbin_payloads", []string{"compression"}, "Number of fatbin payloads read"),
 		kernelsPerFile: tm.NewHistogram(subsystem, "kernels_per_file", nil, "Number of kernels per fatbin file", []float64{5, 10, 50, 100, 500}),
