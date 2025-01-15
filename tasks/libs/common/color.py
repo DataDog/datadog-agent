@@ -22,6 +22,21 @@ COLORS = {
     Color.BOLD: "\33[1m",
 }
 
+HTML_COLORS = {
+    "\033[95m":'<span style="color:magenta">',
+    "\033[94m":'<span style="color:blue">',
+    "\033[92m":'<span style="color:green">',
+    "\033[93m":'<span style="color:orange">',
+    "\033[91m":'<span style="color:red">',
+    "\033[37m":'<span style="color:grey">',
+    "\33[1m":'<span style="font-weight:bold">',
+    "\33[0m":'</span>'
+}
 
 def color_message(message: str, color: str) -> str:
     return f"{COLORS[color]}{message}{ENDC}" if color in COLORS else message
+
+def bash_color_to_html(colored_message: str) -> str:
+    for bash_color in HTML_COLORS:
+        colored_message = colored_message.replace(bash_color, HTML_COLORS[bash_color])
+    return colored_message
