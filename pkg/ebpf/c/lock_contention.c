@@ -246,21 +246,19 @@ static __always_inline int record_ringbuf_locks(u32 fd, struct bpf_map *bm, u32 
         return err;
 
 
-    struct lock_range lr_rb_spinlock __align_stack_8 = {
-        .addr_start = (u64)&rb->spinlock,
-        .range = sizeof(spinlock_t),
-        .type = RINGBUF_SPINLOCK,
-    };
+    struct lock_range lr_rb_spinlock = {};
+    lr_rb_spinlock.addr_start = (u64)&rb->spinlock;
+    lr_rb_spinlock.range = sizeof(spinlock_t);
+    lr_rb_spinlock.type = RINGBUF_SPINLOCK;
 
     err = bpf_map_update_elem(&map_addr_fd, &lr_rb_spinlock, &mapid, BPF_NOEXIST);
     if (err < 0)
         return err;
 
-    struct lock_range lr_waitq_spinlock = {
-        .addr_start = (u64)&rb->waitq,
-        .range = sizeof(wait_queue_head_t),
-        .type = RINGBUF_WAITQ_SPINLOCK,
-    };
+    struct lock_range lr_waitq_spinlock = {};
+    lr_waitq_spinlock.addr_start = (u64)&rb->waitq;
+    lr_waitq_spinlock.range = sizeof(wait_queue_head_t);
+    lr_waitq_spinlock.type = RINGBUF_WAITQ_SPINLOCK;
     err = bpf_map_update_elem(&map_addr_fd, &lr_waitq_spinlock, &mapid, BPF_NOEXIST);
     if (err < 0)
         return err;
