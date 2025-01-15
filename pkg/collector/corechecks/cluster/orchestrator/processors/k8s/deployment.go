@@ -58,7 +58,7 @@ func (h *DeploymentHandlers) BuildMessageBody(ctx processors.ProcessorContext, r
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *DeploymentHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*appsv1.Deployment)
-	return k8sTransformers.ExtractDeployment(r)
+	return k8sTransformers.ExtractDeployment(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

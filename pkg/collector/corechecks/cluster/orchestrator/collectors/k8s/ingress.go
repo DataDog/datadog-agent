@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,9 +21,9 @@ import (
 )
 
 // NewIngressCollectorVersions builds the group of collector versions.
-func NewIngressCollectorVersions() collectors.CollectorVersions {
+func NewIngressCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewIngressCollector(),
+		NewIngressCollector(metadataAsTags),
 	)
 }
 
@@ -36,7 +37,11 @@ type IngressCollector struct {
 
 // NewIngressCollector creates a new collector for the Kubernetes Ingress
 // resource.
-func NewIngressCollector() *IngressCollector {
+func NewIngressCollector(metadataAsTags utils.MetadataAsTags) *IngressCollector {
+	resourceType := getResourceType(ingressName, ingressVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &IngressCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -44,9 +49,11 @@ func NewIngressCollector() *IngressCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "ingresses",
+			Name:                      ingressName,
 			NodeType:                  orchestrator.K8sIngress,
-			Version:                   "networking.k8s.io/v1",
+			Version:                   ingressVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.IngressHandlers)),
 	}

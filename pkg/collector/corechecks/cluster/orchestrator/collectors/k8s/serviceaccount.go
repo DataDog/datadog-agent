@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,9 +21,9 @@ import (
 )
 
 // NewServiceAccountCollectorVersions builds the group of collector versions.
-func NewServiceAccountCollectorVersions() collectors.CollectorVersions {
+func NewServiceAccountCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewServiceAccountCollector(),
+		NewServiceAccountCollector(metadataAsTags),
 	)
 }
 
@@ -36,7 +37,11 @@ type ServiceAccountCollector struct {
 
 // NewServiceAccountCollector creates a new collector for the Kubernetes
 // ServiceAccount resource.
-func NewServiceAccountCollector() *ServiceAccountCollector {
+func NewServiceAccountCollector(metadataAsTags utils.MetadataAsTags) *ServiceAccountCollector {
+	resourceType := getResourceType(serviceAccountName, serviceAccountVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &ServiceAccountCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -44,9 +49,11 @@ func NewServiceAccountCollector() *ServiceAccountCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "serviceaccounts",
+			Name:                      serviceAccountName,
 			NodeType:                  orchestrator.K8sServiceAccount,
-			Version:                   "v1",
+			Version:                   serviceAccountVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ServiceAccountHandlers)),
 	}

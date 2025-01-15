@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,9 +21,9 @@ import (
 )
 
 // NewStatefulSetCollectorVersions builds the group of collector versions.
-func NewStatefulSetCollectorVersions() collectors.CollectorVersions {
+func NewStatefulSetCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewStatefulSetCollector(),
+		NewStatefulSetCollector(metadataAsTags),
 	)
 }
 
@@ -36,7 +37,11 @@ type StatefulSetCollector struct {
 
 // NewStatefulSetCollector creates a new collector for the Kubernetes
 // StatefulSet resource.
-func NewStatefulSetCollector() *StatefulSetCollector {
+func NewStatefulSetCollector(metadataAsTags utils.MetadataAsTags) *StatefulSetCollector {
+	resourceType := getResourceType(statefulSetName, statefulSetVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &StatefulSetCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -44,9 +49,11 @@ func NewStatefulSetCollector() *StatefulSetCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "statefulsets",
+			Name:                      statefulSetName,
 			NodeType:                  orchestrator.K8sStatefulSet,
-			Version:                   "apps/v1",
+			Version:                   statefulSetVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.StatefulSetHandlers)),
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,9 +21,9 @@ import (
 )
 
 // NewReplicaSetCollectorVersions builds the group of collector versions.
-func NewReplicaSetCollectorVersions() collectors.CollectorVersions {
+func NewReplicaSetCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewReplicaSetCollector(),
+		NewReplicaSetCollector(metadataAsTags),
 	)
 }
 
@@ -36,7 +37,11 @@ type ReplicaSetCollector struct {
 
 // NewReplicaSetCollector creates a new collector for the Kubernetes ReplicaSet
 // resource.
-func NewReplicaSetCollector() *ReplicaSetCollector {
+func NewReplicaSetCollector(metadataAsTags utils.MetadataAsTags) *ReplicaSetCollector {
+	resourceType := getResourceType(replicaSetName, replicaSetVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &ReplicaSetCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -44,9 +49,11 @@ func NewReplicaSetCollector() *ReplicaSetCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "replicasets",
+			Name:                      replicaSetName,
 			NodeType:                  orchestrator.K8sReplicaSet,
-			Version:                   "apps/v1",
+			Version:                   replicaSetVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ReplicaSetHandlers)),
 	}

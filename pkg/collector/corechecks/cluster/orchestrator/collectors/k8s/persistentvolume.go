@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,9 +21,9 @@ import (
 )
 
 // NewPersistentVolumeCollectorVersions builds the group of collector versions.
-func NewPersistentVolumeCollectorVersions() collectors.CollectorVersions {
+func NewPersistentVolumeCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewPersistentVolumeCollector(),
+		NewPersistentVolumeCollector(metadataAsTags),
 	)
 }
 
@@ -36,7 +37,11 @@ type PersistentVolumeCollector struct {
 
 // NewPersistentVolumeCollector creates a new collector for the Kubernetes
 // PersistentVolume resource.
-func NewPersistentVolumeCollector() *PersistentVolumeCollector {
+func NewPersistentVolumeCollector(metadataAsTags utils.MetadataAsTags) *PersistentVolumeCollector {
+	resourceType := getResourceType(persistentVolumeName, persistentVolumeVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &PersistentVolumeCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -44,9 +49,11 @@ func NewPersistentVolumeCollector() *PersistentVolumeCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "persistentvolumes",
+			Name:                      persistentVolumeName,
 			NodeType:                  orchestrator.K8sPersistentVolume,
-			Version:                   "v1",
+			Version:                   persistentVolumeVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.PersistentVolumeHandlers)),
 	}

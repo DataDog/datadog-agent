@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"k8s.io/apimachinery/pkg/labels"
 	networkingv1Informers "k8s.io/client-go/informers/networking/v1"
 	networkingv1Listers "k8s.io/client-go/listers/networking/v1"
@@ -20,9 +21,9 @@ import (
 )
 
 // NewNetworkPolicyCollectorVersions builds the group of collector versions.
-func NewNetworkPolicyCollectorVersions() collectors.CollectorVersions {
+func NewNetworkPolicyCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewNetworkPolicyCollector(),
+		NewNetworkPolicyCollector(metadataAsTags),
 	)
 }
 
@@ -36,7 +37,11 @@ type NetworkPolicyCollector struct {
 
 // NewNetworkPolicyCollector creates a new collector for the Kubernetes
 // NetworkPolicy resource.
-func NewNetworkPolicyCollector() *NetworkPolicyCollector {
+func NewNetworkPolicyCollector(metadataAsTags utils.MetadataAsTags) *NetworkPolicyCollector {
+	resourceType := getResourceType(networkPolicyName, networkPolicyVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &NetworkPolicyCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -44,9 +49,11 @@ func NewNetworkPolicyCollector() *NetworkPolicyCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "networkpolicies",
+			Name:                      networkPolicyName,
 			NodeType:                  orchestrator.K8sNetworkPolicy,
-			Version:                   "networking.k8s.io/v1",
+			Version:                   networkPolicyVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.NetworkPolicyHandlers)),
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	v2Informers "k8s.io/client-go/informers/autoscaling/v2"
@@ -21,9 +22,9 @@ import (
 )
 
 // NewHorizontalPodAutoscalerCollectorVersions builds the group of collector versions.
-func NewHorizontalPodAutoscalerCollectorVersions() collectors.CollectorVersions {
+func NewHorizontalPodAutoscalerCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewHorizontalPodAutoscalerCollector(),
+		NewHorizontalPodAutoscalerCollector(metadataAsTags),
 	)
 }
 
@@ -37,7 +38,11 @@ type HorizontalPodAutoscalerCollector struct {
 
 // NewHorizontalPodAutoscalerCollector creates a new collector for the Kubernetes
 // HorizontalPodAutoscaler resource.
-func NewHorizontalPodAutoscalerCollector() *HorizontalPodAutoscalerCollector {
+func NewHorizontalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *HorizontalPodAutoscalerCollector {
+	resourceType := getResourceType(hpaName, hpaVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &HorizontalPodAutoscalerCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -45,9 +50,11 @@ func NewHorizontalPodAutoscalerCollector() *HorizontalPodAutoscalerCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "horizontalpodautoscalers",
+			Name:                      hpaName,
 			NodeType:                  orchestrator.K8sHorizontalPodAutoscaler,
-			Version:                   "autoscaling/v2",
+			Version:                   hpaVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.HorizontalPodAutoscalerHandlers)),
 	}

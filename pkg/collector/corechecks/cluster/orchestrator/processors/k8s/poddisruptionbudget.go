@@ -49,9 +49,9 @@ func (h *PodDisruptionBudgetHandlers) BuildMessageBody(ctx processors.ProcessorC
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
-func (h *PodDisruptionBudgetHandlers) ExtractResource(_ processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
+func (h *PodDisruptionBudgetHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*policyv1.PodDisruptionBudget)
-	return k8sTransformers.ExtractPodDisruptionBudget(r)
+	return k8sTransformers.ExtractPodDisruptionBudget(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,9 +21,9 @@ import (
 )
 
 // NewPersistentVolumeClaimCollectorVersions builds the group of collector versions.
-func NewPersistentVolumeClaimCollectorVersions() collectors.CollectorVersions {
+func NewPersistentVolumeClaimCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewPersistentVolumeClaimCollector(),
+		NewPersistentVolumeClaimCollector(metadataAsTags),
 	)
 }
 
@@ -36,7 +37,11 @@ type PersistentVolumeClaimCollector struct {
 
 // NewPersistentVolumeClaimCollector creates a new collector for the Kubernetes
 // PersistentVolumeClaim resource.
-func NewPersistentVolumeClaimCollector() *PersistentVolumeClaimCollector {
+func NewPersistentVolumeClaimCollector(metadataAsTags utils.MetadataAsTags) *PersistentVolumeClaimCollector {
+	resourceType := getResourceType(persistentVolumeClaimName, persistentVolumeClaimVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &PersistentVolumeClaimCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -44,9 +49,11 @@ func NewPersistentVolumeClaimCollector() *PersistentVolumeClaimCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "persistentvolumeclaims",
+			Name:                      persistentVolumeClaimName,
 			NodeType:                  orchestrator.K8sPersistentVolumeClaim,
-			Version:                   "v1",
+			Version:                   persistentVolumeClaimVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.PersistentVolumeClaimHandlers)),
 	}

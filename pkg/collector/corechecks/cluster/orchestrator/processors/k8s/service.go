@@ -58,7 +58,7 @@ func (h *ServiceHandlers) BuildMessageBody(ctx processors.ProcessorContext, reso
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ServiceHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*corev1.Service)
-	return k8sTransformers.ExtractService(r)
+	return k8sTransformers.ExtractService(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

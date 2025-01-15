@@ -45,9 +45,9 @@ func NewCRDCollector() *CRDCollector {
 			IsManifestProducer:        true,
 			IsMetadataProducer:        false,
 			SupportsManifestBuffering: false,
-			Name:                      "customresourcedefinitions",
+			Name:                      crdName,
 			NodeType:                  orchestrator.K8sCRD,
-			Version:                   "apiextensions.k8s.io/v1",
+			Version:                   crdVersion,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.CRDHandlers)),
 	}

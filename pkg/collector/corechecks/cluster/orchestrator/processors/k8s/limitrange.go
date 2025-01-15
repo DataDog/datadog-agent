@@ -57,7 +57,7 @@ func (h *LimitRangeHandlers) BuildMessageBody(ctx processors.ProcessorContext, r
 //nolint:revive
 func (h *LimitRangeHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (LimitRangeModel interface{}) {
 	r := resource.(*corev1.LimitRange)
-	return k8sTransformers.ExtractLimitRange(r)
+	return k8sTransformers.ExtractLimitRange(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
