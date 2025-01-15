@@ -6,45 +6,44 @@ from invoke import task
 
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import color_message, bash_color_to_html
 
 FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
 
+body_info_pattern = """### Info
+
+<details>
+<summary>Full details</summary>
+
+|Result|Quality gate|Details|Run|
+|----|----|----|----|
+"""
+body_error_pattern = """### Error
+
+<details>
+<summary>Full details</summary>
+
+|Result|Quality gate|Details|Run|
+|----|----|----|----|
+"""
+
 
 def display_pr_comment(ctx, finalState, gateStates):
     title = f"Static quality checks {SUCCESS_CHAR if finalState else FAIL_CHAR}"
-    body_info = """### Info
-
-    <details>
-    <summary>Full details</summary>
-
-    |Result|Quality gate|Details|Run|
-    |----|----|----|----|
-    """
-    body_error = """### Error
-
-    <details>
-    <summary>Full details</summary>
-
-    |Result|Quality gate|Details|Run|
-    |----|----|----|----|
-    """
+    body_info = body_info_pattern
+    body_error = body_error_pattern
     withError = False
     for gate in sorted(gateStates, key=lambda x: x["error_type"] is None):
         if gate["error_type"] is None:
-            body_info += f"|✅|{gate['name']}|{gate['message']}| WIP |\n"
+            body_info += f"|✅|{gate['name']}|{bash_color_to_html(gate['message'])}| WIP |\n"
         else:
-            body_error += f"|✅|{gate['name']}|{gate['message']}| WIP |\n"
+            body_error += f"|❌|{gate['name']}|{bash_color_to_html(gate['message'])}| WIP |\n"
             withError = True
     body_info += "\n</details>\n"
     body_error += "\n</details>\n"
 
-    body = f"""Please find below the results from static quality gates
-    {body_info}
-
-    {body_error if withError else ""}
-    """
+    body = f"Please find below the results from static quality gates\n{body_error if withError else ""}\n\n{body_info}"
 
     pr_commenter(ctx, title=title, body=body)
 
