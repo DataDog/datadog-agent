@@ -4,10 +4,11 @@
 package ditypes
 
 type BaseEvent struct {
-	Probe_id         [36]byte
 	Pid              uint32
 	Uid              uint32
 	Program_counters [10]uint64
+	Probe_id         [36]byte
+	Pad_cgo_0        [4]byte
 }
 
 const SizeofBaseEvent = 0x80

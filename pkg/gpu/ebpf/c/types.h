@@ -17,10 +17,11 @@ typedef enum {
 #define MAX_CONTAINER_ID_LEN 129
 
 typedef struct {
-    cuda_event_type_t type;
     __u64 pid_tgid;
     __u64 stream_id;
     __u64 ktime_ns;
+    cuda_event_type_t type;
+    __u32 pad; // force cgroup to be 8 byte aligned for bpf_memset
     char cgroup[MAX_CONTAINER_ID_LEN];
 } cuda_event_header_t;
 
