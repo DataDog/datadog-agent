@@ -119,5 +119,5 @@ func isInjectorFile(path string) bool {
 	if err != nil {
 		return false
 	}
-	return strings.HasPrefix(name, "memfd:dd_langauge")
+	return strings.HasPrefix(name, "memfd:dd_language")
 }
