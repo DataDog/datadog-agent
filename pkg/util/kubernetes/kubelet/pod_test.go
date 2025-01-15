@@ -14,25 +14,28 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TODO: update this method
 func TestPodOwners(t *testing.T) {
 	dsOwner := []PodOwner{
 		{
-			Kind: "DaemonSet",
-			Name: "dd-agent-rc",
-			ID:   "6a76e51c-88d7-11e7-9a0f-42010a8401cc",
+			APIVersion: "apps/v1",
+			Kind:       "DaemonSet",
+			Name:       "dd-agent-rc",
+			ID:         "6a76e51c-88d7-11e7-9a0f-42010a8401cc",
 		},
 	}
 
-	legacyDsAnnotation := "{\"kind\":\"SerializedReference\",\"apiVersion\":\"v1\",\"reference\":{\"kind\":\"DaemonSet\",\"namespace\":\"default\",\"name\":\"dd-agent\",\"uid\":\"12c56a58-33ca-11e6-ac8f-42010af00003\",\"apiVersion\":\"extensions\",\"resourceVersion\":\"456736\"}}\n"
+	legacyDsAnnotation := "{\"kind\":\"SerializedReference\",\"apiVersion\":\"v1\",\"reference\":{\"kind\":\"DaemonSet\",\"namespace\":\"default\",\"name\":\"dd-agent\",\"uid\":\"12c56a58-33ca-11e6-ac8f-42010af00003\",\"apiVersion\":\"apps/v1\",\"resourceVersion\":\"456736\"}}\n"
 	legacyDsOwner := []PodOwner{
 		{
-			Kind: "DaemonSet",
-			Name: "dd-agent",
-			ID:   "12c56a58-33ca-11e6-ac8f-42010af00003",
+			APIVersion: "apps/v1",
+			Kind:       "DaemonSet",
+			Name:       "dd-agent",
+			ID:         "12c56a58-33ca-11e6-ac8f-42010af00003",
 		},
 	}
 
-	legacyInvalidAnnotation := "{\"kind\":\"Unknown\",\"apiVersion\":\"v1\",\"reference\":{\"kind\":\"DaemonSet\",\"namespace\":\"default\",\"name\":\"dd-agent\",\"uid\":\"12c56a58-33ca-11e6-ac8f-42010af00003\",\"apiVersion\":\"extensions\",\"resourceVersion\":\"456736\"}}\n"
+	legacyInvalidAnnotation := "{\"kind\":\"Unknown\",\"apiVersion\":\"v1\",\"reference\":{\"kind\":\"DaemonSet\",\"namespace\":\"default\",\"name\":\"dd-agent\",\"uid\":\"12c56a58-33ca-11e6-ac8f-42010af00003\",\"apiVersion\":\"apps/v1\",\"resourceVersion\":\"456736\"}}\n"
 
 	for nb, tc := range []struct {
 		pod            *Pod

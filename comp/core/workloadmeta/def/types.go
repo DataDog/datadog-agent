@@ -803,9 +803,10 @@ var _ Entity = &KubernetesPod{}
 
 // KubernetesPodOwner is extracted from a pod's owner references.
 type KubernetesPodOwner struct {
-	Kind string
-	Name string
-	ID   string
+	APIVersion string
+	Kind       string
+	Name       string
+	ID         string
 }
 
 // String returns a string representation of KubernetesPodOwner.
@@ -814,7 +815,7 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Kind:", o.Kind, "Name:", o.Name)
 
 	if verbose {
-		_, _ = fmt.Fprintln(&sb, "ID:", o.ID)
+		_, _ = fmt.Fprintln(&sb, "APIVersion", o.APIVersion, "ID:", o.ID)
 	}
 
 	return sb.String()
