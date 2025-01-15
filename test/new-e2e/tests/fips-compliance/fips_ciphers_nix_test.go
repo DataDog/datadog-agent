@@ -8,7 +8,6 @@ package fipscompliance
 import (
 	_ "embed"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -60,21 +59,31 @@ type fipsServerSuite struct {
 }
 
 func TestFIPSCiphersSuite(t *testing.T) {
-	e2e.Run(t, &fipsServerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner()), e2e.WithSkipDeleteOnFailure())
-}
-
-func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
-	imageTag := fmt.Sprintf("%s-%s-fips", os.Getenv("E2E_PIPELINE_ID"), os.Getenv("CI_COMMIT_SHA"))
-
-	v.UpdateEnv(
-		awsdocker.Provisioner(
-			awsdocker.WithAgentOptions(
-				dockeragentparams.WithImageTag(imageTag),
-				//dockeragentparams.WithFullImagePath("669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:52591054-61b96d15-fips"),
+	e2e.Run(
+		t,
+		&fipsServerSuite{},
+		e2e.WithProvisioner(
+			awsdocker.Provisioner(
+				dockeragentparams.WithFips(),
 				dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
 			),
 		),
+		e2e.WithSkipDeleteOnFailure(),
 	)
+}
+
+func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
+	//imageTag := fmt.Sprintf("%s-%s-fips", os.Getenv("E2E_PIPELINE_ID"), os.Getenv("CI_COMMIT_SHA"))
+
+	//v.UpdateEnv(
+	//	awsdocker.Provisioner(
+	//		awsdocker.WithAgentOptions(
+	//			dockeragentparams.WithFips(),
+	//			//dockeragentparams.WithFullImagePath("669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:52591054-61b96d15-fips"),
+	//			dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
+	//		),
+	//	),
+	//)
 
 	composeFiles := strings.Split(v.Env().RemoteHost.MustExecute(`docker inspect --format='{{index (index .Config.Labels "com.docker.compose.project.config_files")}}' dd-fips-server`), ",")
 	formattedComposeFiles := strings.Join(composeFiles, " -f ")
@@ -100,17 +109,17 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
 }
 
 func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
-	imageTag := fmt.Sprintf("%s-%s-fips", os.Getenv("E2E_PIPELINE_ID"), os.Getenv("CI_COMMIT_SHA"))
+	// imageTag := fmt.Sprintf("%s-%s-fips", os.Getenv("E2E_PIPELINE_ID"), os.Getenv("CI_COMMIT_SHA"))
 
-	v.UpdateEnv(
-		awsdocker.Provisioner(
-			awsdocker.WithAgentOptions(
-				dockeragentparams.WithImageTag(imageTag),
-				//dockeragentparams.WithFullImagePath("669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:52591054-61b96d15-fips"),
-				dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
-			),
-		),
-	)
+	// v.UpdateEnv(
+	// 	awsdocker.Provisioner(
+	// 		awsdocker.WithAgentOptions(
+	// 			dockeragentparams.WithImageTag(imageTag),
+	// 			//dockeragentparams.WithFullImagePath("669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:52591054-61b96d15-fips"),
+	// 			dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
+	// 		),
+	// 	),
+	// )
 
 	composeFiles := strings.Split(v.Env().RemoteHost.MustExecute(`docker inspect --format='{{index (index .Config.Labels "com.docker.compose.project.config_files")}}' dd-fips-server`), ",")
 	formattedComposeFiles := strings.Join(composeFiles, " -f ")
