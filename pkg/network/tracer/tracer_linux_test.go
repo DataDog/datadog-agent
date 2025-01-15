@@ -2322,7 +2322,7 @@ func TestConntrackerFallback(t *testing.T) {
 
 func testConfig() *config.Config {
 	cfg := config.New()
-	if env.IsECSFargate() {
+	if env.IsECSFargate() || cfg.EnableEbpfless {
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}
