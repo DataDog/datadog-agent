@@ -64,8 +64,10 @@ func TestFIPSCiphersSuite(t *testing.T) {
 		&fipsServerSuite{},
 		e2e.WithProvisioner(
 			awsdocker.Provisioner(
-				dockeragentparams.WithFips(),
-				dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
+				awsdocker.WithAgentOptions(
+					dockeragentparams.WithFIPS(),
+					dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
+				),
 			),
 		),
 		e2e.WithSkipDeleteOnFailure(),
