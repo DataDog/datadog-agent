@@ -132,6 +132,7 @@ func NewServer(options ...Option) *Server {
 
 	mux.HandleFunc("/fakeintake/configure/override", fi.handleConfigureOverride)
 
+	mux.HandleFunc("/debug/lastAPIKey/", fi.handleGetLastAPIKey)
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
@@ -440,7 +441,16 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 	}
 	contentType := req.Header.Get("Content-Type")
 
-	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, contentType, fi.clock.Now().UTC())
+	//
+	apiKey := ""
+	for h, val := range req.Header {
+		if strings.ToLower(h) == "dd-api-key" {
+			apiKey = val[0]
+			continue
+		}
+	}
+
+	err = fi.store.AppendPayload(req.URL.Path, apiKey, payload, encoding, contentType, fi.clock.Now().UTC())
 	if err != nil {
 		log.Printf("Error adding payload to store: %v", err)
 		response := buildErrorResponse(err)
@@ -454,6 +464,20 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 	}
 
 	return fmt.Errorf("no POST response found for path %s", req.URL.Path)
+}
+
+func (fi *Server) handleGetLastAPIKey(w http.ResponseWriter, req *http.Request) {
+	apiKey, err := fi.store.MostRecentPayloadAPIKey("/intake/")
+	if err != nil {
+		response := buildErrorResponse(err)
+		writeHTTPResponse(w, response)
+		return
+	}
+	writeHTTPResponse(w, httpResponse{
+		contentType: "application/text",
+		statusCode:  http.StatusOK,
+		body:        []byte(apiKey),
+	})
 }
 
 func (fi *Server) handleFlushPayloads(w http.ResponseWriter, _ *http.Request) {
