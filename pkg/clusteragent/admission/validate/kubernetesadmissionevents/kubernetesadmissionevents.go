@@ -27,6 +27,7 @@ import (
 	validatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/common"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -53,6 +54,9 @@ func NewWebhook(datadogConfig config.Component, demultiplexer aggregator.Demulti
 		resources: map[string][]string{
 			"apps": {
 				"deployments",
+			},
+			"": {
+				"pods",
 			},
 		},
 		operations: []admissionregistrationv1.OperationType{
@@ -167,6 +171,11 @@ func generateDatadogEvent(request *admission.Request, webhookName string) (event
 		}
 	}
 
+	clusterId, err := clustername.GetClusterID()
+	if err != nil {
+		log.Errorf("Failed to get cluster ID: %s", err)
+	}
+
 	// Generate a Datadog Event.
 	title := fmt.Sprintf("%s Event for %s %s/%s by %s", request.Operation, request.Kind.Kind, request.Namespace, request.Name, request.UserInfo.Username)
 	text := "%%%" +
@@ -175,7 +184,9 @@ func generateDatadogEvent(request *admission.Request, webhookName string) (event
 		"**Username:** " + request.UserInfo.Username + "\\\n" +
 		"**Operation:** " + string(request.Operation) + "\\\n" +
 		"**Time:** " + time.Now().UTC().Format("January 02, 2006 at 03:04:05 PM MST") + "\\\n" +
-		"**Request UID:** " + string(request.UID) +
+		"**Request UID:** " + string(request.UID) + "\\\n" +
+		"**Cluster ID:** " + clusterId + "\\\n" +
+		"**Resource ID:** " + string(oldResource.GetUID()) +
 		"%%%"
 
 	tags := []string{
