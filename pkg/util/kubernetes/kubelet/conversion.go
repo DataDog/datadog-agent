@@ -69,6 +69,7 @@ func convertToK8sOwnerReferences(owners []PodOwner) []metav1.OwnerReference {
 	k8sOwnerReferences := make([]metav1.OwnerReference, len(owners))
 	for i, owner := range owners {
 		k8sOwnerReferences[i] = metav1.OwnerReference{
+			APIVersion: owner.APIVersion,
 			Kind:       owner.Kind,
 			Name:       owner.Name,
 			Controller: owner.Controller,

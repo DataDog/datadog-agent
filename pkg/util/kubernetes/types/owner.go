@@ -10,19 +10,27 @@ package types
 
 // ObjectRelation represents a Kubernetes object's ObjectRelation.
 type ObjectRelation struct {
-	ParentAPIVersion string
-	ParentKind       string
-	ParentName       string
+	ParentGVRK GroupVersionResourceKind
+	ParentName string
 
-	// TODO: we can maybe cut down on having full GVK?
+	// TODO: we can maybe cut down on having full GVRK?
 
-	ChildAPIVersion string
-	ChildKind       string
-	ChildName       string
+	ChildGVRK GroupVersionResourceKind
+	ChildName string
 }
 
-// TODO: investigate the impact of this import on agent images
-// Maybe need to create a new type to avoid import of k8s.io/apimachinery/pkg/runtime/schema?
+// GroupVersionResourceKind represents a Kubernetes object's Group, Version, Resource, and Kind.
+type GroupVersionResourceKind struct {
+	Group    string
+	Version  string
+	Resource string
+	Kind     string
+}
+
+// GetAPIVersion returns the API version of the GroupVersionResourceKind.
+func (g GroupVersionResourceKind) GetAPIVersion() string {
+	return g.Group + "/" + g.Version
+}
 
 // // GroupVersionKind represents a Kubernetes object's Group, Version, and Kind.
 // type GroupVersionKind struct {
