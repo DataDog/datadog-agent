@@ -123,7 +123,7 @@ func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLa
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) GetOwnerReferences(_ string, _ string, _ string, _ string, _ string) ([]k8stypes.ObjectRelation, error) {
+func (f *FakeDCAClient) GetOwnerReferences(_ string, _ string, _ string, _ string) ([]k8stypes.ObjectRelation, error) {
 	panic("implement me")
 }
 

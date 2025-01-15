@@ -44,70 +44,100 @@ func installKubernetesMetadataEndpoints(r *mux.Router, wmeta workloadmeta.Compon
 	r.HandleFunc("/tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", func(w http.ResponseWriter, r *http.Request) { getNamespaceLabels(w, r, wmeta) })).Methods("GET")
 	r.HandleFunc("/metadata/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceMetadata", func(w http.ResponseWriter, r *http.Request) { getNamespaceMetadata(w, r, wmeta) })).Methods("GET")
 	r.HandleFunc("/cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID)).Methods("GET")
-	r.HandleFunc("/owners/{ns}/{resourceName}/{group}/{version}/{kind}", api.WithTelemetryWrapper("getOwnerReferences", func(w http.ResponseWriter, r *http.Request) { getOwnerReferences(w, r, wmeta) })).Methods("GET")
+	r.HandleFunc("/owners/{ns}/{resourceName}/{apiVersion}/{kind}", api.WithTelemetryWrapper("getOwnerReferences", func(w http.ResponseWriter, r *http.Request) { getOwnerReferences(w, r, wmeta) })).Methods("GET")
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
 
+type ownerItem struct {
+	gvk  schema.GroupVersionKind
+	gvr  schema.GroupVersionResource
+	name string
+}
+
 func getOwnerReferences(w http.ResponseWriter, r *http.Request, _ workloadmeta.Component) {
 	vars := mux.Vars(r)
-	name, ns, group, version, kind := vars["resourceName"], vars["ns"], vars["group"], vars["version"], vars["kind"]
+	nsName, name, apiVersion, kind := vars["ns"], vars["resourceName"], vars["apiVersion"], vars["kind"]
+
+	groupVersion, err := schema.ParseGroupVersion(apiVersion)
+	if err != nil {
+		log.Errorf("Could not parse the group version: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	apiClient, err := as.GetAPIClient()
+	if err != nil {
+		log.Errorf("Could not create the API client: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	childGVK := schema.GroupVersionKind{
-		Group:   group,
-		Version: version,
+		Group:   groupVersion.Group,
+		Version: groupVersion.Version,
 		Kind:    kind,
 	}
 
-	apiClient, _ := as.GetAPIClient()
-
-	type queueEntry struct {
-		gvk  schema.GroupVersionKind
-		name string
+	restMapping, err := apiClient.RESTMapper.RESTMapping(childGVK.GroupKind(), childGVK.Version)
+	if err != nil {
+		log.Errorf("Could not get the REST mapping: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	queue := []queueEntry{{gvk: childGVK, name: name}}
+	childGVR := schema.GroupVersionResource{
+		Group:    childGVK.Group,
+		Version:  childGVK.Version,
+		Resource: restMapping.Resource.Resource,
+	}
 
 	outputOwnerReferences := make([]k8stypes.ObjectRelation, 0)
+	queue := []ownerItem{{gvk: childGVK, gvr: childGVR, name: name}}
 
 	for len(queue) > 0 {
 		curr := queue[0]
 		queue = queue[1:]
 
-		// TODO: maybe store a cache of the GVK to GVR mapping
-		restMapping, _ := apiClient.RESTMapper.RESTMapping(curr.gvk.GroupKind(), curr.gvk.Version)
-
-		currGVR := schema.GroupVersionResource{
-			Group:    curr.gvk.Group,
-			Version:  curr.gvk.Version,
-			Resource: restMapping.Resource.Resource,
-		}
-
-		// TODO: maybe check if wmeta has the parent resource already?
-		// TODO: maybe store a cache of the resource
-		response, _ := apiClient.DynamicCl.Resource(currGVR).Namespace(ns).Get(context.TODO(), curr.name, metav1.GetOptions{})
-		// parentID := response.GetUID()
+		// TODO: maybe cache the response or check wmeta for the object first?
+		response, _ := apiClient.DynamicCl.Resource(curr.gvr).Namespace(nsName).Get(context.TODO(), curr.name, metav1.GetOptions{})
 		ownerReferences := response.GetOwnerReferences()
 
-		for _, ownerReference := range ownerReferences {
+		for _, owner := range ownerReferences {
+
+			restMapping, err := apiClient.RESTMapper.RESTMapping(curr.gvk.GroupKind(), curr.gvk.Version)
+			if err != nil {
+				log.Errorf("Could not get the REST mapping: %v", err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 
 			// Step 1: add owner into queue
-			groupVersion, _ := schema.ParseGroupVersion(ownerReference.APIVersion)
-			queue = append(queue, queueEntry{
-				gvk:  schema.GroupVersionKind{Group: groupVersion.Group, Version: groupVersion.Version, Kind: ownerReference.Kind},
-				name: ownerReference.Name,
+			ownerGroupVersion, _ := schema.ParseGroupVersion(owner.APIVersion)
+			queue = append(queue, ownerItem{
+				gvk:  schema.GroupVersionKind{Group: ownerGroupVersion.Group, Version: ownerGroupVersion.Version, Kind: owner.Kind},
+				gvr:  schema.GroupVersionResource{Group: ownerGroupVersion.Group, Version: ownerGroupVersion.Version, Resource: restMapping.Resource.Resource},
+				name: owner.Name,
 			})
 
 			// Step 2: record in outputOwnerReferences
 			outputOwnerReferences = append(outputOwnerReferences, k8stypes.ObjectRelation{
-				ParentAPIVersion: groupVersion.String(),
-				ParentKind:       ownerReference.Kind,
-				ParentName:       ownerReference.Name,
+				ParentGVRK: k8stypes.GroupVersionResourceKind{
+					Group:    curr.gvk.Group,
+					Version:  curr.gvk.Version,
+					Resource: curr.gvr.Resource,
+					Kind:     curr.gvk.Kind,
+				},
+				ParentName: owner.Name,
 
-				ChildAPIVersion: curr.gvk.GroupVersion().String(),
-				ChildKind:       curr.gvk.Kind,
-				ChildName:       curr.name,
+				ChildGVRK: k8stypes.GroupVersionResourceKind{
+					Group:    ownerGroupVersion.Group,
+					Version:  ownerGroupVersion.Version,
+					Resource: restMapping.Resource.Resource,
+					Kind:     owner.Kind,
+				},
+				ChildName: curr.name,
 			})
 		}
 	}
