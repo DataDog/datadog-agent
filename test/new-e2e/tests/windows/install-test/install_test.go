@@ -474,3 +474,27 @@ func (s *testInstallFailSuite) TestInstallFail() {
 		AssertDoesNotChangePathPermissions(s.T(), vm, s.beforeInstallPerms)
 	})
 }
+
+// TestInstallWithLanmanServerDisabled tests that the Agent can be installed when the LanmanServer service is disabled.
+// This is the case in Windows Containers, but is not likely to be encountered in other environments.
+func TestInstallWithLanmanServerDisabled(t *testing.T) {
+	s := &testInstallWithLanmanServerDisabledSuite{}
+	Run(t, s)
+}
+
+type testInstallWithLanmanServerDisabledSuite struct {
+	baseAgentMSISuite
+}
+
+func (s *testInstallWithLanmanServerDisabledSuite) TestInstallWithLanmanServerDisabled() {
+	vm := s.Env().RemoteHost
+
+	// Disable LanmanServer service to prevent it from starting again, and then stop it
+	_, err := vm.Execute("sc.exe config lanmanserver start= disabled")
+	s.Require().NoError(err)
+	err = windowsCommon.StopService(vm, "lanmanserver")
+	s.Require().NoError(err)
+
+	_ = s.installAgentPackage(vm, s.AgentPackage)
+	RequireAgentRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm))
+}
