@@ -64,6 +64,17 @@ func TestAddShutdownMetric(t *testing.T) {
 	assert.Equal(t, metric.Tags[1], "tagb:valueb")
 }
 
+func TestNilDemuxDoesNotPanic(t *testing.T) {
+	demux := createDemultiplexer(t)
+	timestamp := time.Now()
+	// Pass nil for demux to mimic when a port is blocked and dogstatsd does not start properly.
+	// This previously led to a panic and segmentation fault
+	add("metric", []string{"taga:valuea", "tagb:valueb"}, timestamp, nil)
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Equal(t, 0, len(timedMetrics))
+	assert.Equal(t, 0, len(generatedMetrics))
+}
+
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
 	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), compressionmock.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }

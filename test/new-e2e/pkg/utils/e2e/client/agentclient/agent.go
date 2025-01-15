@@ -32,6 +32,9 @@ type Agent interface {
 	// Flare runs flare command and returns the output. You should use the FakeIntake client to fetch the flare archive
 	Flare(commandArgs ...AgentArgsOption) string
 
+	// FlareWithError runs flare command and returns the output and error, if any. You should use the FakeIntake client to fetch the flare archive
+	FlareWithError(commandArgs ...AgentArgsOption) (string, error)
+
 	// Health runs health command and returns the runtime agent health
 	Health() (string, error)
 

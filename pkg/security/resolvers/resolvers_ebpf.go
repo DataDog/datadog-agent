@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -93,7 +92,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
-	cgroupsResolver, err := cgroup.NewResolver()
+	cgroupsResolver, err := cgroup.NewResolver(statsdClient)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +132,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		mountResolver = &mount.NoOpResolver{}
 		pathResolver = &path.NoOpResolver{}
 	}
-	containerResolver := &container.Resolver{}
+	containerResolver := container.New()
 
 	processOpts := process.NewResolverOpts()
 	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)
@@ -223,14 +222,9 @@ func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags 
 		return cgroupContext, nil
 	}
 
-	path, err := r.DentryResolver.Resolve(pathKey, true)
+	cgroup, err := r.DentryResolver.Resolve(pathKey, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
-	}
-
-	cgroup := filepath.Dir(string(path))
-	if cgroup == "/" {
-		cgroup = path
 	}
 
 	cgroupContext := &model.CGroupContext{

@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	perms "github.com/DataDog/test-infra-definitions/components/datadog/agentparams/filepermissions"
 
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 //go:embed fixtures/secret-resolver.py
@@ -28,7 +28,7 @@ func WithUnixSecretSetupScript(path string, allowGroupExec bool) func(*agentpara
 }
 
 // WithUnixSecretPermissions returns an UnixPermissions object containing correct permissions for a secret backend script.
-func WithUnixSecretPermissions(allowGroupExec bool) optional.Option[perms.FilePermissions] {
+func WithUnixSecretPermissions(allowGroupExec bool) option.Option[perms.FilePermissions] {
 	if allowGroupExec {
 		return perms.NewUnixPermissions(perms.WithPermissions("0750"), perms.WithOwner("dd-agent"), perms.WithGroup("root"))
 	}
@@ -60,8 +60,22 @@ func WithWindowsSecretSetupScript(wrapperPath string, allowGroupExec bool) []fun
 	}
 }
 
+// WithWindowsSecretSetupScriptNoPerms returns a list of agent params that setups a secret resolver script with no permissions.
+func WithWindowsSecretSetupScriptNoPerms(wrapperPath string) []func(*agentparams.Params) error {
+	wrapperPath = strings.ReplaceAll(wrapperPath, `\`, `/`)
+
+	dir, _ := filepath.Split(wrapperPath)
+	pythonScriptPath := filepath.Join(dir, "secret.py")
+	secretWrapperContent := fillSecretWrapperTemplate(strings.ReplaceAll(pythonScriptPath, "/", "\\"))
+
+	return []func(*agentparams.Params) error{
+		agentparams.WithFile(wrapperPath, secretWrapperContent, true),
+		agentparams.WithFile(pythonScriptPath, secretResolverScript, true),
+	}
+}
+
 // WithWindowsSecretPermissions returns a WindowsPermissions object containing correct permissions for a secret backend script.
-func WithWindowsSecretPermissions(allowGroupExec bool) optional.Option[perms.FilePermissions] {
+func WithWindowsSecretPermissions(allowGroupExec bool) option.Option[perms.FilePermissions] {
 	icaclsCmd := `/grant "ddagentuser:(RX)"`
 	if allowGroupExec {
 		icaclsCmd += ` "Administrators:(RX)"`

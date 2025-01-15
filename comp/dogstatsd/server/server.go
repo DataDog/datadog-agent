@@ -37,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
 	statutil "github.com/DataDog/datadog-agent/pkg/util/stat"
 	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
@@ -77,7 +77,7 @@ type dependencies struct {
 	Replay    replay.Component
 	PidMap    pidmap.Component
 	Params    Params
-	WMeta     optional.Option[workloadmeta.Component]
+	WMeta     option.Option[workloadmeta.Component]
 	Telemetry telemetry.Component
 }
 
@@ -150,16 +150,15 @@ type server struct {
 	cachedOrder          []cachedOriginCounter // for cache eviction
 
 	// ServerlessMode is set to true if we're running in a serverless environment.
-	ServerlessMode     bool
-	udsListenerRunning bool
-	udpLocalAddr       string
+	ServerlessMode bool
+	udpLocalAddr   string
 
 	// originTelemetry is true if we want to report telemetry per origin.
 	originTelemetry bool
 
 	enrichConfig enrichConfig
 
-	wmeta optional.Option[workloadmeta.Component]
+	wmeta option.Option[workloadmeta.Component]
 
 	// telemetry
 	telemetry               telemetry.Component
@@ -199,7 +198,7 @@ func newServer(deps dependencies) provides {
 	}
 }
 
-func newServerCompat(cfg model.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
+func newServerCompat(cfg model.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *statutil.Stats
@@ -291,7 +290,6 @@ func newServerCompat(cfg model.Reader, log log.Component, capture replay.Compone
 			cfg.GetBool("telemetry.dogstatsd_origin"),
 		tCapture:             capture,
 		pidMap:               pidMap,
-		udsListenerRunning:   false,
 		cachedOriginCounters: make(map[string]cachedOriginCounter),
 		ServerlessMode:       serverless,
 		enrichConfig: enrichConfig{
@@ -351,8 +349,6 @@ func (s *server) start(context.Context) error {
 	sharedPacketPool := packets.NewPool(s.config.GetInt("dogstatsd_buffer_size"), s.packetsTelemetry)
 	sharedPacketPoolManager := packets.NewPoolManager[packets.Packet](sharedPacketPool)
 
-	udsListenerRunning := false
-
 	socketPath := s.config.GetString("dogstatsd_socket")
 	socketStreamPath := s.config.GetString("dogstatsd_stream_socket")
 	originDetection := s.config.GetBool("dogstatsd_origin_detection")
@@ -378,7 +374,6 @@ func (s *server) start(context.Context) error {
 			s.log.Errorf("Can't init UDS listener on path %s: %s", socketPath, err.Error())
 		} else {
 			tmpListeners = append(tmpListeners, unixListener)
-			udsListenerRunning = true
 		}
 	}
 
@@ -416,7 +411,6 @@ func (s *server) start(context.Context) error {
 		return fmt.Errorf("listening on neither udp nor socket, please check your configuration")
 	}
 
-	s.udsListenerRunning = udsListenerRunning
 	s.packetsIn = packetsChannel
 	s.captureChan = packetsChannel
 	s.sharedPacketPool = sharedPacketPool
@@ -608,10 +602,6 @@ func nextMessage(packet *[]byte, eolTermination bool) (message []byte) {
 
 	*packet = (*packet)[advance:]
 	return message
-}
-
-func (s *server) UdsListenerRunning() bool {
-	return s.udsListenerRunning
 }
 
 func (s *server) eolEnabled(sourceType packets.SourceType) bool {

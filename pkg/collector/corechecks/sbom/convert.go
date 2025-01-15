@@ -130,7 +130,7 @@ func convertBOM(in *cyclonedx.BOM) *cyclonedx_v1_4.Bom {
 	}
 
 	return &cyclonedx_v1_4.Bom{
-		SpecVersion:        in.SpecVersion.String(),
+		SpecVersion:        cyclonedx.SpecVersion1_4.String(),
 		Version:            pointer.Ptr(int32(in.Version)),
 		SerialNumber:       stringPtr(in.SerialNumber),
 		Metadata:           convertMetadata(in.Metadata),

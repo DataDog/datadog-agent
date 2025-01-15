@@ -27,12 +27,13 @@ func TestSetupCommonHostTags(t *testing.T) {
 		{
 			name: "basic fields with formatting",
 			env: map[string]string{
-				"DB_DRIVER_IP":      "192.168.1.100",
-				"DB_INSTANCE_TYPE":  "m4.xlarge",
-				"DB_IS_JOB_CLUSTER": "true",
-				"DD_JOB_NAME":       "example,'job,name",
-				"DB_CLUSTER_NAME":   "example[,'job]name",
-				"DB_CLUSTER_ID":     "cluster123",
+				"DB_DRIVER_IP":         "192.168.1.100",
+				"DB_INSTANCE_TYPE":     "m4.xlarge",
+				"DB_IS_JOB_CLUSTER":    "true",
+				"DD_JOB_NAME":          "example,'job,name",
+				"DB_CLUSTER_NAME":      "example[,'job]name",
+				"DB_CLUSTER_ID":        "cluster123",
+				"DATABRICKS_WORKSPACE": "example_workspace",
 			},
 			wantTags: []string{
 				"spark_host_ip:192.168.1.100",
@@ -43,6 +44,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"databricks_cluster_id:cluster123",
 				"cluster_id:cluster123",
 				"cluster_name:example___job_name",
+				"databricks_workspace:example_workspace",
 			},
 		},
 		{

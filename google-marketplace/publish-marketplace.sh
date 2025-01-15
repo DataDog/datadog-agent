@@ -26,4 +26,6 @@ then
 fi
 
 docker build --pull --platform linux/amd64 --no-cache --build-arg TAG="$FULL_TAG" --tag "$REGISTRY/deployer:$FULL_TAG" . && docker push "$REGISTRY/deployer:$FULL_TAG"
-docker tag "$REGISTRY/deployer:$FULL_TAG" "$REGISTRY/deployer:$SHORT_TAG" && docker push "$REGISTRY/deployer:$SHORT_TAG"
+gcrane mutate --annotation "com.googleapis.cloudmarketplace.product.service.name=datadog" "$REGISTRY/deployer:$FULL_TAG"
+# We use gcloud to add the tag to the existing manifest, as docker push creates a new manifest
+gcloud container images add-tag "$REGISTRY/deployer:$FULL_TAG" "$REGISTRY/deployer:$SHORT_TAG" --quiet

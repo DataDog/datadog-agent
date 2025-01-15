@@ -73,7 +73,8 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 		true, // show env variable value in usage
 	)
 
-	if err := ef.Parse(os.Args[1:]); err != nil {
+	// There may be other env vars in addition to the ones in envflag.NewEnvFlag. Do not panic if those env vars do not have a help message (flag.ErrHelp)
+	if err := ef.Parse(os.Args[1:]); err != nil && err != flag.ErrHelp {
 		panic(err)
 	}
 
@@ -82,7 +83,7 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 
 const configFlag = "config"
 const coreConfigFlag = "core-config"
-const syncDelayFlag = "sync-delay"
+const syncDelayFlag = "sync-delay" // TODO: Change this to sync-on-init-timeout
 const syncTimeoutFlag = "sync-to"
 
 func flags(reg *featuregate.Registry, cfgs *subcommands.GlobalParams) *flag.FlagSet {
@@ -90,8 +91,8 @@ func flags(reg *featuregate.Registry, cfgs *subcommands.GlobalParams) *flag.Flag
 	flagSet.Var(cfgs, configFlag, "Locations to the config file(s), note that only a"+
 		" single location can be set per flag entry e.g. `--config=file:/path/to/first --config=file:path/to/second`.")
 	flagSet.StringVar(&cfgs.CoreConfPath, coreConfigFlag, "", "Location to the Datadog Agent config file.")
-	flagSet.DurationVar(&cfgs.SyncDelay, syncDelayFlag, 0, "Delay before first config sync.")
-	flagSet.DurationVar(&cfgs.SyncTimeout, syncTimeoutFlag, 3*time.Second, "Timeout for sync requests.")
+	flagSet.DurationVar(&cfgs.SyncOnInitTimeout, syncDelayFlag, 0, "How long should config sync retry at initialization before failing.")
+	flagSet.DurationVar(&cfgs.SyncTimeout, syncTimeoutFlag, 3*time.Second, "Timeout for config sync requests.")
 
 	flagSet.Func("set",
 		"Set arbitrary component config property. The component has to be defined in the config file and the flag"+

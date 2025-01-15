@@ -215,11 +215,16 @@ func isDockerInstalled(ctx context.Context) bool {
 	defer span.Finish(nil)
 
 	// Docker is installed if the docker binary is in the PATH
-	_, err := exec.LookPath("docker")
+	dockerPath, err := exec.LookPath("docker")
 	if err != nil && errors.Is(err, exec.ErrNotFound) {
 		return false
 	} else if err != nil {
 		log.Warn("installer: failed to check if docker is installed, assuming it isn't: ", err)
+		return false
+	}
+	span.SetTag("docker_path", dockerPath)
+	if strings.Contains(dockerPath, "/snap/") {
+		log.Warn("installer: docker is installed via snap, skipping docker instrumentation")
 		return false
 	}
 	return true

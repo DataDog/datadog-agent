@@ -9,9 +9,7 @@
 package {{.Name}}
 
 import (
-    {{range .Imports }}
-        "{{.}}"
-    {{end}}
+	"net"
     "reflect"
 	"math"
 
@@ -22,6 +20,7 @@ import (
 
 // to always require the math package
 var _ = math.MaxUint16
+var _ = net.IP{}
 
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
@@ -400,7 +399,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 
-func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
+func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, error) {
 	switch field {
 	{{range $Name, $Field := .Fields}}
 	{{- if $Field.GettersOnly }}
@@ -408,34 +407,11 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	{{end}}
 
 	case "{{$Name}}":
-		return "{{$Field.Event}}", nil
+		return "{{$Field.Event}}", {{$Field | GetFieldReflectType}}, nil
 	{{end}}
 	}
 
-	return "", &eval.ErrFieldNotFound{Field: field}
-}
-
-func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
-	switch field {
-		{{range $Name, $Field := .Fields}}
-		{{- if $Field.GettersOnly }}
-			{{continue}}
-		{{end}}
-
-		case "{{$Name}}":
-		{{if eq $Field.ReturnType "string"}}
-			return reflect.String, nil
-		{{else if eq $Field.ReturnType "int"}}
-			return reflect.Int, nil
-		{{else if eq $Field.ReturnType "bool"}}
-			return reflect.Bool, nil
-        {{else if eq $Field.ReturnType "net.IPNet"}}
-            return reflect.Struct, nil
-		{{end}}
-		{{end}}
-		}
-
-		return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
 }
 
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
@@ -466,12 +442,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 						case []string:
 							{{$FieldName}} = append({{$FieldName}}, rv...)
 						default:
-							return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+							return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
 				{{else}}
 					rv, ok := value.(string)
 					if !ok {
-						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+						return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
 					{{- if ne $Field.OrigType "string" }}
 					{{$FieldName}} = {{$Field.OrigType}}(rv)
@@ -490,16 +466,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 								{{$FieldName}} = append({{$FieldName}}, {{$Field.OrigType}}(i))
 							}
 						default:
-							return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+							return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
 				{{else}}
 					rv, ok := value.(int)
 					if !ok {
-						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+						return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
 					{{- if eq $Field.OrigType "uint16" }}
 					if rv < 0 || rv > math.MaxUint16 {
-						return &eval.ErrValueOutOfRange{Field: "{{$Field.Name}}"}
+						return &eval.ErrValueOutOfRange{Field: "{{$Name}}"}
 					}
 					{{- end }}
 					{{$FieldName}} = {{$Field.OrigType}}(rv)
@@ -513,12 +489,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 						case []bool:
 							{{$FieldName}} = append({{$FieldName}}, rv...)
 						default:
-							return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+							return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
 				{{else}}
 					rv, ok := value.(bool)
 					if !ok {
-						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+						return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
 					{{$FieldName}} = rv
 				{{end}}
@@ -531,12 +507,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 						case []net.IPNet:
 							{{$FieldName}} = append({{$FieldName}}, rv...)
 						default:
-							return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+							return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
 				{{else}}
 					rv, ok := value.(net.IPNet)
 					if !ok {
-						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
+						return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
 					{{$FieldName}} = rv
 				{{end}}

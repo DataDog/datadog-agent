@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type CollectorDemuxTestSuite struct {
@@ -90,8 +90,8 @@ func (suite *CollectorDemuxTestSuite) SetupTest() {
 		fx.Provide(func() sender.SenderManager {
 			return suite.SenderManagerMock
 		}),
-		fx.Provide(func() optional.Option[serializer.MetricSerializer] {
-			return optional.NewNoneOption[serializer.MetricSerializer]()
+		fx.Provide(func() option.Option[serializer.MetricSerializer] {
+			return option.None[serializer.MetricSerializer]()
 		}),
 		fx.Replace(config.MockParams{
 			Overrides: map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond},

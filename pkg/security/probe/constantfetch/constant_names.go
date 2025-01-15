@@ -30,6 +30,18 @@ const (
 	OffsetNameFileFpath                 = "file_f_path_offset"
 	OffsetNameDentryDSb                 = "dentry_d_sb_offset"
 	OffsetNameMountMntID                = "mount_id_offset"
+	OffsetNameSbDev                     = "sb_dev_offset"
+	OffsetNameDentryDInode              = "dentry_d_inode_offset"
+	OffsetNamePathDentry                = "path_dentry_offset"
+	OffsetNameInodeSuperblock           = "inode_sb_offset"
+	OffsetNamePathMnt                   = "path_mnt_offset"
+	OffsetNameMountMntMountpoint        = "mount_mnt_mountpoint_offset"
+	OffsetNameMountpointDentry          = "mountpoint_dentry_offset"
+	OffsetNameVfsmountMntFlags          = "vfsmount_mnt_flags_offset"
+	OffsetNameVfsmountMntRoot           = "vfsmount_mnt_root_offset"
+	OffsetNameVfsmountMntSb             = "vfsmount_mnt_sb_offset"
+	OffsetNameSuperblockSType           = "super_block_s_type_offset"
+	OffsetNameDentryDName               = "dentry_d_name_offset"
 
 	// inode
 	OffsetInodeIno   = "inode_ino_offset"

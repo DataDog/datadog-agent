@@ -13,10 +13,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-func assertOptionalValue[T any](t *testing.T, assertCompare assert.ComparisonAssertionFunc, o optional.Option[T], expected T) bool {
+func assertOptionalValue[T any](t *testing.T, assertCompare assert.ComparisonAssertionFunc, o option.Option[T], expected T) bool {
 	actual, isSet := o.Get()
 	return assert.True(t, isSet, fmt.Sprintf("%v is not set", o)) &&
 		assertCompare(t, expected, actual, fmt.Sprintf("%v does not match expcted value", o))

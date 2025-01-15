@@ -63,10 +63,13 @@ func newMeasuredCache(opts cacheOptions) *measuredCache {
 		return &measuredCache{}
 	}
 	cfg := &ristretto.Config{
-		MaxCost:     opts.MaxSize,
-		NumCounters: opts.MaxSize * 10, // Multiplied by 10 as per ristretto recommendation
-		BufferItems: 64,                // default recommended value
-		Metrics:     true,              // enable hit/miss counters
+		MaxCost: opts.MaxSize,
+		// Assuming the minimum query size is 10 bytes, the maximum number of queries
+		// that can be stored is calculated as opts.MaxSize / 10.
+		// Multiplying this maximum number by 10 (opts.MaxSize / 10 * 10) as per the ristretto documentation.
+		NumCounters: opts.MaxSize,
+		BufferItems: 64,   // default recommended value
+		Metrics:     true, // enable hit/miss counters
 	}
 	cache, err := ristretto.NewCache(cfg)
 	if err != nil {
