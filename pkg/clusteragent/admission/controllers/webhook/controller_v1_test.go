@@ -1225,7 +1225,7 @@ func (f *fixtureV1) populateMutatingWebhooksCache(webhooks ...*admiv1.MutatingWe
 
 func validateV1(t *testing.T, validatingWebhooks *admiv1.ValidatingWebhookConfiguration, mutatingWebhooks *admiv1.MutatingWebhookConfiguration, s *corev1.Secret) {
 	// Validate the number of webhooks.
-	require.Len(t, validatingWebhooks.Webhooks, 0)
+	require.Len(t, validatingWebhooks.Webhooks, 1)
 	require.Len(t, mutatingWebhooks.Webhooks, 3)
 
 	// Validate the CA bundle for webhooks.
