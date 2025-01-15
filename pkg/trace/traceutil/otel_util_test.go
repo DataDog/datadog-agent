@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv117 "go.opentelemetry.io/collector/semconv/v1.17.0"
+	semconv126 "go.opentelemetry.io/collector/semconv/v1.26.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"go.opentelemetry.io/otel/metric/noop"
 )
@@ -397,6 +398,26 @@ func TestGetOTelResource(t *testing.T) {
 			normalize:  false,
 			expectedV1: "query myQuery",
 			expectedV2: "query myQuery",
+		},
+		{
+			name: "SQL statement resource",
+			rattrs: map[string]string{
+				semconv.AttributeDBSystem:    "mysql",
+				semconv.AttributeDBStatement: "SELECT * FROM table WHERE id = 12345",
+			},
+			sattrs:     map[string]string{"span.name": "span_name"},
+			expectedV1: "span_name",
+			expectedV2: "SELECT * FROM table WHERE id = 12345",
+		},
+		{
+			name: "Redis command resource",
+			rattrs: map[string]string{
+				semconv.AttributeDBSystem:       "redis",
+				semconv126.AttributeDBQueryText: "SET key value",
+			},
+			sattrs:     map[string]string{"span.name": "span_name"},
+			expectedV1: "span_name",
+			expectedV2: "SET key value",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

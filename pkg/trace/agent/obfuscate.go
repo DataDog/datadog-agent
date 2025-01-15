@@ -23,7 +23,7 @@ const (
 	tagOpenSearchBody   = transform.TagOpenSearchBody
 	tagSQLQuery         = transform.TagSQLQuery
 	tagHTTPURL          = transform.TagHTTPURL
-	tagDBMS             = "db.system"
+	tagDBMS             = transform.TagDBMS
 )
 
 const (
@@ -52,7 +52,7 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 		if span.Resource == "" {
 			return
 		}
-		oq, err := o.ObfuscateSQLStringForDBMS(span.Resource, span.Meta[tagDBMS])
+		oq, err := transform.ObfuscateSQLSpan(o, span)
 		if err != nil {
 			// we have an error, discard the SQL to avoid polluting user resources.
 			log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)

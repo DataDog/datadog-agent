@@ -256,7 +256,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			var obfuscator *obfuscate.Obfuscator
 			var inputs []Input
 			if tt.enableObfuscation {
-				obfuscator = NewTestObfuscator(conf)
+				obfuscator = newTestObfuscator(conf)
 				inputs = OTLPTracesToConcentratorInputsWithObfuscation(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags(), obfuscator)
 			} else {
 				inputs = OTLPTracesToConcentratorInputs(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags())

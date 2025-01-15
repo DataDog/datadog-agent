@@ -26,6 +26,8 @@ const (
 	TagSQLQuery = "sql.query"
 	// TagHTTPURL represents an HTTP URL tag
 	TagHTTPURL = "http.url"
+	// TagDBMS represents a DBMS tag
+	TagDBMS = "db.type"
 )
 
 const (
@@ -38,7 +40,7 @@ func ObfuscateSQLSpan(o *obfuscate.Obfuscator, span *pb.Span) (*obfuscate.Obfusc
 	if span.Resource == "" {
 		return nil, nil
 	}
-	oq, err := o.ObfuscateSQLString(span.Resource)
+	oq, err := o.ObfuscateSQLStringForDBMS(span.Resource, span.Meta[TagDBMS])
 	if err != nil {
 		// we have an error, discard the SQL to avoid polluting user resources.
 		span.Resource = TextNonParsable

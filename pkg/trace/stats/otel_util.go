@@ -144,8 +144,8 @@ func obfuscateSpanForConcentrator(o *obfuscate.Obfuscator, span *pb.Span, conf *
 	}
 }
 
-// NewTestObfuscator creates a new obfuscator for testing
-func NewTestObfuscator(conf *config.AgentConfig) *obfuscate.Obfuscator {
+// newTestObfuscator creates a new obfuscator for testing
+func newTestObfuscator(conf *config.AgentConfig) *obfuscate.Obfuscator {
 	oconf := conf.Obfuscation.Export(conf)
 	oconf.Redis.Enabled = true
 	o := obfuscate.NewObfuscator(oconf)
