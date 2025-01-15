@@ -90,7 +90,6 @@ namespace Datadog.CustomActions
         /// </summary>
         private void ConfigureUserGroups()
         {
-            // Host is a domain controller, fetch additional info
             try
             {
                 if (_nativeMethods.IsReadOnlyDomainController())
