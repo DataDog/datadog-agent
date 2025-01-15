@@ -15,10 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// gpuCheckName is the name of the GPU check, to avoid importing the code from the GPU package
+const gpuCheckName = "gpu"
 
 // GPUConfigProvider implements the ConfigProvider interface for GPUs. This provider listens
 // in Workloadmeta for GPU events. If any GPU is detected, it will generate a config to
@@ -111,7 +113,7 @@ func (k *GPUConfigProvider) processEvents(evBundle workloadmeta.EventBundle) int
 			}
 
 			k.scheduledConfig = &integration.Config{
-				Name:       gpu.CheckName,
+				Name:       gpuCheckName,
 				Instances:  []integration.Data{[]byte{}},
 				InitConfig: []byte{},
 				Provider:   names.GPU,
