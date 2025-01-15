@@ -22,7 +22,7 @@ import (
 )
 
 func getSystemContextForTest(t *testing.T) *systemContext {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t))
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
 	require.NoError(t, err)
 	require.NotNil(t, sysCtx)
 
@@ -35,7 +35,7 @@ func TestKernelLaunchesHandled(t *testing.T) {
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeKernelLaunch,
+			Type:      uint32(gpuebpf.CudaEventTypeKernelLaunch),
 			Pid_tgid:  1,
 			Ktime_ns:  kernStartTime,
 			Stream_id: 1,
@@ -96,7 +96,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 
 	allocation := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memAllocTime,
 			Stream_id: 1,
@@ -108,7 +108,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 
 	free := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memFreeTime,
 			Stream_id: 1,
@@ -164,7 +164,7 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 
 	allocation := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memAllocTime,
 			Stream_id: 1,
@@ -202,7 +202,7 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 
 	allocation := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memAllocTime,
 			Stream_id: 1,
@@ -214,7 +214,7 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 
 	free := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memFreeTime,
 			Stream_id: 1,
@@ -240,7 +240,7 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 
 	allocation1 := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memAllocTime1,
 			Stream_id: 1,
@@ -252,7 +252,7 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 
 	free1 := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memFreeTime1,
 			Stream_id: 1,
@@ -263,7 +263,7 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 
 	allocation2 := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memAllocTime2,
 			Stream_id: 1,
@@ -275,7 +275,7 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 
 	free2 := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memFreeTime2,
 			Stream_id: 1,
@@ -322,7 +322,7 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 
 func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 	proc := kernel.ProcFSRoot()
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), proc, testutil.GetWorkloadMetaMock(t))
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), proc, testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
 	require.NoError(t, err)
 
 	// Set up the caches in system context so no actual queries are done
@@ -364,7 +364,7 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeKernelLaunch,
+			Type:      uint32(gpuebpf.CudaEventTypeKernelLaunch),
 			Pid_tgid:  uint64(pid<<32 + tid),
 			Ktime_ns:  kernStartTime,
 			Stream_id: 1,

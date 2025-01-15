@@ -77,7 +77,7 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(ebpf.CheckName, ebpf.Factory())
-	corecheckLoader.RegisterCheck(gpu.CheckName, gpu.Factory(tagger))
+	corecheckLoader.RegisterCheck(gpu.CheckName, gpu.Factory(tagger, telemetry))
 	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(oomkill.CheckName, oomkill.Factory(tagger))
 	corecheckLoader.RegisterCheck(tcpqueuelength.CheckName, tcpqueuelength.Factory(tagger))
