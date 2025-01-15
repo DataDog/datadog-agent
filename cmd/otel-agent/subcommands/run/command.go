@@ -164,6 +164,8 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		logsagentpipelineimpl.Module(),
 		logscompressionfx.Module(),
 		metricscompressionfx.Module(),
+		// For FX to provide the compression.Compressor interface (used by serializer.NewSerializer)
+		// implemented by the metricsCompression.Component
 		fx.Provide(func(c metricscompression.Component) compression.Compressor {
 			return c
 		}),

@@ -9,7 +9,6 @@ package metricscompressionimpl
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
-	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	zlib "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 )
@@ -21,19 +20,8 @@ type Requires struct {
 
 // NewCompressorReq returns the compression component
 func NewCompressorReq(req Requires) Provides {
-	kind := req.Cfg.GetString("serializer_compressor_kind")
-	var level int
-
-	switch kind {
-	case compression.ZstdKind:
-		level = req.Cfg.GetInt("serializer_zstd_compressor_level")
-	case compression.GzipKind:
-		// There is no configuration option for gzip compression level when set via this method.
-		level = 6
-	}
-
 	return Provides{
-		selector.NewCompressor(kind, level),
+		selector.FromConfig(req.Cfg),
 	}
 }
 

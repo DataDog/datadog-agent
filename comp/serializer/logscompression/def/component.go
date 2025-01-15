@@ -13,6 +13,10 @@ import (
 )
 
 // Component is the component type.
+// The logscompression component provides a factory that returns a requested Compressor
+// used when setting up the endpoints.
+// (This is different from the metrics compressor which returns the requested Compressor
+// by reading the configuration at load time).
 type Component interface {
 	NewCompressor(kind string, level int) compression.Compressor
 }
