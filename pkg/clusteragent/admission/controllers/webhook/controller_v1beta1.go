@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook/types"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
@@ -398,7 +399,7 @@ func (c *ControllerV1beta1) generateTemplates() {
 	c.mutatingWebhookTemplates = mutatingWebhooks
 }
 
-func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition) admiv1beta1.ValidatingWebhook {
+func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resources types.ResourceRuleConfigList, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition) admiv1beta1.ValidatingWebhook {
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := c.config.getServicePort()
@@ -425,23 +426,21 @@ func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string
 		MatchConditions:         matchConditions,
 	}
 
-	for group, resources := range resourcesMap {
-		for _, resource := range resources {
-			webhook.Rules = append(webhook.Rules, admiv1beta1.RuleWithOperations{
-				Operations: operations,
-				Rule: admiv1beta1.Rule{
-					APIGroups:   []string{group},
-					APIVersions: []string{"v1"},
-					Resources:   []string{resource},
-				},
-			})
-		}
+	for _, resource := range resources {
+		webhook.Rules = append(webhook.Rules, admiv1.RuleWithOperations{
+			Operations: operations,
+			Rule: admiv1.Rule{
+				APIGroups:   resource.APIGroups,
+				APIVersions: resource.APIVersions,
+				Resources:   resource.Resources,
+			},
+		})
 	}
 
 	return webhook
 }
 
-func (c *ControllerV1beta1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition) admiv1beta1.MutatingWebhook {
+func (c *ControllerV1beta1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resources types.ResourceRuleConfigList, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition) admiv1beta1.MutatingWebhook {
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := c.config.getServicePort()
@@ -470,17 +469,15 @@ func (c *ControllerV1beta1) getMutatingWebhookSkeleton(nameSuffix, path string, 
 		MatchConditions:         matchConditions,
 	}
 
-	for group, resources := range resourcesMap {
-		for _, resource := range resources {
-			webhook.Rules = append(webhook.Rules, admiv1beta1.RuleWithOperations{
-				Operations: operations,
-				Rule: admiv1beta1.Rule{
-					APIGroups:   []string{group},
-					APIVersions: []string{"v1"},
-					Resources:   []string{resource},
-				},
-			})
-		}
+	for _, resource := range resources {
+		webhook.Rules = append(webhook.Rules, admiv1.RuleWithOperations{
+			Operations: operations,
+			Rule: admiv1.Rule{
+				APIGroups:   resource.APIGroups,
+				APIVersions: resource.APIVersions,
+				Resources:   resource.Resources,
+			},
+		})
 	}
 
 	return webhook

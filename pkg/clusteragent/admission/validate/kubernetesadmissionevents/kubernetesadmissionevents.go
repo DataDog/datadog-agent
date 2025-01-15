@@ -24,10 +24,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook/types"
 	validatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/common"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	// WebhookName is the name of the webhook.
+	webhookName = "kubernetes_admission_events"
 )
 
 // Webhook is the KubernetesAdmissionEvents webhook.
@@ -35,7 +41,7 @@ type Webhook struct {
 	name                    string
 	isEnabled               bool
 	endpoint                string
-	resources               map[string][]string
+	resources               types.ResourceRuleConfigList
 	operations              []admissionregistrationv1.OperationType
 	matchConditions         []admissionregistrationv1.MatchCondition
 	demultiplexer           aggregator.Demultiplexer
@@ -46,13 +52,16 @@ type Webhook struct {
 // NewWebhook returns a new KubernetesAdmissionEvents webhook.
 func NewWebhook(datadogConfig config.Component, demultiplexer aggregator.Demultiplexer, supportsMatchConditions bool) *Webhook {
 	return &Webhook{
-		name:      "kubernetes_admission_events",
+		name:      webhookName,
 		isEnabled: datadogConfig.GetBool("admission_controller.kubernetes_admission_events.enabled"),
 		endpoint:  "/kubernetes-admission-events",
 		// If we add more resources, we must rework the `kube_deployment` tag in the emitEvent() function.
-		resources: map[string][]string{
-			"apps": {
-				"deployments",
+		resources: types.ResourceRuleConfigList{
+			types.ResourceRuleConfig{
+				APIGroups:   []string{"apps"},
+				APIVersions: []string{"v1"},
+				Operations:  []string{"*"},
+				Resources:   []string{"deployments"},
 			},
 		},
 		operations: []admissionregistrationv1.OperationType{
@@ -94,7 +103,7 @@ func (w *Webhook) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *Webhook) Resources() map[string][]string {
+func (w *Webhook) Resources() types.ResourceRuleConfigList {
 	return w.resources
 }
 
