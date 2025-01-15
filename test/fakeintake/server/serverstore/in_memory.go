@@ -6,6 +6,7 @@
 package serverstore
 
 import (
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -37,12 +38,22 @@ func newInMemoryStore() *inMemoryStore {
 	}
 }
 
+func (s *inMemoryStore) MostRecentPayloadAPIKey(route string) (string, error) {
+	payloads, found := s.rawPayloads[route]
+	if !found {
+		return "", fmt.Errorf("route not found!")
+	}
+	lastPayload := payloads[len(payloads)-1]
+	return lastPayload.APIKey, nil
+}
+
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
-func (s *inMemoryStore) AppendPayload(route string, data []byte, encoding string, contentType string, collectTime time.Time) error {
+func (s *inMemoryStore) AppendPayload(route string, apiKey string, data []byte, encoding string, contentType string, collectTime time.Time) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	rawPayload := api.Payload{
 		Timestamp:   collectTime,
+		APIKey:      apiKey,
 		Data:        data,
 		Encoding:    encoding,
 		ContentType: contentType,
