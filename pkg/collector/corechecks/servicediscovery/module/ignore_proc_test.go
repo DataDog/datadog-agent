@@ -66,7 +66,7 @@ func TestShouldIgnorePid(t *testing.T) {
 				_ = cmd.Process.Kill()
 			})
 
-			discovery := newDiscovery(nil)
+			discovery := newDiscovery(nil, nil)
 			require.NotEmpty(t, discovery)
 
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -81,7 +81,7 @@ func TestShouldIgnorePid(t *testing.T) {
 				procRoot:  kernel.ProcFSRoot(),
 				netNsInfo: make(map[uint32]*namespaceInfo),
 			}
-			service := discovery.getService(discoveryCtx, int32(cmd.Process.Pid))
+			service := discovery.getService(discoveryCtx, int32(cmd.Process.Pid), 0)
 			if test.ignore {
 				require.Empty(t, service)
 			} else {
