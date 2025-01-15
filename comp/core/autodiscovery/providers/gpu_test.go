@@ -25,7 +25,6 @@ func TestGPUProcessEvents(t *testing.T) {
 
 	gpuIDs := []string{"gpu-1234", "gpu-5678"}
 
-	var gpuEntityIDs []workloadmeta.EntityID
 	var gpuCreateEvents []workloadmeta.Event
 	var gpuDestroyEvents []workloadmeta.Event
 	for _, gpuID := range gpuIDs {
@@ -43,7 +42,6 @@ func TestGPUProcessEvents(t *testing.T) {
 			Device: "tesla-v100",
 		}
 
-		gpuEntityIDs = append(gpuEntityIDs, entityID)
 		gpuCreateEvents = append(gpuCreateEvents, workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: entity})
 		gpuDestroyEvents = append(gpuDestroyEvents, workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: entity})
 	}
