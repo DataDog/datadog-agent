@@ -90,8 +90,8 @@ func (m *testPackageManager) PromoteExperiment(ctx context.Context, pkg string) 
 	return args.Error(0)
 }
 
-func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, url string, hash string) error {
-	args := m.Called(ctx, url, hash)
+func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) error {
+	args := m.Called(ctx, pkg, version, rawConfig)
 	return args.Error(0)
 }
 

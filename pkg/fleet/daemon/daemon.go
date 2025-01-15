@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	osexec "os/exec"
 	"path/filepath"
@@ -76,6 +77,7 @@ type daemonImpl struct {
 	installer     installer.Installer
 	rc            *remoteConfig
 	catalog       catalog
+	configs       map[string]installerConfig
 	requests      chan remoteAPIRequest
 	requestsWG    sync.WaitGroup
 	requestsState map[string]requestState
@@ -126,6 +128,7 @@ func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env) *d
 		installer:     installer,
 		requests:      make(chan remoteAPIRequest, 32),
 		catalog:       catalog{},
+		configs:       make(map[string]installerConfig),
 		stopChan:      make(chan struct{}),
 		requestsState: make(map[string]requestState),
 	}
@@ -260,7 +263,7 @@ func (d *daemonImpl) Start(_ context.Context) error {
 			}
 		}
 	}()
-	d.rc.Start(d.handleCatalogUpdate, d.scheduleRemoteAPIRequest)
+	d.rc.Start(d.handleConfigsUpdate, d.handleCatalogUpdate, d.scheduleRemoteAPIRequest)
 	return nil
 }
 
@@ -388,18 +391,22 @@ func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, vers
 	return d.startConfigExperiment(ctx, url, version)
 }
 
-func (d *daemonImpl) startConfigExperiment(ctx context.Context, url string, version string) (err error) {
+func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, version string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
-	log.Infof("Daemon: Starting config experiment for package from %s", url)
-	err = d.installer.InstallConfigExperiment(ctx, url, version)
+	log.Infof("Daemon: Starting config experiment version %s for package %s", version, pkg)
+	config, ok := d.configs[version]
+	if !ok {
+		return fmt.Errorf("could not find config version %s", version)
+	}
+	err = d.installer.InstallConfigExperiment(ctx, pkg, version, config.Configs)
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}
-	log.Infof("Daemon: Successfully started config experiment for package from %s", url)
+	log.Infof("Daemon: Successfully started config experiment version %s for package %s", version, pkg)
 	return nil
 }
 
@@ -444,6 +451,14 @@ func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err 
 		return fmt.Errorf("could not stop config experiment: %w", err)
 	}
 	log.Infof("Daemon: Successfully stopped config experiment for package %s", pkg)
+	return nil
+}
+
+func (d *daemonImpl) handleConfigsUpdate(configs map[string]installerConfig) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	log.Infof("Installer: Received configs update (%v)", maps.Keys(configs))
+	d.configs = configs
 	return nil
 }
 

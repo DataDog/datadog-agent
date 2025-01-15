@@ -8,17 +8,20 @@ package installer
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
@@ -55,7 +58,7 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(ctx context.Context, pkg string, version string) error
+	InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -332,7 +335,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string) error {
+func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
@@ -345,13 +348,13 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// err = config.Write(tmpDir)
-	// if err != nil {
-	// 	return installerErrors.Wrap(
-	// 		installerErrors.ErrFilesystemIssue,
-	// 		fmt.Errorf("could not write agent config: %w", err),
-	// 	)
-	// }
+	err = i.writeConfig(ctx, tmpDir, rawConfig)
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not write agent config: %w", err),
+		)
+	}
 
 	configRepo := i.configs.Get(pkg)
 	err = configRepo.SetExperiment(version, tmpDir)
@@ -648,6 +651,36 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 	err = i.configs.Create(pkg, "empty", tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not create %s repository: %w", pkg, err)
+	}
+	return nil
+}
+
+var (
+	allowedConfigFiles = []string{
+		"datadog.yaml",
+		"security-agent.yaml",
+		"system-probe.yaml",
+	}
+)
+
+func (i *installerImpl) writeConfig(ctx context.Context, dir string, rawConfig []byte) error {
+	var configs map[string]interface{}
+	err := json.Unmarshal(rawConfig, &configs)
+	if err != nil {
+		return fmt.Errorf("could not unmarshal config: %w", err)
+	}
+	for file, config := range configs {
+		if !slices.Contains(allowedConfigFiles, file) {
+			return fmt.Errorf("config file %s is not allowed", file)
+		}
+		serializedConfig, err := yaml.Marshal(config)
+		if err != nil {
+			return fmt.Errorf("could not marshal config: %w", err)
+		}
+		err = os.WriteFile(filepath.Join(dir, file), serializedConfig, 0644)
+		if err != nil {
+			return fmt.Errorf("could not write config file: %w", err)
+		}
 	}
 	return nil
 }
