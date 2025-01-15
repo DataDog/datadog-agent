@@ -33,7 +33,7 @@ func TestOTelAgentHostmetricsReceiver(t *testing.T) {
 		containerCollectUsingFiles: false
 	`
 	t.Parallel()
-	e2e.Run(t, &noDDExporterTestSuite{},
+	e2e.Run(t, &hostmetricsreceiverTestSuite{},
 		e2e.WithProvisioner(
 			awskubernetes.KindProvisioner(
 				awskubernetes.WithAgentOptions(
