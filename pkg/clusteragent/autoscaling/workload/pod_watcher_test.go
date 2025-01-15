@@ -18,6 +18,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/shared"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -46,7 +47,7 @@ func TestHandleSetEvent(t *testing.T) {
 
 	pw.handleEvent(event)
 
-	expectedOwner := NamespacedPodOwner{
+	expectedOwner := shared.NamespacedPodOwner{
 		Namespace: "default",
 		Kind:      kubernetes.DeploymentKind,
 		Name:      "deploymentName",
@@ -81,7 +82,7 @@ func TestHandleUnsetEvent(t *testing.T) {
 	pw.handleEvent(setEvent)
 	pw.handleEvent(unsetEvent)
 
-	pods := pw.GetPodsForOwner(NamespacedPodOwner{
+	pods := pw.GetPodsForOwner(shared.NamespacedPodOwner{
 		Namespace: "default",
 		Kind:      kubernetes.DeploymentKind,
 		Name:      "deploymentName",
@@ -114,7 +115,7 @@ func TestPodWatcherStartStop(t *testing.T) {
 
 	wlm.Set(pod)
 
-	expectedOwner := NamespacedPodOwner{
+	expectedOwner := shared.NamespacedPodOwner{
 		Namespace: "default",
 		Kind:      kubernetes.DeploymentKind,
 		Name:      "deploymentName",
@@ -135,7 +136,7 @@ func TestGetNamespacedPodOwner(t *testing.T) {
 		name     string
 		ns       string
 		owner    *workloadmeta.KubernetesPodOwner
-		expected NamespacedPodOwner
+		expected shared.NamespacedPodOwner
 	}{
 		{
 			name: "pod owned by deployment",
@@ -144,7 +145,7 @@ func TestGetNamespacedPodOwner(t *testing.T) {
 				Kind: kubernetes.ReplicaSetKind,
 				Name: "datadog-agent-linux-cluster-agent-f64dd88",
 			},
-			expected: NamespacedPodOwner{
+			expected: shared.NamespacedPodOwner{
 				Namespace: "default",
 				Kind:      kubernetes.DeploymentKind,
 				Name:      "datadog-agent-linux-cluster-agent",
@@ -157,7 +158,7 @@ func TestGetNamespacedPodOwner(t *testing.T) {
 				Kind: kubernetes.DaemonSetKind,
 				Name: "datadog-agent-f64dd88",
 			},
-			expected: NamespacedPodOwner{
+			expected: shared.NamespacedPodOwner{
 				Namespace: "default",
 				Kind:      kubernetes.DaemonSetKind,
 				Name:      "datadog-agent-f64dd88",
@@ -170,7 +171,7 @@ func TestGetNamespacedPodOwner(t *testing.T) {
 				Kind: kubernetes.ReplicaSetKind,
 				Name: "datadog-agent-linux-cluster-agent",
 			},
-			expected: NamespacedPodOwner{
+			expected: shared.NamespacedPodOwner{
 				Namespace: "default",
 				Kind:      kubernetes.ReplicaSetKind,
 				Name:      "datadog-agent-linux-cluster-agent",

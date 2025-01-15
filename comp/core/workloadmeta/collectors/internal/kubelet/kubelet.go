@@ -246,6 +246,7 @@ func parsePodContainers(
 		if containerSpec != nil {
 			env = extractEnvFromSpec(containerSpec.Env)
 			resources = extractResources(containerSpec)
+			podContainer.Resources = resources
 
 			podContainer.Image, err = workloadmeta.NewContainerImage(imageID, containerSpec.Image)
 			if err != nil {
