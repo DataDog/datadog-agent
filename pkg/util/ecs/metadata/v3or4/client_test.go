@@ -40,7 +40,7 @@ func TestGetV4TaskWithTagsWithoutRetryWithDelay(t *testing.T) {
 	testDataPath := "./testdata/task_with_tags.json"
 	dummyECS, err := testutil.NewDummyECS(
 		testutil.FileHandlerOption("/v4/1234-1/taskWithTags", testDataPath),
-		testutil.FileHandlerDelayOption("/v4/1234-1/taskWithTags", 5000*time.Millisecond),
+		testutil.FileHandlerDelayOption("/v4/1234-1/taskWithTags", 1500*time.Millisecond),
 	)
 	require.NoError(t, err)
 	ts := dummyECS.Start()
