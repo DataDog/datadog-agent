@@ -45,7 +45,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -125,7 +126,7 @@ func (s *service) Run(svcctx context.Context) error {
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
-		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, wmeta workloadmeta.Component, compression compression.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
+		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, wmeta workloadmeta.Component, compression logscompression.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
 			stopper := startstop.NewSerialStopper()
 
 			statsdClient, err := statsd.CreateForHostPort(setup.GetBindHost(config), config.GetInt("dogstatsd_port"))
@@ -176,6 +177,7 @@ func (s *service) Run(svcctx context.Context) error {
 			}
 		}),
 		settingsimpl.Module(),
+		logscompressionfx.Module(),
 	)
 
 	return err
