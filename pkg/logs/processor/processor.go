@@ -258,6 +258,10 @@ func (p *Processor) processMessage(msg *message.Message) {
 // applyRedactingRules returns given a message if we should process it or not,
 // it applies the change directly on the Message content.
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
+	if msg == nil || msg.Origin == nil || msg.Origin.LogSource == nil || msg.Origin.LogSource.Config == nil {
+		return false
+	}
+
 	var content []byte = msg.GetContent()
 
 	// Use the internal scrubbing implementation of the Agent
