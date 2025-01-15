@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	servicetest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
@@ -138,6 +139,94 @@ func (s *testIntegrationInstallFailure) TestIntegrationInstallFailure() {
 
 	// the previous version should be functional
 	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), previousAgentPackage.AgentVersion())
+
+	// Ensure services are still installed
+	// NOTE: will need to update this if we add or remove services
+	_, err = windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServices())
+	s.Assert().NoError(err, "services should still be installed")
+
+	s.uninstallAgent()
+
+}
+
+// TestIntegrationFolderPermissions tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// this tests the agent will not install if the folder permissions are incorrect
+func TestIntegrationFolderPermissions(t *testing.T) {
+	s := &testIntegrationFolderPermissions{}
+	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
+	require.NoError(t, err, "should get upgrade test package")
+	s.upgradeAgentPackge = upgradeAgentPackge
+	run(t, s)
+}
+
+type testIntegrationFolderPermissions struct {
+	baseAgentMSISuite
+	upgradeAgentPackge *windowsAgent.Package
+}
+
+func (s *testIntegrationFolderPermissions) TestIntegrationFolderPermissions() {
+	vm := s.Env().RemoteHost
+
+	// install current version
+	if !s.Run(fmt.Sprintf("install %s", s.AgentPackage.AgentVersion()), func() {
+		_, err := s.InstallAgent(vm,
+			windowsAgent.WithPackage(s.AgentPackage),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
+			windowsAgent.WithValidAPIKey(),
+			// disable integrations persistence
+			windowsAgent.WithIntegrationsPersistence("0"),
+		)
+		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	// create folder in protected location with the ddagentuser as the owner
+	// run tests
+	testerOptions := []TesterOption{
+		WithAgentPackage(s.AgentPackage),
+	}
+	t, err := NewTester(s, vm, testerOptions...)
+	s.Require().NoError(err, "should create tester")
+	ddAgentUserIdentity, err := windows.GetIdentityForUser(t.host,
+		windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
+	)
+	s.Require().NoError(err, "should get ddagentuser identity")
+
+	// create folder owned to ddAgentUserIdenity
+	folderPath := "C:\\ProgramData\\Datadog\\protected"
+	err = vm.MkdirAll(folderPath)
+	s.Require().NoError(err, "should create folder")
+
+	// write file to folder
+	filePath := filepath.Join(folderPath, ".diff_python_installed_packages.txt")
+	_, err = vm.WriteFile(filePath, []byte(""))
+	s.Require().NoError(err, "should write file to folder")
+
+	// run powershell command to own file to ddAgentUserIdentity
+	cmd := fmt.Sprintf(`$acl = Get-Acl "%s"; $acl.SetOwner([System.Security.Principal.NTAccount]::new("%s")); Set-Acl "%s" $acl`, filePath, ddAgentUserIdentity.GetName(), filePath)
+	_, err = vm.Execute(cmd)
+	s.Require().NoError(err, "should set owner to ddAgentUserIdentity")
+
+	// upgrade to the new version, should fail due to folder permissions
+	if !s.Run(fmt.Sprintf("Install %s with failure", s.upgradeAgentPackge.AgentVersion()), func() {
+		_, err := windowsAgent.InstallAgent(vm,
+			windowsAgent.WithPackage(s.upgradeAgentPackge),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
+			windowsAgent.WithIntegrationsPersistence("1"),
+		)
+		s.Require().Error(err, "should fail to install agent %s", s.upgradeAgentPackge.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	// TODO: we shouldn't have to start the agent manually after rollback
+	//       but the kitchen tests did too.
+	err = windowsCommon.StartService(vm, "DatadogAgent")
+	s.Require().NoError(err, "agent service should start after rollback")
+
+	// the previous version should be functional
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
 
 	// Ensure services are still installed
 	// NOTE: will need to update this if we add or remove services

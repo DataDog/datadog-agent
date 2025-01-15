@@ -266,7 +266,7 @@ namespace WixSetup.Datadog_Agent
                     CustomActions.RunPostInstPythonScript,
                     Return.check,
                     When.After,
-                    new Step(DecompressPythonDistributions.Id),
+                    Step.InstallServices,
                     Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
             {
