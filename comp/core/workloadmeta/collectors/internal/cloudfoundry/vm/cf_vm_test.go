@@ -26,6 +26,7 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	k8stypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -208,6 +209,10 @@ func (f *FakeDCAClient) GetCFAppsMetadataForNode(_ string) (map[string][]string,
 		activeContainerWithoutProperties.Handle(): {"container_name:active-container-app"},
 		stoppedContainer.Handle():                 {"container_name:stopped-container-app"},
 	}, nil
+}
+
+func (f *FakeDCAClient) GetOwnerReferences(_ string, _ string, _ string, _ string) ([]k8stypes.ObjectRelation, error) {
+	panic("implement me")
 }
 
 func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLanguageAnnotationRequest) error {

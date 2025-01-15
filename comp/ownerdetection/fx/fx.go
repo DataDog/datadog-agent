@@ -7,9 +7,6 @@
 package fx
 
 import (
-	//"go.uber.org/fx"
-
-	ownerdetection "github.com/DataDog/datadog-agent/comp/ownerdetection/def"
 	ownerdetectionimpl "github.com/DataDog/datadog-agent/comp/ownerdetection/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -20,7 +17,5 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			ownerdetectionimpl.NewComponent,
 		),
-		//fx.Supply(params),
-		fxutil.ProvideOptional[ownerdetection.Component](),
 	)
 }
