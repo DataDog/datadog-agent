@@ -8,6 +8,7 @@ package fipscompliance
 import (
 	_ "embed"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/stretchr/testify/assert"
@@ -64,11 +64,7 @@ func TestFIPSCiphersSuite(t *testing.T) {
 }
 
 func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
-	pipelineID, err := runner.GetProfile().ParamStore().Get("E2E_PIPELINE_ID")
-	require.NoError(v.T(), err)
-	sha, err := runner.GetProfile().ParamStore().Get("CI_COMMIT_SHA")
-	require.NoError(v.T(), err)
-	imageTag := fmt.Sprintf("%s-%s-fips", pipelineID, sha)
+	imageTag := fmt.Sprintf("%s-%s-fips", os.Getenv("E2E_PIPELINE_ID"), os.Getenv("CI_COMMIT_SHA"))
 
 	v.UpdateEnv(
 		awsdocker.Provisioner(
@@ -104,11 +100,7 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
 }
 
 func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
-	pipelineID, err := runner.GetProfile().ParamStore().Get("E2E_PIPELINE_ID")
-	require.NoError(v.T(), err)
-	sha, err := runner.GetProfile().ParamStore().Get("CI_COMMIT_SHA")
-	require.NoError(v.T(), err)
-	imageTag := fmt.Sprintf("%s-%s-fips", pipelineID, sha)
+	imageTag := fmt.Sprintf("%s-%s-fips", os.Getenv("E2E_PIPELINE_ID"), os.Getenv("CI_COMMIT_SHA"))
 
 	v.UpdateEnv(
 		awsdocker.Provisioner(
