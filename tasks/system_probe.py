@@ -689,7 +689,7 @@ def build(
     ebpf_compiler='clang',
     static=False,
     fips_mode=False,
-    non_glibc=False,
+    no_glibc=False,
 ):
     """
     Build the system-probe
@@ -717,7 +717,7 @@ def build(
         arch=arch,
         static=static,
         fips_mode=fips_mode,
-        non_glibc=non_glibc,
+        no_glibc=no_glibc,
     )
 
 
@@ -745,7 +745,7 @@ def build_sysprobe_binary(
     strip_binary=False,
     fips_mode=False,
     static=False,
-    non_glibc=False,
+    no_glibc=False,
 ) -> None:
     arch_obj = Arch.from_str(arch)
 
@@ -768,8 +768,8 @@ def build_sysprobe_binary(
         build_tags.extend(["osusergo", "netgo"])
         build_tags = list(set(build_tags).difference({"netcgo"}))
 
-    if non_glibc:
-        build_tags.append("nonglibc")
+    if no_glibc:
+        build_tags = list(set(build_tags).difference({"glibc"}))
 
     if not is_windows and "pcap" in build_tags:
         build_libpcap(ctx)

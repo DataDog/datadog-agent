@@ -1,9 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
 
-//go:build linux && !arm64 && nonglibc
+//go:build linux && arm64 && glibc
 
 // Package modules is all the module definitions for system-probe
 package modules
@@ -30,6 +30,7 @@ var All = []module.Factory{
 	Pinger,
 	Traceroute,
 	DiscoveryModule,
+	GPUMonitoring, // GPU monitoring needs to be initialized afer EventMonitor, so that we have the event consumer ready
 }
 
 func inactivityEventLog(_ time.Duration) {
