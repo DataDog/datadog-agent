@@ -12,8 +12,8 @@ replace (
 replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.62.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/log v0.62.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/config/model v0.62.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/util/log v0.62.0-rc.6
 	github.com/DataDog/viper v1.14.0
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/spf13/cast v1.7.0
@@ -24,8 +24,8 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.62.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.0-rc.6 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.62.0-rc.6 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
