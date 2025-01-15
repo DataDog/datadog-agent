@@ -28,22 +28,27 @@ body_error_pattern = """### Error
 |----|----|----|----|
 """
 
+def format_gate_message(message):
+    return bash_color_to_html(message).replace("\n","<br>")
+
 
 def display_pr_comment(ctx, finalState, gateStates):
     title = f"Static quality checks {SUCCESS_CHAR if finalState else FAIL_CHAR}"
     body_info = body_info_pattern
     body_error = body_error_pattern
     withError = False
+    withInfo = False
     for gate in sorted(gateStates, key=lambda x: x["error_type"] is None):
         if gate["error_type"] is None:
-            body_info += f"|✅|{gate['name']}|{bash_color_to_html(gate['message'])}| WIP |\n"
+            body_info += f"|✅|{gate['name']}|{format_gate_message(gate['message'])}| WIP |\n"
+            withInfo = True
         else:
-            body_error += f"|❌|{gate['name']}|{bash_color_to_html(gate['message'])}| WIP |\n"
+            body_error += f"|❌|{gate['name']}|{format_gate_message(gate['message'])}| WIP |\n"
             withError = True
     body_info += "\n</details>\n"
     body_error += "\n</details>\n"
 
-    body = f"Please find below the results from static quality gates\n{body_error if withError else ""}\n\n{body_info}"
+    body = f"Please find below the results from static quality gates\n{body_error if withError else ""}\n\n{body_info if withInfo else ""}"
 
     pr_commenter(ctx, title=title, body=body)
 
