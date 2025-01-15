@@ -9,7 +9,6 @@ package remoteconfighandler
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"strconv"
 
@@ -51,6 +50,11 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 		return nil
 	}
 
+	if conf.DebugServerPort == 0 {
+		log.Errorf("debug server(apm_config.debug.port) was disabled, server is required for remote config, RC is disabled.")
+		return nil
+	}
+
 	level, err := pkglog.GetLogLevel()
 	if err != nil {
 		log.Errorf("couldn't get the default log level: %s", err)
@@ -67,7 +71,7 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 			FallbackLogLevel: level.String(),
 		},
 		configSetEndpointFormatString: fmt.Sprintf(
-			"http://%s/config/set?log_level=%%s", net.JoinHostPort(conf.ReceiverHost, strconv.Itoa(conf.ReceiverPort)),
+			"http://127.0.0.1:%s/config/set?log_level=%%s", strconv.Itoa(conf.DebugServerPort),
 		),
 	}
 }

@@ -70,9 +70,13 @@ func runAgentSidekicks(ag component) error {
 		log.Errorf("could not set auth token: %s", err)
 	} else {
 		ag.Agent.DebugServer.AddRoute("/config", ag.config.GetConfigHandler())
+		ag.Agent.DebugServer.AddRoute("/config/set", ag.config.SetHandler())
+		// The below endpoint is deprecated and has been replaced with /config/set on the debug server.
+		// It will be removed in a future version.
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/config/set",
 			Handler: func(_ *api.HTTPReceiver) http.Handler {
+				log.Warnf("The /config/set endpoint on this port is deprecated and will be removed. The same endpoint is available on the debug server at 127.0.0.1:%d", tracecfg.DebugServerPort)
 				return ag.config.SetHandler()
 			},
 		})
