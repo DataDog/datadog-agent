@@ -32,6 +32,8 @@ type Source string
 
 // Declare every known Source
 const (
+	// SourceSchema are settings define in the schema for the configuration but without any default.
+	SourceSchema Source = "schema"
 	// SourceDefault are the values from defaults.
 	SourceDefault Source = "default"
 	// SourceUnknown are the values from unknown source. This should only be used in tests when calling
@@ -74,6 +76,7 @@ var sources = []Source{
 // sourcesPriority give each source a priority, the higher the more important a source. This is used when merging
 // configuration tree (a higher priority overwrites a lower one).
 var sourcesPriority = map[Source]int{
+	SourceSchema:             -1,
 	SourceDefault:            0,
 	SourceUnknown:            1,
 	SourceFile:               2,
@@ -185,7 +188,7 @@ func (c *safeConfig) Set(key string, newValue interface{}, source Source) {
 	// already overridden at the 'cli' level. If it the case we do nothing.
 	latestValue := c.Viper.Get(key)
 	if !reflect.DeepEqual(oldValue, latestValue) {
-		log.Infof("Updating setting '%s' for source '%s' with new value. notifying %d listeners", key, source, len(c.notificationReceivers))
+		log.Debugf("Updating setting '%s' for source '%s' with new value. notifying %d listeners", key, source, len(c.notificationReceivers))
 		// if the value has not changed, do not duplicate the slice so that no callback is called
 		receivers = slices.Clone(c.notificationReceivers)
 	} else {
@@ -341,6 +344,13 @@ func (c *safeConfig) IsSet(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
 	return c.Viper.IsSet(key)
+}
+
+// IsConfigured returns true if a settings was configured by the user (ie: the value doesn't come from defaults)
+func (c *safeConfig) IsConfigured(key string) bool {
+	c.RLock()
+	defer c.RUnlock()
+	return c.Viper.IsConfigured(key)
 }
 
 func (c *safeConfig) AllKeysLowercased() []string {

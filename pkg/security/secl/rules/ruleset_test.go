@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 )
 
 type testFieldValues map[eval.Field][]interface{}
@@ -892,15 +893,15 @@ func TestRuleSetAUDApprovers(t *testing.T) {
 			Field:            "process.auid",
 			TypeBitmask:      eval.ScalarValueType | eval.RangeValueType,
 			FilterMode:       ApproverOnlyMode,
-			RangeFilterValue: &RangeFilterValue{Min: 0, Max: model.AuditUIDUnset - 1},
+			RangeFilterValue: &RangeFilterValue{Min: 0, Max: sharedconsts.AuditUIDUnset - 1},
 			FilterWeight:     10,
 			HandleNotApproverValue: func(fieldValueType eval.FieldValueType, value interface{}) (eval.FieldValueType, interface{}, bool) {
 				if fieldValueType != eval.ScalarValueType {
 					return fieldValueType, value, false
 				}
 
-				if i, ok := value.(int); ok && uint32(i) == model.AuditUIDUnset {
-					return eval.RangeValueType, RangeFilterValue{Min: 0, Max: model.AuditUIDUnset - 1}, true
+				if i, ok := value.(int); ok && uint32(i) == sharedconsts.AuditUIDUnset {
+					return eval.RangeValueType, RangeFilterValue{Min: 0, Max: sharedconsts.AuditUIDUnset - 1}, true
 				}
 
 				return fieldValueType, value, false
@@ -955,7 +956,7 @@ func TestRuleSetAUDApprovers(t *testing.T) {
 		}
 
 		rge := approvers["process.auid"][0].Value.(RangeFilterValue)
-		if rge.Min != 0 || rge.Max != model.AuditUIDUnset-1 {
+		if rge.Min != 0 || rge.Max != sharedconsts.AuditUIDUnset-1 {
 			t.Fatalf("unexpected range")
 		}
 	})

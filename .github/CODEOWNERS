@@ -42,7 +42,7 @@
 /repository.datadog.yml                 @DataDog/agent-devx-infra
 /generate_tools.go                      @DataDog/agent-devx-infra
 /service.datadog.yaml                   @DataDog/agent-delivery
-/static-analysis.datadog.yml            @DataDog/software-integrity-and-trust @DataDog/agent-devx-infra
+/static-analysis.datadog.yml            @DataDog/software-integrity-and-trust @DataDog/sdlc-security @DataDog/agent-devx-infra
 
 /modules.yml                            @DataDog/agent-shared-components
 # if go.work changes then either .go-version or modules.yml changed too, so ASC might as well own it
@@ -423,7 +423,7 @@
 /pkg/config/setup/system_probe_cws_windows.go   @DataDog/windows-kernel-integrations
 /pkg/config/setup/security_agent.go             @DataDog/agent-security
 /pkg/config/remote/                     @DataDog/remote-config
-/pkg/config/remote/meta/                @DataDog/remote-config @DataDog/software-integrity-and-trust
+/pkg/config/remote/meta/                @DataDog/remote-config @DataDog/software-integrity-and-trust @DataDog/sdlc-security
 /pkg/containerlifecycle/                @Datadog/container-integrations
 /pkg/diagnose/                          @Datadog/container-platform
 /pkg/diagnose/connectivity/             @DataDog/agent-shared-components
@@ -431,7 +431,7 @@
 /pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/dynamicinstrumentation/            @DataDog/debugger
 /pkg/flare/                             @DataDog/agent-shared-components
-/pkg/flare/manifests.go                 @DataDog/container-ecosystems
+/pkg/flare/clusteragent/manifests.go    @DataDog/container-ecosystems
 /pkg/flare/*_win.go                     @Datadog/windows-agent
 /pkg/flare/*_windows.go                 @Datadog/windows-agent
 /pkg/flare/*_windows_test.go            @Datadog/windows-agent
@@ -546,6 +546,7 @@
 /pkg/tagger/                            @DataDog/container-platform
 /pkg/windowsdriver/                     @DataDog/windows-kernel-integrations
 /comp/core/workloadmeta/collectors/internal/cloudfoundry @DataDog/platform-integrations
+/comp/core/workloadmeta/collectors/internal/nvml @DataDog/ebpf-platform
 /pkg/sbom/                              @DataDog/container-integrations @DataDog/agent-security
 /pkg/internaltelemetry                  @DataDog/windows-kernel-integrations @DataDog/fleet
 /pkg/networkpath/                       @DataDog/network-device-monitoring @DataDog/Networks

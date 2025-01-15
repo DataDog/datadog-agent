@@ -36,7 +36,6 @@ var minimalFullConfig string
 var sources string
 
 func TestOTelAgentMinimal(t *testing.T) {
-	t.Skip("Skipping broken test: incident-33599") // incident-33599
 	values := `
 datadog:
   logs:

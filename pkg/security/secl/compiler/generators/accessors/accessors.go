@@ -18,7 +18,6 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
-	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -106,10 +105,6 @@ func origTypeToBasicType(kind string) string {
 	return kind
 }
 
-func isNetType(kind string) bool {
-	return kind == "net.IPNet"
-}
-
 func isBasicType(kind string) bool {
 	switch kind {
 	case "string", "bool", "int", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "net.IPNet":
@@ -168,6 +163,7 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 		Alias:        alias,
 		AliasPrefix:  aliasPrefix,
 		GettersOnly:  field.gettersOnly,
+		GenGetters:   field.genGetters,
 		Ref:          field.ref,
 		RestrictedTo: restrictedTo,
 	}
@@ -198,6 +194,7 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 			Alias:        alias,
 			AliasPrefix:  aliasPrefix,
 			GettersOnly:  field.gettersOnly,
+			GenGetters:   field.genGetters,
 			Ref:          field.ref,
 			RestrictedTo: restrictedTo,
 		}
@@ -329,6 +326,7 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		Alias:            alias,
 		AliasPrefix:      aliasPrefix,
 		GettersOnly:      field.gettersOnly,
+		GenGetters:       field.genGetters,
 		Ref:              field.ref,
 		RestrictedTo:     restrictedTo,
 	}
@@ -383,6 +381,7 @@ type seclField struct {
 	exposedAtEventRootOnly bool // fields that should only be exposed at the root of an event, i.e. `parent` should not be exposed for an `ancestor` of a process
 	containerStructName    string
 	gettersOnly            bool //  a field that is not exposed via SECL, but still has an accessor generated
+	genGetters             bool
 	ref                    string
 }
 
@@ -432,6 +431,8 @@ func parseFieldDef(def string) (seclField, error) {
 					case "getters_only":
 						field.gettersOnly = true
 						field.exposedAtEventRootOnly = true
+					case "gen_getters":
+						field.genGetters = true
 					}
 				}
 			}
@@ -560,12 +561,6 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 
 				if len(fieldType) == 0 {
 					continue
-				}
-
-				if isNetType((fieldType)) {
-					if !slices.Contains(module.Imports, "net") {
-						module.Imports = append(module.Imports, "net")
-					}
 				}
 
 				alias := seclField.name

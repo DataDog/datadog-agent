@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
@@ -115,7 +114,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fetchonlyimpl.Module(),
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 		// Force the instantiation of the components
-		fx.Invoke(func(_ traceagent.Component, _ configsync.Component, _ autoexit.Component) {}),
+		fx.Invoke(func(_ traceagent.Component, _ autoexit.Component) {}),
 	)
 	if err != nil && errors.Is(err, traceagentimpl.ErrAgentDisabled) {
 		return nil

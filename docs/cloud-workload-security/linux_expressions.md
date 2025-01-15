@@ -123,8 +123,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
-| [`cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
+| [`cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
+| [`cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
 | [`container.runtime`](#container-runtime-doc) | Runtime managing the container |
@@ -147,8 +147,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`process.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
-| [`process.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
+| [`process.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
+| [`process.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
 | [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -230,8 +230,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`process.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
-| [`process.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
+| [`process.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
+| [`process.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.container.id`](#common-process-container-id-doc) | Container ID |
 | [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -303,8 +303,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`process.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
-| [`process.parent.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
+| [`process.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
+| [`process.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.parent.container.id`](#common-process-container-id-doc) | Container ID |
 | [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -586,8 +586,8 @@ A process was executed or forked
 | [`exec.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exec.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exec.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`exec.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
-| [`exec.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
+| [`exec.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
+| [`exec.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exec.container.id`](#common-process-container-id-doc) | Container ID |
 | [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -677,8 +677,8 @@ A process was terminated
 | [`exit.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exit.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exit.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`exit.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
-| [`exit.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
+| [`exit.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
+| [`exit.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exit.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1018,8 +1018,8 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`ptrace.tracee.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
-| [`ptrace.tracee.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
+| [`ptrace.tracee.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
+| [`ptrace.tracee.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
 | [`ptrace.tracee.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1101,8 +1101,8 @@ A ptrace command was executed
 | [`ptrace.tracee.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`ptrace.tracee.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
-| [`ptrace.tracee.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
+| [`ptrace.tracee.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
+| [`ptrace.tracee.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.container.id`](#common-process-container-id-doc) | Container ID |
 | [`ptrace.tracee.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1174,8 +1174,8 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`ptrace.tracee.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
-| [`ptrace.tracee.parent.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
+| [`ptrace.tracee.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
+| [`ptrace.tracee.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.parent.container.id`](#common-process-container-id-doc) | Container ID |
 | [`ptrace.tracee.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1450,8 +1450,8 @@ A signal was sent
 | [`signal.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`signal.target.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
-| [`signal.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
+| [`signal.target.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
+| [`signal.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
 | [`signal.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1533,8 +1533,8 @@ A signal was sent
 | [`signal.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`signal.target.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
-| [`signal.target.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
+| [`signal.target.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
+| [`signal.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.container.id`](#common-process-container-id-doc) | Container ID |
 | [`signal.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1606,8 +1606,8 @@ A signal was sent
 | [`signal.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`signal.target.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
-| [`signal.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
+| [`signal.target.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
+| [`signal.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
 | [`signal.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -2273,7 +2273,7 @@ Definition: Length of the corresponding element
 ### `*.manager` {#common-cgroupcontext-manager-doc}
 Type: string
 
-Definition: Lifecycle manager of the cgroup
+Definition: [Experimental] Lifecycle manager of the cgroup
 
 `*.manager` has 12 possible prefixes:
 `cgroup` `exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
@@ -2506,7 +2506,7 @@ Definition: User of the file's owner
 ### `*.version` {#common-cgroupcontext-version-doc}
 Type: int
 
-Definition: Version of the cgroup API
+Definition: [Experimental] Version of the cgroup API
 
 `*.version` has 12 possible prefixes:
 `cgroup` `exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`

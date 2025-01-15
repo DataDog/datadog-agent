@@ -85,6 +85,7 @@ GITLAB_FILES_TO_UPDATE = [
 ]
 
 BACKPORT_LABEL_COLOR = "5319e7"
+TAG_BATCH_SIZE = 3
 
 
 @task
@@ -201,7 +202,9 @@ def tag_modules(
 
         if push:
             tags_list = ' '.join(tags)
-            ctx.run(f"git push origin {tags_list}{force_option}")
+            for idx in range(0, len(tags), TAG_BATCH_SIZE):
+                batch_tags = tags[idx : idx + TAG_BATCH_SIZE]
+                ctx.run(f"git push origin {' '.join(batch_tags)}{force_option}")
             print(f"Pushed tag {tags_list}")
         print(f"Created module tags for version {agent_version}")
 
@@ -409,10 +412,11 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         update_branch = f"release/{new_highest_version}-{int(time.time())}"
 
         check_clean_branch_state(ctx, github, update_branch)
-        if not check_base_branch(release_branch, new_highest_version):
+        active_releases = [branch.name for branch in github.latest_unreleased_release_branches()]
+        if not any(check_base_branch(release_branch, unreleased_branch) for unreleased_branch in active_releases):
             raise Exit(
                 color_message(
-                    f"The branch you are on is neither {get_default_branch()} or the correct release branch ({new_highest_version.branch()}). Aborting.",
+                    f"The branch you are on is neither {get_default_branch()} or amongst the active release branches ({active_releases}). Aborting.",
                     "red",
                 ),
                 code=1,
@@ -514,7 +518,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
         print(color_message("Checking repository state", "bold"))
 
         # Check that the base branch is valid
-        if not check_base_branch(release_branch, new_version):
+        if not check_base_branch(release_branch, new_version.branch()):
             raise Exit(
                 color_message(
                     f"The branch you are on is neither {get_default_branch()} or the correct release branch ({new_version.branch()}). Aborting.",

@@ -140,6 +140,7 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 		analyzer.TypeSBOM,
 		analyzer.TypeUbuntuESM,
 		analyzer.TypeLicenseFile,
+		analyzer.TypeRpmArchive,
 	)
 	return disabledAnalyzers
 }
