@@ -547,6 +547,7 @@
 /pkg/tagger/                            @DataDog/container-platform
 /pkg/windowsdriver/                     @DataDog/windows-kernel-integrations
 /comp/core/workloadmeta/collectors/internal/cloudfoundry @DataDog/platform-integrations
+/comp/core/workloadmeta/collectors/internal/nvml @DataDog/ebpf-platform
 /pkg/sbom/                              @DataDog/container-integrations @DataDog/agent-security
 /pkg/internaltelemetry                  @DataDog/windows-kernel-integrations @DataDog/fleet
 /pkg/networkpath/                       @DataDog/network-device-monitoring @DataDog/Networks
