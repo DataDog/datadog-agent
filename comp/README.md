@@ -392,7 +392,7 @@ Package logsagentpipeline contains logs agent pipeline component
 
 ## [comp/ownerdetection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ownerdetection) (Component Bundle)
 
-*Datadog Team*: container-apps
+*Datadog Team*: container-app
 
 Package ownerdetection uses the cluster agent to enrich pod ownership information
 
