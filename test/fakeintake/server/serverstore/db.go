@@ -7,6 +7,7 @@ package serverstore
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -121,10 +122,14 @@ func (s *sqlStore) Close() {
 	os.Remove(s.path)
 }
 
+func (s *sqlStore) MostRecentPayloadAPIKey(route string) (string, error) {
+	return "", fmt.Errorf("not implemented")
+}
+
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
-func (s *sqlStore) AppendPayload(route string, data []byte, encoding string, contentType string, collectTime time.Time) error {
+func (s *sqlStore) AppendPayload(route string, apiKey string, data []byte, encoding string, contentType string, collectTime time.Time) error {
 	now := time.Now()
-	_, err := s.db.Exec("INSERT INTO payloads (timestamp, data, encoding, content_type, route) VALUES (?, ?, ?, ?, ?)", collectTime.Unix(), data, encoding, contentType, route)
+	_, err := s.db.Exec("INSERT INTO payloads (timestamp, apiKey, data, encoding, content_type, route) VALUES (?, ?, ?, ?, ?, ?)", collectTime.Unix(), data, encoding, contentType, route)
 	if err != nil {
 		return err
 	}
