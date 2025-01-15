@@ -174,5 +174,74 @@ namespace Datadog.CustomActions
         {
             return PrepareDecompressPythonDistributions(new SessionWrapper(session));
         }
+
+        private static ActionResult RunPythonScript(ISession session, string script)
+        {
+            var projectLocation = session.Property("PROJECTLOCATION");
+            var dataDirectory = session.Property("APPLICATIONDATADIRECTORY");
+            // get protected directory path
+            dataDirectory = Path.Combine(dataDirectory, "protected");
+
+            var pythonPath = Path.Combine(projectLocation, "embedded3", "python.exe");
+            var postInstScript = Path.Combine(projectLocation, "python-scripts", script);
+            if (!File.Exists(pythonPath))
+            {
+                session.Log($"Python executable not found at {pythonPath}");
+                return ActionResult.Failure;
+            }
+            if (!File.Exists(postInstScript))
+            {
+                session.Log($"install script not found at {postInstScript}");
+                return ActionResult.Failure;
+            }
+            // remove trailing backslash, a backslash followed by a double quote causes the command line to be spit incorrectly 
+            projectLocation = projectLocation.TrimEnd('\\');
+            dataDirectory = dataDirectory.TrimEnd('\\');
+
+            var psi = new ProcessStartInfo
+            {
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                FileName = pythonPath,
+                Arguments = $"\"{postInstScript}\" \"{projectLocation}\" \"{dataDirectory}\""
+            };
+            var proc = new Process();
+            proc.StartInfo = psi;
+            proc.OutputDataReceived += (_, args) => session.Log(args.Data);
+            proc.ErrorDataReceived += (_, args) => session.Log(args.Data);
+            proc.Start();
+            proc.BeginOutputReadLine();
+            proc.BeginErrorReadLine();
+            proc.WaitForExit();
+            if (proc.ExitCode != 0)
+            {
+                session.Log($"install script exited with code: {proc.ExitCode}");
+                proc.Close();
+                return ActionResult.Failure;
+            }
+            proc.Close();
+            return ActionResult.Success;
+        }
+
+        public static ActionResult RunPostInstPythonScript(Session session)
+        {
+            ISession sessionWrapper = new SessionWrapper(session);
+            // check if INSTALL_PYTHON_THIRD_PARTY_DEPS property is set
+            var installPythonThirdPartyDeps = sessionWrapper.Property("INSTALL_PYTHON_THIRD_PARTY_DEPS");
+            if (string.IsNullOrEmpty(installPythonThirdPartyDeps) || installPythonThirdPartyDeps != "1")
+            {
+                sessionWrapper.Log("Skipping installation of third-party Python deps. Set INSTALL_PYTHON_THIRD_PARTY_DEPS=1 to enable this feature.");
+                return ActionResult.Success;
+            }
+
+            return RunPythonScript(sessionWrapper, "post.py");
+        }
+
+        public static ActionResult RunPreRemovePythonScript(Session session)
+        {
+            return RunPythonScript(new SessionWrapper(session), "pre.py");
+        }
     }
 }
