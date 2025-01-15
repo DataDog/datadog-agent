@@ -1034,6 +1034,49 @@ int test_new_netns_exec(int argc, char **argv) {
     return EXIT_FAILURE;
 }
 
+int test_network_flow_send_udp4(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "Please specify the remote IP address and port\n");
+        return EXIT_FAILURE;
+    }
+
+    int sockfd;
+    struct sockaddr_in server_addr;
+    const char *message = "DATA";
+
+    // Create a DGRAM socket
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+        fprintf(stderr, "Socket creation failed\n");
+        return EXIT_FAILURE;
+    }
+
+    // Configure server address structure
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(atoi(argv[2]));
+    server_addr.sin_addr.s_addr = inet_addr(argv[1]);
+
+    // Send the message
+    if (sendto(sockfd, message, strlen(message), 0, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        fprintf(stderr, "Failed to send data\n");
+        close(sockfd);
+        return EXIT_FAILURE;
+    }
+
+    printf("Message sent: %s\n", message);
+    pid_t pid;
+
+    // Get the process ID
+    pid = getpid();
+    printf("Process ID: %d\n", pid);
+
+    // Close the socket
+    close(sockfd);
+    printf("Socket closed.\n");
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -1115,6 +1158,8 @@ int main(int argc, char **argv) {
             exit_code = test_slow_cat(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-write") == 0) {
             exit_code = test_slow_write(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "network_flow_send_udp4") == 0) {
+            exit_code = test_network_flow_send_udp4(sub_argc, sub_argv);
         }
         else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);

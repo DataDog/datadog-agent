@@ -569,6 +569,8 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext)
 		}
 	case "mprotect":
+	case "network_flow_monitor":
+		_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkFlowMonitor.Device)
 	case "ondemand":
 		_ = ev.FieldHandlers.ResolveOnDemandName(ev, &ev.OnDemand)
 		_ = ev.FieldHandlers.ResolveOnDemandArg1Str(ev, &ev.OnDemand)

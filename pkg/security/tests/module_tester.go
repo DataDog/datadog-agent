@@ -811,6 +811,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EnforcementDisarmerExecutableMaxAllowed":    opts.enforcementDisarmerExecutableMaxAllowed,
 		"EnforcementDisarmerExecutablePeriod":        opts.enforcementDisarmerExecutablePeriod,
 		"EventServerRetention":                       opts.eventServerRetention,
+		"NetworkFlowMonitorEnabled":                  opts.networkFlowMonitorEnabled,
 	}); err != nil {
 		return nil, nil, err
 	}

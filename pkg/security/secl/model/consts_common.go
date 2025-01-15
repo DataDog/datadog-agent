@@ -320,6 +320,13 @@ var (
 		"IP_PROTO_RAW":     IPProtoRAW,
 	}
 
+	// NetworkDirectionConstants is the list of supported network directions
+	// generate_constants:Network directions,Network directions are the supported directions of network packets.
+	NetworkDirectionConstants = map[string]NetworkDirection{
+		"INGRESS": Ingress,
+		"EGRESS":  Egress,
+	}
+
 	// exitCauseConstants is the list of supported Exit causes
 	exitCauseConstants = map[string]sharedconsts.ExitCause{
 		"EXITED":     sharedconsts.ExitExited,
@@ -338,12 +345,13 @@ var (
 )
 
 var (
-	dnsQTypeStrings      = map[uint32]string{}
-	dnsQClassStrings     = map[uint32]string{}
-	l3ProtocolStrings    = map[L3Protocol]string{}
-	l4ProtocolStrings    = map[L4Protocol]string{}
-	addressFamilyStrings = map[uint16]string{}
-	tlsVersionStrings    = map[uint16]string{}
+	dnsQTypeStrings         = map[uint32]string{}
+	dnsQClassStrings        = map[uint32]string{}
+	l3ProtocolStrings       = map[L3Protocol]string{}
+	l4ProtocolStrings       = map[L4Protocol]string{}
+	networkDirectionStrings = map[NetworkDirection]string{}
+	addressFamilyStrings    = map[uint16]string{}
+	tlsVersionStrings       = map[uint16]string{}
 )
 
 // File flags
@@ -410,6 +418,13 @@ func initL4ProtocolConstants() {
 	}
 }
 
+func initNetworkDirectionContants() {
+	for k, v := range NetworkDirectionConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		networkDirectionStrings[v] = k
+	}
+}
+
 func initAddressFamilyConstants() {
 	for k, v := range addressFamilyConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
@@ -462,6 +477,7 @@ func initConstants() {
 	initDNSQTypeConstants()
 	initL3ProtocolConstants()
 	initL4ProtocolConstants()
+	initNetworkDirectionContants()
 	initAddressFamilyConstants()
 	initExitCauseConstants()
 	initBPFMapNamesConstants()
@@ -778,4 +794,18 @@ const (
 	IPProtoMPLS L4Protocol = 137
 	// IPProtoRAW Raw IP packets
 	IPProtoRAW L4Protocol = 255
+)
+
+// NetworkDirection is used to identify the network direction of a flow
+type NetworkDirection uint32
+
+func (direction NetworkDirection) String() string {
+	return networkDirectionStrings[direction]
+}
+
+const (
+	// Egress is used to identify egress traffic
+	Egress NetworkDirection = iota + 1
+	// Ingress is used to identify ingress traffic
+	Ingress
 )

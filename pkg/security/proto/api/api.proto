@@ -244,6 +244,9 @@ message ActivityTreeStatsMessage {
     int64 DNSNodesCount = 3;
     int64 SocketNodesCount = 4;
     int64 ApproximateSize = 5;
+    int64 IMDSNodesCount = 6;
+    int64 SyscallNodesCount = 7;
+    int64 FlowNodesCount = 8;
 }
 
 message event_type_state {
