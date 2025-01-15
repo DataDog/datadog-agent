@@ -38,6 +38,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1
 	github.com/DataDog/zstd v1.5.6
+	github.com/klauspost/compress v1.17.11
 )
 
 require (
