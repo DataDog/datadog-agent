@@ -60,7 +60,7 @@ type fipsServerSuite struct {
 }
 
 func TestFIPSCiphersSuite(t *testing.T) {
-	e2e.Run(t, &fipsServerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner()))
+	e2e.Run(t, &fipsServerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner()), e2e.WithSkipDeleteOnFailure())
 }
 
 func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
