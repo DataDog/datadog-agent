@@ -9,6 +9,9 @@ package ptracer
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"time"
 
@@ -22,9 +25,19 @@ type ECSMetadata struct {
 }
 
 func retrieveECSMetadata(url string) (*ECSMetadata, error) {
-	body, err := simpleHTTPRequest(url)
+	res, err := http.Get(url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get ECS metadata endpoint response: %w", err)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read ECS metadata endpoint response: %w", err)
+	}
+
+	if res.StatusCode > 299 {
+		return nil, fmt.Errorf("ECS metadata endpoint returned an invalid http code: %d", res.StatusCode)
 	}
 
 	data := ECSMetadata{}

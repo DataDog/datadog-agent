@@ -9,7 +9,11 @@ include:
 .deploy_containers-cws-instrumentation-base:
   extends: .docker_publish_job_definition
   stage: deploy_cws_instrumentation
-  dependencies: []
+  needs:
+    - job: "docker_build_cws_instrumentation_amd64"
+      artifacts: false
+    - job: "docker_build_cws_instrumentation_arm64"
+      artifacts: false
   before_script:
     - if [[ "$VERSION" == "" ]]; then VERSION="$(inv agent.version --url-safe)" || exit $?; fi
     - if [[ "$CWS_INSTRUMENTATION_REPOSITORY" == "" ]]; then export CWS_INSTRUMENTATION_REPOSITORY="cws-instrumentation"; fi
@@ -20,7 +24,7 @@ include:
 # will push the `7.xx.y-rc.z` tags
 deploy_containers-cws-instrumentation-rc-versioned:
   extends: .deploy_containers-cws-instrumentation-base
-  rules: !reference [.on_deploy_rc]
+  rules: !reference [.on_deploy_manual_auto_on_rc]
 
 # will update the `rc` tag
 deploy_containers-cws-instrumentation-rc-mutable:
