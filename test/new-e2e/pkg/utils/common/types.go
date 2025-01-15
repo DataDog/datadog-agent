@@ -17,3 +17,9 @@ type Context interface {
 type Initializable interface {
 	Init(Context) error
 }
+
+// Diagnosable defines the interface for an object that can dump diagnostic information
+// and store files in an output directory
+type Diagnosable interface {
+	Diagnose(outputDir string) (string, error)
+}

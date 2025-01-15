@@ -145,6 +145,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -503,6 +505,18 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 
 		bs.T().Logf("Caught panic in SetupSuite, err: %v. Will try to TearDownSuite", err)
 		bs.firstFailTest = "Initial provisioning SetupSuite" // This is required to handle skipDeleteOnFailure
+
+		// run environment diagnose
+		if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok {
+			// at least one test failed, diagnose the environment
+			diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
+			if diagnoseErr != nil {
+				bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
+			} else {
+				bs.T().Logf("Diagnose result:\n\n%s", diagnose)
+			}
+		}
+
 		bs.TearDownSuite()
 
 		// As we need to call `recover` to know if there was a panic, we wrap and forward the original panic to,
@@ -555,14 +569,35 @@ func (bs *BaseSuite[Env]) BeforeTest(string, string) {
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
-	if bs.T().Failed() && bs.firstFailTest == "" {
-		// As far as I know, there is no way to prevent other tests from being
-		// run when a test fail. Even calling panic doesn't work.
-		// Instead, this code stores the name of the first fail test and prevents
-		// the environment to be updated.
-		// Note: using os.Exit(1) prevents other tests from being run but at the
-		// price of having no test output at all.
-		bs.firstFailTest = fmt.Sprintf("%v.%v", suiteName, testName)
+	if bs.T().Failed() {
+		// create output directory for this failed test
+		testPart := common.SanitizeDirectoryName(testName)
+		testOutputDir := filepath.Join(bs.SessionOutputDir(), testPart)
+		err := os.MkdirAll(testOutputDir, 0755)
+		if err != nil {
+			bs.T().Logf("unable to create test output directory: %v", err)
+		} else {
+			// run environment diagnose if the test failed
+			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok {
+				// at least one test failed, diagnose the environment
+				diagnose, diagnoseErr := diagnosableEnv.Diagnose(testOutputDir)
+				if diagnoseErr != nil {
+					bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
+				} else {
+					bs.T().Logf("Diagnose result:\n\n%s", diagnose)
+				}
+			}
+		}
+
+		if bs.firstFailTest == "" {
+			// As far as I know, there is no way to prevent other tests from being
+			// run when a test fail. Even calling panic doesn't work.
+			// Instead, this code stores the name of the first fail test and prevents
+			// the environment to be updated.
+			// Note: using os.Exit(1) prevents other tests from being run but at the
+			// price of having no test output at all.
+			bs.firstFailTest = fmt.Sprintf("%v.%v", suiteName, testName)
+		}
 	}
 }
 

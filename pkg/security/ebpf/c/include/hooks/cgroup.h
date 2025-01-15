@@ -110,14 +110,14 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         bpf_probe_read(&f, sizeof(f), &kern_f->file);
         struct dentry *dentry = get_file_dentry(f);
 
-        resolver->key.ino = get_dentry_ino(dentry);
-        resolver->key.mount_id = get_file_mount_id(f);
-        resolver->dentry = dentry;
-
         // The last dentry in the cgroup path should be `cgroup.procs`, thus the container ID should be its parent.
         bpf_probe_read(&container_d, sizeof(container_d), &dentry->d_parent);
         bpf_probe_read(&container_qstr, sizeof(container_qstr), &container_d->d_name);
         container_id = (void *)container_qstr.name;
+
+        resolver->key.ino = get_dentry_ino(container_d);
+        resolver->key.mount_id = get_file_mount_id(f);
+        resolver->dentry = container_d;
 
         if (is_docker_cgroup(ctx, container_d)) {
             cgroup_flags = CGROUP_MANAGER_DOCKER;
@@ -133,6 +133,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
         u64 inode = get_dentry_ino(container_d);
         resolver->key.ino = inode;
+
         struct file_t *entry = bpf_map_lookup_elem(&exec_file_cache, &inode);
         if (entry == NULL) {
             return 0;

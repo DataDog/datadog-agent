@@ -1270,6 +1270,15 @@ api_key:
   ##        Datadog stores a minimum of 1000 queries (5000000 / 5000) by default.
   #         max_size: 5000000
 
+  ## @sql_obfuscation_mode - string - optional - default: ""
+  ## @env DD_APM_SQL_OBFUSCATION_MODE - string - optional - default: ""
+  ## Obfuscator mode for SQL queries.
+  ## Leave empty to use the default obfuscator.
+  ## Set to "obfuscate_only" to obfuscate the query with the new `sqllexer` obfuscator.
+  ## If you use DBM, set to "obfuscate_and_normalize" to obfuscate and normalize the query for better APM/DBM correlation.
+  #
+  # sql_obfuscation_mode: ""
+
   ## @param filter_tags - object - optional
   ## @env DD_APM_FILTER_TAGS_REQUIRE - object - optional
   ## @env DD_APM_FILTER_TAGS_REJECT - object - optional

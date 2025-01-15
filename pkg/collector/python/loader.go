@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -60,7 +60,7 @@ const (
 )
 
 func init() {
-	factory := func(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
+	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
 		return NewPythonCheckLoader(senderManager, logReceiver, tagger)
 	}
 	loaders.RegisterLoader(20, factory)
@@ -86,11 +86,11 @@ func init() {
 //
 //nolint:revive // TODO(AML) Fix revive linter
 type PythonCheckLoader struct {
-	logReceiver optional.Option[integrations.Component]
+	logReceiver option.Option[integrations.Component]
 }
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
-func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component], tagger tagger.Component) (*PythonCheckLoader, error) {
+func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (*PythonCheckLoader, error) {
 	initializeCheckContext(senderManager, logReceiver, tagger)
 	return &PythonCheckLoader{
 		logReceiver: logReceiver,

@@ -24,12 +24,12 @@
         },
         {
           "name": "cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -144,12 +144,12 @@
         },
         {
           "name": "process.ancestors.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "process.ancestors.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -559,12 +559,12 @@
         },
         {
           "name": "process.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "process.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -924,12 +924,12 @@
         },
         {
           "name": "process.parent.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "process.parent.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -1316,6 +1316,40 @@
           "name": "process.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        }
+      ]
+    },
+    {
+      "name": "accept",
+      "definition": "An accept was executed",
+      "type": "Network",
+      "from_agent_version": "7.60",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "accept.addr.family",
+          "definition": "Address family",
+          "property_doc_link": "accept-addr-family-doc"
+        },
+        {
+          "name": "accept.addr.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "accept.addr.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "accept.addr.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "accept.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
         }
       ]
     },
@@ -2035,12 +2069,12 @@
         },
         {
           "name": "exec.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "exec.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -2464,12 +2498,12 @@
         },
         {
           "name": "exit.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "exit.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -3402,6 +3436,16 @@
           "name": "mkdir.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "mkdir.syscall.mode",
+          "definition": "Mode of the new directory",
+          "property_doc_link": "mkdir-syscall-mode-doc"
+        },
+        {
+          "name": "mkdir.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "mkdir-syscall-path-doc"
         }
       ]
     },
@@ -3889,12 +3933,12 @@
         },
         {
           "name": "ptrace.tracee.ancestors.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -4304,12 +4348,12 @@
         },
         {
           "name": "ptrace.tracee.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "ptrace.tracee.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -4669,12 +4713,12 @@
         },
         {
           "name": "ptrace.tracee.parent.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "ptrace.tracee.parent.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -5523,6 +5567,11 @@
           "name": "rmdir.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "rmdir.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "rmdir-syscall-path-doc"
         }
       ]
     },
@@ -5836,12 +5885,12 @@
         },
         {
           "name": "signal.target.ancestors.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "signal.target.ancestors.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -6251,12 +6300,12 @@
         },
         {
           "name": "signal.target.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "signal.target.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -6616,12 +6665,12 @@
         },
         {
           "name": "signal.target.parent.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "signal.target.parent.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -8418,6 +8467,7 @@
       "type": "IP/CIDR",
       "definition": "IP address",
       "prefixes": [
+        "accept.addr",
         "bind.addr",
         "connect.addr",
         "network.destination",
@@ -8479,6 +8529,7 @@
       "type": "bool",
       "definition": "Whether the IP address belongs to a public network",
       "prefixes": [
+        "accept.addr",
         "bind.addr",
         "connect.addr",
         "network.destination",
@@ -8701,7 +8752,7 @@
       "name": "*.manager",
       "link": "common-cgroupcontext-manager-doc",
       "type": "string",
-      "definition": "Lifecycle manager of the cgroup",
+      "definition": "[Experimental] Lifecycle manager of the cgroup",
       "prefixes": [
         "cgroup",
         "exec.cgroup",
@@ -9174,6 +9225,7 @@
       "type": "int",
       "definition": "Port number",
       "prefixes": [
+        "accept.addr",
         "bind.addr",
         "connect.addr",
         "network.destination",
@@ -9213,6 +9265,7 @@
       "type": "int",
       "definition": "Return value of the syscall",
       "prefixes": [
+        "accept",
         "bind",
         "bpf",
         "chdir",
@@ -9501,7 +9554,7 @@
       "name": "*.version",
       "link": "common-cgroupcontext-version-doc",
       "type": "int",
-      "definition": "Version of the cgroup API",
+      "definition": "[Experimental] Version of the cgroup API",
       "prefixes": [
         "cgroup",
         "exec.cgroup",
@@ -9515,6 +9568,18 @@
         "signal.target.ancestors.cgroup",
         "signal.target.cgroup",
         "signal.target.parent.cgroup"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "accept.addr.family",
+      "link": "accept-addr-family-doc",
+      "type": "int",
+      "definition": "Address family",
+      "prefixes": [
+        "accept"
       ],
       "constants": "",
       "constants_link": "",
@@ -10265,6 +10330,30 @@
       "examples": []
     },
     {
+      "name": "mkdir.syscall.mode",
+      "link": "mkdir-syscall-mode-doc",
+      "type": "int",
+      "definition": "Mode of the new directory",
+      "prefixes": [
+        "mkdir"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mkdir.syscall.path",
+      "link": "mkdir-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "mkdir"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "mmap.flags",
       "link": "mmap-flags-doc",
       "type": "int",
@@ -10511,6 +10600,18 @@
       "definition": "Path argument of the syscall",
       "prefixes": [
         "rename"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "rmdir.syscall.path",
+      "link": "rmdir-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "rmdir"
       ],
       "constants": "",
       "constants_link": "",

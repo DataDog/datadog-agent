@@ -80,9 +80,20 @@ func (h *Host) setSystemdVersion() {
 // InstallDocker installs Docker on the host if it is not already installed.
 func (h *Host) InstallDocker() {
 	defer func() {
+		// This defer will basically restart docker from a clean state, to avoid any issues in between tests.
+		// It will:
+		// - 1. Stop docker (if it's running)
+		// - 2. Reset failed status
+		// - 3. Remove the network directory to avoid network collision
+		// - 4. Start docker again
+		_, _ = h.remote.Execute("sudo systemctl stop docker")
 		_, err := h.remote.Execute("sudo systemctl reset-failed docker")
 		if err != nil {
 			h.t.Logf("warn: failed to reset-failed for docker.d: %v", err)
+		}
+		_, err = h.remote.Execute("sudo rm -rf /var/lib/docker/network")
+		if err != nil {
+			h.t.Logf("warn: failed to remove /var/lib/docker/network: %v", err)
 		}
 		_, err = h.remote.Execute("sudo systemctl start docker")
 		require.NoErrorf(h.t, err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))
@@ -156,11 +167,15 @@ func (h *Host) WaitForUnitActive(units ...string) {
 }
 
 // WaitForUnitActivating waits for a systemd unit to be activating
-func (h *Host) WaitForUnitActivating(units ...string) {
+func (h *Host) WaitForUnitActivating(t *testing.T, units ...string) {
 	for _, unit := range units {
 		_, err := h.remote.Execute(fmt.Sprintf("timeout=60; unit=%s; while ! grep -q \"Active: activating\" <(sudo systemctl status $unit) && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
-		require.NoError(h.t, err, "unit %s did not become activating. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
-
+		if err != nil {
+			h.t.Logf("installer logs:\n%s", h.remote.MustExecute("sudo journalctl -xeu datadog-installer"))
+			h.t.Logf("installer exp logs:\n%s", h.remote.MustExecute("sudo journalctl -xeu datadog-installer-exp"))
+			h.t.Logf("unit %s logs:\n%s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
+		}
+		require.NoError(t, err, "unit %s did not become activating")
 	}
 }
 

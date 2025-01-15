@@ -39,7 +39,7 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 		DNSNames:       make(map[string]*DNSNode, len(pan.DnsNames)),
 		IMDSEvents:     make(map[model.IMDSEvent]*IMDSNode, len(pan.ImdsEvents)),
 		Sockets:        make([]*SocketNode, 0, len(pan.Sockets)),
-		Syscalls:       make([]*SyscallNode, 0, len(pan.Syscalls)),
+		Syscalls:       make([]*SyscallNode, 0, len(pan.Syscalls)), // nolint:staticcheck // TODO: update syscall functionality
 		ImageTags:      pan.ImageTags,
 	}
 
@@ -73,7 +73,7 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 		ppan.Sockets = append(ppan.Sockets, protoDecodeProtoSocket(socket))
 	}
 
-	for _, sysc := range pan.Syscalls {
+	for _, sysc := range pan.Syscalls { // nolint:staticcheck // TODO: update syscall functionality
 		ppan.Syscalls = append(ppan.Syscalls, NewSyscallNode(int(sysc), "", Unknown))
 	}
 

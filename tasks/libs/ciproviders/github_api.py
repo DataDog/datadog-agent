@@ -53,6 +53,22 @@ class GithubAPI:
 
         return self._repository
 
+    def graphql(self, query):
+        """
+        Perform a GraphQL query against the Github API.
+        """
+
+        headers = {"Authorization": "Bearer " + self._auth.token, "Content-Type": "application/json"}
+        res = requests.post(
+            "https://api.github.com/graphql",
+            headers=headers,
+            json={"query": query},
+        )
+        if res.status_code == 200:
+            return res.json()
+        else:
+            raise RuntimeError(f"Failed to query Github: {res.text}")
+
     def get_branch(self, branch_name):
         """
         Gets info on a given branch in the given Github repository.
@@ -654,3 +670,9 @@ Make sure that milestone is open before trying again.""",
     print(color_message(f"Done creating new PR. Link: {updated_pr.html_url}", "bold"))
 
     return updated_pr.html_url
+
+
+def ask_review_actor(pr):
+    for event in pr.get_issue_events():
+        if event.event == "labeled" and event.label.name == "ask-review":
+            return event.actor.name or event.actor.login
