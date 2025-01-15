@@ -694,7 +694,6 @@ def build(
     """
     Build the system-probe
     """
-    raise NameError('test')
     if not is_macos:
         build_object_files(
             ctx,
