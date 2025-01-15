@@ -26,7 +26,7 @@
 '@datadog/universal-service-monitoring': USMON
 '@datadog/windows-agent': WINA
 '@datadog/windows-kernel-integrations': WKINT
-'@datadog/opentelemetry': OTEL
+'@datadog/opentelemetry': OTAGENT
 '@datadog/agent-e2e-testing': ADXT
 '@datadog/software-integrity-and-trust': SINT
 '@datadog/single-machine-performance': SMP
