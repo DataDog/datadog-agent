@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sds"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -47,6 +48,7 @@ type provider struct {
 	outputChan                chan *message.Payload
 	processingRules           []*config.ProcessingRule
 	endpoints                 *config.Endpoints
+	sender                    sender.PipelineComponent
 
 	pipelines            []*Pipeline
 	currentPipelineIndex *atomic.Uint32
@@ -60,13 +62,15 @@ type provider struct {
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
-	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false, status, hostname, cfg)
+func NewProvider(numberOfPipelines int, sharedSender sender.PipelineComponent, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver,
+	processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext,
+	status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
+	return newProvider(numberOfPipelines, sharedSender, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false, status, hostname, cfg)
 }
 
 // NewServerlessProvider returns a new Provider in serverless mode
 func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
-	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, true, status, hostname, cfg)
+	return newProvider(numberOfPipelines, nil, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, true, status, hostname, cfg)
 }
 
 // NewMockProvider creates a new provider that will not provide any pipelines.
@@ -74,13 +78,14 @@ func NewMockProvider() Provider {
 	return &provider{}
 }
 
-func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool, status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
+func newProvider(numberOfPipelines int, sharedSender sender.PipelineComponent, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool, status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,
 		auditor:                   auditor,
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		processingRules:           processingRules,
 		endpoints:                 endpoints,
+		sender:                    sharedSender,
 		pipelines:                 []*Pipeline{},
 		currentPipelineIndex:      atomic.NewUint32(0),
 		destinationsContext:       destinationsContext,
@@ -96,8 +101,14 @@ func (p *provider) Start() {
 	// This requires the auditor to be started before.
 	p.outputChan = p.auditor.Channel()
 
+	// shared sender
+	if p.sender != nil {
+		p.sender.Start()
+	}
+
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.diagnosticMessageReceiver, p.serverless, i, p.status, p.hostname, p.cfg)
+		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.auditor, p.sender,
+			p.diagnosticMessageReceiver, p.serverless, i, p.status, p.hostname, p.cfg)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}
@@ -107,9 +118,16 @@ func (p *provider) Start() {
 // this call blocks until all pipelines are stopped
 func (p *provider) Stop() {
 	stopper := startstop.NewParallelStopper()
+
+	if p.sender != nil {
+		stopper.Add(p.sender) // close the shared senders
+	}
+
+	// close the pipelines
 	for _, pipeline := range p.pipelines {
 		stopper.Add(pipeline)
 	}
+
 	stopper.Stop()
 	p.pipelines = p.pipelines[:0]
 	p.outputChan = nil

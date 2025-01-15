@@ -27,8 +27,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -43,10 +45,25 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	auditorTTL := time.Duration(a.config.GetInt("logs_config.auditor_ttl")) * time.Hour
 	auditor := auditor.New(a.config.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
+	destinationsCtx.WithTracing = true
+	destinationsCtx.Start()
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname)
 
+	// TODO(remy): create a pool of senders
+	var pipelineMonitor *metrics.TelemetryPipelineMonitor = metrics.NewTelemetryPipelineMonitor("shared_sender")
+	status := NewStatusProvider()
+
+	// create a shared sender
+	// * it doesn't support serverless but the serverless pipeline creates its own sender
+	// * it buffers payload in the channel between the strategy & the sender
+	mainDestinations := pipeline.GetDestinations(a.endpoints, destinationsCtx, pipelineMonitor, false, nil, status, a.config)
+	sharedSender := sender.NewSharedSender(a.config, auditor, mainDestinations,
+		a.config.GetInt("logs_config.payload_channel_size"), nil, nil, pipelineMonitor)
+
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(a.config.GetInt("logs_config.pipelines"), auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
+	pipelineProvider := pipeline.NewProvider(a.config.GetInt("logs_config.pipelines"), sharedSender,
+		auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx,
+		status, a.hostname, a.config)
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, auditor, a.tracker)
@@ -78,7 +95,6 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	a.launchers = lnchrs
 	a.health = health
 	a.diagnosticMessageReceiver = diagnosticMessageReceiver
-
 }
 
 // buildEndpoints builds endpoints for the logs agent
