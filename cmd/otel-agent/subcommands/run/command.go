@@ -219,6 +219,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			PIDFilePath: "",
 		}),
 		traceagentfx.Module(),
+		//statusimpl.Module(),
 	)
 }
 
