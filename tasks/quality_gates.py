@@ -107,5 +107,5 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
 
     github = GithubAPI()
     branch = os.environ["CI_COMMIT_BRANCH"]
-    if len(github.get_pr_for_branch(branch)) > 0:
+    if github.get_pr_for_branch(branch).totalCount > 0:
         display_pr_comment(ctx, finalState, gateStates)
