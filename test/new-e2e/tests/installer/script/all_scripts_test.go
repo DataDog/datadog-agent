@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -165,8 +166,22 @@ func (s *installerScriptBaseSuite) getAPIKey() string {
 }
 
 func (s *installerScriptBaseSuite) RunInstallScriptWithError(url string, params ...string) error {
+	// Download scripts -- add retries for network issues
+	var err error
+	maxRetries := 5
+	for i := 0; i < maxRetries; i++ {
+		_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("curl -L %s > install_script", url))
+		if err == nil {
+			break
+		}
+		if i == maxRetries-1 {
+			return err
+		}
+		time.Sleep(1 * time.Second)
+	}
+
 	scriptParams := append(params, fmt.Sprintf("DD_API_KEY=%s", s.getAPIKey()), "DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com")
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("curl -L %s > install_script; %s bash install_script", url, strings.Join(scriptParams, " ")))
+	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%s bash install_script", strings.Join(scriptParams, " ")))
 	return err
 }
 
