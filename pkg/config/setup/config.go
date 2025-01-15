@@ -60,7 +60,7 @@ const (
 	DefaultBatchWait = 5
 
 	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
-	DefaultBatchMaxConcurrentSend = 4
+	DefaultBatchMaxConcurrentSend = 1
 
 	// DefaultSendersCountPerQueue is how many concurrent senders the shared sender will use
 	DefaultSendersCountPerQueue = 4
