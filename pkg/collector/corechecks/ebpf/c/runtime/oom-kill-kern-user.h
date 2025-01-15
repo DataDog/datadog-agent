@@ -8,7 +8,6 @@
 #endif
 
 struct oom_stats {
-    char cgroup_name[129];
     // Pid of killed process
     __u32 victim_pid;
     // Pid of triggering process
@@ -19,12 +18,14 @@ struct oom_stats {
     char trigger_comm[TASK_COMM_LEN];
     // OOM score of killed process
     __s64 score;
-    // OOM score adjustment of killed process
-    __s16 score_adj;
     // Total number of pages
     __u64 pages;
     // Tracks if the OOM kill was triggered by a cgroup
     __u32 memcg_oom;
+    // OOM score adjustment of killed process
+    __s16 score_adj;
+
+    char cgroup_name[129];
 };
 
 #endif /* defined(OOM_KILL_KERN_USER_H) */
