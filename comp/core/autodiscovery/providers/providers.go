@@ -58,6 +58,7 @@ func RegisterProviders(providerCatalog map[string]ConfigProviderFactory) {
 	RegisterProvider(names.PrometheusPodsRegisterName, NewPrometheusPodsConfigProvider, providerCatalog)
 	RegisterProvider(names.PrometheusServicesRegisterName, NewPrometheusServicesConfigProvider, providerCatalog)
 	RegisterProvider(names.ZookeeperRegisterName, NewZookeeperConfigProvider, providerCatalog)
+	RegisterProviderWithComponents(names.GPU, NewGPUConfigProvider, providerCatalog)
 }
 
 // ConfigProviderFactory is any function capable to create a ConfigProvider instance
