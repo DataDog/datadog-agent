@@ -333,7 +333,7 @@ func (c *ntmConfig) SetKnown(key string) {
 		panic("cannot SetKnown() once the config has been marked as ready for use")
 	}
 
-	c.addToKnownKeys(key)
+	c.addToSchema(key, model.SourceSchema)
 }
 
 // IsKnown returns whether a key is known
@@ -387,19 +387,25 @@ func (c *ntmConfig) mergeAllLayers() error {
 	}
 
 	c.root = root
+	// recompile allSettings now that we have the full config
+	c.allSettings = c.computeAllSettings(c.schema, "")
 	return nil
 }
 
-func computeAllSettings(node InnerNode, path string) []string {
+func (c *ntmConfig) computeAllSettings(node InnerNode, path string) []string {
 	knownKeys := []string{}
 	for _, name := range node.ChildrenKeys() {
 		newPath := joinKey(path, name)
 
 		child, _ := node.GetChild(name)
-		if _, ok := child.(LeafNode); ok {
-			knownKeys = append(knownKeys, newPath)
+		if leaf, ok := child.(LeafNode); ok {
+			if leaf.Source() != model.SourceSchema {
+				knownKeys = append(knownKeys, newPath)
+			} else if c.leafAtPathFromNode(newPath, c.root) != missingLeaf {
+				knownKeys = append(knownKeys, newPath)
+			}
 		} else if inner, ok := child.(InnerNode); ok {
-			knownKeys = append(knownKeys, computeAllSettings(inner, newPath)...)
+			knownKeys = append(knownKeys, c.computeAllSettings(inner, newPath)...)
 		} else {
 			log.Errorf("unknown node type in the tree: %T", child)
 		}
@@ -417,7 +423,7 @@ func (c *ntmConfig) BuildSchema() {
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err.Error())
 	}
-	c.allSettings = computeAllSettings(c.schema, "")
+	c.allSettings = c.computeAllSettings(c.schema, "")
 }
 
 // Stringify stringifies the config, but only with the test build tag
@@ -572,6 +578,14 @@ func (c *ntmConfig) AllKeysLowercased() []string {
 }
 
 func (c *ntmConfig) leafAtPathFromNode(key string, curr Node) LeafNode {
+	node := c.nodeAtPathFromNode(key, curr)
+	if leaf, ok := node.(LeafNode); ok {
+		return leaf
+	}
+	return missingLeaf
+}
+
+func (c *ntmConfig) nodeAtPathFromNode(key string, curr Node) Node {
 	pathParts := splitKey(key)
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
@@ -580,10 +594,7 @@ func (c *ntmConfig) leafAtPathFromNode(key string, curr Node) LeafNode {
 		}
 		curr = next
 	}
-	if leaf, ok := curr.(LeafNode); ok {
-		return leaf
-	}
-	return missingLeaf
+	return curr
 }
 
 // GetNode returns a Node for the given key

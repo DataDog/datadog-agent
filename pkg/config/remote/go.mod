@@ -50,7 +50,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/http v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.56.0-rc.3
 	github.com/Masterminds/semver v1.5.0
 	github.com/benbjohnson/clock v1.3.5
@@ -77,13 +77,13 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.60.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.59.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.59.1 // indirect
 	github.com/DataDog/datadog-go/v5 v5.6.0 // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.5.1 // indirect
@@ -121,7 +121,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2
 	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect

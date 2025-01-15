@@ -128,6 +128,9 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, at authtoke
 	}
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
 	cfg.GetAgentAuthToken = apiutil.GetAuthToken
+	cfg.HTTPTransportFunc = func() *http.Transport {
+		return httputils.CreateHTTPTransport(coreConfigObject)
+	}
 	return cfg, nil
 }
 
@@ -227,6 +230,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if core.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
+	}
+	if core.IsSet("apm_config.sql_obfuscation_mode") {
+		c.SQLObfuscationMode = core.GetString("apm_config.sql_obfuscation_mode")
 	}
 
 	/**

@@ -482,7 +482,7 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 	timestamp = s.host.LastJournaldTimestamp()
 	s.mustStartConfigExperiment(localCDN.DirPath, datadogAgent, hash)
 	// Assert the successful start of the experiment
-	s.host.WaitForUnitActivating(agentUnitXP)
+	s.host.WaitForUnitActivating(s.T(), agentUnitXP)
 	s.host.WaitForFileExists(false, "/opt/datadog-packages/datadog-agent/experiment/run/agent.pid")
 
 	// Assert experiment is running
@@ -712,7 +712,7 @@ func (s *upgradeScenarioSuite) setCatalog(newCatalog catalog) {
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulAgentStartExperiment(timestamp host.JournaldTimestamp, version string) {
-	s.host.WaitForUnitActivating(agentUnitXP)
+	s.host.WaitForUnitActivating(s.T(), agentUnitXP)
 	s.host.WaitForFileExists(false, "/opt/datadog-packages/datadog-agent/experiment/run/agent.pid")
 
 	// Assert experiment is running
@@ -826,7 +826,7 @@ func (s *upgradeScenarioSuite) mustStopConfigExperiment(localCDNPath string, pkg
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulConfigStartExperiment(timestamp host.JournaldTimestamp, hash string) {
-	s.host.WaitForUnitActivating(agentUnitXP)
+	s.host.WaitForUnitActivating(s.T(), agentUnitXP)
 	s.host.WaitForFileExists(false, "/opt/datadog-packages/datadog-agent/experiment/run/agent.pid")
 
 	// Assert experiment is running
@@ -919,7 +919,7 @@ func (s *upgradeScenarioSuite) getInstallerStatus() installerStatus {
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulInstallerStartExperiment(timestamp host.JournaldTimestamp, version string) {
-	s.host.WaitForUnitActivating(installerUnitXP)
+	s.host.WaitForUnitActivating(s.T(), installerUnitXP)
 	// TODO: check the pid file
 	// s.host.WaitForFileExists(false, "/opt/datadog-packages/datadog-installer/experiment/installer.pid")
 
