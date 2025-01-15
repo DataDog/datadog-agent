@@ -15,6 +15,8 @@ const (
 	startGroup Label = iota
 	noAggregate
 	aggregate
+
+	defaultLabelSource = "default"
 )
 
 type messageContext struct {
@@ -59,7 +61,7 @@ func (l *Labeler) Label(rawMessage []byte) Label {
 		rawMessage:      rawMessage,
 		tokens:          nil,
 		label:           aggregate,
-		labelAssignedBy: "default",
+		labelAssignedBy: defaultLabelSource,
 	}
 	for _, h := range l.lablerHeuristics {
 		if !h.ProcessAndContinue(context) {
