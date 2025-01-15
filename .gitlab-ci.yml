@@ -695,6 +695,11 @@ workflow:
         - test/new-e2e/tests/windows/install-test/**/*
         - test/new-e2e/tests/windows/domain-test/**/*
         - tasks/msi.py
+        - omnibus/python-scripts/**/*
+        - omnibus/lib/**/*
+        - omnibus/config/projects/agent.rb
+        - omnibus/config/software/**/*
+        - omnibus/config/templates/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .except_windows_installer_changes:
