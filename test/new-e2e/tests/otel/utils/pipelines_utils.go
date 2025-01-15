@@ -418,6 +418,15 @@ func TestAPMStats(s OTelTestSuite, numTraces int, computeTopLevelBySpanKind bool
 	s.T().Log("Got APM stats", stats)
 }
 
+const (
+	// https://github.com/DataDog/dd-source/blob/3b6316543b8a5c64078fe75ca79e4825ecc624b1/domains/metrics/shared/libs/proto/origin/origin.proto#L188
+	originProductDatadogExporter = 19
+	// https://github.com/DataDog/dd-source/blob/3b6316543b8a5c64078fe75ca79e4825ecc624b1/domains/metrics/shared/libs/proto/origin/origin.proto#L765
+	originCategoryPrometheusReceiver = 238
+	// https://github.com/DataDog/dd-source/blob/3b6316543b8a5c64078fe75ca79e4825ecc624b1/domains/metrics/shared/libs/proto/origin/origin.proto#L751
+	originCategoryHostmetricsReceiver = 224
+)
+
 // TestPrometheusMetrics tests that expected prometheus metrics are scraped
 func TestPrometheusMetrics(s OTelTestSuite) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -430,13 +439,46 @@ func TestPrometheusMetrics(s OTelTestSuite) {
 		otelcolMetrics, err = s.Env().FakeIntake.Client().FilterMetrics("otelcol_process_uptime")
 		assert.NoError(c, err)
 		assert.NotEmpty(c, otelcolMetrics)
+		for _, m := range otelcolMetrics {
+			origin := m.Metadata.Origin
+			assert.Equal(c, originProductDatadogExporter, origin.OriginProduct)
+			assert.Equal(c, originCategoryPrometheusReceiver, origin.OriginCategory)
+		}
 
 		traceAgentMetrics, err = s.Env().FakeIntake.Client().FilterMetrics("otelcol_datadog_trace_agent_trace_writer_spans")
 		assert.NoError(c, err)
 		assert.NotEmpty(c, traceAgentMetrics)
+		for _, m := range otelcolMetrics {
+			origin := m.Metadata.Origin
+			assert.Equal(c, originProductDatadogExporter, origin.OriginProduct)
+			assert.Equal(c, originCategoryPrometheusReceiver, origin.OriginCategory)
+		}
 	}, 2*time.Minute, 10*time.Second)
 	s.T().Log("Got otelcol_process_uptime", otelcolMetrics)
 	s.T().Log("Got otelcol_datadog_trace_agent_trace_writer_spans", traceAgentMetrics)
+}
+
+// TestHostMetrics tests that expected host metrics are scraped
+func TestHostMetrics(s OTelTestSuite) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+	s.T().Log("Waiting for metrics")
+	expectedMetrics := []string{
+		"otel.system.cpu.load_average.15m",
+		"otel.system.cpu.load_average.5m",
+		"otel.system.memory.usage",
+	}
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		for _, m := range expectedMetrics {
+			metrics, err := s.Env().FakeIntake.Client().FilterMetrics(m)
+			assert.NoError(c, err)
+			s.T().Log("Got host metric", metrics)
+			assert.Len(c, metrics, 1)
+			origin := metrics[0].Metadata.Origin
+			assert.Equal(c, originProductDatadogExporter, origin.OriginProduct)
+			assert.Equal(c, originCategoryHostmetricsReceiver, origin.OriginCategory)
+		}
+	}, 1*time.Minute, 10*time.Second)
 }
 
 // SetupSampleTraces flushes the intake server and starts a telemetrygen job to generate traces
