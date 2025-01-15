@@ -38,7 +38,7 @@ type Heuristic interface {
 
 // Labeler labels log messages based on a set of heuristics.
 // Each Heuristic operates on the output of the previous heuristic - mutating the message context.
-// A label is chosen when a herusitc signals the labeler to stop or when all herustics have been processed.
+// A label is chosen when a herusitc signals the labeler to stop or when all Heuristics have been processed.
 type Labeler struct {
 	lablerHeuristics    []Heuristic
 	analyticsHeuristics []Heuristic
