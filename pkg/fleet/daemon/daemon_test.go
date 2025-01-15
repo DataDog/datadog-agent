@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -214,10 +213,7 @@ func newTestInstaller(t *testing.T) *testInstaller {
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
 	env := &env.Env{RemoteUpdates: true}
-	cdn, err := cdn.New(env, t.TempDir())
-	require.NoError(t, err)
-	daemon := newDaemon(rc, pm, env, cdn)
-	require.NoError(t, err)
+	daemon := newDaemon(rc, pm, env)
 	i := &testInstaller{
 		daemonImpl: daemon,
 		rcc:        rcc,

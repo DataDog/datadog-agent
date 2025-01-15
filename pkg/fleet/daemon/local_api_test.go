@@ -76,9 +76,9 @@ func (m *testDaemon) GetPackage(pkg string, version string) (Package, error) {
 	return args.Get(0).(Package), args.Error(1)
 }
 
-func (m *testDaemon) GetState() (map[string]repository.State, error) {
+func (m *testDaemon) GetState() (map[string]PackageState, error) {
 	args := m.Called()
-	return args.Get(0).(map[string]repository.State), args.Error(1)
+	return args.Get(0).(map[string]PackageState), args.Error(1)
 }
 
 func (m *testDaemon) GetRemoteConfigState() *pbgo.ClientUpdater {

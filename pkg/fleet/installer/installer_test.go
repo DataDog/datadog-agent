@@ -222,5 +222,4 @@ func TestPurge(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(rootPath, "packages.db"), "purge should remove the packages database")
 	assert.NoDirExists(t, rootPath, "purge should remove the packages directory")
 	assert.Nil(t, installer.db, "purge should close the packages database")
-	assert.Nil(t, installer.cdn, "purge should close the CDN client")
 }

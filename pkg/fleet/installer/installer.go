@@ -17,7 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 
@@ -73,7 +72,6 @@ type installerImpl struct {
 	m sync.Mutex
 
 	env        *env.Env
-	cdn        *cdn.CDN
 	db         *db.PackagesDB
 	downloader *oci.Downloader
 	packages   *repository.Repositories
@@ -93,13 +91,8 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
-	cdn, err := cdn.New(env, filepath.Join(paths.RunPath, "rc_cmd"))
-	if err != nil {
-		return nil, fmt.Errorf("could not create CDN client: %w", err)
-	}
 	return &installerImpl{
 		env:        env,
-		cdn:        cdn,
 		db:         db,
 		downloader: oci.NewDownloader(env, env.HTTPClient()),
 		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
@@ -343,20 +336,6 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	config, err := i.cdn.Get(ctx, pkg)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrDownloadFailed,
-			fmt.Errorf("could not get cdn config: %w", err),
-		)
-	}
-	if config.State().GetVersion() != version {
-		return installerErrors.Wrap(
-			installerErrors.ErrDownloadFailed,
-			fmt.Errorf("version mismatch: expected %s, got %s", config.State().GetVersion(), version),
-		)
-	}
-
 	tmpDir, err := i.packages.MkdirTemp()
 	if err != nil {
 		return installerErrors.Wrap(
@@ -366,13 +345,13 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	}
 	defer os.RemoveAll(tmpDir)
 
-	err = config.Write(tmpDir)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not write agent config: %w", err),
-		)
-	}
+	// err = config.Write(tmpDir)
+	// if err != nil {
+	// 	return installerErrors.Wrap(
+	// 		installerErrors.ErrFilesystemIssue,
+	// 		fmt.Errorf("could not write agent config: %w", err),
+	// 	)
+	// }
 
 	configRepo := i.configs.Get(pkg)
 	err = configRepo.SetExperiment(version, tmpDir)
@@ -574,18 +553,9 @@ func (i *installerImpl) close() error {
 		}
 		i.db = nil
 	}
-	if i.cdn != nil {
-		if cdnErr := i.cdn.Close(); cdnErr != nil {
-			cdnErr = fmt.Errorf("failed to close Remote Config cdn: %w", cdnErr)
-			errs = append(errs, cdnErr)
-		}
-		i.cdn = nil
-	}
-
 	if len(errs) > 0 {
 		return errors.Join(errs...)
 	}
-
 	return nil
 }
 
@@ -667,37 +637,19 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 }
 
 func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err error) {
-	if !i.env.RemotePolicies {
-		return nil
-	}
-
 	span, _ := telemetry.StartSpanFromContext(ctx, "configure_package")
 	defer func() { span.Finish(err) }()
 
-	switch pkg {
-	case packageDatadogAgent, packageAPMInjector, packageAPMLibraries:
-		config, err := i.cdn.Get(ctx, pkg)
-		if err != nil {
-			return fmt.Errorf("could not get %s CDN config: %w", pkg, err)
-		}
-		tmpDir, err := i.configs.MkdirTemp()
-		if err != nil {
-			return fmt.Errorf("could not create temporary directory: %w", err)
-		}
-		defer os.RemoveAll(tmpDir)
-
-		err = config.Write(tmpDir)
-		if err != nil {
-			return fmt.Errorf("could not write %s config: %w", pkg, err)
-		}
-		err = i.configs.Create(pkg, config.State().GetVersion(), tmpDir)
-		if err != nil {
-			return fmt.Errorf("could not create %s repository: %w", pkg, err)
-		}
-		return nil
-	default:
-		return nil
+	tmpDir, err := i.configs.MkdirTemp()
+	if err != nil {
+		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
+	defer os.RemoveAll(tmpDir)
+	err = i.configs.Create(pkg, "empty", tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not create %s repository: %w", pkg, err)
+	}
+	return nil
 }
 
 const (
