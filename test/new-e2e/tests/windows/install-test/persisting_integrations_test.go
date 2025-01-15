@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	servicetest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
@@ -188,8 +187,8 @@ func (s *testIntegrationFolderPermissions) TestIntegrationFolderPermissions() {
 	}
 	t, err := NewTester(s, vm, testerOptions...)
 	s.Require().NoError(err, "should create tester")
-	ddAgentUserIdentity, err := windows.GetIdentityForUser(t.host,
-		windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
+	ddAgentUserIdentity, err := windowsCommon.GetIdentityForUser(t.host,
+		windowsCommon.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
 	)
 	s.Require().NoError(err, "should get ddagentuser identity")
 
