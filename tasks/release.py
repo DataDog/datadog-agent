@@ -482,8 +482,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
                 "pr_url": pr_url,
                 "version": str(new_highest_version),
             }
-
-            ctx.run(f"curl -X POST -H 'Content-Type: application/json' --data '{json.dumps(payload)}' {slack_webhook}")
+            send_slack_msg(ctx, payload, slack_webhook)
 
 
 @task
@@ -1269,12 +1268,7 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
         )
 
 
-def send_slack_msg(ctx, channel_id, message, webhook=None):
-    webhook = webhook or os.environ.get("SLACK_DATADOG_AGENT_CI_WEBHOOK")
-    payload = {
-        'channel_id': channel_id,
-        'message': message,
-    }
+def send_slack_msg(ctx, payload, webhook):
     ctx.run(f'curl -X POST -H "Content-Type: application/json" --data "{payload}" {webhook}')
 
 
@@ -1303,7 +1297,6 @@ def check_previous_agent6_rc(ctx):
         err_msg += "\nAGENT 6 ERROR: No Agent 6 build pipelines have run in the past week. Please trigger a build pipeline for the next agent 6 release candidate."
 
     if err_msg:
-        print(err_msg)
-        # send slack message to #agent-ci-on-call channel
-        send_slack_msg(ctx, "C0701E5KYSX", err_msg)
-        sys.exit(1)
+        payload = {'message': err_msg}
+        send_slack_msg(ctx, payload, os.environ.get("SLACK_DATADOG_AGENT_CI_WEBHOOK"))
+        raise Exit(message=err_msg, code=1)
