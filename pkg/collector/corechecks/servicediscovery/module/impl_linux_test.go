@@ -479,6 +479,39 @@ func TestServiceLifetime(t *testing.T) {
 			checkService(collect, stopEvent)
 		}, 30*time.Second, 100*time.Millisecond)
 	})
+
+	t.Run("restart", func(t *testing.T) {
+		// Start the service a first time, and check we found it.
+		cmd, cancel := startService()
+		firstPid := cmd.Process.Pid
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			resp := getServices(collect, url)
+			startEvent := findService(firstPid, resp.StartedServices)
+			require.NotNilf(collect, startEvent, "could not find start event for pid %v", firstPid)
+			checkService(collect, startEvent)
+		}, 30*time.Second, 100*time.Millisecond)
+
+		// Stop the service, and start another instance right after. Check we have no
+		// start event, and no stop events. Under the hood, the stop should have been
+		// skipped, and we have a potential service.
+		stopService(cmd, cancel)
+		cmd, cancel = startService()
+		secondPid := cmd.Process.Pid
+
+		resp := getServices(t, url)
+		require.Nil(t, findService(firstPid, resp.StoppedServices))
+		require.Nil(t, findService(secondPid, resp.StartedServices))
+
+		// Next iteration: we should get a start event for the second instance, and
+		// still no stopped event.
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			resp := getServices(collect, url)
+			startEvent := findService(secondPid, resp.StartedServices)
+			require.NotNilf(collect, startEvent, "could not find start event for pid %v", secondPid)
+			checkService(collect, startEvent)
+			require.Nil(t, findService(firstPid, resp.StoppedServices))
+		}, 30*time.Second, 100*time.Millisecond)
+	})
 }
 
 func TestInjectedServiceName(t *testing.T) {

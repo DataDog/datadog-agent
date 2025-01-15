@@ -753,6 +753,7 @@ func (s *discovery) handleStoppedServices(response *model.ServicesResponse, aliv
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
+outer:
 	for pid := range s.runningServices {
 		if alivePids.has(pid) {
 			continue
@@ -765,6 +766,18 @@ func (s *discovery) handleStoppedServices(response *model.ServicesResponse, aliv
 			continue
 		}
 		delete(s.cache, pid)
+
+		for pid := range s.potentialServices {
+			potentialInfo, ok := s.cache[pid]
+			if !ok {
+				log.Warnf("could not get potential service with PID %v from the cache when handling stopped services", pid)
+				continue
+			}
+			if potentialInfo.name == info.name {
+				log.Debugf("found potential service with same name as stopped one, skipping end-service event (name: %q)", info.name)
+				continue outer
+			}
+		}
 
 		// Build service struct in place in the slice
 		response.StoppedServices = append(response.StoppedServices, model.Service{})
