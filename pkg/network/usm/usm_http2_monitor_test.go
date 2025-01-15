@@ -1485,10 +1485,7 @@ func (s *usmHTTP2Suite) TestContinuationFrame() {
 				telemetry, err = getHTTP2KernelTelemetry(monitor, s.isTLS)
 				require.NoError(t, err)
 
-				if telemetry.Continuation_frames != tt.expectedTelemetry.Continuation_frames {
-					return false
-				}
-				return true
+				return telemetry.Continuation_frames == tt.expectedTelemetry.Continuation_frames
 			}, time.Second*5, time.Millisecond*100)
 			if t.Failed() {
 				t.Logf("CONTINUATION frames count: %d != %d", tt.expectedTelemetry.Continuation_frames, telemetry.Continuation_frames)
