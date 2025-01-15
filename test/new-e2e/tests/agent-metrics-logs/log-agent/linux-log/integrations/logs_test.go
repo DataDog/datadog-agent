@@ -61,8 +61,6 @@ func TestIntegrationsLogsSuite(t *testing.T) {
 			agentparams.WithLogs(),
 			agentparams.WithAgentConfig("logs_config.integrations_logs_files_max_size: 1"))))}
 
-	suiteParams = append(suiteParams, e2e.WithDevMode())
-
 	e2e.Run(t, &IntegrationsLogsSuite{}, suiteParams...)
 }
 
