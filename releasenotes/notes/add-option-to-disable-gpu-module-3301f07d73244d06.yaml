@@ -1,6 +1,6 @@
 ---
 enhancements:
   - |
-    Add an build option (`--non-glibc`) to build the agent on non-glibc environment like musl libc.
+    Add an build option (`--non-glibc`) to build the Agent on `non-glibc` environment like musl libc.
     The option disables system-probe gpu module and corechecks gpu collector using
     `github.com/NVIDIA/go-nvml` which depends on a glibc-extended definition.
