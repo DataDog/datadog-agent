@@ -266,8 +266,10 @@ func start(log log.Component,
 		}
 	}()
 
-	// Setup the leader forwarder for language detection and cluster checks
-	if config.GetBool("cluster_checks.enabled") || (config.GetBool("language_detection.enabled") && config.GetBool("language_detection.reporting.enabled")) {
+	// Setup the leader forwarder for autoscaling failover store, language detection and cluster checks
+	if config.GetBool("cluster_checks.enabled") ||
+		(config.GetBool("language_detection.enabled") && config.GetBool("language_detection.reporting.enabled")) ||
+		config.GetBool("autoscaling.failover.enabled") {
 		apidca.NewGlobalLeaderForwarder(
 			config.GetInt("cluster_agent.cmd_port"),
 			config.GetInt("cluster_agent.max_connections"),

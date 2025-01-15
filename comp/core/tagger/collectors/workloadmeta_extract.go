@@ -150,7 +150,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			case workloadmeta.KindKubernetesDeployment:
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
 			case workloadmeta.KindGPU:
-				// tagInfos = append(tagInfos, c.handleGPU(ev)...) No tags for now
+				tagInfos = append(tagInfos, c.handleGPU(ev)...)
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
@@ -605,6 +605,35 @@ func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*typ
 		{
 			Source:               kubeMetadataSource,
 			EntityID:             common.BuildTaggerEntityID(kubeMetadata.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+
+	return tagInfos
+}
+
+func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInfo {
+	gpu := ev.Entity.(*workloadmeta.GPU)
+
+	tagList := taglist.NewTagList()
+
+	tagList.AddLow(tags.KubeGPUVendor, gpu.Vendor)
+	tagList.AddLow(tags.KubeGPUDevice, gpu.Device)
+	tagList.AddLow(tags.KubeGPUUUID, gpu.ID)
+
+	low, orch, high, standard := tagList.Compute()
+
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	tagInfos := []*types.TagInfo{
+		{
+			Source:               gpuSource,
+			EntityID:             common.BuildTaggerEntityID(gpu.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,

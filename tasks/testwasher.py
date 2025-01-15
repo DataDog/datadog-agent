@@ -163,26 +163,37 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
                 continue
             kept_job[job] = job_details
 
-    deps_job = copy.deepcopy(config["go_e2e_deps"])
-
-    # Remove needs, rules, extends and retry from the jobs
-    for job in [deps_job] + list(kept_job.values()):
+    # Remove rules, extends and retry from the jobs, update needs to point to parent pipeline
+    for job in list(kept_job.values()):
         _clean_job(job)
 
     new_jobs = {}
-    new_jobs["go_e2e_deps"] = deps_job
     new_jobs['variables'] = copy.deepcopy(config['variables'])
     new_jobs['variables']['PARENT_PIPELINE_ID'] = 'undefined'
     new_jobs['variables']['PARENT_COMMIT_SHA'] = 'undefined'
-    new_jobs['stages'] = [deps_job["stage"]] + [f'flake-finder-{i}' for i in range(n)]
+    new_jobs['variables']['PARENT_COMMIT_SHORT_SHA'] = 'undefined'
+    new_jobs['stages'] = [f'flake-finder-{i}' for i in range(n)]
 
     # Create n jobs with the same configuration
     for job in kept_job:
         for i in range(n):
             new_job = copy.deepcopy(kept_job[job])
             new_job["stage"] = f"flake-finder-{i}"
-            new_job["dependencies"] = ["go_e2e_deps"]
             if 'variables' in new_job:
+                # Variables that reference the parent pipeline should be updated
+                for key, value in new_job['variables'].items():
+                    new_value = value
+                    if not isinstance(value, str):
+                        continue
+                    if "CI_PIPELINE_ID" in value:
+                        new_value = new_value.replace("CI_PIPELINE_ID", "PARENT_PIPELINE_ID")
+                    if "CI_COMMIT_SHA" in value:
+                        new_value = new_value.replace("CI_COMMIT_SHA", "PARENT_COMMIT_SHA")
+                    if "CI_COMMIT_SHORT_SHA" in value:
+                        new_value = new_value.replace("CI_COMMIT_SHORT_SHA", "PARENT_COMMIT_SHORT_SHA")
+
+                    new_job['variables'][key] = new_value
+
                 if (
                     'E2E_PIPELINE_ID' in new_job['variables']
                     and new_job['variables']['E2E_PIPELINE_ID'] == "$CI_PIPELINE_ID"
@@ -196,7 +207,8 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
                 if 'E2E_PRE_INITIALIZED' in new_job['variables']:
                     del new_job['variables']['E2E_PRE_INITIALIZED']
             new_job["rules"] = [{"when": "always"}]
-            new_job["needs"] = ["go_e2e_deps"]
+            if i > 0:
+                new_job["needs"].append(f"{job}-{i - 1}")
             new_jobs[f"{job}-{i}"] = new_job
 
     with open("flake-finder-gitlab-ci.yml", "w") as f:
@@ -210,7 +222,36 @@ def _clean_job(job):
     """
     Remove the needs, rules, extends and retry from the job
     """
-    for step in ('needs', 'rules', 'extends', 'retry'):
+    for step in ('rules', 'extends', 'retry'):
         if step in job:
             del job[step]
+
+    if 'needs' in job:
+        job["needs"] = _add_parent_pipeline(job["needs"])
     return job
+
+
+def _add_parent_pipeline(needs):
+    """
+    Add the parent pipeline to the need, only for the jobs that are not the artifacts deploy jobs.
+    """
+
+    deps_to_keep = [
+        "tests_windows_secagent_x64",
+        "tests_windows_sysprobe_x64",
+        "go_e2e_deps",
+    ]  # Needs that should be kept on jobs, because the e2e test actually needs the artifact from these jobs
+
+    new_needs = []
+    for need in needs:
+        if isinstance(need, str):
+            if need not in deps_to_keep:
+                continue
+            new_needs.append({"pipeline": "$PARENT_PIPELINE_ID", "job": need})
+        elif isinstance(need, dict):
+            if "job" in need and need["job"] not in deps_to_keep:
+                continue
+            new_needs.append({**need, "pipeline": "$PARENT_PIPELINE_ID"})
+        elif isinstance(need, list):
+            new_needs.extend(_add_parent_pipeline(need))
+    return new_needs

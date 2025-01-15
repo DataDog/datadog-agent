@@ -256,6 +256,7 @@ func TestAllSettings(t *testing.T) {
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b.c", 0)
 	cfg.SetDefault("b.d", 0)
+	cfg.SetKnown("b.e")
 	cfg.BuildSchema()
 
 	cfg.ReadConfig(strings.NewReader("a: 987"))

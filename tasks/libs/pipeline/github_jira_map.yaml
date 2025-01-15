@@ -1,7 +1,7 @@
 # This file contains a mapping of DataDog Github teams to JIRA projects.
 # The DEFAULT_JIRA_PROJECT value is interpreted as "AGNTR".
 # Note that keys must be quoted because the '@' symbol is reserved in YAML.
-'@datadog/agent-platform': APL
+'@datadog/agent-platform': ACIX
 '@datadog/documentation': DOCS
 '@datadog/container-integrations': CONTINT
 '@datadog/container-platform': CONTP
@@ -27,7 +27,7 @@
 '@datadog/windows-agent': WINA
 '@datadog/windows-kernel-integrations': WKINT
 '@datadog/opentelemetry': OTEL
-'@datadog/agent-e2e-testing': APL
+'@datadog/agent-e2e-testing': ADXT
 '@datadog/software-integrity-and-trust': SINT
 '@datadog/single-machine-performance': SMP
 '@datadog/agent-integrations': AI

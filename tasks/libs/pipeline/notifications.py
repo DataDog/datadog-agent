@@ -38,6 +38,7 @@ def load_and_validate(
 
 GITHUB_BASE_URL = "https://github.com"
 DEFAULT_SLACK_CHANNEL = "#agent-devx-ops"
+HELP_SLACK_CHANNEL = "#agent-devx-help"
 DEFAULT_JIRA_PROJECT = "AGNTR"
 # Map keys in lowercase
 GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)

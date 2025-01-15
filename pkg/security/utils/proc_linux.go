@@ -19,7 +19,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/shirou/gopsutil/v4/process"
 )
@@ -162,18 +162,18 @@ func ModulesPath() string {
 func GetLoginUID(pid uint32) (uint32, error) {
 	content, err := os.ReadFile(LoginUIDPath(pid))
 	if err != nil {
-		return model.AuditUIDUnset, err
+		return sharedconsts.AuditUIDUnset, err
 	}
 
 	data := strings.TrimSuffix(string(content), "\n")
 	if len(data) == 0 {
-		return model.AuditUIDUnset, fmt.Errorf("invalid login uid: %v", data)
+		return sharedconsts.AuditUIDUnset, fmt.Errorf("invalid login uid: %v", data)
 	}
 
 	// parse login uid
 	auid, err := strconv.ParseUint(data, 10, 32)
 	if err != nil {
-		return model.AuditUIDUnset, fmt.Errorf("coudln't parse loginuid: %v", err)
+		return sharedconsts.AuditUIDUnset, fmt.Errorf("coudln't parse loginuid: %v", err)
 	}
 	return uint32(auid), nil
 }
@@ -306,7 +306,7 @@ func EnvVars(priorityEnvsPrefixes []string, pid uint32, maxEnvVars int) ([]strin
 	envs = append(envs, priorityEnvs...)
 
 	for scanner.Scan() {
-		if len(envs) >= model.MaxArgsEnvsSize {
+		if len(envs) >= sharedconsts.MaxArgsEnvsSize {
 			return envs, true, nil
 		}
 

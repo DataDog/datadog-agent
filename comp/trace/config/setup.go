@@ -127,6 +127,9 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.Ag
 	}
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
 	cfg.GetAgentAuthToken = apiutil.GetAuthToken
+	cfg.HTTPTransportFunc = func() *http.Transport {
+		return httputils.CreateHTTPTransport(coreConfigObject)
+	}
 	return cfg, nil
 }
 
@@ -427,6 +430,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		if err = addReplaceRule(c, "error.stack", `(?s).*`, "?"); err != nil {
 			return err
 		}
+		if err = addReplaceRule(c, "exception.stacktrace", `(?s).*`, "?"); err != nil {
+			return err
+		}
 	}
 	c.Obfuscation.Memcached.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.enabled")
 	c.Obfuscation.Memcached.KeepCommand = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.keep_command")
@@ -436,6 +442,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.Obfuscation.CreditCards.Luhn = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.credit_cards.luhn")
 	c.Obfuscation.CreditCards.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.credit_cards.keep_values")
 	c.Obfuscation.Cache.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled")
+	c.Obfuscation.Cache.MaxSize = pkgconfigsetup.Datadog().GetInt64("apm_config.obfuscation.cache.max_size")
 
 	if core.IsSet("apm_config.filter_tags.require") {
 		tags := core.GetStringSlice("apm_config.filter_tags.require")

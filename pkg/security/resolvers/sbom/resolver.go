@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"os"
 	"slices"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -27,7 +26,6 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
@@ -44,9 +42,6 @@ import (
 )
 
 const (
-	// SBOMSource defines is the default log source for the SBOM events
-	SBOMSource = "runtime-security-agent"
-
 	// state of the sboms
 	pendingState int64 = iota + 1
 	computedState
@@ -69,9 +64,6 @@ type Data struct {
 type SBOM struct {
 	sync.RWMutex
 
-	Host        string
-	Source      string
-	Service     string
 	ContainerID containerutils.ContainerID
 
 	data *Data
@@ -114,10 +106,8 @@ func (s *SBOM) stop() {
 }
 
 // NewSBOM returns a new empty instance of SBOM
-func NewSBOM(host string, source string, id containerutils.ContainerID, cgroup *cgroupModel.CacheEntry, workloadKey workloadKey) *SBOM {
+func NewSBOM(id containerutils.ContainerID, cgroup *cgroupModel.CacheEntry, workloadKey workloadKey) *SBOM {
 	return &SBOM{
-		Host:        host,
-		Source:      source,
 		ContainerID: id,
 		workloadKey: workloadKey,
 		state:       atomic.NewInt64(pendingState),
@@ -151,11 +141,6 @@ type Resolver struct {
 	failedSBOMGenerations *atomic.Uint64
 	sbomsCacheHit         *atomic.Uint64
 	sbomsCacheMiss        *atomic.Uint64
-
-	// context tags and attributes
-	hostname    string
-	source      string
-	contextTags []string
 }
 
 // NewSBOMResolver returns a new instance of Resolver
@@ -210,34 +195,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		return resolver, nil
 	}
 
-	resolver.prepareContextTags()
-
 	return resolver, nil
-}
-
-func (r *Resolver) prepareContextTags() {
-	// add hostname tag
-	hostname, err := utils.GetHostname()
-	if err != nil || hostname == "" {
-		hostname = "unknown"
-	}
-	r.hostname = hostname
-	r.contextTags = append(r.contextTags, fmt.Sprintf("host:%s", r.hostname))
-
-	// merge tags from config
-	for _, tag := range configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), true) {
-		if strings.HasPrefix(tag, "host") {
-			continue
-		}
-		r.contextTags = append(r.contextTags, tag)
-	}
-
-	// add source tag
-	r.source = utils.GetTagValue("source", r.contextTags)
-	if len(r.source) == 0 {
-		r.source = SBOMSource
-		r.contextTags = append(r.contextTags, fmt.Sprintf("source:%s", SBOMSource))
-	}
 }
 
 // Start starts the goroutine of the SBOM resolver
@@ -250,7 +208,7 @@ func (r *Resolver) Start(ctx context.Context) error {
 			hostRoot = "/"
 		}
 
-		r.hostSBOM = NewSBOM(r.hostname, r.source, "", nil, "")
+		r.hostSBOM = NewSBOM("", nil, "")
 
 		report, err := r.generateSBOM(hostRoot)
 		if err != nil {
@@ -514,7 +472,7 @@ func (r *Resolver) ResolvePackage(containerID containerutils.ContainerID, file *
 // newSBOM (thread unsafe) creates a new SBOM entry for the sbom designated by the provided process cache
 // entry
 func (r *Resolver) newSBOM(id containerutils.ContainerID, cgroup *cgroupModel.CacheEntry, workloadKey workloadKey) *SBOM {
-	sbom := NewSBOM(r.hostname, r.source, id, cgroup, workloadKey)
+	sbom := NewSBOM(id, cgroup, workloadKey)
 	r.sboms.Add(id, sbom)
 	return sbom
 }
