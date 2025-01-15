@@ -35,8 +35,8 @@ namespace Datadog.CustomActions
         private readonly IServiceController _serviceController;
         private readonly IRegistryServices _registryServices;
 
-        private readonly bool _isDomainController;
-        private readonly bool _isReadOnlyDomainController;
+        private bool _isDomainController;
+        private bool _isReadOnlyDomainController;
 
         public ProcessUserCustomActions(
             ISession session,
@@ -52,7 +52,7 @@ namespace Datadog.CustomActions
             // Get domain controller status once and cache the result.
             // This call can make network requests so it's better to do it once.
             // Plus it's used in multiple places and this lets us avoid passing it around as a bool parameter.
-            FetchDomainControllerStatus(out _isDomainController, out _isReadOnlyDomainController);
+            FetchDomainControllerStatus();
         }
 
         public ProcessUserCustomActions(ISession session)
@@ -539,12 +539,12 @@ namespace Datadog.CustomActions
         /// <summary>
         /// Fetches domain controller status. On error, logs error and sets isDomainController to false.
         /// </summary>
-        private void FetchDomainControllerStatus(out bool isDomainController, out bool isReadOnlyDomainController)
+        private void FetchDomainControllerStatus()
         {
             // We check for errors here rather than in _nativeMethods just so we can log the error.
             try
             {
-                isDomainController = _nativeMethods.IsDomainController();
+                _isDomainController = _nativeMethods.IsDomainController();
             }
             catch (Exception e)
             {
@@ -555,19 +555,19 @@ namespace Datadog.CustomActions
                 // then ProcessDdAgentUserCredentials will fail.
                 _session.Log($"Error determining if this host is a domain controller, continuing assuming machine is a workstation/client: {e}");
                 _session.Log("If this host is actually a DC, ensure the lanmanserver/Server service is running or provide an existing user account for DDAGENTUSER_NAME.");
-                isDomainController = false;
+                _isDomainController = false;
             }
 
-            if (!isDomainController)
+            if (!_isDomainController)
             {
-                isReadOnlyDomainController = false;
+                _isReadOnlyDomainController = false;
                 return;
             }
 
             // Host is a domain controller, fetch additional info
             try
             {
-                isReadOnlyDomainController = _nativeMethods.IsReadOnlyDomainController();
+                _isReadOnlyDomainController = _nativeMethods.IsReadOnlyDomainController();
             }
             catch (Exception e)
             {
@@ -575,7 +575,7 @@ namespace Datadog.CustomActions
                 // If the DC is actually read-only AND the user provides a domain account that does not exist,
                 // then the installer will fail later when trying to create the account.
                 _session.Log($"Error determining if this DC is read-only, continuing assuming it is not: {e}");
-                isReadOnlyDomainController = false;
+                _isReadOnlyDomainController = false;
             }
         }
 
