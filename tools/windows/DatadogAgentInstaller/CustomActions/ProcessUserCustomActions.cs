@@ -35,6 +35,9 @@ namespace Datadog.CustomActions
         private readonly IServiceController _serviceController;
         private readonly IRegistryServices _registryServices;
 
+        private readonly bool _isDomainController;
+        private readonly bool _isReadOnlyDomainController;
+
         public ProcessUserCustomActions(
             ISession session,
             INativeMethods nativeMethods,
@@ -45,6 +48,11 @@ namespace Datadog.CustomActions
             _nativeMethods = nativeMethods;
             _serviceController = serviceController;
             _registryServices = registryServices;
+
+            // Get domain controller status once and cache the result.
+            // This call can make network requests so it's better to do it once.
+            // Plus it's used in multiple places and this lets us avoid passing it around as a bool parameter.
+            FetchDomainControllerStatus(out _isDomainController, out _isReadOnlyDomainController);
         }
 
         public ProcessUserCustomActions(ISession session)
@@ -80,7 +88,7 @@ namespace Datadog.CustomActions
         /// </remarks>
         private string GetDefaultDomainPart()
         {
-            if (!_nativeMethods.IsDomainController())
+            if (!_isDomainController)
             {
                 return Environment.MachineName;
             }
@@ -377,8 +385,6 @@ namespace Datadog.CustomActions
 
                 var ddAgentUserName = _session.Property("DDAGENTUSER_NAME");
                 var ddAgentUserPassword = _session.Property("DDAGENTUSER_PASSWORD");
-                var isDomainController = _nativeMethods.IsDomainController();
-                var isReadOnlyDomainController = _nativeMethods.IsReadOnlyDomainController();
                 var datadogAgentServiceExists = _serviceController.ServiceExists(Constants.AgentServiceName);
 
                 // LocalSystem is not supported by LookupAccountName as it is a pseudo account,
@@ -398,7 +404,7 @@ namespace Datadog.CustomActions
 
                 if (string.IsNullOrEmpty(ddAgentUserName))
                 {
-                    if (isDomainController)
+                    if (_isDomainController)
                     {
                         // require user to provide a username on domain controllers so that the customer is explicit
                         // about the username/password that will be created on their domain if it does not exist.
@@ -436,7 +442,7 @@ namespace Datadog.CustomActions
                         $"\"{domain}\\{userName}\" ({securityIdentifier.Value}, {nameUse}) is a {(isDomainAccount ? "domain" : "local")} {(isServiceAccount ? "service " : string.Empty)}account");
 
                     TestAgentUserIsNotCurrentUser(securityIdentifier, isServiceAccount);
-                    TestIfPasswordIsRequiredAndProvidedForExistingAccount(userName, ddAgentUserPassword, isDomainController, isServiceAccount, isDomainAccount, datadogAgentServiceExists);
+                    TestIfPasswordIsRequiredAndProvidedForExistingAccount(userName, ddAgentUserPassword, _isDomainController, isServiceAccount, isDomainAccount, datadogAgentServiceExists);
                 }
                 else
                 {
@@ -461,7 +467,7 @@ namespace Datadog.CustomActions
                 }
 
                 // User does not exist and we cannot create user account from RODC
-                if (!userFound && isReadOnlyDomainController)
+                if (!userFound && _isReadOnlyDomainController)
                 {
                     throw new InvalidAgentUserConfigurationException("The account does not exist. Domain accounts must already exist when installing on Read-Only Domain Controllers.");
                 }
@@ -469,7 +475,7 @@ namespace Datadog.CustomActions
                 // We are trying to create a user in a domain on a non-domain controller.
                 // This must run *after* checking that the domain is not empty.
                 if (!userFound &&
-                    !isDomainController &&
+                    !_isDomainController &&
                     domain != Environment.MachineName)
                 {
                     throw new InvalidAgentUserConfigurationException("The account does not exist. Domain accounts must already exist when installing on Domain Clients.");
@@ -485,7 +491,7 @@ namespace Datadog.CustomActions
 
                 _session["DDAGENTUSER_RESET_PASSWORD"] = null;
                 if (!userFound &&
-                    isDomainController &&
+                    _isDomainController &&
                     string.IsNullOrEmpty(ddAgentUserPassword))
                 {
                     // require user to provide a password on domain controllers so that the customer is explicit
@@ -528,6 +534,49 @@ namespace Datadog.CustomActions
             }
 
             return ActionResult.Success;
+        }
+
+        /// <summary>
+        /// Fetches domain controller status. On error, logs error and sets isDomainController to false.
+        /// </summary>
+        private void FetchDomainControllerStatus(out bool isDomainController, out bool isReadOnlyDomainController)
+        {
+            // We check for errors here rather than in _nativeMethods just so we can log the error.
+            try
+            {
+                isDomainController = _nativeMethods.IsDomainController();
+            }
+            catch (Exception e)
+            {
+                // The underlying NetGetServerInfo call can fail if the Server service is not running or not available.
+                // Since the Server service must be running on a DC, we can assume that this host is not a DC.
+                // https://learn.microsoft.com/en-us/windows/win32/api/lmserver/nf-lmserver-netservergetinfo
+                // If the host is actually a DC AND the user provides a domain account that does not exist,
+                // then ProcessDdAgentUserCredentials will fail.
+                _session.Log($"Error determining if this host is a domain controller, continuing assuming machine is a workstation/client: {e}");
+                _session.Log("If this host is actually a DC, ensure the lanmanserver/Server service is running or provide an existing user account for DDAGENTUSER_NAME.");
+                isDomainController = false;
+            }
+
+            if (!isDomainController)
+            {
+                isReadOnlyDomainController = false;
+                return;
+            }
+
+            // Host is a domain controller, fetch additional info
+            try
+            {
+                isReadOnlyDomainController = _nativeMethods.IsReadOnlyDomainController();
+            }
+            catch (Exception e)
+            {
+                // On error assume the DC is not read-only.
+                // If the DC is actually read-only AND the user provides a domain account that does not exist,
+                // then the installer will fail later when trying to create the account.
+                _session.Log($"Error determining if this DC is read-only, continuing assuming it is not: {e}");
+                isReadOnlyDomainController = false;
+            }
         }
 
         private void TestValidAgentUserPassword(string ddAgentUserPassword)
