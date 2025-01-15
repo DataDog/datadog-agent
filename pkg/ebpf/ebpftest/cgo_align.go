@@ -6,7 +6,6 @@
 package ebpftest
 
 import (
-	"bytes"
 	"encoding/binary"
 	"testing"
 	"unsafe"
@@ -16,10 +15,8 @@ import (
 
 // TestCgoAlignment checks if the provided type's size and amount of data necessary to read with binary.Read match.
 // If they do not, that likely indicates there is a "hole" in the C definition of the type.
+// https://lwn.net/Articles/335942/ has more details on what a "hole" is and how `pahole` can help.
 func TestCgoAlignment[K any](t *testing.T) {
 	var x K
-	rdr := bytes.NewReader(make([]byte, unsafe.Sizeof(x)))
-	err := binary.Read(rdr, binary.NativeEndian, &x)
-	require.NoError(t, err)
-	require.Zero(t, rdr.Len(), "type %T has holes or size does match between C and Go. Check 'pahole -C <c_type_name> <ebpf_object_file.o>' for layout", x)
+	require.Equal(t, int(unsafe.Sizeof(x)), binary.Size(&x), "type %T has holes or size does not match between binary.Read and in-memory. Check 'pahole --show_reorg_steps --reorganize -C <c_type_name> <ebpf_object_file.o>' for a reorganized layout", x)
 }
