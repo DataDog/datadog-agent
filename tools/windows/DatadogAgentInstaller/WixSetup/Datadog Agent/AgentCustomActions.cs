@@ -33,7 +33,7 @@ namespace WixSetup.Datadog_Agent
         public ManagedAction PrepareDecompressPythonDistributions { get; }
 
         public ManagedAction RunPostInstPythonScript { get; }
-        
+
         public ManagedAction RunPreRemovePythonScriptRollback { get; }
 
         public ManagedAction RunPreRemovePythonScript { get; }
@@ -309,7 +309,7 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
-            
+
             RunPreRemovePythonScriptRollback = new CustomAction<CustomActions>(
                     new Id(nameof(RunPreRemovePythonScriptRollback)),
                     CustomActions.RunPreRemovePythonScriptRollback,

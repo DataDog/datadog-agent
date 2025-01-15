@@ -282,13 +282,13 @@ namespace Datadog.CustomActions
                 _rollbackDataStore.Add(new FileStorageRollbackData(pythonPackagesFile));
             }
 
-            var result =  RunPythonScript(_session, "pre.py");
+            var result = RunPythonScript(_session, "pre.py");
             _rollbackDataStore.Store();
             return result;
         }
         private void RunRollbackDataRestore()
         {
-             try
+            try
             {
                 _rollbackDataStore.Restore();
             }
@@ -303,7 +303,7 @@ namespace Datadog.CustomActions
             RunRollbackDataRestore();
             return ActionResult.Success;
         }
-        
+
         public static ActionResult RunPostInstPythonScript(Session session)
         {
             return new PythonDistributionCustomAction(new SessionWrapper(session), "pythonDistribution").RunPostInstPythonScript();
