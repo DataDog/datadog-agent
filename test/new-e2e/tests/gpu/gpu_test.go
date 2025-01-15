@@ -160,7 +160,7 @@ func (v *gpuSuite) TestNvmlMetricsPresent() {
 }
 
 func (v *gpuSuite) TestWorkloadmetaHasGPUs() {
-	out, err := v.Env().RemoteHost.Execute("agent workload-list")
+	out, err := v.Env().RemoteHost.Execute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
 	v.Require().NoError(err)
 	v.Contains(out, "=== Entity gpu sources(merged):[runtime] id: ")
 	if v.T().Failed() {
