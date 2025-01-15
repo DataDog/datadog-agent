@@ -8,4 +8,5 @@
 ---
 fixes:
   - |
-    Bypass sending blank logs configs to the integrations launcher.
+    Bypass sending blank logs configs to the integrations launcher to
+    prevent the launcher from sending JSON parse error logs.

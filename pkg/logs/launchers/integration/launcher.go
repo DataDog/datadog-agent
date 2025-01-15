@@ -8,7 +8,6 @@ package integration
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -147,8 +146,7 @@ func (s *Launcher) run() {
 func (s *Launcher) receiveSources(cfg integrations.IntegrationConfig) {
 	sources, err := ad.CreateSources(cfg.Config)
 	if err != nil {
-		configError := fmt.Sprintf("Failed to create source for %s:", cfg.Config.Name)
-		ddLog.Error(configError, err)
+		ddLog.Errorf("Failed to create source for %q: %v", cfg.Config.Name, err)
 		return
 	}
 
@@ -162,8 +160,7 @@ func (s *Launcher) receiveSources(cfg integrations.IntegrationConfig) {
 			if !exists {
 				logFile, err = s.createFile(cfg.IntegrationID)
 				if err != nil {
-					sourceError := fmt.Sprintf("Failed to create integration log file for %s:", source.Config.IntegrationName)
-					ddLog.Error(sourceError, err)
+					ddLog.Errorf("Failed to create integration log file for %q: %v", source.Config.IntegrationName, err)
 					continue
 				}
 
