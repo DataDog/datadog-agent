@@ -8,6 +8,7 @@ package statusimpl
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -65,6 +66,8 @@ func (s *statusImplementation) getSections(w http.ResponseWriter, _ *http.Reques
 	s.log.Info("Got a request for the status sections.")
 
 	w.Header().Set("Content-Type", "application/json")
+	fmt.Println("---- getSections ----")
+	fmt.Printf("---- s.GetSections: %v ----\n", s.GetSections())
 	res, _ := json.Marshal(s.GetSections())
 	w.Write(res)
 }
