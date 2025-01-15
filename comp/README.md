@@ -390,6 +390,12 @@ Package ddflareextension defines the OpenTelemetry Extension component.
 
 Package logsagentpipeline contains logs agent pipeline component
 
+## [comp/ownerdetection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ownerdetection) (Component Bundle)
+
+*Datadog Team*: container-apps
+
+Package ownerdetection uses the cluster agent to enrich pod ownership information
+
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 
 *Datadog Team*: container-intake
