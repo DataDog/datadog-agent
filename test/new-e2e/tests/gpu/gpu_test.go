@@ -125,7 +125,7 @@ func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
 	}, 2*time.Minute, 10*time.Second)
 }
 
-func (v *gpuSuite) requireGPUTags(metric *aggregator.MetricSeries) {
+func (v *gpuSuite) requireGPUTags(c *assert.CollectT, metric *aggregator.MetricSeries) {
 	foundRequiredTags := map[string]bool{
 		"gpu_uuid":   false,
 		"gpu_device": false,
@@ -141,7 +141,7 @@ func (v *gpuSuite) requireGPUTags(metric *aggregator.MetricSeries) {
 	}
 
 	for requiredTag, found := range foundRequiredTags {
-		v.Require().True(found, "required tag %s not found in %v", requiredTag, metric)
+		assert.True(c, found, "required tag %s not found in %v", requiredTag, metric)
 	}
 }
 
@@ -160,7 +160,7 @@ func (v *gpuSuite) TestVectorAddProgramDetected() {
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
 
 			for _, metric := range metrics {
-				v.requireGPUTags(metric)
+				v.requireGPUTags(c, metric)
 			}
 		}
 	}, 5*time.Minute, 10*time.Second)
@@ -179,7 +179,7 @@ func (v *gpuSuite) TestNvmlMetricsPresent() {
 			assert.Greater(c, len(metrics), 0, "no metric '%s' found")
 
 			for _, metric := range metrics {
-				v.requireGPUTags(metric)
+				v.requireGPUTags(c, metric)
 			}
 		}
 	}, 5*time.Minute, 10*time.Second)
