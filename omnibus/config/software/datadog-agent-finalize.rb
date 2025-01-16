@@ -54,13 +54,11 @@ build do
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
 
+            # service_discovery isn't supported by windows
+            delete "#{conf_dir}/service_discovery.d"
+
             # Remove .pyc files from embedded Python
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
-        end
-
-        if !linux_target?
-            # service_discovery is only supported on Linux
-            delete "#{conf_dir}/service_discovery.d"
         end
 
         if linux_target? || osx_target?
