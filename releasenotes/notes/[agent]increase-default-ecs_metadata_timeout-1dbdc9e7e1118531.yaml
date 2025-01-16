@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Increase agent's default ecs_metadata_timeout from 500ms to 1000ms to avoid timeouts.
+    Increase the Agent's default ecs_metadata_timeout from 500ms to 1000ms to avoid timeouts.
