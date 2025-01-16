@@ -49,7 +49,7 @@ func (h *ClusterRoleBindingHandlers) BuildMessageBody(ctx processors.ProcessorCo
 		GroupId:             pctx.MsgGroupID,
 		GroupSize:           int32(groupSize),
 		ClusterRoleBindings: models,
-		Tags:                append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:                pctx.Tags(),
 	}
 }
 

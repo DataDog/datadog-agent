@@ -10,6 +10,7 @@ package orchestrator
 
 import (
 	"expvar"
+	"reflect"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -285,6 +287,16 @@ func (cb *CollectorBundle) Initialize() error {
 		if _, found := informerSynced[informer]; !found {
 			informersToSync[apiserver.InformerName(collectorFullName)] = informer
 			informerSynced[informer] = struct{}{}
+
+			// add event handlers for terminated resources
+			if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.terminated_resources.enabled") && collector.Metadata().SupportsTerminatedResourceCollection {
+				if _, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+					DeleteFunc: cb.terminatedResourceHandler(collector),
+				}); err != nil {
+					log.Warnf("Failed to add delete event handler for %s: %s", collectorFullName, err)
+				}
+			}
+
 			// we run each enabled informer individually, because starting them through the factory
 			// would prevent us from restarting them again if the check is unscheduled/rescheduled
 			// see https://github.com/kubernetes/client-go/blob/3511ef41b1fbe1152ef5cab2c0b950dfd607eea7/informers/factory.go#L64-L66
@@ -367,4 +379,36 @@ func (cb *CollectorBundle) skipResources(groupVersion, resource string) bool {
 		return true
 	}
 	return false
+}
+
+func (cb *CollectorBundle) terminatedResourceHandler(collector collectors.K8sCollector) func(obj interface{}) {
+	return func(obj interface{}) {
+		objType := reflect.TypeOf(obj)
+		// Create a new slice with the type of the object
+		newSlice := reflect.Append(reflect.MakeSlice(reflect.SliceOf(objType), 0, 1), reflect.ValueOf(obj))
+		result, err := collector.Process(cb.runCfg, newSlice.Interface(), true)
+		if err != nil {
+			log.Warnf("Failed to process delete event: %s", err)
+			return
+		}
+
+		nt := collector.Metadata().NodeType
+		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Result.MetadataMessages), nt)
+
+		orchSender, err := cb.check.GetSender()
+		if err != nil {
+			_ = cb.check.Warnf("Failed to get sender: %s", err)
+			return
+		}
+
+		if collector.Metadata().IsMetadataProducer { // for CR and CRD we don't have metadata but only manifests
+			orchSender.OrchestratorMetadata(result.Result.MetadataMessages, cb.check.clusterID, int(nt))
+		}
+
+		if collector.Metadata().SupportsManifestBuffering {
+			BufferManifestProcessResult(result.Result.ManifestMessages, cb.manifestBuffer)
+		} else {
+			orchSender.OrchestratorManifest(result.Result.ManifestMessages, cb.check.clusterID)
+		}
+	}
 }

@@ -49,7 +49,7 @@ func (h *ReplicaSetHandlers) BuildMessageBody(ctx processors.ProcessorContext, r
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		ReplicaSets: models,
-		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:        pctx.Tags(),
 	}
 }
 

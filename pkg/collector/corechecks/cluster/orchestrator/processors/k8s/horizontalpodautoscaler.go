@@ -48,7 +48,7 @@ func (h *HorizontalPodAutoscalerHandlers) BuildMessageBody(ctx processors.Proces
 		GroupId:                  pctx.MsgGroupID,
 		GroupSize:                int32(groupSize),
 		HorizontalPodAutoscalers: models,
-		Tags:                     append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:                     pctx.Tags(),
 	}
 }
 
