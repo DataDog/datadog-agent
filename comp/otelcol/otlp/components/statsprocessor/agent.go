@@ -95,6 +95,7 @@ func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out c
 	a.ClientStatsAggregator = stats.NewClientStatsAggregator(cfg, statsWriter, metricsClient)
 	// lastly, start the OTLP receiver, which will be used to introduce ResourceSpans into the traceagent,
 	// so that we can transform them to Datadog spans and receive stats.
+	cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
 	a.OTLPReceiver = api.NewOTLPReceiver(pchan, cfg, metricsClient, timingReporter)
 	// we want to discard all traces that would be written out so replace traceWriter with noop
 	a.TraceWriter = &noopTraceWriter{}

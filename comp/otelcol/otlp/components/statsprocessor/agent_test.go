@@ -109,6 +109,7 @@ func testTraceAgent(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					assert.Greater(t, len(bucket.Stats), 0)
 					actual = append(actual, bucket.Stats...)
 				}
+				assert.Equal(t, "Internal", cspayload.Stats[0].Stats[0].Name)
 			}
 		case <-timeout:
 			t.Fatal("timed out")
