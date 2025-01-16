@@ -322,7 +322,8 @@
 /comp/haagent @DataDog/ndm-core
 /comp/languagedetection/client @DataDog/container-platform
 /comp/rdnsquerier @DataDog/ndm-integrations
-/comp/serializer/compression @DataDog/agent-metrics-logs
+/comp/serializer/logscompression @DataDog/agent-processing-and-routing
+/comp/serializer/metricscompression @DataDog/agent-processing-and-routing
 /comp/snmpscan @DataDog/ndm-core
 # END COMPONENTS
 

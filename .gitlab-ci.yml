@@ -877,7 +877,7 @@ workflow:
         - comp/dogstatsd/**/*
         - comp/forwarder/**/*
         - comp/logs/**/*
-        - comp/serializer/compression/**/*
+        - comp/serializer/**/*
         - pkg/aggregator/**/*
         - pkg/collector/**/*
         - pkg/commonchecks/**/*
