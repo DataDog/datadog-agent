@@ -189,7 +189,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.16.0
+	github.com/cilium/ebpf v0.17.1
 	github.com/clbanning/mxj v1.8.4
 	// pin the commit adding `no_dynamic_plugins` build tag, can be updated whenever a new release is out
 	github.com/containerd/containerd v1.7.25-0.20250106131559-142e855138e3
