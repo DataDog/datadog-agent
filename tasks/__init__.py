@@ -51,6 +51,7 @@ from tasks import (
     pipeline,
     pre_commit,
     process_agent,
+    python_scripts_tests,
     release,
     rtloader,
     sds,
@@ -213,6 +214,7 @@ ns.add_collection(devcontainer)
 ns.add_collection(omnibus)
 ns.add_collection(collector)
 ns.add_collection(invoke_unit_tests)
+ns.add_collection(python_scripts_tests)
 ns.add_collection(debug)
 ns.add_collection(winbuild)
 ns.add_collection(windows_dev_env)
