@@ -1,52 +1,44 @@
 ### Logging
 
 Logging utilizes the [`github.com/cihub/seelog`](https://github.com/cihub/seelog) package as its underlying framework. 
-It is accessible via `pkg/util/log` and the `comp/core/log` component wrapper.
+You can access logging through `pkg/util/log` and the `comp/core/log` component wrappers.
 Using the component wrapper is recommended, as it adheres to [component best practices](https://datadoghq.dev/datadog-agent/components/overview/).
 
 #### Writing a good log message
 
-In general, there are both a few rules and a few suggestions to follow when it comes to writing a
-(good) log message:
+In general, there are a few rules and a few suggestions to follow when it comes to writing
+good log messages:
 
-- Messages must be written in English. No preference on which specific English dialect is used e.g.
-  American English, British English, Canadian English, etc.
-- Sentences must be capitalized, and end with a period.
-- Proper spelling and grammar when possible. Not all of us are native English speakers, and so this
-  is simply an ask, but not a hard requirement.
-- Identifiers, or passages of note, should be called out by some means i.e. wrapping them in
-  backticks or quotes.  Wrapping with special characters can be helpful in drawing the users eye to
-  anything of importance.
-- If it's longer than one or two sentences, it's probably better suited as a single sentence briefly
-  explaining the event, with a link to external documentation that explains further.
+- Messages must be written in English, preferably in American English.
+- Use proper spelling and grammar when possible. Because not everyone is a native English speaker, this is an ask, not a hard requirement.
+- Identifiers or passages of note should be called out by some means such as wrapping them in
+  backticks or quotes (single or double). Wrapping with special characters can be helpful in drawing the user's eye to anything of importance.
+- If the message is longer than one or two sentences, it's probably better suited as a single sentence briefly
+  explaining the event, with a link to external documentation that explains things further.
 
 #### Choosing the right log level
 
-Similarly, choosing the right level can be important, both from the perspective of making it easy
-for users to grok what they should pay attention to, but also to avoid the performance overhead of
-excess logging (even if we filter it out and it never makes it to the console).
+Choosing the right level is also very important. Appropriate log levels make it easy for users to understand what they should pay attention to. 
+They also avoid the performance overhead of excess logging, even if the logs are filtered and never show on the console.
 
 - **TRACE**: Typically contains a high level of detail for deep/rich debugging.
 
-  As trace logging is typically reached for when instrumenting algorithms and core pieces of logic,
-  care should be taken to avoid trace logging being added to tight loops, or commonly used
-  codepaths, where possible. Even when disabled, there can still be a small overhead associated with
-  logging an event at all.
+  Trace logging is typically used when instrumenting algorithms and core pieces of logic. 
+  Avoid adding trace logging to tight loops or commonly used codepaths.
+  Even when the logs are disabled, logging an event can incur overheads.
 - **DEBUG**: Basic information that can be helpful for initially debugging issues.
 
-  Should typically not be used for things that happen per-event, or scales with event throughput,
-  but in some cases -- i.e. if it happens every 1000th event, etc -- it can safely be used.
+  Do not use debug logging for things that happen per-event or that scale with event throughput.
+  You can safely use debug logging for uncommon cases, for example, something that happens every 1000th event.
 - **INFO**: Common information about normal processes.
 
-  This includes logical/temporal events such as notifications when components are stopped and
-  started, or other high-level events that, crucially, do not represent an event that an operator
-  needs to worry about.
+  Info logging is appropriate for logical or temporal events.
+  Examples include notifications when components are stopped and started, or other high-level events that do not require operator attention.
 
-  Said another way, **INFO** is primarily there for information that lets them know that an action
-  they just took completed successfully.
-- **WARN**: Something unexpected happened, but no data has been lost, nothing has crashed, and we
-  can recover from it without an issue. An operator might be interested in something at the **WARN**
-  level, but it shouldn't be informing them of things serious enough to require immediate attention.
-- **ERROR**: Data loss, unrecoverable errors, and anything else that will require an operator to
-  intervene and recover from. These should be rare so that they maintain a high signal-to-noise
-  ratio in the observability tooling that operators themselves are using.
+  **INFO** is primarily used for information that tells an operator that a notable action completed successfully.
+- **WARN** should be used for potentially problematic but non-critical events where the software can continue operating, 
+  potentially in a degraded state and/or recover from the problem. Do not use **WARN** for events that require user's immediate attention.
+- **ERROR** level should be used for events indicating severely problematic issues that require immediate user visibility and remediation.
+  This includes logging related to events that may lead to data loss, unrecoverable states, and any other situation where a required component is faulty,
+  causing the software to be unable to remediate the problem on its own.
+  Error logs should be extremely rare in normally operating software to ensure high signal-to-noise ratio in observability tooling.
