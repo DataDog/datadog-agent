@@ -464,6 +464,7 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 	for _, field := range structType.Fields.List {
 		fieldCommentText := field.Comment.Text()
 		fieldIterator := iterator
+		fieldEvent := event
 
 		var tag reflect.StructTag
 		if field.Tag != nil {
@@ -471,7 +472,7 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 		}
 
 		if e, ok := tag.Lookup("event"); ok {
-			event = e
+			fieldEvent = e
 			if _, ok = module.EventTypes[e]; !ok {
 				module.EventTypes[e] = common.NewEventTypeMetada()
 				dejavu = make(map[string]bool) // clear dejavu map when it's a new event type
@@ -503,8 +504,8 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 
 				embedded := astFiles.LookupSymbol(ident.Name)
 				if embedded != nil {
-					handleEmbedded(module, ident.Name, prefix, event, restrictedTo, field.Type)
-					handleSpecRecursive(module, astFiles, embedded.Decl, name, aliasPrefix, event, restrictedTo, fieldIterator, dejavu)
+					handleEmbedded(module, ident.Name, prefix, fieldEvent, restrictedTo, field.Type)
+					handleSpecRecursive(module, astFiles, embedded.Decl, name, aliasPrefix, fieldEvent, restrictedTo, fieldIterator, dejavu)
 				} else {
 					log.Printf("failed to resolve symbol for identifier %+v in %s", ident.Name, pkgname)
 				}
@@ -540,14 +541,14 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 			}
 
 			for _, seclField := range fields {
-				handleNonEmbedded(module, seclField, prefixedFieldName, event, restrictedTo, fieldType, isPointer, isArray)
+				handleNonEmbedded(module, seclField, prefixedFieldName, fieldEvent, restrictedTo, fieldType, isPointer, isArray)
 
 				if seclFieldIterator := seclField.iterator; seclFieldIterator != "" {
-					fieldIterator = handleIterator(module, seclField, fieldType, seclFieldIterator, aliasPrefix, prefixedFieldName, event, restrictedTo, fieldCommentText, opOverrides, isPointer, isArray)
+					fieldIterator = handleIterator(module, seclField, fieldType, seclFieldIterator, aliasPrefix, prefixedFieldName, fieldEvent, restrictedTo, fieldCommentText, opOverrides, isPointer, isArray)
 				}
 
 				if handler := seclField.handler; handler != "" {
-					handleFieldWithHandler(module, seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, seclField.containerStructName, event, restrictedTo, fieldCommentText, opOverrides, handler, isPointer, isArray, fieldIterator)
+					handleFieldWithHandler(module, seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, seclField.containerStructName, fieldEvent, restrictedTo, fieldCommentText, opOverrides, handler, isPointer, isArray, fieldIterator)
 
 					delete(dejavu, fieldBasename)
 					continue
@@ -565,7 +566,7 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 
 				alias := seclField.name
 				if isBasicType(fieldType) {
-					handleBasic(module, seclField, fieldBasename, alias, aliasPrefix, prefix, fieldType, event, restrictedTo, opOverrides, fieldCommentText, seclField.containerStructName, fieldIterator, isArray)
+					handleBasic(module, seclField, fieldBasename, alias, aliasPrefix, prefix, fieldType, fieldEvent, restrictedTo, opOverrides, fieldCommentText, seclField.containerStructName, fieldIterator, isArray)
 				} else {
 					spec := astFiles.LookupSymbol(fieldType)
 					if spec != nil {
@@ -579,7 +580,7 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 							newAliasPrefix = aliasPrefix + "." + alias
 						}
 
-						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, event, restrictedTo, fieldIterator, dejavu)
+						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, fieldEvent, restrictedTo, fieldIterator, dejavu)
 					} else {
 						log.Printf("failed to resolve symbol for type %+v in %s", fieldType, pkgname)
 					}
@@ -590,14 +591,14 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 				}
 			}
 			for _, seclField := range gettersOnlyFields {
-				handleNonEmbedded(module, seclField, prefixedFieldName, event, restrictedTo, fieldType, isPointer, isArray)
+				handleNonEmbedded(module, seclField, prefixedFieldName, fieldEvent, restrictedTo, fieldType, isPointer, isArray)
 
 				if seclFieldIterator := seclField.iterator; seclFieldIterator != "" {
-					fieldIterator = handleIterator(module, seclField, fieldType, seclFieldIterator, aliasPrefix, prefixedFieldName, event, restrictedTo, fieldCommentText, opOverrides, isPointer, isArray)
+					fieldIterator = handleIterator(module, seclField, fieldType, seclFieldIterator, aliasPrefix, prefixedFieldName, fieldEvent, restrictedTo, fieldCommentText, opOverrides, isPointer, isArray)
 				}
 
 				if handler := seclField.handler; handler != "" {
-					handleFieldWithHandler(module, seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, seclField.containerStructName, event, restrictedTo, fieldCommentText, opOverrides, handler, isPointer, isArray, fieldIterator)
+					handleFieldWithHandler(module, seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, seclField.containerStructName, fieldEvent, restrictedTo, fieldCommentText, opOverrides, handler, isPointer, isArray, fieldIterator)
 
 					delete(dejavu, fieldBasename)
 					continue
@@ -615,7 +616,7 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 
 				alias := seclField.name
 				if isBasicTypeForGettersOnly(fieldType) {
-					handleBasic(module, seclField, fieldBasename, alias, aliasPrefix, prefix, fieldType, event, restrictedTo, opOverrides, fieldCommentText, seclField.containerStructName, fieldIterator, isArray)
+					handleBasic(module, seclField, fieldBasename, alias, aliasPrefix, prefix, fieldType, fieldEvent, restrictedTo, opOverrides, fieldCommentText, seclField.containerStructName, fieldIterator, isArray)
 				} else {
 					spec := astFiles.LookupSymbol(fieldType)
 					if spec != nil {
@@ -629,7 +630,7 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 							newAliasPrefix = aliasPrefix + "." + alias
 						}
 
-						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, event, restrictedTo, fieldIterator, dejavu)
+						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, fieldEvent, restrictedTo, fieldIterator, dejavu)
 					} else {
 						log.Printf("failed to resolve symbol for type %+v in %s", fieldType, pkgname)
 					}
