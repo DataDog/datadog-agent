@@ -76,7 +76,7 @@ type daemonImpl struct {
 	installer     installer.Installer
 	rc            *remoteConfig
 	catalog       catalog
-	configs       map[string]InstallerConfig
+	configs       map[string]installerConfig
 	requests      chan remoteAPIRequest
 	requestsWG    sync.WaitGroup
 	requestsState map[string]requestState
@@ -127,7 +127,7 @@ func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env) *d
 		installer:     installer,
 		requests:      make(chan remoteAPIRequest, 32),
 		catalog:       catalog{},
-		configs:       make(map[string]InstallerConfig),
+		configs:       make(map[string]installerConfig),
 		stopChan:      make(chan struct{}),
 		requestsState: make(map[string]requestState),
 	}
@@ -453,7 +453,7 @@ func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err 
 	return nil
 }
 
-func (d *daemonImpl) handleConfigsUpdate(configs map[string]InstallerConfig) error {
+func (d *daemonImpl) handleConfigsUpdate(configs map[string]installerConfig) error {
 	d.m.Lock()
 	defer d.m.Unlock()
 	log.Infof("Installer: Received configs update")
