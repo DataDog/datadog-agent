@@ -19,9 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	cache "github.com/patrickmn/go-cache"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 )
 
 const (
@@ -50,11 +52,18 @@ var cachKey = "hostname"
 
 type remotehostimpl struct {
 	cache *cache.Cache
+	at    authtoken.Component
 }
 
-func newRemoteHostImpl() hostnameinterface.Component {
+type dependencies struct {
+	fx.In
+	At authtoken.Component
+}
+
+func newRemoteHostImpl(deps dependencies) hostnameinterface.Component {
 	return &remotehostimpl{
 		cache: cache.New(defaultExpire, defaultPurge),
+		at:    deps.At,
 	}
 }
 
@@ -62,7 +71,7 @@ func (r *remotehostimpl) Get(ctx context.Context) (string, error) {
 	if hostname, found := r.cache.Get(cachKey); found {
 		return hostname.(string), nil
 	}
-	hostname, err := getHostnameWithContextAndFallback(ctx)
+	hostname, err := r.getHostnameWithContextAndFallback(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -88,7 +97,7 @@ func (r *remotehostimpl) GetWithProvider(ctx context.Context) (hostnameinterface
 
 // getHostnameWithContext attempts to acquire a hostname by connecting to the
 // core agent's gRPC endpoints extending the given context.
-func getHostnameWithContext(ctx context.Context) (string, error) {
+func (r *remotehostimpl) getHostnameWithContext(ctx context.Context) (string, error) {
 	var hostname string
 	err := retry.Do(func() error {
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
@@ -99,7 +108,7 @@ func getHostnameWithContext(ctx context.Context) (string, error) {
 			return err
 		}
 
-		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort())
+		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), r.at.GetTLSClientConfig)
 		if err != nil {
 			return err
 		}
@@ -119,8 +128,8 @@ func getHostnameWithContext(ctx context.Context) (string, error) {
 
 // getHostnameWithContextAndFallback attempts to acquire a hostname by connecting to the
 // core agent's gRPC endpoints extending the given context, or falls back to local resolution
-func getHostnameWithContextAndFallback(ctx context.Context) (string, error) {
-	hostnameDetected, err := getHostnameWithContext(ctx)
+func (r *remotehostimpl) getHostnameWithContextAndFallback(ctx context.Context) (string, error) {
+	hostnameDetected, err := r.getHostnameWithContext(ctx)
 	if err != nil {
 		log.Warnf("Could not resolve hostname from core-agent: %v", err)
 		hostnameDetected, err = hostname.Get(ctx)
