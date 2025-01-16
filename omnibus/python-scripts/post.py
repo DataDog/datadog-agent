@@ -12,7 +12,6 @@ import packages
 
 def post(install_directory, storage_location, skip_flag=False):
     try:
-        install_directory = sys.argv[1]
         if os.path.exists(install_directory) and os.path.exists(storage_location):
             post_python_installed_packages_file = packages.post_python_installed_packages_file(storage_location)
             packages.create_python_installed_packages_file(post_python_installed_packages_file)
