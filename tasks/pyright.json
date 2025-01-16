@@ -1,0 +1,6 @@
+{
+    "include": ["junit_tasks.py"],
+    "extraPaths": [".."],
+    "typeCheckingMode": "strict",
+    "reportUnknownVariableType": false
+}
