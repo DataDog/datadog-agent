@@ -10,16 +10,14 @@ import (
 	"encoding/binary"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv117 "go.opentelemetry.io/collector/semconv/v1.17.0"
-	semconv126 "go.opentelemetry.io/collector/semconv/v1.26.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"go.opentelemetry.io/otel/attribute"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // Util functions for converting OTel semantics to DD semantics.
@@ -33,96 +31,6 @@ const (
 	// TagStatusCode is the tag key for http status code.
 	TagStatusCode = "http.status_code"
 )
-
-// span.Type constants for db systems
-const (
-	spanTypeSQL           = "sql"
-	spanTypeCassandra     = "cassandra"
-	spanTypeRedis         = "redis"
-	spanTypeMemcached     = "memcached"
-	spanTypeMongoDB       = "mongodb"
-	spanTypeElasticsearch = "elasticsearch"
-	spanTypeOpenSearch    = "opensearch"
-	spanTypeDB            = "db"
-)
-
-// DBTypes are semconv types that should map to span.Type values given in the mapping
-var dbTypes = map[string]string{
-	// SQL db types
-	semconv.AttributeDBSystemOtherSQL:      spanTypeSQL,
-	semconv.AttributeDBSystemMSSQL:         spanTypeSQL,
-	semconv.AttributeDBSystemMySQL:         spanTypeSQL,
-	semconv.AttributeDBSystemOracle:        spanTypeSQL,
-	semconv.AttributeDBSystemDB2:           spanTypeSQL,
-	semconv.AttributeDBSystemPostgreSQL:    spanTypeSQL,
-	semconv.AttributeDBSystemRedshift:      spanTypeSQL,
-	semconv.AttributeDBSystemCloudscape:    spanTypeSQL,
-	semconv.AttributeDBSystemHSQLDB:        spanTypeSQL,
-	semconv.AttributeDBSystemMaxDB:         spanTypeSQL,
-	semconv.AttributeDBSystemIngres:        spanTypeSQL,
-	semconv.AttributeDBSystemFirstSQL:      spanTypeSQL,
-	semconv.AttributeDBSystemEDB:           spanTypeSQL,
-	semconv.AttributeDBSystemCache:         spanTypeSQL,
-	semconv.AttributeDBSystemFirebird:      spanTypeSQL,
-	semconv.AttributeDBSystemDerby:         spanTypeSQL,
-	semconv.AttributeDBSystemInformix:      spanTypeSQL,
-	semconv.AttributeDBSystemMariaDB:       spanTypeSQL,
-	semconv.AttributeDBSystemSqlite:        spanTypeSQL,
-	semconv.AttributeDBSystemSybase:        spanTypeSQL,
-	semconv.AttributeDBSystemTeradata:      spanTypeSQL,
-	semconv.AttributeDBSystemVertica:       spanTypeSQL,
-	semconv.AttributeDBSystemH2:            spanTypeSQL,
-	semconv.AttributeDBSystemColdfusion:    spanTypeSQL,
-	semconv.AttributeDBSystemCockroachdb:   spanTypeSQL,
-	semconv.AttributeDBSystemProgress:      spanTypeSQL,
-	semconv.AttributeDBSystemHanaDB:        spanTypeSQL,
-	semconv.AttributeDBSystemAdabas:        spanTypeSQL,
-	semconv.AttributeDBSystemFilemaker:     spanTypeSQL,
-	semconv.AttributeDBSystemInstantDB:     spanTypeSQL,
-	semconv.AttributeDBSystemInterbase:     spanTypeSQL,
-	semconv.AttributeDBSystemNetezza:       spanTypeSQL,
-	semconv.AttributeDBSystemPervasive:     spanTypeSQL,
-	semconv.AttributeDBSystemPointbase:     spanTypeSQL,
-	semconv117.AttributeDBSystemClickhouse: spanTypeSQL, // not in semconv 1.6.1
-
-	// Cassandra db types
-	semconv.AttributeDBSystemCassandra: spanTypeCassandra,
-
-	// Redis db types
-	semconv.AttributeDBSystemRedis: spanTypeRedis,
-
-	// Memcached db types
-	semconv.AttributeDBSystemMemcached: spanTypeMemcached,
-
-	// Mongodb db types
-	semconv.AttributeDBSystemMongoDB: spanTypeMongoDB,
-
-	// Elasticsearch db types
-	semconv.AttributeDBSystemElasticsearch: spanTypeElasticsearch,
-
-	// Opensearch db types, not in semconv 1.6.1
-	semconv117.AttributeDBSystemOpensearch: spanTypeOpenSearch,
-
-	// Generic db types
-	semconv.AttributeDBSystemHive:      spanTypeDB,
-	semconv.AttributeDBSystemHBase:     spanTypeDB,
-	semconv.AttributeDBSystemNeo4j:     spanTypeDB,
-	semconv.AttributeDBSystemCouchbase: spanTypeDB,
-	semconv.AttributeDBSystemCouchDB:   spanTypeDB,
-	semconv.AttributeDBSystemCosmosDB:  spanTypeDB,
-	semconv.AttributeDBSystemDynamoDB:  spanTypeDB,
-	semconv.AttributeDBSystemGeode:     spanTypeDB,
-}
-
-// checkDBType checks if the dbType is a known db type and returns the corresponding span.Type
-func checkDBType(dbType string) string {
-	spanType, ok := dbTypes[dbType]
-	if ok {
-		return spanType
-	}
-	// span type not found, return generic db type
-	return spanTypeDB
-}
 
 // IndexOTelSpans iterates over the input OTel spans and returns 3 maps:
 // OTel spans indexed by span ID, OTel resources indexed by span ID, OTel instrumentation scopes indexed by span ID.
@@ -220,33 +128,7 @@ func GetOTelAttrValInResAndSpanAttrs(span ptrace.Span, res pcommon.Resource, nor
 	return GetOTelAttrVal(span.Attributes(), normalize, keys...)
 }
 
-// SpanKind2Type returns a span's type based on the given kind and other present properties.
-// This function is used in Resource V1 logic only. See GetOtelSpanType for Resource V2 logic.
-func SpanKind2Type(span ptrace.Span, res pcommon.Resource) string {
-	var typ string
-	switch span.Kind() {
-	case ptrace.SpanKindServer:
-		typ = "web"
-	case ptrace.SpanKindClient:
-		typ = "http"
-		db := GetOTelAttrValInResAndSpanAttrs(span, res, true, semconv.AttributeDBSystem)
-		if db == "" {
-			break
-		}
-		switch db {
-		case "redis", "memcached":
-			typ = "cache"
-		default:
-			typ = "db"
-		}
-	default:
-		typ = "custom"
-	}
-	return typ
-}
-
 // GetOTelSpanType returns the DD span type based on OTel span kind and attributes.
-// This logic is used in ReceiveResourceSpansV2 logic
 func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
 	typ := GetOTelAttrValInResAndSpanAttrs(span, res, false, "span.type")
 	if typ != "" {
@@ -257,10 +139,12 @@ func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
 		typ = "web"
 	case ptrace.SpanKindClient:
 		db := GetOTelAttrValInResAndSpanAttrs(span, res, true, semconv.AttributeDBSystem)
-		if db == "" {
-			typ = "http"
+		if db == "redis" || db == "memcached" {
+			typ = "cache"
+		} else if db != "" {
+			typ = "db"
 		} else {
-			typ = checkDBType(db)
+			typ = "http"
 		}
 	default:
 		typ = "custom"
@@ -382,20 +266,6 @@ func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) (resName string) 
 		}
 		return
 	}
-
-	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeDBSystem); m != "" {
-		// Since traces are obfuscated by span.Resource in pkg/trace/agent/obfuscate.go, we should use span.Resource as the resource name.
-		// https://github.com/DataDog/datadog-agent/blob/62619a69cff9863f5b17215847b853681e36ff15/pkg/trace/agent/obfuscate.go#L32
-		if dbStatement := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeDBStatement); dbStatement != "" {
-			resName = dbStatement
-			return
-		}
-		if dbQuery := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv126.AttributeDBQueryText); dbQuery != "" {
-			resName = dbQuery
-			return
-		}
-	}
-
 	resName = span.Name()
 
 	return
