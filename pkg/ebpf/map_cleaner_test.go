@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -108,6 +109,53 @@ func TestMapCleaner(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMapCleanerBatchSize1ForcesSingleItem(t *testing.T) {
+	if !maps.BatchAPISupported() {
+		t.Skip("Cannot test if batch API is not supported")
+	}
+
+	const numMapEntries = 100
+	m, err := ebpf.NewMap(&ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		KeySize:    8,
+		ValueSize:  8,
+		MaxEntries: numMapEntries,
+	})
+	require.NoError(t, err)
+
+	t.Run("batch size 1", func(t *testing.T) {
+		cleaner, err := NewMapCleaner[int64, int64](m, 1, "test", "")
+		require.NoError(t, err)
+		require.NotNil(t, cleaner)
+		require.False(t, cleaner.useBatchAPI)
+		require.Equal(t, cleaner.cleanWithoutBatches, cleaner.getCleanerFunction())
+	})
+
+	t.Run("batch size not 1", func(t *testing.T) {
+		cleaner, err := NewMapCleaner[int64, int64](m, 100, "test", "")
+		require.NoError(t, err)
+		require.NotNil(t, cleaner)
+		require.True(t, cleaner.useBatchAPI)
+		require.Equal(t, cleaner.cleanWithBatches, cleaner.getCleanerFunction())
+	})
+
+	t.Run("map does not support batches", func(t *testing.T) {
+		m, err := ebpf.NewMap(&ebpf.MapSpec{
+			Type:       ebpf.PerCPUHash,
+			KeySize:    8,
+			ValueSize:  8,
+			MaxEntries: numMapEntries,
+		})
+		require.NoError(t, err)
+
+		cleaner, err := NewMapCleaner[int64, int64](m, 100, "test", "")
+		require.NoError(t, err)
+		require.NotNil(t, cleaner)
+		require.False(t, cleaner.useBatchAPI)
+		require.Equal(t, cleaner.cleanWithoutBatches, cleaner.getCleanerFunction())
+	})
 }
 
 func benchmarkBatchCleaner(b *testing.B, numMapEntries, batchSize uint32) {

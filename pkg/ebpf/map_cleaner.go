@@ -112,10 +112,7 @@ func (mc *MapCleaner[K, V]) Clean(interval time.Duration, preClean func() bool, 
 		// required to clean the map. We use the new batch operations if they are supported (we check with a feature test instead
 		// of a version comparison because some distros have backported this API), and fallback to
 		// the old method otherwise. The new API is also more efficient because it minimizes the number of allocations.
-		cleaner := mc.cleanWithoutBatches
-		if mc.useBatchAPI {
-			cleaner = mc.cleanWithBatches
-		}
+		cleaner := mc.getCleanerFunction()
 		ticker := time.NewTicker(interval)
 		go func() {
 			defer ticker.Stop()
@@ -155,6 +152,16 @@ func (mc *MapCleaner[K, V]) Stop() {
 		mc.done <- struct{}{}
 		close(mc.done)
 	})
+}
+
+// getCleanerFunction returns the function to use for cleaning entries based on
+// whether the batch API is supported or not for this map. Separated for testing
+// purposes.
+func (mc *MapCleaner[K, V]) getCleanerFunction() func(nowTS int64, shouldClean func(nowTS int64, k K, v V) bool) {
+	if mc.useBatchAPI {
+		return mc.cleanWithBatches
+	}
+	return mc.cleanWithoutBatches
 }
 
 func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS int64, k K, v V) bool) {
