@@ -21,6 +21,7 @@ service Agent {
             get: "/v1/grpc/host"
         };
     }
+
 }
 
 service AgentSecure {
@@ -178,6 +179,14 @@ service AgentSecure {
             body: "*"
         };
     };
+
+    // Get the host tags
+    rpc GetHostTags(datadog.model.v1.HostTagRequest) returns (datadog.model.v1.HostTagReply) {
+        option (google.api.http) = {
+            get: "/v1/grpc/hosttags"
+        };
+    };
+
 }
 
 // Service exposed by remote agents to allow querying by the Core Agent.
