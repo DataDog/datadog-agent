@@ -2822,8 +2822,8 @@ func TestMapCleanerDoesNotRemoveNewConnections(t *testing.T) {
 
 	prevProtoCleaningInterval := connProtoCleaningInterval
 	prevProtoTTL := connProtoTTL
-	connProtoCleaningInterval = 10 * time.Second
-	connProtoTTL = 10 * time.Second
+	connProtoCleaningInterval = 2 * time.Second
+	connProtoTTL = 100 * time.Second // Ensure that the connection is not removed
 
 	// Restore values after test
 	t.Cleanup(func() {
@@ -2861,7 +2861,7 @@ func TestMapCleanerDoesNotRemoveNewConnections(t *testing.T) {
 	}
 	require.Equal(t, 2, found)
 
-	time.Sleep(connProtoCleaningInterval)
+	time.Sleep(2 * connProtoCleaningInterval)
 
 	found = 0
 	iterator = connectionProtocolMap.Iterate()
