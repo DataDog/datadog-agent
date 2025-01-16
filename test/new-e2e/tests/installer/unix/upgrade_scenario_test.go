@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
@@ -385,6 +384,11 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulWithUmask() {
 	s.TestUpgradeSuccessful()
 }
 
+type installerConfig struct {
+	ID      string          `json:"id"`
+	Configs json.RawMessage `json:"configs"`
+}
+
 func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
 	s.RunInstallScript(
 		"DD_REMOTE_UPDATES=true",
@@ -407,7 +411,7 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
 	state.AssertDirExists("/etc/datadog-agent/managed/datadog-agent", 0755, "root", "root")
 	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", "/etc/datadog-agent/managed/datadog-agent/empty", "root", "root")
 
-	config := daemon.InstallerConfig{
+	config := installerConfig{
 		ID:      "config-1",
 		Configs: json.RawMessage(`{"datadog.yaml": {"log_level": "debug"}}`),
 	}
@@ -442,7 +446,7 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", "/etc/datadog-agent/managed/datadog-agent/empty", "root", "root")
 
 	// Enables security agent & sysprobe
-	config := daemon.InstallerConfig{
+	config := installerConfig{
 		ID: "config-1",
 		Configs: json.RawMessage(`
   "datadog.yaml": {
@@ -535,7 +539,7 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
-	config1 := daemon.InstallerConfig{
+	config1 := installerConfig{
 		ID:      "config-1",
 		Configs: json.RawMessage(`{"datadog.yaml": {"log_level": "error"}}`),
 	}
@@ -550,7 +554,7 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
 	s.mustStopConfigExperiment(datadogAgent)
 	s.assertSuccessfulConfigStopExperiment(timestamp)
 
-	config2 := daemon.InstallerConfig{
+	config2 := installerConfig{
 		ID:      "config-2",
 		Configs: json.RawMessage(`{"datadog.yaml": {"log_level": "debug"}}`),
 	}
@@ -573,7 +577,7 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFailure() {
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	// Non alphanumerical characters are not allowed, the agent should crash
-	config := daemon.InstallerConfig{
+	config := installerConfig{
 		ID:      "config",
 		Configs: json.RawMessage(`{"datadog.yaml": {"secret_backend_command": "echo", "log_level": "ENC[hi]"}}`),
 	}
@@ -770,7 +774,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStopExperiment(timestamp hos
 	require.Equal(s.T(), "", installerStatus.Packages["datadog-agent"].ExperimentVersion)
 }
 
-func (s *upgradeScenarioSuite) startConfigExperiment(pkg packageName, config daemon.InstallerConfig) (string, error) {
+func (s *upgradeScenarioSuite) startConfigExperiment(pkg packageName, config installerConfig) (string, error) {
 	rawConfig, err := json.Marshal(config)
 	require.NoError(s.T(), err)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -779,7 +783,7 @@ func (s *upgradeScenarioSuite) startConfigExperiment(pkg packageName, config dae
 	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_REMOTE_POLICIES": "true"}))
 }
 
-func (s *upgradeScenarioSuite) mustStartConfigExperiment(pkg packageName, config daemon.InstallerConfig) string {
+func (s *upgradeScenarioSuite) mustStartConfigExperiment(pkg packageName, config installerConfig) string {
 	output, err := s.startConfigExperiment(pkg, config)
 	require.NoError(s.T(), err, "Failed to start config experiment: %s\ndatadog-installer journalctl:\n%s\ndatadog-installer-exp journalctl:\n%s",
 		s.Env().RemoteHost.MustExecute("cat /tmp/start_config_experiment.log"),
@@ -998,7 +1002,7 @@ func (s *upgradeScenarioSuite) executeInstallerGoldenPath() {
 	s.assertSuccessfulInstallerPromoteExperiment(timestamp, previousInstallerImageVersion)
 }
 
-func (s *upgradeScenarioSuite) executeConfigGoldenPath(config daemon.InstallerConfig) {
+func (s *upgradeScenarioSuite) executeConfigGoldenPath(config installerConfig) {
 	timestamp := s.host.LastJournaldTimestamp()
 
 	s.mustStartConfigExperiment(datadogAgent, config)
