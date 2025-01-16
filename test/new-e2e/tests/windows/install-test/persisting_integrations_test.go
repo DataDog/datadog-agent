@@ -242,10 +242,10 @@ func (s *testPersistingIntegrationsSuite) installThirdPartyIntegration(vm *compo
 	s.Require().NoError(err, "should get install path from registry")
 
 	cmd := fmt.Sprintf(`& "%s\bin\agent.exe" integration install -t %s`, installPath, integration)
-	out, err := vm.Execute(cmd)
+	_, err = vm.Execute(cmd)
 
 	if err != nil {
-		s.T().Logf("Error installing integration %s:\n%s", integration, out)
+		s.T().Logf("Error installing integration %s:\n%s", integration, err)
 	}
 
 	return err
@@ -257,10 +257,10 @@ func (s *testPersistingIntegrationsSuite) installPipPackage(vm *components.Remot
 	s.Require().NoError(err, "should get install path from registry")
 
 	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip install %s`, installPath, packageToInstall)
-	out, err := vm.Execute(cmd)
+	_, err = vm.Execute(cmd)
 
 	if err != nil {
-		s.T().Logf("Error installing pip package %s:\n%s", packageToInstall, out)
+		s.T().Logf("Error installing pip package %s:\n%s", packageToInstall, err)
 	}
 
 	return err

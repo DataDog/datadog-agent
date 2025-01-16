@@ -21,6 +21,8 @@ def post(install_directory, storage_location, skip_flag=False):
                 diff_python_installed_packages_file = packages.diff_python_installed_packages_file(storage_location)
                 if os.path.exists(diff_python_installed_packages_file):
                     requirements_agent_release_file = packages.requirements_agent_release_file(install_directory)
+                    # don't delete the diff file. This handles install failure cases on windows
+                    # on uninstall/install if install fails we need the diff file to retry the install
                     packages.install_diff_packages_file(install_directory, diff_python_installed_packages_file, requirements_agent_release_file)
                 else:
                     print(f"File '{diff_python_installed_packages_file}' not found.")
