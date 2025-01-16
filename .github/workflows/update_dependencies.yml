@@ -46,7 +46,8 @@ jobs:
                     golang.org/x/exp
           # run tidy twice because the first one doesn't always clean everything
           # depending on module order
-          inv -e tidy tidy
+          inv -e tidy
+          inv -e tidy
       - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
         id: autocommit
         with:
