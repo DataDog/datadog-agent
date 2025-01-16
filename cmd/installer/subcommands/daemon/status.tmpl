@@ -1,5 +1,6 @@
 Datadog Installer v{{ htmlSafe .Version }}
-{{ range $name, $package := .Packages }}
+{{ range $name, $packageState := .Packages }}
+{{ $package := $packageState.Package }}
 {{ boldText $name }}
   State: {{ if $package.Experiment -}}{{ yellowText "Upgrading" }}{{- else if $package.Stable -}}{{ greenText "OK" }}{{- else -}}config only{{- end }}
   Installed versions:
