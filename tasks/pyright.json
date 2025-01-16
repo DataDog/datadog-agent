@@ -1,5 +1,7 @@
 {
-    "include": ["junit_tasks.py"],
+    "include": [
+        "junit_tasks.py",
+        "otel_agent.py"],
     "extraPaths": [".."],
     "typeCheckingMode": "strict",
     "reportUnknownVariableType": false
