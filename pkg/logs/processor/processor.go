@@ -259,6 +259,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 // it applies the change directly on the Message content.
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	if msg == nil || msg.Origin == nil || msg.Origin.LogSource == nil || msg.Origin.LogSource.Config == nil {
+	    log.Warn("nil msg or msg with nil attribute")
 		return false
 	}
 
