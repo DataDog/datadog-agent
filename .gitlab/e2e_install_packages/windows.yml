@@ -52,6 +52,7 @@
       - E2E_MSI_TEST: TestInstallExistingAltDir
       - E2E_MSI_TEST: TestInstallAltDirAndCorruptForUninstall
       - E2E_MSI_TEST: TestInstallFail
+      - E2E_MSI_TEST: TestInstallWithLanmanServerDisabled
       # These tests are v7 only
       - E2E_MSI_TEST: TestNPMUpgradeToNPM
       - E2E_MSI_TEST: TestNPMUpgradeNPMToNPM
