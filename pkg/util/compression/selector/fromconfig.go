@@ -9,7 +9,7 @@ import (
 // under the `serializer_compressor_kind` key.
 // If `zstd` the compression level is taken from the serializer_zstd_compressor_level
 // key.
-func FromConfig(cfg config.Reader) Compressor {
+func FromConfig(cfg config.Reader) common.Compressor {
 	kind := cfg.GetString("serializer_compressor_kind")
 	var level int
 
