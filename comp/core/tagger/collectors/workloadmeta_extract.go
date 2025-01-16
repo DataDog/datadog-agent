@@ -402,6 +402,11 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 		c.extractTagsFromPodOwner(pod, owner, tagList)
 	}
 
+	// Add additional tags for the pod based on the pod's related owners
+	for _, owner := range pod.RelatedOwners {
+		c.extractTagsFromPodOwner(pod, owner, tagList)
+	}
+
 	// static tags for EKS Fargate pods
 	for tag, valueList := range c.staticTags {
 		for _, value := range valueList {
@@ -664,6 +669,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 		}
 
 	case kubernetes.JobKind:
+		// TODO: If ownership detection works we can remove
 		cronjob, _ := kubernetes.ParseCronJobForJob(owner.Name)
 		if cronjob != "" {
 			tagList.AddOrchestrator(tags.KubeJob, owner.Name)
@@ -672,12 +678,23 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 			tagList.AddLow(tags.KubeJob, owner.Name)
 		}
 
+	case kubernetes.CronJobKind:
+		tagList.AddLow(tags.KubeCronjob, owner.Name)
+
 	case kubernetes.ReplicaSetKind:
+		// TODO: If ownership detection works we can remove
 		deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
 		if len(deployment) > 0 {
 			tagList.AddLow(tags.KubeDeployment, deployment)
 		}
 		tagList.AddLow(tags.KubeReplicaSet, owner.Name)
+
+	case kubernetes.ServiceKind:
+		tagList.AddLow(tags.KubeService, owner.Name)
+
+	case kubernetes.NamespaceKind:
+		tagList.AddLow(tags.KubeNamespace, owner.Name)
+
 	}
 }
 
