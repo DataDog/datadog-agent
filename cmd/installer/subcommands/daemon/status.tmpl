@@ -1,6 +1,7 @@
 Datadog Installer v{{ htmlSafe .Version }}
 {{ range $name, $packageState := .Packages }}
 {{ $version := $packageState.Version }}
+{{ $config := $packageState.Config }}
 {{ boldText $name }}
   State: {{ if $version.Experiment -}}{{ yellowText "Upgrading" }}{{- else if $version.Stable -}}{{ greenText "OK" }}{{- else -}}config only{{- end }}
   Installed versions:
@@ -14,6 +15,17 @@ Datadog Installer v{{ htmlSafe .Version }}
   {{- else }}
     ● experiment: none
   {{- end }}
+  {{- if $config.Stable }}
+    {{ greenText "●" }} stable config: v{{ htmlSafe $config.Stable }}
+  {{- else }}
+    ● stable config: none
+  {{- end }}
+  {{- if $config.Experiment }}
+    {{ yellowText "●" }} experiment config: v{{ htmlSafe $config.Experiment }}
+  {{- else }}
+    ● experiment config: none
+  {{- end }}
+
 
   {{- if eq $name "datadog-apm-inject" }}
     {{ template "datadog-apm-inject" $.ApmInjectionStatus }}
@@ -24,9 +36,8 @@ Datadog Installer v{{ htmlSafe .Version }}
   Remote configuration client state:
     StableVersion: {{ $remoteConfig.StableVersion }}
     ExperimentVersion: {{ $remoteConfig.ExperimentVersion }}
-    StableConfigVersion: {{ if $remoteConfig.StableConfigState }}{{ $remoteConfig.StableConfigState.Version }}{{ else }}{{ "" }}{{ end }}
-    ExperimentConfigVersion: {{ if $remoteConfig.ExperimentConfigState }}{{ $remoteConfig.ExperimentConfigState.Version }}{{ else }}{{ "" }}{{ end }}
-    RemoteConfigVersion: {{ if $remoteConfig.RemoteConfigState }}{{ $remoteConfig.RemoteConfigState.Version }}{{ else }}{{ "" }}{{ end }}
+    StableConfigVersion: {{ $remoteConfig.StableConfigVersion }}
+    ExperimentConfigVersion: {{ $remoteConfig.ExperimentConfigVersion }}
     Task:
       {{- if $remoteConfig.Task }}
         Id: {{ $remoteConfig.Task.Id }}
