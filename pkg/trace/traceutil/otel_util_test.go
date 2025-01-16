@@ -15,8 +15,6 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv117 "go.opentelemetry.io/collector/semconv/v1.17.0"
-	semconv126 "go.opentelemetry.io/collector/semconv/v1.26.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"go.opentelemetry.io/otel/metric/noop"
 )
@@ -178,43 +176,19 @@ func TestGetOTelSpanType(t *testing.T) {
 			name:     "redis span",
 			spanKind: ptrace.SpanKindClient,
 			rattrs:   map[string]string{semconv.AttributeDBSystem: "redis"},
-			expected: spanTypeRedis,
+			expected: "cache",
 		},
 		{
 			name:     "memcached span",
 			spanKind: ptrace.SpanKindClient,
 			rattrs:   map[string]string{semconv.AttributeDBSystem: "memcached"},
-			expected: spanTypeMemcached,
-		},
-		{
-			name:     "sql db client span",
-			spanKind: ptrace.SpanKindClient,
-			rattrs:   map[string]string{semconv.AttributeDBSystem: semconv.AttributeDBSystemPostgreSQL},
-			expected: spanTypeSQL,
-		},
-		{
-			name:     "elastic db client span",
-			spanKind: ptrace.SpanKindClient,
-			rattrs:   map[string]string{semconv.AttributeDBSystem: semconv.AttributeDBSystemElasticsearch},
-			expected: spanTypeElasticsearch,
-		},
-		{
-			name:     "opensearch db client span",
-			spanKind: ptrace.SpanKindClient,
-			rattrs:   map[string]string{semconv.AttributeDBSystem: semconv117.AttributeDBSystemOpensearch},
-			expected: spanTypeOpenSearch,
-		},
-		{
-			name:     "cassandra db client span",
-			spanKind: ptrace.SpanKindClient,
-			rattrs:   map[string]string{semconv.AttributeDBSystem: semconv.AttributeDBSystemCassandra},
-			expected: spanTypeCassandra,
+			expected: "cache",
 		},
 		{
 			name:     "other db client span",
 			spanKind: ptrace.SpanKindClient,
-			rattrs:   map[string]string{semconv.AttributeDBSystem: semconv.AttributeDBSystemCouchDB},
-			expected: spanTypeDB,
+			rattrs:   map[string]string{semconv.AttributeDBSystem: "postgres"},
+			expected: "db",
 		},
 		{
 			name:     "http client span",
@@ -236,65 +210,6 @@ func TestGetOTelSpanType(t *testing.T) {
 			}
 			actual := GetOTelSpanType(span, res)
 			assert.Equal(t, tt.expected, actual)
-		})
-	}
-}
-
-func TestSpanKind2Type(t *testing.T) {
-	for _, tt := range []struct {
-		kind ptrace.SpanKind
-		meta map[string]string
-		out  string
-	}{
-		{
-			kind: ptrace.SpanKindServer,
-			out:  "web",
-		},
-		{
-			kind: ptrace.SpanKindClient,
-			out:  "http",
-		},
-		{
-			kind: ptrace.SpanKindClient,
-			meta: map[string]string{"db.system": "redis"},
-			out:  "cache",
-		},
-		{
-			kind: ptrace.SpanKindClient,
-			meta: map[string]string{"db.system": "memcached"},
-			out:  "cache",
-		},
-		{
-			kind: ptrace.SpanKindClient,
-			meta: map[string]string{"db.system": "other"},
-			out:  "db",
-		},
-		{
-			kind: ptrace.SpanKindProducer,
-			out:  "custom",
-		},
-		{
-			kind: ptrace.SpanKindConsumer,
-			out:  "custom",
-		},
-		{
-			kind: ptrace.SpanKindInternal,
-			out:  "custom",
-		},
-		{
-			kind: ptrace.SpanKindUnspecified,
-			out:  "custom",
-		},
-	} {
-		t.Run(tt.out, func(t *testing.T) {
-			span := ptrace.NewSpan()
-			span.SetKind(tt.kind)
-			res := pcommon.NewResource()
-			for k, v := range tt.meta {
-				res.Attributes().PutStr(k, v)
-			}
-			actual := SpanKind2Type(span, res)
-			assert.Equal(t, tt.out, actual)
 		})
 	}
 }
@@ -398,26 +313,6 @@ func TestGetOTelResource(t *testing.T) {
 			normalize:  false,
 			expectedV1: "query myQuery",
 			expectedV2: "query myQuery",
-		},
-		{
-			name: "SQL statement resource",
-			rattrs: map[string]string{
-				semconv.AttributeDBSystem:    "mysql",
-				semconv.AttributeDBStatement: "SELECT * FROM table WHERE id = 12345",
-			},
-			sattrs:     map[string]string{"span.name": "span_name"},
-			expectedV1: "span_name",
-			expectedV2: "SELECT * FROM table WHERE id = 12345",
-		},
-		{
-			name: "Redis command resource",
-			rattrs: map[string]string{
-				semconv.AttributeDBSystem:       "redis",
-				semconv126.AttributeDBQueryText: "SET key value",
-			},
-			sattrs:     map[string]string{"span.name": "span_name"},
-			expectedV1: "span_name",
-			expectedV2: "SET key value",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
