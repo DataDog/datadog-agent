@@ -270,8 +270,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 	err := s.installThirdPartyIntegration(vm, "datadog-ping==1.0.2")
 	s.Require().NoError(err, "should install third party integration")
 
-	// add package to .post_python_installed_packages.txt (this will be still there on rollback)
-
+	// add package to .post_python_installed_packages.txt to check for(this will be still there on rollback)
 	folderPath := "C:\\ProgramData\\Datadog\\protected"
 	filePath := filepath.Join(folderPath, ".post_python_installed_packages.txt")
 	_, err = vm.AppendFile("windows", filePath, []byte("test==1.0.0\n"))
