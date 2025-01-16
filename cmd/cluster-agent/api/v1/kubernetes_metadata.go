@@ -70,7 +70,6 @@ func ownerHandlerWithGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 func getOwnerReferences(w http.ResponseWriter, nsName, resourceName, group, version, kind string) {
-
 	apiClient, err := as.GetAPIClient()
 	if err != nil {
 		log.Errorf("Could not create the API client: %v", err)
@@ -156,12 +155,19 @@ func getOwnerReferences(w http.ResponseWriter, nsName, resourceName, group, vers
 		}
 	}
 
-	metaBytes, _ := json.Marshal(outputOwnerReferences)
-
-	// log.Errorf("Owner references: %s", string(metaBytes)) //nolint:errcheck
-
-	w.WriteHeader(http.StatusOK)
-	w.Write(metaBytes)
+	metaBytes, err := json.Marshal(outputOwnerReferences)
+	if err != nil {
+		log.Errorf("Could not marshal the outputOwnerReferences: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if len(metaBytes) != 0 {
+		w.WriteHeader(http.StatusOK)
+		w.Write(metaBytes)
+		return
+	}
+	w.WriteHeader(http.StatusNotFound)
+	fmt.Fprintf(w, "Could not find associated metadata mapped to the resource: %s in namespace: %s", resourceName, nsName)
 }
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels or annotations
