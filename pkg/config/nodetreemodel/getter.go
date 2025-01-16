@@ -106,9 +106,27 @@ func (c *ntmConfig) inferTypeFromDefault(key string, value interface{}) (interfa
 		}
 	}
 
+	// if we don't have a default and the value is a map[interface{}]interface{} we try to cast is as a
+	// map[string]interface{}. This mimic the behavior from viper that default to that type.
+	//
+	// TODO: once all settings in the config have a default value we can remove this logic
+	if m, ok := value.(map[interface{}]interface{}); ok {
+		res := map[string]interface{}{}
+
+		for k, v := range m {
+			if keyString, ok := k.(string); ok {
+				res[keyString] = deepcopy.Copy(v)
+			} else {
+				goto simplyCopy
+			}
+		}
+		return res, nil
+	}
+
 	// NOTE: should only need to deepcopy for `Get`, because it can be an arbitrary value,
 	// and we shouldn't ever return complex types like maps and slices that could be modified
 	// by callers accidentally or on purpose. By copying, the caller may modify the result safetly
+simplyCopy:
 	return deepcopy.Copy(value), nil
 }
 
