@@ -46,7 +46,8 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
@@ -111,7 +112,7 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		}),
 		fx.Supply(secrets.NewEnabledParams()),
 		secretsimpl.Module(),
-		noopTelemetry.Module(),
+		telemetryimpl.Module(),
 		collectorimpl.Module(),
 		// Sending metrics to the backend
 		compressionimpl.Module(),
@@ -158,6 +159,7 @@ func start(
 	demultiplexer demultiplexer.Component,
 	tagger tagger.Component,
 	authToken authtoken.Component,
+	telemetry telemetry.Component,
 	_ pid.Component,
 ) error {
 
@@ -169,6 +171,7 @@ func start(
 	go func() {
 		port := config.GetString("checks_agent_debug_port")
 		addr := net.JoinHostPort("localhost", port)
+		http.Handle("/telemetry", telemetry.Handler())
 		err := http.ListenAndServe(addr, nil)
 		if err != nil {
 			log.Warnf("pprof server: %s", err)
