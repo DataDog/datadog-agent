@@ -55,14 +55,6 @@ const nvidiaSMIValidationCmd = "nvidia-smi -L | grep GPU"
 // and can be used to identify the validation commands.
 const validationCommandMarker = "echo 'gpu-validation-command'"
 
-const defaultGpuCheckConfig = `
-init_config:
-  min_collection_interval: 5
-
-instances:
-  - {}
-`
-
 const defaultSysprobeConfig = `
 gpu_monitoring:
   enabled: true
@@ -79,7 +71,6 @@ type provisionerParams struct {
 func getDefaultProvisionerParams() *provisionerParams {
 	return &provisionerParams{
 		agentOptions: []agentparams.Option{
-			agentparams.WithIntegration("gpu.d", defaultGpuCheckConfig),
 			agentparams.WithSystemProbeConfig(defaultSysprobeConfig),
 		},
 		ami:          gpuEnabledAMI,

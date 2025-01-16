@@ -102,15 +102,19 @@ func (v *gpuSuite) runCudaDockerWorkload() string {
 }
 
 func (v *gpuSuite) TestGPUCheckIsEnabled() {
-	statusOutput := v.Env().Agent.Client.Status(agentclient.WithArgs([]string{"collector", "--json"}))
+	// Note that the GPU check should be enabled by autodiscovery, so it can take some time to be enabled
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		statusOutput := v.Env().Agent.Client.Status(agentclient.WithArgs([]string{"collector", "--json"}))
 
-	var status collectorStatus
-	err := json.Unmarshal([]byte(statusOutput.Content), &status)
-	v.Require().NoError(err, "failed to unmarshal agent status")
-	v.Require().Contains(status.RunnerStats.Checks, "gpu")
+		var status collectorStatus
+		err := json.Unmarshal([]byte(statusOutput.Content), &status)
 
-	gpuCheckStatus := status.RunnerStats.Checks["gpu"]
-	v.Require().Equal(gpuCheckStatus.LastError, "")
+		assert.NoError(c, err, "failed to unmarshal agent status")
+		assert.Contains(c, status.RunnerStats.Checks, "gpu")
+
+		gpuCheckStatus := status.RunnerStats.Checks["gpu"]
+		assert.Equal(c, gpuCheckStatus.LastError, "")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
