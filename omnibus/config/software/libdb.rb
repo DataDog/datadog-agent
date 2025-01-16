@@ -31,7 +31,6 @@ build do
   configure(*configure_options, bin: "../dist/configure", env: env, cwd: "#{project_dir}/build_unix")
 
   make "-j #{workers}", env: env, cwd: "#{project_dir}/build_unix"
-  make "install", env: env, cwd: "#{project_dir}/build_unix"
-  make "uninstall_docs", env: env, cwd: "#{project_dir}/build_unix"
+  make "install_lib", env: env, cwd: "#{project_dir}/build_unix"
 end
 
