@@ -206,8 +206,8 @@ github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.22.0 h1:63SzQz9Ab8XJ
 github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.22.0/go.mod h1:E/PY/aQ6S/N5hBPHXZRGmovs5b1BSi4RHGNcB4yP/Z0=
 github.com/DataDog/sketches-go v1.4.6 h1:acd5fb+QdUzGrosfNLwrIhqyrbMORpvBy7mE+vHlT3I=
 github.com/DataDog/sketches-go v1.4.6/go.mod h1:7Y8GN8Jf66DLyDhc94zuWA3uHEt/7ttt8jHOBWWrSOg=
-github.com/DataDog/trivy v0.0.0-20241223234648-d2ac813bf11b h1:wCKboWBVsnpnFnBKGhQ3jeQOVDPQkMRTLWcs2bxRjss=
-github.com/DataDog/trivy v0.0.0-20241223234648-d2ac813bf11b/go.mod h1:qJj5iHmlvtSbgmRWJDANpAFmmxcXuKGQfucp9VtJfR8=
+github.com/DataDog/trivy v0.0.0-20250116120910-24030233ba1d h1:32RanQE5I4YDHVKxTjTskMG6uyHMUXBPYW7rbPcZYxA=
+github.com/DataDog/trivy v0.0.0-20250116120910-24030233ba1d/go.mod h1:W5DqO6WuXDDvvXyqXaAxWcsGc5xGxO+WmNOWSBACx1o=
 github.com/DataDog/viper v1.14.0 h1:dIjTe/uJiah+QFqFZ+MXeqgmUvWhg37l37ZxFWxr3is=
 github.com/DataDog/viper v1.14.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1 h1:9hiwoIk8FOsXDkdcdgNJ48iYaPfn+/7bXEwAnnfKjTc=
@@ -269,8 +269,6 @@ github.com/VividCortex/ewma v1.2.0 h1:f58SaIzcDXrSy3kWaHNvuJgJ3Nmz59Zji6XoJR/q1o
 github.com/VividCortex/ewma v1.2.0/go.mod h1:nz4BbCtbLyFDeC9SUHbtcT5644juEuWfUAUnGx7j5l4=
 github.com/acobaugh/osrelease v0.1.0 h1:Yb59HQDGGNhCj4suHaFQQfBps5wyoKLSSX/J/+UifRE=
 github.com/acobaugh/osrelease v0.1.0/go.mod h1:4bFEs0MtgHNHBrmHCt67gNisnabCRAlzdVasCEGHTWY=
-github.com/agext/levenshtein v1.2.3 h1:YB2fHEn0UJagG8T1rrWknE3ZQzWM06O8AMAatNn7lmo=
-github.com/agext/levenshtein v1.2.3/go.mod h1:JEDfjyjHDjOF/1e4FlBE/PkbqA9OfWu2ki2W0IB5558=
 github.com/agnivade/levenshtein v1.2.0 h1:U9L4IOT0Y3i0TIlUIDJ7rVUziKi/zPbrJGaFrtYH3SY=
 github.com/agnivade/levenshtein v1.2.0/go.mod h1:QVVI16kDrtSuwcpd0p1+xMC6Z/VfhtCyDIjcwga4/DU=
 github.com/alecthomas/assert/v2 v2.6.0 h1:o3WJwILtexrEUk3cUVal3oiQY2tfgr/FHWiz/v2n4FU=
@@ -1347,8 +1345,6 @@ github.com/mitchellh/reflectwalk v1.0.2 h1:G2LzWKi524PWgd3mLHV8Y5k7s6XUvT0Gef6zx
 github.com/mitchellh/reflectwalk v1.0.2/go.mod h1:mSTlrgnPZtwu0c4WaC2kGObEpuNDbx0jmZXqmk4esnw=
 github.com/mkrautz/goar v0.0.0-20150919110319-282caa8bd9da h1:Iu5QFXIMK/YrHJ0NgUnK0rqYTTyb0ldt/rqNenAj39U=
 github.com/mkrautz/goar v0.0.0-20150919110319-282caa8bd9da/go.mod h1:NfnmoBY0gGkr3/NmI+DP/UXbZvOCurCUYAzOdYJjlOc=
-github.com/moby/buildkit v0.16.0 h1:wOVBj1o5YNVad/txPQNXUXdelm7Hs/i0PUFjzbK0VKE=
-github.com/moby/buildkit v0.16.0/go.mod h1:Xqx/5GlrqE1yIRORk0NSCVDFpQAU1WjlT6KHYZdisIQ=
 github.com/moby/docker-image-spec v1.3.1 h1:jMKff3w6PgbfSa69GfNg+zN/XLhfXJGnEx3Nl2EsFP0=
 github.com/moby/docker-image-spec v1.3.1/go.mod h1:eKmb5VW8vQEh/BAr2yvVNvuiJuY6UIocYsFu/DxxRpo=
 github.com/moby/locker v1.0.1 h1:fOXqR41zeveg4fFODix+1Ch4mj/gT0NE1XJbp/epuBg=
@@ -1932,8 +1928,6 @@ github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 h1:6fotK7
 github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75/go.mod h1:KO6IkyS8Y3j8OdNO85qEYBsRPuteD+YciPomcXdrMnk=
 github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc h1:9lRDQMhESg+zvGYmW5DyG0UqvY96Bu5QYsTLvCHdrgo=
 github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc/go.mod h1:bciPuU6GHm1iF1pBvUfxfsH0Wmnc2VbpgvbI9ZWuIRs=
-github.com/tonistiigi/go-csvvalue v0.0.0-20240710180619-ddb21b71c0b4 h1:7I5c2Ig/5FgqkYOh/N87NzoyI9U15qUPXhDD8uCupv8=
-github.com/tonistiigi/go-csvvalue v0.0.0-20240710180619-ddb21b71c0b4/go.mod h1:278M4p8WsNh3n4a1eqiFcV2FGk7wE5fwUpUom9mK9lE=
 github.com/transparency-dev/merkle v0.0.2 h1:Q9nBoQcZcgPamMkGn7ghV8XiTZ/kRxn1yCG81+twTK4=
 github.com/transparency-dev/merkle v0.0.2/go.mod h1:pqSy+OXefQ1EDUVmAJ8MUhHB9TXGuzVAT58PqBoHz1A=
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
