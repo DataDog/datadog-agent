@@ -36,8 +36,10 @@ They also avoid the performance overhead of excess logging, even if the logs are
   Examples include notifications when components are stopped and started, or other high-level events that do not require operator attention.
 
   **INFO** is primarily used for information that tells an operator that a notable action completed successfully.
+
 - **WARN** should be used for potentially problematic but non-critical events where the software can continue operating, 
   potentially in a degraded state and/or recover from the problem. Do not use **WARN** for events that require user's immediate attention.
+  
 - **ERROR** level should be used for events indicating severely problematic issues that require immediate user visibility and remediation.
   This includes logging related to events that may lead to data loss, unrecoverable states, and any other situation where a required component is faulty,
   causing the software to be unable to remediate the problem on its own.
