@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"os"
 	osexec "os/exec"
 	"path/filepath"
@@ -457,7 +456,7 @@ func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err 
 func (d *daemonImpl) handleConfigsUpdate(configs map[string]installerConfig) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	log.Infof("Installer: Received configs update (%v)", maps.Keys(configs))
+	log.Infof("Installer: Received configs update")
 	d.configs = configs
 	return nil
 }
