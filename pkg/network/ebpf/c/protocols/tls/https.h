@@ -114,7 +114,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         final_tuple = normalized_tuple;
         break;
     case PROTOCOL_HTTP2:
-        prog = PROG_HTTP2_HANDLE_FIRST_FRAME;
+        prog = PROG_HTTP2_HANDLE_INCOMPLETE_FRAME;
         final_tuple = *t;
         break;
     case PROTOCOL_KAFKA:

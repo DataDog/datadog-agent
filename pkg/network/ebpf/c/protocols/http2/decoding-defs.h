@@ -212,10 +212,40 @@ typedef struct {
     http2_frame_with_offset frames_array[HTTP2_MAX_FRAMES_ITERATIONS] __attribute__((aligned(8)));
 } http2_tail_call_state_t;
 
+typedef enum {
+    // The default state of the incomplete frame.
+    kIncompleteFrameUnknown,
+    // The header is split over two or more packets.
+    kIncompleteFrameHeader,
+    // The payload is split over two or more packets.
+    kIncompleteFramePayload,
+}  __attribute__((packed)) incomplete_frame_type_t;
+
 typedef struct {
-    __u32 remainder;
-    __u32 header_length;
+    // The incomplete frame header buffer.
     char buf[HTTP2_FRAME_HEADER_SIZE];
+    // The number of bytes left to read in the frame header. Upper bound is HTTP2_FRAME_HEADER_SIZE (9) bytes, hence
+    // using __u8.
+    __u8 bytes_left;
+} incomplete_frame_header_t;
+
+typedef struct {
+    // The frame header of the incomplete frame payload.
+    http2_frame_t header;
+    // The number of bytes left to read in the payload.
+    __u32 bytes_left;
+    // A flag indicating if the frame header was already processed or not.
+    // This is used to avoid processing Data frames with EOS flag set multiple times.
+    bool processed;
+} incomplete_frame_payload_t;
+
+typedef struct {
+    union {
+        incomplete_frame_header_t incomplete_header;
+        incomplete_frame_payload_t incomplete_payload;
+    };
+    // The type of the incomplete frame.
+    incomplete_frame_type_t type;
 } incomplete_frame_t;
 
 // http2_telemetry_t is used to hold the HTTP/2 kernel telemetry.

@@ -46,28 +46,28 @@ type Protocol struct {
 
 const (
 	// InFlightMap is the name of the map used to store in-flight HTTP/2 streams
-	InFlightMap               = "http2_in_flight"
-	incompleteFramesTable     = "http2_incomplete_frames"
-	dynamicTable              = "http2_dynamic_table"
-	dynamicTableCounter       = "http2_dynamic_counter_table"
-	http2IterationsTable      = "http2_iterations"
-	tlsHTTP2IterationsTable   = "tls_http2_iterations"
-	firstFrameHandlerTailCall = "socket__http2_handle_first_frame"
-	filterTailCall            = "socket__http2_filter"
-	headersParserTailCall     = "socket__http2_headers_parser"
-	dynamicTableCleaner       = "socket__http2_dynamic_table_cleaner"
-	eosParserTailCall         = "socket__http2_eos_parser"
-	eventStream               = "http2"
+	InFlightMap                    = "http2_in_flight"
+	incompleteFramesTable          = "http2_incomplete_frames"
+	dynamicTable                   = "http2_dynamic_table"
+	dynamicTableCounter            = "http2_dynamic_counter_table"
+	http2IterationsTable           = "http2_iterations"
+	tlsHTTP2IterationsTable        = "tls_http2_iterations"
+	incompleteFrameHandlerTailCall = "socket__http2_handle_incomplete_frame"
+	filterTailCall                 = "socket__http2_filter"
+	headersParserTailCall          = "socket__http2_headers_parser"
+	dynamicTableCleaner            = "socket__http2_dynamic_table_cleaner"
+	eosParserTailCall              = "socket__http2_eos_parser"
+	eventStream                    = "http2"
 
 	// TelemetryMap is the name of the map that collects telemetry for plaintext and TLS encrypted HTTP/2 traffic.
 	TelemetryMap = "http2_telemetry"
 
-	tlsFirstFrameTailCall    = "uprobe__http2_tls_handle_first_frame"
-	tlsFilterTailCall        = "uprobe__http2_tls_filter"
-	tlsHeadersParserTailCall = "uprobe__http2_tls_headers_parser"
-	tlsDynamicTableCleaner   = "uprobe__http2_dynamic_table_cleaner"
-	tlsEOSParserTailCall     = "uprobe__http2_tls_eos_parser"
-	tlsTerminationTailCall   = "uprobe__http2_tls_termination"
+	tlsIncompleteFrameTailCall = "uprobe__http2_tls_handle_incomplete_frame"
+	tlsFilterTailCall          = "uprobe__http2_tls_filter"
+	tlsHeadersParserTailCall   = "uprobe__http2_tls_headers_parser"
+	tlsDynamicTableCleaner     = "uprobe__http2_dynamic_table_cleaner"
+	tlsEOSParserTailCall       = "uprobe__http2_tls_eos_parser"
+	tlsTerminationTailCall     = "uprobe__http2_tls_termination"
 )
 
 // Spec is the protocol spec for HTTP/2.
@@ -128,7 +128,7 @@ var Spec = &protocols.ProtocolSpec{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramHTTP2HandleFirstFrame),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: firstFrameHandlerTailCall,
+				EBPFFuncName: incompleteFrameHandlerTailCall,
 			},
 		},
 		{
@@ -163,7 +163,7 @@ var Spec = &protocols.ProtocolSpec{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramHTTP2HandleFirstFrame),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tlsFirstFrameTailCall,
+				EBPFFuncName: tlsIncompleteFrameTailCall,
 			},
 		},
 		{
