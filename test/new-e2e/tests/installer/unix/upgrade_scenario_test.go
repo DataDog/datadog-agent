@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
@@ -386,12 +386,9 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulWithUmask() {
 }
 
 func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
-	localCDN := host.NewLocalCDN(s.host)
-	localCDN.AddLayer("config", "\"config\": {\"log_level\": \"debug\"}")
 	s.RunInstallScript(
 		"DD_REMOTE_UPDATES=true",
 		"DD_REMOTE_POLICIES=true",
-		fmt.Sprintf("DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH=%s", localCDN.DirPath),
 	)
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
@@ -408,28 +405,20 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
 	state.AssertDirExists("/etc/datadog-agent/managed", 0755, "root", "root")
 	state.AssertDirExists("/etc/datadog-agent/managed/datadog-apm-libraries", 0755, "root", "root")
 	state.AssertDirExists("/etc/datadog-agent/managed/datadog-agent", 0755, "root", "root")
-	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", "/etc/datadog-agent/managed/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d", "root", "root")
-	// Verify metadata
-	state.AssertFileExists("/etc/datadog-agent/managed/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policy.metadata", 0444, "root", "root")
-	file := s.Env().RemoteHost.MustExecute("cat /etc/datadog-agent/managed/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policy.metadata")
-	policiesState := &pbgo.PoliciesState{}
-	err := json.Unmarshal([]byte(file), policiesState)
-	require.NoError(s.T(), err)
-	require.Len(s.T(), policiesState.MatchedPolicies, 1)
-	require.Equal(s.T(), policiesState.Version, "e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d")
+	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", "/etc/datadog-agent/managed/datadog-agent/empty", "root", "root")
 
-	localCDN.UpdateLayer("config", "\"log_level\": \"error\"")
-	s.executeConfigGoldenPath(localCDN.DirPath, "c78c5e96820c89c6cbc178ddba4ce20a167138a3a580ed4637369a9c5ed804c3")
+	config := daemon.InstallerConfig{
+		ID:      "config-1",
+		Configs: json.RawMessage(`{"datadog.yaml": {"log_level": "debug"}}`),
+	}
+	s.executeConfigGoldenPath(config)
 }
 
 func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
-	localCDN := host.NewLocalCDN(s.host)
-	localCDN.AddLayer("config", "\"config\": {\"log_level\": \"debug\"}")
 	timestamp := s.host.LastJournaldTimestamp()
 	s.RunInstallScript(
 		"DD_REMOTE_UPDATES=true",
 		"DD_REMOTE_POLICIES=true",
-		fmt.Sprintf("DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH=%s", localCDN.DirPath),
 	)
 	defer s.Purge()
 
@@ -450,11 +439,13 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 	)
 
 	state := s.host.State()
-	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", "/etc/datadog-agent/managed/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d", "root", "root")
+	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", "/etc/datadog-agent/managed/datadog-agent/empty", "root", "root")
 
 	// Enables security agent & sysprobe
-	localCDN.AddLayer("config", `
-  "config": {
+	config := daemon.InstallerConfig{
+		ID: "config-1",
+		Configs: json.RawMessage(`
+  "datadog.yaml": {
     "sbom": {
       "container_image": {
         "enabled": true
@@ -464,7 +455,7 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
       }
     }
   },
-  "security_agent": {
+  "security-agent.yaml": {
     "runtime_security_config": {
       "enabled": true
     },
@@ -472,15 +463,16 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
       "enabled": true
     }
   },
-  "system_probe": {
+  "system-probe.yaml": {
     "runtime_security_config": {
       "enabled": true
     }
   }
-`)
+`),
+	}
 	hash := "4681728e9932105c5eea80056151172764d99e348d09a78158874389d25f3c00"
 	timestamp = s.host.LastJournaldTimestamp()
-	s.mustStartConfigExperiment(localCDN.DirPath, datadogAgent, hash)
+	s.mustStartConfigExperiment(datadogAgent, config)
 	// Assert the successful start of the experiment
 	s.host.WaitForUnitActivating(s.T(), agentUnitXP)
 	s.host.WaitForFileExists(false, "/opt/datadog-packages/datadog-agent/experiment/run/agent.pid")
@@ -502,7 +494,7 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 	)
 
 	timestamp = s.host.LastJournaldTimestamp()
-	s.mustPromoteConfigExperiment(localCDN.DirPath, datadogAgent)
+	s.mustPromoteConfigExperiment(datadogAgent)
 	s.host.WaitForUnitActive(agentUnit)
 
 	// Assert experiment is promoted
@@ -529,12 +521,9 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 }
 
 func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
-	localCDN := host.NewLocalCDN(s.host)
-	localCDN.AddLayer("config", "\"config\": {\"log_level\": \"debug\"}")
 	s.RunInstallScript(
 		"DD_REMOTE_UPDATES=true",
 		"DD_REMOTE_POLICIES=true",
-		fmt.Sprintf("DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH=%s", localCDN.DirPath),
 	)
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
@@ -546,29 +535,32 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
-	localCDN.UpdateLayer("config", "\"log_level\": \"error\"")
+	config1 := daemon.InstallerConfig{
+		ID:      "config-1",
+		Configs: json.RawMessage(`{"datadog.yaml": {"log_level": "error"}}`),
+	}
 
 	timestamp := s.host.LastJournaldTimestamp()
-	s.mustStartConfigExperiment(localCDN.DirPath, datadogAgent, "c78c5e96820c89c6cbc178ddba4ce20a167138a3a580ed4637369a9c5ed804c3")
-	s.assertSuccessfulConfigStartExperiment(timestamp, "c78c5e96820c89c6cbc178ddba4ce20a167138a3a580ed4637369a9c5ed804c3")
+	s.mustStartConfigExperiment(datadogAgent, config1)
+	s.assertSuccessfulConfigStartExperiment(timestamp, "config-1")
 
 	// Host was left with a config experiment, we're now testing
 	// that we can still upgrade
 	timestamp = s.host.LastJournaldTimestamp()
-	s.mustStopConfigExperiment(localCDN.DirPath, datadogAgent)
+	s.mustStopConfigExperiment(datadogAgent)
 	s.assertSuccessfulConfigStopExperiment(timestamp)
 
-	localCDN.UpdateLayer("config", "\"log_level\": \"info\"")
-	s.executeConfigGoldenPath(localCDN.DirPath, "a16f6c17fdb819a22bdbf80c34aeaa0a9e691865dc6a66d29e4d78586c967b1e")
+	config2 := daemon.InstallerConfig{
+		ID:      "config-2",
+		Configs: json.RawMessage(`{"datadog.yaml": {"log_level": "debug"}}`),
+	}
+	s.executeConfigGoldenPath(config2)
 }
 
 func (s *upgradeScenarioSuite) TestUpgradeConfigFailure() {
-	localCDN := host.NewLocalCDN(s.host)
-	localCDN.AddLayer("config", "\"config\": {\"log_level\": \"debug\"}")
 	s.RunInstallScript(
 		"DD_REMOTE_UPDATES=true",
 		"DD_REMOTE_POLICIES=true",
-		fmt.Sprintf("DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH=%s", localCDN.DirPath),
 	)
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
@@ -580,9 +572,13 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFailure() {
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
-	localCDN.UpdateLayer("config", "\"secret_backend_command\":\"echo\",\"log_level\":\"ENC[hi]\"") // Non alphanumerical characters are not allowed, the agent should crash
+	// Non alphanumerical characters are not allowed, the agent should crash
+	config := daemon.InstallerConfig{
+		ID:      "config",
+		Configs: json.RawMessage(`{"datadog.yaml": {"secret_backend_command": "echo", "log_level": "ENC[hi]"}}`),
+	}
 	timestamp := s.host.LastJournaldTimestamp()
-	_, err := s.startConfigExperiment(localCDN.DirPath, datadogAgent, "f8e8662c2e0a7a2feb019626d5f6998d845ff6d319c557f406cbba9a4d90feee")
+	_, err := s.startConfigExperiment(datadogAgent, config)
 	s.T().Logf("Error: %s", s.Env().RemoteHost.MustExecute("cat /tmp/start_config_experiment.log"))
 	require.NoError(s.T(), err)
 
@@ -774,15 +770,17 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStopExperiment(timestamp hos
 	require.Equal(s.T(), "", installerStatus.Packages["datadog-agent"].ExperimentVersion)
 }
 
-func (s *upgradeScenarioSuite) startConfigExperiment(localCDNPath string, pkg packageName, hash string) (string, error) {
+func (s *upgradeScenarioSuite) startConfigExperiment(pkg packageName, config daemon.InstallerConfig) (string, error) {
+	rawConfig, err := json.Marshal(config)
+	require.NoError(s.T(), err)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
-	cmd := fmt.Sprintf("sudo -E datadog-installer install-config-experiment %s %s > /tmp/start_config_experiment.log 2>&1", pkg, hash)
+	cmd := fmt.Sprintf("sudo -E datadog-installer install-config-experiment %s %s '%s' > /tmp/start_config_experiment.log 2>&1", pkg, config.ID, rawConfig)
 	s.T().Logf("Running start command: %s", cmd)
-	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH": localCDNPath, "DD_REMOTE_POLICIES": "true"}))
+	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_REMOTE_POLICIES": "true"}))
 }
 
-func (s *upgradeScenarioSuite) mustStartConfigExperiment(localCDNPath string, pkg packageName, version string) string {
-	output, err := s.startConfigExperiment(localCDNPath, pkg, version)
+func (s *upgradeScenarioSuite) mustStartConfigExperiment(pkg packageName, config daemon.InstallerConfig) string {
+	output, err := s.startConfigExperiment(pkg, config)
 	require.NoError(s.T(), err, "Failed to start config experiment: %s\ndatadog-installer journalctl:\n%s\ndatadog-installer-exp journalctl:\n%s",
 		s.Env().RemoteHost.MustExecute("cat /tmp/start_config_experiment.log"),
 		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer --no-pager"),
@@ -791,15 +789,15 @@ func (s *upgradeScenarioSuite) mustStartConfigExperiment(localCDNPath string, pk
 	return output
 }
 
-func (s *upgradeScenarioSuite) promoteConfigExperiment(localCDNPath string, pkg packageName) (string, error) {
+func (s *upgradeScenarioSuite) promoteConfigExperiment(pkg packageName) (string, error) {
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 	cmd := fmt.Sprintf("sudo -E datadog-installer promote-config-experiment %s > /tmp/promote_config_experiment.log 2>&1", pkg)
 	s.T().Logf("Running promote command: %s", cmd)
-	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH": localCDNPath, "DD_REMOTE_POLICIES": "true"}))
+	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_REMOTE_POLICIES": "true"}))
 }
 
-func (s *upgradeScenarioSuite) mustPromoteConfigExperiment(localCDNPath string, pkg packageName) string {
-	output, err := s.promoteConfigExperiment(localCDNPath, pkg)
+func (s *upgradeScenarioSuite) mustPromoteConfigExperiment(pkg packageName) string {
+	output, err := s.promoteConfigExperiment(pkg)
 	require.NoError(s.T(), err, "Failed to promote config experiment: %s\ndatadog-installer journalctl:\n%s\ndatadog-installer-exp journalctl:\n%s",
 		s.Env().RemoteHost.MustExecute("cat /tmp/promote_config_experiment.log"),
 		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer --no-pager"),
@@ -808,15 +806,15 @@ func (s *upgradeScenarioSuite) mustPromoteConfigExperiment(localCDNPath string, 
 	return output
 }
 
-func (s *upgradeScenarioSuite) stopConfigExperiment(localCDNPath string, pkg packageName) (string, error) {
+func (s *upgradeScenarioSuite) stopConfigExperiment(pkg packageName) (string, error) {
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 	cmd := fmt.Sprintf("sudo -E datadog-installer remove-config-experiment %s > /tmp/stop_config_experiment.log 2>&1", pkg)
 	s.T().Logf("Running stop command: %s", cmd)
-	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH": localCDNPath, "DD_REMOTE_POLICIES": "true"}))
+	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_REMOTE_POLICIES": "true"}))
 }
 
-func (s *upgradeScenarioSuite) mustStopConfigExperiment(localCDNPath string, pkg packageName) string {
-	output, err := s.stopConfigExperiment(localCDNPath, pkg)
+func (s *upgradeScenarioSuite) mustStopConfigExperiment(pkg packageName) string {
+	output, err := s.stopConfigExperiment(pkg)
 	require.NoError(s.T(), err, "Failed to stop experiment: %s\ndatadog-installer journalctl:\n%s\ndatadog-installer-exp journalctl:\n%s",
 		s.Env().RemoteHost.MustExecute("cat /tmp/stop_config_experiment.log"),
 		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer --no-pager"),
@@ -825,7 +823,7 @@ func (s *upgradeScenarioSuite) mustStopConfigExperiment(localCDNPath string, pkg
 	return output
 }
 
-func (s *upgradeScenarioSuite) assertSuccessfulConfigStartExperiment(timestamp host.JournaldTimestamp, hash string) {
+func (s *upgradeScenarioSuite) assertSuccessfulConfigStartExperiment(timestamp host.JournaldTimestamp, version string) {
 	s.host.WaitForUnitActivating(s.T(), agentUnitXP)
 	s.host.WaitForFileExists(false, "/opt/datadog-packages/datadog-agent/experiment/run/agent.pid")
 
@@ -844,10 +842,10 @@ func (s *upgradeScenarioSuite) assertSuccessfulConfigStartExperiment(timestamp h
 	)
 
 	state := s.host.State()
-	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/experiment", fmt.Sprintf("/etc/datadog-agent/managed/datadog-agent/%s", hash), "root", "root")
+	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/experiment", fmt.Sprintf("/etc/datadog-agent/managed/datadog-agent/%s", version), "root", "root")
 }
 
-func (s *upgradeScenarioSuite) assertSuccessfulConfigPromoteExperiment(timestamp host.JournaldTimestamp, hash string) {
+func (s *upgradeScenarioSuite) assertSuccessfulConfigPromoteExperiment(timestamp host.JournaldTimestamp, version string) {
 	s.host.WaitForUnitActive(agentUnit)
 
 	// Assert experiment is promoted
@@ -865,8 +863,8 @@ func (s *upgradeScenarioSuite) assertSuccessfulConfigPromoteExperiment(timestamp
 	)
 
 	state := s.host.State()
-	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", fmt.Sprintf("/etc/datadog-agent/managed/datadog-agent/%s", hash), "root", "root")
-	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/experiment", fmt.Sprintf("/etc/datadog-agent/managed/datadog-agent/%s", hash), "root", "root")
+	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", fmt.Sprintf("/etc/datadog-agent/managed/datadog-agent/%s", version), "root", "root")
+	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/experiment", fmt.Sprintf("/etc/datadog-agent/managed/datadog-agent/%s", version), "root", "root")
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulConfigStopExperiment(timestamp host.JournaldTimestamp) {
@@ -1000,12 +998,13 @@ func (s *upgradeScenarioSuite) executeInstallerGoldenPath() {
 	s.assertSuccessfulInstallerPromoteExperiment(timestamp, previousInstallerImageVersion)
 }
 
-func (s *upgradeScenarioSuite) executeConfigGoldenPath(localCDNPath, hash string) {
+func (s *upgradeScenarioSuite) executeConfigGoldenPath(config daemon.InstallerConfig) {
 	timestamp := s.host.LastJournaldTimestamp()
-	s.mustStartConfigExperiment(localCDNPath, datadogAgent, hash)
-	s.assertSuccessfulConfigStartExperiment(timestamp, hash)
+
+	s.mustStartConfigExperiment(datadogAgent, config)
+	s.assertSuccessfulConfigStartExperiment(timestamp, config.ID)
 
 	timestamp = s.host.LastJournaldTimestamp()
-	s.mustPromoteConfigExperiment(localCDNPath, datadogAgent)
-	s.assertSuccessfulConfigPromoteExperiment(timestamp, hash)
+	s.mustPromoteConfigExperiment(datadogAgent)
+	s.assertSuccessfulConfigPromoteExperiment(timestamp, config.ID)
 }

@@ -75,18 +75,19 @@ func (rc *remoteConfig) SetState(state *pbgo.ClientUpdater) {
 	rc.client.SetInstallerState(state)
 }
 
-type installerConfig struct {
+// InstallerConfig represents a configuration that can be applied by the installer to a package.
+type InstallerConfig struct {
 	ID      string          `json:"id"`
 	Configs json.RawMessage `json:"configs"`
 }
 
-type handleConfigsUpdate func(configs map[string]installerConfig) error
+type handleConfigsUpdate func(configs map[string]InstallerConfig) error
 
 func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
 	return func(configs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-		installerConfigs := map[string]installerConfig{}
+		installerConfigs := map[string]InstallerConfig{}
 		for id, config := range configs {
-			var installerConfig installerConfig
+			var installerConfig InstallerConfig
 			err := json.Unmarshal(config.Config, &installerConfig)
 			if err != nil {
 				log.Errorf("could not unmarshal installer config: %s", err)
