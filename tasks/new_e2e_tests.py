@@ -189,6 +189,7 @@ def run(
         print(
             f'To run this test locally, use: `{command}`. '
             'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'
+            '\nYou can troubleshoot e2e test failures with this documentation: https://datadoghq.atlassian.net/wiki/x/7gIo0'
         )
 
     if logs_post_processing:
