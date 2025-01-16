@@ -412,12 +412,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("snmp_listener.min_collection_interval")
 	config.SetKnown("snmp_listener.namespace")
 	config.SetKnown("snmp_listener.use_device_id_as_hostname")
-	config.SetKnown("snmp_listener.ping")
 	config.SetKnown("snmp_listener.ping.enabled")
 	config.SetKnown("snmp_listener.ping.count")
 	config.SetKnown("snmp_listener.ping.interval")
 	config.SetKnown("snmp_listener.ping.timeout")
-	config.SetKnown("snmp_listener.ping.linux")
 	config.SetKnown("snmp_listener.ping.linux.use_raw_socket")
 
 	// network_devices.autodiscovery has precedence over snmp_listener config
@@ -433,12 +431,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("network_devices.autodiscovery.min_collection_interval")
 	config.SetKnown("network_devices.autodiscovery.namespace")
 	config.SetKnown("network_devices.autodiscovery.use_device_id_as_hostname")
-	config.SetKnown("network_devices.autodiscovery.ping")
 	config.SetKnown("network_devices.autodiscovery.ping.enabled")
 	config.SetKnown("network_devices.autodiscovery.ping.count")
 	config.SetKnown("network_devices.autodiscovery.ping.interval")
 	config.SetKnown("network_devices.autodiscovery.ping.timeout")
-	config.SetKnown("network_devices.autodiscovery.ping.linux")
 	config.SetKnown("network_devices.autodiscovery.ping.linux.use_raw_socket")
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
