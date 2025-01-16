@@ -50,9 +50,9 @@ class GateMetricHandler:
 
         self.metrics[gate_name][metric_name] = metric_value
 
-    def register_gate_tags(self, gate_name, **kwargs):
+    def register_gate_tags(self, gate, **kwargs):
         for key in kwargs:
-            self.metadata[gate_name][key] = kwargs[key]
+            self.metadata[gate][key] = kwargs[key]
 
     def _generate_series(self):
         if not self.git_ref or not self.bucket_branch:
