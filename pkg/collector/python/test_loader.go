@@ -9,6 +9,7 @@ package python
 
 import (
 	"runtime"
+	"sync"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -139,7 +140,11 @@ func testLoadCustomCheck(t *testing.T) {
 	}
 
 	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	pythonOnce.Do(func() {})
+	defer func() {
+		rtloader = nil
+		pythonOnce = sync.Once{}
+	}()
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
@@ -177,7 +182,11 @@ func testLoadWheelCheck(t *testing.T) {
 	}
 
 	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	pythonOnce.Do(func() {})
+	defer func() {
+		rtloader = nil
+		pythonOnce = sync.Once{}
+	}()
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
