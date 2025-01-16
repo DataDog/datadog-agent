@@ -7,10 +7,15 @@ from tasks.static_quality_gates.lib.gates_lib import argument_extractor
 
 
 def entrypoint(**kwargs):
-    arguments = argument_extractor(kwargs, max_on_wire_size=None, max_on_disk_size=None, ctx=None)
-    ctx: invoke.Context = arguments.ctx
+    arguments = argument_extractor(kwargs, max_on_wire_size=None, max_on_disk_size=None, ctx=None, metricHandler=None)
+    ctx = arguments.ctx
+    metricHandler = arguments.metricHandler
     max_on_wire_size = arguments.max_on_wire_size
     max_on_disk_size = arguments.max_on_disk_size
+
+    metricHandler.register_metric("static_quality_gate_docker_agent", "max_on_wire_size", max_on_wire_size)
+    metricHandler.register_metric("static_quality_gate_docker_agent", "max_on_disk_size", max_on_disk_size)
+
     pipeline_id = os.environ["CI_PIPELINE_ID"]
     commit_sha = os.environ["CI_COMMIT_SHORT_SHA"]
     arch = "amd64"
@@ -32,6 +37,9 @@ def entrypoint(**kwargs):
     ctx.run(f"crane pull {url} output.tar")
     image_on_disk_size = ctx.run("tar -xf output.tar --to-stdout | wc -c")
     image_on_disk_size = int(image_on_disk_size.stdout)
+
+    metricHandler.register_metric("static_quality_gate_docker_agent", "current_on_wire_size", image_on_wire_size)
+    metricHandler.register_metric("static_quality_gate_docker_agent", "current_on_disk_size", image_on_disk_size)
 
     error_message = ""
     if image_on_wire_size > max_on_wire_size:

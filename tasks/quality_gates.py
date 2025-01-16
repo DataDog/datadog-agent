@@ -7,6 +7,7 @@ from invoke import task
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import color_message, bash_color_to_html
+from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler
 
 FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
@@ -57,19 +58,19 @@ def _print_quality_gates_report(gateStates):
     print(color_message("======== Static Quality Gates Report ========", "magenta"))
     for gate in sorted(gateStates, key=lambda x: x["error_type"] is not None):
         if gate["error_type"] is None:
-            print(color_message(f"Gate {gate['name']} succeeded ✅", "green"))
+            print(color_message(f"Gate {gate['name']} succeeded ✅", "blue"))
         elif gate["error_type"] == "AssertionError":
             print(
                 color_message(
                     f"Gate {gate['name']} failed ❌ because of the following assertion failures :\n{gate['message']}",
-                    "red",
+                    "orange",
                 )
             )
         else:
             print(
                 color_message(
                     f"Gate {gate['name']} failed ❌ with the following stack trace :\n{gate['message']}",
-                    "red",
+                    "orange",
                 )
             )
 
@@ -82,14 +83,19 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
     gateList = list(config.keys())
     quality_gates_mod = __import__("tasks.static_quality_gates", fromlist=gateList)
     print(f"{config_path} correctly parsed !")
+
+    metricHandler = GateMetricHandler()
+
     print(f"The following gates are going to run:\n\t- {"\n\t- ".join(gateList)}")
     finalState = True
     gateStates = []
     for gate in gateList:
         gateInputs = config[gate]
         gateInputs["ctx"] = ctx
+        gateInputs["metricHandler"] = metricHandler
         try:
-            getattr(quality_gates_mod, gate).entrypoint(**gateInputs)
+            gate_mod = getattr(quality_gates_mod, gate)
+            gate_mod.entrypoint(**gateInputs)
             print(f"Gate {gate} succeeded !")
             gateStates.append({"name": gate, "state": True, "error_type": None, "message": None})
         except AssertionError as e:

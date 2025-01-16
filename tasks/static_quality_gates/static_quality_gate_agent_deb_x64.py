@@ -6,10 +6,14 @@ from tasks.static_quality_gates.lib.gates_lib import argument_extractor, find_pa
 
 
 def entrypoint(**kwargs):
-    arguments = argument_extractor(kwargs, max_on_wire_size=None, max_on_disk_size=None, ctx=None)
+    arguments = argument_extractor(kwargs, max_on_wire_size=None, max_on_disk_size=None, ctx=None, metricHandler=None)
     ctx = arguments.ctx
+    metricHandler = arguments.metricHandler
     max_on_wire_size = arguments.max_on_wire_size
     max_on_disk_size = arguments.max_on_disk_size
+
+    metricHandler.register_metric("static_quality_gate_agent_deb_x64", "max_on_wire_size", max_on_wire_size)
+    metricHandler.register_metric("static_quality_gate_agent_deb_x64", "max_on_disk_size", max_on_disk_size)
 
     package_os = "debian"
     package_path = find_package_path("datadog-agent", package_os, "amd64")
@@ -18,6 +22,10 @@ def entrypoint(**kwargs):
         extract_package(ctx=ctx, package_os=package_os, package_path=package_path, extract_dir=extract_dir)
         package_on_wire_size = file_size(path=package_path)
         package_on_disk_size = directory_size(ctx, path=extract_dir)
+
+        metricHandler.register_metric("static_quality_gate_agent_deb_x64", "current_on_wire_size", package_on_wire_size)
+        metricHandler.register_metric("static_quality_gate_agent_deb_x64", "current_on_disk_size", package_on_disk_size)
+
         error_message = ""
         if package_on_wire_size > max_on_wire_size:
             error_message += color_message(
