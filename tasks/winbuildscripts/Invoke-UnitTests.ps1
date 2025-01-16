@@ -117,6 +117,21 @@ Invoke-BuildScript `
         Write-Host -ForegroundColor Red "Agent build failed $err"
         exit $err
     }
+    
+    # Run python-script unit tests
+    # change to the python-script directory
+    Write-Host Changing to python-scripts directory
+    Set-Location -Path .\omnibus\python-scripts
+    & inv -e invoke-unit-tests
+    $err = $LASTEXITCODE
+    Write-Host Python-script test result is $err
+    if($err -ne 0){
+        Write-Host -ForegroundColor Red "Python-script test failed $err"
+        exit $err
+    }
+    # change back to the root directory
+    Write-Host Changing back to the root directory
+    Set-Location -Path ..\..
 
     # Go unit tests
     $test_output_file = if ($Env:TEST_OUTPUT_FILE) { $Env:TEST_OUTPUT_FILE } else { "test_output.json" }
