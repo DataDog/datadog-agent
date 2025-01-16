@@ -196,6 +196,19 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)CheckSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
 
+new-e2e-fips-compliance-test:
+  extends: .new_e2e_template_needs_deb_x64
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_fips
+    - deploy_deb_testing-a7_x64
+  rules:
+    - !reference [.on_asc_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/fips-compliance
+    TEAM: agent-shared-components
+
 new-e2e-windows-service-test:
   extends: .new_e2e_template
   needs:
@@ -316,7 +329,6 @@ new-e2e-cws:
     - qa_agent
     - qa_dca
   variables:
-    SHOULD_RUN_IN_FLAKES_FINDER: "false" # Currently broken in flake finder ADXT-687
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
     CWS_INSTRUMENTATION_FULLIMAGEPATH: 669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
@@ -334,6 +346,7 @@ new-e2e-discovery:
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_deb_testing-a7_x64
+    - qa_agent
   rules:
     - !reference [.on_discovery_or_e2e_changes]
     - !reference [.manual]
@@ -533,7 +546,6 @@ new-e2e-windows-systemprobe:
   variables:
     TARGETS: ./tests/sysprobe-functional
     TEAM: windows-kernel-integrations
-    SHOULD_RUN_IN_FLAKES_FINDER: "false" # Currently broken in flake finder ADXT-687
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestUSMAutoTaggingSuite
@@ -672,6 +684,7 @@ generate-flakes-finder-pipeline:
     - qa_dogstatsd
     - qa_agent
     - qa_agent_ot
+    - tests_windows_sysprobe_x64
   tags: ["arch:amd64"]
   script:
     - inv -e testwasher.generate-flake-finder-pipeline
@@ -689,6 +702,7 @@ trigger-flakes-finder:
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     PARENT_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    PARENT_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
   trigger:
     include:
       - artifact: flake-finder-gitlab-ci.yml
