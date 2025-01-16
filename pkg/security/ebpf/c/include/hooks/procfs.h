@@ -12,7 +12,7 @@ static __attribute__((always_inline)) void cache_file(struct dentry *dentry, u32
     u32 flags = 0;
     u64 inode = get_dentry_ino(dentry);
     if (is_overlayfs(dentry)) {
-        set_overlayfs_ino(dentry, &inode, &flags);
+        flags = get_overlayfs_layer(dentry);
     }
 
     struct file_t entry = {

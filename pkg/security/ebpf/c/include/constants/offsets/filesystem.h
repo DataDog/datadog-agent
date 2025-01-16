@@ -298,6 +298,10 @@ int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_path(struct dentry
 int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_entry(struct dentry *dentry) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
+    // expected:
+    // struct inode vfs_inode;
+    // struct dentry *__upperdentry;
+    // struct ovl_entry *oe;
     void *oe;
     bpf_probe_read(&oe, sizeof(oe), (char *)d_inode + get_sizeof_inode() + 8);
 
@@ -318,7 +322,9 @@ int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
     return get_dentry_ino(upper);
 }
 
-void __always_inline set_overlayfs_ino(struct dentry *dentry, u64 *ino, u32 *flags) {
+int __always_inline get_overlayfs_layer(struct dentry *dentry) {
+    u64 inode = get_dentry_ino(dentry);
+
     u64 lower_inode = 0;
     switch (get_ovl_path_in_inode()) {
     case 2:
@@ -333,17 +339,19 @@ void __always_inline set_overlayfs_ino(struct dentry *dentry, u64 *ino, u32 *fla
     }
     u64 upper_inode = get_ovl_upper_ino(dentry);
 
-    if (upper_inode) {
-        *flags |= UPPER_LAYER;
-    } else if (lower_inode) {
-        *flags |= LOWER_LAYER;
+    // 3 cases :
+    // 1. access to the lower layer -> stat returns lower inode
+    // 2. access to the upper layer -> stat returns upper inode
+    // 3. access to a modified file -> stat returns lower inode
+
+    if (inode == lower_inode) {
+        return LOWER_LAYER;
+    }
+    if (inode == upper_inode) {
+        return UPPER_LAYER;
     }
 
-    if (lower_inode) {
-        *ino = lower_inode;
-    } else if (upper_inode) {
-        *ino = upper_inode;
-    }
+    return 0;
 }
 
 #define VFS_ARG_POSITION1 1

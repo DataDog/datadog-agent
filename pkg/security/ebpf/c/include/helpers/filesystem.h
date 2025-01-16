@@ -171,7 +171,8 @@ static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry,
     }
 
     if (is_overlayfs(dentry)) {
-        set_overlayfs_ino(dentry, &file->path_key.ino, &file->flags);
+        u32 flags = get_overlayfs_layer(dentry);
+        file->flags |= flags;
     }
 }
 

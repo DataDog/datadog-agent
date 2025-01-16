@@ -106,7 +106,7 @@ func AllProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "sys_exit",
 			},
 		},
-		// Snapshot probe
+		// procfs fallback, used to get mount_id
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
