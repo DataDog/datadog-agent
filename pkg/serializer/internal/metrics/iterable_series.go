@@ -289,10 +289,6 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 	const serieMetadataOriginOriginService = 6
 	//                 |----|  'Origin' message
 	//                       |-----------| 'origin_service' field index
-	const serieMetadataOriginOriginProductAgentType = 10
-	//                 |----|  'Origin' message
-	//                       |-----------| 'OriginProduct' enum
-	//                                    |-------| 'Agent' enum value
 
 	addToPayload := func() error {
 		err := pb.compressor.AddItem(pb.buf.Bytes())
@@ -409,7 +405,7 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 						return err
 					}
 				}
-				err = ps.Int32(serieMetadataOriginOriginProduct, serieMetadataOriginOriginProductAgentType)
+				err = ps.Int32(serieMetadataOriginOriginProduct, metricSourceToOriginProduct(serie.Source))
 				if err != nil {
 					return err
 				}

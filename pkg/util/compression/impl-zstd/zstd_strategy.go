@@ -16,7 +16,7 @@ import (
 
 // Requires contains the compression level for zstd compression
 type Requires struct {
-	Level int
+	Level compression.ZstdCompressionLevel
 }
 
 // ZstdStrategy is the strategy for when serializer_compressor_kind is zstd
@@ -27,7 +27,7 @@ type ZstdStrategy struct {
 // New returns a new ZstdStrategy
 func New(reqs Requires) compression.Compressor {
 	return &ZstdStrategy{
-		level: reqs.Level,
+		level: int(reqs.Level),
 	}
 }
 

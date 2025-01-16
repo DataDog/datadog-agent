@@ -48,3 +48,6 @@ type StreamCompressor interface {
 	io.WriteCloser
 	Flush() error
 }
+
+// ZstdCompressionLevel is a wrapper type over int for the compression level for zstd compression, if that is selected.
+type ZstdCompressionLevel int

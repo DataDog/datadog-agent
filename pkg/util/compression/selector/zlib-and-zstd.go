@@ -25,7 +25,7 @@ func NewCompressor(kind string, level int) common.Compressor {
 		return implzlib.New()
 	case common.ZstdKind:
 		return implzstd.New(implzstd.Requires{
-			Level: level,
+			Level: common.ZstdCompressionLevel(level),
 		})
 	case common.GzipKind:
 		return implgzip.New(implgzip.Requires{

@@ -1590,55 +1590,7 @@ func TestOTLPHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("spanKind2Type", func(t *testing.T) {
-		for _, tt := range []struct {
-			kind ptrace.SpanKind
-			meta map[string]string
-			out  string
-		}{
-			{
-				kind: ptrace.SpanKindServer,
-				out:  "web",
-			},
-			{
-				kind: ptrace.SpanKindClient,
-				out:  "http",
-			},
-			{
-				kind: ptrace.SpanKindClient,
-				meta: map[string]string{"db.system": "redis"},
-				out:  "cache",
-			},
-			{
-				kind: ptrace.SpanKindClient,
-				meta: map[string]string{"db.system": "memcached"},
-				out:  "cache",
-			},
-			{
-				kind: ptrace.SpanKindClient,
-				meta: map[string]string{"db.system": "other"},
-				out:  "db",
-			},
-			{
-				kind: ptrace.SpanKindProducer,
-				out:  "custom",
-			},
-			{
-				kind: ptrace.SpanKindConsumer,
-				out:  "custom",
-			},
-			{
-				kind: ptrace.SpanKindInternal,
-				out:  "custom",
-			},
-			{
-				kind: ptrace.SpanKindUnspecified,
-				out:  "custom",
-			},
-		} {
-			assert.Equal(t, tt.out, spanKind2Type(tt.kind, &pb.Span{Meta: tt.meta}))
-		}
-	})
+	// test spanKind2Type moved to pkg/trace/traceutil/otel_util_test.go
 
 	t.Run("tagsFromHeaders", func(t *testing.T) {
 		out := tagsFromHeaders(http.Header(map[string][]string{

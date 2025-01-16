@@ -13,14 +13,15 @@ import (
 	"strconv"
 	"strings"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.opentelemetry.io/collector/pdata/pcommon"
-	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 )
 
 // OperationAndResourceNameV2Enabled checks if the new operation and resource name logic should be used
@@ -49,6 +50,17 @@ func OtelSpanToDDSpanMinimal(
 		resourceName = traceutil.GetOTelResourceV1(otelspan, otelres)
 	}
 
+	// correct span type logic if using new resource receiver, keep same if on v1. separate from OperationAndResourceNameV2Enabled.
+	var spanType string
+	if conf.HasFeature("enable_receive_resource_spans_v2") {
+		spanType = traceutil.GetOTelSpanType(otelspan, otelres)
+	} else {
+		spanType = traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "span.type")
+		if spanType == "" {
+			spanType = traceutil.SpanKind2Type(otelspan, otelres)
+		}
+	}
+
 	ddspan := &pb.Span{
 		Service:  traceutil.GetOTelService(otelres, true),
 		Name:     operationName,
@@ -58,7 +70,7 @@ func OtelSpanToDDSpanMinimal(
 		ParentID: traceutil.OTelSpanIDToUint64(otelspan.ParentSpanID()),
 		Start:    int64(otelspan.StartTimestamp()),
 		Duration: int64(otelspan.EndTimestamp()) - int64(otelspan.StartTimestamp()),
-		Type:     traceutil.GetOTelSpanType(otelspan, otelres),
+		Type:     spanType,
 		Meta:     make(map[string]string, otelres.Attributes().Len()+otelspan.Attributes().Len()),
 		Metrics:  map[string]float64{},
 	}
