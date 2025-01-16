@@ -8,6 +8,7 @@ package telemetry
 
 import (
 	"math"
+	"runtime/debug"
 	"strings"
 	"sync"
 )
@@ -24,12 +25,42 @@ var (
 		"garbage_collect": 0.05,
 		"HTTPClient":      0.05,
 	}
+	defaultMeta = map[string]string{}
 )
 
 func init() {
 	globalTracer = &tracer{
 		spans: make(map[uint64]*Span),
 	}
+	defaultMeta = getTagsFromBinary()
+}
+
+func initMeta() map[string]string {
+	cloned := make(map[string]string, len(defaultMeta))
+	for k, v := range defaultMeta {
+		cloned[k] = v
+	}
+	return cloned
+}
+
+func getTagsFromBinary() map[string]string {
+	res := make(map[string]string)
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return res
+	}
+	goPath := info.Path
+	var commitSha string
+	for _, s := range info.Settings {
+		if s.Key == "vcs.revision" {
+			commitSha = s.Value
+		}
+	}
+	res["_dd.git.commit.sha"] = commitSha
+	res["_dd.go_path"] = goPath
+	res["git.repository_url"] = "https://github.com/DataDog/datadog-agent"
+	res["git.repository.id"] = "github.com/datadog/datadog-agent"
+	return res
 }
 
 type tracer struct {
