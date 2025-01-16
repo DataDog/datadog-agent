@@ -21,7 +21,6 @@ service Agent {
             get: "/v1/grpc/host"
         };
     }
-
 }
 
 service AgentSecure {
@@ -183,7 +182,7 @@ service AgentSecure {
     // Get the host tags
     rpc GetHostTags(datadog.model.v1.HostTagRequest) returns (datadog.model.v1.HostTagReply) {
         option (google.api.http) = {
-            get: "/v1/grpc/hosttags"
+            get: "/v1/grpc/host_tags"
         };
     };
 
