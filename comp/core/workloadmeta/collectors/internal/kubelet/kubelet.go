@@ -152,9 +152,10 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 		owners := make([]workloadmeta.KubernetesPodOwner, 0, len(podOwners))
 		for _, o := range podOwners {
 			owners = append(owners, workloadmeta.KubernetesPodOwner{
-				Kind: o.Kind,
-				Name: o.Name,
-				ID:   o.ID,
+				APIVersion: o.APIVersion,
+				Kind:       o.Kind,
+				Name:       o.Name,
+				ID:         o.ID,
 			})
 		}
 

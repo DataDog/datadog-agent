@@ -8,11 +8,14 @@
 package v1
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -22,6 +25,7 @@ import (
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
+	k8stypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,10 +44,131 @@ func installKubernetesMetadataEndpoints(r *mux.Router, wmeta workloadmeta.Compon
 	r.HandleFunc("/tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", func(w http.ResponseWriter, r *http.Request) { getNamespaceLabels(w, r, wmeta) })).Methods("GET")
 	r.HandleFunc("/metadata/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceMetadata", func(w http.ResponseWriter, r *http.Request) { getNamespaceMetadata(w, r, wmeta) })).Methods("GET")
 	r.HandleFunc("/cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID)).Methods("GET")
+	r.HandleFunc("/owners/{ns}/{resourceName}/{group}/{version}/{kind}", api.WithTelemetryWrapper("getOwnerReferencesWithGroup", func(w http.ResponseWriter, r *http.Request) { ownerHandlerWithGroup(w, r) })).Methods("GET")
+	r.HandleFunc("/owners/{ns}/{resourceName}/{version}/{kind}", api.WithTelemetryWrapper("getOwnerReferencesNoGroup", func(w http.ResponseWriter, r *http.Request) { ownerHandlerNoGroup(w, r) })).Methods("GET")
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
+
+type ownerItem struct {
+	gvk  schema.GroupVersionKind
+	gvr  schema.GroupVersionResource
+	name string
+}
+
+func ownerHandlerNoGroup(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	nsName, resourceName, group, version, kind := vars["ns"], vars["resourceName"], "", vars["version"], vars["kind"]
+	getOwnerReferences(w, nsName, resourceName, group, version, kind)
+}
+
+func ownerHandlerWithGroup(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	nsName, resourceName, group, version, kind := vars["ns"], vars["resourceName"], vars["group"], vars["version"], vars["kind"]
+	getOwnerReferences(w, nsName, resourceName, group, version, kind)
+}
+
+func getOwnerReferences(w http.ResponseWriter, nsName, resourceName, group, version, kind string) {
+	apiClient, err := as.GetAPIClient()
+	if err != nil {
+		log.Errorf("Could not create the API client: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	childGVK := schema.GroupVersionKind{
+		Group:   group,
+		Version: version,
+		Kind:    kind,
+	}
+
+	restMapping, err := apiClient.RESTMapper.RESTMapping(childGVK.GroupKind(), childGVK.Version)
+	if err != nil {
+		log.Errorf("Could not get the REST mapping: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	childGVR := schema.GroupVersionResource{
+		Group:    childGVK.Group,
+		Version:  childGVK.Version,
+		Resource: restMapping.Resource.Resource,
+	}
+
+	outputOwnerReferences := make([]k8stypes.ObjectRelation, 0)
+	queue := []ownerItem{{gvk: childGVK, gvr: childGVR, name: resourceName}}
+
+	for len(queue) > 0 {
+		curr := queue[0]
+		queue = queue[1:]
+
+		// TODO: maybe cache the response or check wmeta for the object first?
+		response, _ := apiClient.DynamicCl.Resource(curr.gvr).Namespace(nsName).Get(context.TODO(), curr.name, metav1.GetOptions{})
+		ownerReferences := response.GetOwnerReferences()
+
+		for _, owner := range ownerReferences {
+
+			// Step 1: Parse GVKR
+			ownerGroupVersion, err := schema.ParseGroupVersion(owner.APIVersion)
+			if err != nil {
+				log.Errorf("Could not parse the owner APIVersion: %v", err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			ownerGVK := schema.GroupVersionKind{Group: ownerGroupVersion.Group, Version: ownerGroupVersion.Version, Kind: owner.Kind}
+
+			restMapping, err := apiClient.RESTMapper.RESTMapping(ownerGVK.GroupKind(), ownerGVK.Version)
+			if err != nil {
+				log.Errorf("Could not get the REST mapping: %v", err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			ownerGVR := schema.GroupVersionResource{Group: ownerGroupVersion.Group, Version: ownerGroupVersion.Version, Resource: restMapping.Resource.Resource}
+
+			// Step 2: add owner into queue
+			queue = append(queue, ownerItem{
+				gvk:  ownerGVK,
+				gvr:  ownerGVR,
+				name: owner.Name,
+			})
+
+			// Step 3: record in outputOwnerReferences
+			outputOwnerReferences = append(outputOwnerReferences, k8stypes.ObjectRelation{
+				ChildGVRK: k8stypes.GroupVersionResourceKind{
+					Group:    curr.gvk.Group,
+					Version:  curr.gvk.Version,
+					Resource: curr.gvr.Resource,
+					Kind:     curr.gvk.Kind,
+				},
+				ParentName: owner.Name,
+
+				ParentGVRK: k8stypes.GroupVersionResourceKind{
+					Group:    ownerGroupVersion.Group,
+					Version:  ownerGroupVersion.Version,
+					Resource: restMapping.Resource.Resource,
+					Kind:     owner.Kind,
+				},
+				ChildName: curr.name,
+			})
+		}
+	}
+
+	metaBytes, err := json.Marshal(outputOwnerReferences)
+	if err != nil {
+		log.Errorf("Could not marshal the outputOwnerReferences: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if len(metaBytes) != 0 {
+		w.WriteHeader(http.StatusOK)
+		w.Write(metaBytes)
+		return
+	}
+	w.WriteHeader(http.StatusNotFound)
+	fmt.Fprintf(w, "Could not find associated metadata mapped to the resource: %s in namespace: %s", resourceName, nsName)
+}
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels or annotations
 func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, f func(*workloadmeta.KubernetesMetadata) map[string]string, what string, filterList []string) {

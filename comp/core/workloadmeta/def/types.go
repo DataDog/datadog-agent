@@ -90,6 +90,9 @@ const (
 	// detected by node agents
 	SourceLanguageDetectionServer Source = "language_detection_server"
 
+	// SourceOwnerDetectionServer represents entities detected by the owner
+	SourceOwnerDetectionServer Source = "owner_detection_server"
+
 	// SourceHost represents entities detected by the host such as host tags.
 	SourceHost Source = "host"
 
@@ -697,6 +700,7 @@ type KubernetesPod struct {
 	EntityID
 	EntityMeta
 	Owners                     []KubernetesPodOwner
+	RelatedOwners              []KubernetesPodOwner
 	PersistentVolumeClaimNames []string
 	InitContainers             []OrchestratorContainer
 	Containers                 []OrchestratorContainer
@@ -747,6 +751,13 @@ func (p KubernetesPod) String(verbose bool) string {
 	if len(p.Owners) > 0 {
 		_, _ = fmt.Fprintln(&sb, "----------- Owners -----------")
 		for _, o := range p.Owners {
+			_, _ = fmt.Fprint(&sb, o.String(verbose))
+		}
+	}
+
+	if len(p.RelatedOwners) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- Related Owners -----------")
+		for _, o := range p.RelatedOwners {
 			_, _ = fmt.Fprint(&sb, o.String(verbose))
 		}
 	}
@@ -803,9 +814,10 @@ var _ Entity = &KubernetesPod{}
 
 // KubernetesPodOwner is extracted from a pod's owner references.
 type KubernetesPodOwner struct {
-	Kind string
-	Name string
-	ID   string
+	APIVersion string
+	Kind       string
+	Name       string
+	ID         string
 }
 
 // String returns a string representation of KubernetesPodOwner.
@@ -814,7 +826,7 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Kind:", o.Kind, "Name:", o.Name)
 
 	if verbose {
-		_, _ = fmt.Fprintln(&sb, "ID:", o.ID)
+		_, _ = fmt.Fprintln(&sb, "APIVersion", o.APIVersion, "ID:", o.ID)
 	}
 
 	return sb.String()
