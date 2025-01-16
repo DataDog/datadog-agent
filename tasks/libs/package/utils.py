@@ -164,6 +164,8 @@ def display_message(ctx, ancestor, rows, decision):
 </details>
 
 ## Decision
-{decision}{"\n\nCurrently this PR is blocked, you can reach out to #agent-delivery-help to get support/ask for an exception." if "❌" in decision else ""}
+{decision}
+
+{"Currently this PR is blocked, you can reach out to #agent-delivery-help to get support/ask for an exception." if "❌" in decision else ""}
 """
     pr_commenter(ctx, title="Uncompressed package size comparison", body=message)
