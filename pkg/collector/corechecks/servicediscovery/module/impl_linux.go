@@ -42,6 +42,8 @@ import (
 
 const (
 	pathServices = "/services"
+
+	heartbeatTime = 15 * time.Minute
 )
 
 // Ensure discovery implements the module.Module interface.
@@ -503,7 +505,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 const maxNumberOfPorts = 50
 
 // getService gets information for a single service.
-func (s *discovery) getService(context parsingContext, pid int32, now int64) *model.Service {
+func (s *discovery) getService(context parsingContext, pid int32, now time.Time) *model.Service {
 	if s.shouldIgnorePid(pid) {
 		return nil
 	}
@@ -597,7 +599,9 @@ func (s *discovery) getService(context parsingContext, pid int32, now int64) *mo
 	s.mux.Lock()
 	info.ports = ports
 	info.rss = rss
-	info.lastHeartbeat = now
+	if serviceHeartbeatTime := time.Unix(info.lastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= heartbeatTime {
+		info.lastHeartbeat = now.Unix()
+	}
 	s.mux.Unlock()
 
 	service := &model.Service{}
@@ -638,7 +642,7 @@ func (s *discovery) cleanPidSets(alivePids pidSet, sets ...pidSet) {
 
 // updateServicesCPUStats updates the CPU stats of cached services, as well as the
 // global CPU time cache for future updates.
-func (s *discovery) updateServicesCPUStats(services []model.Service) error {
+func (s *discovery) updateServicesCPUStats(responseServices ...[]model.Service) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
@@ -651,15 +655,17 @@ func (s *discovery) updateServicesCPUStats(services []model.Service) error {
 		return fmt.Errorf("could not get global CPU time: %w", err)
 	}
 
-	for i := range services {
-		service := &services[i]
-		serviceInfo, ok := s.cache[int32(service.PID)]
-		if !ok {
-			continue
-		}
+	for _, services := range responseServices {
+		for i := range services {
+			service := &services[i]
+			serviceInfo, ok := s.cache[int32(service.PID)]
+			if !ok {
+				continue
+			}
 
-		_ = updateCPUCoresStats(service.PID, serviceInfo, s.lastGlobalCPUTime, globalCPUTime)
-		service.CPUCores = serviceInfo.cpuUsage
+			_ = updateCPUCoresStats(service.PID, serviceInfo, s.lastGlobalCPUTime, globalCPUTime)
+			service.CPUCores = serviceInfo.cpuUsage
+		}
 	}
 
 	s.lastGlobalCPUTime = globalCPUTime
@@ -818,7 +824,7 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 		containersMap[c.Id] = c
 	}
 
-	now := s.timeProvider.Now().Unix()
+	now := s.timeProvider.Now()
 
 	for _, pid := range pids {
 		alivePids.add(pid)
@@ -830,6 +836,9 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 		s.enrichContainerData(service, containersMap, pidToCid)
 
 		if _, ok := s.runningServices[pid]; ok {
+			if service.LastHeartbeat == now.Unix() {
+				response.HeartbeatServices = append(response.HeartbeatServices, *service)
+			}
 			response.Services = append(response.Services, *service)
 			continue
 		}
@@ -853,7 +862,7 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 	s.cleanCache(alivePids)
 	s.cleanPidSets(alivePids, s.ignorePids, s.potentialServices)
 
-	if err = s.updateServicesCPUStats(response.StartedServices); err != nil {
+	if err = s.updateServicesCPUStats(response.StartedServices, response.HeartbeatServices); err != nil {
 		log.Warnf("updating services CPU stats: %s", err)
 	}
 

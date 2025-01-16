@@ -30,8 +30,9 @@ const (
 // TestIgnoreComm checks that the 'sshd' command is ignored and the 'node' command is not
 func TestIgnoreComm(t *testing.T) {
 	serverDir := buildFakeServer(t)
-	url, mockContainerProvider := setupDiscoveryModule(t)
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
 	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })

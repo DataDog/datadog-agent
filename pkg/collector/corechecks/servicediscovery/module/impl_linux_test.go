@@ -73,7 +73,7 @@ func findService(pid int, services []model.Service) *model.Service {
 	return nil
 }
 
-func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContainerProvider) {
+func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContainerProvider, *servicediscovery.Mocktimer) {
 	t.Helper()
 
 	wmeta := fxutil.Test[workloadmeta.Component](t,
@@ -86,7 +86,6 @@ func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContai
 	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
 
 	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
-	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	mux := gorillamux.NewRouter()
 	cfg := &types.Config{
@@ -113,7 +112,7 @@ func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContai
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	return srv.URL, mockContainerProvider
+	return srv.URL, mockContainerProvider, mTimeProvider
 }
 
 func getServices(t require.TestingT, url string) *model.ServicesResponse {
@@ -215,8 +214,9 @@ func startProcessWithFile(t *testing.T, f *os.File) *exec.Cmd {
 
 // Check that we get (only) listening processes for all expected protocols.
 func TestBasic(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
 	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	var expectedPIDs []int
 	var unexpectedPIDs []int
@@ -271,8 +271,9 @@ func TestBasic(t *testing.T) {
 
 // Check that we get all listening ports for a process
 func TestPorts(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
 	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	var expectedPorts []uint16
 	var unexpectedPorts []uint16
@@ -332,8 +333,9 @@ func TestPorts(t *testing.T) {
 }
 
 func TestPortsLimits(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
 	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	var expectedPorts []int
 
@@ -371,8 +373,9 @@ func TestPortsLimits(t *testing.T) {
 }
 
 func TestServiceName(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
 	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	listener, err := net.Listen("tcp", "")
 	require.NoError(t, err)
@@ -415,9 +418,6 @@ func TestServiceName(t *testing.T) {
 }
 
 func TestServiceLifetime(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
-
 	startService := func() (*exec.Cmd, context.CancelFunc) {
 		listener, err := net.Listen("tcp", "")
 		require.NoError(t, err)
@@ -442,7 +442,7 @@ func TestServiceLifetime(t *testing.T) {
 		return cmd, cancel
 	}
 
-	checkService := func(t assert.TestingT, service *model.Service) {
+	checkService := func(t assert.TestingT, service *model.Service, expectedTime time.Time) {
 		// Non-ASCII character removed due to normalization.
 		assert.Equal(t, "foo_bar", service.DDService)
 		assert.Equal(t, service.DDService, service.Name)
@@ -450,7 +450,7 @@ func TestServiceLifetime(t *testing.T) {
 		assert.Equal(t, string(usm.CommandLine), service.GeneratedNameSource)
 		assert.False(t, service.DDServiceInjected)
 		assert.Equal(t, service.ContainerID, "")
-		assert.Equal(t, service.LastHeartbeat, mockedTime.Unix())
+		assert.Equal(t, service.LastHeartbeat, expectedTime.Unix())
 	}
 
 	stopService := func(cmd *exec.Cmd, cancel context.CancelFunc) {
@@ -459,6 +459,10 @@ func TestServiceLifetime(t *testing.T) {
 	}
 
 	t.Run("stop", func(t *testing.T) {
+		url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+		mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+		mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
+
 		// Start the service and check we found it.
 		cmd, cancel := startService()
 		pid := cmd.Process.Pid
@@ -466,7 +470,7 @@ func TestServiceLifetime(t *testing.T) {
 			resp := getServices(collect, url)
 			startEvent := findService(pid, resp.StartedServices)
 			require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
-			checkService(collect, startEvent)
+			checkService(collect, startEvent, mockedTime)
 		}, 30*time.Second, 100*time.Millisecond)
 
 		// Stop the service, and look for the stop event.
@@ -476,11 +480,15 @@ func TestServiceLifetime(t *testing.T) {
 			stopEvent := findService(pid, resp.StoppedServices)
 			t.Logf("stopped service: %+v", resp.StoppedServices)
 			require.NotNilf(collect, stopEvent, "could not find stop event for pid %v", pid)
-			checkService(collect, stopEvent)
+			checkService(collect, stopEvent, mockedTime)
 		}, 30*time.Second, 100*time.Millisecond)
 	})
 
 	t.Run("restart", func(t *testing.T) {
+		url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+		mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+		mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
+
 		// Start the service a first time, and check we found it.
 		cmd, cancel := startService()
 		firstPid := cmd.Process.Pid
@@ -488,7 +496,7 @@ func TestServiceLifetime(t *testing.T) {
 			resp := getServices(collect, url)
 			startEvent := findService(firstPid, resp.StartedServices)
 			require.NotNilf(collect, startEvent, "could not find start event for pid %v", firstPid)
-			checkService(collect, startEvent)
+			checkService(collect, startEvent, mockedTime)
 		}, 30*time.Second, 100*time.Millisecond)
 
 		// Stop the service, and start another instance right after. Check we have no
@@ -508,15 +516,48 @@ func TestServiceLifetime(t *testing.T) {
 			resp := getServices(collect, url)
 			startEvent := findService(secondPid, resp.StartedServices)
 			require.NotNilf(collect, startEvent, "could not find start event for pid %v", secondPid)
-			checkService(collect, startEvent)
+			checkService(collect, startEvent, mockedTime)
 			require.Nil(t, findService(firstPid, resp.StoppedServices))
 		}, 30*time.Second, 100*time.Millisecond)
+	})
+
+	t.Run("heartbeat", func(t *testing.T) {
+		url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+		mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+
+		startEventSeen := false
+
+		mTimeProvider.EXPECT().Now().DoAndReturn(func() time.Time {
+			if !startEventSeen {
+				return mockedTime
+			}
+
+			return mockedTime.Add(heartbeatTime)
+		}).AnyTimes()
+
+		cmd, cancel := startService()
+		t.Cleanup(cancel)
+
+		pid := cmd.Process.Pid
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			resp := getServices(collect, url)
+			startEvent := findService(pid, resp.StartedServices)
+			require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
+			checkService(collect, startEvent, mockedTime)
+		}, 30*time.Second, 100*time.Millisecond)
+
+		startEventSeen = true
+		resp := getServices(t, url)
+		heartbeatEvent := findService(pid, resp.HeartbeatServices)
+		require.NotNilf(t, heartbeatEvent, "could not find hearteat event for pid %v", pid)
+		checkService(t, heartbeatEvent, mockedTime.Add(heartbeatTime))
 	})
 }
 
 func TestInjectedServiceName(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
 	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	createEnvsMemfd(t, []string{
 		"OTHER_ENV=test",
@@ -548,8 +589,9 @@ func TestInjectedServiceName(t *testing.T) {
 }
 
 func TestAPMInstrumentationInjected(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
 	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	createEnvsMemfd(t, []string{
 		"DD_INJECTION_ENABLED=service_name,tracer",
@@ -650,8 +692,9 @@ func testCaptureWrappedCommands(t *testing.T, script string, commandWrapper []st
 	}
 	t.Cleanup(func() { _ = proc.Kill() })
 
-	url, mockContainerProvider := setupDiscoveryModule(t)
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
 	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 	pid := int(proc.Pid)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		resp := getServices(collect, url)
@@ -692,8 +735,9 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 	}
 
 	serverDir := buildFakeServer(t)
-	url, mockContainerProvider := setupDiscoveryModule(t)
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
 	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
@@ -765,8 +809,9 @@ func assertStat(t assert.TestingT, svc model.Service) {
 
 func TestCommandLineSanitization(t *testing.T) {
 	serverDir := buildFakeServer(t)
-	url, mockContainerProvider := setupDiscoveryModule(t)
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
 	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
@@ -798,8 +843,10 @@ func TestNodeDocker(t *testing.T) {
 	nodeJSPID, err := nodejs.GetNodeJSDockerPID()
 	require.NoError(t, err)
 
-	url, mockContainerProvider := setupDiscoveryModule(t)
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
 	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
+
 	pid := int(nodeJSPID)
 
 	proc, err := process.NewProcess(int32(pid))
@@ -866,8 +913,9 @@ func TestAPMInstrumentationProvidedWithMaps(t *testing.T) {
 			cmd, err := fileopener.OpenFromProcess(t, fake, test.lib)
 			require.NoError(t, err)
 
-			url, mockContainerProvider := setupDiscoveryModule(t)
+			url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
 			mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+			mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 			pid := cmd.Process.Pid
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -886,8 +934,9 @@ func TestAPMInstrumentationProvidedWithMaps(t *testing.T) {
 
 // Check that we can get listening processes in other namespaces.
 func TestNamespaces(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
 	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	// Needed when changing namespaces
 	runtime.LockOSThread()
@@ -948,7 +997,8 @@ func TestNamespaces(t *testing.T) {
 
 // Check that we are able to find services inside Docker containers.
 func TestDocker(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	dir, _ := testutil.CurDir()
 	scanner, err := globalutils.NewScanner(regexp.MustCompile("Serving.*"), globalutils.NoPattern)

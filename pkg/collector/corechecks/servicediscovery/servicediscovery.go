@@ -31,7 +31,6 @@ const (
 	CheckName = "service_discovery"
 
 	refreshInterval = 1 * time.Minute
-	heartbeatTime   = 15 * time.Minute
 )
 
 type serviceEvents struct {
