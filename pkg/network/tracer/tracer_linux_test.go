@@ -2813,7 +2813,13 @@ func TestMapCleanerDoesNotRemoveNewConnections(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 
-	if currKernelVersion < usmhttp2.MinimumKernelVersion {
+	cfg := testConfig()
+	cfg.ServiceMonitoringEnabled = true
+	cfg.EnableGoTLSSupport = true
+	cfg.GoTLSExcludeSelf = false
+	cfg.EnableHTTP2Monitoring = true
+
+	if currKernelVersion < usmhttp2.MinimumKernelVersion || !usmconfig.TLSSupported(cfg) {
 		t.Skipf("HTTP2 monitoring can not run on kernel before %v", usmhttp2.MinimumKernelVersion)
 	}
 
@@ -2821,12 +2827,6 @@ func TestMapCleanerDoesNotRemoveNewConnections(t *testing.T) {
 	srv, cancel := grpc.NewGRPCTLSServer(t, srvAddr, true)
 	t.Cleanup(cancel)
 	defaultCtx := context.Background()
-
-	cfg := testConfig()
-	cfg.ServiceMonitoringEnabled = true
-	cfg.EnableGoTLSSupport = true
-	cfg.GoTLSExcludeSelf = false
-	cfg.EnableHTTP2Monitoring = true
 
 	prevProtoCleaningInterval := connProtoCleaningInterval
 	prevProtoTTL := connProtoTTL
