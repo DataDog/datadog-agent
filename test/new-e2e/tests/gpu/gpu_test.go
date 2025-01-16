@@ -185,7 +185,9 @@ func (v *gpuSuite) TestNvmlMetricsPresent() {
 	}, 5*time.Minute, 10*time.Second)
 }
 
-func (v *gpuSuite) TestWorkloadmetaHasGPUs() {
+func (v *gpuSuite) Test00WorkloadmetaHasGPUs() {
+	// This test should run before the other ones to ensure we have the GPUs in the workload list
+	// and that both autodiscovery and tagging are working as expected
 	out, err := v.Env().RemoteHost.Execute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
 	v.Require().NoError(err)
 	v.Contains(out, "=== Entity gpu sources(merged):[runtime] id: ")
