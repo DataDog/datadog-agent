@@ -16,7 +16,7 @@ import (
 
 // Requires contains the compression level for zstd compression
 type Requires struct {
-	Level int
+	Level compression.ZstdCompressionLevel
 }
 
 // Provides contains the compression component
@@ -33,7 +33,7 @@ type ZstdStrategy struct {
 func NewComponent(reqs Requires) Provides {
 	return Provides{
 		Comp: &ZstdStrategy{
-			level: reqs.Level,
+			level: int(reqs.Level),
 		},
 	}
 }

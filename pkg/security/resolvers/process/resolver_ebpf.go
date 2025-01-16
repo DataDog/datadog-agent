@@ -375,10 +375,20 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 		return fmt.Errorf("snapshot failed for %d: couldn't retrieve inode info: %w", proc.Pid, err)
 	}
 
-	// Retrieve the container ID of the process from /proc
-	containerID, cgroup, err := p.containerResolver.GetContainerContext(pid)
+	// Retrieve the container ID of the process from /proc and /sys/fs/cgroup/[cgroup]
+	containerID, cgroup, cgroupSysFSPath, err := p.containerResolver.GetContainerContext(pid)
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't parse container and cgroup context: %w", proc.Pid, err)
+	}
+
+	if cgroup.CGroupFile.Inode != 0 && cgroup.CGroupFile.MountID == 0 { // the mount id is unavailable through statx
+		// Get the file fields of the sysfs cgroup file
+		info, err := p.retrieveExecFileFields(cgroupSysFSPath)
+		if err != nil && !errors.Is(err, lib.ErrKeyNotExist) {
+			seclog.Debugf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
+		} else {
+			cgroup.CGroupFile.MountID = info.MountID
+		}
 	}
 
 	entry.ContainerID = containerID
@@ -392,17 +402,6 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	// force mount from procfs/snapshot
 	entry.FileEvent.MountOrigin = model.MountOriginProcfs
 	entry.FileEvent.MountSource = model.MountSourceSnapshot
-
-	if entry.Process.CGroup.CGroupFile.MountID == 0 {
-		// Get the file fields of the cgroup file
-		taskPath := utils.CgroupTaskPath(pid, pid)
-		info, err := p.retrieveExecFileFields(taskPath)
-		if err != nil {
-			seclog.Debugf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
-		} else {
-			entry.Process.CGroup.CGroupFile.MountID = info.MountID
-		}
-	}
 
 	if entry.FileEvent.IsFileless() {
 		entry.FileEvent.Filesystem = model.TmpFS
@@ -892,7 +891,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 	// the parent is in a container. In other words, we have to fall back to /proc to query the container ID of the
 	// process.
 	if entry.CGroup.CGroupFile.Inode == 0 {
-		if containerID, cgroup, err := p.containerResolver.GetContainerContext(pid); err == nil {
+		if containerID, cgroup, _, err := p.containerResolver.GetContainerContext(pid); err == nil {
 			entry.CGroup.Merge(&cgroup)
 			entry.ContainerID = containerID
 		}

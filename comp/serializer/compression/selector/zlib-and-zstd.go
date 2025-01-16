@@ -26,7 +26,7 @@ func NewCompressorReq(req Requires) Provides {
 		return Provides{implzlib.NewComponent().Comp}
 	case common.ZstdKind:
 		level := req.Cfg.GetInt("serializer_zstd_compressor_level")
-		return Provides{implzstd.NewComponent(implzstd.Requires{Level: level}).Comp}
+		return Provides{implzstd.NewComponent(implzstd.Requires{Level: compression.ZstdCompressionLevel(level)}).Comp}
 	case common.NoneKind:
 		log.Warn("no serializer_compressor_kind set. use zlib or zstd")
 		return Provides{implnoop.NewComponent().Comp}
