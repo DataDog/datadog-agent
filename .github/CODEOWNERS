@@ -496,6 +496,7 @@
 /pkg/util/testutil/patternscanner.go    @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/testutil/docker               @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/trie                          @DataDog/container-integrations
+/pkg/util/lazyregexp                    @DataDog/agent-security
 /pkg/languagedetection                  @DataDog/container-intake @DataDog/universal-service-monitoring @DataDog/agent-discovery
 /pkg/linters/                           @DataDog/agent-devx-loops
 /pkg/linters/components/                @DataDog/agent-runtimes
