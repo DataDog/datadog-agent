@@ -775,7 +775,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStopExperiment(timestamp hos
 }
 
 func (s *upgradeScenarioSuite) startConfigExperiment(pkg packageName, config installerConfig) (string, error) {
-	rawConfig, err := json.Marshal(config)
+	rawConfig, err := json.Marshal(config.Configs)
 	require.NoError(s.T(), err)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 	cmd := fmt.Sprintf("sudo -E datadog-installer install-config-experiment %s %s '%s' > /tmp/start_config_experiment.log 2>&1", pkg, config.ID, rawConfig)
