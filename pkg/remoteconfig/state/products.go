@@ -6,6 +6,7 @@
 package state
 
 var validProducts = map[string]struct{}{
+	ProductInstallerConfig:              {},
 	ProductUpdaterCatalogDD:             {},
 	ProductUpdaterAgent:                 {},
 	ProductUpdaterTask:                  {},
