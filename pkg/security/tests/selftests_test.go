@@ -44,10 +44,10 @@ func TestSelfTests(t *testing.T) {
 
 		jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
 			succeeded_tests, err := jsonpath.JsonPathLookup(obj, `$.succeeded_tests`)
-			failed_tests, err := jsonpath.JsonPathLookup(obj, `$.failed_tests`)
 			if err != nil {
-				t.Errorf("could not get failed_tests field: %v", err)
+				t.Errorf("could not get succeeded_tests field: %v", err)
 			}
+			failed_tests, err := jsonpath.JsonPathLookup(obj, `$.failed_tests`)
 			if err != nil {
 				t.Errorf("could not get failed_tests field: %v", err)
 			}
