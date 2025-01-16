@@ -45,9 +45,9 @@ const (
 	udpSendMsgReturn        = "udp_sendmsg_exit"
 	udpSendSkb              = "kprobe__udp_send_skb"
 
-	skbFreeDatagramLocked  = "skb_free_datagram_locked"
-	_SkbFreeDatagramLocked = "__skb_free_datagram_locked"
-	skbConsumeUDP          = "skb_consume_udp"
+	skbFreeDatagramLocked   = "skb_free_datagram_locked"
+	__skbFreeDatagramLocked = "__skb_free_datagram_locked" // nolint:revive
+	skbConsumeUDP           = "skb_consume_udp"
 
 	udpv6RecvMsg              = "udpv6_recvmsg"
 	udpv6RecvMsgReturn        = "udpv6_recvmsg_exit"
@@ -111,7 +111,7 @@ var programs = map[string]struct{}{
 	udpv6DestroySock:          {},
 	udpv6DestroySockReturn:    {},
 	skbFreeDatagramLocked:     {},
-	_SkbFreeDatagramLocked:    {},
+	__skbFreeDatagramLocked:   {},
 	skbConsumeUDP:             {},
 	tcpRecvMsgPre5190Return:   {},
 	udpRecvMsgPre5190Return:   {},
@@ -205,7 +205,7 @@ func enableAdvancedUDP(enabled map[string]struct{}) error {
 	if _, miss := missing["skb_consume_udp"]; !miss {
 		enableProgram(enabled, skbConsumeUDP)
 	} else if _, miss := missing["__skb_free_datagram_locked"]; !miss {
-		enableProgram(enabled, _SkbFreeDatagramLocked)
+		enableProgram(enabled, __skbFreeDatagramLocked)
 	} else if _, miss := missing["skb_free_datagram_locked"]; !miss {
 		enableProgram(enabled, skbFreeDatagramLocked)
 	} else {
