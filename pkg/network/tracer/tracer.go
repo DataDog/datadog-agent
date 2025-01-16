@@ -890,8 +890,8 @@ func (t *Tracer) GetNetworkID(context context.Context) (string, error) {
 	return id, nil
 }
 
-const connProtoTTL = 3 * time.Minute
-const connProtoCleaningInterval = 65 * time.Second // slight jitter to avoid all maps cleaning at the same time
+var connProtoTTL = 3 * time.Minute
+var connProtoCleaningInterval = 65 * time.Second // slight jitter to avoid all maps cleaning at the same time
 
 // setupConnectionProtocolMapCleaner sets up a map cleaner for the connectionProtocolMap.
 // It will run every connProtoCleaningInterval and delete entries older than connProtoTTL.
