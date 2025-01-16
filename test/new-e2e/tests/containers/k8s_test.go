@@ -500,6 +500,8 @@ func (suite *k8sSuite) TestNginx() {
 				`^kube_cluster_name:`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx$`,
+				`^org:agent-org$`,
+				`^team:contp$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
@@ -799,6 +801,8 @@ func (suite *k8sSuite) TestKSM() {
 			Tags: &[]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^kube_namespace:workload-(?:nginx|redis)$`,
+				`^org:agent-org$`,
+				`^team:contp$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
