@@ -3,7 +3,7 @@
 #import <CoreWLAN/CoreWLAN.h>
 #import "wlan_darwin.h"
 
-@interface LocationManager : NSObject <CLLocationManagerDelegate>
+@interface LocationManager : NSObject 
 
 @property (nonatomic, strong) CLLocationManager *locationManager;
 @property (nonatomic, assign) BOOL isAuthorized;
@@ -19,8 +19,6 @@
     self = [super init];
     if (self) {
         self.locationManager = [[CLLocationManager alloc] init];
-        self.locationManager.delegate = self;
-        self.isAuthorized = NO;
 
         if (@available(macOS 10.15, *)) {
             CLAuthorizationStatus status = [CLLocationManager authorizationStatus];
@@ -35,10 +33,10 @@
 - (BOOL)checkLocationPermissions {
     if (@available(macOS 10.15, *)) {
         CLAuthorizationStatus status = [CLLocationManager authorizationStatus];
-        self.isAuthorized = (status == kCLAuthorizationStatusAuthorized ||
+        return (status == kCLAuthorizationStatusAuthorized ||
                              status == kCLAuthorizationStatusAuthorizedAlways);
     }
-    return self.isAuthorized;
+    return NO;
 }
 
 @end
