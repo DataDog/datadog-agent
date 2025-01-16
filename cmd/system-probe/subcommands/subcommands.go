@@ -8,12 +8,10 @@ package subcommands
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
-	cmdconfig "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/config"
 	cmddebug "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/debug"
 	cmdmodrestart "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/modrestart"
 	cmdrun "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/run"
 	cmdruntime "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/runtime"
-	cmdversion "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/version"
 )
 
 // SysprobeSubcommands returns SubcommandFactories for the subcommands supported
@@ -21,10 +19,8 @@ import (
 func SysprobeSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
 		cmdrun.Commands,
-		cmdversion.Commands,
 		cmdmodrestart.Commands,
 		cmddebug.Commands,
-		cmdconfig.Commands,
 		cmdruntime.Commands,
 	}
 }
