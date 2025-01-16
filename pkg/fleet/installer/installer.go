@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -348,7 +347,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	}
 	defer os.RemoveAll(tmpDir)
 
-	err = i.writeConfig(ctx, tmpDir, rawConfig)
+	err = i.writeConfig(tmpDir, rawConfig)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
@@ -660,17 +659,32 @@ var (
 		"datadog.yaml",
 		"security-agent.yaml",
 		"system-probe.yaml",
+		"libraries_config.yaml",
+		"conf.d/*.yaml",
 	}
 )
 
-func (i *installerImpl) writeConfig(ctx context.Context, dir string, rawConfig []byte) error {
+func configNameAllowed(file string) bool {
+	for _, allowedFile := range allowedConfigFiles {
+		match, err := filepath.Match(allowedFile, file)
+		if err != nil {
+			return false
+		}
+		if match {
+			return true
+		}
+	}
+	return false
+}
+
+func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
 	var configs map[string]interface{}
 	err := json.Unmarshal(rawConfig, &configs)
 	if err != nil {
 		return fmt.Errorf("could not unmarshal config: %w", err)
 	}
 	for file, config := range configs {
-		if !slices.Contains(allowedConfigFiles, file) {
+		if !configNameAllowed(file) {
 			return fmt.Errorf("config file %s is not allowed", file)
 		}
 		serializedConfig, err := yaml.Marshal(config)

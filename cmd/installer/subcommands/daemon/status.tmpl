@@ -16,12 +16,12 @@ Datadog Installer v{{ htmlSafe .Version }}
     ● experiment: none
   {{- end }}
   {{- if $config.Stable }}
-    {{ greenText "●" }} stable config: v{{ htmlSafe $config.Stable }}
+    {{ greenText "●" }} stable config: {{ htmlSafe $config.Stable }}
   {{- else }}
     ● stable config: none
   {{- end }}
   {{- if $config.Experiment }}
-    {{ yellowText "●" }} experiment config: v{{ htmlSafe $config.Experiment }}
+    {{ yellowText "●" }} experiment config: {{ htmlSafe $config.Experiment }}
   {{- else }}
     ● experiment config: none
   {{- end }}
