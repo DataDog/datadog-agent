@@ -49,13 +49,13 @@ WiFiInfo GetWiFiInformation() {
     @autoreleasepool {
         LocationManager *manager = [[LocationManager alloc] init];
         if (![manager checkLocationPermissions]) {
-            info.errorMessage = "Location authorization not granted";
+            info.errorMessage = strdup(@"Location authorization not granted".UTF8String);
             return info;
         }
 
         CWInterface *wifiInterface = [[CWWiFiClient sharedWiFiClient] interface];
         if (!wifiInterface) {
-            info.errorMessage = "Unable to access Wi-Fi interface";
+            info.errorMessage = strdup(@"Unable to access Wi-Fi interface".UTF8String);
             return info;
         }
 
