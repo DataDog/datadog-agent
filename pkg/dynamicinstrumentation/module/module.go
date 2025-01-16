@@ -24,7 +24,7 @@ type Module struct {
 }
 
 // NewModule creates a new dynamic instrumentation system probe module
-func NewModule() (*Module, error) {
+func NewModule(_ *Config) (*Module, error) {
 	godi, err := di.RunDynamicInstrumentation(&di.DIOptions{
 		RateLimitPerProbePerSecond: 1.0,
 		OfflineOptions: di.OfflineOptions{
