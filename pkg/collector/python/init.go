@@ -418,7 +418,9 @@ func Initialize(paths ...string) error {
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.python_memory") {
-		initPymemTelemetry()
+		initPymemTelemetry(1 * time.Second)
+	} else if pkgconfigsetup.IsAgentTelemetryEnabled(pkgconfigsetup.Datadog()) {
+		initPymemTelemetry(15 * time.Minute)
 	}
 
 	// Set the PYTHONPATH if needed.
@@ -476,7 +478,7 @@ func GetRtLoader() *C.rtloader_t {
 	return rtloader
 }
 
-func initPymemTelemetry() {
+func initPymemTelemetry(d time.Duration) {
 	C.init_pymem_stats(rtloader)
 
 	// "alloc" for consistency with go memstats and mallochook metrics.
@@ -484,7 +486,7 @@ func initPymemTelemetry() {
 	inuse := telemetry.NewSimpleGauge("pymem", "inuse", "Number of bytes currently allocated by the python interpreter.")
 
 	go func() {
-		t := time.NewTicker(1 * time.Second)
+		t := time.NewTicker(d)
 		var prevAlloc C.size_t
 
 		for range t.C {
