@@ -234,7 +234,7 @@ func (c *HTTPClient) FetchOrgStatus(ctx context.Context) (*pbgo.OrgStatusRespons
 // Token for authentication to the RC backend.
 func (c *HTTPClient) UpdatePARJWT(jwt string) {
 	c.headerLock.Lock()
-	c.header.Set("DD-PAR-JWT", jwt)
+	c.header["DD-PAR-JWT"] = []string{jwt}
 	c.headerLock.Unlock()
 }
 
