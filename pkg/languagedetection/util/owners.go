@@ -7,10 +7,9 @@ package util
 
 import (
 	"fmt"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const (
@@ -48,26 +47,26 @@ func NewNamespacedOwnerReference(apiVersion string, kind string, name string, na
 // GetNamespacedBaseOwnerReference creates a new namespaced owner reference object representing the base owner of the pod
 // In case the first owner's kind is replicaset, it returns an owner reference to the parent deployment
 // of the replicaset
-func GetNamespacedBaseOwnerReference(podDetails *pbgo.PodLanguageDetails) NamespacedOwnerReference {
-	ownerref := podDetails.Ownerref
-	kind := ownerref.Kind
-	name := ownerref.Name
+// func GetNamespacedBaseOwnerReference(podDetails *pbgo.PodLanguageDetails) NamespacedOwnerReference {
+// 	ownerref := podDetails.Ownerref
+// 	kind := ownerref.Kind
+// 	name := ownerref.Name
 
-	// This should be included in the KubeOwnerInfo by the client.
-	// For now, it is hard-coded, and we support apps/v1 strictly
-	apiVersion := "apps/v1"
-	if kind == KindReplicaset {
-		kind = KindDeployment
-		name = kubernetes.ParseDeploymentForReplicaSet(name)
-	}
+// 	// This should be included in the KubeOwnerInfo by the client.
+// 	// For now, it is hard-coded, and we support apps/v1 strictly
+// 	apiVersion := "apps/v1"
+// 	if kind == KindReplicaset {
+// 		kind = KindDeployment
+// 		name = kubernetes.ParseDeploymentForReplicaSet(name)
+// 	}
 
-	return NamespacedOwnerReference{
-		APIVersion: apiVersion,
-		Kind:       kind,
-		Name:       name,
-		Namespace:  podDetails.Namespace,
-	}
-}
+// 	return NamespacedOwnerReference{
+// 		APIVersion: apiVersion,
+// 		Kind:       kind,
+// 		Name:       name,
+// 		Namespace:  podDetails.Namespace,
+// 	}
+// }
 
 // GetGVR returns the GroupVersionResource of the ownerRef
 func GetGVR(namespacedOwnerRef *NamespacedOwnerReference) (schema.GroupVersionResource, error) {

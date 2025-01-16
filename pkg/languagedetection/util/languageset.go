@@ -6,7 +6,6 @@
 package util
 
 import (
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"reflect"
 	"time"
 )
@@ -32,15 +31,15 @@ func (s LanguageSet) Add(language Language) bool {
 }
 
 // ToProto returns a proto message Language
-func (s LanguageSet) ToProto() []*pbgo.Language {
-	res := make([]*pbgo.Language, 0, len(s))
-	for lang := range s {
-		res = append(res, &pbgo.Language{
-			Name: string(lang),
-		})
-	}
-	return res
-}
+// func (s LanguageSet) ToProto() []*pbgo.Language {
+// 	res := make([]*pbgo.Language, 0, len(s))
+// 	for lang := range s {
+// 		res = append(res, &pbgo.Language{
+// 			Name: string(lang),
+// 		})
+// 	}
+// 	return res
+// }
 
 ////////////////////////////////
 //                            //

@@ -65,7 +65,7 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []*flaretypes.FlareFi
 		flaretypes.NewFiller(provideExtraFiles),
 		flaretypes.NewFiller(provideSystemProbe),
 		flaretypes.NewFiller(provideConfigDump),
-		flaretypes.NewFiller(provideRemoteConfig),
+		// flaretypes.NewFiller(provideRemoteConfig),
 		flaretypes.NewFiller(getRegistryJSON),
 		flaretypes.NewFiller(getVersionHistory),
 		flaretypes.NewFiller(getWindowsData),
@@ -126,14 +126,14 @@ func provideInstallInfo(fb flaretypes.FlareBuilder) error {
 	return nil
 }
 
-func provideRemoteConfig(fb flaretypes.FlareBuilder) error {
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
-		if err := exportRemoteConfig(fb); err != nil {
-			log.Errorf("Could not export remote-config state: %s", err)
-		}
-	}
-	return nil
-}
+// func provideRemoteConfig(fb flaretypes.FlareBuilder) error {
+// 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
+// 		if err := exportRemoteConfig(fb); err != nil {
+// 			log.Errorf("Could not export remote-config state: %s", err)
+// 		}
+// 	}
+// 	return nil
+// }
 
 func provideConfigDump(fb flaretypes.FlareBuilder) error {
 	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)                                                                 //nolint:errcheck

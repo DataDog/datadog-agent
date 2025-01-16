@@ -8,23 +8,15 @@ package start
 
 import (
 	"context"
-	"crypto/tls"
-	"fmt"
-	"io"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"github.com/cenkalti/backoff"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
@@ -32,8 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/proto"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -43,8 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	remoteTagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
-	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	noopTagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -53,9 +42,9 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	compressionimpl "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+
+	// "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -128,17 +117,7 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 			return option.New[serializer.MetricSerializer](ms)
 		}),
 		hostnameimpl.Module(),
-		remoteTagger.Module(tagger.RemoteParams{
-			RemoteTarget: func(c config.Component) (string, error) {
-				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
-			},
-			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
-				return func() (string, error) {
-					return security.FetchAuthToken(c)
-				}
-			},
-			RemoteFilter: taggerTypes.NewMatchAllFilter(),
-		}),
+		noopTagger.Module(),
 
 		fetchonlyimpl.Module(),
 		haagentfx.Module(),
@@ -173,50 +152,50 @@ func start(
 		}
 	}()
 
-	token := authToken.Get()
+	// token := authToken.Get()
 
-	if token == "" {
-		return fmt.Errorf("unable to fetch authentication token")
-	}
+	// if token == "" {
+	// 	return fmt.Errorf("unable to fetch authentication token")
+	// }
 
-	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
-	}
-	ctx, StreamCancel := context.WithCancel(metadata.NewOutgoingContext(ctx, md))
-	defer StreamCancel()
+	// md := metadata.MD{
+	// 	"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+	// }
+	// ctx, StreamCancel := context.WithCancel(metadata.NewOutgoingContext(ctx, md))
+	// defer StreamCancel()
 
-	// NOTE: we're using InsecureSkipVerify because the gRPC server only
-	// persists its TLS certs in memory, and we currently have no
-	// infrastructure to make them available to clients. This is NOT
-	// equivalent to grpc.WithInsecure(), since that assumes a non-TLS
-	// connection.
-	creds := credentials.NewTLS(&tls.Config{
-		InsecureSkipVerify: true,
-	})
+	// // NOTE: we're using InsecureSkipVerify because the gRPC server only
+	// // persists its TLS certs in memory, and we currently have no
+	// // infrastructure to make them available to clients. This is NOT
+	// // equivalent to grpc.WithInsecure(), since that assumes a non-TLS
+	// // connection.
+	// creds := credentials.NewTLS(&tls.Config{
+	// 	InsecureSkipVerify: true,
+	// })
 
-	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
-		ctx,
-		fmt.Sprintf(":%v", config.GetInt("cmd_port")),
-		grpc.WithTransportCredentials(creds),
-	)
-	if err != nil {
-		return err
-	}
+	// conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
+	// 	ctx,
+	// 	fmt.Sprintf(":%v", config.GetInt("cmd_port")),
+	// 	grpc.WithTransportCredentials(creds),
+	// )
+	// if err != nil {
+	// 	return err
+	// }
 
-	client := core.NewAgentSecureClient(conn)
+	// client := core.NewAgentSecureClient(conn)
 
 	// TODO: figure out how to initial.ize checks context
 	// check.InitializeInventoryChecksContext(invChecks)
 
-	scheduler := pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, option.None[integrations.Component](), tagger)
+	pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, option.None[integrations.Component](), tagger)
 
 	// // Start the scheduler
-	go startScheduler(ctx, StreamCancel, client, scheduler, log)
+	// go startScheduler(ctx, StreamCancel, client, scheduler, log)
 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh, log)
 
-	err = Run(ctx, cliParams, config, log)
+	err := Run(ctx, cliParams, config, log)
 	if err != nil {
 		return err
 	}
@@ -280,81 +259,81 @@ func StopAgent(cancel context.CancelFunc, log log.Component) {
 	log.Flush()
 }
 
-type autodiscoveryStream struct {
-	autodiscoveryStream       core.AgentSecure_AutodiscoveryStreamConfigClient
-	autodiscoveryStreamCancel context.CancelFunc
-}
+// type autodiscoveryStream struct {
+// 	autodiscoveryStream       core.AgentSecure_AutodiscoveryStreamConfigClient
+// 	autodiscoveryStreamCancel context.CancelFunc
+// }
 
-func (a *autodiscoveryStream) initStream(ctx context.Context, client core.AgentSecureClient, log log.Component) error {
-	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 500 * time.Millisecond
-	expBackoff.MaxInterval = 5 * time.Minute
-	expBackoff.MaxElapsedTime = 0 * time.Minute
+// func (a *autodiscoveryStream) initStream(ctx context.Context, client core.AgentSecureClient, log log.Component) error {
+// 	expBackoff := backoff.NewExponentialBackOff()
+// 	expBackoff.InitialInterval = 500 * time.Millisecond
+// 	expBackoff.MaxInterval = 5 * time.Minute
+// 	expBackoff.MaxElapsedTime = 0 * time.Minute
 
-	return backoff.Retry(func() error {
-		select {
-		case <-ctx.Done():
-			return &backoff.PermanentError{}
-		default:
-		}
+// 	return backoff.Retry(func() error {
+// 		select {
+// 		case <-ctx.Done():
+// 			return &backoff.PermanentError{}
+// 		default:
+// 		}
 
-		stream, err := client.AutodiscoveryStreamConfig(ctx, nil)
-		if err != nil {
-			log.Infof("unable to establish stream, will possibly retry: %s", err)
-			// We need to handle the case that the kernel agent dies
-			return err
-		}
+// 		stream, err := client.AutodiscoveryStreamConfig(ctx, nil)
+// 		if err != nil {
+// 			log.Infof("unable to establish stream, will possibly retry: %s", err)
+// 			// We need to handle the case that the kernel agent dies
+// 			return err
+// 		}
 
-		a.autodiscoveryStream = stream
+// 		a.autodiscoveryStream = stream
 
-		log.Info("autodiscovery stream established successfully")
-		return nil
-	}, expBackoff)
-}
+// 		log.Info("autodiscovery stream established successfully")
+// 		return nil
+// 	}, expBackoff)
+// }
 
-func startScheduler(ctx context.Context, f context.CancelFunc, client core.AgentSecureClient, scheduler *pkgcollector.CheckScheduler, log log.Component) {
-	// Start a stream using the grpc Client to consume autodiscovery updates for the different configurations
-	autodiscoveryStream := &autodiscoveryStream{
-		autodiscoveryStreamCancel: f,
-	}
+// func startScheduler(ctx context.Context, f context.CancelFunc, client core.AgentSecureClient, scheduler *pkgcollector.CheckScheduler, log log.Component) {
+// 	// Start a stream using the grpc Client to consume autodiscovery updates for the different configurations
+// 	autodiscoveryStream := &autodiscoveryStream{
+// 		autodiscoveryStreamCancel: f,
+// 	}
 
-	for {
-		if autodiscoveryStream.autodiscoveryStream == nil {
-			err := autodiscoveryStream.initStream(ctx, client, log)
-			if err != nil {
-				log.Warnf("error received trying to start stream: %s", err)
-				continue
-			}
-		}
-		log.Infof("autodiscoveryStream: %+v\n", autodiscoveryStream.autodiscoveryStream)
+// 	for {
+// 		if autodiscoveryStream.autodiscoveryStream == nil {
+// 			err := autodiscoveryStream.initStream(ctx, client, log)
+// 			if err != nil {
+// 				log.Warnf("error received trying to start stream: %s", err)
+// 				continue
+// 			}
+// 		}
+// 		log.Infof("autodiscoveryStream: %+v\n", autodiscoveryStream.autodiscoveryStream)
 
-		streamConfigs, err := autodiscoveryStream.autodiscoveryStream.Recv()
+// 		streamConfigs, err := autodiscoveryStream.autodiscoveryStream.Recv()
 
-		if err != nil {
-			autodiscoveryStream.autodiscoveryStreamCancel()
+// 		if err != nil {
+// 			autodiscoveryStream.autodiscoveryStreamCancel()
 
-			autodiscoveryStream.autodiscoveryStream = nil
+// 			autodiscoveryStream.autodiscoveryStream = nil
 
-			if err != io.EOF {
-				log.Warnf("error received from autodiscovery stream: %s", err)
-			}
+// 			if err != io.EOF {
+// 				log.Warnf("error received from autodiscovery stream: %s", err)
+// 			}
 
-			continue
-		}
+// 			continue
+// 		}
 
-		scheduleConfigs := []integration.Config{}
-		unscheduleConfigs := []integration.Config{}
+// 		scheduleConfigs := []integration.Config{}
+// 		unscheduleConfigs := []integration.Config{}
 
-		for _, config := range streamConfigs.Configs {
-			log.Infof("received autodiscovery scheduler config event %s for check %s", config.EventType.String(), config.Name)
-			if config.EventType == core.ConfigEventType_SCHEDULE {
-				scheduleConfigs = append(scheduleConfigs, proto.AutodiscoveryConfigFromProtobufConfig(config))
-			} else if config.EventType == core.ConfigEventType_UNSCHEDULE {
-				unscheduleConfigs = append(unscheduleConfigs, proto.AutodiscoveryConfigFromProtobufConfig(config))
-			}
-		}
+// 		for _, config := range streamConfigs.Configs {
+// 			log.Infof("received autodiscovery scheduler config event %s for check %s", config.EventType.String(), config.Name)
+// 			if config.EventType == core.ConfigEventType_SCHEDULE {
+// 				scheduleConfigs = append(scheduleConfigs, proto.AutodiscoveryConfigFromProtobufConfig(config))
+// 			} else if config.EventType == core.ConfigEventType_UNSCHEDULE {
+// 				unscheduleConfigs = append(unscheduleConfigs, proto.AutodiscoveryConfigFromProtobufConfig(config))
+// 			}
+// 		}
 
-		scheduler.Schedule(scheduleConfigs)
-		scheduler.Unschedule(unscheduleConfigs)
-	}
-}
+// 		scheduler.Schedule(scheduleConfigs)
+// 		scheduler.Unschedule(unscheduleConfigs)
+// 	}
+// }
