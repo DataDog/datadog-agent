@@ -27,12 +27,11 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 	heuristics := []automultilinedetection.Heuristic{}
 
 	heuristics = append(heuristics, automultilinedetection.NewTokenizer(pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")))
+	heuristics = append(heuristics, automultilinedetection.NewUserSamples(pkgconfigsetup.Datadog()))
 
 	if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_detection") {
 		heuristics = append(heuristics, automultilinedetection.NewJSONDetector())
 	}
-
-	heuristics = append(heuristics, automultilinedetection.NewUserSamples(pkgconfigsetup.Datadog()))
 
 	if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_datetime_detection") {
 		heuristics = append(heuristics, automultilinedetection.NewTimestampDetector(

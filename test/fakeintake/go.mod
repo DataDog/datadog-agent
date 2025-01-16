@@ -9,7 +9,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.139
+	github.com/DataDog/agent-payload/v5 v5.0.140
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
 	github.com/DataDog/zstd v1.5.6
@@ -23,7 +23,7 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.10.0
 	github.com/tinylib/msgp v1.2.5
-	google.golang.org/protobuf v1.36.1
+	google.golang.org/protobuf v1.36.2
 	modernc.org/sqlite v1.34.1
 )
 

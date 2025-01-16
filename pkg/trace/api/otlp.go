@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -26,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
-	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
@@ -639,12 +640,12 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if span.Service == "" {
 		span.Service = "OTLPResourceNoServiceName"
 	}
+	res := pcommon.NewResource()
+	for k, v := range rattr {
+		res.Attributes().PutStr(k, v)
+	}
 	if span.Resource == "" {
 		if transform.OperationAndResourceNameV2Enabled(o.conf) {
-			res := pcommon.NewResource()
-			for k, v := range rattr {
-				res.Attributes().PutStr(k, v)
-			}
 			span.Resource = traceutil.GetOTelResourceV2(in, res)
 		} else {
 			if r := resourceFromTags(span.Meta); r != "" {
@@ -655,7 +656,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		}
 	}
 	if span.Type == "" {
-		span.Type = spanKind2Type(in.Kind(), span)
+		span.Type = traceutil.SpanKind2Type(in, res)
 	}
 	return span
 }
@@ -693,30 +694,6 @@ func resourceFromTags(meta map[string]string) string {
 		return typ
 	}
 	return ""
-}
-
-// spanKind2Type returns a span's type based on the given kind and other present properties.
-func spanKind2Type(kind ptrace.SpanKind, span *pb.Span) string {
-	var typ string
-	switch kind {
-	case ptrace.SpanKindServer:
-		typ = "web"
-	case ptrace.SpanKindClient:
-		typ = "http"
-		db, ok := span.Meta[string(semconv.AttributeDBSystem)]
-		if !ok {
-			break
-		}
-		switch db {
-		case "redis", "memcached":
-			typ = "cache"
-		default:
-			typ = "db"
-		}
-	default:
-		typ = "custom"
-	}
-	return typ
 }
 
 // computeTopLevelAndMeasured updates the span's top-level and measured attributes.
