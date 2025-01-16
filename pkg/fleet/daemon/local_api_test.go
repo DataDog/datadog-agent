@@ -126,10 +126,12 @@ func TestAPIStatus(t *testing.T) {
 	api := newTestLocalAPI(t)
 	defer api.Stop()
 
-	installerState := map[string]repository.State{
+	installerState := map[string]PackageState{
 		"pkg1": {
-			Stable:     "1.0.0",
-			Experiment: "2.0.0",
+			Version: repository.State{
+				Stable:     "1.0.0",
+				Experiment: "2.0.0",
+			},
 		},
 	}
 	api.i.On("GetState").Return(installerState, nil)
