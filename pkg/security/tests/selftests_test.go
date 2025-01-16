@@ -43,17 +43,17 @@ func TestSelfTests(t *testing.T) {
 		assert.NotEmpty(t, msg.Tags, "event's tags are empty")
 
 		jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
-			succeeded_tests, err := jsonpath.JsonPathLookup(obj, `$.succeeded_tests`)
+			succeededTests, err := jsonpath.JsonPathLookup(obj, `$.succeeded_tests`)
 			if err != nil {
 				t.Errorf("could not get succeeded_tests field: %v", err)
 			}
-			failed_tests, err := jsonpath.JsonPathLookup(obj, `$.failed_tests`)
+			failedTests, err := jsonpath.JsonPathLookup(obj, `$.failed_tests`)
 			if err != nil {
 				t.Errorf("could not get failed_tests field: %v", err)
 			}
 
-			if len(succeeded_tests.([]interface{})) != 3 || len(failed_tests.([]interface{})) > 0 {
-				t.Errorf("test results: successes: %v, fails: %v", succeeded_tests, failed_tests)
+			if len(succeededTests.([]interface{})) != 3 || len(failedTests.([]interface{})) > 0 {
+				t.Errorf("test results: successes: %v, fails: %v", succeededTests, failedTests)
 			}
 
 		})
