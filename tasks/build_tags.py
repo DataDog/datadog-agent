@@ -31,6 +31,7 @@ ALL_TAGS = {
     "ec2",
     "etcd",
     "fargateprocess",
+    "glibc",  # Build the modules depending on the glibc extension.
     "jmx",
     "jetson",
     "kubeapiserver",
@@ -69,6 +70,7 @@ AGENT_TAGS = {
     "docker",
     "ec2",
     "etcd",
+    "glibc",
     "jetson",
     "jmx",
     "kubeapiserver",
@@ -109,19 +111,19 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
 FIPS_AGENT_TAGS = AGENT_TAGS.union({"goexperiment.systemcrypto"})
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
-CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2"}
+CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "glibc", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2"}
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
-CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks"}
+CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "glibc"}
 
 # DOGSTATSD_TAGS lists the tags needed when building dogstatsd
-DOGSTATSD_TAGS = {"containerd", "no_dynamic_plugins", "docker", "kubelet", "podman", "zlib", "zstd"}
+DOGSTATSD_TAGS = {"containerd", "no_dynamic_plugins", "docker", "glibc", "kubelet", "podman", "zlib", "zstd"}
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib", "zstd"}
+IOT_AGENT_TAGS = {"glibc", "jetson", "otlp", "systemd", "zlib", "zstd"}
 
 # INSTALLER_TAGS lists the tags needed when building the installer
-INSTALLER_TAGS = {"docker", "ec2", "kubelet"}
+INSTALLER_TAGS = {"docker", "ec2", "glibc", "kubelet"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess"}).difference({"otlp", "python", "trivy"})
@@ -150,6 +152,7 @@ SECURITY_AGENT_TAGS = {
     "datadog.no_waf",
     "docker",
     "containerd",
+    "glibc",
     "no_dynamic_plugins",
     "kubeapiserver",
     "kubelet",
@@ -160,13 +163,14 @@ SECURITY_AGENT_TAGS = {
 }
 
 # SERVERLESS_TAGS lists the tags necessary to build serverless
-SERVERLESS_TAGS = {"serverless", "otlp"}
+SERVERLESS_TAGS = {"glibc", "serverless", "otlp"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
 SYSTEM_PROBE_TAGS = {
     "datadog.no_waf",
     "no_dynamic_plugins",
     "ec2",
+    "glibc",
     "linux_bpf",
     "netcgo",
     "npm",
@@ -182,6 +186,7 @@ TRACE_AGENT_TAGS = {
     "containerd",
     "no_dynamic_plugins",
     "datadog.no_waf",
+    "glibc"
     "kubeapiserver",
     "kubelet",
     "otlp",
