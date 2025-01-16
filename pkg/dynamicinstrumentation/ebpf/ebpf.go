@@ -16,7 +16,7 @@ import (
 	"github.com/cilium/ebpf/link"
 	"io"
 	"text/template"
-
+	
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
