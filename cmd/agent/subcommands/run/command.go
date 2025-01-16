@@ -32,6 +32,8 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	ownerdetection "github.com/DataDog/datadog-agent/comp/ownerdetection/def"
+	ownerdetectionfx "github.com/DataDog/datadog-agent/comp/ownerdetection/fx"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 
 	// checks implemented as components
@@ -260,6 +262,7 @@ func run(log log.Component,
 	settings settings.Component,
 	_ option.Option[gui.Component],
 	_ agenttelemetry.Component,
+	_ ownerdetection.Component,
 ) error {
 	defer func() {
 		stopAgent()
@@ -474,6 +477,7 @@ func getSharedFxOption() fx.Option {
 		networkpath.Bundle(),
 		remoteagentregistryfx.Module(),
 		haagentfx.Module(),
+		ownerdetectionfx.Module(),
 	)
 }
 
