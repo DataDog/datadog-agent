@@ -16,6 +16,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	ownerdetection "github.com/DataDog/datadog-agent/comp/ownerdetection/def"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
@@ -35,7 +36,15 @@ type Provides struct {
 
 // NewComponent returns a new owner detection client
 func NewComponent(req Requires) (Provides, error) {
-	cli, err := NewOwnerDetectionClient(req.Config, req.Wmeta, req.Log, req.Telemetry)
+
+	// TODO: retry mechanism?
+	dcaClient, err := clusteragent.GetClusterAgentClient()
+	if err != nil {
+		req.Log.Error("Failed to get DCAClient")
+		return Provides{}, err
+	}
+
+	cli, err := NewOwnerDetectionClient(req.Config, req.Wmeta, req.Log, req.Telemetry, dcaClient)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -53,12 +62,13 @@ func NewComponent(req Requires) (Provides, error) {
 }
 
 // NewOwnerDetectionClient returns a new owner detection client
-func NewOwnerDetectionClient(cfg config.Component, wmeta workloadmeta.Component, log log.Component, telemetry telemetry.Component) (ownerdetection.Component, error) {
+func NewOwnerDetectionClient(cfg config.Component, wmeta workloadmeta.Component, log log.Component, telemetry telemetry.Component, dcaClient clusteragent.DCAClientInterface) (ownerdetection.Component, error) {
 	return &ownerDetectionClient{
 		wmeta:         wmeta,
 		log:           log,
 		datadogConfig: cfg,
 		telemetry:     telemetry,
+		dcaClient:     dcaClient,
 	}, nil
 }
 
@@ -67,15 +77,32 @@ type ownerDetectionClient struct {
 	datadogConfig config.Component
 	log           log.Component
 	telemetry     telemetry.Component
+	dcaClient     clusteragent.DCAClientInterface
 }
 
 // Start calls defaultTagger.Start
 func (c *ownerDetectionClient) Start(ctx context.Context) error {
 	c.log.Info("OwnerDetectionClient is started")
-	return errors.New("Not implemented")
+	go c.start(ctx)
+	return nil
 }
 
 // Stop calls defaultTagger.Stop
 func (c *ownerDetectionClient) Stop() error {
 	return errors.New("Not implemented")
 }
+
+/*
+
+// IDEA, store the DCAClient masked as ownwerDetectionClient in the struct itself
+
+	if c.langDetectionCl == nil {
+		// TODO: modify GetClusterAgentClient to accept a context with a deadline. If this
+		// functions hangs forever, the component will be unhealthy and crash.
+		dcaClient, err := clusteragent.GetClusterAgentClient()
+		if err != nil {
+			return err
+		}
+		c.langDetectionCl = dcaClient
+	}
+*/
