@@ -20,6 +20,7 @@ import (
 // VaultBackendConfig contains the configuration to connect to Hashicorp vault backend
 type VaultBackendConfig struct {
 	VaultSession VaultSessionBackendConfig `mapstructure:"vault_session"`
+	VaultToken   string                    `mapstructure:"vault_token"`
 	BackendType  string                    `mapstructure:"backend_type"`
 	VaultAddress string                    `mapstructure:"vault_address"`
 	SecretPath   string                    `mapstructure:"secret_path"`
@@ -86,17 +87,24 @@ func NewVaultBackend(backendID string, bc map[string]interface{}) (*VaultBackend
 			Msg("failed to initialize vault session")
 		return nil, err
 	}
-
-	authInfo, err := client.Auth().Login(context.TODO(), authMethod)
-	if err != nil {
-		log.Error().Err(err).Str("backend_id", backendID).
-			Msg("failed to created auth info")
-		return nil, err
-	}
-	if authInfo == nil {
-		log.Error().Err(err).Str("backend_id", backendID).
-			Msg("No auth info returned")
-		return nil, errors.New("No auth info returned")
+	if authMethod != nil {
+		authInfo, err := client.Auth().Login(context.TODO(), authMethod)
+		if err != nil {
+			log.Error().Err(err).Str("backend_id", backendID).
+				Msg("failed to created auth info")
+			return nil, err
+		}
+		if authInfo == nil {
+			log.Error().Err(err).Str("backend_id", backendID).
+				Msg("No auth info returned")
+			return nil, errors.New("No auth info returned")
+		}
+	} else if backendConfig.VaultToken != "" {
+		client.SetToken(backendConfig.VaultToken)
+	} else {
+		log.Error().Str("backend_id", backendID).
+			Msg("No auth method or token provided")
+		return nil, errors.New("No auth method or token provided")
 	}
 
 	secret, err := client.Logical().Read(backendConfig.SecretPath)
@@ -110,7 +118,9 @@ func NewVaultBackend(backendID string, bc map[string]interface{}) (*VaultBackend
 	if backendConfig.SecretPath != "" {
 		if len(backendConfig.Secrets) > 0 {
 			for _, item := range backendConfig.Secrets {
-				secretValue[item] = secret.Data[item].(string)
+				if data, ok := secret.Data[item]; ok {
+					secretValue[item] = data.(string)
+				}
 			}
 		}
 	}
@@ -128,7 +138,7 @@ func (b *VaultBackend) GetSecretOutput(secretKey string) secret.Output {
 	if val, ok := b.Secret[secretKey]; ok {
 		return secret.Output{Value: &val, Error: nil}
 	}
-	es := errors.New("backend does not provide secret key").Error()
+	es := secret.ErrKeyNotFound.Error()
 
 	log.Error().
 		Str("backend_id", b.BackendID).

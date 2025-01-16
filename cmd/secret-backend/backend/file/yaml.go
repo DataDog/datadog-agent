@@ -7,7 +7,6 @@
 package file
 
 import (
-	"errors"
 	"os"
 
 	"gopkg.in/yaml.v2"
@@ -72,13 +71,13 @@ func (b *YamlBackend) GetSecretOutput(secretKey string) secret.Output {
 	if val, ok := b.Secret[secretKey]; ok {
 		return secret.Output{Value: &val, Error: nil}
 	}
-	es := errors.New("backend does not provide secret key").Error()
+	es := secret.ErrKeyNotFound.Error()
 
 	log.Error().
 		Str("backend_id", b.BackendID).
 		Str("backend_type", b.Config.BackendType).
 		Str("file_path", b.Config.FilePath).
 		Str("secret_key", secretKey).
-		Msg("backend does not provide secret key")
+		Msg(es)
 	return secret.Output{Value: nil, Error: &es}
 }

@@ -10,7 +10,6 @@ package akeyless
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	"github.com/DataDog/datadog-secret-backend/secret"
@@ -153,7 +152,7 @@ func (b *Backend) GetSecretOutput(secretKey string) secret.Output {
 	// Extract the secret value from the response
 	secretValue, ok := response[secretKey]
 	if !ok {
-		es := errors.New("secret key not found in response").Error()
+		es := secret.ErrKeyNotFound.Error()
 		log.Error().
 			Str("backend_id", b.BackendID).
 			Str("backend_type", b.Config.BackendType).

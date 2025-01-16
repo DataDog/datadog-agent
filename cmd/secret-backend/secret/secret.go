@@ -7,6 +7,8 @@
 // Package secret contains the structure to receive and return secrets to the Datadog Agent
 package secret
 
+import "errors"
+
 // Input represents a secret to be resolved
 type Input struct {
 	Secrets []string `json:"secrets"`
@@ -18,3 +20,6 @@ type Output struct {
 	Value *string `json:"value"`
 	Error *string `json:"error"`
 }
+
+// ErrKeyNotFound is returned when the secret key is not found
+var ErrKeyNotFound = errors.New("backend does not provide secret key")

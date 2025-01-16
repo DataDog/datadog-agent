@@ -9,7 +9,6 @@ package file
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 
 	"github.com/mitchellh/mapstructure"
@@ -71,13 +70,13 @@ func (b *JSONBackend) GetSecretOutput(secretKey string) secret.Output {
 	if val, ok := b.Secret[secretKey]; ok {
 		return secret.Output{Value: &val, Error: nil}
 	}
-	es := errors.New("backend does not provide secret key").Error()
+	es := secret.ErrKeyNotFound.Error()
 
 	log.Error().
 		Str("backend_id", b.BackendID).
 		Str("backend_type", b.Config.BackendType).
 		Str("file_path", b.Config.FilePath).
 		Str("secret_key", secretKey).
-		Msg("backend does not provide secret")
+		Msg(es)
 	return secret.Output{Value: nil, Error: &es}
 }

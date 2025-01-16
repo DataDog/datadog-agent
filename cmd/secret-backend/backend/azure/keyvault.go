@@ -10,21 +10,38 @@ package azure
 import (
 	"context"
 	"encoding/json"
-	"errors"
 
 	"github.com/Azure/azure-sdk-for-go/services/keyvault/v7.1/keyvault"
+	"github.com/Azure/go-autorest/autorest"
 	"github.com/DataDog/datadog-secret-backend/secret"
 	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
 
+// keyvaultClient is an interface that defines the methods we use from the ssm client
+// As the AWS SDK doesn't provide a real mock, we'll have to make our own that
+// matches this interface
+type keyvaultClient interface {
+	GetSecret(ctx context.Context, vaultBaseURL string, secretName string, secretVersion string) (result keyvault.SecretBundle, err error)
+}
+
+// getKeyvaultClient is a variable that holds the function to create a new keyvaultClient
+// it will be overwritten in tests
+var getKeyvaultClient = func(cfg *autorest.Authorizer) keyvaultClient {
+	client := keyvault.New()
+	if cfg != nil {
+		client.Authorizer = *cfg
+	}
+	return client
+}
+
 // KeyVaultBackendConfig contains the configuration to connect for Azure backend
 type KeyVaultBackendConfig struct {
-	Session     SessionBackendConfig `mapstructure:"azure_session"`
-	BackendType string               `mapstructure:"backend_type"`
-	ForceString bool                 `mapstructure:"force_string"`
-	KeyVaultURL string               `mapstructure:"keyvaulturl"`
-	SecretID    string               `mapstructure:"secret_id"`
+	Session     *SessionBackendConfig `mapstructure:"azure_session"`
+	BackendType string                `mapstructure:"backend_type"`
+	ForceString bool                  `mapstructure:"force_string"`
+	KeyVaultURL string                `mapstructure:"keyvaulturl"`
+	SecretID    string                `mapstructure:"secret_id"`
 }
 
 // KeyVaultBackend is a backend to fetch secrets from Azure
@@ -43,15 +60,17 @@ func NewKeyVaultBackend(backendID string, bc map[string]interface{}) (*KeyVaultB
 		return nil, err
 	}
 
-	cfg, err := NewConfigFromBackendConfig(backendConfig.Session)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"backend_id": backendID,
-		}).WithError(err).Error("failed to initialize Azure session")
-		return nil, err
+	var cfg *autorest.Authorizer
+	if backendConfig.Session != nil {
+		cfg, err = NewConfigFromBackendConfig(*backendConfig.Session)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"backend_id": backendID,
+			}).WithError(err).Error("failed to initialize Azure session")
+			return nil, err
+		}
 	}
-	client := keyvault.New()
-	client.Authorizer = *cfg
+	client := getKeyvaultClient(cfg)
 
 	out, err := client.GetSecret(context.Background(), backendConfig.KeyVaultURL, backendConfig.SecretID, "")
 	if err != nil {
@@ -87,7 +106,7 @@ func (b *KeyVaultBackend) GetSecretOutput(secretKey string) secret.Output {
 	if val, ok := b.Secret[secretKey]; ok {
 		return secret.Output{Value: &val, Error: nil}
 	}
-	es := errors.New("backend does not provide secret key").Error()
+	es := secret.ErrKeyNotFound.Error()
 
 	log.WithFields(log.Fields{
 		"backend_id":   b.BackendID,
