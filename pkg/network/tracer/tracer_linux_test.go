@@ -60,6 +60,7 @@ import (
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	ddtls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
@@ -2809,6 +2810,13 @@ const (
 )
 
 func TestMapCleanerDoesNotRemoveNewConnections(t *testing.T) {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+
+	if currKernelVersion < usmhttp2.MinimumKernelVersion {
+		t.Skipf("HTTP2 monitoring can not run on kernel before %v", usmhttp2.MinimumKernelVersion)
+	}
+
 	// Reproduction for incident-34000
 	srv, cancel := grpc.NewGRPCTLSServer(t, srvAddr, true)
 	t.Cleanup(cancel)
