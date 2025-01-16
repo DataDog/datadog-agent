@@ -1,16 +1,16 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
-
-#include <Foundation/Foundation.h>
-#include <CoreWLAN/CoreWLAN.h>
-#include <CoreLocation/CoreLocation.h>
-#include "wlan_darwin.h"
-
+#import <Foundation/Foundation.h>
+#import <CoreLocation/CoreLocation.h>
+#import <CoreWLAN/CoreWLAN.h>
+#import "wlan_darwin.h"
 
 @interface LocationManager : NSObject <CLLocationManagerDelegate>
+
 @property (nonatomic, strong) CLLocationManager *locationManager;
+@property (nonatomic, assign) BOOL isAuthorized;
+
+- (instancetype)init;
+- (BOOL)checkLocationPermissions;
+
 @end
 
 @implementation LocationManager
@@ -18,71 +18,56 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        [self setupLocationServices];
+        self.locationManager = [[CLLocationManager alloc] init];
+        self.locationManager.delegate = self;
+        self.isAuthorized = NO;
+
+        if (@available(macOS 10.15, *)) {
+            CLAuthorizationStatus status = [CLLocationManager authorizationStatus];
+            if (status == kCLAuthorizationStatusNotDetermined) {
+                [self.locationManager requestWhenInUseAuthorization];
+            }
+        }
     }
     return self;
 }
 
-- (void)setupLocationServices {
-    self.locationManager = [[CLLocationManager alloc] init];
-    self.locationManager.delegate = self;
-    
-    if (@available(macOS 11.0, *)) {
-        if (self.locationManager.authorizationStatus == kCLAuthorizationStatusNotDetermined) {
-            [self.locationManager requestWhenInUseAuthorization];
-        }
-    } else {
-        NSLog(@"Location services not available on this OS version");
+- (BOOL)checkLocationPermissions {
+    if (@available(macOS 10.15, *)) {
+        CLAuthorizationStatus status = [CLLocationManager authorizationStatus];
+        self.isAuthorized = (status == kCLAuthorizationStatusAuthorized ||
+                             status == kCLAuthorizationStatusAuthorizedAlways);
     }
-}
-
-#pragma mark - CLLocationManagerDelegate
-
-- (void)locationManagerDidChangeAuthorization:(CLLocationManager *)manager {
-    if (@available(macOS 11.0, *)) {
-        CLAuthorizationStatus status = manager.authorizationStatus;
-        
-        switch (status) {
-            case kCLAuthorizationStatusAuthorizedAlways:
-                NSLog(@"Location services authorized!");
-                [self.locationManager startUpdatingLocation];
-                break;
-                
-            case kCLAuthorizationStatusDenied:
-                NSLog(@"Location services denied by user");
-                break;
-                
-            case kCLAuthorizationStatusRestricted:
-                NSLog(@"Location services restricted");
-                break;
-            default:
-                NSLog(@"Location services status undetermined: %d", status);
-                break;
-        }
-    } else {
-        NSLog(@"Location services not available on this OS version");
-    }
+    return self.isAuthorized;
 }
 
 @end
 
-// GetWiFiInformation return wifi data
 WiFiInfo GetWiFiInformation() {
-    @autoreleasepool {
-        LocationManager *locationManager = [[LocationManager alloc] init];
-        CWInterface *wifiInterface = [[CWWiFiClient sharedWiFiClient] interface];
+    WiFiInfo info = {0};
 
-        WiFiInfo info;
+    @autoreleasepool {
+        LocationManager *manager = [[LocationManager alloc] init];
+        if (![manager checkLocationPermissions]) {
+            info.errorMessage = "Location authorization not granted";
+            return info;
+        }
+
+        CWInterface *wifiInterface = [[CWWiFiClient sharedWiFiClient] interface];
+        if (!wifiInterface) {
+            info.errorMessage = "Unable to access Wi-Fi interface";
+            return info;
+        }
 
         info.rssi = (int)wifiInterface.rssiValue;
-        info.ssid = strdup([[wifiInterface ssid] UTF8String]);
-        info.bssid = strdup([[wifiInterface bssid] UTF8String]);
+        info.ssid = strdup([wifiInterface.ssid UTF8String] ?: "");
+        info.bssid = strdup([wifiInterface.bssid UTF8String] ?: "");
         info.channel = (int)wifiInterface.wlanChannel.channelNumber;
         info.noise = (int)wifiInterface.noiseMeasurement;
         info.transmitRate = wifiInterface.transmitRate;
-        info.hardwareAddress = strdup([[wifiInterface hardwareAddress] UTF8String]);
+        info.hardwareAddress = strdup([wifiInterface.hardwareAddress UTF8String] ?: "");
         info.activePHYMode = (int)wifiInterface.activePHYMode;
-        
-        return info;
     }
+
+    return info;
 }

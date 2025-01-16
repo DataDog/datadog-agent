@@ -10,6 +10,7 @@ typedef struct {
     double transmitRate;
     const char *hardwareAddress;
     int activePHYMode;
+    const char *errorMessage;
 } WiFiInfo;
 
 WiFiInfo GetWiFiInformation();

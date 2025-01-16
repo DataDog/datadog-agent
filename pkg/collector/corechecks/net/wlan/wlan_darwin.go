@@ -16,11 +16,13 @@ package wlan
 */
 import "C"
 import (
+	"fmt"
 	"unsafe"
 )
 
 func GetWiFiInfo() (WiFiInfo, error) {
 	info := C.GetWiFiInformation()
+	errorMessage := C.GoString(info.errorMessage)
 
 	ssid := C.GoString(info.ssid)
 	bssid := C.GoString(info.bssid)
@@ -31,7 +33,7 @@ func GetWiFiInfo() (WiFiInfo, error) {
 	C.free(unsafe.Pointer(info.bssid))
 	C.free(unsafe.Pointer(info.hardwareAddress))
 
-	return WiFiInfo{
+	wifiInfo := WiFiInfo{
 		Rssi:            int(info.rssi),
 		Ssid:            ssid,
 		Bssid:           bssid,
@@ -40,5 +42,12 @@ func GetWiFiInfo() (WiFiInfo, error) {
 		TransmitRate:    float64(info.transmitRate),
 		HardwareAddress: hardwareAddress,
 		ActivePHYMode:   int(info.activePHYMode),
-	}, nil
+	}
+
+	var err error
+	if errorMessage != "" {
+		err = fmt.Errorf("%s", errorMessage)
+	}
+
+	return wifiInfo, err
 }
