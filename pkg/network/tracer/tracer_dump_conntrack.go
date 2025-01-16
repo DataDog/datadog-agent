@@ -58,7 +58,10 @@ func (table *DebugConntrackTable) WriteTo(w io.Writer, maxEntries int) error {
 
 	// in this case the table itself is incomplete due to closing the netlink socket part-way
 	if table.IsTruncated {
-		_, err = fmt.Fprintln(w, "netlink table truncated due to response timeout, some entries may be missing") //nolint:ineffassign, staticcheck // TODO
+		_, err = fmt.Fprintln(w, "netlink table truncated due to response timeout, some entries may be missing")
+		if err != nil {
+			return err
+		}
 	}
 
 	// used to stop writing once we reach maxEntries
