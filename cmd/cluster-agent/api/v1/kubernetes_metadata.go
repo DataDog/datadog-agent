@@ -44,7 +44,8 @@ func installKubernetesMetadataEndpoints(r *mux.Router, wmeta workloadmeta.Compon
 	r.HandleFunc("/tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", func(w http.ResponseWriter, r *http.Request) { getNamespaceLabels(w, r, wmeta) })).Methods("GET")
 	r.HandleFunc("/metadata/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceMetadata", func(w http.ResponseWriter, r *http.Request) { getNamespaceMetadata(w, r, wmeta) })).Methods("GET")
 	r.HandleFunc("/cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID)).Methods("GET")
-	r.HandleFunc("/owners/{ns}/{resourceName}/{apiVersion}/{kind}", api.WithTelemetryWrapper("getOwnerReferences", func(w http.ResponseWriter, r *http.Request) { getOwnerReferences(w, r, wmeta) })).Methods("GET")
+	r.HandleFunc("/owners/{ns}/{resourceName}/{group}/{version}/{kind}", api.WithTelemetryWrapper("getOwnerReferencesWithGroup", func(w http.ResponseWriter, r *http.Request) { ownerHandlerWithGroup(w, r) })).Methods("GET")
+	r.HandleFunc("/owners/{ns}/{resourceName}/{version}/{kind}", api.WithTelemetryWrapper("getOwnerReferencesNoGroup", func(w http.ResponseWriter, r *http.Request) { ownerHandlerNoGroup(w, r) })).Methods("GET")
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
@@ -56,16 +57,19 @@ type ownerItem struct {
 	name string
 }
 
-func getOwnerReferences(w http.ResponseWriter, r *http.Request, _ workloadmeta.Component) {
+func ownerHandlerNoGroup(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	nsName, name, apiVersion, kind := vars["ns"], vars["resourceName"], vars["apiVersion"], vars["kind"]
+	nsName, resourceName, group, version, kind := vars["ns"], vars["resourceName"], "", vars["version"], vars["kind"]
+	getOwnerReferences(w, nsName, resourceName, group, version, kind)
+}
 
-	groupVersion, err := schema.ParseGroupVersion(apiVersion)
-	if err != nil {
-		log.Errorf("Could not parse the group version: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+func ownerHandlerWithGroup(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	nsName, resourceName, group, version, kind := vars["ns"], vars["resourceName"], vars["group"], vars["version"], vars["kind"]
+	getOwnerReferences(w, nsName, resourceName, group, version, kind)
+}
+
+func getOwnerReferences(w http.ResponseWriter, nsName, resourceName, group, version, kind string) {
 
 	apiClient, err := as.GetAPIClient()
 	if err != nil {
@@ -75,8 +79,8 @@ func getOwnerReferences(w http.ResponseWriter, r *http.Request, _ workloadmeta.C
 	}
 
 	childGVK := schema.GroupVersionKind{
-		Group:   groupVersion.Group,
-		Version: groupVersion.Version,
+		Group:   group,
+		Version: version,
 		Kind:    kind,
 	}
 
@@ -94,7 +98,7 @@ func getOwnerReferences(w http.ResponseWriter, r *http.Request, _ workloadmeta.C
 	}
 
 	outputOwnerReferences := make([]k8stypes.ObjectRelation, 0)
-	queue := []ownerItem{{gvk: childGVK, gvr: childGVR, name: name}}
+	queue := []ownerItem{{gvk: childGVK, gvr: childGVR, name: resourceName}}
 
 	for len(queue) > 0 {
 		curr := queue[0]
@@ -106,24 +110,34 @@ func getOwnerReferences(w http.ResponseWriter, r *http.Request, _ workloadmeta.C
 
 		for _, owner := range ownerReferences {
 
-			restMapping, err := apiClient.RESTMapper.RESTMapping(curr.gvk.GroupKind(), curr.gvk.Version)
+			// Step 1: Parse GVKR
+			ownerGroupVersion, err := schema.ParseGroupVersion(owner.APIVersion)
+			if err != nil {
+				log.Errorf("Could not parse the owner APIVersion: %v", err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			ownerGVK := schema.GroupVersionKind{Group: ownerGroupVersion.Group, Version: ownerGroupVersion.Version, Kind: owner.Kind}
+
+			restMapping, err := apiClient.RESTMapper.RESTMapping(ownerGVK.GroupKind(), ownerGVK.Version)
 			if err != nil {
 				log.Errorf("Could not get the REST mapping: %v", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 
-			// Step 1: add owner into queue
-			ownerGroupVersion, _ := schema.ParseGroupVersion(owner.APIVersion)
+			ownerGVR := schema.GroupVersionResource{Group: ownerGroupVersion.Group, Version: ownerGroupVersion.Version, Resource: restMapping.Resource.Resource}
+
+			// Step 2: add owner into queue
 			queue = append(queue, ownerItem{
-				gvk:  schema.GroupVersionKind{Group: ownerGroupVersion.Group, Version: ownerGroupVersion.Version, Kind: owner.Kind},
-				gvr:  schema.GroupVersionResource{Group: ownerGroupVersion.Group, Version: ownerGroupVersion.Version, Resource: restMapping.Resource.Resource},
+				gvk:  ownerGVK,
+				gvr:  ownerGVR,
 				name: owner.Name,
 			})
 
-			// Step 2: record in outputOwnerReferences
+			// Step 3: record in outputOwnerReferences
 			outputOwnerReferences = append(outputOwnerReferences, k8stypes.ObjectRelation{
-				ParentGVRK: k8stypes.GroupVersionResourceKind{
+				ChildGVRK: k8stypes.GroupVersionResourceKind{
 					Group:    curr.gvk.Group,
 					Version:  curr.gvk.Version,
 					Resource: curr.gvr.Resource,
@@ -131,7 +145,7 @@ func getOwnerReferences(w http.ResponseWriter, r *http.Request, _ workloadmeta.C
 				},
 				ParentName: owner.Name,
 
-				ChildGVRK: k8stypes.GroupVersionResourceKind{
+				ParentGVRK: k8stypes.GroupVersionResourceKind{
 					Group:    ownerGroupVersion.Group,
 					Version:  ownerGroupVersion.Version,
 					Resource: restMapping.Resource.Resource,
@@ -144,7 +158,7 @@ func getOwnerReferences(w http.ResponseWriter, r *http.Request, _ workloadmeta.C
 
 	metaBytes, _ := json.Marshal(outputOwnerReferences)
 
-	log.Errorf("Owner references: %s", string(metaBytes)) //nolint:errcheck
+	// log.Errorf("Owner references: %s", string(metaBytes)) //nolint:errcheck
 
 	w.WriteHeader(http.StatusOK)
 	w.Write(metaBytes)
