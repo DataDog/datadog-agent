@@ -1,4 +1,4 @@
-go 1.23.0
+go 1.23.1
 
 toolchain go1.23.3
 
@@ -114,7 +114,7 @@ use (
 	pkg/util/json
 	pkg/util/log
 	pkg/util/log/setup
-	pkg/util/optional
+	pkg/util/option
 	pkg/util/pointer
 	pkg/util/scrubber
 	pkg/util/sort

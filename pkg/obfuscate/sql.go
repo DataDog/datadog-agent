@@ -287,10 +287,22 @@ func (f *groupingFilter) Reset() {
 	f.groupMulti = 0
 }
 
+func isSQLLexer(obfuscationMode ObfuscationMode) bool {
+	return obfuscationMode != ""
+}
+
 // ObfuscateSQLString quantizes and obfuscates the given input SQL query string. Quantization removes
 // some elements such as comments and aliases and obfuscation attempts to hide sensitive information
 // in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
+	return o.ObfuscateSQLStringWithOptions(in, &o.opts.SQL)
+}
+
+// ObfuscateSQLStringForDBMS quantizes and obfuscates the given input SQL query string for a specific DBMS.
+func (o *Obfuscator) ObfuscateSQLStringForDBMS(in string, dbms string) (*ObfuscatedQuery, error) {
+	if isSQLLexer(o.opts.SQL.ObfuscationMode) {
+		o.opts.SQL.DBMS = dbms
+	}
 	return o.ObfuscateSQLStringWithOptions(in, &o.opts.SQL)
 }
 

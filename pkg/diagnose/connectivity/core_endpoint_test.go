@@ -89,3 +89,14 @@ func TestAcceptRedirection(t *testing.T) {
 	assert.Error(t, err2)
 
 }
+
+func TestGetLogsUseTCP(t *testing.T) {
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_enabled", true)
+	assert.False(t, getLogsUseTCP())
+
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.force_use_tcp", true)
+	assert.True(t, getLogsUseTCP())
+
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.force_use_http", true)
+	assert.False(t, getLogsUseTCP())
+}

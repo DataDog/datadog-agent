@@ -38,6 +38,7 @@ func newResolver(uris []string) (*confmap.Resolver, error) {
 			httpsprovider.NewFactory(),
 		},
 		ConverterFactories: []confmap.ConverterFactory{},
+		DefaultScheme:      "env",
 	})
 }
 
@@ -149,6 +150,16 @@ func TestConvert(t *testing.T) {
 			expectedResult: "receivers/no-receivers-defined/config-result.yaml",
 		},
 		{
+			name:           "receivers/empty-staticconfigs",
+			provided:       "receivers/empty-staticconfigs/config.yaml",
+			expectedResult: "receivers/empty-staticconfigs/config-result.yaml",
+		},
+		{
+			name:           "receivers/missing-staticconfigs-section",
+			provided:       "receivers/missing-staticconfigs-section/config.yaml",
+			expectedResult: "receivers/missing-staticconfigs-section/config-result.yaml",
+		},
+		{
 			name:           "processors/dd-connector",
 			provided:       "processors/dd-connector/config.yaml",
 			expectedResult: "processors/dd-connector/config-result.yaml",
@@ -217,6 +228,12 @@ func TestConvert(t *testing.T) {
 			provided:       "dd-core-cfg/site/unset/config.yaml",
 			expectedResult: "dd-core-cfg/site/unset/config-result.yaml",
 			agentConfig:    "dd-core-cfg/site/unset/acfg.yaml",
+		},
+		{
+			name:           "dd-core-cfg/site/unset-core-mptystr-col",
+			provided:       "dd-core-cfg/site/unset-core-mptystr-col/config.yaml",
+			expectedResult: "dd-core-cfg/site/unset-core-mptystr-col/config-result.yaml",
+			agentConfig:    "dd-core-cfg/site/unset-core-mptystr-col/acfg.yaml",
 		},
 		{
 			name:           "dd-core-cfg/site/api-set-no-site",

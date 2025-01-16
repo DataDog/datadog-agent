@@ -9,13 +9,109 @@
 package debug
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os/exec"
+	"regexp"
+	"strconv"
+	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
+
+var klogRegexp = regexp.MustCompile(`<(\d+)>(.*)`)
+
+var klogLevels = []string{
+	"emerg",
+	"alert",
+	"crit",
+	"err",
+	"warn",
+	"notice",
+	"info",
+	"debug",
+}
+
+// lowest 3 bits are the log level, remaining bits are the facility
+const klogFacilityShift = 3
+const klogLevelMask = (1 << klogFacilityShift) - 1
+
+func klogLevelName(level int) string {
+	return klogLevels[level&klogLevelMask]
+}
+
+func readAllDmesg() ([]byte, error) {
+	n, err := syscall.Klogctl(unix.SYSLOG_ACTION_SIZE_BUFFER, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query size of log buffer [%w]", err)
+	}
+
+	b := make([]byte, n)
+
+	m, err := syscall.Klogctl(unix.SYSLOG_ACTION_READ_ALL, b)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read messages from log buffer [%w]", err)
+	}
+
+	return b[:m], nil
+}
+
+func parseDmesg(buffer []byte) (string, error) {
+	buf := bytes.NewBuffer(buffer)
+	var result string
+
+	for {
+		line, err := buf.ReadString('\n')
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return result, err
+		}
+
+		levelName := "info"
+		message := line
+
+		// convert the numeric log level to a string
+		parts := klogRegexp.FindStringSubmatch(line)
+		if parts != nil {
+			message = parts[2]
+
+			digits := parts[1]
+			level, err := strconv.Atoi(digits)
+			if err == nil {
+				levelName = klogLevelName(level)
+			}
+		}
+
+		result += fmt.Sprintf("%-6s: %s\n", levelName, message)
+	}
+
+	return result, nil
+}
+
+// HandleLinuxDmesg writes linux dmesg into the HTTP response.
+func HandleLinuxDmesg(w http.ResponseWriter, _ *http.Request) {
+	dmesg, err := readAllDmesg()
+	if err != nil {
+		w.WriteHeader(500)
+		fmt.Fprintf(w, "failed to read dmesg: %s", err)
+		return
+	}
+
+	dmesgStr, err := parseDmesg(dmesg)
+	if err != nil {
+		w.WriteHeader(500)
+		fmt.Fprintf(w, "failed to parse dmesg: %s", err)
+		return
+	}
+
+	io.WriteString(w, dmesgStr)
+}
 
 // handleCommand runs commandName with the provided arguments and writes it to the HTTP response.
 // If the command exits with a failure or doesn't exist in the PATH, it will still 200 but report the failure.

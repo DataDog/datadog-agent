@@ -26,7 +26,7 @@ import (
 
 func TestInstall(t *testing.T) {
 	s := &testInstallSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testInstallSuite struct {
@@ -127,7 +127,7 @@ func (s *testInstallSuite) testCodeSignatures(t *Tester, remoteMSIPath string) {
 // checks that the files are not removed
 func TestInstallExistingAltDir(t *testing.T) {
 	s := &testInstallExistingAltDirSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testInstallExistingAltDirSuite struct {
@@ -189,7 +189,7 @@ func (s *testInstallExistingAltDirSuite) TestInstallExistingAltDir() {
 
 func TestInstallAltDir(t *testing.T) {
 	s := &testInstallAltDirSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testInstallAltDirSuite struct {
@@ -224,7 +224,7 @@ func (s *testInstallAltDirSuite) TestInstallAltDir() {
 
 func TestInstallAltDirAndCorruptForUninstall(t *testing.T) {
 	s := &testInstallAltDirAndCorruptForUninstallSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testInstallAltDirAndCorruptForUninstallSuite struct {
@@ -261,7 +261,7 @@ func (s *testInstallAltDirAndCorruptForUninstallSuite) TestInstallAltDirAndCorru
 
 func TestRepair(t *testing.T) {
 	s := &testRepairSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testRepairSuite struct {
@@ -297,7 +297,7 @@ func (s *testRepairSuite) TestRepair() {
 
 	// Run Repair through the MSI
 	if !s.Run("repair install", func() {
-		err = windowsAgent.RepairAllAgent(t.host, "", filepath.Join(s.OutputDir, "repair.log"))
+		err = windowsAgent.RepairAllAgent(t.host, "", filepath.Join(s.SessionOutputDir(), "repair.log"))
 		s.Require().NoError(err)
 	}) {
 		s.T().FailNow()
@@ -313,7 +313,7 @@ func (s *testRepairSuite) TestRepair() {
 
 func TestInstallOpts(t *testing.T) {
 	s := &testInstallOptsSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testInstallOptsSuite struct {
@@ -334,7 +334,7 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 	installOpts := []windowsAgent.InstallAgentOption{
 		windowsAgent.WithAPIKey("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 		windowsAgent.WithPackage(s.AgentPackage),
-		windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "install.log")),
+		windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
 		windowsAgent.WithTags("k1:v1,k2:v2"),
 		windowsAgent.WithHostname("win-installopts"),
 		windowsAgent.WithCmdPort(fmt.Sprintf("%d", cmdPort)),
@@ -420,7 +420,7 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 
 func TestInstallFail(t *testing.T) {
 	s := &testInstallFailSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testInstallFailSuite struct {
@@ -458,7 +458,7 @@ func (s *testInstallFailSuite) TestInstallFail() {
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithValidAPIKey(),
 			windowsAgent.WithWixFailWhenDeferred(),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "install.log")),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
 		)
 		s.Require().Error(err, "should fail to install agent %s", s.AgentPackage.AgentVersion())
 	}) {

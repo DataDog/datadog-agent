@@ -145,8 +145,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
-	"sync"
 	"testing"
 	"time"
 
@@ -199,8 +200,7 @@ type BaseSuite[Env any] struct {
 	endTime       time.Time
 	initOnly      bool
 
-	testSessionOutputDir     string
-	onceTestSessionOutputDir sync.Once
+	outputDir string
 }
 
 //
@@ -487,6 +487,13 @@ func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Cont
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) SetupSuite() {
 	bs.startTime = time.Now()
+	// Create the root output directory for the test suite session
+	sessionDirectory, err := runner.GetProfile().CreateOutputSubDir(bs.getSuiteSessionSubdirectory())
+	if err != nil {
+		bs.T().Errorf("unable to create session output directory: %v", err)
+	}
+	bs.outputDir = sessionDirectory
+	bs.T().Logf("Suite session output directory: %s", bs.outputDir)
 	// In `SetupSuite` we cannot fail as `TearDownSuite` will not be called otherwise.
 	// Meaning that stack clean up may not be called.
 	// We do implement an explicit recover to handle this manuallay.
@@ -497,7 +504,19 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 		}
 
 		bs.T().Logf("Caught panic in SetupSuite, err: %v. Will try to TearDownSuite", err)
-		bs.firstFailTest = "Initial provisioiningin SetupSuite" // This is required to handle skipDeleteOnFailure
+		bs.firstFailTest = "Initial provisioning SetupSuite" // This is required to handle skipDeleteOnFailure
+
+		// run environment diagnose
+		if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok {
+			// at least one test failed, diagnose the environment
+			diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
+			if diagnoseErr != nil {
+				bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
+			} else {
+				bs.T().Logf("Diagnose result:\n\n%s", diagnose)
+			}
+		}
+
 		bs.TearDownSuite()
 
 		// As we need to call `recover` to know if there was a panic, we wrap and forward the original panic to,
@@ -522,6 +541,12 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 	}
 }
 
+func (bs *BaseSuite[Env]) getSuiteSessionSubdirectory() string {
+	suiteStartTimePart := bs.startTime.Format("2006_01_02_15_04_05")
+	testPart := common.SanitizeDirectoryName(bs.T().Name())
+	return fmt.Sprintf("%s_%s", testPart, suiteStartTimePart)
+}
+
 // BeforeTest is executed right before the test starts and receives the suite and test names as input.
 // This function is called by [testify Suite].
 //
@@ -537,21 +562,42 @@ func (bs *BaseSuite[Env]) BeforeTest(string, string) {
 	}
 }
 
-// AfterTest is executed right after the test finishes and receives the suite and test names as input.
+// AfterTest is executed right after each test finishes and receives the suite and test names as input.
 // This function is called by [testify Suite].
 //
 // If you override AfterTest in your custom test suite type, the function must call [test.BaseSuite.AfterTest].
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
-	if bs.T().Failed() && bs.firstFailTest == "" {
-		// As far as I know, there is no way to prevent other tests from being
-		// run when a test fail. Even calling panic doesn't work.
-		// Instead, this code stores the name of the first fail test and prevents
-		// the environment to be updated.
-		// Note: using os.Exit(1) prevents other tests from being run but at the
-		// price of having no test output at all.
-		bs.firstFailTest = fmt.Sprintf("%v.%v", suiteName, testName)
+	if bs.T().Failed() {
+		// create output directory for this failed test
+		testPart := common.SanitizeDirectoryName(testName)
+		testOutputDir := filepath.Join(bs.SessionOutputDir(), testPart)
+		err := os.MkdirAll(testOutputDir, 0755)
+		if err != nil {
+			bs.T().Logf("unable to create test output directory: %v", err)
+		} else {
+			// run environment diagnose if the test failed
+			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok {
+				// at least one test failed, diagnose the environment
+				diagnose, diagnoseErr := diagnosableEnv.Diagnose(testOutputDir)
+				if diagnoseErr != nil {
+					bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
+				} else {
+					bs.T().Logf("Diagnose result:\n\n%s", diagnose)
+				}
+			}
+		}
+
+		if bs.firstFailTest == "" {
+			// As far as I know, there is no way to prevent other tests from being
+			// run when a test fail. Even calling panic doesn't work.
+			// Instead, this code stores the name of the first fail test and prevents
+			// the environment to be updated.
+			// Note: using os.Exit(1) prevents other tests from being run but at the
+			// price of having no test output at all.
+			bs.firstFailTest = fmt.Sprintf("%v.%v", suiteName, testName)
+		}
 	}
 }
 
@@ -604,30 +650,10 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	}
 }
 
-// GetRootOutputDir returns the root output directory for tests to store output files and artifacts.
-// The directory is created on the first call to this function and reused in future calls.
-//
-// See BaseSuite.CreateTestOutputDir() for a function that returns a directory for the current test.
-//
-// See CreateRootOutputDir() for details on the root directory creation.
-func (bs *BaseSuite[Env]) GetRootOutputDir() (string, error) {
-	var err error
-	bs.onceTestSessionOutputDir.Do(func() {
-		// Store the timestamped directory to be used by all tests in the suite
-		bs.testSessionOutputDir, err = CreateRootOutputDir()
-	})
-	return bs.testSessionOutputDir, err
-}
-
-// CreateTestOutputDir returns an output directory for the current test.
-//
-// See also CreateTestOutputDir()
-func (bs *BaseSuite[Env]) CreateTestOutputDir() (string, error) {
-	root, err := bs.GetRootOutputDir()
-	if err != nil {
-		return "", err
-	}
-	return CreateTestOutputDir(root, bs.T())
+// SessionOutputDir returns the root output directory for tests to store output files and artifacts.
+// The directory is created at SetupSuite time.
+func (bs *BaseSuite[Env]) SessionOutputDir() string {
+	return bs.outputDir
 }
 
 // Run is a helper function to run a test suite.

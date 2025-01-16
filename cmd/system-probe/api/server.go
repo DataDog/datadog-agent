@@ -59,6 +59,7 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmet
 
 	if runtime.GOOS == "linux" {
 		mux.HandleFunc("/debug/ebpf_btf_loader_info", ebpf.HandleBTFLoaderInfo)
+		mux.HandleFunc("/debug/dmesg", debug.HandleLinuxDmesg)
 		mux.HandleFunc("/debug/selinux_sestatus", debug.HandleSelinuxSestatus)
 		mux.HandleFunc("/debug/selinux_semodule_list", debug.HandleSelinuxSemoduleList)
 	}

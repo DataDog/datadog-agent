@@ -37,6 +37,8 @@ type Context struct {
 	CachedAncestorsCount int
 
 	resolvedFields []string
+
+	Error error
 }
 
 // Now return and cache the `now` timestamp
@@ -56,6 +58,7 @@ func (c *Context) SetEvent(evt Event) {
 func (c *Context) Reset() {
 	c.Event = nil
 	c.now = time.Time{}
+	c.Error = nil
 
 	clear(c.StringCache)
 	clear(c.IntCache)

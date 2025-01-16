@@ -148,7 +148,7 @@ def get_ancestor(ctx, package_sizes, on_main):
     """
     ancestor = get_common_ancestor(ctx, "HEAD")
     if not on_main and ancestor not in package_sizes:
-        return min(package_sizes, key=lambda x: package_sizes[x]['timestamp'])
+        return max(package_sizes, key=lambda x: package_sizes[x]['timestamp'])
     return ancestor
 
 

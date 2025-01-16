@@ -84,6 +84,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		ClientDropP0s          bool          `json:"client_drop_p0s"`
 		SpanMetaStructs        bool          `json:"span_meta_structs"`
 		LongRunningSpans       bool          `json:"long_running_spans"`
+		SpanEvents             bool          `json:"span_events"`
 		EvpProxyAllowedHeaders []string      `json:"evp_proxy_allowed_headers"`
 		Config                 reducedConfig `json:"config"`
 		PeerTags               []string      `json:"peer_tags"`
@@ -96,6 +97,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		ClientDropP0s:          canDropP0,
 		SpanMetaStructs:        true,
 		LongRunningSpans:       true,
+		SpanEvents:             true,
 		EvpProxyAllowedHeaders: EvpProxyAllowedHeaders,
 		SpanKindsStatsComputed: spanKindsStatsComputed,
 		Config: reducedConfig{

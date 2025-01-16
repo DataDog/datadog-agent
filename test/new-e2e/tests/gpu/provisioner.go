@@ -11,8 +11,6 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
-
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/command"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
@@ -130,7 +128,7 @@ func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner 
 		}
 
 		// Validate GPU devices
-		validateGPUDevicesCmd, err := validateGPUDevices(awsEnv, host)
+		validateGPUDevicesCmd, err := validateGPUDevices(&awsEnv, host)
 		if err != nil {
 			return err
 		}
@@ -142,19 +140,19 @@ func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner 
 		}
 
 		// Pull all the docker images required for the tests
-		dockerPullCmds, err := downloadDockerImages(awsEnv, host, params.dockerImages, dockerManager)
+		dockerPullCmds, err := downloadDockerImages(&awsEnv, host, params.dockerImages, dockerManager)
 		if err != nil {
 			return err
 		}
 
 		// Validate that Docker can run CUDA samples
 		dockerCudaDeps := append(dockerPullCmds, validateGPUDevicesCmd...)
-		dockerCudaValidateCmd, err := validateDockerCuda(awsEnv, host, dockerCudaDeps...)
+		dockerCudaValidateCmd, err := validateDockerCuda(&awsEnv, host, dockerCudaDeps...)
 		if err != nil {
 			return fmt.Errorf("validateDockerCuda failed: %w", err)
 		}
 		// incident-33572: log the output of the CUDA validation command
-		pulumi.All(dockerCudaValidateCmd.Stdout, dockerCudaValidateCmd.Stderr).ApplyT(func(args []interface{}) error {
+		pulumi.All(dockerCudaValidateCmd.StdoutOutput(), dockerCudaValidateCmd.StderrOutput()).ApplyT(func(args []interface{}) error {
 			stdout := args[0].(string)
 			stderr := args[1].(string)
 			err := ctx.Log.Info(fmt.Sprintf("Docker CUDA validation stdout: %s", stdout), nil)
@@ -171,7 +169,7 @@ func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner 
 		// Combine agent options from the parameters with the fakeintake and docker dependencies
 		params.agentOptions = append(params.agentOptions,
 			agentparams.WithFakeintake(fakeIntake),
-			agentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(dockerManager, dockerCudaValidateCmd)), // Depend on Docker to avoid apt lock issues
+			agentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(dockerCudaValidateCmd)), // Depend on Docker to avoid apt lock issues
 		)
 
 		// Set updater to nil as we're not using it
@@ -193,7 +191,7 @@ func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner 
 }
 
 // validateGPUDevices checks that there are GPU devices present and accesible
-func validateGPUDevices(e aws.Environment, vm *componentsremote.Host) ([]pulumi.Resource, error) {
+func validateGPUDevices(e *aws.Environment, vm *componentsremote.Host) ([]pulumi.Resource, error) {
 	commands := map[string]string{
 		"pci":    fmt.Sprintf("lspci -d %s:: | grep NVIDIA", nvidiaPCIVendorID),
 		"driver": "lsmod | grep nvidia",
@@ -219,7 +217,7 @@ func validateGPUDevices(e aws.Environment, vm *componentsremote.Host) ([]pulumi.
 	return cmds, nil
 }
 
-func downloadDockerImages(e aws.Environment, vm *componentsremote.Host, images []string, dependsOn ...pulumi.Resource) ([]pulumi.Resource, error) {
+func downloadDockerImages(e *aws.Environment, vm *componentsremote.Host, images []string, dependsOn ...pulumi.Resource) ([]pulumi.Resource, error) {
 	var cmds []pulumi.Resource
 
 	for i, image := range images {
@@ -240,7 +238,7 @@ func downloadDockerImages(e aws.Environment, vm *componentsremote.Host, images [
 	return cmds, nil
 }
 
-func validateDockerCuda(e aws.Environment, vm *componentsremote.Host, dependsOn ...pulumi.Resource) (*remote.Command, error) {
+func validateDockerCuda(e *aws.Environment, vm *componentsremote.Host, dependsOn ...pulumi.Resource) (command.Command, error) {
 	return vm.OS.Runner().Command(
 		e.CommonNamer().ResourceName("docker-cuda-validate"),
 		&command.Args{
