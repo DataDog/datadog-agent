@@ -12,6 +12,10 @@ def entrypoint(**kwargs):
     max_on_wire_size = arguments.max_on_wire_size
     max_on_disk_size = arguments.max_on_disk_size
 
+    metricHandler.register_gate_tags(
+        "static_quality_gate_agent_deb_x64", gate_name="static_quality_gate_agent_deb_x64", arch="x64", os="debian"
+    )
+
     metricHandler.register_metric("static_quality_gate_agent_deb_x64", "max_on_wire_size", max_on_wire_size)
     metricHandler.register_metric("static_quality_gate_agent_deb_x64", "max_on_disk_size", max_on_disk_size)
 

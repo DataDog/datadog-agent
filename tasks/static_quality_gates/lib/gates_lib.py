@@ -1,14 +1,14 @@
 import glob
 import os
-from types import SimpleNamespace
 from datetime import datetime
-from tasks.libs.common.datadog_api import create_gauge
-from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
-from tasks.libs.common.utils import get_metric_origin
+from types import SimpleNamespace
 
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
+from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
+from tasks.libs.common.datadog_api import create_gauge, send_metrics
+from tasks.libs.common.utils import get_metric_origin
 
 
 def argument_extractor(entry_args, **kwargs) -> SimpleNamespace:
@@ -23,6 +23,7 @@ def argument_extractor(entry_args, **kwargs) -> SimpleNamespace:
         kwargs[key] = entry_args[key]
     return SimpleNamespace(**kwargs)
 
+
 def find_package_path(flavor, package_os, arch):
     package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
     separator = '_' if package_os == 'debian' else '-'
@@ -34,6 +35,7 @@ def find_package_path(flavor, package_os, arch):
     elif len(package_paths) == 0:
         raise Exit(code=1, message=color_message(f"Couldn't find any file matching {glob_pattern}", "red"))
     return package_paths[0]
+
 
 class GateMetricHandler:
     def __init__(self, git_ref, bucket_branch):
@@ -53,33 +55,63 @@ class GateMetricHandler:
             self.metadata[gate_name][key] = kwargs[key]
 
     def _generate_series(self):
+        if not self.git_ref or not self.bucket_branch:
+            return None
+
         series = []
         timestamp = int(datetime.utcnow().timestamp())
-        common_tags = [
-            f"os:{package_os}",
-            f"package:datadog-{flavor}",
-            f"git_ref:{self.git_ref}",
-            f"bucket_branch:{self.bucket_branch}",
-            f"arch:{arch}",
-        ]
-        series.append(
-            create_gauge(
-                "datadog.agent.compressed_package.size",
-                timestamp,
-                package_compressed_size,
-                tags=common_tags,
-                metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
-            ),
-        )
-        series.append(
-            create_gauge(
-                "datadog.agent.package.size",
-                timestamp,
-                package_uncompressed_size,
-                tags=common_tags,
-                metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
-            ),
-        )
+        for gate in self.metrics:
+            common_tags = [
+                f"git_ref:{self.git_ref}",
+                f"bucket_branch:{self.bucket_branch}",
+            ]
+            for tag in self.metadata[gate]:
+                common_tags.append(f"{tag}:{self.metadata[gate][tag]}")
+
+            series.append(
+                create_gauge(
+                    "datadog.agent.static_quality_gate.on_wire_size",
+                    timestamp,
+                    self.metrics[gate]["current_on_wire_size"],
+                    tags=common_tags,
+                    metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
+                ),
+            )
+            series.append(
+                create_gauge(
+                    "datadog.agent.static_quality_gate.on_disk_size",
+                    timestamp,
+                    self.metrics[gate]["current_on_disk_size"],
+                    tags=common_tags,
+                    metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
+                ),
+            )
+            series.append(
+                create_gauge(
+                    "datadog.agent.static_quality_gate.max_allowed_on_wire_size",
+                    timestamp,
+                    self.metrics[gate]["max_on_wire_size"],
+                    tags=common_tags,
+                    metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
+                ),
+            )
+            series.append(
+                create_gauge(
+                    "datadog.agent.static_quality_gate.max_allowed_on_disk_size",
+                    timestamp,
+                    self.metrics[gate]["max_on_disk_size"],
+                    tags=common_tags,
+                    metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
+                ),
+            )
+        return series
 
     def send_metrics(self):
-        pass
+        series = self._generate_series()
+
+        print(color_message("Data collected:", "blue"))
+        print(series)
+        if series:
+            print(color_message("Sending metrics to Datadog", "blue"))
+            send_metrics(series=series)
+            print(color_message("Done", "green"))

@@ -6,7 +6,7 @@ from invoke import task
 
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.common.color import color_message, bash_color_to_html
+from tasks.libs.common.color import bash_color_to_html, color_message
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler
 
 FAIL_CHAR = "❌"
@@ -29,8 +29,9 @@ body_error_pattern = """### Error
 |----|----|----|----|
 """
 
+
 def format_gate_message(message):
-    return bash_color_to_html(message).replace("\n","<br>")
+    return bash_color_to_html(message).replace("\n", "<br>")
 
 
 def display_pr_comment(ctx, finalState, gateStates):
@@ -83,8 +84,9 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
     gateList = list(config.keys())
     quality_gates_mod = __import__("tasks.static_quality_gates", fromlist=gateList)
     print(f"{config_path} correctly parsed !")
-
-    metricHandler = GateMetricHandler()
+    metricHandler = GateMetricHandler(
+        git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
+    )
 
     print(f"The following gates are going to run:\n\t- {"\n\t- ".join(gateList)}")
     finalState = True
@@ -114,6 +116,8 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
         ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"passed\"")
 
     _print_quality_gates_report(gateStates)
+
+    metricHandler.send_metrics()
 
     github = GithubAPI()
     branch = os.environ["CI_COMMIT_BRANCH"]
