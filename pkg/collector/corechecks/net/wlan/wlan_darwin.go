@@ -16,22 +16,31 @@ package wlan
 */
 import "C"
 import (
-	"fmt"
+	"errors"
 	"unsafe"
 )
 
 func GetWiFiInfo() (WiFiInfo, error) {
 	info := C.GetWiFiInformation()
-	errorMessage := C.GoString(info.errorMessage)
 
 	ssid := C.GoString(info.ssid)
 	bssid := C.GoString(info.bssid)
 	hardwareAddress := C.GoString(info.hardwareAddress)
+	errorMessage := C.GoString(info.errorMessage)
 
-	// important: free the strings that we manually copied (strdup) on the Objective C side
-	C.free(unsafe.Pointer(info.ssid))
-	C.free(unsafe.Pointer(info.bssid))
-	C.free(unsafe.Pointer(info.hardwareAddress))
+	// important: free the C strings fields
+	if info.ssid != nil {
+		C.free(unsafe.Pointer(info.ssid))
+	}
+	if info.bssid != nil {
+		C.free(unsafe.Pointer(info.bssid))
+	}
+	if info.hardwareAddress != nil {
+		C.free(unsafe.Pointer(info.hardwareAddress))
+	}
+	if info.errorMessage != nil {
+		C.free(unsafe.Pointer(info.errorMessage))
+	}
 
 	wifiInfo := WiFiInfo{
 		Rssi:            int(info.rssi),
@@ -46,7 +55,7 @@ func GetWiFiInfo() (WiFiInfo, error) {
 
 	var err error
 	if errorMessage != "" {
-		err = fmt.Errorf("%s", errorMessage)
+		err = errors.New(errorMessage)
 	}
 
 	return wifiInfo, err
