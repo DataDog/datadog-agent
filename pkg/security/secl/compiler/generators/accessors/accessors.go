@@ -301,7 +301,7 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		alias = aliasPrefix + "." + alias
 	}
 
-	if event == "" {
+	if event == "" && verbose {
 		log.Printf("event type not specified for field: %s", prefixedFieldName)
 	}
 
