@@ -12,11 +12,12 @@ package ebpf
 import (
 	"errors"
 	"fmt"
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/link"
 	"io"
 	"text/template"
-	
+
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
+
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
