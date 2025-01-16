@@ -31,6 +31,8 @@ func TestSelfTests(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer test.Close()
+
 	test.msgSender.flush()
 
 	err = retry.Do(func() error {
