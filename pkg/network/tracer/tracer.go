@@ -892,6 +892,7 @@ func (t *Tracer) GetNetworkID(context context.Context) (string, error) {
 
 var connProtoTTL = 3 * time.Minute
 var connProtoCleaningInterval = 65 * time.Second // slight jitter to avoid all maps cleaning at the same time
+var numMapCleans atomic.Uint32
 
 // setupConnectionProtocolMapCleaner sets up a map cleaner for the connectionProtocolMap.
 // It will run every connProtoCleaningInterval and delete entries older than connProtoTTL.
@@ -902,9 +903,11 @@ func setupConnectionProtocolMapCleaner(connectionProtocolMap *ebpf.Map, name str
 	}
 
 	ttl := connProtoTTL.Nanoseconds()
-	mapCleaner.Clean(connProtoCleaningInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
-		return (now - int64(val.Updated)) > ttl
-	})
+	mapCleaner.Clean(connProtoCleaningInterval, nil,
+		func() { numMapCleans.Inc() },
+		func(now int64, _ netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
+			return (now - int64(val.Updated)) > ttl
+		})
 
 	return mapCleaner, nil
 }
