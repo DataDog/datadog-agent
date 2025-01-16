@@ -175,6 +175,7 @@ build do
         if osx_target?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
+            delete "#{install_dir}/etc/conf.d/service_discovery.d"
 
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
