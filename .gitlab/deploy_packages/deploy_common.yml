@@ -121,4 +121,4 @@ deploy_installer_install_scripts:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "install-*.sh" "$OMNIBUS_PACKAGE_DIR" "${S3_RELEASE_INSTALLER_ARTIFACTS_URI}/scripts/"
+    - $S3_CP_CMD --recursive --exclude "*" --include "install*.sh" "$OMNIBUS_PACKAGE_DIR" "${S3_RELEASE_INSTALLER_ARTIFACTS_URI}/scripts/"
