@@ -36,7 +36,17 @@ type lineSerializer struct{}
 // "{"message":"content1"}", "{"message":"content2"}"
 // returns, "{"message":"content1"}\n{"message":"content2"}"
 func (s *lineSerializer) Serialize(messages []*message.Message) []byte {
+	size := 0
+	for i, message := range messages {
+		if i > 0 {
+			size++
+		}
+		size += message.GetContentLengthHint()
+	}
+
 	var buffer bytes.Buffer
+	buffer.Grow(size)
+
 	for i, message := range messages {
 		if i > 0 {
 			buffer.WriteByte('\n')
@@ -54,6 +64,14 @@ type arraySerializer struct{}
 // "{"message":"content1"}", "{"message":"content2"}"
 // returns, "[{"message":"content1"},{"message":"content2"}]"
 func (s *arraySerializer) Serialize(messages []*message.Message) []byte {
+	size := 2
+	for i, message := range messages {
+		if i > 0 {
+			size++
+		}
+		size += message.GetContentLengthHint()
+	}
+
 	var buffer bytes.Buffer
 	buffer.WriteByte('[')
 	for i, message := range messages {
