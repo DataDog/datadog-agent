@@ -37,7 +37,7 @@ func (s *NoopStrategy) CompressBound(sourceLen int) int {
 
 // ContentEncoding implements the ContentEncoding method for NoopStrategy to satisfy the Compressor interface
 func (s *NoopStrategy) ContentEncoding() string {
-	return ""
+	return "identity"
 }
 
 // NewStreamCompressor returns a nil when there is no compression implementation.

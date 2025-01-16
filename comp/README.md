@@ -625,7 +625,7 @@ Package logscompression provides the component for logs compression
 
 *Datadog Team*: agent-processing-and-routing
 
-Package metricscompression provides the component for logs compression
+Package metricscompression provides the component for metrics compression
 
 ### [comp/snmpscan](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmpscan)
 

@@ -53,10 +53,12 @@ func TestInitExtraHeadersNoopCompression(t *testing.T) {
 	// No "Content-Encoding" header
 	expected = make(http.Header)
 	expected.Set("Content-Type", jsonContentType)
+	expected.Set("Content-Encoding", "identity")
 	assert.Equal(t, expected, s.jsonExtraHeadersWithCompression)
 
 	expected = make(http.Header)
 	expected.Set("Content-Type", protobufContentType)
+	expected.Set("Content-Encoding", "identity")
 	expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
 	assert.Equal(t, expected, s.protobufExtraHeadersWithCompression)
 }

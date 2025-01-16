@@ -32,7 +32,7 @@ func NewCompressor(kind string, level int) common.Compressor {
 	case common.NoneKind:
 		return implnoop.New()
 	default:
-		log.Warn("invalid compression set")
+		log.Error("invalid compression set")
 		return implnoop.New()
 	}
 }

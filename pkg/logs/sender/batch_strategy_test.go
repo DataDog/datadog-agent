@@ -35,7 +35,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	expectedPayload := &message.Payload{
 		Messages:      []*message.Message{message1, message2},
 		Encoded:       []byte("a\nb"),
-		Encoding:      "",
+		Encoding:      "identity",
 		UnencodedSize: 3,
 	}
 

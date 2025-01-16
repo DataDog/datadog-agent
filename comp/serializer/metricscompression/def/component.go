@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package metricscompression provides the component for logs compression
+// Package metricscompression provides the component for metrics compression
 package metricscompression
 
 // team: agent-processing-and-routing
