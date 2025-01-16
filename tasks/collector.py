@@ -14,10 +14,17 @@ from invoke.tasks import task
 from tasks.go import tidy
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.git import check_clean_branch_state, check_uncommitted_changes, get_git_config, revert_git_config, set_git_config
 from tasks.libs.common.constants import (
     GITHUB_REPO_NAME,
 )
+from tasks.libs.common.git import (
+    check_clean_branch_state,
+    check_uncommitted_changes,
+    get_git_config,
+    revert_git_config,
+    set_git_config,
+)
+
 LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -518,7 +525,7 @@ def pull_request(ctx):
         ctx.run('git add .')
         if check_uncommitted_changes(ctx):
             branch_name = f"update-otel-collector-dependencies-{OCB_VERSION}"
-            gh=GithubAPI(repository=GITHUB_REPO_NAME)
+            gh = GithubAPI(repository=GITHUB_REPO_NAME)
             ctx.run(f'git switch -c {branch_name}')
             ctx.run(
                 f'git commit -m "Update OTel Collector dependencies to {OCB_VERSION} and generate OTel Agent" --no-verify'
