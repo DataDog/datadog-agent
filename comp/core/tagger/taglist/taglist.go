@@ -49,10 +49,30 @@ func addTags(target map[string]bool, name string, value string, splits map[strin
 	}
 }
 
+func removeTags(target map[string]bool, name string, value string, splits map[string]string) {
+	if name == "" || value == "" {
+		return
+	}
+	sep, ok := splits[name]
+	if !ok {
+		delete(target, fmt.Sprintf("%s:%s", name, value))
+		return
+	}
+
+	for _, elt := range strings.Split(value, sep) {
+		delete(target, fmt.Sprintf("%s:%s", name, elt))
+	}
+}
+
 // AddHigh adds a new high cardinality tag to the map, or replace if already exists.
 // It will skip empty values/names, so it's safe to use without verifying the value is not empty.
 func (l *TagList) AddHigh(name string, value string) {
 	addTags(l.highCardTags, name, value, l.splitList)
+}
+
+// RemoveHigh removes a high cardinality tag from the map.
+func (l *TagList) RemoveHigh(name string, value string) {
+	removeTags(l.highCardTags, name, value, l.splitList)
 }
 
 // AddOrchestrator adds a new orchestrator-level cardinality tag to the map, or replice if already exists.
@@ -61,10 +81,20 @@ func (l *TagList) AddOrchestrator(name string, value string) {
 	addTags(l.orchestratorCardTags, name, value, l.splitList)
 }
 
+// RemoveOrchestrator removes an orchestrator cardinality tag from the map.
+func (l *TagList) RemoveOrchestrator(name string, value string) {
+	removeTags(l.orchestratorCardTags, name, value, l.splitList)
+}
+
 // AddLow adds a new low cardinality tag to the list, or replace if already exists.
 // It will skip empty values/names, so it's safe to use without verifying the value is not empty.
 func (l *TagList) AddLow(name string, value string) {
 	addTags(l.lowCardTags, name, value, l.splitList)
+}
+
+// RemoveLow removes a low cardinality tag from the list.
+func (l *TagList) RemoveLow(name string, value string) {
+	removeTags(l.lowCardTags, name, value, l.splitList)
 }
 
 // AddStandard adds a new standard tag to the list, or replace if already exists.
@@ -72,7 +102,12 @@ func (l *TagList) AddLow(name string, value string) {
 // It will skip empty values/names, so it's safe to use without verifying the value is not empty.
 func (l *TagList) AddStandard(name string, value string) {
 	l.AddLow(name, value)
-	addTags(l.standardTags, name, value, l.splitList)
+	removeTags(l.standardTags, name, value, l.splitList)
+}
+
+// RemoveStandard removes a standard tag from the list.
+func (l *TagList) RemoveStandard(name string, value string) {
+	removeTags(l.standardTags, name, value, l.splitList)
 }
 
 // AddAuto determine the tag cardinality and will call the proper method AddLow or AddHigh

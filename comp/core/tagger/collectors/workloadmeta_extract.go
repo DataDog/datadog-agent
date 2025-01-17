@@ -651,6 +651,11 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tagList *taglist.TagList) {
 	switch owner.Kind {
 	case kubernetes.DeploymentKind:
+		// Remove the hacky deployment tag
+		deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
+		if len(deployment) > 0 {
+			tagList.RemoveLow(tags.KubeDeployment, deployment)
+		}
 		tagList.AddLow(tags.KubeDeployment, owner.Name)
 
 	case kubernetes.DaemonSetKind:
@@ -679,6 +684,11 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 		}
 
 	case kubernetes.CronJobKind:
+		// Remove the hacky cronjob tag
+		cronjob, _ := kubernetes.ParseCronJobForJob(owner.Name)
+		if cronjob != "" {
+			tagList.RemoveLow(tags.KubeCronjob, cronjob)
+		}
 		tagList.AddLow(tags.KubeCronjob, owner.Name)
 
 	case kubernetes.ReplicaSetKind:
