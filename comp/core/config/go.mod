@@ -35,7 +35,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.60.0
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.60.1
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0

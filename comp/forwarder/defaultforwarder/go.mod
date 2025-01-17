@@ -57,7 +57,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/status v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/api v0.57.1
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0
@@ -84,7 +83,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.60.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0 // indirect

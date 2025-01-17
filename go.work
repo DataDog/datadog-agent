@@ -16,6 +16,7 @@ use (
 	comp/core/status
 	comp/core/status/statusimpl
 	comp/core/tagger/def
+	comp/core/tagger/fx-remote
 	comp/core/tagger/generic_store
 	comp/core/tagger/impl-remote
 	comp/core/tagger/origindetection
@@ -58,6 +59,7 @@ use (
 	internal/tools/worksynchronizer
 	pkg/aggregator/ckey
 	pkg/api
+	pkg/api/security
 	pkg/collector/check/defaults
 	pkg/config/env
 	pkg/config/mock
