@@ -42,20 +42,7 @@ func (c *ownerDetectionClient) start(ctx context.Context) {
 
 	log.Error("OwnerDetectionClient is started")
 
-	// Subscribe and handle events
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-health.C:
-			case evs := <-eventCh:
-				evs.Acknowledge()
-				log.Error("GABE: received an event")
-				c.handleEvents(evs)
-			}
-		}
-	}()
+	ticker := time.NewTicker(5 * time.Minute) // Do a full scan every 5 minutes
 
 	// Periodically scan all pods
 	for {
@@ -65,12 +52,14 @@ func (c *ownerDetectionClient) start(ctx context.Context) {
 			if err != nil {
 				c.log.Warnf("error de-registering health check: %s", err)
 			}
-			log.Error("GABE: CONTEXT DONE")
 			return
-		default:
+		case <-health.C:
+		case evs := <-eventCh:
+			evs.Acknowledge()
+			c.handleEvents(evs)
+		case <-ticker.C:
 			pods := c.wmeta.ListKuberenetesPods()
-			c.handlePods(pods)
-			time.Sleep(time.Minute) // Sleep for a minute
+			c.handlePods(c.getNewPods(pods))
 		}
 	}
 }
@@ -78,7 +67,6 @@ func (c *ownerDetectionClient) start(ctx context.Context) {
 func (c *ownerDetectionClient) handlePods(pods []*workloadmeta.KubernetesPod) {
 	newEvents := make([]workloadmeta.Event, 0)
 
-	// TODO: retry mechanism?
 	dcaClient, err := clusteragent.GetClusterAgentClient()
 	if err != nil {
 		c.log.Error("Failed to get DCAClient")
@@ -165,6 +153,20 @@ func (c *ownerDetectionClient) handleEvents(evs workloadmeta.EventBundle) {
 	}
 	c.handlePods(pods)
 
+}
+
+// getNewPods that are not detected in the cache
+func (c *ownerDetectionClient) getNewPods(pods []*workloadmeta.KubernetesPod) []*workloadmeta.KubernetesPod {
+	returnPods := make([]*workloadmeta.KubernetesPod, 0)
+	for _, pod := range pods {
+		for _, owner := range pod.Owners {
+			cachedItems := c.ownerCache.GetParentTree(pod.Namespace, owner.Kind, owner.Name)
+			if len(cachedItems) == 0 {
+				returnPods = append(returnPods, pod)
+			}
+		}
+	}
+	return returnPods
 }
 
 // func removeDuplicateStr(s []string) []string {
