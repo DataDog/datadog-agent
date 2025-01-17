@@ -228,6 +228,19 @@ func (w *workloadmeta) GetKubernetesPod(id string) (*wmdef.KubernetesPod, error)
 	return entity.(*wmdef.KubernetesPod), nil
 }
 
+// ListKuberenetesPods implements Store#ListKuberenetesPods
+func (w *workloadmeta) ListKuberenetesPods() []*wmdef.KubernetesPod {
+	entities := w.listEntitiesByKind(wmdef.KindKubernetesPod)
+
+	// Not very efficient
+	pods := make([]*wmdef.KubernetesPod, 0, len(entities))
+	for _, entity := range entities {
+		pods = append(pods, entity.(*wmdef.KubernetesPod))
+	}
+
+	return pods
+}
+
 // GetKubernetesPodByName implements Store#GetKubernetesPodByName
 func (w *workloadmeta) GetKubernetesPodByName(podName, podNamespace string) (*wmdef.KubernetesPod, error) {
 	entities := w.listEntitiesByKind(wmdef.KindKubernetesPod)

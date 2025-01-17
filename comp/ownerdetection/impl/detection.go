@@ -7,6 +7,7 @@ package ownerdetectionimpl
 
 import (
 	"context"
+	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -26,6 +27,9 @@ func (c *ownerDetectionClient) start(ctx context.Context) {
 		}
 	}()
 
+	// Sleep during start just to give the DCA a chance to start up
+	time.Sleep(time.Second * 5)
+
 	// create a workloadmeta filter for pods
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceNodeOrchestrator).
@@ -38,6 +42,22 @@ func (c *ownerDetectionClient) start(ctx context.Context) {
 
 	log.Error("OwnerDetectionClient is started")
 
+	// Subscribe and handle events
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-health.C:
+			case evs := <-eventCh:
+				evs.Acknowledge()
+				log.Error("GABE: received an event")
+				c.handleEvents(evs)
+			}
+		}
+	}()
+
+	// Periodically scan all pods
 	for {
 		select {
 		case <-ctx.Done():
@@ -47,11 +67,10 @@ func (c *ownerDetectionClient) start(ctx context.Context) {
 			}
 			log.Error("GABE: CONTEXT DONE")
 			return
-		case <-health.C:
-		case evs := <-eventCh:
-			evs.Acknowledge()
-			log.Error("GABE: received an event")
-			c.handleEvents(evs)
+		default:
+			pods := c.wmeta.ListKuberenetesPods()
+			c.log.Infof("TODO handle pods: %v", pods)
+			time.Sleep(time.Minute)
 		}
 	}
 }

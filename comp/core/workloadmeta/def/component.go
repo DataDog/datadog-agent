@@ -49,6 +49,10 @@ type Component interface {
 	// the entity with kind KindKubernetesPod and the given ID.
 	GetKubernetesPod(id string) (*KubernetesPod, error)
 
+	// ListPods returns metadata about all known pods, equivalent
+	// to all entities with kind KindKubernetesPod
+	ListKuberenetesPods() []*KubernetesPod
+
 	// GetKubernetesPodForContainer retrieves the ownership information for the
 	// given container and returns the owner pod. This information might lag because
 	// the kubelet check sets the `Owner` field but a container can also be stored by CRI
