@@ -319,11 +319,10 @@ func getDDServices(manager *mgr.Mgr) ([]serviceInfo, error) {
 	return ddServices, nil
 }
 
-// filterDatadogServices returns a list of the Datadog services from the input list
+// filterDatadogServices returns the services that start with "datadog" (case insensitive)
 func filterDatadogServices(services []string) []string {
 	ddServices := []string{}
 
-	// Include all services that start with "datadog" (case insensitive)
 	for _, serviceName := range services {
 		// "The service control manager database preserves the case of the characters, but service name comparisons are always case insensitive."
 		// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openservicew
