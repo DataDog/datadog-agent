@@ -1480,13 +1480,12 @@ func (e *NetworkFlowMonitorEvent) UnmarshalBinary(data []byte) (int, error) {
 	total := read
 	data = data[read:]
 
-	if len(data) < 16 {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
 	e.FlowsCount = binary.NativeEndian.Uint64(data[0:8])
-	e.FlushNetworkStatsType = binary.NativeEndian.Uint64(data[8:16])
-	total += 16
-	data = data[16:]
+	total += 8
+	data = data[8:]
 
 	for i := uint64(0); i < e.FlowsCount; i++ {
 		// parse flow

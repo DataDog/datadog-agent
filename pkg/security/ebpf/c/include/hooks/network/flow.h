@@ -159,6 +159,25 @@ __attribute__((always_inline)) void fill_pid_route_from_sflow(struct pid_route_t
     route->netns = ns_flow->netns;
 }
 
+__attribute__((always_inline)) void flush_flow_pid_by_route(struct pid_route_t *route) {
+    struct pid_route_entry_t *value = bpf_map_lookup_elem(&flow_pid, route);
+    if (value != NULL) {
+        if (value->type == FLOW_CLASSIFICATION_ENTRY) {
+            bpf_map_delete_elem(&flow_pid, route);
+        }
+    } else {
+        // try with no IP
+        route->addr[0] = 0;
+        route->addr[1] = 0;
+        value = bpf_map_lookup_elem(&flow_pid, route);
+        if (value != NULL) {
+            if (value->type == FLOW_CLASSIFICATION_ENTRY) {
+                bpf_map_delete_elem(&flow_pid, route);
+            }
+        }
+    }
+}
+
 HOOK_ENTRY("nf_ct_delete")
 int hook_nf_ct_delete(ctx_t *ctx) {
     struct nf_conn *ct = (struct nf_conn *)CTX_PARM1(ctx);
@@ -196,86 +215,26 @@ int hook_nf_ct_delete(ctx_t *ctx) {
 
     // start with orig
     fill_pid_route_from_sflow(&route, &orig);
-    struct pid_route_entry_t *value = bpf_map_lookup_elem(&flow_pid, &route);
-    if (value != NULL) {
-        if (value->type == FLOW_CLASSIFICATION_ENTRY) {
-            bpf_map_delete_elem(&flow_pid, &route);
-        }
-    } else {
-        // try with no IP
-        route.addr[0] = 0;
-        route.addr[1] = 0;
-        value = bpf_map_lookup_elem(&flow_pid, &route);
-        if (value != NULL) {
-            if (value->type == FLOW_CLASSIFICATION_ENTRY) {
-                bpf_map_delete_elem(&flow_pid, &route);
-            }
-        }
-    }
+    flush_flow_pid_by_route(&route);
 
     // flip orig and try again
     flip(&orig.flow);
     fill_pid_route_from_sflow(&route, &orig);
-    value = bpf_map_lookup_elem(&flow_pid, &route);
-    if (value != NULL) {
-        if (value->type == FLOW_CLASSIFICATION_ENTRY) {
-            bpf_map_delete_elem(&flow_pid, &route);
-        }
-    } else {
-         // try with no IP
-         route.addr[0] = 0;
-         route.addr[1] = 0;
-         value = bpf_map_lookup_elem(&flow_pid, &route);
-         if (value != NULL) {
-             if (value->type == FLOW_CLASSIFICATION_ENTRY) {
-                 bpf_map_delete_elem(&flow_pid, &route);
-             }
-         }
-     }
+    flush_flow_pid_by_route(&route);
 
     // reply
     fill_pid_route_from_sflow(&route, &reply);
-    value = bpf_map_lookup_elem(&flow_pid, &route);
-    if (value != NULL) {
-        if (value->type == FLOW_CLASSIFICATION_ENTRY) {
-            bpf_map_delete_elem(&flow_pid, &route);
-        }
-    } else {
-         // try with no IP
-         route.addr[0] = 0;
-         route.addr[1] = 0;
-         value = bpf_map_lookup_elem(&flow_pid, &route);
-         if (value != NULL) {
-             if (value->type == FLOW_CLASSIFICATION_ENTRY) {
-                 bpf_map_delete_elem(&flow_pid, &route);
-             }
-         }
-     }
+    flush_flow_pid_by_route(&route);
 
     // flip reply and try again
     flip(&reply.flow);
     fill_pid_route_from_sflow(&route, &reply);
-    value = bpf_map_lookup_elem(&flow_pid, &route);
-    if (value != NULL) {
-        if (value->type == FLOW_CLASSIFICATION_ENTRY) {
-            bpf_map_delete_elem(&flow_pid, &route);
-        }
-    } else {
-         // try with no IP
-         route.addr[0] = 0;
-         route.addr[1] = 0;
-         value = bpf_map_lookup_elem(&flow_pid, &route);
-         if (value != NULL) {
-             if (value->type == FLOW_CLASSIFICATION_ENTRY) {
-                 bpf_map_delete_elem(&flow_pid, &route);
-             }
-         }
-     }
+    flush_flow_pid_by_route(&route);
 
     return 0;
 }
 
-__attribute__((always_inline)) int handle_sk_release(struct sock *sk, u8 hook) {
+__attribute__((always_inline)) int handle_sk_release(struct sock *sk) {
     struct pid_route_t route = {};
 
     // copy netns
@@ -293,7 +252,7 @@ __attribute__((always_inline)) int handle_sk_release(struct sock *sk, u8 hook) {
         bpf_probe_read(&route.addr, sizeof(u64) * 2, &sk->__sk_common.skc_v6_rcv_saddr);
 
 #if defined(DEBUG_NETWORK_FLOW)
-        bpf_printk("sk_release hook:%d", hook);
+        bpf_printk("sk_release");
         bpf_printk("    netns:%u", route.netns);
         bpf_printk("    v6 p:%d a:%lu a:%lu", route.port, route.addr[0], route.addr[1]);
 #endif
@@ -313,7 +272,7 @@ __attribute__((always_inline)) int handle_sk_release(struct sock *sk, u8 hook) {
         bpf_probe_read(&route.addr, sizeof(sk->__sk_common.skc_rcv_saddr), &sk->__sk_common.skc_rcv_saddr);
 
 #if defined(DEBUG_NETWORK_FLOW)
-        bpf_printk("sk_release hook:%d", hook);
+        bpf_printk("sk_release");
         bpf_printk("    netns:%u", route.netns);
         bpf_printk("    v4 p:%d a:%lu a:%lu", route.port, route.addr[0], route.addr[1]);
 #endif
@@ -324,10 +283,6 @@ __attribute__((always_inline)) int handle_sk_release(struct sock *sk, u8 hook) {
         route.addr[0] = 0;
         route.addr[1] = 0;
         bpf_map_delete_elem(&flow_pid, &route);
-    }
-    if (family != AF_INET && family != AF_INET6) {
-        // ignore, we don't handle other protocols for now
-        return 0;
     }
 
     return 0;
@@ -340,7 +295,7 @@ int hook_sk_common_release(ctx_t *ctx) {
     if (sk == NULL) {
         return 0;
     }
-    return handle_sk_release(sk, 1);
+    return handle_sk_release(sk);
 }
 
 // for user-space initiated socket shutdown
@@ -352,7 +307,7 @@ int hook_inet_shutdown(ctx_t *ctx) {
         return 0;
     }
 
-    return handle_sk_release(sk, 7);
+    return handle_sk_release(sk);
 }
 
 // for user space initiated socket termination
@@ -364,7 +319,7 @@ int hook_inet_release(ctx_t *ctx) {
         return 0;
     }
 
-    return handle_sk_release(sk, 8);
+    return handle_sk_release(sk);
 }
 
 HOOK_ENTRY("inet_bind")

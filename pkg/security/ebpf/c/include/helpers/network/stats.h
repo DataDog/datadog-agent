@@ -16,7 +16,7 @@ __attribute__((always_inline)) struct active_flows_t *get_empty_active_flows() {
     return bpf_map_lookup_elem(&active_flows_gen, &key);
 }
 
-__attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_flows_t *entry, void *ctx, u8 type) {
+__attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_flows_t *entry, void *ctx, enum FLUSH_NETWORK_STATS_TYPE type) {
     u64 now = bpf_ktime_get_ns();
     struct network_stats_t *stats = NULL;
     struct namespaced_flow_t ns_flow_tmp = {};
@@ -55,16 +55,18 @@ __attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_fl
         evt->container.cgroup_context = proc_cache_entry->container.cgroup_context;
     }
 
-    evt->flush_network_stats_type = type;
     evt->flows_count = 0;
 
 #pragma unroll
     for (int i = 0; i < ACTIVE_FLOWS_MAX_SIZE; i++) {
         if (i >= entry->cursor) {
-            goto send;
+            break;
         }
         ns_flow_tmp.netns = entry->netns;
         ns_flow_tmp.flow = entry->flows[i & (ACTIVE_FLOWS_MAX_SIZE - 1)];
+
+        // start by copying the flow
+        evt->flows[evt->flows_count & (ACTIVE_FLOWS_MAX_SIZE - 1)].flow = ns_flow_tmp.flow;
 
         // query the stats
         stats = bpf_map_lookup_elem(&ns_flow_to_network_stats, &ns_flow_tmp);
@@ -73,13 +75,9 @@ __attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_fl
             // Note that the "worse" that can happen with this race is that we miss a couple of bytes / packets for the
             // current flow.
             bpf_map_delete_elem(&ns_flow_to_network_stats, &ns_flow_tmp);
-
-            evt->flows[evt->flows_count & (ACTIVE_FLOWS_MAX_SIZE - 1)].flow = ns_flow_tmp.flow;
             evt->flows[evt->flows_count & (ACTIVE_FLOWS_MAX_SIZE - 1)].stats = *stats;
         } else {
-            // copy only the flow without the stats - better to get at least the flow than nothing at all
-            evt->flows[evt->flows_count & (ACTIVE_FLOWS_MAX_SIZE - 1)].flow = ns_flow_tmp.flow;
-
+            // we copied only the flow without the stats - better to get at least the flow than nothing at all
 #if defined(DEBUG_NETWORK_FLOW)
             bpf_printk("no stats for sp:%d sa0:%lu sa1:%lu", ns_flow_tmp.flow.sport, ns_flow_tmp.flow.saddr[0], ns_flow_tmp.flow.saddr[1]);
             bpf_printk("             dp:%d da0:%lu da1:%lu", ns_flow_tmp.flow.dport, ns_flow_tmp.flow.daddr[0], ns_flow_tmp.flow.daddr[1]);
@@ -90,7 +88,6 @@ __attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_fl
         evt->flows_count += 1;
     }
 
-send:
     // send event
     send_event_with_size_ptr(ctx, EVENT_NETWORK_FLOW_MONITOR, evt, offsetof(struct network_flow_monitor_event_t, flows) + (evt->flows_count & (ACTIVE_FLOWS_MAX_SIZE - 1)) * sizeof(struct flow_stats_t));
 
@@ -102,7 +99,7 @@ send:
     return 0;
 }
 
-__attribute__((always_inline)) void flush_pid_network_stats(u32 pid, void *ctx, u8 type) {
+__attribute__((always_inline)) void flush_pid_network_stats(u32 pid, void *ctx, enum FLUSH_NETWORK_STATS_TYPE type) {
     struct active_flows_t *entry = bpf_map_lookup_elem(&active_flows, &pid);
     flush_network_stats(pid, entry, ctx, type);
 }

@@ -10,6 +10,7 @@ package model
 
 import (
 	"net"
+	"net/netip"
 	"reflect"
 	"runtime"
 	"time"
@@ -97,17 +98,12 @@ type IPPortContext struct {
 }
 
 // GetComparable returns a comparable version of IPPortContext
-func (ipc *IPPortContext) GetComparable() IPPortContextComparable {
-	return IPPortContextComparable{
-		IP:   ipc.IPNet.String(),
-		Port: ipc.Port,
+func (ipc *IPPortContext) GetComparable() netip.AddrPort {
+	ipcAddr, ok := netip.AddrFromSlice(ipc.IPNet.IP)
+	if !ok {
+		return netip.AddrPort{}
 	}
-}
-
-// IPPortContextComparable is used by activity trees to lookup flows quickly
-type IPPortContextComparable struct {
-	IP   string
-	Port uint16
+	return netip.AddrPortFrom(ipcAddr, ipc.Port)
 }
 
 // NetworkContext represents the network context of the event

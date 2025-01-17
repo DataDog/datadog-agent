@@ -47,7 +47,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `mmap` | Kernel | A mmap command was executed | 7.35 |
 | `mount` | File | [Experimental] A filesystem was mounted | 7.42 |
 | `mprotect` | Kernel | A mprotect command was executed | 7.35 |
-| `network_flow_monitor` | Network | A network monitor event was sent | 7.62 |
+| `network_flow_monitor` | Network | A network monitor event was sent | 7.63 |
 | `open` | File | A file was opened | 7.27 |
 | `packet` | Network | A raw network packet was captured | 7.60 |
 | `ptrace` | Kernel | A ptrace command was executed | 7.35 |
@@ -969,7 +969,6 @@ A network monitor event was sent
 | [`network_flow_monitor.flows.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network_flow_monitor.flows.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network_flow_monitor.flows.source.port`](#common-ipportcontext-port-doc) | Port number |
-| [`network_flow_monitor.flows_count`](#network_flow_monitor-flows_count-doc) | Number of captured network flows |
 
 ### Event `open`
 
@@ -3168,13 +3167,6 @@ Definition: L4 protocol of the network packet
 
 
 Constants: [L4 protocols](#l4-protocols)
-
-
-
-### `network_flow_monitor.flows_count` {#network_flow_monitor-flows_count-doc}
-Type: int
-
-Definition: Number of captured network flows
 
 
 

@@ -305,7 +305,8 @@ func TestNetworkFlowSendUDP4(t *testing.T) {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "network_flow_send_udp4", testDestIP, strconv.Itoa(testUDPDestPort))
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "network_flow_monitor", event.GetType(), "wrong event type")
-			assert.Equal(t, uint64(1), event.NetworkFlowMonitor.FlowsCount, "wrong flow count")
+			assert.Equal(t, uint64(1), event.NetworkFlowMonitor.FlowsCount, "wrong FlowsCount")
+			assert.Equal(t, 1, len(event.NetworkFlowMonitor.Flows), "wrong flows count")
 			if len(event.NetworkFlowMonitor.Flows) > 0 {
 				assert.Equal(t, testDestIP, event.NetworkFlowMonitor.Flows[0].Destination.IPNet.IP.To4().String(), "wrong destination IP")
 				assert.Equal(t, uint16(testUDPDestPort), event.NetworkFlowMonitor.Flows[0].Destination.Port, "wrong destination Port")

@@ -261,7 +261,7 @@ func (p *EBPFProbe) sanityChecks() error {
 	}
 
 	if p.config.Probe.NetworkFlowMonitorEnabled && p.isNetworkFlowMonitorNotSupported() {
-		seclog.Warnf("The network flow monitor feature of CWS requires a more recent kernel (at least 5.13) with support for SK storage in Tracing programs and the bpf_for_each_elem map helper, setting event_monitoring_config.network.flow_monitor.enabled to false")
+		seclog.Warnf("The network flow monitor feature of CWS requires a more recent kernel (at least 5.13) with support the bpf_for_each_elem map helper, setting event_monitoring_config.network.flow_monitor.enabled to false")
 		p.config.Probe.NetworkFlowMonitorEnabled = false
 	}
 

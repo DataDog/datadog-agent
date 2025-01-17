@@ -270,7 +270,7 @@ func protoDecodeNetworkDevice(device *adproto.NetworkDeviceNode) *NetworkDeviceN
 	}
 	ndn := &NetworkDeviceNode{
 		MatchedRules: make([]*model.MatchedRule, 0, len(device.MatchedRules)),
-		FlowNodes:    make(map[model.IPPortContextComparable]*FlowNode),
+		FlowNodes:    make(map[model.FiveTuple]*FlowNode, len(device.FlowNodes)),
 		Context: model.NetworkDeviceContext{
 			NetNS:   device.Netns,
 			IfIndex: device.Ifindex,
@@ -284,18 +284,15 @@ func protoDecodeNetworkDevice(device *adproto.NetworkDeviceNode) *NetworkDeviceN
 
 	for _, flow := range device.FlowNodes {
 		f := protoDecodeNetworkFlow(flow)
-		fn, ok := ndn.FlowNodes[f.Source.GetComparable()]
+		_, ok := ndn.FlowNodes[f.GetFiveTuple()]
 		if !ok {
-			fn = &FlowNode{
+			fn := &FlowNode{
 				ImageTags:      flow.ImageTags,
 				GenerationType: Runtime,
-				Flows:          make(map[model.IPPortContextComparable]*model.Flow),
+				Flow:           *f,
 			}
-			ndn.FlowNodes[f.Source.GetComparable()] = fn
+			ndn.FlowNodes[f.GetFiveTuple()] = fn
 		}
-
-		// add current flow
-		fn.Flows[f.Destination.GetComparable()] = f
 	}
 
 	return ndn

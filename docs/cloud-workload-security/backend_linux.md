@@ -1005,10 +1005,6 @@ CSM Threats event for Linux systems have the following JSON schema:
                     "$ref": "#/$defs/NetworkDevice",
                     "description": "device is the network device on which the event was captured"
                 },
-                "flows_count": {
-                    "type": "integer",
-                    "description": "flows_count holds the count of flows for this event"
-                },
                 "flows": {
                     "items": {
                         "$ref": "#/$defs/Flow"
@@ -3445,10 +3441,6 @@ CSM Threats event for Linux systems have the following JSON schema:
             "$ref": "#/$defs/NetworkDevice",
             "description": "device is the network device on which the event was captured"
         },
-        "flows_count": {
-            "type": "integer",
-            "description": "flows_count holds the count of flows for this event"
-        },
         "flows": {
             "items": {
                 "$ref": "#/$defs/Flow"
@@ -3467,7 +3459,6 @@ CSM Threats event for Linux systems have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `device` | device is the network device on which the event was captured |
-| `flows_count` | flows_count holds the count of flows for this event |
 | `flows` | flows is the list of flows with network statistics that were captured |
 
 | References |

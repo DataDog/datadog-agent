@@ -3660,7 +3660,7 @@
       "name": "network_flow_monitor",
       "definition": "A network monitor event was sent",
       "type": "Network",
-      "from_agent_version": "7.62",
+      "from_agent_version": "7.63",
       "experimental": false,
       "properties": [
         {
@@ -3732,11 +3732,6 @@
           "name": "network_flow_monitor.flows.source.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
-        },
-        {
-          "name": "network_flow_monitor.flows_count",
-          "definition": "Number of captured network flows",
-          "property_doc_link": "network_flow_monitor-flows_count-doc"
         }
       ]
     },
@@ -10653,18 +10648,6 @@
       ],
       "constants": "L4 protocols",
       "constants_link": "l4-protocols",
-      "examples": []
-    },
-    {
-      "name": "network_flow_monitor.flows_count",
-      "link": "network_flow_monitor-flows_count-doc",
-      "type": "int",
-      "definition": "Number of captured network flows",
-      "prefixes": [
-        "network_flow_monitor"
-      ],
-      "constants": "",
-      "constants_link": "",
       "examples": []
     },
     {

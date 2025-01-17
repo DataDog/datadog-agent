@@ -17,19 +17,16 @@ type FlowNode struct {
 	ImageTags      []string
 	GenerationType NodeGenerationType
 
-	// Flows are indexed by destination IPPortContext
-	Flows map[model.IPPortContextComparable]*model.Flow
+	Flow model.Flow
 }
 
 // NewFlowNode returns a new FlowNode instance
-func NewFlowNode(flow model.Flow, generationType NodeGenerationType, imageTag string, stats *Stats) *FlowNode {
+func NewFlowNode(flow model.Flow, generationType NodeGenerationType, imageTag string) *FlowNode {
 	node := &FlowNode{
 		GenerationType: generationType,
-		Flows:          make(map[model.IPPortContextComparable]*model.Flow),
+		Flow:           flow,
 	}
-
-	node.insertFlow(flow, false, imageTag, stats)
-
+	node.appendImageTag(imageTag)
 	return node
 }
 
@@ -48,27 +45,12 @@ func (node *FlowNode) evictImageTag(imageTag string) bool {
 	return false
 }
 
-func (node *FlowNode) insertFlow(flow model.Flow, dryRun bool, imageTag string, stats *Stats) bool {
+func (node *FlowNode) addFlow(flow model.Flow, imageTag string) {
 	if imageTag != "" {
 		node.appendImageTag(imageTag)
 	}
 
-	var newFlow bool
-	existingFlow, ok := node.Flows[flow.Destination.GetComparable()]
-	if ok {
-		// add metrics
-		existingFlow.Egress.Add(flow.Egress)
-		existingFlow.Ingress.Add(flow.Ingress)
-	} else {
-		// create new entry
-		newFlow = true
-		if dryRun {
-			// exit early
-			return newFlow
-		}
-		node.Flows[flow.Destination.GetComparable()] = &flow
-		stats.FlowNodes++
-	}
-
-	return newFlow
+	// add metrics
+	node.Flow.Egress.Add(flow.Egress)
+	node.Flow.Ingress.Add(flow.Ingress)
 }

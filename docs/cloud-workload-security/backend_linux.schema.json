@@ -994,10 +994,6 @@
           "$ref": "#/$defs/NetworkDevice",
           "description": "device is the network device on which the event was captured"
         },
-        "flows_count": {
-          "type": "integer",
-          "description": "flows_count holds the count of flows for this event"
-        },
         "flows": {
           "items": {
             "$ref": "#/$defs/Flow"

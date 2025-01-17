@@ -20,7 +20,7 @@ type NetworkDeviceNode struct {
 	Context model.NetworkDeviceContext
 
 	// FlowNodes are indexed by source IPPortContexts
-	FlowNodes map[model.IPPortContextComparable]*FlowNode
+	FlowNodes map[model.FiveTuple]*FlowNode
 }
 
 // NewNetworkDeviceNode returns a new NetworkDeviceNode instance
@@ -28,7 +28,7 @@ func NewNetworkDeviceNode(ctx *model.NetworkDeviceContext, generationType NodeGe
 	node := &NetworkDeviceNode{
 		GenerationType: generationType,
 		Context:        *ctx,
-		FlowNodes:      make(map[model.IPPortContextComparable]*FlowNode),
+		FlowNodes:      make(map[model.FiveTuple]*FlowNode),
 	}
 	return node
 }
@@ -56,12 +56,10 @@ func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.N
 
 	var newFlow bool
 	for _, flow := range event.Flows {
-		existingNode, ok := netdevice.FlowNodes[flow.Source.GetComparable()]
+		existingNode, ok := netdevice.FlowNodes[flow.GetFiveTuple()]
 		if ok {
-			newFlow = newFlow || existingNode.insertFlow(flow, dryRun, imageTag, stats)
-			if newFlow && dryRun {
-				// exit early
-				return newFlow
+			if !dryRun {
+				existingNode.addFlow(flow, imageTag)
 			}
 		} else {
 			newFlow = true
@@ -70,7 +68,8 @@ func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.N
 				return newFlow
 			}
 			// create new entry
-			netdevice.FlowNodes[flow.Source.GetComparable()] = NewFlowNode(flow, generationType, imageTag, stats)
+			netdevice.FlowNodes[flow.GetFiveTuple()] = NewFlowNode(flow, generationType, imageTag)
+			stats.FlowNodes++
 		}
 	}
 

@@ -257,9 +257,6 @@ type FlowSerializer struct {
 type NetworkFlowMonitorSerializer struct {
 	// device is the network device on which the event was captured
 	Device *NetworkDeviceSerializer `json:"device,omitempty"`
-
-	// flows_count holds the count of flows for this event
-	FlowsCount uint64 `json:"flows_count,omitempty"`
 	// flows is the list of flows with network statistics that were captured
 	Flows []*FlowSerializer `json:"flows,omitempty"`
 }

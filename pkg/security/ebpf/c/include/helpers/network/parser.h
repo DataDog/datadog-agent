@@ -55,7 +55,7 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
     }
 
     pkt->network_direction = direction;
-    pkt->ns_flow.flow.l3_protocol = htons(pkt->eth.h_proto);
+    pkt->ns_flow.flow.l3_protocol = ntohs(pkt->eth.h_proto);
 
     switch (pkt->ns_flow.flow.l3_protocol) {
     case ETH_P_IP:

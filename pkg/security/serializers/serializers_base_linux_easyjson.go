@@ -991,8 +991,6 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(i
 				}
 				(*out.Device).UnmarshalEasyJSON(in)
 			}
-		case "flows_count":
-			out.FlowsCount = uint64(in.Uint64())
 		case "flows":
 			if in.IsNull() {
 				in.Skip()
@@ -1043,16 +1041,6 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(o
 		first = false
 		out.RawString(prefix[1:])
 		(*in.Device).MarshalEasyJSON(out)
-	}
-	if in.FlowsCount != 0 {
-		const prefix string = ",\"flows_count\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		out.Uint64(uint64(in.FlowsCount))
 	}
 	if len(in.Flows) != 0 {
 		const prefix string = ",\"flows\":"

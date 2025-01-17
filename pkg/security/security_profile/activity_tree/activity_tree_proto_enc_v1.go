@@ -92,6 +92,7 @@ func networkDeviceToProto(device *NetworkDeviceNode) *adproto.NetworkDeviceNode 
 		Netns:        device.Context.NetNS,
 		Ifindex:      device.Context.IfIndex,
 		Ifname:       device.Context.IfName,
+		FlowNodes:    make([]*adproto.FlowNode, 0, len(device.FlowNodes)),
 	}
 
 	for _, rule := range device.MatchedRules {
@@ -99,26 +100,22 @@ func networkDeviceToProto(device *NetworkDeviceNode) *adproto.NetworkDeviceNode 
 	}
 
 	for _, flowNode := range device.FlowNodes {
-		ndn.FlowNodes = append(ndn.FlowNodes, flowNodesToProto(flowNode.Flows, flowNode.ImageTags)...)
+		ndn.FlowNodes = append(ndn.FlowNodes, flowNodeToProto(flowNode.Flow, flowNode.ImageTags))
 	}
 
 	return ndn
 }
 
-func flowNodesToProto(flows map[model.IPPortContextComparable]*model.Flow, tags []string) []*adproto.FlowNode {
-	out := make([]*adproto.FlowNode, 0, len(flows))
-	for _, flow := range flows {
-		out = append(out, &adproto.FlowNode{
-			ImageTags:   tags,
-			L3Protocol:  uint32(flow.L3Protocol),
-			L4Protocol:  uint32(flow.L4Protocol),
-			Source:      ipPortContextToProto(&flow.Source),
-			Destination: ipPortContextToProto(&flow.Destination),
-			Ingress:     networkStatsToProto(&flow.Ingress),
-			Egress:      networkStatsToProto(&flow.Egress),
-		})
+func flowNodeToProto(flow model.Flow, tags []string) *adproto.FlowNode {
+	return &adproto.FlowNode{
+		ImageTags:   tags,
+		L3Protocol:  uint32(flow.L3Protocol),
+		L4Protocol:  uint32(flow.L4Protocol),
+		Source:      ipPortContextToProto(&flow.Source),
+		Destination: ipPortContextToProto(&flow.Destination),
+		Ingress:     networkStatsToProto(&flow.Ingress),
+		Egress:      networkStatsToProto(&flow.Egress),
 	}
-	return out
 }
 
 func ipPortContextToProto(ipPort *model.IPPortContext) *adproto.IPPortContext {

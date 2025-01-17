@@ -475,7 +475,6 @@ struct network_flow_monitor_event_t {
     struct network_device_context_t device;
 
     u64 flows_count; // keep as u64 to prevent inconsistent verifier output on bounds checks
-    u64 flush_network_stats_type;
     struct flow_stats_t flows[ACTIVE_FLOWS_MAX_SIZE];
 };
 

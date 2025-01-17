@@ -203,7 +203,7 @@ func (at *ActivityTree) prepareProcessNode(p *ProcessNode, data *utils.Graph, re
 
 			// build network flow nodes
 			for _, flowNode := range n.FlowNodes {
-				at.prepareNetworkFlowNodes(flowNode, &subgraph, deviceNodeID)
+				at.prepareNetworkFlowNode(flowNode, &subgraph, deviceNodeID)
 			}
 
 			// add subgraph
@@ -340,51 +340,43 @@ func (at *ActivityTree) prepareNetworkDeviceNode(n *NetworkDeviceNode, data *uti
 	return deviceNode.ID, true
 }
 
-func (at *ActivityTree) prepareNetworkFlowNodes(n *FlowNode, data *utils.SubGraph, deviceID utils.GraphID) bool {
-	if len(n.Flows) == 0 {
-		return false
+func (at *ActivityTree) prepareNetworkFlowNode(n *FlowNode, data *utils.SubGraph, deviceID utils.GraphID) {
+	label := tableHeader
+	label += "<TR><TD>Source</TD><TD>" + fmt.Sprintf("%s:%d", n.Flow.Source.IPNet.String(), n.Flow.Source.Port) + "</TD></TR>"
+	if n.Flow.Source.IsPublicResolved {
+		label += "<TR><TD>Is src public ?</TD><TD>" + strconv.FormatBool(n.Flow.Source.IsPublic) + "</TD></TR>"
+	}
+	label += "<TR><TD>Destination</TD><TD>" + fmt.Sprintf("%s:%d", n.Flow.Destination.IPNet.String(), n.Flow.Destination.Port) + "</TD></TR>"
+	if n.Flow.Destination.IsPublicResolved {
+		label += "<TR><TD>Is dst public ?</TD><TD>" + strconv.FormatBool(n.Flow.Destination.IsPublic) + "</TD></TR>"
+	}
+	label += "<TR><TD>L4 protocol</TD><TD>" + model.L4Protocol(n.Flow.L4Protocol).String() + "</TD></TR>"
+	label += "<TR><TD>Egress</TD><TD>" + strconv.Itoa(int(n.Flow.Egress.DataSize)) + " bytes / " + strconv.Itoa(int(n.Flow.Egress.PacketCount)) + " pkts</TD></TR>"
+	label += "<TR><TD>Ingress</TD><TD>" + strconv.Itoa(int(n.Flow.Ingress.DataSize)) + " bytes / " + strconv.Itoa(int(n.Flow.Ingress.PacketCount)) + " pkts</TD></TR>"
+	label += "</TABLE>>"
+
+	flowNode := &utils.Node{
+		ID:      deviceID.Derive(utils.NewNodeIDFromPtr(&n.Flow.Source)),
+		Label:   label,
+		Size:    smallText,
+		Color:   networkColor,
+		Shape:   networkShape,
+		IsTable: true,
 	}
 
-	for _, flow := range n.Flows {
-		label := tableHeader
-		label += "<TR><TD>Source</TD><TD>" + fmt.Sprintf("%s:%d", flow.Source.IPNet.String(), flow.Source.Port) + "</TD></TR>"
-		if flow.Source.IsPublicResolved {
-			label += "<TR><TD>Is src public ?</TD><TD>" + strconv.FormatBool(flow.Source.IsPublic) + "</TD></TR>"
-		}
-		label += "<TR><TD>Destination</TD><TD>" + fmt.Sprintf("%s:%d", flow.Destination.IPNet.String(), flow.Destination.Port) + "</TD></TR>"
-		if flow.Destination.IsPublicResolved {
-			label += "<TR><TD>Is dst public ?</TD><TD>" + strconv.FormatBool(flow.Destination.IsPublic) + "</TD></TR>"
-		}
-		label += "<TR><TD>L4 protocol</TD><TD>" + model.L4Protocol(flow.L4Protocol).String() + "</TD></TR>"
-		label += "<TR><TD>Egress</TD><TD>" + strconv.Itoa(int(flow.Egress.DataSize)) + " bytes / " + strconv.Itoa(int(flow.Egress.PacketCount)) + " pkts</TD></TR>"
-		label += "<TR><TD>Ingress</TD><TD>" + strconv.Itoa(int(flow.Ingress.DataSize)) + " bytes / " + strconv.Itoa(int(flow.Ingress.PacketCount)) + " pkts</TD></TR>"
-		label += "</TABLE>>"
-
-		flowNode := &utils.Node{
-			ID:      deviceID.Derive(utils.NewNodeIDFromPtr(&flow.Source)),
-			Label:   label,
-			Size:    smallText,
-			Color:   networkColor,
-			Shape:   networkShape,
-			IsTable: true,
-		}
-
-		switch n.GenerationType {
-		case Runtime, Snapshot, Unknown:
-			flowNode.FillColor = networkRuntimeColor
-		case ProfileDrift:
-			flowNode.FillColor = networkProfileDriftColor
-		}
-		data.Nodes[flowNode.ID] = flowNode
-
-		data.Edges = append(data.Edges, &utils.Edge{
-			From:  deviceID,
-			To:    flowNode.ID,
-			Color: networkColor,
-		})
+	switch n.GenerationType {
+	case Runtime, Snapshot, Unknown:
+		flowNode.FillColor = networkRuntimeColor
+	case ProfileDrift:
+		flowNode.FillColor = networkProfileDriftColor
 	}
+	data.Nodes[flowNode.ID] = flowNode
 
-	return true
+	data.Edges = append(data.Edges, &utils.Edge{
+		From:  deviceID,
+		To:    flowNode.ID,
+		Color: networkColor,
+	})
 }
 
 func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, processID utils.GraphID) utils.GraphID {

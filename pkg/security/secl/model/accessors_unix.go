@@ -5166,16 +5166,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "network_flow_monitor.flows_count":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return int(ev.NetworkFlowMonitor.FlowsCount)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "ondemand.arg1.str":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -22651,7 +22641,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"network_flow_monitor.flows.source.ip",
 		"network_flow_monitor.flows.source.is_public",
 		"network_flow_monitor.flows.source.port",
-		"network_flow_monitor.flows_count",
 		"ondemand.arg1.str",
 		"ondemand.arg1.uint",
 		"ondemand.arg2.str",
@@ -24567,8 +24556,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "network_flow_monitor.flows.source.is_public":
 		return "network_flow_monitor", reflect.Bool, nil
 	case "network_flow_monitor.flows.source.port":
-		return "network_flow_monitor", reflect.Int, nil
-	case "network_flow_monitor.flows_count":
 		return "network_flow_monitor", reflect.Int, nil
 	case "ondemand.arg1.str":
 		return "ondemand", reflect.String, nil
@@ -30362,13 +30349,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueOutOfRange{Field: "network_flow_monitor.flows.source.port"}
 		}
 		ev.NetworkFlowMonitor.Flows[0].Source.Port = uint16(rv)
-		return nil
-	case "network_flow_monitor.flows_count":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "network_flow_monitor.flows_count"}
-		}
-		ev.NetworkFlowMonitor.FlowsCount = uint64(rv)
 		return nil
 	case "ondemand.arg1.str":
 		rv, ok := value.(string)

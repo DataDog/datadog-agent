@@ -1085,8 +1085,7 @@ func newFlowSerializer(flow *model.Flow, e *model.Event) *FlowSerializer {
 
 func newNetworkFlowMonitorSerializer(nm *model.NetworkFlowMonitorEvent, e *model.Event) *NetworkFlowMonitorSerializer {
 	s := &NetworkFlowMonitorSerializer{
-		Device:     newNetworkDeviceSerializer(&nm.Device, e),
-		FlowsCount: nm.FlowsCount,
+		Device: newNetworkDeviceSerializer(&nm.Device, e),
 	}
 
 	for _, flow := range nm.Flows {
