@@ -12,6 +12,5 @@ protobuf_test:
     # In particular, --break-system-packages command line option is 
     # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
     - python3 -m pip install -r tasks/libs/requirements-github.txt --break-system-packages
-    - go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-    - go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+    - inv install-tools
     - inv -e generate-protobuf
