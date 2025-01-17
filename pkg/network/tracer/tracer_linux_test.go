@@ -29,6 +29,13 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
+
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/usm"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -53,6 +60,7 @@ import (
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	ddtls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
@@ -2801,4 +2809,83 @@ func skipEbpflessTodo(t *testing.T, cfg *config.Config) {
 	if cfg.EnableEbpfless {
 		t.Skip("TODO: ebpf-less")
 	}
+}
+
+const (
+	srvAddr = "127.0.0.1:7777"
+)
+
+func TestMapCleanerDoesNotRemoveNewConnections(t *testing.T) {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+
+	cfg := testConfig()
+	cfg.ServiceMonitoringEnabled = true
+	cfg.EnableGoTLSSupport = true
+	cfg.GoTLSExcludeSelf = false
+	cfg.EnableHTTP2Monitoring = true
+
+	if currKernelVersion < usmhttp2.MinimumKernelVersion || !usmconfig.TLSSupported(cfg) {
+		t.Skipf("HTTP2 monitoring can not run on kernel before %v", usmhttp2.MinimumKernelVersion)
+	}
+
+	// Reproduction for incident-34000
+	srv, cancel := grpc.NewGRPCTLSServer(t, srvAddr, true)
+	t.Cleanup(cancel)
+	defaultCtx := context.Background()
+
+	prevProtoCleaningInterval := connProtoCleaningInterval
+	prevProtoTTL := connProtoTTL
+	connProtoCleaningInterval = 2 * time.Second
+	connProtoTTL = 100 * time.Second // Ensure that the connection is not removed
+
+	// Restore values after test
+	t.Cleanup(func() {
+		connProtoCleaningInterval = prevProtoCleaningInterval
+		connProtoTTL = prevProtoTTL
+	})
+
+	tr := setupTracer(t, cfg)
+	connectionProtocolMap, err := tr.ebpfTracer.GetMap("connection_protocol")
+	require.NoError(t, err)
+
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, usm.GoTLSAttacherName, srv.Process.Pid, utils.ManualTracingFallbackEnabled)
+
+	client1, err := grpc.NewClient(srvAddr, grpc.Options{}, true)
+	require.NoError(t, err)
+	t.Cleanup(client1.Close)
+
+	client2, err := grpc.NewClient(srvAddr, grpc.Options{}, true)
+	require.NoError(t, err)
+	t.Cleanup(client2.Close)
+
+	require.NoError(t, client1.HandleUnary(defaultCtx, "test"))
+	require.NoError(t, client2.HandleUnary(defaultCtx, "test"))
+
+	found := 0
+	iterator := connectionProtocolMap.Iterate()
+	var key netebpf.ConnTuple
+	var value netebpf.ProtocolStackWrapper
+	for iterator.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+		if key.Sport == 7777 || key.Dport == 7777 {
+			found++
+			require.Equal(t, uint8(2), value.Stack.Application)
+			require.Equal(t, uint8(1), value.Stack.Encryption)
+		}
+	}
+	require.Equal(t, 2, found)
+
+	require.Eventually(t, func() bool { return numMapCleans.Load() > 0 }, 2*connProtoCleaningInterval, 1*time.Second)
+
+	found = 0
+	iterator = connectionProtocolMap.Iterate()
+	for iterator.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+		if key.Sport == 7777 || key.Dport == 7777 {
+			found++
+			require.Equal(t, uint8(2), value.Stack.Application)
+			require.Equal(t, uint8(1), value.Stack.Encryption)
+		}
+	}
+
+	require.Equal(t, 2, found)
 }
