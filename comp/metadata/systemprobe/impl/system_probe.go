@@ -13,8 +13,6 @@ import (
 	"net/http"
 	"time"
 
-	"gopkg.in/yaml.v2"
-
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -26,6 +24,7 @@ import (
 	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -137,40 +136,13 @@ func (sb *systemprobe) getConfigLayers() map[string]interface{} {
 		return metadata
 	}
 
-	configBySources := map[string]interface{}{}
+	configBySources := map[model.Source]interface{}{}
 	if err := json.Unmarshal([]byte(rawLayers), &configBySources); err != nil {
 		sb.log.Debugf("error unmarshalling systemprobe config by source: %s", err)
 		return metadata
 	}
 
-	layersName := map[model.Source]string{
-		model.SourceFile:               "file_configuration",
-		model.SourceEnvVar:             "environment_variable_configuration",
-		model.SourceAgentRuntime:       "agent_runtime_configuration",
-		model.SourceLocalConfigProcess: "source_local_configuration",
-		model.SourceRC:                 "remote_configuration",
-		model.SourceFleetPolicies:      "fleet_policies_configuration",
-		model.SourceCLI:                "cli_configuration",
-		model.SourceProvided:           "provided_configuration",
-	}
-	for source, conf := range configBySources {
-		if layer, ok := layersName[model.Source(source)]; ok {
-			if yamlStr, err := yaml.Marshal(conf); err == nil {
-				metadata[layer] = string(yamlStr)
-			} else {
-				sb.log.Debugf("error serializing systemprobe '%s' config layer: %s", source, err)
-			}
-		} else {
-			sb.log.Debugf("error unknown config layer from system-probe '%s'", source)
-		}
-	}
-
-	if str, err := fetchSystemProbeConfig(sysprobeConf); err == nil {
-		metadata["full_configuration"] = str
-	} else {
-		sb.log.Debugf("error fetching system-probe config: %s", err)
-	}
-
+	configutils.InjectConfigLayersForMetadata(sb.conf, configBySources, metadata)
 	return metadata
 }
 

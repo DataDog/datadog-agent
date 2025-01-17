@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/viper"
 	"go.uber.org/fx"
-	"gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
@@ -35,6 +34,7 @@ import (
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -398,49 +398,6 @@ func (ia *inventoryagent) Set(name string, value interface{}) {
 	}
 }
 
-func (ia *inventoryagent) marshalAndScrub(data interface{}) (string, error) {
-	flareScrubber := scrubber.NewWithDefaults()
-
-	provided, err := yaml.Marshal(data)
-	if err != nil {
-		return "", ia.log.Errorf("could not marshal agent configuration: %s", err)
-	}
-
-	scrubbed, err := flareScrubber.ScrubYaml(provided)
-	if err != nil {
-		return "", ia.log.Errorf("could not scrubb agent configuration: %s", err)
-	}
-
-	return string(scrubbed), nil
-}
-
-func (ia *inventoryagent) getConfigs(data agentMetadata) {
-	if ia.conf.GetBool("inventories_configuration_enabled") {
-		layers := ia.conf.AllSettingsBySource()
-		layersName := map[model.Source]string{
-			model.SourceFile:               "file_configuration",
-			model.SourceEnvVar:             "environment_variable_configuration",
-			model.SourceAgentRuntime:       "agent_runtime_configuration",
-			model.SourceLocalConfigProcess: "source_local_configuration",
-			model.SourceRC:                 "remote_configuration",
-			model.SourceFleetPolicies:      "fleet_policies_configuration",
-			model.SourceCLI:                "cli_configuration",
-			model.SourceProvided:           "provided_configuration",
-		}
-
-		for source, conf := range layers {
-			if layer, ok := layersName[source]; ok {
-				if yaml, err := ia.marshalAndScrub(conf); err == nil {
-					data[layer] = yaml
-				}
-			}
-		}
-		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettings()); err == nil {
-			data["full_configuration"] = yaml
-		}
-	}
-}
-
 func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	ia.m.Lock()
 	defer ia.m.Unlock()
@@ -453,7 +410,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		data[k] = v
 	}
 
-	ia.getConfigs(data)
+	configutils.InjectConfigLayersForMetadata(ia.conf, ia.conf.AllSettingsBySource(), data)
 
 	return &Payload{
 		Hostname:  ia.hostname,
