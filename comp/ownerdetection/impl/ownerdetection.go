@@ -16,6 +16,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	ownerdetection "github.com/DataDog/datadog-agent/comp/ownerdetection/def"
+	cache "github.com/DataDog/datadog-agent/comp/ownerdetection/store"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
@@ -44,7 +45,9 @@ func NewComponent(req Requires) (Provides, error) {
 		return Provides{}, err
 	}
 
-	cli, err := NewOwnerDetectionClient(req.Config, req.Wmeta, req.Log, req.Telemetry, dcaClient)
+	ownerCache := cache.NewCache(0)
+
+	cli, err := NewOwnerDetectionClient(req.Config, req.Wmeta, req.Log, req.Telemetry, dcaClient, ownerCache)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -62,13 +65,14 @@ func NewComponent(req Requires) (Provides, error) {
 }
 
 // NewOwnerDetectionClient returns a new owner detection client
-func NewOwnerDetectionClient(cfg config.Component, wmeta workloadmeta.Component, log log.Component, telemetry telemetry.Component, dcaClient clusteragent.DCAClientInterface) (ownerdetection.Component, error) {
+func NewOwnerDetectionClient(cfg config.Component, wmeta workloadmeta.Component, log log.Component, telemetry telemetry.Component, dcaClient clusteragent.DCAClientInterface, ownerCache *cache.Cache) (ownerdetection.Component, error) {
 	return &ownerDetectionClient{
 		wmeta:         wmeta,
 		log:           log,
 		datadogConfig: cfg,
 		telemetry:     telemetry,
 		dcaClient:     dcaClient,
+		ownerCache:    ownerCache,
 	}, nil
 }
 
@@ -78,6 +82,7 @@ type ownerDetectionClient struct {
 	log           log.Component
 	telemetry     telemetry.Component
 	dcaClient     clusteragent.DCAClientInterface
+	ownerCache    *cache.Cache
 }
 
 // Start calls defaultTagger.Start

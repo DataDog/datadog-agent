@@ -161,13 +161,8 @@ func getOwnerReferences(w http.ResponseWriter, nsName, resourceName, group, vers
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if len(metaBytes) != 0 {
-		w.WriteHeader(http.StatusOK)
-		w.Write(metaBytes)
-		return
-	}
-	w.WriteHeader(http.StatusNotFound)
-	fmt.Fprintf(w, "Could not find associated metadata mapped to the resource: %s in namespace: %s", resourceName, nsName)
+	w.WriteHeader(http.StatusOK)
+	w.Write(metaBytes)
 }
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels or annotations
