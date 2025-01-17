@@ -16,6 +16,7 @@ use (
 	comp/core/status
 	comp/core/status/statusimpl
 	comp/core/tagger/def
+	comp/core/tagger/fx-remote
 	comp/core/tagger/generic_store
 	comp/core/tagger/impl-remote
 	comp/core/tagger/origindetection
@@ -24,6 +25,7 @@ use (
 	comp/core/tagger/telemetry
 	comp/core/tagger/types
 	comp/core/tagger/utils
+
 	comp/def
 	comp/forwarder/defaultforwarder
 	comp/forwarder/orchestrator/orchestratorinterface

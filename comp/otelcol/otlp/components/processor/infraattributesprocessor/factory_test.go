@@ -91,3 +91,10 @@ func TestCreateProcessors(t *testing.T) {
 		})
 	}
 }
+
+func TestInitializeTagger(t *testing.T) {
+	f := &factory{}
+	err := f.initializeTaggerClient()
+	assert.NoError(t, err)
+	assert.NotNil(t, f.tagger)
+}

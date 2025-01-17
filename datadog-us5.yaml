@@ -1,0 +1,18 @@
+apm_config:
+  apm_non_local_traffic: true
+  enabled: true
+  log_file: trace.log
+
+agent_ipc:
+  port: 5009
+  config_refresh_interval: 60
+otelcollector:
+  enabled: true
+
+api_key: 55d226cf33716ab268a85d9e74309e93
+hostname: mymachine
+skip_ssl_validation: yes
+log_level: debug
+logs_enabled: true
+disable_file_logging: true
+site: us5.datadoghq.com

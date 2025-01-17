@@ -7,9 +7,23 @@ package infraattributesprocessor
 
 import (
 	"context"
+	"fmt"
+	"strings"
+	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"go.uber.org/fx"
 
+	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/processor"
@@ -18,10 +32,55 @@ import (
 
 var processorCapabilities = consumer.Capabilities{MutatesData: true}
 
-// TODO: Remove tagger and generateID as depenendencies to enable future import of
-// infraattributesprocessor by external go packages like ocb
 type factory struct {
 	tagger taggerClient
+	mu     sync.Mutex
+}
+
+func (f *factory) initializeTaggerClient() error {
+	// Ensure that the tagger is initialized only once.
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.tagger != nil {
+		return nil
+	}
+	var client taggerClient
+	app := fx.New(
+		fx.Provide(func() config.Component {
+			pkgconfig := pkgconfigsetup.Datadog()
+			if pkgconfig == nil {
+				pkgconfig = pkgconfigmodel.NewConfig("DD", "DD", strings.NewReplacer("_", "."))
+				pkgconfigsetup.InitConfig(pkgconfig)
+			}
+			return pkgconfig
+		}),
+		fx.Provide(func(_ config.Component) log.Params {
+			return log.ForDaemon("otelcol", "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+		}),
+		logfx.Module(),
+		telemetryimpl.Module(),
+		fxutil.FxAgentBase(),
+		remoteTaggerfx.Module(tagger.RemoteParams{
+			RemoteTarget: func(c config.Component) (string, error) {
+				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+			},
+			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
+				return func() (string, error) {
+					return security.FetchAuthToken(c)
+				}
+			},
+			RemoteFilter: taggerTypes.NewMatchAllFilter(),
+		}),
+		fx.Provide(func(t tagger.Component) taggerClient {
+			return t
+		}),
+		fx.Populate(&client),
+	)
+	if err := app.Err(); err != nil {
+		return err
+	}
+	f.tagger = client
+	return nil
 }
 
 // NewFactory returns a new factory for the InfraAttributes processor.
@@ -46,7 +105,7 @@ func NewFactoryForAgent(tagger taggerClient) processor.Factory {
 
 func (f *factory) createDefaultConfig() component.Config {
 	return &Config{
-		Cardinality: types.LowCardinality,
+		Cardinality: taggerTypes.LowCardinality,
 	}
 }
 
@@ -56,6 +115,12 @@ func (f *factory) createMetricsProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Metrics,
 ) (processor.Metrics, error) {
+	if f.tagger == nil {
+		err := f.initializeTaggerClient()
+		if err != nil {
+			return nil, err
+		}
+	}
 	iap, err := newInfraAttributesMetricProcessor(set, cfg.(*Config), f.tagger)
 	if err != nil {
 		return nil, err
@@ -75,6 +140,12 @@ func (f *factory) createLogsProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Logs,
 ) (processor.Logs, error) {
+	if f.tagger == nil {
+		err := f.initializeTaggerClient()
+		if err != nil {
+			return nil, err
+		}
+	}
 	iap, err := newInfraAttributesLogsProcessor(set, cfg.(*Config), f.tagger)
 	if err != nil {
 		return nil, err
@@ -94,6 +165,12 @@ func (f *factory) createTracesProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (processor.Traces, error) {
+	if f.tagger == nil {
+		err := f.initializeTaggerClient()
+		if err != nil {
+			return nil, err
+		}
+	}
 	iap, err := newInfraAttributesSpanProcessor(set, cfg.(*Config), f.tagger)
 	if err != nil {
 		return nil, err
