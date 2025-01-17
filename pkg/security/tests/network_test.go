@@ -256,6 +256,6 @@ func TestRawPacketFilter(t *testing.T) {
 		opts := rawpacket.DefaultProgOpts
 		opts.MaxProgSize = 4000
 		opts.NopInstLen = 3500
-		runTest(t, filters, rawpacket.DefaultProgOpts)
+		runTest(t, filters, opts)
 	})
 }
