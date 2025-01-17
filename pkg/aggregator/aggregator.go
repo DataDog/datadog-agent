@@ -310,11 +310,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 	}
 
 	configVersion := "default"
-	if pkgconfigsetup.Datadog().GetString("fleet_policies_dir") != "" {
-		if absFleetDir, err := filepath.EvalSymlinks(pkgconfigsetup.Datadog().GetString("fleet_policies_dir")); err == nil {
-			// If the agent is managed by the installer and the fleet_policies_dir is set, use the config version as the directory name
-			configVersion = filepath.Base(absFleetDir)
-		}
+	if absFleetDir, err := filepath.EvalSymlinks(pkgconfigsetup.Datadog().GetString("fleet_policies_dir")); err == nil {
+		// If the agent is managed by the installer and the fleet_policies_dir is set, use the config version as the directory name
+		configVersion = filepath.Base(absFleetDir)
 	}
 
 	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
