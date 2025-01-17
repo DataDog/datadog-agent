@@ -257,7 +257,7 @@ func TestDefaultData(t *testing.T) {
 		Points: []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags: tagset.CompositeTagsFromSlice([]string{
 			fmt.Sprintf("version:%s", version.AgentVersion),
-			"config_version:default",
+			"config_id:default",
 		}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
@@ -525,7 +525,7 @@ func TestRecurrentSeries(t *testing.T) {
 		Points: []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags: tagset.CompositeTagsFromSlice([]string{
 			fmt.Sprintf("version:%s", version.AgentVersion),
-			"config_version:default",
+			"config_id:default",
 		}),
 		Host:           demux.Aggregator().hostname,
 		MType:          metrics.APIGaugeType,
@@ -595,7 +595,7 @@ func TestTags(t *testing.T) {
 			agentTags:               func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
-			want:                    []string{"version:" + version.AgentVersion, "config_version:default"},
+			want:                    []string{"version:" + version.AgentVersion, "config_id:default"},
 		},
 		{
 			name:                    "tags disabled, without version",
@@ -613,7 +613,7 @@ func TestTags(t *testing.T) {
 			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
 			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
-			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "config_version:default"},
+			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "config_id:default"},
 		},
 		{
 			name:                    "tags enabled, without version",
@@ -631,7 +631,7 @@ func TestTags(t *testing.T) {
 			agentTags:               func(types.TagCardinality) ([]string, error) { return nil, errors.New("no tags") },
 			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
-			want:                    []string{"version:" + version.AgentVersion, "config_version:default"},
+			want:                    []string{"version:" + version.AgentVersion, "config_id:default"},
 		},
 		{
 			name:                    "tags enabled, with version, with global tags (no hostname)",
@@ -640,7 +640,7 @@ func TestTags(t *testing.T) {
 			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
 			globalTags:              func(types.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
 			withVersion:             true,
-			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "config_version:default", "kube_cluster_name:foo"},
+			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "config_id:default", "kube_cluster_name:foo"},
 		},
 		{
 			name:                    "tags enabled, with version, with global tags (hostname present)",
@@ -649,7 +649,7 @@ func TestTags(t *testing.T) {
 			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
 			globalTags:              func(types.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
 			withVersion:             true,
-			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "config_version:default", "kube_cluster_name:foo"},
+			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "config_id:default", "kube_cluster_name:foo"},
 		},
 	}
 	for _, tt := range tests {

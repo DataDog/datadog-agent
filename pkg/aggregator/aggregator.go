@@ -254,7 +254,7 @@ type BufferedAggregator struct {
 	serializer             serializer.MetricSerializer
 	eventPlatformForwarder eventplatform.Component
 	haAgent                haagent.Component
-	configVersion          string
+	configID               string
 	hostname               string
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
@@ -338,7 +338,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
 		haAgent:                     haAgent,
-		configVersion:               configVersion,
+		configID:                    configVersion,
 		hostname:                    hostname,
 		hostnameUpdate:              make(chan string),
 		hostnameUpdateDone:          make(chan struct{}),
@@ -886,7 +886,7 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		if version.AgentPackageVersion != "" {
 			tags = append(tags, "package_version:"+version.AgentPackageVersion)
 		}
-		tags = append(tags, "config_version:"+agg.configVersion)
+		tags = append(tags, "config_id:"+agg.configID)
 	}
 	// nil to empty string
 	// This is expected by other components/tests
