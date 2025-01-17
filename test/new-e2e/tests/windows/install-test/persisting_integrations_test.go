@@ -27,7 +27,7 @@ func TestPersistingIntegrations(t *testing.T) {
 	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
 	require.NoError(t, err, "should get upgrade test package")
 	s.upgradeAgentPackge = upgradeAgentPackge
-	run(t, s)
+	Run(t, s)
 }
 
 type testPersistingIntegrationsSuite struct {
@@ -105,7 +105,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 // TestPersistingIntegrations tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
 func TestIntegrationInstallFailure(t *testing.T) {
 	s := &testIntegrationInstallFailure{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testIntegrationInstallFailure struct {
@@ -155,7 +155,7 @@ func TestIntegrationFolderPermissions(t *testing.T) {
 	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
 	require.NoError(t, err, "should get upgrade test package")
 	s.upgradeAgentPackge = upgradeAgentPackge
-	run(t, s)
+	Run(t, s)
 }
 
 type testIntegrationFolderPermissions struct {
