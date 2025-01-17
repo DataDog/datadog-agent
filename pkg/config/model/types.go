@@ -62,9 +62,9 @@ type Reader interface {
 	//
 	// Deprecated: this method will be removed once all settings have a default, use 'IsConfigured' instead.
 	IsSet(key string) bool
-	// IsConfigured returns true if a settings exists and has a value and doesn't come from default (ie: was
-	// configured by the user). If a setting is configured by the user with the same value that the default this
-	// method will return true as it tests where the settings comes from not its value.
+	// IsConfigured returns true if a setting exists, has a value and doesn't come from the defaults (ie: was
+	// configured by the user). If a setting is configured by the user with the same value than the defaults this
+	// method will still return true as it tests the source of a setting not its value.
 	IsConfigured(key string) bool
 
 	// UnmarshalKey Unmarshal a configuration key into a struct

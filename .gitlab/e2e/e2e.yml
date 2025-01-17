@@ -406,6 +406,12 @@ new-e2e-installer-script:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
     - deploy_installer_oci
     - qa_installer_script
   variables:

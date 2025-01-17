@@ -90,11 +90,21 @@ namespace Datadog.CustomActions
         /// </summary>
         private void ConfigureUserGroups()
         {
-            if (_nativeMethods.IsReadOnlyDomainController())
+            try
             {
-                _session.Log("Host is a Read-Only Domain controller, user cannot be added to groups by the installer." +
-                             " Install will continue, agent may not function properly if user has not been added to these groups.");
-                return;
+                if (_nativeMethods.IsReadOnlyDomainController())
+                {
+                    _session.Log("Host is a Read-Only Domain controller, user cannot be added to groups by the installer." +
+                                 " Install will continue, agent may not function properly if user has not been added to these groups.");
+                    return;
+                }
+            }
+            catch (Exception e)
+            {
+                // On error assume the host is not a read-only domain controller
+                // If the host is actually a read-only domain controller then the following operations will fail
+                _session.Log($"Error determining if host is a read-only domain controller, continuing assuming it is not: {e}");
+                _session.Log("If the host is actually a read-only domain controller, ensure the LanmanServer/Server service is running.");
             }
 
             _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
