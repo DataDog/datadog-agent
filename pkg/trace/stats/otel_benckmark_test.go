@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -17,7 +16,106 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv "go.opentelemetry.io/collector/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/metric/noop"
+
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
+
+func BenchmarkOTelStatsWithoutObfuscation(b *testing.B) {
+	benchmarkOTelObfuscation(b, false)
+}
+
+func BenchmarkOTelStatsWithObfuscation(b *testing.B) {
+	benchmarkOTelObfuscation(b, true)
+}
+
+func benchmarkOTelObfuscation(b *testing.B, enableObfuscation bool) {
+	start := time.Now().Add(-1 * time.Second)
+	end := time.Now()
+	set := componenttest.NewNopTelemetrySettings()
+	set.MeterProvider = noop.NewMeterProvider()
+	attributesTranslator, err := attributes.NewTranslator(set)
+	assert.NoError(b, err)
+
+	traces := ptrace.NewTraces()
+	rspan := traces.ResourceSpans().AppendEmpty()
+	res := rspan.Resource()
+	for k, v := range map[string]string{
+		semconv.AttributeServiceName:           "svc",
+		semconv.AttributeDeploymentEnvironment: "tracer_env",
+		semconv.AttributeDBSystem:              "mysql",
+		semconv.AttributeDBStatement: `
+		SELECT 
+    	u.id, 
+			u.name, 
+			u.email, 
+			o.order_id, 
+			o.total_amount, 
+			p.product_name, 
+			p.price 
+		FROM 
+				users u 
+		JOIN 
+				orders o ON u.id = o.user_id 
+		JOIN 
+				order_items oi ON o.order_id = oi.order_id 
+		JOIN 
+				products p ON oi.product_id = p.product_id 
+		WHERE 
+				u.status = 'active' 
+				AND o.order_date BETWEEN '2023-01-01' AND '2023-12-31' 
+				AND p.category IN ('electronics', 'books') 
+		GROUP BY 
+				u.id, 
+				u.name, 
+				u.email, 
+				o.order_id, 
+				o.total_amount, 
+				p.product_name, 
+				p.price 
+		ORDER BY 
+				o.order_date DESC, 
+				p.price ASC 
+		LIMIT 100;
+		`,
+	} {
+		res.Attributes().PutStr(k, v)
+	}
+	sspan := rspan.ScopeSpans().AppendEmpty()
+	span := sspan.Spans().AppendEmpty()
+	span.SetTraceID(testTraceID)
+	span.SetSpanID(testSpanID1)
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(end))
+	span.SetName("span_name")
+	span.SetKind(ptrace.SpanKindClient)
+
+	conf := config.New()
+	conf.Hostname = "agent_host"
+	conf.DefaultEnv = "agent_env"
+	conf.Obfuscation.Redis.Enabled = true
+	conf.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	conf.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
+	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
+
+	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
+
+	var obfuscator *obfuscate.Obfuscator
+	if enableObfuscation {
+		obfuscator = newTestObfuscator(conf)
+	}
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		inputs := OTLPTracesToConcentratorInputsWithObfuscation(traces, conf, nil, nil, obfuscator)
+		assert.Len(b, inputs, 1)
+		input := inputs[0]
+		concentrator.Add(input)
+		stats := concentrator.Flush(true)
+		assert.Len(b, stats.Stats, 1)
+	}
+}
 
 func BenchmarkOTelContainerTags(b *testing.B) {
 	start := time.Now().Add(-1 * time.Second)

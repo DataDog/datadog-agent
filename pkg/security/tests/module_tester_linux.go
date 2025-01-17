@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -173,7 +174,10 @@ runtime_security_config:
 {{end}}
 
   self_test:
-    enabled: false
+    enabled: {{.EnableSelfTests}}
+{{if .EnableSelfTests}}
+    send_report: true
+{{end}}
 
   policies:
     dir: {{.TestPoliciesDir}}
@@ -751,7 +755,8 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	if !opts.staticOpts.disableRuntimeSecurity {
 		msgSender := newFakeMsgSender(testMod)
 
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod, MsgSender: msgSender})
+		compression := logscompression.NewComponent()
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod, MsgSender: msgSender}, compression)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}

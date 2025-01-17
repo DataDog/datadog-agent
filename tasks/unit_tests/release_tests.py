@@ -1240,3 +1240,56 @@ class TestUpdateModules(unittest.TestCase):
         edit_optional = re.compile(r"pkg/util/optional.*test/new-e2e")
         self.assertTrue(any(edit_optional.search(call[0][0]) for call in c.run.call_args_list))
         self.assertEqual(c.run.call_count, 2)
+
+
+class TestTagModules(unittest.TestCase):
+    @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(2)]))
+    @patch('tasks.release.agent_context', new=MagicMock())
+    def test_2_tags(self):
+        c = MockContext(run=Result("yolo"))
+        with patch('tasks.release.get_default_modules') as mock_modules:
+            mock_dict = MagicMock()
+            mock_dict.values.return_value = 2 * [GoModule('pkg/one')]
+            mock_modules.return_value = mock_dict
+            release.tag_modules(c, version="version")
+        self.assertEqual(c.run.call_count, 1)
+        c.run.assert_called_with("git push origin 0 1")
+
+    @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(3)]))
+    @patch('tasks.release.agent_context', new=MagicMock())
+    def test_3_tags(self):
+        c = MockContext(run=Result("yolo"))
+        with patch('tasks.release.get_default_modules') as mock_modules:
+            mock_dict = MagicMock()
+            mock_dict.values.return_value = 3 * [GoModule('pkg/one')]
+            mock_modules.return_value = mock_dict
+            release.tag_modules(c, version="version")
+        self.assertEqual(c.run.call_count, 1)
+        c.run.assert_called_with("git push origin 0 1 2")
+
+    @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(4)]))
+    @patch('tasks.release.agent_context', new=MagicMock())
+    def test_4_tags(self):
+        c = MockContext(run=Result("yolo"))
+        with patch('tasks.release.get_default_modules') as mock_modules:
+            mock_dict = MagicMock()
+            mock_dict.values.return_value = 4 * [GoModule('pkg/one')]
+            mock_modules.return_value = mock_dict
+            release.tag_modules(c, version="version")
+        self.assertEqual(c.run.call_count, 2)
+        calls = [
+            call("git push origin 0 1 2"),
+            call("git push origin 3"),
+        ]
+        c.run.assert_has_calls(calls)
+
+    @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(100)]))
+    @patch('tasks.release.agent_context', new=MagicMock())
+    def test_100_tags(self):
+        c = MockContext(run=Result("yolo"))
+        with patch('tasks.release.get_default_modules') as mock_modules:
+            mock_dict = MagicMock()
+            mock_dict.values.return_value = 100 * [GoModule('pkg/one')]
+            mock_modules.return_value = mock_dict
+            release.tag_modules(c, version="version")
+        self.assertEqual(c.run.call_count, 34)

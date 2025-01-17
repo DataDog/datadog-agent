@@ -225,7 +225,7 @@ func TestRawPacketFilter(t *testing.T) {
 
 	runTest := func(t *testing.T, filters []rawpacket.Filter, opts rawpacket.ProgOpts) {
 		progSpecs, err := rawpacket.FiltersToProgramSpecs(rawPacketEventMap.FD(), clsRouterMapFd.FD(), filters, opts)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.NotEmpty(t, progSpecs)
 
 		colSpec := ebpf.CollectionSpec{
@@ -236,7 +236,7 @@ func TestRawPacketFilter(t *testing.T) {
 		}
 
 		progsCol, err := ebpf.NewCollection(&colSpec)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		if err == nil {
 			progsCol.Close()
 		}
@@ -256,6 +256,6 @@ func TestRawPacketFilter(t *testing.T) {
 		opts := rawpacket.DefaultProgOpts
 		opts.MaxProgSize = 4000
 		opts.NopInstLen = 3500
-		runTest(t, filters, rawpacket.DefaultProgOpts)
+		runTest(t, filters, opts)
 	})
 }
