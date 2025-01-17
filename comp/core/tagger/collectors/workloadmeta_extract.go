@@ -403,6 +403,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 	}
 
 	// Add additional tags for the pod based on the pod's related owners
+	// this would override tags we parse from owners
 	for _, owner := range pod.RelatedOwners {
 		c.extractTagsFromPodOwner(pod, owner, tagList)
 	}
@@ -669,7 +670,6 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 		}
 
 	case kubernetes.JobKind:
-		// TODO: If ownership detection works we can remove
 		cronjob, _ := kubernetes.ParseCronJobForJob(owner.Name)
 		if cronjob != "" {
 			tagList.AddOrchestrator(tags.KubeJob, owner.Name)
@@ -682,7 +682,6 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 		tagList.AddLow(tags.KubeCronjob, owner.Name)
 
 	case kubernetes.ReplicaSetKind:
-		// TODO: If ownership detection works we can remove
 		deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
 		if len(deployment) > 0 {
 			tagList.AddLow(tags.KubeDeployment, deployment)
@@ -695,6 +694,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 	case kubernetes.NamespaceKind:
 		tagList.AddLow(tags.KubeNamespace, owner.Name)
 
+	default:
+		log.Debugf("Could not set a tag for kind %s", owner.Kind)
 	}
 }
 
