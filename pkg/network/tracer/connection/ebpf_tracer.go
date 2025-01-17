@@ -123,6 +123,7 @@ var EbpfTracerTelemetry = struct { //nolint:revive // TODO
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
+	// random comment here to hopefully trigger sysprobe KMT
 }
 
 type ebpfTracer struct {
