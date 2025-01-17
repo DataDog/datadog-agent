@@ -349,6 +349,19 @@ namespace Datadog.CustomActions.Native
             LSA_UNICODE_STRING[] UserRights,
             long CountOfRights);
 
+        // One import def for string param
+        [DllImport("advapi32.dll", SetLastError = true, PreserveSig = true)]
+        private static extern uint LsaStorePrivateData(
+            IntPtr policyHandle,
+            ref LSA_UNICODE_STRING keyName,
+            ref LSA_UNICODE_STRING privateData);
+        // One import def for null param
+        [DllImport("advapi32.dll", SetLastError = true, PreserveSig = true)]
+        private static extern uint LsaStorePrivateData(
+            IntPtr policyHandle,
+            ref LSA_UNICODE_STRING keyName,
+            IntPtr privateData);
+
         [StructLayout(LayoutKind.Sequential)]
         private struct LSA_UNICODE_STRING
         {
@@ -606,6 +619,108 @@ namespace Datadog.CustomActions.Native
                 Marshal.FreeHGlobal(userRights[0].Buffer);
                 LsaClose(policyHandle);
             }
+        }
+
+        private static LSA_UNICODE_STRING InitLsaString(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return new LSA_UNICODE_STRING();
+            }
+
+            var lsaString = new LSA_UNICODE_STRING()
+            {
+                Buffer = Marshal.StringToHGlobalUni(value),
+                Length = (ushort)(value.Length * UnicodeEncoding.CharSize),
+                MaximumLength = (ushort)((value.Length + 1) * UnicodeEncoding.CharSize)
+            };
+
+            return lsaString;
+        }
+
+        private static void FreeLsaString(LSA_UNICODE_STRING lsaString)
+        {
+            if (lsaString.Buffer != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(lsaString.Buffer);
+            }
+        }
+
+        /// <summary>
+        /// PInvoke wrapper for LsaOpenPolicy+LsaStorePrivateData
+        /// </summary>
+        /// <remarks>
+        /// https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsastoreprivatedata
+        ///
+        /// https://learn.microsoft.com/en-us/windows/win32/secmgmt/storing-private-data
+        /// </remarks>
+        private void StorePrivateData(string keyName, string secret)
+        {
+            IntPtr policyHandle = IntPtr.Zero;
+            var lsaKeyName = new LSA_UNICODE_STRING();
+            var lsaSecret = new LSA_UNICODE_STRING();
+            try
+            {
+                var systemName = new LSA_UNICODE_STRING();
+                var objectAttributes = new LSA_OBJECT_ATTRIBUTES();
+                var status = LsaOpenPolicy(ref systemName, ref objectAttributes,
+                    (int)LSA_AccessPolicy.POLICY_CREATE_SECRET, out policyHandle);
+                var winErrorCode = LsaNtStatusToWinError(status);
+                if (winErrorCode != 0)
+                {
+                    throw new Exception("LsaOpenPolicy failed", new Win32Exception((int)winErrorCode));
+                }
+
+                lsaKeyName = InitLsaString(keyName);
+                if (string.IsNullOrEmpty(secret))
+                {
+                    // MSDN: "If this parameter is NULL, the function deletes any private data stored under the key and deletes the key."
+                    status = LsaStorePrivateData(policyHandle, ref lsaKeyName, IntPtr.Zero);
+                }
+                else
+                {
+                    lsaSecret = InitLsaString(secret);
+                    status = LsaStorePrivateData(policyHandle, ref lsaKeyName, ref lsaSecret);
+                }
+
+                winErrorCode = LsaNtStatusToWinError(status);
+                if (winErrorCode != 0)
+                {
+                    throw new Exception("LsaStorePrivateData failed", new Win32Exception((int)winErrorCode));
+                }
+            }
+            finally
+            {
+                if (policyHandle != IntPtr.Zero)
+                {
+                    LsaClose(policyHandle);
+                }
+                FreeLsaString(lsaKeyName);
+                FreeLsaString(lsaSecret);
+            }
+        }
+
+        /// <summary>
+        /// Use LSA to store a secret
+        /// </summary>
+        /// <remarks>
+        /// https://learn.microsoft.com/en-us/windows/win32/secmgmt/storing-private-data
+        /// </remarks>
+        public void StoreSecret(string keyName, string secret)
+        {
+            StorePrivateData(keyName, secret);
+        }
+
+        /// <summary>
+        /// Remove LSA secret
+        /// </summary>
+        /// <remarks>
+        /// Remove secret by passing NULL to LsaStorePrivateData
+        /// https://learn.microsoft.com/en-us/windows/win32/secmgmt/storing-private-data
+        /// </remarks>
+        public void RemoveSecret(string keyName)
+        {
+            StorePrivateData(keyName, null);
         }
 
         public void SetUserPassword(string accountName, string password)
