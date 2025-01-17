@@ -77,6 +77,13 @@ func (c *Cache) FromJSON(data []byte) error {
 	return nil
 }
 
+// CleanCache removes all nodes that have timed out
+func (c *Cache) CleanCache() {
+	for _, forest := range c.Forests {
+		forest.RemoveExpiredNodes()
+	}
+}
+
 // Node represents a tree node with GVK, name, parents, and children.
 type Node struct {
 	Item       Item     `json:"item"`

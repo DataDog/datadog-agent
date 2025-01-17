@@ -54,6 +54,7 @@ func (c *ownerDetectionClient) start(ctx context.Context) {
 			evs.Acknowledge()
 			c.handleEvents(evs)
 		case <-ticker.C:
+			c.ownerCache.CleanCache()
 			pods := c.wmeta.ListKuberenetesPods()
 			c.handlePods(c.getNewPods(pods))
 		}
