@@ -44,9 +44,13 @@ type catalog struct {
 }
 
 type packageStatus struct {
-	State             string `json:"State"`
-	StableVersion     string `json:"Stable"`
-	ExperimentVersion string `json:"Experiment"`
+	Version stableExperimentStatus `json:"Version"`
+	Config  stableExperimentStatus `json:"Config"`
+}
+
+type stableExperimentStatus struct {
+	Stable     string `json:"Stable"`
+	Experiment string `json:"Experiment"`
 }
 
 type installerStatus struct {
@@ -203,7 +207,7 @@ func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
 	// Temporary catalog to wait for the installer to be ready
 	s.setCatalog(testCatalog)
 
-	currentVersion := s.getInstallerStatus().Packages["datadog-agent"].StableVersion
+	currentVersion := s.getInstallerStatus().Packages["datadog-agent"].Version.Stable
 	newCatalog := catalog{
 		Packages: []packageEntry{
 			{
@@ -260,7 +264,7 @@ func (s *upgradeScenarioSuite) TestDoubleExperiments() {
 	// Start a second experiment that overrides the first one
 	s.mustStartExperiment(datadogAgent, previousAgentImageVersion)
 	installerStatus := s.getInstallerStatus()
-	require.Equal(s.T(), previousAgentImageVersion, installerStatus.Packages["datadog-agent"].ExperimentVersion)
+	require.Equal(s.T(), previousAgentImageVersion, installerStatus.Packages["datadog-agent"].Version.Experiment)
 
 	// Stop the last experiment
 	timestamp = s.host.LastJournaldTimestamp()
@@ -730,7 +734,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStartExperiment(timestamp ho
 	)
 
 	installerStatus := s.getInstallerStatus()
-	require.Equal(s.T(), version, installerStatus.Packages["datadog-agent"].ExperimentVersion)
+	require.Equal(s.T(), version, installerStatus.Packages["datadog-agent"].Version.Experiment)
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulAgentPromoteExperiment(timestamp host.JournaldTimestamp, version string) {
@@ -751,8 +755,8 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentPromoteExperiment(timestamp 
 	)
 
 	installerStatus := s.getInstallerStatus()
-	require.Equal(s.T(), version, installerStatus.Packages["datadog-agent"].StableVersion)
-	require.Equal(s.T(), "", installerStatus.Packages["datadog-agent"].ExperimentVersion)
+	require.Equal(s.T(), version, installerStatus.Packages["datadog-agent"].Version.Stable)
+	require.Equal(s.T(), "", installerStatus.Packages["datadog-agent"].Version.Experiment)
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulAgentStopExperiment(timestamp host.JournaldTimestamp) {
@@ -771,7 +775,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStopExperiment(timestamp hos
 	)
 
 	installerStatus := s.getInstallerStatus()
-	require.Equal(s.T(), "", installerStatus.Packages["datadog-agent"].ExperimentVersion)
+	require.Equal(s.T(), "", installerStatus.Packages["datadog-agent"].Version.Experiment)
 }
 
 func (s *upgradeScenarioSuite) startConfigExperiment(pkg packageName, config installerConfig) (string, error) {
@@ -934,7 +938,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulInstallerStartExperiment(timestam
 	)
 
 	installerStatus := s.getInstallerStatus()
-	require.Equal(s.T(), version, installerStatus.Packages["datadog-installer"].ExperimentVersion)
+	require.Equal(s.T(), version, installerStatus.Packages["datadog-installer"].Version.Experiment)
 }
 
 // TODO : remove version param after fixing the stop cleanup
@@ -948,7 +952,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulInstallerStopExperiment(timestamp
 	)
 
 	installerStatus := s.getInstallerStatus()
-	require.Equal(s.T(), "", installerStatus.Packages["datadog-installer"].ExperimentVersion)
+	require.Equal(s.T(), "", installerStatus.Packages["datadog-installer"].Version.Experiment)
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulInstallerPromoteExperiment(timestamp host.JournaldTimestamp, version string) {
@@ -961,8 +965,8 @@ func (s *upgradeScenarioSuite) assertSuccessfulInstallerPromoteExperiment(timest
 	)
 
 	installerStatus := s.getInstallerStatus()
-	require.Equal(s.T(), version, installerStatus.Packages["datadog-installer"].StableVersion)
-	require.Equal(s.T(), "", installerStatus.Packages["datadog-installer"].ExperimentVersion)
+	require.Equal(s.T(), version, installerStatus.Packages["datadog-installer"].Version.Stable)
+	require.Equal(s.T(), "", installerStatus.Packages["datadog-installer"].Version.Experiment)
 }
 
 func (s *upgradeScenarioSuite) executeAgentGoldenPath() {
