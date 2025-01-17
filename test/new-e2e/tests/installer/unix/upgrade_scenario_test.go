@@ -46,6 +46,9 @@ type catalog struct {
 type packageStatus struct {
 	Version stableExperimentStatus `json:"Version"`
 	Config  stableExperimentStatus `json:"Config"`
+
+	LegacyVersionStable     string `json:"Stable"`
+	LegacyVersionExperiment string `json:"Experiment"`
 }
 
 type stableExperimentStatus struct {
@@ -919,7 +922,14 @@ func (s *upgradeScenarioSuite) getInstallerStatus() installerStatus {
 	if err != nil {
 		s.T().Fatal(err)
 	}
-
+	// Legacy status handling
+	for k, pkg := range status.Packages {
+		if pkg.LegacyVersionStable != "" || pkg.LegacyVersionExperiment != "" {
+			pkg.Version.Stable = pkg.LegacyVersionStable
+			pkg.Version.Experiment = pkg.LegacyVersionExperiment
+			status.Packages[k] = pkg
+		}
+	}
 	return status
 }
 
