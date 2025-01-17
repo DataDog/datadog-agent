@@ -7,6 +7,7 @@ package ownerdetectionimpl
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -28,23 +29,18 @@ func (c *ownerDetectionClient) start(ctx context.Context) {
 	}()
 
 	// Sleep during start just to give the DCA a chance to start up
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 10)
 
-	// create a workloadmeta filter for pods
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceNodeOrchestrator).
 		AddKind(workloadmeta.KindKubernetesPod).
 		Build()
-
-	// Look into filtering out UNSET events?
-
 	eventCh := c.wmeta.Subscribe(name, workloadmeta.TaggerPriority, filter)
 
-	log.Error("OwnerDetectionClient is started")
+	// Every minute, scan all the pods to detect leaks
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
 
-	ticker := time.NewTicker(5 * time.Minute) // Do a full scan every 5 minutes
-
-	// Periodically scan all pods
 	for {
 		select {
 		case <-ctx.Done():
@@ -79,13 +75,16 @@ func (c *ownerDetectionClient) handlePods(pods []*workloadmeta.KubernetesPod) {
 
 		for _, owner := range pod.Owners {
 
+			// First: check the cache for the owner
 			cachedItems := c.ownerCache.GetParentTree(pod.Namespace, owner.Kind, owner.Name)
 			if len(cachedItems) == 1 {
 				// If we have a single parent, it's already the owner we know about
-				log.Info("Gabe: Cache hit. No parents for %s/%s", owner.Kind, owner.Name)
+				log.Infof("Gabe: Cache hit. No parents for %s/%s", owner.Kind, owner.Name)
 				continue
 			}
 			if len(cachedItems) > 1 {
+				// If we have multiple cached items, we have a parent tree (grandParents+)
+				log.Infof("Gabe: Cache hit. Parents for %s/%s", owner.Kind, owner.Name)
 				for _, item := range cachedItems {
 					// Ignore the known parent
 					if item.Name == owner.Name && item.GVKR.Kind == owner.Kind {
@@ -101,7 +100,7 @@ func (c *ownerDetectionClient) handlePods(pods []*workloadmeta.KubernetesPod) {
 			}
 
 			ownerRelations, err := dcaClient.GetOwnerReferences(pod.Namespace, owner.Name, owner.APIVersion, owner.Kind)
-			log.Errorf("GABE: Owner relations from DCACLIENT: %s", ownerRelations)
+			log.Infof("Gabe: Cache miss. Parents for %s/%s: %v", owner.Kind, owner.Name, ownerRelations)
 			if err != nil {
 				c.log.Debugf("Failed to get owner references for %s/%s: %s", pod.Namespace, owner.Name, err)
 			}
@@ -109,6 +108,17 @@ func (c *ownerDetectionClient) handlePods(pods []*workloadmeta.KubernetesPod) {
 
 			// Add the owner to the cache
 			c.ownerCache.AddParentTree(pod.Namespace, objectRelations)
+
+			// Edge case: the owner has no related entites, but we want to record it in the cache
+			if len(objectRelations) == 0 {
+				ownerGroup, ownerVersion := parseAPIVersion(owner.APIVersion)
+				ownerGVRK := k8stypes.GroupVersionResourceKind{
+					Kind:    owner.Kind,
+					Group:   ownerGroup,
+					Version: ownerVersion,
+				}
+				c.ownerCache.AddSingleParent(pod.Namespace, ownerGVRK, owner.Name)
+			}
 		}
 
 		// TODO: check for duplicated owners potentially and parse them out
@@ -120,8 +130,6 @@ func (c *ownerDetectionClient) handlePods(pods []*workloadmeta.KubernetesPod) {
 			})
 		}
 
-		log.Errorf("GABE: Related owners: %s", relatedOwners)
-
 		if len(relatedOwners) == 0 {
 			continue
 		}
@@ -130,6 +138,7 @@ func (c *ownerDetectionClient) handlePods(pods []*workloadmeta.KubernetesPod) {
 		newEvent := workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod}
 		newEvents = append(newEvents, newEvent)
 	}
+
 	err = c.wmeta.Push(workloadmeta.SourceOwnerDetectionServer, newEvents...)
 	if err != nil {
 		c.log.Errorf("Failed to push events: %s", err)
@@ -137,10 +146,7 @@ func (c *ownerDetectionClient) handlePods(pods []*workloadmeta.KubernetesPod) {
 }
 
 func (c *ownerDetectionClient) handleEvents(evs workloadmeta.EventBundle) {
-
 	pods := make([]*workloadmeta.KubernetesPod, 0)
-	log.Errorf("GABE: HANDLING EVENT BUNDLE %v", evs)
-
 	for _, ev := range evs.Events {
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
@@ -152,7 +158,6 @@ func (c *ownerDetectionClient) handleEvents(evs workloadmeta.EventBundle) {
 		}
 	}
 	c.handlePods(pods)
-
 }
 
 // getNewPods that are not detected in the cache
@@ -167,6 +172,14 @@ func (c *ownerDetectionClient) getNewPods(pods []*workloadmeta.KubernetesPod) []
 		}
 	}
 	return returnPods
+}
+
+func parseAPIVersion(apiVersion string) (group, version string) {
+	parts := strings.Split(apiVersion, "/")
+	if len(parts) == 2 {
+		return parts[0], parts[1] // group and version
+	}
+	return "", apiVersion // core group
 }
 
 // func removeDuplicateStr(s []string) []string {

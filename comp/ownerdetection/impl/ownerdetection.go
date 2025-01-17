@@ -17,7 +17,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	ownerdetection "github.com/DataDog/datadog-agent/comp/ownerdetection/def"
 	cache "github.com/DataDog/datadog-agent/comp/ownerdetection/store"
-	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
@@ -87,18 +86,3 @@ func (c *ownerDetectionClient) Start(ctx context.Context) error {
 func (c *ownerDetectionClient) Stop() error {
 	return errors.New("Not implemented")
 }
-
-/*
-
-// IDEA, store the DCAClient masked as ownwerDetectionClient in the struct itself
-
-	if c.langDetectionCl == nil {
-		// TODO: modify GetClusterAgentClient to accept a context with a deadline. If this
-		// functions hangs forever, the component will be unhealthy and crash.
-		dcaClient, err := clusteragent.GetClusterAgentClient()
-		if err != nil {
-			return err
-		}
-		c.langDetectionCl = dcaClient
-	}
-*/
