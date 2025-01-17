@@ -48,3 +48,15 @@ func TestWindowsService(t *testing.T) {
 	}
 
 }
+
+func TestListDatadogServices(t *testing.T) {
+	inServices := []string{"datadog-agent", "Datadog Installer", "not-datadog"}
+	outServices := listDatadogServices(inServices)
+	assert.Contains(t, outServices, "Datadog Installer", "prefix match should be case insensitive")
+	assert.NotContains(t, outServices, "not-datadog", "non-datadog services should not be included")
+
+	inServices = []string{"ddprocmon"}
+	expected := []string{"ddnpm", "ddprocmon"}
+	outServices = listDatadogServices(inServices)
+	assert.Equal(t, expected, outServices, "list should contain one instance of each driver")
+}

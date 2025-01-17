@@ -8,6 +8,7 @@
 package flare
 
 import (
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -297,35 +298,45 @@ func getDDServices(manager *mgr.Mgr) ([]serviceInfo, error) {
 		return nil, err
 	}
 
+	list = listDatadogServices(list)
 	for _, serviceName := range list {
-		if strings.HasPrefix(strings.ToLower(serviceName), "datadog") {
-			srvc, err := winutil.OpenService(manager, serviceName, windows.GENERIC_READ)
-			if err != nil {
-				log.Warnf("Error Opening Service %s: %v", serviceName, err)
-			} else {
-				conf2, err := getServiceInfo(srvc)
-				if err != nil {
-					log.Warnf("Error getting info for %s: %v", serviceName, err)
-				}
-				ddServices = append(ddServices, conf2)
-			}
-		}
-	}
-
-	// Getting driver service info separately, since it's not included in the list of running services
-	drivers := []string{"ddnpm", "ddprocmon"}
-	for _, driverName := range drivers {
-		service, err := winutil.OpenService(manager, driverName, windows.GENERIC_READ)
+		srvc, err := winutil.OpenService(manager, serviceName, windows.GENERIC_READ)
 		if err != nil {
-			log.Warnf("Error Opening Service %s %v", driverName, err)
+			log.Warnf("Error Opening Service %s: %v", serviceName, err)
 		} else {
-			serviceInfo, err := getServiceInfo(service)
+			conf2, err := getServiceInfo(srvc)
 			if err != nil {
-				log.Warnf("Error getting info for %s: %v", driverName, err)
+				log.Warnf("Error getting info for %s: %v", serviceName, err)
 			}
-			ddServices = append(ddServices, serviceInfo)
+			ddServices = append(ddServices, conf2)
 		}
 	}
 
 	return ddServices, nil
+}
+
+func listDatadogServices(services []string) []string {
+	ddServices := []string{}
+
+	// Include all services that start with "datadog" (case insensitive)
+	for _, serviceName := range services {
+		// "The service control manager database preserves the case of the characters, but service name comparisons are always case insensitive."
+		// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openservicew
+		if strings.HasPrefix(strings.ToLower(serviceName), "datadog") {
+			ddServices = append(ddServices, serviceName)
+		}
+	}
+
+	// (*mgr.Mgr).ListServices does not return Kernel services only SERVICE_WIN32, so add our driver services manually
+	// if they aren't already in the list
+	drivers := []string{"ddnpm", "ddprocmon"}
+	for _, driver := range drivers {
+		if !slices.ContainsFunc(ddServices, func(comp string) bool {
+			return strings.EqualFold(comp, driver)
+		}) {
+			ddServices = append(ddServices, driver)
+		}
+	}
+
+	return ddServices
 }
