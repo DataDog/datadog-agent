@@ -2,7 +2,7 @@
 
 module github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl
 
-go 1.22.7
+go 1.23.0
 
 toolchain go1.23.3
 
