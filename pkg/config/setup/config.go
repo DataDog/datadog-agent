@@ -1176,6 +1176,10 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_log_config_scheduling", false)
 }
 
+func fleetautomation(config pkgconfigmodel.Setup) {
+	config.BindEnvAndSetDefault("fleet_automation.config_version", "default")
+}
+
 func autoconfig(config pkgconfigmodel.Setup) {
 	// Autoconfig
 	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)

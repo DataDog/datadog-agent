@@ -875,6 +875,12 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		if version.AgentPackageVersion != "" {
 			tags = append(tags, "package_version:"+version.AgentPackageVersion)
 		}
+
+		configVersion := pkgconfigsetup.Datadog().GetString("fleet_automation.config_version")
+		if configVersion == "" {
+			configVersion = "default"
+		}
+		tags = append(tags, "config_version:"+configVersion)
 	}
 	// nil to empty string
 	// This is expected by other components/tests
