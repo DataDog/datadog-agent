@@ -70,6 +70,12 @@ func (c *APMCheck) ConfigSource() string {
 	return c.source
 }
 
+// Loader returns the check loader
+func (c *APMCheck) Loader() string {
+	// the apm check is scheduled by the Go loader
+	return "Go"
+}
+
 // Run executes the check with retries
 func (c *APMCheck) Run() error {
 	c.running.Store(true)

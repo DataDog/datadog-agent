@@ -70,6 +70,12 @@ func (c *ProcessAgentCheck) ConfigSource() string {
 	return c.source
 }
 
+// Loader returns the check loader
+func (c *ProcessAgentCheck) Loader() string {
+	// the process check is scheduled by the Go loader
+	return "Go"
+}
+
 // InitConfig returns the init configuration
 func (c *ProcessAgentCheck) InitConfig() string {
 	return c.initConfig

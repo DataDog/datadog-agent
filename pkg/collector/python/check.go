@@ -184,6 +184,11 @@ func (c *PythonCheck) ConfigSource() string {
 	return c.source
 }
 
+// Loader returns the check loader
+func (c *PythonCheck) Loader() string {
+	return "Python"
+}
+
 // InitConfig returns the init_config configuration for the check.
 func (c *PythonCheck) InitConfig() string {
 	return c.initConfig
