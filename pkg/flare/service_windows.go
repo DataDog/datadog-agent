@@ -312,16 +312,19 @@ func getDDServices(manager *mgr.Mgr) ([]serviceInfo, error) {
 		}
 	}
 
-	// Getting ddnpm service info separately
-	ddnpm, err := winutil.OpenService(manager, "ddnpm", windows.GENERIC_READ)
-	if err != nil {
-		log.Warnf("Error Opening Service ddnpm %v", err)
-	} else {
-		ddnpmConf, err := getServiceInfo(ddnpm)
+	// Getting driver service info separately, since it's not included in the list of running services
+	drivers := []string{"ddnpm", "ddprocmon"}
+	for _, driverName := range drivers {
+		service, err := winutil.OpenService(manager, driverName, windows.GENERIC_READ)
 		if err != nil {
-			log.Warnf("Error getting info for ddnpm: %v", err)
+			log.Warnf("Error Opening Service %s %v", driverName, err)
+		} else {
+			serviceInfo, err := getServiceInfo(service)
+			if err != nil {
+				log.Warnf("Error getting info for %s: %v", driverName, err)
+			}
+			ddServices = append(ddServices, serviceInfo)
 		}
-		ddServices = append(ddServices, ddnpmConf)
 	}
 
 	return ddServices, nil
