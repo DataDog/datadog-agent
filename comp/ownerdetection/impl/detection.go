@@ -10,6 +10,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	k8stypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -60,6 +61,13 @@ func (c *ownerDetectionClient) handleEvents(evs workloadmeta.EventBundle) {
 
 	log.Errorf("GABE: HANDLING EVENT BUNDLE %v", evs)
 
+	// TODO: retry mechanism?
+	dcaClient, err := clusteragent.GetClusterAgentClient()
+	if err != nil {
+		c.log.Error("Failed to get DCAClient")
+		return
+	}
+
 	for _, ev := range evs.Events {
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
@@ -77,7 +85,7 @@ func (c *ownerDetectionClient) handleEvents(evs workloadmeta.EventBundle) {
 
 			objectRelations := make([]k8stypes.ObjectRelation, 0)
 			for _, owner := range pod.Owners {
-				ownerRelations, err := c.dcaClient.GetOwnerReferences(pod.Namespace, owner.Name, owner.APIVersion, owner.Kind)
+				ownerRelations, err := dcaClient.GetOwnerReferences(pod.Namespace, owner.Name, owner.APIVersion, owner.Kind)
 				log.Errorf("GABE: Owner relations from DCACLIENT: %s", ownerRelations)
 				if err != nil {
 					c.log.Debugf("Failed to get owner references for %s/%s: %s", pod.Namespace, owner.Name, err)
