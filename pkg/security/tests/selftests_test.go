@@ -61,6 +61,6 @@ func TestSelfTests(t *testing.T) {
 		})
 
 		return nil
-	}, retry.Delay(1*time.Second), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.MaxDelay(60*time.Second), retry.DelayType(retry.BackOffDelay))
 	assert.NoError(t, err)
 }
