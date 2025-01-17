@@ -13,6 +13,7 @@ import (
 )
 
 // VariableProvider is the interface implemented by SECL variable providers
+// (Should be named VariableValueProvider)
 type VariableProvider interface {
 	NewSECLVariable(name string, value interface{}, opts eval.VariableOpts) (eval.SECLVariable, error)
 }
