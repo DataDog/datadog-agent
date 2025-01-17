@@ -47,7 +47,9 @@ type installerCmd struct {
 func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, args ...string) *installerCmd {
 	env := i.env.ToEnv()
 	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
-	span.SetTag("args", args)
+	if len(args) > 0 {
+		span.SetTag("args", strings.Join(args, ", "))
+	}
 	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
 	env = append(os.Environ(), env...)
 	if runtime.GOOS != "windows" {
