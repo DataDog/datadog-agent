@@ -161,10 +161,6 @@ func TestPodParser(t *testing.T) {
 					Tag:       "1.25.2",
 					RawName:   "nginx:1.25.2",
 				},
-				Resources: workloadmeta.ContainerResources{
-					GPUVendorList: []string{"nvidia"},
-					CPURequest:    pointer.Ptr(10.0),
-				},
 			},
 		},
 		InitContainers:             []workloadmeta.OrchestratorContainer{},

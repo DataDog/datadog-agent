@@ -12,9 +12,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	util "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/gpu"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 type podParser struct {
@@ -84,17 +84,12 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 			Name: container.Name,
 		}
 		if cpuReq, found := container.Resources.Requests[corev1.ResourceCPU]; found {
-			c.Resources.CPURequest = pointer.Ptr(cpuReq.AsApproximateFloat64() * 100) // For 100m, AsApproximate returns 0.1, we return 10%
+			c.Resources.CPURequest = util.FormatCpuRequests(cpuReq)
 		}
 		if memoryReq, found := container.Resources.Requests[corev1.ResourceMemory]; found {
-			c.Resources.MemoryRequest = pointer.Ptr(uint64(memoryReq.Value()))
+			c.Resources.MemoryRequest = util.FormatMemoryRequests(memoryReq)
 		}
 		containersList = append(containersList, c)
-	}
-
-	// If this list is empty, we want to return nil instead of an empty list
-	if len(containersList) == 0 {
-		containersList = nil
 	}
 
 	return &workloadmeta.KubernetesPod{

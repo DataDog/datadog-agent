@@ -16,6 +16,7 @@ import (
 
 	"go.uber.org/fx"
 
+	util "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
@@ -246,7 +246,6 @@ func parsePodContainers(
 		if containerSpec != nil {
 			env = extractEnvFromSpec(containerSpec.Env)
 			resources = extractResources(containerSpec)
-			podContainer.Resources = resources
 
 			podContainer.Image, err = workloadmeta.NewContainerImage(imageID, containerSpec.Image)
 			if err != nil {
@@ -432,11 +431,11 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
 	resources := workloadmeta.ContainerResources{}
 	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
-		resources.CPURequest = pointer.Ptr(cpuReq.AsApproximateFloat64() * 100) // For 100Mi, AsApproximate returns 0.1, we return 10%
+		resources.CPURequest = util.FormatCpuRequests(cpuReq)
 	}
 
 	if memoryReq, found := spec.Resources.Requests[kubelet.ResourceMemory]; found {
-		resources.MemoryRequest = pointer.Ptr(uint64(memoryReq.Value()))
+		resources.MemoryRequest = util.FormatMemoryRequests(memoryReq)
 	}
 
 	// extract GPU resource info from the possible GPU sources
