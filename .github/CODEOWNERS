@@ -103,7 +103,6 @@
 /.gitlab/internal_kubernetes_deploy/internal_kubernetes_deploy.yml  @DataDog/agent-delivery
 /.gitlab/internal_kubernetes_deploy/rc_kubernetes_deploy.yml        @DataDog/agent-delivery
 /.gitlab/package_deps_build/package_deps_build.yml   @DataDog/agent-devx-infra @DataDog/ebpf-platform
-/.gitlab/powershell_script_signing/powershell_script_signing.yml    @DataDog/agent-delivery @DataDog/windows-agent
 /.gitlab/source_test/golang_deps_diff.yml            @DataDog/agent-devx-infra @DataDog/agent-devx-loops
 /.gitlab/source_test/*                               @DataDog/agent-devx-infra
 /.gitlab/source_test/linux.yml                       @DataDog/agent-devx-infra @DataDog/agent-devx-loops
@@ -145,8 +144,6 @@
 
 /.gitlab/functional_test/serverless.yml              @DataDog/serverless @Datadog/serverless-aws @DataDog/agent-devx-infra
 /.gitlab/functional_test/oracle.yml                  @DataDog/agent-devx-infra @DataDog/database-monitoring
-
-/.gitlab/powershell_script_deploy                    @DataDog/agent-delivery @DataDog/windows-agent
 
 /.gitlab/choco_build/choco_build.yml                 @DataDog/agent-delivery @DataDog/windows-agent
 
@@ -325,7 +322,8 @@
 /comp/haagent @DataDog/ndm-core
 /comp/languagedetection/client @DataDog/container-platform
 /comp/rdnsquerier @DataDog/ndm-integrations
-/comp/serializer/compression @DataDog/agent-metrics-logs
+/comp/serializer/logscompression @DataDog/agent-processing-and-routing
+/comp/serializer/metricscompression @DataDog/agent-processing-and-routing
 /comp/snmpscan @DataDog/ndm-core
 # END COMPONENTS
 
@@ -612,6 +610,7 @@
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-shared-components
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
 /test/new-e2e/tests/discovery                 @DataDog/universal-service-monitoring
+/test/new-e2e/tests/fips-compliance           @DataDog/agent-shared-components
 /test/new-e2e/tests/ha-agent                  @DataDog/ndm-core
 /test/new-e2e/tests/language-detection        @DataDog/container-intake
 /test/new-e2e/tests/ndm                       @DataDog/ndm-core

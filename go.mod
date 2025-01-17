@@ -61,7 +61,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor => ./comp/otelcol/otlp/components/processor/infraattributesprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ./comp/otelcol/otlp/components/statsprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./comp/otelcol/otlp/testutil
-	github.com/DataDog/datadog-agent/comp/serializer/compression => ./comp/serializer/compression
+	github.com/DataDog/datadog-agent/comp/serializer/logscompression => ./comp/serializer/logscompression
+	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ./comp/serializer/metricscompression
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ./comp/trace/agent/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/def => ./comp/trace/compression/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ./comp/trace/compression/impl-gzip
@@ -115,6 +116,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/cache => ./pkg/util/cache
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ./pkg/util/cgroups
 	github.com/DataDog/datadog-agent/pkg/util/common => ./pkg/util/common
+	github.com/DataDog/datadog-agent/pkg/util/compression => ./pkg/util/compression
+	github.com/DataDog/datadog-agent/pkg/util/compression/impl-noop => ./pkg/util/compression/impl-noop
+	github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib => ./pkg/util/compression/impl-zlib
+	github.com/DataDog/datadog-agent/pkg/util/compression/selector => ./pkg/util/compression/selector
 	github.com/DataDog/datadog-agent/pkg/util/containers/image => ./pkg/util/containers/image
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ./pkg/util/defaultpaths/
 	github.com/DataDog/datadog-agent/pkg/util/executable => ./pkg/util/executable
@@ -583,6 +588,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
 	github.com/shirou/gopsutil/v4 v4.24.12
 	go.opentelemetry.io/collector/component/componenttest v0.117.0
 )
@@ -650,7 +656,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.60.1
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor v0.59.0
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.57.0-devel.0.20240718200853-81bf3b2e412d
-	github.com/DataDog/datadog-agent/comp/serializer/compression v0.59.0-rc.6
+	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.59.0-rc.6
+	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.60.1
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.60.1
