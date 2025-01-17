@@ -24,7 +24,7 @@ type mockPacketReader struct {
 	err  error
 }
 
-func (m *mockPacketReader) ZeroCopyReadPacketData() (data []byte, ci gopacket.CaptureInfo, err error) {
+func (m *mockPacketReader) ZeroCopyReadPacketDataWithExit(_ <-chan struct{}) (data []byte, ci gopacket.CaptureInfo, err error) {
 	return m.data, m.ci, m.err
 }
 func (m *mockPacketReader) GetPacketInfoBuffer() *AFPacketInfo {

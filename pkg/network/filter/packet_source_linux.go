@@ -138,7 +138,7 @@ func (p *AFPacketSource) SetBPF(filter []bpf.RawInstruction) error {
 }
 
 type zeroCopyPacketReader interface {
-	ZeroCopyReadPacketData() (data []byte, ci gopacket.CaptureInfo, err error)
+	ZeroCopyReadPacketDataWithExit(exit <-chan struct{}) (data []byte, ci gopacket.CaptureInfo, err error)
 	// GetPacketInfoBuffer returns a pointer to AFPacketInfo which is reused between calls
 	GetPacketInfoBuffer() *AFPacketInfo
 }
@@ -157,7 +157,7 @@ func visitPackets(p zeroCopyPacketReader, exit <-chan struct{}, visit AFPacketVi
 		default:
 		}
 
-		data, stats, err := p.ZeroCopyReadPacketData()
+		data, stats, err := p.ZeroCopyReadPacketDataWithExit(exit)
 
 		// Immediately retry for EAGAIN
 		if err == syscall.EAGAIN {
