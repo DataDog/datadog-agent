@@ -253,9 +253,12 @@ func TestDefaultData(t *testing.T) {
 	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
 
 	series := metrics.Series{&metrics.Serie{
-		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
-		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{fmt.Sprintf("version:%s", version.AgentVersion)}),
+		Name:   fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
+		Points: []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
+		Tags: tagset.CompositeTagsFromSlice([]string{
+			fmt.Sprintf("version:%s", version.AgentVersion),
+			"config_version:default",
+		}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -518,9 +521,12 @@ func TestRecurrentSeries(t *testing.T) {
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "non default SourceTypeName",
 	}, &metrics.Serie{
-		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
-		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{fmt.Sprintf("version:%s", version.AgentVersion)}),
+		Name:   fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
+		Points: []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
+		Tags: tagset.CompositeTagsFromSlice([]string{
+			fmt.Sprintf("version:%s", version.AgentVersion),
+			"config_version:default",
+		}),
 		Host:           demux.Aggregator().hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -589,7 +595,7 @@ func TestTags(t *testing.T) {
 			agentTags:               func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
-			want:                    []string{"version:" + version.AgentVersion},
+			want:                    []string{"version:" + version.AgentVersion, "config_version:default"},
 		},
 		{
 			name:                    "tags disabled, without version",
@@ -607,7 +613,7 @@ func TestTags(t *testing.T) {
 			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
 			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
-			want:                    []string{"container_name:agent", "version:" + version.AgentVersion},
+			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "config_version:default"},
 		},
 		{
 			name:                    "tags enabled, without version",
@@ -625,7 +631,7 @@ func TestTags(t *testing.T) {
 			agentTags:               func(types.TagCardinality) ([]string, error) { return nil, errors.New("no tags") },
 			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
-			want:                    []string{"version:" + version.AgentVersion},
+			want:                    []string{"version:" + version.AgentVersion, "config_version:default"},
 		},
 		{
 			name:                    "tags enabled, with version, with global tags (no hostname)",
@@ -634,7 +640,7 @@ func TestTags(t *testing.T) {
 			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
 			globalTags:              func(types.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
 			withVersion:             true,
-			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "kube_cluster_name:foo"},
+			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "config_version:default", "kube_cluster_name:foo"},
 		},
 		{
 			name:                    "tags enabled, with version, with global tags (hostname present)",
@@ -643,7 +649,7 @@ func TestTags(t *testing.T) {
 			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
 			globalTags:              func(types.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
 			withVersion:             true,
-			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "kube_cluster_name:foo"},
+			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "config_version:default", "kube_cluster_name:foo"},
 		},
 	}
 	for _, tt := range tests {
