@@ -51,6 +51,9 @@ class GateMetricHandler:
         self.metrics[gate_name][metric_name] = metric_value
 
     def register_gate_tags(self, gate, **kwargs):
+        if self.metadata.get(gate, None) is None:
+            self.metadata[gate] = {}
+
         for key in kwargs:
             self.metadata[gate][key] = kwargs[key]
 
