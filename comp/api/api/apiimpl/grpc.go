@@ -217,7 +217,7 @@ func (s *serverSecure) AutodiscoveryStreamConfig(_ *emptypb.Empty, out pb.AgentS
 	return autodiscoverystream.Config(s.autodiscovery, out)
 }
 
-func (s *serverSecure) GetHostTags(ctx context.Context, in *pb.HostTagRequest) (*pb.HostTagReply, error) {
+func (s *serverSecure) GetHostTags(ctx context.Context, _ *pb.HostTagRequest) (*pb.HostTagReply, error) {
 	tags := hosttags.Get(ctx, true, s.configComp)
 	return &pb.HostTagReply{System: tags.System, GoogleCloudPlatform: tags.GoogleCloudPlatform}, nil
 }
