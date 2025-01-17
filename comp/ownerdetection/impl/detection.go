@@ -69,16 +69,14 @@ func (c *ownerDetectionClient) start(ctx context.Context) {
 			return
 		default:
 			pods := c.wmeta.ListKuberenetesPods()
-			c.log.Infof("TODO handle pods: %v", pods)
-			time.Sleep(time.Minute)
+			c.handlePods(pods)
+			time.Sleep(time.Minute) // Sleep for a minute
 		}
 	}
 }
 
-func (c *ownerDetectionClient) handleEvents(evs workloadmeta.EventBundle) {
+func (c *ownerDetectionClient) handlePods(pods []*workloadmeta.KubernetesPod) {
 	newEvents := make([]workloadmeta.Event, 0)
-
-	log.Errorf("GABE: HANDLING EVENT BUNDLE %v", evs)
 
 	// TODO: retry mechanism?
 	dcaClient, err := clusteragent.GetClusterAgentClient()
@@ -87,6 +85,74 @@ func (c *ownerDetectionClient) handleEvents(evs workloadmeta.EventBundle) {
 		return
 	}
 
+	for _, pod := range pods {
+		relatedOwners := make([]workloadmeta.KubernetesPodOwner, 0)
+		objectRelations := make([]k8stypes.ObjectRelation, 0)
+
+		for _, owner := range pod.Owners {
+
+			cachedItems := c.ownerCache.GetParentTree(pod.Namespace, owner.Kind, owner.Name)
+			if len(cachedItems) == 1 {
+				// If we have a single parent, it's already the owner we know about
+				log.Info("Gabe: Cache hit. No parents for %s/%s", owner.Kind, owner.Name)
+				continue
+			}
+			if len(cachedItems) > 1 {
+				for _, item := range cachedItems {
+					// Ignore the known parent
+					if item.Name == owner.Name && item.GVKR.Kind == owner.Kind {
+						continue
+					}
+					relatedOwners = append(relatedOwners, workloadmeta.KubernetesPodOwner{
+						Name:       item.Name,
+						Kind:       item.GVKR.Kind,
+						APIVersion: item.GVKR.GetAPIVersion(),
+					})
+				}
+				continue
+			}
+
+			ownerRelations, err := dcaClient.GetOwnerReferences(pod.Namespace, owner.Name, owner.APIVersion, owner.Kind)
+			log.Errorf("GABE: Owner relations from DCACLIENT: %s", ownerRelations)
+			if err != nil {
+				c.log.Debugf("Failed to get owner references for %s/%s: %s", pod.Namespace, owner.Name, err)
+			}
+			objectRelations = append(objectRelations, ownerRelations...)
+
+			// Add the owner to the cache
+			c.ownerCache.AddParentTree(pod.Namespace, objectRelations)
+		}
+
+		// TODO: check for duplicated owners potentially and parse them out
+		for _, relation := range objectRelations {
+			relatedOwners = append(relatedOwners, workloadmeta.KubernetesPodOwner{
+				Name:       relation.ParentName,
+				Kind:       relation.ParentGVRK.Kind,
+				APIVersion: relation.ParentGVRK.GetAPIVersion(),
+			})
+		}
+
+		log.Errorf("GABE: Related owners: %s", relatedOwners)
+
+		if len(relatedOwners) == 0 {
+			continue
+		}
+
+		pod.RelatedOwners = relatedOwners
+		newEvent := workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod}
+		newEvents = append(newEvents, newEvent)
+	}
+	err = c.wmeta.Push(workloadmeta.SourceOwnerDetectionServer, newEvents...)
+	if err != nil {
+		c.log.Errorf("Failed to push events: %s", err)
+	}
+}
+
+func (c *ownerDetectionClient) handleEvents(evs workloadmeta.EventBundle) {
+
+	pods := make([]*workloadmeta.KubernetesPod, 0)
+	log.Errorf("GABE: HANDLING EVENT BUNDLE %v", evs)
+
 	for _, ev := range evs.Events {
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
@@ -94,69 +160,11 @@ func (c *ownerDetectionClient) handleEvents(evs workloadmeta.EventBundle) {
 			if !ok || pod == nil {
 				continue
 			}
-
-			relatedOwners := make([]workloadmeta.KubernetesPodOwner, 0)
-			objectRelations := make([]k8stypes.ObjectRelation, 0)
-
-			for _, owner := range pod.Owners {
-
-				cachedItems := c.ownerCache.GetParentTree(pod.Namespace, owner.Kind, owner.Name)
-				if len(cachedItems) == 1 {
-					// If we have a single parent, it's already the owner we know about
-					log.Info("Gabe: Cache hit. No parents for %s/%s", owner.Kind, owner.Name)
-					continue
-				}
-				if len(cachedItems) > 1 {
-					for _, item := range cachedItems {
-						// Ignore the known parent
-						if item.Name == owner.Name && item.GVKR.Kind == owner.Kind {
-							continue
-						}
-						relatedOwners = append(relatedOwners, workloadmeta.KubernetesPodOwner{
-							Name:       item.Name,
-							Kind:       item.GVKR.Kind,
-							APIVersion: item.GVKR.GetAPIVersion(),
-						})
-					}
-					continue
-				}
-
-				ownerRelations, err := dcaClient.GetOwnerReferences(pod.Namespace, owner.Name, owner.APIVersion, owner.Kind)
-				log.Errorf("GABE: Owner relations from DCACLIENT: %s", ownerRelations)
-				if err != nil {
-					c.log.Debugf("Failed to get owner references for %s/%s: %s", pod.Namespace, owner.Name, err)
-				}
-				objectRelations = append(objectRelations, ownerRelations...)
-
-				// Add the owner to the cache
-				c.ownerCache.AddParentTree(pod.Namespace, objectRelations)
-			}
-
-			// TODO: check for duplicated owners potentially and parse them out
-			for _, relation := range objectRelations {
-				relatedOwners = append(relatedOwners, workloadmeta.KubernetesPodOwner{
-					Name:       relation.ParentName,
-					Kind:       relation.ParentGVRK.Kind,
-					APIVersion: relation.ParentGVRK.GetAPIVersion(),
-				})
-			}
-
-			log.Errorf("GABE: Related owners: %s", relatedOwners)
-
-			if len(relatedOwners) == 0 {
-				continue
-			}
-
-			pod.RelatedOwners = relatedOwners
-			newEvent := workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod}
-			newEvents = append(newEvents, newEvent)
+			pods = append(pods, pod)
 		}
 	}
+	c.handlePods(pods)
 
-	err := c.wmeta.Push(workloadmeta.SourceOwnerDetectionServer, newEvents...)
-	if err != nil {
-		c.log.Errorf("Failed to push events: %s", err)
-	}
 }
 
 // func removeDuplicateStr(s []string) []string {
