@@ -74,7 +74,9 @@ func (b *bucket) flush() *message.Message {
 		content = append(content, message.TruncatedFlag...)
 	}
 
-	msg := message.NewRawMessage(content, b.message.Status, b.originalDataLen, b.message.ParsingExtra.Timestamp)
+	msg := b.message
+	b.message.SetContent(content)
+	b.message.RawDataLen = b.originalDataLen
 	tlmTags := []string{"false", "single_line"}
 
 	if b.lineCount > 1 {
