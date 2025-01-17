@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestWLANOK(t *testing.T) {
@@ -70,6 +71,30 @@ func TestWLANGetInfoError(t *testing.T) {
 	mockSender.SetupAcceptAll()
 
 	wlanCheck.Run()
+
+	mockSender.AssertNumberOfCalls(t, "Gauge", 0)
+	mockSender.AssertNumberOfCalls(t, "Count", 0)
+}
+
+func TestWLANErrorStoppedSender(t *testing.T) {
+	// setup mocks
+	getWiFiInfo = func() (WiFiInfo, error) {
+		return WiFiInfo{}, nil
+	}
+
+	defer func() {
+		getWiFiInfo = GetWiFiInfo
+	}()
+
+	wlanCheck := new(WLANCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+
+	senderManager.Stop(false)
+	err := wlanCheck.Run()
+
+	assert.Equal(t, "demultiplexer is stopped", err.Error())
 
 	mockSender.AssertNumberOfCalls(t, "Gauge", 0)
 	mockSender.AssertNumberOfCalls(t, "Count", 0)
