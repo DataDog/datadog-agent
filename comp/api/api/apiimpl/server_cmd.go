@@ -73,6 +73,7 @@ func (server *apiServer) startCMDServer(
 		pidMap:              server.pidMap,
 		remoteAgentRegistry: server.remoteAgentRegistry,
 		autodiscovery:       server.autoConfig,
+		configComp:          cfg,
 	})
 
 	dopts := []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewTLS(server.authToken.GetTLSClientConfig()))}

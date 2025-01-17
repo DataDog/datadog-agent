@@ -214,7 +214,7 @@ def check_component_contents_and_file_hiearchy(comp):
     # Definition file `component.go` (v1) or `def/component.go` (v2) must not contain a mock definition
     for mock_definition in mock_definitions:
         if any(line.startswith(mock_definition) for line in def_content):
-            return f"** {comp.def_file} defines '{mock_definition}' which should be in separate implementation. See docs/components/defining-components.md"
+            return f"** {comp.def_file} defines '{mock_definition}' which should be in separate implementation. See https://datadoghq.dev/datadog-agent/components/creating-components/"
 
     # Allowlist of components that do not use an implementation folder
     if comp.path in components_missing_implementation_folder:
@@ -223,7 +223,7 @@ def check_component_contents_and_file_hiearchy(comp):
     # Implementation folder or folders must exist
     impl_folders = locate_implementation_folders(comp)
     if len(impl_folders) == 0:
-        return f"** {comp.name} is missing the implementation folder in {comp.path}. See docs/components/defining-components.md"
+        return f"** {comp.name} is missing the implementation folder in {comp.path}. See https://datadoghq.dev/datadog-agent/components/creating-components/"
 
     if comp.version == 2:
         # Implementation source files should use correct package name, and shouldn't import fx (except tests)

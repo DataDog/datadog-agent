@@ -52,14 +52,13 @@
       - E2E_MSI_TEST: TestInstallExistingAltDir
       - E2E_MSI_TEST: TestInstallAltDirAndCorruptForUninstall
       - E2E_MSI_TEST: TestInstallFail
+      - E2E_MSI_TEST: TestInstallWithLanmanServerDisabled
       # These tests are v7 only
       - E2E_MSI_TEST: TestNPMUpgradeToNPM
       - E2E_MSI_TEST: TestNPMUpgradeNPMToNPM
       - E2E_MSI_TEST: TestNPMInstallWithAddLocal
       - E2E_MSI_TEST: TestNPMUpgradeFromBeta
       - E2E_MSI_TEST: TestUpgradeFromV6
-      - E2E_MSI_TEST: TestFIPSAgentDoesNotInstallOverAgent
-      - E2E_MSI_TEST: TestAgentDoesNotInstallOverFIPSAgent
 
 new-e2e_windows_powershell_module_test:
   extends: .new_e2e_template
@@ -116,7 +115,13 @@ new-e2e-windows-agent-a7-x86_64-fips:
     - .new-e2e_agent_a7
   needs:
     - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
     - deploy_windows_testing-a7-fips
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestFIPSAgent$"
+      - EXTRA_PARAMS: --run "TestFIPSAgentDoesNotInstallOverAgent$"
+      - EXTRA_PARAMS: --run "TestAgentDoesNotInstallOverFIPSAgent$"
   rules:
     - !reference [.on_deploy]
     - !reference [.on_e2e_or_windows_installer_changes]
