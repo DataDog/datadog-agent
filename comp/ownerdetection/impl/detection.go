@@ -91,29 +91,48 @@ func (c *ownerDetectionClient) handleEvents(evs workloadmeta.EventBundle) {
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
 			pod, ok := ev.Entity.(*workloadmeta.KubernetesPod)
-			if !ok {
-				c.log.Errorf("GABE: Did not receieve pod")
-				continue
-			}
-			if pod == nil {
-				c.log.Errorf("GABE: Pod is nil")
+			if !ok || pod == nil {
 				continue
 			}
 
-			log.Errorf("GABE: Received pod: %s", pod.Name)
-
+			relatedOwners := make([]workloadmeta.KubernetesPodOwner, 0)
 			objectRelations := make([]k8stypes.ObjectRelation, 0)
+
 			for _, owner := range pod.Owners {
+
+				cachedItems := c.ownerCache.GetParentTree(pod.Namespace, owner.Kind, owner.Name)
+				if len(cachedItems) == 1 {
+					// If we have a single parent, it's already the owner we know about
+					log.Info("Gabe: Cache hit. No parents for %s/%s", owner.Kind, owner.Name)
+					continue
+				}
+				if len(cachedItems) > 1 {
+					for _, item := range cachedItems {
+						// Ignore the known parent
+						if item.Name == owner.Name && item.GVKR.Kind == owner.Kind {
+							continue
+						}
+						relatedOwners = append(relatedOwners, workloadmeta.KubernetesPodOwner{
+							Name:       item.Name,
+							Kind:       item.GVKR.Kind,
+							APIVersion: item.GVKR.GetAPIVersion(),
+						})
+					}
+					continue
+				}
+
 				ownerRelations, err := dcaClient.GetOwnerReferences(pod.Namespace, owner.Name, owner.APIVersion, owner.Kind)
 				log.Errorf("GABE: Owner relations from DCACLIENT: %s", ownerRelations)
 				if err != nil {
 					c.log.Debugf("Failed to get owner references for %s/%s: %s", pod.Namespace, owner.Name, err)
 				}
 				objectRelations = append(objectRelations, ownerRelations...)
+
+				// Add the owner to the cache
+				c.ownerCache.AddParentTree(pod.Namespace, objectRelations)
 			}
 
 			// TODO: check for duplicated owners potentially and parse them out
-			relatedOwners := make([]workloadmeta.KubernetesPodOwner, 0)
 			for _, relation := range objectRelations {
 				relatedOwners = append(relatedOwners, workloadmeta.KubernetesPodOwner{
 					Name:       relation.ParentName,
