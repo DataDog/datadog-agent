@@ -437,6 +437,14 @@ namespace Datadog.CustomActions
                     _session["DDAGENTUSER_FOUND"] = "true";
                     _session["DDAGENTUSER_SID"] = securityIdentifier.ToString();
                     isServiceAccount = _nativeMethods.IsServiceAccount(securityIdentifier);
+                    if (isServiceAccount)
+                    {
+                        _session["DDAGENTUSER_IS_SERVICE_ACCOUNT"] = "1";
+                    }
+                    else
+                    {
+                        _session["DDAGENTUSER_IS_SERVICE_ACCOUNT"] = "0";
+                    }
                     isDomainAccount = _nativeMethods.IsDomainAccount(securityIdentifier);
                     _session.Log(
                         $"\"{domain}\\{userName}\" ({securityIdentifier.Value}, {nameUse}) is a {(isDomainAccount ? "domain" : "local")} {(isServiceAccount ? "service " : string.Empty)}account");

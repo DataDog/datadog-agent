@@ -71,6 +71,7 @@ namespace Datadog.InstallerCustomActions
                 }
 
                 StoreAgentUserInRegistry(subkey);
+                StoreAgentUserPassword();
             }
             catch (Exception e)
             {
@@ -79,6 +80,45 @@ namespace Datadog.InstallerCustomActions
             }
 
             return ActionResult.Success;
+        }
+
+        /// <summary>
+        /// Store the agent user in the LSA secret store
+        /// </summary>
+        /// <remarks>
+        /// Store the password in LSA secret store so that it can be used during Fleet Automation remote upgrades
+        /// This is the same place that Windows Service Manager stores service account passwords, so
+        /// this is not introducing NEW risk.
+        /// https://docs.microsoft.com/en-us/windows/win32/services/service-accounts
+        /// https://learn.microsoft.com/en-us/windows/win32/secmgmt/storing-private-data
+        /// </remarks>
+        private void StoreAgentUserPassword()
+        {
+            // use M$ prefix to indicate the secret is "System" level secret / Machine private data object.
+            // these "cannot be accessed remotely" and "can be accessed only by the operating system"
+            // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-lsad/483f1b6e-7b14-4341-9ab2-9b99c01f896e
+            // https://learn.microsoft.com/en-us/windows/win32/secmgmt/private-data-object
+            var secretType = "M$";
+            var keyName = $"{secretType}datadog_ddagentuser_password";
+
+            var isServiceAccount = _session.Property("DDAGENTUSER_IS_SERVICE_ACCOUNT") == "1";
+            var ddagentuserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
+            if (isServiceAccount)
+            {
+                // If ddagentuser is a service account, it has no password, so remove any previous entries from the LSA
+                // NOTE: The Agent installer allows upgrades without re-providing the password, so the
+                //       password may be empty 
+                // NOTE: This is a difference in behavior between the Fleet Installer and the Agent installer.
+                //       The Agent installer allows upgrades without re-providing the password. However
+                //       the Fleet Installer must require the password always be provided.
+                _nativeMethods.RemoveSecret(keyName);
+            }
+            else
+            {
+                _nativeMethods.StoreSecret(keyName, ddagentuserPassword);
+            }
+
+
         }
 
         /// <summary>

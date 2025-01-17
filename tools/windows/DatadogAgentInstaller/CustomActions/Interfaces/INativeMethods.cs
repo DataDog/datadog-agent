@@ -16,6 +16,10 @@ namespace Datadog.CustomActions.Interfaces
 
         void AddPrivilege(SecurityIdentifier securityIdentifier, AccountRightsConstants accountRights);
 
+        void StoreSecret(string keyName, string secret);
+
+        void RemoveSecret(string keyName);
+
         bool LookupAccountName(
             string accountName,
             out string user,
