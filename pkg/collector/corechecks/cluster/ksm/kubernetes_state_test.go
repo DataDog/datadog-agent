@@ -1426,7 +1426,7 @@ func TestKSMCheck_mergeLabelsMapper(t *testing.T) {
 	}
 }
 
-func TestKSMCheck_mergeLabelAnnotationsAsTags(t *testing.T) {
+func TestKSMCheck_mergeLabelsOrAnnotationAsTags(t *testing.T) {
 	tests := []struct {
 		name                    string
 		shouldTransformResource bool
@@ -1486,7 +1486,7 @@ func TestKSMCheck_mergeLabelAnnotationsAsTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			annotationsAsTags := mergeLabelAnnotationAsTags(tt.extra, tt.conf, tt.shouldTransformResource)
+			annotationsAsTags := mergeLabelsOrAnnotationAsTags(tt.extra, tt.conf, tt.shouldTransformResource)
 			assert.True(t, reflect.DeepEqual(tt.expected, annotationsAsTags))
 		})
 	}

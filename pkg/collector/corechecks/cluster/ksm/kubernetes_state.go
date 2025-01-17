@@ -277,11 +277,11 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.mergeLabelJoins(defaultLabelJoins())
 
 	k.processLabelJoins()
-	k.instance.LabelsAsTags = mergeLabelAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags, true)
+	k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags, true)
 	k.processLabelsAsTags()
 
-	k.instance.AnnotationsAsTags = mergeLabelAnnotationAsTags(defaultAnnotationsAsTags(), k.instance.AnnotationsAsTags, false)
-	k.instance.AnnotationsAsTags = mergeLabelAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), k.instance.AnnotationsAsTags, true)
+	k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(defaultAnnotationsAsTags(), k.instance.AnnotationsAsTags, false)
+	k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), k.instance.AnnotationsAsTags, true)
 	k.processAnnotationsAsTags()
 
 	// Prepare labels mapper
@@ -973,8 +973,8 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 	}
 }
 
-// mergeLabelAnnotationsAsTags adds extra labels or annotations to the instance mapping
-func mergeLabelAnnotationAsTags(extra map[string]map[string]string, instanceMap map[string]map[string]string, shouldTransformResource bool) map[string]map[string]string {
+// mergeLabelsOrAnnotationAsTags adds extra labels or annotations to the instance mapping
+func mergeLabelsOrAnnotationAsTags(extra map[string]map[string]string, instanceMap map[string]map[string]string, shouldTransformResource bool) map[string]map[string]string {
 	if instanceMap == nil {
 		instanceMap = make(map[string]map[string]string)
 	}
