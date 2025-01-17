@@ -4,8 +4,8 @@ github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.22.0 h1:r1Dx2cR
 github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.22.0/go.mod h1:+/dkO8ZiMa8rfm4SmtTF6qPUdBbBcvsWWKaO4xPKAIk=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.22.0 h1:yfk2cF8Bx98fSFpGrehEHh1FRqewfxcCTAbUDt5r3F8=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.22.0/go.mod h1:9qzpnBSxSOnKzbF/uHket3SSlQihQHix/ZRC2nZUUYQ=
-github.com/DataDog/sketches-go v1.4.6 h1:acd5fb+QdUzGrosfNLwrIhqyrbMORpvBy7mE+vHlT3I=
-github.com/DataDog/sketches-go v1.4.6/go.mod h1:7Y8GN8Jf66DLyDhc94zuWA3uHEt/7ttt8jHOBWWrSOg=
+github.com/DataDog/sketches-go v1.4.7-0.20250116195329-a7f6b8e5d806 h1:GA38b7svW1NK4i7wdiSlXFhZEzWuhejKdQyQWgbSHIc=
+github.com/DataDog/sketches-go v1.4.7-0.20250116195329-a7f6b8e5d806/go.mod h1:eAmQ/EBmtSO+nQp7IZMZVRPT4BQTmIc5RZQ+deGlTPM=
 github.com/DataDog/viper v1.14.0 h1:dIjTe/uJiah+QFqFZ+MXeqgmUvWhg37l37ZxFWxr3is=
 github.com/DataDog/viper v1.14.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
