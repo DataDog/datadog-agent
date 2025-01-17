@@ -482,7 +482,6 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
   }
 }`),
 	}
-	hash := "4681728e9932105c5eea80056151172764d99e348d09a78158874389d25f3c00"
 	timestamp = s.host.LastJournaldTimestamp()
 	s.mustStartConfigExperiment(datadogAgent, config)
 	// Assert the successful start of the experiment
@@ -528,8 +527,8 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 	)
 
 	state = s.host.State()
-	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", fmt.Sprintf("/etc/datadog-agent/managed/datadog-agent/%s", hash), "root", "root")
-	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/experiment", fmt.Sprintf("/etc/datadog-agent/managed/datadog-agent/%s", hash), "root", "root")
+	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", fmt.Sprintf("/etc/datadog-agent/managed/datadog-agent/%s", config.ID), "root", "root")
+	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/experiment", fmt.Sprintf("/etc/datadog-agent/managed/datadog-agent/%s", config.ID), "root", "root")
 }
 
 func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
