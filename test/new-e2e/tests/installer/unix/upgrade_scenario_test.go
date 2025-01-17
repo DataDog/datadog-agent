@@ -453,6 +453,7 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 	config := installerConfig{
 		ID: "config-1",
 		Configs: json.RawMessage(`
+{
   "datadog.yaml": {
     "sbom": {
       "container_image": {
@@ -476,7 +477,7 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
       "enabled": true
     }
   }
-`),
+}`),
 	}
 	hash := "4681728e9932105c5eea80056151172764d99e348d09a78158874389d25f3c00"
 	timestamp = s.host.LastJournaldTimestamp()
@@ -912,9 +913,7 @@ func (s *upgradeScenarioSuite) getInstallerStatus() installerStatus {
 		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer-exp"),
 	)
 
-	// {"version":"7.56.0-devel+git.446.acf2836","packages":{
-	//     "datadog-agent":{"Stable":"7.56.0-devel.git.446.acf2836.pipeline.37567760-1","Experiment":"7.54.1-1"},
-	//     "datadog-installer":{"Stable":"7.56.0-devel.git.446.acf2836.pipeline.37567760-1","Experiment":""}}}
+	s.T().Logf("DEBUG: Installer status: %s", response)
 	var status installerStatus
 	err := json.Unmarshal([]byte(response), &status)
 	if err != nil {
