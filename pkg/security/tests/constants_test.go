@@ -58,7 +58,7 @@ func TestOctogonConstants(t *testing.T) {
 	t.Run("btfhub-vs-fallback", func(t *testing.T) {
 		btfhubFetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
 		if err != nil {
-			t.Skipf("btfhub constant fetcher is not available: %v", err)
+			t.Fatalf("btfhub constant fetcher is not available: %v", err)
 		}
 
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
