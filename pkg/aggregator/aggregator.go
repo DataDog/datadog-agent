@@ -10,6 +10,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -253,6 +254,7 @@ type BufferedAggregator struct {
 	serializer             serializer.MetricSerializer
 	eventPlatformForwarder eventplatform.Component
 	haAgent                haagent.Component
+	configVersion          string
 	hostname               string
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
@@ -307,6 +309,14 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		})
 	}
 
+	configVersion := "default"
+	if pkgconfigsetup.Datadog().GetString("fleet_policies_dir") != "" {
+		if absFleetDir, err := filepath.EvalSymlinks(pkgconfigsetup.Datadog().GetString("fleet_policies_dir")); err == nil {
+			// If the agent is managed by the installer and the fleet_policies_dir is set, use the config version as the directory name
+			configVersion = filepath.Base(absFleetDir)
+		}
+	}
+
 	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
 
 	aggregator := &BufferedAggregator{
@@ -328,6 +338,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
 		haAgent:                     haAgent,
+		configVersion:               configVersion,
 		hostname:                    hostname,
 		hostnameUpdate:              make(chan string),
 		hostnameUpdateDone:          make(chan struct{}),
@@ -875,12 +886,7 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		if version.AgentPackageVersion != "" {
 			tags = append(tags, "package_version:"+version.AgentPackageVersion)
 		}
-
-		configVersion := pkgconfigsetup.Datadog().GetString("fleet_automation.config_version")
-		if configVersion == "" {
-			configVersion = "default"
-		}
-		tags = append(tags, "config_version:"+configVersion)
+		tags = append(tags, "config_version:"+agg.configVersion)
 	}
 	// nil to empty string
 	// This is expected by other components/tests

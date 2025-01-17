@@ -1177,7 +1177,7 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 }
 
 func fleetautomation(config pkgconfigmodel.Setup) {
-	config.BindEnvAndSetDefault("fleet_automation.config_version", "default")
+	config.BindEnvAndSetDefault("fleet_policies_dir", "default")
 }
 
 func autoconfig(config pkgconfigmodel.Setup) {
