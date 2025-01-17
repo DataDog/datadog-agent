@@ -12,7 +12,7 @@ internal_kubernetes_deploy_experimental:
       when: always
     - if: $CI_COMMIT_BRANCH != "main"
       when: never
-    - if: $DDR != "true"
+    - if: $DDR_WORKFLOW_ID == null
       when: never
     - if: $APPS !~ "/^datadog-agent/"
       when: never
@@ -74,7 +74,7 @@ notify-slack:
       when: always
     - if: $CI_COMMIT_BRANCH != "main"
       when: never
-    - if: $DDR != "true"
+    - if: $DDR_WORKFLOW_ID == null
       when: never
     - if: $APPS !~ "/^datadog-agent/"
       when: never

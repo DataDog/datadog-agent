@@ -54,13 +54,14 @@ func (r *metricRecorder) SendIterableSeries(s metrics.SerieSource) error {
 	return nil
 }
 
+const (
+	histogramMetricName        = "test.histogram"
+	numberMetricName           = "test.gauge"
+	histogramRuntimeMetricName = "process.runtime.dotnet.exceptions.count"
+	numberRuntimeMetricName    = "process.runtime.go.goroutines"
+)
+
 func Test_ConsumeMetrics_Tags(t *testing.T) {
-	const (
-		histogramMetricName        = "test.histogram"
-		numberMetricName           = "test.gauge"
-		histogramRuntimeMetricName = "process.runtime.dotnet.exceptions.count"
-		numberRuntimeMetricName    = "process.runtime.go.goroutines"
-	)
 	tests := []struct {
 		name           string
 		genMetrics     func(t *testing.T) pmetric.Metrics
@@ -213,6 +214,110 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 						assert.Equal(t, tagset.NewCompositeTags([]string{}, nil), s.Tags)
 					}
 				}
+			}
+		})
+	}
+}
+
+func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
+	tests := []struct {
+		name       string
+		genMetrics func(t *testing.T) pmetric.Metrics
+		msrc       metrics.MetricSource
+	}{
+		{
+			name: "metric origin in sketches",
+			genMetrics: func(_ *testing.T) pmetric.Metrics {
+				md := pmetric.NewMetrics()
+				rms := md.ResourceMetrics()
+				rm := rms.AppendEmpty()
+				ilms := rm.ScopeMetrics()
+				ilm := ilms.AppendEmpty()
+				ilm.Scope().SetName("otelcol/hostmetricsreceiver/memory")
+				metricsArray := ilm.Metrics()
+				met := metricsArray.AppendEmpty()
+				met.SetName(histogramMetricName)
+				met.SetEmptyHistogram()
+				met.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+				hdps := met.Histogram().DataPoints()
+				hdp := hdps.AppendEmpty()
+				hdp.BucketCounts().FromRaw([]uint64{100})
+				hdp.SetCount(100)
+				hdp.SetSum(0)
+				return md
+			},
+			msrc: metrics.MetricSourceOpenTelemetryCollectorHostmetricsReceiver,
+		},
+		{
+			name: "metric origin in timeseries",
+			genMetrics: func(_ *testing.T) pmetric.Metrics {
+				md := pmetric.NewMetrics()
+				rms := md.ResourceMetrics()
+				rm := rms.AppendEmpty()
+				ilms := rm.ScopeMetrics()
+				ilm := ilms.AppendEmpty()
+				ilm.Scope().SetName("otelcol/kubeletstatsreceiver")
+				metricsArray := ilm.Metrics()
+				met := metricsArray.AppendEmpty()
+				met.SetName(numberMetricName)
+				met.SetEmptyGauge()
+				gdps := met.Gauge().DataPoints()
+				gdp := gdps.AppendEmpty()
+				gdp.SetIntValue(100)
+				return md
+			},
+			msrc: metrics.MetricSourceOpenTelemetryCollectorKubeletstatsReceiver,
+		},
+		{
+			name: "unknown metric origin",
+			genMetrics: func(_ *testing.T) pmetric.Metrics {
+				md := pmetric.NewMetrics()
+				rms := md.ResourceMetrics()
+				rm := rms.AppendEmpty()
+				ilms := rm.ScopeMetrics()
+				ilm := ilms.AppendEmpty()
+				ilm.Scope().SetName("otelcol/myreceiver")
+				metricsArray := ilm.Metrics()
+				met := metricsArray.AppendEmpty()
+				met.SetName(numberMetricName)
+				met.SetEmptyGauge()
+				gdps := met.Gauge().DataPoints()
+				gdp := gdps.AppendEmpty()
+				gdp.SetIntValue(100)
+				return md
+			},
+			msrc: metrics.MetricSourceOpenTelemetryCollectorUnknown,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := &metricRecorder{}
+			ctx := context.Background()
+			f := NewFactory(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
+				return "", nil
+			}, nil, nil)
+			cfg := f.CreateDefaultConfig().(*ExporterConfig)
+			exp, err := f.CreateMetrics(
+				ctx,
+				exportertest.NewNopSettings(),
+				cfg,
+			)
+			require.NoError(t, err)
+			require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+			require.NoError(t, exp.ConsumeMetrics(ctx, tt.genMetrics(t)))
+			require.NoError(t, exp.Shutdown(ctx))
+
+			for _, serie := range rec.series {
+				if serie.Name != numberMetricName {
+					continue
+				}
+				assert.Equal(t, serie.Source, tt.msrc)
+			}
+			for _, sketch := range rec.sketchSeriesList {
+				if sketch.Name != histogramMetricName {
+					continue
+				}
+				assert.Equal(t, sketch.Source, tt.msrc)
 			}
 		})
 	}

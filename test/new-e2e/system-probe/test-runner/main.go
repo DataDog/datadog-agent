@@ -158,7 +158,13 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []st
 	if config, ok := packagesRunConfig[pkg]; ok && config.RunOnly != nil {
 		args = append(args, "-test.run", strings.Join(config.RunOnly, "|"))
 	}
+	if config, ok := packagesRunConfig[matchAllPackages]; ok && config.RunOnly != nil {
+		args = append(args, "-test.run", strings.Join(config.RunOnly, "|"))
+	}
 	if config, ok := packagesRunConfig[pkg]; ok && config.Skip != nil {
+		args = append(args, "-test.skip", strings.Join(config.Skip, "|"))
+	}
+	if config, ok := packagesRunConfig[matchAllPackages]; ok && config.Skip != nil {
 		args = append(args, "-test.skip", strings.Join(config.Skip, "|"))
 	}
 

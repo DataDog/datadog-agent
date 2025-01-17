@@ -22703,6 +22703,13 @@
 			"distrib": "ol",
 			"version": "7",
 			"arch": "arm64",
+			"uname_release": "4.14.35-2047.543.3.1.el7uek.aarch64",
+			"cindex": 89
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "arm64",
 			"uname_release": "4.14.35-2047.543.3.el7uek.aarch64",
 			"cindex": 89
 		},
@@ -25322,6 +25329,13 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "4.1.12-124.92.3.el7uek.x86_64",
+			"cindex": 94
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.1.12-124.93.1.el7uek.x86_64",
 			"cindex": 94
 		},
 		{

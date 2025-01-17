@@ -27,9 +27,6 @@ const nvidiaResourceName = "nvidia.com/gpu"
 
 // systemContext holds certain attributes about the system that are used by the GPU probe.
 type systemContext struct {
-	// maxGpuThreadsPerDevice maps each device index to the maximum number of threads it can run in parallel
-	maxGpuThreadsPerDevice map[int]int
-
 	// timeResolver allows to resolve kernel-time timestamps
 	timeResolver *ktime.Resolver
 
@@ -83,7 +80,6 @@ func (e *symbolsEntry) updateLastUsedTime() {
 
 func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmeta.Component) (*systemContext, error) {
 	ctx := &systemContext{
-		maxGpuThreadsPerDevice:    make(map[int]int),
 		deviceSmVersions:          make(map[int]int),
 		cudaSymbols:               make(map[string]*symbolsEntry),
 		pidMaps:                   make(map[int][]*procfs.ProcMap),
@@ -136,13 +132,6 @@ func (ctx *systemContext) fillDeviceInfo() error {
 			return err
 		}
 		ctx.deviceSmVersions[i] = smVersion
-
-		maxThreads, ret := dev.GetNumGpuCores()
-		if ret != nvml.SUCCESS {
-			return fmt.Errorf("error getting max threads for device %s: %s", dev, nvml.ErrorString(ret))
-		}
-
-		ctx.maxGpuThreadsPerDevice[i] = maxThreads
 
 		ctx.gpuDevices = append(ctx.gpuDevices, dev)
 	}
