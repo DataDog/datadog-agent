@@ -174,7 +174,10 @@ runtime_security_config:
 {{end}}
 
   self_test:
-    enabled: false
+    enabled: {{.EnableSelfTests}}
+{{if .EnableSelfTests}}
+    send_report: true
+{{end}}
 
   policies:
     dir: {{.TestPoliciesDir}}
