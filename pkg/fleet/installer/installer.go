@@ -641,7 +641,10 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "configure_package")
 	defer func() { span.Finish(err) }()
-
+	// TODO: Windows support
+	if runtime.GOOS == "windows" {
+		return nil
+	}
 	tmpDir, err := i.configs.MkdirTemp()
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)

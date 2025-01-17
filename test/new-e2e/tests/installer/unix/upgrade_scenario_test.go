@@ -916,7 +916,6 @@ func (s *upgradeScenarioSuite) getInstallerStatus() installerStatus {
 		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer-exp"),
 	)
 
-	s.T().Logf("DEBUG: Installer status: %s", response)
 	var status installerStatus
 	err := json.Unmarshal([]byte(response), &status)
 	if err != nil {
