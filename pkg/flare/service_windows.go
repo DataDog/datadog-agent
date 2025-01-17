@@ -298,7 +298,7 @@ func getDDServices(manager *mgr.Mgr) ([]serviceInfo, error) {
 	}
 
 	for _, serviceName := range list {
-		if strings.HasPrefix(serviceName, "datadog") {
+		if strings.HasPrefix(strings.ToLower(serviceName), "datadog") {
 			srvc, err := winutil.OpenService(manager, serviceName, windows.GENERIC_READ)
 			if err != nil {
 				log.Warnf("Error Opening Service %s: %v", serviceName, err)
