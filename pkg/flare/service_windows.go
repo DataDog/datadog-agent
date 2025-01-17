@@ -297,8 +297,11 @@ func getDDServices(manager *mgr.Mgr) ([]serviceInfo, error) {
 		log.Warnf("Error getting list of running services %v", err)
 		return nil, err
 	}
+	list = filterDatadogServices(list)
+	// need to add the drivers manually as they are not returned by ListServices
+	drivers := []string{"ddnpm", "ddprocmon"}
+	list = append(list, drivers...)
 
-	list = listDatadogServices(list)
 	for _, serviceName := range list {
 		srvc, err := winutil.OpenService(manager, serviceName, windows.GENERIC_READ)
 		if err != nil {
@@ -315,7 +318,8 @@ func getDDServices(manager *mgr.Mgr) ([]serviceInfo, error) {
 	return ddServices, nil
 }
 
-func listDatadogServices(services []string) []string {
+// filterDatadogServices returns a list of the Datadog services from the input list
+func filterDatadogServices(services []string) []string {
 	ddServices := []string{}
 
 	// Include all services that start with "datadog" (case insensitive)
@@ -324,17 +328,6 @@ func listDatadogServices(services []string) []string {
 		// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openservicew
 		if strings.HasPrefix(strings.ToLower(serviceName), "datadog") {
 			ddServices = append(ddServices, serviceName)
-		}
-	}
-
-	// (*mgr.Mgr).ListServices does not return Kernel services only SERVICE_WIN32, so add our driver services manually
-	// if they aren't already in the list
-	drivers := []string{"ddnpm", "ddprocmon"}
-	for _, driver := range drivers {
-		if !slices.ContainsFunc(ddServices, func(comp string) bool {
-			return strings.EqualFold(comp, driver)
-		}) {
-			ddServices = append(ddServices, driver)
 		}
 	}
 
