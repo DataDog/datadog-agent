@@ -49,7 +49,7 @@ type Installer interface {
 	ConfigState(pkg string) (repository.State, error)
 	ConfigStates() (map[string]repository.State, error)
 
-	Install(ctx context.Context, url string, args []string) error
+	Install(ctx context.Context, url string, args []string, force bool) error
 	Remove(ctx context.Context, pkg string) error
 	Purge(ctx context.Context)
 
@@ -152,7 +152,7 @@ func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error)
 }
 
 // Install installs or updates a package.
-func (i *installerImpl) Install(ctx context.Context, url string, args []string) error {
+func (i *installerImpl) Install(ctx context.Context, url string, args []string, force bool) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
@@ -167,6 +167,17 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	err = i.preparePackage(ctx, pkg.Name, args) // Preinst
 	if err != nil {
 		return fmt.Errorf("could not prepare package: %w", err)
+	}
+	dbPkg, err := i.db.GetPackage(pkg.Name)
+	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
+		return fmt.Errorf("could not get package: %w", err)
+	}
+	if dbPkg.Name == pkg.Name && dbPkg.Version == pkg.Version {
+		log.Warnf("package %s version %s is already installed", pkg.Name, pkg.Version)
+		if !force {
+			return nil
+		}
+		log.Warnf("overriding existing version")
 	}
 	err = checkAvailableDiskSpace(i.packages, pkg)
 	if err != nil {

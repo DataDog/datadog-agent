@@ -56,7 +56,7 @@ func TestInstallStable(t *testing.T) {
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 	defer installer.db.Close()
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, false)
 	assert.NoError(t, err)
 	r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
@@ -72,7 +72,7 @@ func TestInstallExperiment(t *testing.T) {
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 	defer installer.db.Close()
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, false)
 	assert.NoError(t, err)
 	err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2))
 	assert.NoError(t, err)
@@ -91,7 +91,7 @@ func TestInstallPromoteExperiment(t *testing.T) {
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 	defer installer.db.Close()
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, false)
 	assert.NoError(t, err)
 	err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2))
 	assert.NoError(t, err)
@@ -111,7 +111,7 @@ func TestUninstallExperiment(t *testing.T) {
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 	defer installer.db.Close()
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, false)
 	assert.NoError(t, err)
 	err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2))
 	assert.NoError(t, err)
@@ -132,13 +132,13 @@ func TestInstallSkippedWhenAlreadyInstalled(t *testing.T) {
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 	defer installer.db.Close()
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, false)
 	assert.NoError(t, err)
 	r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 	lastModTime, err := latestModTimeFS(r.StableFS(), ".")
 	assert.NoError(t, err)
 
-	err = installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+	err = installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, false)
 	assert.NoError(t, err)
 	r = installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 	newLastModTime, err := latestModTimeFS(r.StableFS(), ".")
@@ -151,7 +151,7 @@ func TestReinstallAfterDBClean(t *testing.T) {
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 	defer installer.db.Close()
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, false)
 	assert.NoError(t, err)
 	r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 	lastModTime, err := latestModTimeFS(r.StableFS(), ".")
@@ -159,7 +159,7 @@ func TestReinstallAfterDBClean(t *testing.T) {
 
 	installer.db.DeletePackage(fixtures.FixtureSimpleV1.Package)
 
-	err = installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+	err = installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, false)
 	assert.NoError(t, err)
 	r = installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 	newLastModTime, err := latestModTimeFS(r.StableFS(), ".")
@@ -212,7 +212,7 @@ func TestPurge(t *testing.T) {
 	rootPath := t.TempDir()
 	installer := newTestPackageManager(t, s, rootPath, t.TempDir())
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, false)
 	assert.NoError(t, err)
 	r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 
