@@ -25,7 +25,7 @@ var btfhubConstants []byte
 type BTFHubConstantFetcher struct {
 	kernelVersion *kernel.Version
 	inStore       map[string]uint64
-	res           map[string]uint64
+	requests      []string
 }
 
 var archMapping = map[string]string{
@@ -38,7 +38,6 @@ func NewBTFHubConstantFetcher(kv *kernel.Version) (*BTFHubConstantFetcher, error
 	fetcher := &BTFHubConstantFetcher{
 		kernelVersion: kv,
 		inStore:       make(map[string]uint64),
-		res:           make(map[string]uint64),
 	}
 
 	currentKernelInfos, err := newKernelInfos(kv)
@@ -65,32 +64,28 @@ func (f *BTFHubConstantFetcher) String() string {
 	return "btfhub"
 }
 
-// HasConstantsInStore returns true if there is constants in store in BTFHub
-func (f *BTFHubConstantFetcher) HasConstantsInStore() bool {
-	return len(f.inStore) != 0
-}
-
-func (f *BTFHubConstantFetcher) appendRequest(id string) {
-	if value, ok := f.inStore[id]; ok {
-		f.res[id] = value
-	} else {
-		f.res[id] = ErrorSentinel
-	}
-}
-
 // AppendSizeofRequest appends a sizeof request
 func (f *BTFHubConstantFetcher) AppendSizeofRequest(id, _ string) {
-	f.appendRequest(id)
+	f.requests = append(f.requests, id)
 }
 
 // AppendOffsetofRequest appends an offset request
 func (f *BTFHubConstantFetcher) AppendOffsetofRequest(id, _ string, _ ...string) {
-	f.appendRequest(id)
+	f.requests = append(f.requests, id)
 }
 
 // FinishAndGetResults returns the results
 func (f *BTFHubConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
-	return f.res, nil
+	res := make(map[string]uint64)
+	for _, id := range f.requests {
+		if value, ok := f.inStore[id]; ok {
+			res[id] = value
+		} else {
+			res[id] = ErrorSentinel
+		}
+	}
+
+	return res, nil
 }
 
 type kernelInfos struct {
