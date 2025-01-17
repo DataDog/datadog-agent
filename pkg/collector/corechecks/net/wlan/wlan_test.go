@@ -9,6 +9,7 @@
 package wlan
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -49,6 +50,29 @@ func TestWLANOK(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "wlan.noise", 20.0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "wlan.transmit_rate", 4.0, "", expectedTags)
 	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+}
+
+func TestWLANGetInfoError(t *testing.T) {
+	// setup mocks
+	getWiFiInfo = func() (WiFiInfo, error) {
+		return WiFiInfo{}, errors.New("some error message")
+	}
+
+	defer func() {
+		getWiFiInfo = GetWiFiInfo
+	}()
+
+	wlanCheck := new(WLANCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	wlanCheck.Run()
+
+	mockSender.AssertNumberOfCalls(t, "Gauge", 0)
+	mockSender.AssertNumberOfCalls(t, "Count", 0)
 }
 
 func TestWLANEmptySSIDisUnknown(t *testing.T) {
