@@ -9,16 +9,19 @@
 package constantfetch
 
 import (
+	"bytes"
+	"compress/gzip"
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
 
-//go:embed btfhub/constants.json
+//go:embed btfhub/constants.json.gz
 var btfhubConstants []byte
 
 // BTFHubConstantFetcher is a constant fetcher based on BTFHub constants
@@ -33,13 +36,32 @@ var archMapping = map[string]string{
 	"arm64": "arm64",
 }
 
+func uncompress() ([]byte, error) {
+	gr, err := gzip.NewReader(bytes.NewReader(btfhubConstants))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gr.Close()
+
+	res, err := io.ReadAll(gr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read gzip content: %w", err)
+	}
+	return res, nil
+}
+
 func (f *BTFHubConstantFetcher) fillStore() error {
 	if len(f.inStore) != 0 {
 		return nil
 	}
 
+	uncompressedBTFhubConstants, err := uncompress()
+	if err != nil {
+		return err
+	}
+
 	var constantsInfos BTFHubConstants
-	if err := json.Unmarshal(btfhubConstants, &constantsInfos); err != nil {
+	if err := json.Unmarshal(uncompressedBTFhubConstants, &constantsInfos); err != nil {
 		return err
 	}
 

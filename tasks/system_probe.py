@@ -71,6 +71,7 @@ EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", 
 
 is_windows = sys.platform == "win32"
 is_macos = sys.platform == "darwin"
+is_linux = sys.platform == "linux"
 
 arch_mapping = {
     "amd64": "x64",
@@ -778,6 +779,10 @@ def build_sysprobe_binary(
     if os.path.exists(binary):
         os.remove(binary)
 
+    if is_linux:
+        constant_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
+        ctx.run(f"gzip --force --keep --test {constant_path}")
+
     cmd = 'go build -mod={go_mod}{race_opt}{build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
 
@@ -1375,7 +1380,7 @@ def setup_runtime_clang(
     llc_bpf_path = target_dir / "llc-bpf"
     needs_clang_download, needs_llc_download = True, True
 
-    if not arch.is_cross_compiling() and sys.platform == "linux":
+    if not arch.is_cross_compiling() and is_linux:
         # We can check the version of clang and llc on the system, we have the same arch and can
         # execute the binaries. This way we can omit the download if the binaries exist and the version
         # matches the desired one
