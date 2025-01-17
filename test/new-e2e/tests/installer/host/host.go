@@ -223,10 +223,8 @@ func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 		require.NoErrorf(
 			h.t,
 			err,
-			"package %s not installed by the installer. install logs: \n%s\n%s",
+			"package %s not installed by the installer",
 			pkg,
-			h.remote.MustExecute("cat /tmp/datadog-installer-stdout.log"),
-			h.remote.MustExecute("cat /tmp/datadog-installer-stderr.log"),
 		)
 	}
 }

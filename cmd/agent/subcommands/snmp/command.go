@@ -23,7 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
@@ -98,10 +99,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
-				compressionfx.Module(),
 				nooptagger.Module(),
 				eventplatformreceiverimpl.Module(),
 				haagentfx.Module(),
+				metricscompression.Module(),
+				logscompression.Module(),
 			)
 			if err != nil {
 				var ue configErr
@@ -162,10 +164,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
-				compressionfx.Module(),
 				nooptagger.Module(),
 				snmpscanfx.Module(),
 				haagentfx.Module(),
+				metricscompression.Module(),
+				logscompression.Module(),
 			)
 			if err != nil {
 				var ue configErr
