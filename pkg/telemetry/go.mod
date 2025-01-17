@@ -10,7 +10,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.60.0
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.60.1
 	go.uber.org/atomic v1.11.0
 )
 
