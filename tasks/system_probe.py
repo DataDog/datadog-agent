@@ -779,9 +779,11 @@ def build_sysprobe_binary(
     if os.path.exists(binary):
         os.remove(binary)
 
+    cws_constants_gz_path = ""
     if is_linux:
         constant_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
-        ctx.run(f"gzip --force --keep --test {constant_path}")
+        cws_constants_gz_path = constant_path + ".gz"
+        ctx.run(f"gzip --force --keep {constant_path}")
 
     cmd = 'go build -mod={go_mod}{race_opt}{build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
@@ -798,6 +800,10 @@ def build_sysprobe_binary(
     }
 
     ctx.run(cmd.format(**args), env=env)
+
+    # cleanup compressed constants file to keep a clean git workspace
+    if cws_constants_gz_path:
+        os.truncate(cws_constants_gz_path, 0)
 
 
 def get_sysprobe_buildtags(is_windows, bundle_ebpf):
