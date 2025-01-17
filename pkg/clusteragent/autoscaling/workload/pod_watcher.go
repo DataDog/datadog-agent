@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/shared"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,7 +27,7 @@ type podWatcherImpl struct {
 	wlm             workloadmeta.Component
 	patcher         PodPatcher
 	patcherChan     chan *workloadmeta.KubernetesPod
-	podsPerPodOwner map[shared.NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod
+	podsPerPodOwner map[common.NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod
 }
 
 // newPodWatcher creates a new PodWatcher
@@ -35,12 +35,12 @@ func newPodWatcher(wlm workloadmeta.Component, patcher PodPatcher) *podWatcherIm
 	return &podWatcherImpl{
 		wlm:             wlm,
 		patcher:         patcher,
-		podsPerPodOwner: make(map[shared.NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod),
+		podsPerPodOwner: make(map[common.NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod),
 	}
 }
 
 // GetPodsForOwner returns the pods for the given owner.
-func (pw *podWatcherImpl) GetPodsForOwner(owner shared.NamespacedPodOwner) []*workloadmeta.KubernetesPod {
+func (pw *podWatcherImpl) GetPodsForOwner(owner common.NamespacedPodOwner) []*workloadmeta.KubernetesPod {
 	pw.mutex.RLock()
 	defer pw.mutex.RUnlock()
 	pods, ok := pw.podsPerPodOwner[owner]
@@ -157,8 +157,8 @@ func (pw *podWatcherImpl) runPatcher(ctx context.Context) {
 	}
 }
 
-func getNamespacedPodOwner(ns string, owner *workloadmeta.KubernetesPodOwner) shared.NamespacedPodOwner {
-	res := shared.NamespacedPodOwner{
+func getNamespacedPodOwner(ns string, owner *workloadmeta.KubernetesPodOwner) common.NamespacedPodOwner {
+	res := common.NamespacedPodOwner{
 		Name:      owner.Name,
 		Kind:      owner.Kind,
 		Namespace: ns,

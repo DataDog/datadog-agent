@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package shared
+package common
 
 import (
 	"context"

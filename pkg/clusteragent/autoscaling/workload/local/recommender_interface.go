@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/shared"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,7 +31,7 @@ type RecommenderInterface struct {
 }
 
 // NewInterface creates a new RecommenderInterface
-func NewInterface(ctx context.Context, podWatcher shared.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) (*RecommenderInterface, error) {
+func NewInterface(ctx context.Context, podWatcher common.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) (*RecommenderInterface, error) {
 	localRecommender := newLocalRecommender(podWatcher, loadstore.GetWorkloadMetricStore(ctx))
 
 	return &RecommenderInterface{

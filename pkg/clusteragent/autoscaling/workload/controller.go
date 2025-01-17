@@ -26,8 +26,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/shared"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -63,7 +63,7 @@ type Controller struct {
 
 	limitHeap *autoscaling.HashHeap
 
-	podWatcher           shared.PodWatcher
+	podWatcher           autoscalingcommon.PodWatcher
 	horizontalController *horizontalController
 	verticalController   *verticalController
 
@@ -80,7 +80,7 @@ func newController(
 	dynamicInformer dynamicinformer.DynamicSharedInformerFactory,
 	isLeader func() bool,
 	store *store,
-	podWatcher shared.PodWatcher,
+	podWatcher autoscalingcommon.PodWatcher,
 	localSender sender.Sender,
 	limitHeap *autoscaling.HashHeap,
 ) (*Controller, error) {
@@ -301,7 +301,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		podAutoscalerInternal.SetError(targetErr)
 		return autoscaling.NoRequeue, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, targetErr, podAutoscalerInternal, podAutoscaler)
 	}
-	target := shared.NamespacedPodOwner{
+	target := autoscalingcommon.NamespacedPodOwner{
 		Namespace: podAutoscalerInternal.Namespace(),
 		Name:      podAutoscalerInternal.Spec().TargetRef.Name,
 		Kind:      targetGVK.Kind,
@@ -319,7 +319,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	return result, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, scalingErr, podAutoscalerInternal, podAutoscaler)
 }
 
-func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, target shared.NamespacedPodOwner) (autoscaling.ProcessResult, error) {
+func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, target autoscalingcommon.NamespacedPodOwner) (autoscaling.ProcessResult, error) {
 	// TODO: While horizontal scaling is in progress we should not start vertical scaling
 	// While vertical scaling is in progress we should only allow horizontal upscale
 	horizontalRes, err := c.horizontalController.sync(ctx, podAutoscaler, podAutoscalerInternal)

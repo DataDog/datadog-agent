@@ -3,5 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package shared implements shared structs used for workload autoscaling.
-package shared
+// Package common implements shared structs used for workload autoscaling.
+package common

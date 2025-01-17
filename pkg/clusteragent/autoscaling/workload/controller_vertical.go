@@ -27,8 +27,8 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/shared"
 	k8sutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,11 +43,11 @@ type verticalController struct {
 	clock         clock.Clock
 	eventRecorder record.EventRecorder
 	dynamicClient dynamic.Interface
-	podWatcher    shared.PodWatcher
+	podWatcher    common.PodWatcher
 }
 
 // newVerticalController creates a new *verticalController
-func newVerticalController(clock clock.Clock, eventRecorder record.EventRecorder, cl dynamic.Interface, pw shared.PodWatcher) *verticalController {
+func newVerticalController(clock clock.Clock, eventRecorder record.EventRecorder, cl dynamic.Interface, pw common.PodWatcher) *verticalController {
 	res := &verticalController{
 		clock:         clock,
 		eventRecorder: eventRecorder,
@@ -57,7 +57,7 @@ func newVerticalController(clock clock.Clock, eventRecorder record.EventRecorder
 	return res
 }
 
-func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, target shared.NamespacedPodOwner) (autoscaling.ProcessResult, error) {
+func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, target common.NamespacedPodOwner) (autoscaling.ProcessResult, error) {
 	scalingValues := autoscalerInternal.ScalingValues()
 
 	// Check if the autoscaler has a vertical scaling recommendation
@@ -122,7 +122,7 @@ func (u *verticalController) syncDeploymentKind(
 	podAutoscaler *datadoghq.DatadogPodAutoscaler,
 	autoscalerInternal *model.PodAutoscalerInternal,
 	_ datadoghq.DatadogPodAutoscalerUpdateStrategy,
-	target shared.NamespacedPodOwner,
+	target common.NamespacedPodOwner,
 	targetGVK schema.GroupVersionKind,
 	recommendationID string,
 	pods []*workloadmeta.KubernetesPod,
