@@ -6,19 +6,6 @@
 
 #include "compiler.h"
 
-#ifndef __aligned
-#define __aligned(X)		__attribute__((aligned(X)))
-#endif
-
-/* Unfortunately verifier forces aligned stack access while other memory
- * do not have to be aligned (map, pkt, etc). Mark those on the /stack/
- * for objects > 8 bytes in order to force-align such memcpy candidates
- * when we really need them to be aligned, this is not needed for objects
- * of size <= 8 bytes and in case of > 8 bytes /only/ when 8 byte is not
- * the natural object alignment (e.g. __u8 foo[12]).
- */
-#define __align_stack_8		__aligned(8)
-
 /* Memory iterators used below. */
 #define __it_bwd(x, op) (x -= sizeof(__u##op))
 #define __it_fwd(x, op) (x += sizeof(__u##op))
