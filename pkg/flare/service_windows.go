@@ -313,6 +313,7 @@ func getDDServices(manager *mgr.Mgr) ([]serviceInfo, error) {
 			}
 			ddServices = append(ddServices, conf2)
 		}
+		srvc.Close()
 	}
 
 	return ddServices, nil
