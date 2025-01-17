@@ -68,6 +68,11 @@ class GateMetricHandler:
                 f"git_ref:{self.git_ref}",
                 f"bucket_branch:{self.bucket_branch}",
             ]
+
+            if self.metadata.get(gate, None) is None:
+                print(color_message(f"[WARN] gate {gate} doesn't have gate tags registered ! skipping...", "orange"))
+                continue
+
             for tag in self.metadata[gate]:
                 common_tags.append(f"{tag}:{self.metadata[gate][tag]}")
 
