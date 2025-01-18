@@ -100,15 +100,15 @@ func secretRefresh(config config.Component, _ log.Component) error {
 	return nil
 }
 
-func traceAgentSecretRefresh(conf config.Component) ([]byte, error) {
+func commonSubAgentSecretRefresh(conf config.Component, agentName, portConfigName string) ([]byte, error) {
 	err := apiutil.SetAuthToken(conf)
 	if err != nil {
 		return nil, err
 	}
 
-	port := conf.GetInt("apm_config.debug.port")
+	port := conf.GetInt(portConfigName)
 	if port <= 0 {
-		return nil, fmt.Errorf("invalid apm_config.debug.port -- %d", port)
+		return nil, fmt.Errorf("invalid %s -- %d", portConfigName, port)
 	}
 
 	c := apiutil.GetClient(false)
@@ -117,33 +117,18 @@ func traceAgentSecretRefresh(conf config.Component) ([]byte, error) {
 	url := fmt.Sprintf("https://127.0.0.1:%d/secret/refresh", port)
 	res, err := apiutil.DoGet(c, url, apiutil.CloseConnection)
 	if err != nil {
-		return nil, fmt.Errorf("could not contact trace-agent: %s", err)
+		return nil, fmt.Errorf("could not contact %s: %s", agentName, err)
 	}
 
 	return res, nil
 }
 
+func traceAgentSecretRefresh(conf config.Component) ([]byte, error) {
+	return commonSubAgentSecretRefresh(conf, "trace-agent", "apm_config.debug.port")
+}
+
 func securityAgentSecretRefresh(conf config.Component) ([]byte, error) {
-	err := apiutil.SetAuthToken(conf)
-	if err != nil {
-		return nil, err
-	}
-
-	port := conf.GetInt("security_agent.cmd_port")
-	if port <= 0 {
-		return nil, fmt.Errorf("invalid security_agent.cmd_port -- %d", port)
-	}
-
-	c := apiutil.GetClient(false)
-	c.Timeout = conf.GetDuration("server_timeout") * time.Second
-
-	url := fmt.Sprintf("https://127.0.0.1:%d/secret/refresh", port)
-	res, err := apiutil.DoGet(c, url, apiutil.CloseConnection)
-	if err != nil {
-		return nil, fmt.Errorf("could not contact security-agent: %s", err)
-	}
-
-	return res, nil
+	return commonSubAgentSecretRefresh(conf, "security-agent", "security_agent.cmd_port")
 }
 
 func callIPCEndpoint(config config.Component, endpointURL string) ([]byte, error) {
