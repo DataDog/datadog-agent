@@ -84,6 +84,19 @@ func secretRefresh(config config.Component, _ log.Component) error {
 		}
 		fmt.Println(string(res))
 	}
+
+	{
+		fmt.Println("Security Agent refresh:")
+		res, err := securityAgentSecretRefresh(config)
+		if err != nil {
+			// the security agent might not be running
+			// so we handle the error in a non-fatal way
+			fmt.Println(err.Error())
+		} else {
+			fmt.Println(string(res))
+		}
+	}
+
 	return nil
 }
 
@@ -105,6 +118,29 @@ func traceAgentSecretRefresh(conf config.Component) ([]byte, error) {
 	res, err := apiutil.DoGet(c, url, apiutil.CloseConnection)
 	if err != nil {
 		return nil, fmt.Errorf("could not contact trace-agent: %s", err)
+	}
+
+	return res, nil
+}
+
+func securityAgentSecretRefresh(conf config.Component) ([]byte, error) {
+	err := apiutil.SetAuthToken(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	port := conf.GetInt("security_agent.cmd_port")
+	if port <= 0 {
+		return nil, fmt.Errorf("invalid security_agent.cmd_port -- %d", port)
+	}
+
+	c := apiutil.GetClient(false)
+	c.Timeout = conf.GetDuration("server_timeout") * time.Second
+
+	url := fmt.Sprintf("https://127.0.0.1:%d/secret/refresh", port)
+	res, err := apiutil.DoGet(c, url, apiutil.CloseConnection)
+	if err != nil {
+		return nil, fmt.Errorf("could not contact security-agent: %s", err)
 	}
 
 	return res, nil
