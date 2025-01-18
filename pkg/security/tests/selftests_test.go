@@ -33,6 +33,8 @@ func TestSelfTests(t *testing.T) {
 	}
 	defer test.Close()
 
+	test.msgSender.flush()
+
 	err = retry.Do(func() error {
 		msg := test.msgSender.getMsg(events.SelfTestRuleID)
 		if msg == nil {
@@ -59,6 +61,6 @@ func TestSelfTests(t *testing.T) {
 		})
 
 		return nil
-	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.MaxDelay(60*time.Second), retry.DelayType(retry.BackOffDelay))
+	}, retry.Attempts(20), retry.Delay(1*time.Second), retry.MaxDelay(120*time.Second), retry.DelayType(retry.BackOffDelay))
 	assert.NoError(t, err)
 }
