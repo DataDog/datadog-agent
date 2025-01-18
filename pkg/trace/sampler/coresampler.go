@@ -6,6 +6,7 @@
 package sampler
 
 import (
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -21,6 +22,10 @@ const (
 	bucketDuration  = 5 * time.Second
 	numBuckets      = 6
 	maxRateIncrease = 1.2
+
+	metricSamplerKept = "datadog.trace_agent.sampler.kept"
+	metricSamplerSeen = "datadog.trace_agent.sampler.seen"
+	metricSamplerSize = "datadog.trace_agent.sampler.size"
 )
 
 // Sampler is the main component of the sampling logic
@@ -52,9 +57,6 @@ type Sampler struct {
 	// extraRate is an extra raw sampling rate to apply on top of the sampler rate
 	extraRate float64
 
-	totalSeen float32
-	totalKept *atomic.Int64
-
 	tags    []string
 	exit    chan struct{}
 	stopped chan struct{}
@@ -69,8 +71,6 @@ func newSampler(extraRate float64, targetTPS float64, tags []string, statsd stat
 		extraRate: extraRate,
 		targetTPS: atomic.NewFloat64(targetTPS),
 		tags:      tags,
-
-		totalKept: atomic.NewInt64(0),
 
 		exit:    make(chan struct{}),
 		stopped: make(chan struct{}),
@@ -140,7 +140,6 @@ func (s *Sampler) countWeightedSig(now time.Time, signature Signature, n float32
 	buckets[bucketID%numBuckets] += n
 	s.seen[signature] = buckets
 
-	s.totalSeen += n
 	s.muSeen.Unlock()
 	return updateRates
 }
@@ -248,9 +247,15 @@ func zeroAndGetMax(buckets [numBuckets]float32, previousBucket, newBucket int64)
 	return maxBucket, buckets
 }
 
-// countSample counts a trace sampled by the sampler.
-func (s *Sampler) countSample() {
-	s.totalKept.Inc()
+func (s *Sampler) countSample(sampled bool, service, env string) {
+	t := append(s.tags, []string{
+		fmt.Sprintf("sample_service:%s", service),
+		fmt.Sprintf("sample_env:%s", env),
+	}...)
+	if sampled {
+		_ = s.statsd.Count(metricSamplerKept, 1, t, 1)
+	}
+	_ = s.statsd.Count(metricSamplerSeen, 1, t, 1)
 }
 
 // getSignatureSampleRate returns the sampling rate to apply to a signature
@@ -311,14 +316,7 @@ func (s *Sampler) size() int64 {
 }
 
 func (s *Sampler) report() {
-	s.muSeen.Lock()
-	seen := int64(s.totalSeen)
-	s.totalSeen = 0
-	s.muSeen.Unlock()
-	kept := s.totalKept.Swap(0)
-	_ = s.statsd.Count("datadog.trace_agent.sampler.kept", kept, s.tags, 1)
-	_ = s.statsd.Count("datadog.trace_agent.sampler.seen", seen, s.tags, 1)
-	_ = s.statsd.Gauge("datadog.trace_agent.sampler.size", float64(s.size()), s.tags, 1)
+	_ = s.statsd.Gauge(metricSamplerSize, float64(s.size()), s.tags, 1)
 }
 
 // Stop stops the main Run loop

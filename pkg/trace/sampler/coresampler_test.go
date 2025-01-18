@@ -10,23 +10,36 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
 )
 
-func TestSamplerAccessRace(_ *testing.T) {
-	s := newSampler(1, 2, nil, &statsd.NoOpClient{})
+func TestSamplerAccessRace(t *testing.T) {
+	concurrency := 5
+	loopCount := 10000
+	totalCount := concurrency * loopCount
+	serviceSignature := ServiceSignature{
+		Name: "test-service",
+		Env:  "test-env",
+	}
+	statsdClient := mockStatsd.NewMockClientInterface(gomock.NewController(t))
+	statsdClient.EXPECT().Count(metricSamplerKept, int64(1), []string{"sample_service:test-service", "sample_env:test-env"}, float64(1)).Times(totalCount)
+	statsdClient.EXPECT().Count(metricSamplerSeen, int64(1), []string{"sample_service:test-service", "sample_env:test-env"}, float64(1)).Times(totalCount)
+	statsdClient.EXPECT().Gauge(metricSamplerSize, gomock.Any(), nil, float64(1)).Times(totalCount)
+	s := newSampler(1, 2, nil, statsdClient)
 	var wg sync.WaitGroup
-	wg.Add(5)
-	for j := 0; j < 5; j++ {
+	wg.Add(concurrency)
+	for j := 0; j < concurrency; j++ {
 		go func(j int) {
 			defer wg.Done()
-			for i := 0; i < 10000; i++ {
-				s.countWeightedSig(time.Now().Add(time.Duration(5*(j+i))*time.Second), Signature(i%3), 5)
+			for i := 0; i < loopCount; i++ {
+				s.countWeightedSig(time.Now().Add(time.Duration(5*(j+i))*time.Second), serviceSignature.Hash(), 5)
 				s.report()
-				s.countSample()
+				s.countSample(true, serviceSignature.Name, serviceSignature.Env)
 				s.getSignatureSampleRate(Signature(i % 3))
 				s.getAllSignatureSampleRates()
 			}

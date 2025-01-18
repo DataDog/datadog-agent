@@ -108,6 +108,7 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 	// by the client library. Which, is turn, is based on agent hints,
 	// but the rule of thumb is: respect client choice.
 	sampled := samplingPriority > 0
+	s.sampler.countSample(sampled, root.Service, toSamplerEnv(tracerEnv, s.agentEnv))
 
 	// Short-circuit and return without counting the trace in the sampling rate logic
 	// if its value has not been set automatically by the client lib.
@@ -126,7 +127,6 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 
 	if sampled {
 		s.applyRate(root, signature)
-		s.sampler.countSample()
 	}
 	return sampled
 }

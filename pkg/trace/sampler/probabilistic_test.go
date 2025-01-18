@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
 )
 
 func TestProbabilisticSampler(t *testing.T) {
@@ -63,7 +65,20 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerSamplingPercentage: 41,
 			Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
 		}
-		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
+		statsdClient := mockStatsd.NewMockClientInterface(gomock.NewController(t))
+		statsdClient.EXPECT().Count(
+			metricSamplerKept,
+			int64(1),
+			gomock.Any(),
+			float64(1),
+		).Times(1)
+		statsdClient.EXPECT().Count(
+			metricSamplerSeen,
+			int64(1),
+			gomock.Any(),
+			float64(1),
+		).Times(1)
+		sampler := NewProbabilisticSampler(conf, statsdClient)
 		sampled := sampler.Sample(&trace.Span{
 			TraceID: binary.BigEndian.Uint64(tid[8:]),
 			Meta:    map[string]string{"_dd.p.tid": hex.EncodeToString(tid[:8])},
@@ -78,7 +93,20 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerSamplingPercentage: 40,
 			Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
 		}
-		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
+		statsdClient := mockStatsd.NewMockClientInterface(gomock.NewController(t))
+		statsdClient.EXPECT().Count(
+			metricSamplerKept,
+			int64(1),
+			gomock.Any(),
+			float64(1),
+		).Times(0)
+		statsdClient.EXPECT().Count(
+			metricSamplerSeen,
+			int64(1),
+			gomock.Any(),
+			float64(1),
+		).Times(1)
+		sampler := NewProbabilisticSampler(conf, statsdClient)
 		sampled := sampler.Sample(&trace.Span{
 			TraceID: 555,
 			Meta:    map[string]string{"_dd.p.tid": hex.EncodeToString(tid[:8])},
