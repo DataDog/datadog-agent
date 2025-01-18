@@ -8,7 +8,6 @@
 package flare
 
 import (
-	"slices"
 	"strings"
 	"syscall"
 	"time"
