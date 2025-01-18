@@ -33,8 +33,6 @@ func TestSelfTests(t *testing.T) {
 	}
 	defer test.Close()
 
-	test.msgSender.flush()
-
 	err = retry.Do(func() error {
 		msg := test.msgSender.getMsg(events.SelfTestRuleID)
 		if msg == nil {
