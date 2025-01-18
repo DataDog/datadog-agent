@@ -611,7 +611,7 @@ def generate_cws_proto(ctx):
         with environ({"GOBIN": temp_gobin}):
             ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2")
             ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.6.0")
-            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.4.0")
+            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1")
 
             plugin_opts = " ".join(
                 [
