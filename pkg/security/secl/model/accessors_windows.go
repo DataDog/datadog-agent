@@ -872,9 +872,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				if result, ok := ctx.StringCache[field]; ok {
-					return result
-				}
 				iterator := &ProcessAncestorsIterator{}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
@@ -883,6 +880,9 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					}
 					result := ev.FieldHandlers.ResolveProcessCmdLine(ev, &element.ProcessContext.Process)
 					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				results := newAncestorsIterator(iterator, field, ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
 					return ev.FieldHandlers.ResolveProcessCmdLine(ev, &current.ProcessContext.Process)
@@ -896,9 +896,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
-				if result, ok := ctx.StringCache[field]; ok {
-					return result
-				}
 				iterator := &ProcessAncestorsIterator{}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
@@ -907,6 +904,9 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					}
 					result := element.ProcessContext.Process.ContainerID
 					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				results := newAncestorsIterator(iterator, field, ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
 					return current.ProcessContext.Process.ContainerID
@@ -921,9 +921,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				if result, ok := ctx.IntCache[field]; ok {
-					return result
-				}
 				iterator := &ProcessAncestorsIterator{}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
@@ -932,6 +929,9 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					}
 					result := int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &element.ProcessContext.Process))
 					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				results := newAncestorsIterator(iterator, field, ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
 					return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &current.ProcessContext.Process))
@@ -946,9 +946,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				if result, ok := ctx.StringCache[field]; ok {
-					return result
-				}
 				iterator := &ProcessAncestorsIterator{}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
@@ -956,6 +953,9 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return nil
 					}
 					result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
+					return result
+				}
+				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newAncestorsIteratorArray(iterator, field, ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
@@ -971,9 +971,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				if result, ok := ctx.StringCache[field]; ok {
-					return result
-				}
 				iterator := &ProcessAncestorsIterator{}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
@@ -981,6 +978,9 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return nil
 					}
 					result := ev.FieldHandlers.ResolveProcessEnvs(ev, &element.ProcessContext.Process)
+					return result
+				}
+				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newAncestorsIteratorArray(iterator, field, ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
@@ -997,9 +997,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				if result, ok := ctx.StringCache[field]; ok {
-					return result
-				}
 				iterator := &ProcessAncestorsIterator{}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
@@ -1008,6 +1005,9 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					}
 					result := ev.FieldHandlers.ResolveFileBasename(ev, &element.ProcessContext.Process.FileEvent)
 					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				results := newAncestorsIterator(iterator, field, ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
 					return ev.FieldHandlers.ResolveFileBasename(ev, &current.ProcessContext.Process.FileEvent)
@@ -1023,9 +1023,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				if result, ok := ctx.IntCache[field]; ok {
-					return result
-				}
 				iterator := &ProcessAncestorsIterator{}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
@@ -1034,6 +1031,9 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					}
 					result := len(ev.FieldHandlers.ResolveFileBasename(ev, &element.ProcessContext.Process.FileEvent))
 					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				results := newAncestorsIterator(iterator, field, ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
 					return len(ev.FieldHandlers.ResolveFileBasename(ev, &current.ProcessContext.Process.FileEvent))
@@ -1049,9 +1049,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				if result, ok := ctx.StringCache[field]; ok {
-					return result
-				}
 				iterator := &ProcessAncestorsIterator{}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
@@ -1060,6 +1057,9 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					}
 					result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent)
 					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				results := newAncestorsIterator(iterator, field, ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
 					return ev.FieldHandlers.ResolveFilePath(ev, &current.ProcessContext.Process.FileEvent)
@@ -1075,9 +1075,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				if result, ok := ctx.IntCache[field]; ok {
-					return result
-				}
 				iterator := &ProcessAncestorsIterator{}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
@@ -1086,6 +1083,9 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					}
 					result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent))
 					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				results := newAncestorsIterator(iterator, field, ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
 					return len(ev.FieldHandlers.ResolveFilePath(ev, &current.ProcessContext.Process.FileEvent))
@@ -1109,9 +1109,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
-				if result, ok := ctx.IntCache[field]; ok {
-					return result
-				}
 				iterator := &ProcessAncestorsIterator{}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
@@ -1120,6 +1117,9 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					}
 					result := int(element.ProcessContext.Process.PIDContext.Pid)
 					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				results := newAncestorsIterator(iterator, field, ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
 					return int(current.ProcessContext.Process.PIDContext.Pid)
@@ -1133,9 +1133,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
-				if result, ok := ctx.IntCache[field]; ok {
-					return result
-				}
 				iterator := &ProcessAncestorsIterator{}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
@@ -1144,6 +1141,9 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					}
 					result := int(element.ProcessContext.Process.PPid)
 					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
 				}
 				results := newAncestorsIterator(iterator, field, ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
 					return int(current.ProcessContext.Process.PPid)
@@ -1158,9 +1158,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				if result, ok := ctx.StringCache[field]; ok {
-					return result
-				}
 				iterator := &ProcessAncestorsIterator{}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
@@ -1169,6 +1166,9 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					}
 					result := ev.FieldHandlers.ResolveUser(ev, &element.ProcessContext.Process)
 					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				results := newAncestorsIterator(iterator, field, ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
 					return ev.FieldHandlers.ResolveUser(ev, &current.ProcessContext.Process)
@@ -1182,9 +1182,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
-				if result, ok := ctx.StringCache[field]; ok {
-					return result
-				}
 				iterator := &ProcessAncestorsIterator{}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
@@ -1193,6 +1190,9 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					}
 					result := element.ProcessContext.Process.OwnerSidString
 					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
 				}
 				results := newAncestorsIterator(iterator, field, ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
 					return current.ProcessContext.Process.OwnerSidString
