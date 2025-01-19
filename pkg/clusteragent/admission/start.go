@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -34,6 +35,7 @@ type ControllerContext struct {
 	ValidatingInformers          informers.SharedInformerFactory
 	MutatingInformers            informers.SharedInformerFactory
 	Client                       kubernetes.Interface
+	APIExtClient                 clientset.Interface
 	StopCh                       chan struct{}
 	ValidatingStopCh             chan struct{}
 	Demultiplexer                demultiplexer.Component
@@ -84,6 +86,7 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 	webhookConfig := webhook.NewConfig(v1Enabled, nsSelectorEnabled, matchConditionsSupported, datadogConfig)
 	webhookController := webhook.NewController(
 		ctx.Client,
+		ctx.APIExtClient,
 		ctx.SecretInformers.Core().V1().Secrets(),
 		ctx.ValidatingInformers.Admissionregistration(),
 		ctx.MutatingInformers.Admissionregistration(),

@@ -106,8 +106,8 @@ type APIClient struct {
 	// DynamicCl holds a dynamic kubernetes client with long TO
 	DynamicInformerCl dynamic.Interface
 
-	// CRDInformerClient holds the extension kubernetes client with long TO
-	CRDInformerClient clientset.Interface
+	// APIExtClient holds the extension kubernetes client with long TO
+	APIExtClient clientset.Interface
 
 	// APISInformerClient holds the APIService kubernetes client with long TO
 	APISInformerClient apiregistrationclient.ApiregistrationV1Interface
@@ -363,7 +363,7 @@ func (c *APIClient) connect() error {
 		return err
 	}
 
-	c.CRDInformerClient, err = getCRDClient(c.defaultInformerTimeout, informerClientQPSLimit, informerClientQPSBurst)
+	c.APIExtClient, err = getCRDClient(c.defaultInformerTimeout, informerClientQPSLimit, informerClientQPSBurst)
 	if err != nil {
 		log.Infof("Could not get apiserver CRDClient client: %v", err)
 		return err

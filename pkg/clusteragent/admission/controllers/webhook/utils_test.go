@@ -12,13 +12,15 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
 type fixture struct {
-	t      *testing.T //nolint:structcheck
-	client *fake.Clientset
+	t            *testing.T //nolint:structcheck
+	client       *fake.Clientset
+	apiExtClient *apiextensionsfake.Clientset
 }
 
 func (f *fixture) populateSecretsCache(secrets ...*corev1.Secret) {

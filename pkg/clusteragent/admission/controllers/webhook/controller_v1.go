@@ -14,6 +14,7 @@ import (
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -50,6 +51,7 @@ type ControllerV1 struct {
 // NewControllerV1 returns a new Webhook Controller using admissionregistration/v1.
 func NewControllerV1(
 	client kubernetes.Interface,
+	apiExtClient clientset.Interface,
 	secretInformer coreinformers.SecretInformer,
 	validatingWebhookInformer admissioninformers.ValidatingWebhookConfigurationInformer,
 	mutatingWebhookInformer admissioninformers.MutatingWebhookConfigurationInformer,
@@ -63,6 +65,7 @@ func NewControllerV1(
 ) *ControllerV1 {
 	controller := &ControllerV1{}
 	controller.clientSet = client
+	controller.apiExtClient = apiExtClient
 	controller.config = config
 	controller.secretsLister = secretInformer.Lister()
 	controller.secretsSynced = secretInformer.Informer().HasSynced

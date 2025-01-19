@@ -10,7 +10,6 @@ package customresources
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -18,6 +17,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	basemetrics "k8s.io/component-base/metrics"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
@@ -38,7 +39,7 @@ var (
 // metric family generator factory.
 func NewCustomResourceDefinitionFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &crdFactory{
-		client: client.CRDInformerClient,
+		client: client.APIExtClient,
 	}
 }
 

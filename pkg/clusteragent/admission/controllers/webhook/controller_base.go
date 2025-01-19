@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers/admissionregistration"
@@ -45,6 +46,7 @@ type Controller interface {
 // NewController returns the adequate implementation of the Controller interface.
 func NewController(
 	client kubernetes.Interface,
+	apiExtClient clientset.Interface,
 	secretInformer coreinformers.SecretInformer,
 	validatingInformers admissionregistration.Interface,
 	mutatingInformers admissionregistration.Interface,
@@ -57,9 +59,9 @@ func NewController(
 	demultiplexer demultiplexer.Component,
 ) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
+		return NewControllerV1(client, apiExtClient, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
 	}
-	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
+	return NewControllerV1beta1(client, apiExtClient, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
 }
 
 // generateWebhooks returns the list of webhooks. The order of the webhooks returned
@@ -126,6 +128,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 // For the nolint:structcheck see https://github.com/golangci/golangci-lint/issues/537
 type controllerBase struct {
 	clientSet                kubernetes.Interface //nolint:structcheck
+	apiExtClient             clientset.Interface  //nolint:structcheck
 	config                   Config
 	secretsLister            corelisters.SecretLister
 	secretsSynced            cache.InformerSynced //nolint:structcheck

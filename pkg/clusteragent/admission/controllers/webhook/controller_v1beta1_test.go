@@ -18,6 +18,7 @@ import (
 	"go.uber.org/fx"
 	admiv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -1171,6 +1172,7 @@ func newFixtureV1beta1(t *testing.T) *fixtureV1beta1 {
 	f := &fixtureV1beta1{}
 	f.t = t
 	f.client = fake.NewSimpleClientset()
+	f.apiExtClient = apiextensionsfake.NewSimpleClientset()
 	return f
 }
 
@@ -1180,6 +1182,7 @@ func (f *fixtureV1beta1) createController() (*ControllerV1beta1, informers.Share
 	datadogConfig := fxutil.Test[configComp.Component](f.t, core.MockBundle())
 	return NewControllerV1beta1(
 		f.client,
+		f.apiExtClient,
 		factory.Core().V1().Secrets(),
 		factory.Admissionregistration().V1beta1().ValidatingWebhookConfigurations(),
 		factory.Admissionregistration().V1beta1().MutatingWebhookConfigurations(),
