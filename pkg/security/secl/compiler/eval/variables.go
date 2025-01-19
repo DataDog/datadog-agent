@@ -516,13 +516,13 @@ func (v *ScopedVariables) Len() int {
 	return len(v.vars)
 }
 
+func (v *ScopedVariables) getVariables(ctx *Context) *Variables {
+	key := v.scoper(ctx)
+	return v.vars[key]
+}
+
 // GetVariable returns new variable of the type of the specified value
 func (v *ScopedVariables) GetVariable(name string, value interface{}, _ VariableOpts) (VariableValue, error) {
-	getVariables := func(ctx *Context) *Variables {
-		v := v.vars[v.scoper(ctx)]
-		return v
-	}
-
 	setVariable := func(ctx *Context, value interface{}) error {
 		key := v.scoper(ctx)
 		if key == nil {
@@ -543,35 +543,35 @@ func (v *ScopedVariables) GetVariable(name string, value interface{}, _ Variable
 	switch value.(type) {
 	case int:
 		return NewIntVariable(func(ctx *Context) int {
-			if vars := getVariables(ctx); vars != nil {
+			if vars := v.getVariables(ctx); vars != nil {
 				return vars.GetInt(name)
 			}
 			return 0
 		}, setVariable), nil
 	case bool:
 		return NewBoolVariable(func(ctx *Context) bool {
-			if vars := getVariables(ctx); vars != nil {
+			if vars := v.getVariables(ctx); vars != nil {
 				return vars.GetBool(name)
 			}
 			return false
 		}, setVariable), nil
 	case string:
 		return NewStringVariable(func(ctx *Context) string {
-			if vars := getVariables(ctx); vars != nil {
+			if vars := v.getVariables(ctx); vars != nil {
 				return vars.GetString(name)
 			}
 			return ""
 		}, setVariable), nil
 	case []string:
 		return NewStringArrayVariable(func(ctx *Context) []string {
-			if vars := getVariables(ctx); vars != nil {
+			if vars := v.getVariables(ctx); vars != nil {
 				return vars.GetStringArray(name)
 			}
 			return nil
 		}, setVariable), nil
 	case []int:
 		return NewIntArrayVariable(func(ctx *Context) []int {
-			if vars := getVariables(ctx); vars != nil {
+			if vars := v.getVariables(ctx); vars != nil {
 				return vars.GetIntArray(name)
 			}
 			return nil
