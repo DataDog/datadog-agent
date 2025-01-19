@@ -34,6 +34,105 @@ type collector struct {
 	nvmlLib nvml.Interface
 }
 
+func (c *collector) getDeviceInfo(device nvml.Device) (string, string, error) {
+	uuid, ret := device.GetUUID()
+	if ret != nvml.SUCCESS {
+		return "", "", fmt.Errorf("failed to get device UUID: %v", nvml.ErrorString(ret))
+	}
+	name, ret := device.GetName()
+	if ret != nvml.SUCCESS {
+		return "", "", fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
+	}
+	return uuid, name, nil
+}
+
+// getMigProfileName() returns the canonical name of the MIG device
+func getMigProfileName(attr nvml.DeviceAttributes) (string, error) {
+	g := attr.GpuInstanceSliceCount
+	gb := ((attr.MemorySizeMB + 1024 - 1) / 1024)
+	r := fmt.Sprintf("%dg.%dgb", g, gb)
+	return r, nil
+}
+
+func (c *collector) getDeviceInfoMig(migDevice nvml.Device) (*workloadmeta.MigDevice, error) {
+	uuid, name, err := c.getDeviceInfo(migDevice)
+	if err != nil {
+		return nil, err
+	}
+	gpuInstanceID, ret := c.nvmlLib.DeviceGetGpuInstanceId(migDevice)
+	if ret != nvml.SUCCESS {
+		return nil, fmt.Errorf("failed to get GPU instance ID: %v", nvml.ErrorString(ret))
+	}
+	attr, ret := migDevice.GetAttributes()
+	if ret != nvml.SUCCESS {
+		return nil, fmt.Errorf("failed to get device attributes: %v", nvml.ErrorString(ret))
+	}
+	canonoicalName, _ := getMigProfileName(attr)
+	return &workloadmeta.MigDevice{
+		GPUInstanceID:         gpuInstanceID,
+		UUID:                  uuid,
+		Name:                  name,
+		GPUInstanceSliceCount: attr.GpuInstanceSliceCount,
+		MemorySizeMB:          attr.MemorySizeMB,
+		ResourceName:          canonoicalName,
+	}, nil
+}
+
+func (c *collector) getGPUdeviceInfo(device nvml.Device) (*workloadmeta.GPU, error) {
+	uuid, name, err := c.getDeviceInfo(device)
+	if err != nil {
+		return nil, err
+	}
+	gpuIndexID, ret := c.nvmlLib.DeviceGetIndex(device)
+	if ret != nvml.SUCCESS {
+		return nil, fmt.Errorf("failed to get GPU index ID: %v", nvml.ErrorString(ret))
+	}
+	gpuDeviceInfo := workloadmeta.GPU{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindGPU,
+			ID:   uuid,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: name,
+		},
+		Vendor:     nvidiaVendor,
+		Device:     name,
+		Index:      gpuIndexID,
+		MigEnabled: false,
+		MigDevices: make([]*workloadmeta.MigDevice, 0),
+	}
+
+	migEnabled, _, ret := c.nvmlLib.DeviceGetMigMode(device)
+	if ret != nvml.SUCCESS {
+		migEnabled = nvml.DEVICE_MIG_DISABLE
+	}
+	if migEnabled == nvml.DEVICE_MIG_ENABLE {
+		// If any mid detection fails, we will return an mig disabled in config
+		migDeviceCount, ret := c.nvmlLib.DeviceGetMaxMigDeviceCount(device)
+		if ret != nvml.SUCCESS {
+			log.Warnf("failed to get MIG capable device count: %v", nvml.ErrorString(ret))
+			return &gpuDeviceInfo, nil
+		}
+		migDevs := make([]*workloadmeta.MigDevice, 0, migDeviceCount)
+		for j := 0; j < migDeviceCount; j++ {
+			migDevice, ret := c.nvmlLib.DeviceGetMigDeviceHandleByIndex(device, j)
+			if ret != nvml.SUCCESS {
+				log.Warnf("failed to get handle for MIG device %d: %v", j, nvml.ErrorString(ret))
+				return &gpuDeviceInfo, nil
+			}
+			migDeviceInfo, err := c.getDeviceInfoMig(migDevice)
+			if err != nil {
+				log.Warnf("failed to get device info for MIG device %d: %v", j, err)
+				return &gpuDeviceInfo, nil
+			}
+			migDevs = append(migDevs, migDeviceInfo)
+		}
+		gpuDeviceInfo.MigEnabled = true
+		gpuDeviceInfo.MigDevices = migDevs
+	}
+	return &gpuDeviceInfo, nil
+}
+
 // NewCollector returns a kubelet CollectorProvider that instantiates its collector
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
@@ -80,27 +179,9 @@ func (c *collector) Pull(_ context.Context) error {
 			return fmt.Errorf("failed to get device handle for index %d: %v", i, nvml.ErrorString(ret))
 		}
 
-		uuid, ret := dev.GetUUID()
-		if ret != nvml.SUCCESS {
-			return fmt.Errorf("failed to get device UUID for index %d: %v", i, nvml.ErrorString(ret))
-		}
-
-		name, ret := dev.GetName()
-		if ret != nvml.SUCCESS {
-			return fmt.Errorf("failed to get device name for index %d: %v", i, nvml.ErrorString(ret))
-		}
-
-		gpu := &workloadmeta.GPU{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindGPU,
-				ID:   uuid,
-			},
-			EntityMeta: workloadmeta.EntityMeta{
-				Name: name,
-			},
-			Vendor: nvidiaVendor,
-			Device: name,
-			Index:  i,
+		gpu, err := c.getGPUdeviceInfo(dev)
+		if err != nil {
+			return err
 		}
 
 		arch, ret := dev.GetArchitecture()
