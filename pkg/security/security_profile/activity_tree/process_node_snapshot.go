@@ -129,7 +129,7 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 		}
 
 		evt := newEvent()
-		fullPath := filepath.Join(utils.ProcRootPath(pn.Process.Pid), f)
+		fullPath := utils.ProcRootFilePath(pn.Process.Pid, f)
 		if evt.ProcessContext == nil {
 			evt.ProcessContext = &model.ProcessContext{}
 		}
