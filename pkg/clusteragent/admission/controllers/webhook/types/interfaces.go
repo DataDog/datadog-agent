@@ -9,6 +9,8 @@
 package types
 
 import (
+	"context"
+
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -24,6 +26,8 @@ type Webhook interface {
 	WebhookType() common.WebhookType
 	// IsEnabled returns whether the webhook is enabled
 	IsEnabled() bool
+	// Start starts the webhook
+	Start(context.Context) error
 	// Endpoint returns the endpoint of the webhook
 	Endpoint() string
 	// Resources returns the kubernetes resources for which the webhook should

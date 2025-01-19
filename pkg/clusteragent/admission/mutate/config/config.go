@@ -10,6 +10,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -122,6 +123,11 @@ func (w *Webhook) WebhookType() common.WebhookType {
 // IsEnabled returns whether the webhook is enabled
 func (w *Webhook) IsEnabled() bool {
 	return w.isEnabled
+}
+
+// Start starts the webhook
+func (w *Webhook) Start(context.Context) error {
+	return nil
 }
 
 // Endpoint returns the endpoint of the webhook

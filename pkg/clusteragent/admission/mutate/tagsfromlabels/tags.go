@@ -88,6 +88,11 @@ func (w *Webhook) IsEnabled() bool {
 	return w.isEnabled
 }
 
+// Start starts the webhook
+func (w *Webhook) Start(context.Context) error {
+	return nil
+}
+
 // Endpoint returns the endpoint of the webhook
 func (w *Webhook) Endpoint() string {
 	return w.endpoint

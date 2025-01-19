@@ -501,6 +501,9 @@ func start(log log.Component,
 			server := admissioncmd.NewServer()
 
 			for _, webhookConf := range webhooks {
+				if err := webhookConf.Start(mainCtx); err != nil {
+					pkglog.Errorf("Error starting webhook %s: %v", webhookConf.Name(), err)
+				}
 				server.Register(webhookConf.Endpoint(), webhookConf.Name(), webhookConf.WebhookType(), webhookConf.WebhookFunc(), apiCl.DynamicCl, apiCl.Cl)
 			}
 

@@ -130,6 +130,11 @@ func (w *WebhookForPods) IsEnabled() bool {
 	return w.isEnabled
 }
 
+// Start starts the webhook
+func (w *WebhookForPods) Start(context.Context) error {
+	return nil
+}
+
 // Endpoint returns the endpoint of the webhook
 func (w *WebhookForPods) Endpoint() string {
 	return w.endpoint
@@ -203,6 +208,11 @@ func (w *WebhookForCommands) WebhookType() common.WebhookType {
 // IsEnabled returns whether the webhook is enabled
 func (w *WebhookForCommands) IsEnabled() bool {
 	return w.isEnabled
+}
+
+// Start starts the webhook
+func (w *WebhookForCommands) Start(context.Context) error {
+	return nil
 }
 
 // Endpoint returns the endpoint of the webhook
