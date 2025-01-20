@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -82,23 +81,11 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		}
 	}
 
-	// The endpoint could be refactored in the future to return a map to avoid this.
-	serviceMap := make(map[int]*model.Service, len(response.Services))
-	for _, service := range response.Services {
-		serviceMap[service.PID] = &service
-	}
-
 	events := serviceEvents{}
-	now := li.time.Now()
 
-	// check open ports - these will be potential new services if they are still alive in the next iteration.
-	for _, service := range response.Services {
+	for _, service := range response.StartedServices {
 		pid := service.PID
 		if li.ignoreProcs[pid] {
-			continue
-		}
-
-		if _, ok := li.aliveServices[pid]; ok {
 			continue
 		}
 
@@ -113,29 +100,29 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		events.start = append(events.start, service)
 	}
 
-	// check if services previously marked as alive still are.
-	for pid, svc := range li.aliveServices {
-		if service, ok := serviceMap[pid]; !ok {
-			delete(li.aliveServices, pid)
-			events.stop = append(events.stop, *svc)
-		} else if serviceHeartbeatTime := time.Unix(svc.LastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= heartbeatTime {
-			svc.LastHeartbeat = now.Unix()
-			svc.RSS = service.RSS
-			svc.CPUCores = service.CPUCores
-			svc.ContainerID = service.ContainerID
-			svc.GeneratedName = service.GeneratedName
-			svc.ContainerServiceName = service.ContainerServiceName
-			svc.ContainerServiceNameSource = service.ContainerServiceNameSource
-			svc.Name = service.Name
-			events.heartbeat = append(events.heartbeat, *svc)
+	for _, service := range response.StoppedServices {
+		if li.ignoreCfg[service.Name] {
+			continue
 		}
-	}
 
-	// check if services previously marked as ignore are still alive.
-	for pid := range li.ignoreProcs {
-		if _, ok := serviceMap[pid]; !ok {
+		pid := service.PID
+		if li.ignoreProcs[pid] {
 			delete(li.ignoreProcs, pid)
 		}
+		events.stop = append(events.stop, service)
+	}
+
+	for _, service := range response.HeartbeatServices {
+		pid := service.PID
+		if li.ignoreProcs[pid] || li.ignoreCfg[service.Name] {
+			continue
+		}
+
+		if _, ok := li.aliveServices[pid]; !ok {
+			continue
+		}
+
+		events.heartbeat = append(events.heartbeat, service)
 	}
 
 	return &discoveredServices{

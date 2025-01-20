@@ -211,7 +211,7 @@ func Test_linuxImpl(t *testing.T) {
 			name: "basic",
 			checkRun: []*checkRun{
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
+					servicesResp: &model.ServicesResponse{StartedServices: []model.Service{
 						portTCP5000,
 						portTCP8080,
 						portTCP8081,
@@ -219,7 +219,7 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(0),
 				},
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
+					servicesResp: &model.ServicesResponse{HeartbeatServices: []model.Service{
 						portTCP5000,
 						portTCP8080UpdatedRSS,
 						portTCP8081,
@@ -227,10 +227,11 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(20 * time.Minute),
 				},
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP5000,
+					servicesResp: &model.ServicesResponse{StoppedServices: []model.Service{
+						portTCP8080UpdatedRSS,
+						portTCP8081,
 					}},
-					time: calcTime(21 * time.Minute),
+					time: calcTime(20 * time.Minute),
 				},
 			},
 			wantEvents: []*event{
@@ -367,7 +368,7 @@ func Test_linuxImpl(t *testing.T) {
 			name: "repeated_service_name",
 			checkRun: []*checkRun{
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
+					servicesResp: &model.ServicesResponse{StartedServices: []model.Service{
 						portTCP8080,
 						portTCP8081,
 						portTCP5432,
@@ -375,7 +376,7 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(0),
 				},
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
+					servicesResp: &model.ServicesResponse{HeartbeatServices: []model.Service{
 						portTCP8080,
 						portTCP8081,
 						portTCP5432,
@@ -383,10 +384,11 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(20 * time.Minute),
 				},
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080,
+					servicesResp: &model.ServicesResponse{StoppedServices: []model.Service{
+						portTCP8081,
+						portTCP5432,
 					}},
-					time: calcTime(21 * time.Minute),
+					time: calcTime(20 * time.Minute),
 				},
 			},
 			wantEvents: []*event{
@@ -518,30 +520,17 @@ func Test_linuxImpl(t *testing.T) {
 			name: "restart_service",
 			checkRun: []*checkRun{
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
+					servicesResp: &model.ServicesResponse{StartedServices: []model.Service{
 						portTCP8080,
 						portTCP8081,
 					}},
 					time: calcTime(0),
 				},
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080,
-						portTCP8081,
-					}},
-					time: calcTime(1 * time.Minute),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
+					servicesResp: &model.ServicesResponse{StartedServices: []model.Service{
 						portTCP8080DifferentPID,
 					}},
-					time: calcTime(21 * time.Minute),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080DifferentPID,
-					}},
-					time: calcTime(22 * time.Minute),
+					time: calcTime(20 * time.Minute),
 				},
 			},
 			wantEvents: []*event{
@@ -562,7 +551,7 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                        "",
 						StartTime:                  calcTime(0).Unix(),
 						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(1 * time.Minute).Unix(),
+						LastSeen:                   calcTime(0 * time.Minute).Unix(),
 						Ports:                      []uint16{8080},
 						PID:                        99,
 						CommandLine:                []string{"test-service-1"},
@@ -589,7 +578,7 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                        "",
 						StartTime:                  calcTime(0).Unix(),
 						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(22 * time.Minute).Unix(),
+						LastSeen:                   calcTime(20 * time.Minute).Unix(),
 						Ports:                      []uint16{8080},
 						PID:                        102,
 						CommandLine:                []string{"test-service-1"},
@@ -603,12 +592,22 @@ func Test_linuxImpl(t *testing.T) {
 
 	makeServiceResponseWithTime := func(responseTime time.Time, resp *model.ServicesResponse) *model.ServicesResponse {
 		respWithTime := &model.ServicesResponse{
-			Services: make([]model.Service, 0, len(resp.Services)),
+			StartedServices:   make([]model.Service, 0, len(resp.StartedServices)),
+			StoppedServices:   make([]model.Service, 0, len(resp.StoppedServices)),
+			HeartbeatServices: make([]model.Service, 0, len(resp.HeartbeatServices)),
 		}
 
-		for _, service := range resp.Services {
+		for _, service := range resp.StartedServices {
 			service.LastHeartbeat = responseTime.Unix()
-			respWithTime.Services = append(respWithTime.Services, service)
+			respWithTime.StartedServices = append(respWithTime.StartedServices, service)
+		}
+		for _, service := range resp.StoppedServices {
+			service.LastHeartbeat = responseTime.Unix()
+			respWithTime.StoppedServices = append(respWithTime.StoppedServices, service)
+		}
+		for _, service := range resp.HeartbeatServices {
+			service.LastHeartbeat = responseTime.Unix()
+			respWithTime.HeartbeatServices = append(respWithTime.HeartbeatServices, service)
 		}
 
 		return respWithTime
