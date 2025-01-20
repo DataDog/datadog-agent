@@ -158,6 +158,9 @@ func printActivityTreeStats(prefix string, msg *api.ActivityTreeStatsMessage) {
 	fmt.Printf("%s    file_nodes_count: %v\n", prefix, msg.GetFileNodesCount())
 	fmt.Printf("%s    dns_nodes_count: %v\n", prefix, msg.GetDNSNodesCount())
 	fmt.Printf("%s    socket_nodes_count: %v\n", prefix, msg.GetSocketNodesCount())
+	fmt.Printf("%s    imds_nodes_count: %v\n", prefix, msg.GetIMDSNodesCount())
+	fmt.Printf("%s    syscall_nodes_count: %v\n", prefix, msg.GetSyscallNodesCount())
+	fmt.Printf("%s    flow_nodes_count: %v\n", prefix, msg.GetFlowNodesCount())
 }
 
 func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {

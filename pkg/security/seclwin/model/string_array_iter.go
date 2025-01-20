@@ -8,24 +8,38 @@ package model
 
 import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 
-func newAncestorsIterator[T any](iter *ProcessAncestorsIterator, ctx *eval.Context, ev *Event, perIter func(ev *Event, pce *ProcessCacheEntry) T) []T {
-	results := make([]T, 0, ctx.CachedAncestorsCount)
-	for pce := iter.Front(ctx); pce != nil; pce = iter.Next() {
-		results = append(results, perIter(ev, pce))
+// AncestorsIterator is a generic interface that iterators must implement
+type AncestorsIterator[T any] interface {
+	Front(ctx *eval.Context) T
+	Next(ctx *eval.Context) T
+	At(ctx *eval.Context, regID eval.RegisterID, pos int) T
+	Len(ctx *eval.Context) int
+}
+
+// Helper function to check if a value is nil
+func isNil[V comparable](v V) bool {
+	var zero V
+	return v == zero
+}
+
+func newAncestorsIterator[T any, V comparable](iter AncestorsIterator[V], field eval.Field, ctx *eval.Context, ev *Event, perIter func(ev *Event, current V) T) []T {
+	results := make([]T, 0, ctx.AncestorsCounters[field])
+	for entry := iter.Front(ctx); !isNil(entry); entry = iter.Next(ctx) {
+		results = append(results, perIter(ev, entry))
 	}
-	ctx.CachedAncestorsCount = len(results)
+	ctx.AncestorsCounters[field] = len(results)
 
 	return results
 }
 
-func newAncestorsIteratorArray[T any](iter *ProcessAncestorsIterator, ctx *eval.Context, ev *Event, perIter func(ev *Event, pce *ProcessCacheEntry) []T) []T {
-	results := make([]T, 0, ctx.CachedAncestorsCount)
+func newAncestorsIteratorArray[T any, V comparable](iter AncestorsIterator[V], field eval.Field, ctx *eval.Context, ev *Event, perIter func(ev *Event, current V) []T) []T {
+	results := make([]T, 0, ctx.AncestorsCounters[field])
 	ancestorsCount := 0
-	for pce := iter.Front(ctx); pce != nil; pce = iter.Next() {
-		results = append(results, perIter(ev, pce)...)
+	for entry := iter.Front(ctx); !isNil(entry); entry = iter.Next(ctx) {
+		results = append(results, perIter(ev, entry)...)
 		ancestorsCount++
 	}
-	ctx.CachedAncestorsCount = ancestorsCount
+	ctx.AncestorsCounters[field] = ancestorsCount
 
 	return results
 }
