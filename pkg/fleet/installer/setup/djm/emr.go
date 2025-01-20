@@ -52,14 +52,14 @@ var (
 			Value: "true",
 		},
 	}
-	logProcessor = []common.IntegrationConfigLogProcessor{
-		{
-			Type:   "regex_parser",
-			Source: "filename",
-			Regex:  "/var/log/hadoop-yarn/containers/(?P<application_id>application_[0-9]+_[0-9]+)/(?P<container_id>container_[0-9]+_[0-9]+_[0-9]+_[0-9]+)",
-			Target: "attributes",
-		},
-	}
+	//logProcessor = []common.IntegrationConfigLogProcessor{
+	//	{
+	//		Type:   "regex_parser",
+	//		Source: "filename",
+	//		Regex:  "/var/log/hadoop-yarn/containers/(?P<application_id>application_[0-9]+_[0-9]+)/(?P<container_id>container_[0-9]+_[0-9]+_[0-9]+_[0-9]+)",
+	//		Target: "attributes",
+	//	},
+	//}
 	emrLogs = []common.IntegrationConfigLogs{
 		{
 			Type:    "file",
