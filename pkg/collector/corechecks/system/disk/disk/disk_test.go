@@ -7,6 +7,7 @@
 package disk
 
 import (
+	"errors"
 	"regexp"
 	"testing"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 var (
@@ -242,6 +244,22 @@ func TestDiskCheckPartitionsAllDevicesFalse(t *testing.T) {
 	m.AssertMetric(t, "Gauge", "system.disk.total", 48828125, "", []string{"device:/dev/sda2", "device_name:sda2"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", 1953125, "", []string{"device:tmpfs", "device_name:tmpfs"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", 7812500, "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestDiskCheckPartitionsError(t *testing.T) {
+	setupDefaultMocks()
+	diskPartitions = func(_ bool) ([]disk.PartitionStat, error) {
+		return nil, errors.New("error calling diskPartitions")
+	}
+	diskCheck := new(Check)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.NotNil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 }
 
 func TestDiskCheck(t *testing.T) {
