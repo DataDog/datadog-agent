@@ -73,11 +73,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					{{$Checks := $Field | GetChecks $.AllFields}}
 
-					if result, ok := ctx.{{$Field.GetCacheName}}[field]; ok {
-						return result
-					}
-
-
 					iterator := &{{$Field.Iterator.ReturnType}}{}
 
 					if regID != "" {
@@ -129,6 +124,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						{{else}}
 						return result
 						{{end}}
+					}
+
+					if result, ok := ctx.{{$Field.GetCacheName}}[field]; ok {
+						return result
 					}
 
 					{{$Event := "nil"}}
