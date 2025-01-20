@@ -131,17 +131,6 @@ func getServices(t require.TestingT, url string) *model.ServicesResponse {
 	return res
 }
 
-func getServicesMap(t require.TestingT, url string) map[int]model.Service {
-	_ = getServices(t, url)
-	res := getServices(t, url)
-	servicesMap := make(map[int]model.Service)
-	for _, service := range res.Services {
-		servicesMap[service.PID] = service
-	}
-
-	return servicesMap
-}
-
 func startTCPServer(t *testing.T, proto string, address string) (*os.File, *net.TCPAddr) {
 	listener, err := net.Listen(proto, address)
 	require.NoError(t, err)
