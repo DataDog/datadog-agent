@@ -173,6 +173,7 @@ type IntegrationConfigLogs struct {
 	Path    string `yaml:"path,omitempty"`
 	Service string `yaml:"service,omitempty"`
 	Source  string `yaml:"source,omitempty"`
+	Tags    string `yaml:"tags,omitempty"`
 }
 
 // IntegrationConfigInstanceSpark represents the configuration for the Spark integration
