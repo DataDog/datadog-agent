@@ -493,6 +493,7 @@ func TestServiceLifetime(t *testing.T) {
 		// skipped, and we have a potential service.
 		stopService(cmd, cancel)
 		cmd, cancel = startService()
+		t.Cleanup(cancel)
 		secondPid := cmd.Process.Pid
 
 		resp := getServices(t, url)
