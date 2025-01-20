@@ -255,6 +255,11 @@ func TestRawPacketFilter(t *testing.T) {
 	})
 
 	t.Run("all-with-limit", func(t *testing.T) {
+		// kernels < 5.2 have a limit of 4k instructions for the eBPF program size
+		checkKernelCompatibility(t, "Old debian kernels", func(kv *kernel.Version) bool {
+			return kv.IsDebianKernel() && kv.Code < kernel.Kernel5_2
+		})
+
 		opts := rawpacket.DefaultProgOpts
 		opts.MaxProgSize = 4000
 		opts.NopInstLen = 3500
