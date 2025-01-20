@@ -166,6 +166,7 @@ build do
       command "invoke -e system-probe.build #{fips_args}", env: env
     elsif linux_target?
       command "invoke -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env
+      command "!(objdump -p ./bin/system-probe/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])')"
     end
 
     if windows_target?

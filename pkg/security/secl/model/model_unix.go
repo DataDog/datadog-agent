@@ -11,6 +11,7 @@
 package model
 
 import (
+	"net/netip"
 	"time"
 
 	"modernc.org/mathutil"
@@ -75,9 +76,10 @@ type Event struct {
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
 
 	// network events
-	DNS       DNSEvent       `field:"dns" event:"dns"`       // [7.36] [Network] A DNS request was sent
-	IMDS      IMDSEvent      `field:"imds" event:"imds"`     // [7.55] [Network] An IMDS event was captured
-	RawPacket RawPacketEvent `field:"packet" event:"packet"` // [7.60] [Network] A raw network packet captured
+	DNS                DNSEvent                `field:"dns" event:"dns"`                                   // [7.36] [Network] A DNS request was sent
+	IMDS               IMDSEvent               `field:"imds" event:"imds"`                                 // [7.55] [Network] An IMDS event was captured
+	RawPacket          RawPacketEvent          `field:"packet" event:"packet"`                             // [7.60] [Network] A raw network packet was captured
+	NetworkFlowMonitor NetworkFlowMonitorEvent `field:"network_flow_monitor" event:"network_flow_monitor"` // [7.63] [Network] A network monitor event was sent
 
 	// on-demand events
 	OnDemand OnDemandEvent `field:"ondemand" event:"ondemand"`
@@ -753,4 +755,98 @@ type RawPacketEvent struct {
 	Filter      string               `field:"filter" op_override:"PacketFilterMatching"` // SECLDoc[filter] Definition:`pcap filter expression`
 	CaptureInfo gopacket.CaptureInfo `field:"-"`
 	Data        []byte               `field:"-"`
+}
+
+// NetworkStats is used to record network statistics
+type NetworkStats struct {
+	DataSize    uint64 `field:"data_size"`    // SECLDoc[data_size] Definition:`Amount of data transmitted or received`
+	PacketCount uint64 `field:"packet_count"` // SECLDoc[packet_count] Definition:`Count of network packets transmitted or received`
+}
+
+// Add the input stats to the current stats
+func (ns *NetworkStats) Add(input NetworkStats) {
+	ns.DataSize += input.DataSize
+	ns.PacketCount += input.PacketCount
+}
+
+// FiveTuple is used to uniquely identify a flow
+type FiveTuple struct {
+	Source      netip.AddrPort
+	Destination netip.AddrPort
+	L4Protocol  uint16
+}
+
+// Flow is used to represent a network 5-tuple with statistics
+type Flow struct {
+	Source      IPPortContext `field:"source"`      // source of the network packet
+	Destination IPPortContext `field:"destination"` // destination of the network packet
+	L3Protocol  uint16        `field:"l3_protocol"` // SECLDoc[l3_protocol] Definition:`L3 protocol of the network packet` Constants:`L3 protocols`
+	L4Protocol  uint16        `field:"l4_protocol"` // SECLDoc[l4_protocol] Definition:`L4 protocol of the network packet` Constants:`L4 protocols`
+
+	Ingress NetworkStats `field:"ingress"` // SECLDoc[ingress] Definition:`Network statistics about ingress traffic`
+	Egress  NetworkStats `field:"egress"`  // SECLDoc[egress] Definition:`Network statistics about egress traffic`
+}
+
+// GetFiveTuple returns the five tuple identifying the flow
+func (f *Flow) GetFiveTuple() FiveTuple {
+	return FiveTuple{
+		Source:      f.Source.GetComparable(),
+		Destination: f.Destination.GetComparable(),
+		L4Protocol:  f.L4Protocol,
+	}
+}
+
+// NetworkFlowMonitorEvent represents a network flow monitor event
+type NetworkFlowMonitorEvent struct {
+	Device     NetworkDeviceContext `field:"device"` // network device on which the network flows were captured
+	FlowsCount uint64               `field:"-"`
+	Flows      []Flow               `field:"flows,iterator:FlowsIterator"` // list of captured flows
+}
+
+// FlowsIterator defines an iterator of flows
+type FlowsIterator struct {
+	prev int
+}
+
+// Front returns the first element
+func (it *FlowsIterator) Front(ctx *eval.Context) *Flow {
+	if len(ctx.Event.(*Event).NetworkFlowMonitor.Flows) == 0 {
+		return nil
+	}
+
+	front := ctx.Event.(*Event).NetworkFlowMonitor.Flows[0]
+	it.prev = 0
+	return &front
+}
+
+// Next returns the next element
+func (it *FlowsIterator) Next(ctx *eval.Context) *Flow {
+	if len(ctx.Event.(*Event).NetworkFlowMonitor.Flows) > it.prev+1 {
+		it.prev++
+		return &(ctx.Event.(*Event).NetworkFlowMonitor.Flows[it.prev])
+	}
+	return nil
+}
+
+// At returns the element at the given position
+func (it *FlowsIterator) At(ctx *eval.Context, regID eval.RegisterID, pos int) *Flow {
+	if entry := ctx.RegisterCache[regID]; entry != nil && entry.Pos == pos {
+		return entry.Value.(*Flow)
+	}
+
+	if len(ctx.Event.(*Event).NetworkFlowMonitor.Flows) > pos {
+		flow := &(ctx.Event.(*Event).NetworkFlowMonitor.Flows[pos])
+		ctx.RegisterCache[regID] = &eval.RegisterCacheEntry{
+			Pos:   pos,
+			Value: flow,
+		}
+		return flow
+	}
+
+	return nil
+}
+
+// Len returns the len
+func (it *FlowsIterator) Len(ctx *eval.Context) int {
+	return len(ctx.Event.(*Event).NetworkFlowMonitor.Flows)
 }
