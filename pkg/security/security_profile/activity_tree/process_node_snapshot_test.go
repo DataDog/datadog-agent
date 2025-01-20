@@ -72,6 +72,12 @@ func TestExtractPathFromSmapsLine(t *testing.T) {
 			ok:   true,
 		},
 		{
+			name: "regular with space",
+			line: "e1cc8924f000-e1cc89251000 rw-p 00030000 fd:00 6259                       /usr/lib/aarch64-linux-gnu/ld linux aarch64.so.1",
+			path: "/usr/lib/aarch64-linux-gnu/ld linux aarch64.so.1",
+			ok:   true,
+		},
+		{
 			name: "field",
 			line: "KernelPageSize:        4 kB",
 			path: "",
