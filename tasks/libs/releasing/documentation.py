@@ -6,6 +6,24 @@ from tasks.libs.owners.parsing import list_owners
 CONFLUENCE_DOMAIN = "https://datadoghq.atlassian.net/wiki"
 SPACE_KEY = "agent"
 
+NON_RELEASING_TEAMS = {
+    'telemetry-and-analytics',
+    'documentation',
+    'software-integrity-and-trust',
+    'single-machine-performance',
+    'agent-all',
+    'apm-core-reliability-and-performance',
+    'debugger',
+    'asm-go',
+    'agent-e2e-testing',
+    'serverless',
+    'agent-platform',
+    'agent-release-management',
+    'container-ecosystems',
+    'apm-trace-storage',
+    'iglendd',  # Not a team but he's in the codeowners file
+}
+
 
 def _stringify_config(config_dict):
     """
@@ -104,25 +122,8 @@ def release_manager(version, team):
 
 
 def get_releasing_teams():
-    non_releasing_teams = {
-        'telemetry-and-analytics',
-        'documentation',
-        'software-integrity-and-trust',
-        'single-machine-performance',
-        'agent-all',
-        'apm-core-reliability-and-performance',
-        'apm-ecosystems-performance',
-        'debugger',
-        'asm-go',
-        'agent-e2e-testing',
-        'serverless',
-        'agent-platform',
-        'agent-release-management',
-        'container-ecosystems',
-        'apm-trace-storage',
-    }
     owners = set(list_owners())
-    return sorted(owners - non_releasing_teams)
+    return sorted(owners - NON_RELEASING_TEAMS)
 
 
 def create_release_table(version, cutoff_date, teams):
