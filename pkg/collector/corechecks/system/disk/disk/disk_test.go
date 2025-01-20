@@ -287,6 +287,68 @@ func TestDiskCheckPartitionsAllDevicesTrue(t *testing.T) {
 	m.AssertMetric(t, "Gauge", "system.disk.total", 7812500, "", []string{"device:shm", "device_name:shm"})
 }
 
+func TestDiskCheckPartitionsAllDevicesFalse(t *testing.T) {
+	partitionsTrue := []disk.PartitionStat{
+		{
+			Device:     "/dev/sda1",
+			Mountpoint: "/",
+			Fstype:     "ext4",
+			Opts:       []string{"rw", "relatime"},
+		},
+		{
+			Device:     "/dev/sda2",
+			Mountpoint: "/home",
+			Fstype:     "ext4",
+			Opts:       []string{"rw", "relatime"},
+		},
+	}
+	diskPartitions = func(_ bool) ([]disk.PartitionStat, error) {
+		return partitionsTrue, nil
+	}
+	usageData := map[string]*disk.UsageStat{
+		"/": {
+			Path:              "/",
+			Fstype:            "ext4",
+			Total:             100000000000, // 100 GB
+			Free:              30000000000,  // 30 GB
+			Used:              70000000000,  // 70 GB
+			UsedPercent:       70.0,
+			InodesTotal:       1000000,
+			InodesUsed:        500000,
+			InodesFree:        500000,
+			InodesUsedPercent: 50.0,
+		},
+		"/home": {
+			Path:              "/home",
+			Fstype:            "ext4",
+			Total:             50000000000, // 50 GB
+			Free:              20000000000, // 20 GB
+			Used:              30000000000, // 30 GB
+			UsedPercent:       60.0,
+			InodesTotal:       500000,
+			InodesUsed:        200000,
+			InodesFree:        300000,
+			InodesUsedPercent: 40.0,
+		},
+	}
+	diskUsage = func(mountpoint string) (*disk.UsageStat, error) {
+		return usageData[mountpoint], nil
+	}
+	diskCheck := new(Check)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("include_all_devices: false"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", 97656250, "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", 48828125, "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", 1953125, "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", 7812500, "", []string{"device:shm", "device_name:shm"})
+}
+
 func TestDiskCheck(t *testing.T) {
 	diskPartitions = diskSampler
 	diskUsage = diskUsageSampler
