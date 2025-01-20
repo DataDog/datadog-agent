@@ -71,7 +71,11 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 }
 
 // Install installs a package.
-func (i *InstallerExec) Install(ctx context.Context, url string, args []string, _ bool) (err error) {
+func (i *InstallerExec) Install(ctx context.Context, url string, args []string, forceInstall bool) (err error) {
+	cmdLineArgs := fmt.Sprintf("%s --force %t", url, forceInstall)
+	if len(args) > 0 {
+		cmdLineArgs += fmt.Sprintf("--install_args \"%s\"", strings.Join(args, ","))
+	}
 	cmd := i.newInstallerCmd(ctx, "install", url)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
