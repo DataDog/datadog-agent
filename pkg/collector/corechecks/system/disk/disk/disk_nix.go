@@ -60,7 +60,10 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 	}
 
 	for _, partition := range partitions {
+		log.Debugf("Checking device %s", partition.Device)
+
 		if c.excludeDisk(partition.Mountpoint, partition.Device, partition.Fstype) {
+			log.Debugf("Excluding device %s", partition.Device)
 			continue
 		}
 
