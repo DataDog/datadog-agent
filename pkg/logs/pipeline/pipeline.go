@@ -111,6 +111,7 @@ func NewPipeline(outputChan chan *message.Payload,
 
 // Start launches the pipeline
 func (p *Pipeline) Start() {
+	p.sender.Start()
 	p.strategy.Start()
 	p.processor.Start()
 }
@@ -119,6 +120,7 @@ func (p *Pipeline) Start() {
 func (p *Pipeline) Stop() {
 	p.processor.Stop()
 	p.strategy.Stop()
+	p.sender.Stop()
 }
 
 // Flush flushes synchronously the processor and sender managed by this pipeline.

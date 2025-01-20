@@ -14,10 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"go.uber.org/atomic"
 )
 
 // PipelineComponent abstracts a pipeline component
-// TODO(remy): finish this work
+// TODO(remy): do not use "Component" naming and use this in more parts of the logs agent
 type PipelineComponent interface {
 	In() chan *message.Payload
 	PipelineMonitor() metrics.PipelineMonitor
@@ -29,6 +31,7 @@ type PipelineComponent interface {
 // underlying senders.
 type SharedSender struct {
 	senders []*Sender
+	started *atomic.Bool
 
 	queues []chan *message.Payload
 
@@ -65,6 +68,7 @@ func NewSharedSender(config pkgconfigmodel.Reader, auditor auditor.Auditor, dest
 
 	return &SharedSender{
 		senders:         senders,
+		started:         atomic.NewBool(false),
 		pipelineMonitor: pipelineMonitor,
 		utilization:     pipelineMonitor.MakeUtilizationMonitor("shared_sender"),
 		queues:          queues,
@@ -85,13 +89,20 @@ func (s *SharedSender) PipelineMonitor() metrics.PipelineMonitor {
 
 // Start starts all shared sender.
 func (s *SharedSender) Start() {
+	if s.started.Load() {
+		return
+	}
 	for _, sender := range s.senders {
 		sender.Start()
 	}
+	s.started.Store(true)
 }
 
 // Stop stops all shared senders.
 func (s *SharedSender) Stop() {
+	if !s.started.Load() {
+		return
+	}
 	log.Info("shared sender stopping")
 	for _, s := range s.senders {
 		s.Stop()
@@ -99,4 +110,5 @@ func (s *SharedSender) Stop() {
 	for i := range s.queues {
 		close(s.queues[i])
 	}
+	s.started.Store(false)
 }

@@ -69,6 +69,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.61.0
 	github.com/benbjohnson/clock v1.3.5
 	github.com/stretchr/testify v1.10.0
+	go.uber.org/atomic v1.11.0
 )
 
 require (
@@ -137,7 +138,6 @@ require (
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.8.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/fx v1.23.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
