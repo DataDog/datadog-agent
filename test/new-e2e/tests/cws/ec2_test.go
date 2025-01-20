@@ -146,6 +146,29 @@ func (a *agentSuite) Test00OpenSignal() {
 	require.NoError(a.T(), err, "could not send payload")
 
 	// Check app signal
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		signal, err := api.WaitAppSignal(apiClient, fmt.Sprintf("host:%s @workflow.rule.id:%s", a.Env().Agent.Client.Hostname(), signalRuleID))
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.NotNil(c, signal) {
+			return
+		}
+		assert.Contains(c, signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(agentRuleName)), "unable to find rule_id tag")
+		if !assert.Contains(c, signal.AdditionalProperties, "attributes", "unable to find 'attributes' field in signal") {
+			return
+		}
+		attributes := signal.AdditionalProperties["attributes"].(map[string]interface{})
+		if !assert.Contains(c, attributes, "agent", "unable to find 'agent' field in signal's attributes") {
+			return
+		}
+		agentContext := attributes["agent"].(map[string]interface{})
+		if !assert.Contains(c, agentContext, "rule_id", "unable to find 'rule_id' in signal's agent context") {
+			return
+		}
+		assert.Contains(c, agentContext["rule_id"], agentRuleName, "signal doesn't contain agent rule id")
+	}, 4*time.Minute, 10*time.Second)
+	// Check app signal
 	signal, err := api.WaitAppSignal(apiClient, fmt.Sprintf("host:%s @workflow.rule.id:%s", a.Env().Agent.Client.Hostname(), signalRuleID))
 	require.NoError(a.T(), err)
 	assert.Contains(a.T(), signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(agentRuleName)), "unable to find rule_id tag")
