@@ -39,6 +39,9 @@ def color_message(message: str, color: str) -> str:
 
 
 def bash_color_to_html(colored_message: str) -> str:
+    if not colored_message:
+        return str(colored_message)
+
     for bash_color in HTML_COLORS:
         colored_message = colored_message.replace(bash_color, HTML_COLORS[bash_color])
     return colored_message
