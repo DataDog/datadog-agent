@@ -22,11 +22,13 @@ type packageName string
 const (
 	datadogAgent     packageName = "datadog-agent"
 	datadogInstaller packageName = "datadog-installer"
+	datadogApmInject packageName = "datadog-apm-inject"
 )
 
 const (
-	installerUnit   = "datadog-installer.service"
-	installerUnitXP = "datadog-installer-exp.service"
+	installerUnit    = "datadog-installer.service"
+	installerUnitXP  = "datadog-installer-exp.service"
+	apmInjectVersion = "0.1.2"
 )
 
 type upgradeScenarioSuite struct {
@@ -82,6 +84,11 @@ var testCatalog = catalog{
 			Package: string(datadogInstaller),
 			Version: previousInstallerImageVersion,
 			URL:     fmt.Sprintf("oci://install.datadoghq.com/installer-package:%s", previousInstallerImageVersion),
+		},
+		{
+			Package: string(datadogApmInject),
+			Version: apmInjectVersion,
+			URL:     "oci://install.datadoghq.com/apm-inject-package:latest",
 		},
 	},
 }
@@ -649,6 +656,63 @@ func (s *upgradeScenarioSuite) TestUpgradeWithProxy() {
 	s.host.SetupProxy()
 
 	s.executeAgentGoldenPath()
+}
+
+func (s *upgradeScenarioSuite) TestRemoteInstallUninstall() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
+
+	s.setCatalog(testCatalog)
+	s.mustInstallPackage(datadogApmInject, apmInjectVersion)
+	s.host.AssertPackageInstalledByInstaller("datadog-apm-inject")
+
+	s.mustRemovePackage(datadogApmInject)
+	state := s.host.State()
+	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-inject")
+
+}
+
+func (s *upgradeScenarioSuite) installPackage(pkg packageName, version string) (string, error) {
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
+	cmd := fmt.Sprintf("sudo datadog-installer daemon install %s %s > /tmp/install_package.log 2>&1", pkg, version)
+	s.T().Logf("Running install command: %s", cmd)
+	return s.Env().RemoteHost.Execute(cmd)
+}
+
+func (s *upgradeScenarioSuite) mustInstallPackage(pkg packageName, version string) string {
+	output, err := s.installPackage(pkg, version)
+	require.NoError(s.T(), err, "Failed to install package: %s\ndatadog-installer journalctl:\n%s\ndatadog-installer-exp journalctl:\n%s",
+		s.Env().RemoteHost.MustExecute("cat /tmp/install_package.log"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer --no-pager"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer-exp --no-pager"),
+	)
+	return output
+}
+
+func (s *upgradeScenarioSuite) removePackage(pkg packageName) (string, error) {
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
+	cmd := fmt.Sprintf("sudo datadog-installer daemon remove %s > /tmp/install_package.log 2>&1", pkg)
+
+	s.T().Logf("Running remove command: %s", cmd)
+	return s.Env().RemoteHost.Execute(cmd)
+}
+
+func (s *upgradeScenarioSuite) mustRemovePackage(pkg packageName) string {
+	output, err := s.removePackage(pkg)
+	require.NoError(s.T(), err, "Failed to remove package: %s\ndatadog-installer journalctl:\n%s\ndatadog-installer-exp journalctl:\n%s",
+		s.Env().RemoteHost.MustExecute("cat /tmp/install_package.log"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer --no-pager"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer-exp --no-pager"),
+	)
+	return output
 }
 
 func (s *upgradeScenarioSuite) startExperiment(pkg packageName, version string) (string, error) {
