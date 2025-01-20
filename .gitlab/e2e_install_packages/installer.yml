@@ -9,7 +9,10 @@ qa_installer_script_main:
   needs:
     - new-e2e-installer-script
     - installer-install-scripts
+    - powershell_script_signing
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
+    - ls $WINDOWS_POWERSHELL_DIR
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "install*.sh" "$OMNIBUS_PACKAGE_DIR" "s3://${INSTALLER_TESTING_S3_BUCKET}/scripts/"
+    - $S3_CP_CMD $WINDOWS_POWERSHELL_DIR/Install-Datadog.ps1 s3://${INSTALLER_TESTING_S3_BUCKET}/scripts//Install-Datadog.ps1
