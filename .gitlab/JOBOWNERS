@@ -18,12 +18,13 @@ fetch_openjdk                        @DataDog/agent-metrics-logs
 
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
-tests_*                              @DataDog/multiple
-tests_ebpf*                          @DataDog/ebpf-platform
-tests_windows_sysprobe*              @DataDog/windows-kernel-integrations
-security_go_generate_check           @DataDog/agent-security
+tests_*                                 @DataDog/multiple
+tests_ebpf*                             @DataDog/ebpf-platform
+tests_windows_sysprobe*                 @DataDog/windows-kernel-integrations
+security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
+protobuf_test                           @DataDog/multiple
 
 # Send count metrics about Golang dependencies
 golang_deps_send_count_metrics       @DataDog/agent-shared-components
