@@ -1689,6 +1689,10 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
 
+	// the following settings are used to configure the kubernetes_deprecated_resources validation admission controller in the Cluster-Agent Kubernetes
+	config.BindEnvAndSetDefault("kubernetes_deprecated_resources_collection.enabled", false)
+	config.BindEnvAndSetDefault("kubernetes_deprecated_resources_collection.match_conditions.disabled", false)
+
 	defaultPodresourcesSocket := "/var/lib/kubelet/pod-resources/kubelet.sock"
 	if runtime.GOOS == "windows" {
 		defaultPodresourcesSocket = `\\.\pipe\kubelet-pod-resources`

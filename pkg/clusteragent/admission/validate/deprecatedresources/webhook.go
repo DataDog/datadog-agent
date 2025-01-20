@@ -61,10 +61,10 @@ type webhook struct {
 }
 
 // NewWebhook returns a new Kubernetes DeprecatedResources webhook.
-func NewWebhook(_ config.Component, demultiplexer aggregator.Demultiplexer, apiExtClient clientset.Interface, supportsMatchConditions bool) types.Webhook {
+func NewWebhook(datadogConfig config.Component, demultiplexer aggregator.Demultiplexer, apiExtClient clientset.Interface, supportsMatchConditions bool) types.Webhook {
 	webh := &webhook{
 		name:      webhookName,
-		isEnabled: true,
+		isEnabled: datadogConfig.GetBool("kubernetes_deprecated_resources_collection.enabled"),
 		endpoint:  "/kubernetes-deprecated-resources",
 		resources: types.ResourceRuleConfigList{
 			types.ResourceRuleConfig{
@@ -77,14 +77,6 @@ func NewWebhook(_ config.Component, demultiplexer aggregator.Demultiplexer, apiE
 		operations: []admissionregistrationv1.OperationType{
 			admissionregistrationv1.OperationAll,
 		},
-		// Only supported by Kubernetes 1.28+. Otherwise, filtering is done in the emitEvent() function.
-		// This is to send events only for human users and not for system users as to avoid unneeded events.
-		/*matchConditions: []admissionregistrationv1.MatchCondition{
-			{
-				Name:       "exclude-system-users",
-				Expression: "!(request.userInfo.username.startsWith('system:'))",
-			},
-		},*/
 		demultiplexer:           demultiplexer,
 		supportsMatchConditions: supportsMatchConditions,
 		checkid:                 "kubernetes_deprecated_resources",
@@ -92,6 +84,17 @@ func NewWebhook(_ config.Component, demultiplexer aggregator.Demultiplexer, apiE
 		apiExtClient:             apiExtClient,
 		resourcesDeprecationInfo: newObjectInfoMap(constResourceDeprecationInfo),
 		crdsDeprecationInfo:      newObjectInfoMap(nil),
+	}
+
+	if !datadogConfig.GetBool("kubernetes_deprecated_resources_collection.match_conditions.disabled") {
+		// Only supported by Kubernetes 1.28+. Otherwise, filtering is done in the emitEvent() function.
+		// This is to send events only for human users and not for system users as to avoid unneeded events.
+		webh.matchConditions = []admissionregistrationv1.MatchCondition{
+			{
+				Name:       "exclude-system-users",
+				Expression: "!(request.userInfo.username.startsWith('system:'))",
+			},
+		}
 	}
 
 	return webh
@@ -113,12 +116,17 @@ func (w *webhook) IsEnabled() bool {
 }
 
 func (w *webhook) Start(ctx context.Context) error {
+	if !w.isEnabled {
+		return nil
+	}
 	log.Debugf("Starting Kubernetes Deprecated Resources Webhook")
+
 	// fetch the CRDs deprecation info at start time
 	if err := w.refreshCRDsDeprecationInfo(w.apiExtClient.ApiextensionsV1()); err != nil {
 		log.Errorf("Failed to refresh CRDs deprecation info: %s", err)
 	}
 
+	// We need to refresh the CRDs deprecation info periodically if an operator is managing the CRDs has been updated the CRDs
 	go func() {
 		ticker := time.NewTicker(10 * time.Minute)
 		defer ticker.Stop()

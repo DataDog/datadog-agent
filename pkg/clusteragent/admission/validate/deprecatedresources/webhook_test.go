@@ -105,6 +105,7 @@ func Test_webhook_isDeprecated(t *testing.T) {
 
 			// Mock Datadog Config
 			datadogConfigMock := fxutil.Test[config.Component](t, core.MockBundle())
+			datadogConfigMock.SetWithoutSource("kubernetes_deprecated_resources_collection.enabled", true)
 
 			// Mock CRD client
 			fakeClient := fakek8sclient.NewSimpleClientset()
