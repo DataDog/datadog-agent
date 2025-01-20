@@ -91,8 +91,8 @@ func (sf *StructField) GetEvaluatorType() string {
 		}
 	} else if sf.ReturnType == "net.IPNet" {
 		evaluatorType = "eval.CIDREvaluator"
-		if sf.IsArray {
-			evaluatorType = "eval.CIDRValuesEvaluator"
+		if sf.Iterator != nil || sf.IsArray {
+			evaluatorType = "eval.CIDRArrayEvaluator"
 		}
 	} else {
 		evaluatorType = "eval.StringEvaluator"
@@ -155,6 +155,8 @@ func (sf *StructField) GetCacheName() string {
 		return "IntCache"
 	case "bool":
 		return "BoolCache"
+	case "net.IPNet":
+		return "IPNetCache"
 	default:
 		panic(fmt.Sprintf("no cache name defined for return type '%s'", sf.ReturnType))
 	}

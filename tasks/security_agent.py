@@ -591,10 +591,9 @@ DEFAULT_BTFHUB_CONSTANTS_PATH = "./pkg/security/probe/constantfetch/btfhub/const
 
 
 @task
-def generate_btfhub_constants(ctx, archive_path, force_refresh=False, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
-    force_refresh_opt = "-force-refresh" if force_refresh else ""
+def generate_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
     ctx.run(
-        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
+        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
     )
 
 
@@ -609,9 +608,9 @@ def combine_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONST
 def generate_cws_proto(ctx):
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2")
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.3")
             ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.6.0")
-            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.4.0")
+            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1")
 
             plugin_opts = " ".join(
                 [

@@ -23,9 +23,9 @@ var btfhubConstants []byte
 
 // BTFHubConstantFetcher is a constant fetcher based on BTFHub constants
 type BTFHubConstantFetcher struct {
-	kernelVersion *kernel.Version
-	inStore       map[string]uint64
-	res           map[string]uint64
+	currentKernelInfos *kernelInfos
+	inStore            map[string]uint64
+	requests           []string
 }
 
 var archMapping = map[string]string{
@@ -33,64 +33,73 @@ var archMapping = map[string]string{
 	"arm64": "arm64",
 }
 
-// NewBTFHubConstantFetcher returns a new BTFHubConstantFetcher
-func NewBTFHubConstantFetcher(kv *kernel.Version) (*BTFHubConstantFetcher, error) {
-	fetcher := &BTFHubConstantFetcher{
-		kernelVersion: kv,
-		inStore:       make(map[string]uint64),
-		res:           make(map[string]uint64),
+func (f *BTFHubConstantFetcher) fillStore() error {
+	if len(f.inStore) != 0 {
+		return nil
 	}
 
+	var constantsInfos BTFHubConstants
+	if err := json.Unmarshal(btfhubConstants, &constantsInfos); err != nil {
+		return err
+	}
+
+	for _, kernel := range constantsInfos.Kernels {
+		if kernel.Distribution == f.currentKernelInfos.distribution && kernel.DistribVersion == f.currentKernelInfos.distribVersion && kernel.Arch == f.currentKernelInfos.arch && kernel.UnameRelease == f.currentKernelInfos.unameRelease {
+			f.inStore = constantsInfos.Constants[kernel.ConstantsIndex]
+			break
+		}
+	}
+
+	return nil
+}
+
+// NewBTFHubConstantFetcher returns a new BTFHubConstantFetcher
+func NewBTFHubConstantFetcher(kv *kernel.Version) (*BTFHubConstantFetcher, error) {
 	currentKernelInfos, err := newKernelInfos(kv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect current kernel infos: %w", err)
 	}
 
-	var constantsInfos BTFHubConstants
-	if err := json.Unmarshal(btfhubConstants, &constantsInfos); err != nil {
-		return nil, err
-	}
-
-	for _, kernel := range constantsInfos.Kernels {
-		if kernel.Distribution == currentKernelInfos.distribution && kernel.DistribVersion == currentKernelInfos.distribVersion && kernel.Arch == currentKernelInfos.arch && kernel.UnameRelease == currentKernelInfos.unameRelease {
-			fetcher.inStore = constantsInfos.Constants[kernel.ConstantsIndex]
-			break
-		}
-	}
-
-	return fetcher, nil
+	return &BTFHubConstantFetcher{
+		currentKernelInfos: currentKernelInfos,
+		inStore:            make(map[string]uint64),
+	}, nil
 }
 
 func (f *BTFHubConstantFetcher) String() string {
 	return "btfhub"
 }
 
-// HasConstantsInStore returns true if there is constants in store in BTFHub
-func (f *BTFHubConstantFetcher) HasConstantsInStore() bool {
-	return len(f.inStore) != 0
-}
-
-func (f *BTFHubConstantFetcher) appendRequest(id string) {
-	if value, ok := f.inStore[id]; ok {
-		f.res[id] = value
-	} else {
-		f.res[id] = ErrorSentinel
-	}
-}
-
 // AppendSizeofRequest appends a sizeof request
 func (f *BTFHubConstantFetcher) AppendSizeofRequest(id, _ string) {
-	f.appendRequest(id)
+	f.requests = append(f.requests, id)
 }
 
 // AppendOffsetofRequest appends an offset request
 func (f *BTFHubConstantFetcher) AppendOffsetofRequest(id, _ string, _ ...string) {
-	f.appendRequest(id)
+	f.requests = append(f.requests, id)
 }
 
 // FinishAndGetResults returns the results
 func (f *BTFHubConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
-	return f.res, nil
+	if len(f.requests) == 0 {
+		return nil, nil
+	}
+
+	if err := f.fillStore(); err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]uint64)
+	for _, id := range f.requests {
+		if value, ok := f.inStore[id]; ok {
+			res[id] = value
+		} else {
+			res[id] = ErrorSentinel
+		}
+	}
+
+	return res, nil
 }
 
 type kernelInfos struct {
@@ -135,7 +144,6 @@ func newKernelInfos(kv *kernel.Version) (*kernelInfos, error) {
 // BTFHubConstants represents all the information required for identifying
 // a unique btf file from BTFHub
 type BTFHubConstants struct {
-	Commit    string              `json:"commit"`
 	Constants []map[string]uint64 `json:"constants"`
 	Kernels   []BTFHubKernel      `json:"kernels"`
 }

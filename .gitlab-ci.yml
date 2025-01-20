@@ -6,8 +6,6 @@ include:
   - .gitlab/check_deploy/check_deploy.yml
   - .gitlab/check_merge/do_not_merge.yml
   - .gitlab/choco_build/choco_build.yml
-  - .gitlab/powershell_script_signing/powershell_script_signing.yml
-  - .gitlab/powershell_script_deploy/powershell_script_deploy.yml
   - .gitlab/common/shared.yml
   - .gitlab/common/skip_ci_check.yml
   - .gitlab/common/test_infra_version.yml
@@ -85,7 +83,7 @@ stages:
   - deploy_packages
   - deploy_cws_instrumentation
   - deploy_dca
-  - choco_and_install_script_build
+  - choco_build
   - trigger_release
   - install_script_deploy
   - internal_image_deploy
@@ -172,49 +170,49 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v50263243-1a30c934
+  DATADOG_AGENT_BUILDIMAGES: v53408733-3b43fd22
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v50263243-1a30c934
+  DATADOG_AGENT_WINBUILDIMAGES: v53408733-3b43fd22
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v50263243-1a30c934
+  DATADOG_AGENT_ARMBUILDIMAGES: v53408733-3b43fd22
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v50263243-1a30c934
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v53408733-3b43fd22
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v50263243-1a30c934
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v53408733-3b43fd22
   # New images to enable different version per image - not used yet
-  CI_IMAGE_BTF_GEN: v50263243-1a30c934
+  CI_IMAGE_BTF_GEN: v53408733-3b43fd22
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v50263243-1a30c934
+  CI_IMAGE_DEB_X64: v53408733-3b43fd22
   CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v50263243-1a30c934
+  CI_IMAGE_DEB_ARM64: v53408733-3b43fd22
   CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v50263243-1a30c934
+  CI_IMAGE_DEB_ARMHF: v53408733-3b43fd22
   CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DD_AGENT_TESTING: v50263243-1a30c934
+  CI_IMAGE_DD_AGENT_TESTING: v53408733-3b43fd22
   CI_IMAGE_DD_AGENT_TESTING_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v50263243-1a30c934
+  CI_IMAGE_DOCKER_X64: v53408733-3b43fd22
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v50263243-1a30c934
+  CI_IMAGE_DOCKER_ARM64: v53408733-3b43fd22
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v50263243-1a30c934
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v53408733-3b43fd22
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v50263243-1a30c934
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v53408733-3b43fd22
   CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v50263243-1a30c934
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v53408733-3b43fd22
   CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_X64: v50263243-1a30c934
+  CI_IMAGE_SYSTEM_PROBE_X64: v53408733-3b43fd22
   CI_IMAGE_SYSTEM_PROBE_X64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_ARM64: v50263243-1a30c934
+  CI_IMAGE_SYSTEM_PROBE_ARM64: v53408733-3b43fd22
   CI_IMAGE_SYSTEM_PROBE_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v50263243-1a30c934
+  CI_IMAGE_RPM_X64: v53408733-3b43fd22
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v50263243-1a30c934
+  CI_IMAGE_RPM_ARM64: v53408733-3b43fd22
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v50263243-1a30c934
+  CI_IMAGE_RPM_ARMHF: v53408733-3b43fd22
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_1809_X64: v50263243-1a30c934
+  CI_IMAGE_WIN_1809_X64: v53408733-3b43fd22
   CI_IMAGE_WIN_1809_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v50263243-1a30c934
+  CI_IMAGE_WIN_LTSC2022_X64: v53408733-3b43fd22
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -695,6 +693,11 @@ workflow:
         - test/new-e2e/tests/windows/install-test/**/*
         - test/new-e2e/tests/windows/domain-test/**/*
         - tasks/msi.py
+        - omnibus/python-scripts/**/*
+        - omnibus/lib/**/*
+        - omnibus/config/projects/agent.rb
+        - omnibus/config/software/**/*
+        - omnibus/config/templates/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .except_windows_installer_changes:
@@ -874,7 +877,7 @@ workflow:
         - comp/dogstatsd/**/*
         - comp/forwarder/**/*
         - comp/logs/**/*
-        - comp/serializer/compression/**/*
+        - comp/serializer/**/*
         - pkg/aggregator/**/*
         - pkg/collector/**/*
         - pkg/commonchecks/**/*
@@ -1171,6 +1174,8 @@ workflow:
         - test/new-e2e/tests/gpu/**/*
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
+        - comp/core/autodiscovery/providers/gpu.go
+        - pkg/config/autodiscovery/autodiscovery.go
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 # windows_docker_2022 configures the job to use the Windows Server 2022 runners.
