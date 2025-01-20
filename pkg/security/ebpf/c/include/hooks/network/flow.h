@@ -56,8 +56,6 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
         return 0;
     }
 
-    bpf_get_current_comm(&value.comm, sizeof(value.comm));
-
     // add netns information
     key.netns = get_netns_from_sock(sk);
 
