@@ -36,8 +36,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/process"
 
-	yamlv2 "gopkg.in/yaml.v3"
-	yamlv3 "gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v3"
 
 	kubemetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeunstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -379,10 +378,7 @@ func (r *defaultResolver) resolveFilePath(_ context.Context, rootPath, path, par
 	if len(file.data) > 0 {
 		switch parser {
 		case "yaml":
-			err = yamlv3.Unmarshal(file.data, &content)
-			if err != nil {
-				err = yamlv2.Unmarshal(file.data, &content)
-			}
+			err := yaml.Unmarshal(file.data, &content)
 			if err == nil {
 				content = jsonquery.NormalizeYAMLForGoJQ(content)
 			}
