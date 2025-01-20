@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import errno
 import glob
+import json
 import os
 import re
 import shutil
@@ -588,6 +589,8 @@ def generate_syscall_table(ctx):
 
 
 DEFAULT_BTFHUB_CONSTANTS_PATH = "./pkg/security/probe/constantfetch/btfhub/constants.json"
+DEFAULT_BTFHUB_CONSTANTS_ARM64_PATH = "./pkg/security/probe/constantfetch/btfhub/constants_arm64.json"
+DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH = "./pkg/security/probe/constantfetch/btfhub/constants_amd64.json"
 
 
 @task
@@ -602,6 +605,41 @@ def combine_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONST
     ctx.run(
         f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -combine -archive-root {archive_path} -output {output_path}",
     )
+
+
+@task
+def extract_btfhub_constants(ctx, arch, input_path, output_path):
+    res = {}
+    used_contant_ids = set()
+    with open(input_path) as fi:
+        base = json.load(fi)
+        res["constants"] = base["constants"]
+        res["kernels"] = []
+        for kernel in base["kernels"]:
+            if kernel["arch"] == arch:
+                res["kernels"].append(kernel)
+                used_contant_ids.add(kernel["cindex"])
+
+    new_constants = []
+    mapping = {}
+    for i, group in enumerate(res["constants"]):
+        if i in used_contant_ids:
+            new_i = len(new_constants)
+            new_constants.append(group)
+            mapping[i] = new_i
+
+    for kernel in res["kernels"]:
+        kernel["cindex"] = mapping[kernel["cindex"]]
+    res["constants"] = new_constants
+
+    with open(output_path, "w") as fo:
+        json.dump(res, fo, indent="\t")
+
+
+@task
+def split_btfhub_constants(ctx):
+    extract_btfhub_constants(ctx, "arm64", DEFAULT_BTFHUB_CONSTANTS_PATH, DEFAULT_BTFHUB_CONSTANTS_ARM64_PATH)
+    extract_btfhub_constants(ctx, "x86_64", DEFAULT_BTFHUB_CONSTANTS_PATH, DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH)
 
 
 @task
