@@ -60,6 +60,7 @@ type Daemon interface {
 
 	SetCatalog(c catalog)
 	Install(ctx context.Context, url string, args []string) error
+	Remove(ctx context.Context, pkg string) error
 	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
@@ -303,6 +304,27 @@ func (d *daemonImpl) install(ctx context.Context, url string, args []string) (er
 	return nil
 }
 
+func (d *daemonImpl) Remove(ctx context.Context, pkg string) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.remove(ctx, pkg)
+}
+
+func (d *daemonImpl) remove(ctx context.Context, pkg string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "remove")
+	defer func() { span.Finish(err) }()
+	d.refreshState(ctx)
+	defer d.refreshState(ctx)
+
+	log.Infof("Daemon: Removing package %s", pkg)
+	err = d.installer.Remove(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not remove: %w", err)
+	}
+	log.Infof("Daemon: Successfully removed package %s", pkg)
+	return nil
+}
+
 // StartExperiment starts an experiment with the given package.
 func (d *daemonImpl) StartExperiment(ctx context.Context, url string) error {
 	d.m.Lock()
@@ -513,11 +535,19 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 		if params.ApmInstrumentation != "" {
 			installArgs = append(installArgs, "DD_APM_INSTRUMENTATION_ENABLED="+params.ApmInstrumentation)
 		}
-		return d.install(ctx, request.Package, installArgs)
+
+		pkg, ok := d.catalog.getPackage(request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
+		if !ok {
+			return installerErrors.Wrap(
+				installerErrors.ErrPackageNotFound,
+				fmt.Errorf("could not get package %s, %s for %s, %s", request.Package, params.Version, runtime.GOARCH, runtime.GOOS),
+			)
+		}
+		return d.install(ctx, pkg.URL, installArgs)
 
 	case methodUninstallPackage:
 		log.Infof("Installer: Received remote request %s to uninstall package %s", request.ID, request.Package)
-		return nil // TODO
+		return d.remove(ctx, request.Package)
 
 	case methodStartExperiment:
 		var params experimentTaskParams

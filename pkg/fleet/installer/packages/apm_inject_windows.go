@@ -10,7 +10,7 @@ package packages
 import "context"
 
 // SetupAPMInjector noop
-func SetupAPMInjector(_ context.Context) error {
+func SetupAPMInjector(_ context.Context, _ []string) error {
 	return nil
 }
 
