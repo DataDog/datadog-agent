@@ -49,6 +49,8 @@ updates:
       k8s-io:
         patterns:
           - "k8s.io/*"
+        update-types:
+          - patch
   - package-ecosystem: gomod
     directory: /internal/tools
     labels:
