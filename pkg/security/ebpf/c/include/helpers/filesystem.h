@@ -97,6 +97,13 @@ static __attribute__((always_inline)) void umounted(struct pt_regs *ctx, u32 mou
     send_event(ctx, EVENT_MOUNT_RELEASED, event);
 }
 
+static __attribute__((always_inline)) void set_file_layer(struct dentry *dentry, struct file_t *file) {
+    if (is_overlayfs(dentry)) {
+        u32 flags = get_overlayfs_layer(dentry);
+        file->flags |= flags;
+    }
+}
+
 void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file_t *file) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
@@ -153,6 +160,8 @@ void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file
     bpf_probe_read(&file->metadata.mtime.tv_nsec, sizeof(file->metadata.mtime.tv_nsec), &d_inode->i_mtime_nsec);
 #endif
 	}
+
+    set_file_layer(dentry, file);
 }
 
 #define get_dentry_key_path(dentry, path)                                  \
@@ -168,11 +177,6 @@ static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry,
     file->path_key.path_id = get_path_id(file->path_key.mount_id, invalidate);
     if (!file->path_key.ino) {
         file->path_key.ino = get_dentry_ino(dentry);
-    }
-
-    if (is_overlayfs(dentry)) {
-        u32 flags = get_overlayfs_layer(dentry);
-        file->flags |= flags;
     }
 }
 

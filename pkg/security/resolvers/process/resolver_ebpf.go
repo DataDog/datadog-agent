@@ -349,8 +349,8 @@ func (p *EBPFResolver) ApplyExitEntry(event *model.Event, newEntryCb func(*model
 
 }
 
-// enrichEventFromProc uses /proc to enrich a ProcessCacheEntry with additional metadata
-func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *process.Process, filledProc *utils.FilledProcess) error {
+// enrichEventFromProcfs uses /proc to enrich a ProcessCacheEntry with additional metadata
+func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, proc *process.Process, filledProc *utils.FilledProcess) error {
 	// the provided process is a kernel process if its virtual memory size is null
 	if filledProc.MemInfo.VMS == 0 {
 		return fmt.Errorf("cannot snapshot kernel threads")
@@ -368,12 +368,12 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	}
 
 	// Get the file fields of the process binary
-	info, err := p.retrieveExecFileFields(procExecPath)
+	info, err := p.RetrieveFileFieldsFromProcfs(procExecPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			seclog.Errorf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
+			seclog.Errorf("snapshot failed for %d: couldn't retrieve file info: %s", proc.Pid, err)
 		}
-		return fmt.Errorf("snapshot failed for %d: couldn't retrieve inode info: %w", proc.Pid, err)
+		return fmt.Errorf("snapshot failed for %d: couldn't retrieve file info: %w", proc.Pid, err)
 	}
 
 	// Retrieve the container ID of the process from /proc and /sys/fs/cgroup/[cgroup]
@@ -383,9 +383,9 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 		seclog.Errorf("snapshot failed for %d: couldn't parse container and cgroup context: %s", proc.Pid, err)
 	} else if cgroup.CGroupFile.Inode != 0 && cgroup.CGroupFile.MountID == 0 { // the mount id is unavailable through statx
 		// Get the file fields of the sysfs cgroup file
-		info, err := p.retrieveExecFileFields(cgroupSysFSPath)
+		info, err := p.RetrieveFileFieldsFromProcfs(cgroupSysFSPath)
 		if err != nil {
-			seclog.Warnf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
+			seclog.Warnf("snapshot failed for %d: couldn't retrieve file info: %s", proc.Pid, err)
 		} else {
 			cgroup.CGroupFile.MountID = info.MountID
 		}
@@ -498,9 +498,10 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	return nil
 }
 
-// retrieveExecFileFields fetches inode metadata from kernel space
-func (p *EBPFResolver) retrieveExecFileFields(procExecPath string) (*model.FileFields, error) {
-	fi, err := os.Stat(procExecPath)
+// RetrieveFileFieldsFromProcfs fetches inode metadata from kernel space.
+// stat the file which triggers the security_inode_getattr, which fill a map with the needed data
+func (p *EBPFResolver) RetrieveFileFieldsFromProcfs(filename string) (*model.FileFields, error) {
+	fi, err := os.Stat(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -1266,7 +1267,7 @@ func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process
 	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
 
 	// update the cache entry
-	if err := p.enrichEventFromProc(entry, proc, filledProc); err != nil {
+	if err := p.enrichEventFromProcfs(entry, proc, filledProc); err != nil {
 		entry.Release()
 
 		seclog.Trace(err)

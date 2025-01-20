@@ -199,13 +199,13 @@ func (f *FileFields) HasHardLinks() bool {
 	return f.NLink > 1
 }
 
-// GetInLowerLayer returns whether a file is in a lower layer
-func (f *FileFields) GetInLowerLayer() bool {
+// IsInLowerLayer returns whether a file is in a lower layer
+func (f *FileFields) IsInLowerLayer() bool {
 	return f.Flags&LowerLayer != 0
 }
 
-// GetInUpperLayer returns whether a file is in the upper layer
-func (f *FileFields) GetInUpperLayer() bool {
+// IsInUpperLayer returns whether a file is in the upper layer
+func (f *FileFields) IsInUpperLayer() bool {
 	return f.Flags&UpperLayer != 0
 }
 

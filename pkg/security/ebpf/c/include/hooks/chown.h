@@ -64,6 +64,8 @@ int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
         return 0;
     }
 
+    set_file_layer(syscall->resolver.dentry, &syscall->setattr.file);
+
     struct chown_event_t event = {
         .syscall.retval = retval,
         .syscall_ctx.id = syscall->ctx_id,

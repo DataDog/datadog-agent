@@ -189,6 +189,9 @@ dev_t __attribute__((always_inline)) get_mount_dev(void *mnt) {
 }
 
 unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry *dentry) {
+    if (!dentry) {
+        return 0;
+    }
     return get_inode_ino(get_dentry_inode(dentry));
 }
 
@@ -298,7 +301,7 @@ int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_path(struct dentry
 int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_entry(struct dentry *dentry) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
-    // expected:
+    // escape from the embedded vfs_inode to reach ovl_entry
     // struct inode vfs_inode;
     // struct dentry *__upperdentry;
     // struct ovl_entry *oe;
@@ -315,7 +318,9 @@ int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_entry(struct dentr
 int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
-    // escape from the embedded vfs_inode to reach ovl_inode
+    // escape from the embedded vfs_inode to reach upper dentry
+    // struct inode vfs_inode;
+    // struct dentry *__upperdentry;
     struct dentry *upper;
     bpf_probe_read(&upper, sizeof(upper), (char *)d_inode + get_sizeof_inode());
 
@@ -323,35 +328,7 @@ int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
 }
 
 int __always_inline get_overlayfs_layer(struct dentry *dentry) {
-    u64 inode = get_dentry_ino(dentry);
-
-    u64 lower_inode = 0;
-    switch (get_ovl_path_in_inode()) {
-    case 2:
-        lower_inode = get_ovl_lower_ino_from_ovl_entry(dentry);
-        break;
-    case 1:
-        lower_inode = get_ovl_lower_ino_from_ovl_path(dentry);
-        break;
-    default:
-        lower_inode = get_ovl_lower_ino_direct(dentry);
-        break;
-    }
-    u64 upper_inode = get_ovl_upper_ino(dentry);
-
-    // 3 cases :
-    // 1. access to the lower layer -> stat returns lower inode
-    // 2. access to the upper layer -> stat returns upper inode
-    // 3. access to a modified file -> stat returns lower inode
-
-    if (inode == lower_inode) {
-        return LOWER_LAYER;
-    }
-    if (inode == upper_inode) {
-        return UPPER_LAYER;
-    }
-
-    return 0;
+    return get_ovl_upper_ino(dentry) != 0 ? UPPER_LAYER : LOWER_LAYER;
 }
 
 #define VFS_ARG_POSITION1 1
