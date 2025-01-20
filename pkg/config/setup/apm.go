@@ -44,6 +44,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.obfuscation.memcached.enabled", true, "DD_APM_OBFUSCATION_MEMCACHED_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.memcached.keep_command", false, "DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.cache.enabled", true, "DD_APM_OBFUSCATION_CACHE_ENABLED")
+	config.BindEnvAndSetDefault("apm_config.obfuscation.cache.max_size", 5000000, "DD_APM_OBFUSCATION_CACHE_MAX_SIZE")
 	config.SetKnown("apm_config.filter_tags.require")
 	config.SetKnown("apm_config.filter_tags.reject")
 	config.SetKnown("apm_config.filter_tags_regex.require")
@@ -154,6 +155,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.enabled", true, "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.luhn", false, "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.keep_values", []string{}, "DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES")
+	config.BindEnvAndSetDefault("apm_config.sql_obfuscation_mode", "", "DD_APM_SQL_OBFUSCATION_MODE")
 	config.BindEnvAndSetDefault("apm_config.debug.port", 5012, "DD_APM_DEBUG_PORT")
 	config.BindEnv("apm_config.features", "DD_APM_FEATURES")
 	config.ParseEnvAsStringSlice("apm_config.features", func(s string) []string {

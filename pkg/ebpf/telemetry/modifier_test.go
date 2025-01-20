@@ -14,6 +14,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/prometheus/client_golang/prometheus"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 
@@ -29,8 +30,6 @@ func TestModifierAppliesMultipleTimes(t *testing.T) {
 
 	numTries := 4 // Just to be sure
 	for i := 0; i < numTries; i++ {
-		cfg := testConfig()
-
 		// Init the manager
 		mgr := &manager.Manager{
 			Probes: []*manager.Probe{
@@ -51,34 +50,34 @@ func TestModifierAppliesMultipleTimes(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = mgr.Stop(manager.CleanAll) }) // Ensure we stop the manager, if it's already stopped it will be a no-op
 
-		buf, err := bytecode.GetReader(cfg.bpfDir, "error_telemetry.o")
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = buf.Close })
-
-		options := manager.Options{
-			RemoveRlimit: true,
-			ActivatedProbes: []manager.ProbesSelector{
+		modifier := ErrorsTelemetryModifier{}
+		mname := names.NewModuleName("ebpf")
+		err := ddebpf.LoadCOREAsset("error_telemetry.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+			opts.RemoveRlimit = true
+			opts.ActivatedProbes = []manager.ProbesSelector{
 				&manager.ProbeSelector{
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
 						EBPFFuncName: "kprobe__vfs_open",
 					},
 				},
-			},
-		}
+			}
 
-		err = mgr.LoadELF(buf)
+			err := mgr.LoadELF(buf)
+			require.NoError(t, err)
+
+			err = modifier.BeforeInit(mgr, mname, &opts)
+			require.NoError(t, err, "BeforeInit failed on try %d", i)
+			err = mgr.InitWithOptions(nil, opts)
+			require.NoError(t, err, "InitWithOptions failed on try %d", i)
+			err = modifier.AfterInit(mgr, mname, &opts)
+			require.NoError(t, err, "AfterInit failed on try %d", i)
+
+			err = mgr.Start()
+			require.NoError(t, err, "Start failed on try %d", i)
+
+			return nil
+		})
 		require.NoError(t, err)
-
-		modifier := ErrorsTelemetryModifier{}
-		mname := names.NewModuleName("ebpf")
-		err = modifier.BeforeInit(mgr, mname, &options)
-		require.NoError(t, err, "BeforeInit failed on try %d", i)
-		err = mgr.InitWithOptions(nil, options)
-		require.NoError(t, err, "InitWithOptions failed on try %d", i)
-		err = modifier.AfterInit(mgr, mname, &options)
-		require.NoError(t, err, "AfterInit failed on try %d", i)
-		err = mgr.Start()
-		require.NoError(t, err, "Start failed on try %d", i)
 
 		// Trigger our kprobe
 		_, err = os.Open("/proc/self/exe")
@@ -100,7 +99,7 @@ func TestModifierAppliesMultipleTimes(t *testing.T) {
 		require.NotEmpty(t, metrics, "No metrics collected on try %d", i)
 
 		// Run our BeforeStop
-		err = modifier.BeforeStop(mgr, mname)
+		err = modifier.BeforeStop(mgr, mname, manager.CleanAll)
 		require.NoError(t, err, "BeforeStop failed on try %d", i)
 
 		// Stop the manager

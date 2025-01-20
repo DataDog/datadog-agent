@@ -340,7 +340,6 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				Name:      volumeName,
 				MountPath: "/opt/datadog-packages/datadog-apm-inject",
 				SubPath:   "opt/datadog-packages/datadog-apm-inject",
-				ReadOnly:  true,
 			}, mounts[0], "expected first container volume mount to be the injector")
 			require.Equal(t, corev1.VolumeMount{
 				Name:      etcVolume.Name,
@@ -689,6 +688,17 @@ func TestExtractLibInfo(t *testing.T) {
 		{
 			name:              "java",
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:v1",
+				},
+			},
+		},
+		{
+			name:              "java with default version",
+			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "default"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{

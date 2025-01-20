@@ -11,9 +11,10 @@ package telemetry
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
-	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
+	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -25,7 +26,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Print the telemetry metrics exposed by the cluster agent",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := flare.QueryDCAMetrics()
+			payload, err := clusterAgentFlare.QueryDCAMetrics()
 			if err != nil {
 				return err
 			}

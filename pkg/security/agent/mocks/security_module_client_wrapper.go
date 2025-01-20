@@ -4,6 +4,8 @@ package mocks
 
 import (
 	api "github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	grpc "google.golang.org/grpc"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -164,23 +166,23 @@ func (_m *SecurityModuleClientWrapper) GenerateEncoding(request *api.Transcoding
 }
 
 // GetActivityDumpStream provides a mock function with no fields
-func (_m *SecurityModuleClientWrapper) GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error) {
+func (_m *SecurityModuleClientWrapper) GetActivityDumpStream() (grpc.ServerStreamingClient[api.ActivityDumpStreamMessage], error) {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetActivityDumpStream")
 	}
 
-	var r0 api.SecurityModule_GetActivityDumpStreamClient
+	var r0 grpc.ServerStreamingClient[api.ActivityDumpStreamMessage]
 	var r1 error
-	if rf, ok := ret.Get(0).(func() (api.SecurityModule_GetActivityDumpStreamClient, error)); ok {
+	if rf, ok := ret.Get(0).(func() (grpc.ServerStreamingClient[api.ActivityDumpStreamMessage], error)); ok {
 		return rf()
 	}
-	if rf, ok := ret.Get(0).(func() api.SecurityModule_GetActivityDumpStreamClient); ok {
+	if rf, ok := ret.Get(0).(func() grpc.ServerStreamingClient[api.ActivityDumpStreamMessage]); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(api.SecurityModule_GetActivityDumpStreamClient)
+			r0 = ret.Get(0).(grpc.ServerStreamingClient[api.ActivityDumpStreamMessage])
 		}
 	}
 
@@ -224,23 +226,23 @@ func (_m *SecurityModuleClientWrapper) GetConfig() (*api.SecurityConfigMessage, 
 }
 
 // GetEvents provides a mock function with no fields
-func (_m *SecurityModuleClientWrapper) GetEvents() (api.SecurityModule_GetEventsClient, error) {
+func (_m *SecurityModuleClientWrapper) GetEvents() (grpc.ServerStreamingClient[api.SecurityEventMessage], error) {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetEvents")
 	}
 
-	var r0 api.SecurityModule_GetEventsClient
+	var r0 grpc.ServerStreamingClient[api.SecurityEventMessage]
 	var r1 error
-	if rf, ok := ret.Get(0).(func() (api.SecurityModule_GetEventsClient, error)); ok {
+	if rf, ok := ret.Get(0).(func() (grpc.ServerStreamingClient[api.SecurityEventMessage], error)); ok {
 		return rf()
 	}
-	if rf, ok := ret.Get(0).(func() api.SecurityModule_GetEventsClient); ok {
+	if rf, ok := ret.Get(0).(func() grpc.ServerStreamingClient[api.SecurityEventMessage]); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(api.SecurityModule_GetEventsClient)
+			r0 = ret.Get(0).(grpc.ServerStreamingClient[api.SecurityEventMessage])
 		}
 	}
 
