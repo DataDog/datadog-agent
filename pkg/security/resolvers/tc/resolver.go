@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // ProgramKey is used to uniquely identify a tc program
@@ -167,9 +168,12 @@ func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string)
 	var linkName string
 	for tcKey, tcProbe := range tcr.programs {
 		if !tcProbe.IsTCFilterActive() {
-			ddebpf.RemoveProgramID(tcProbe.ID(), "cws")
-			_ = m.DetachHook(tcProbe.ProbeIdentificationPair)
-			delete(tcr.programs, tcKey)
+			if err := m.DetachHook(tcProbe.ProbeIdentificationPair); err != nil {
+				seclog.Errorf("failed to detach hook: %v", err)
+			} else {
+				ddebpf.RemoveProgramID(tcProbe.ID(), "cws")
+				delete(tcr.programs, tcKey)
+			}
 		} else {
 			link, err := tcProbe.ResolveLink()
 			if err == nil {
