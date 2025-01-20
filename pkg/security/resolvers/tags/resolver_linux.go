@@ -50,7 +50,9 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 	}
 
 	if err := t.cgroupResolver.RegisterListener(cgroup.CGroupDeleted, func(cgce *cgroupModel.CacheEntry) {
-		t.NotifyListeners(WorkloadSelectorDeleted, t.workloads[cgce.CGroupID])
+		if workload, ok := t.workloads[cgce.CGroupID]; ok {
+			t.NotifyListeners(WorkloadSelectorDeleted, workload)
+		}
 		delete(t.workloads, cgce.CGroupID)
 	}); err != nil {
 		return err
