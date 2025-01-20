@@ -52,6 +52,14 @@ var (
 			Value: "true",
 		},
 	}
+	emrLogs = []common.IntegrationConfigLogs{
+		{
+			Type:    "file",
+			Path:    "/var/logs/hadoop-yarn/containers/*/*/*.log",
+			Source:  "worker_logs",
+			Service: "hadoop-yarn",
+		},
+	}
 )
 
 type emrInstanceInfo struct {
@@ -97,6 +105,8 @@ func SetupEmr(s *common.Setup) error {
 	}
 	if isMaster {
 		setupResourceManager(s, clusterName)
+	} else {
+		setupYarnWorkers(s)
 	}
 	return nil
 }
@@ -200,4 +210,13 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 		return jobFlowID
 	}
 	return clusterName
+}
+
+func setupYarnWorkers(s *common.Setup) {
+	var sparkIntegration common.IntegrationConfig
+	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
+		s.Config.DatadogYAML.LogsEnabled = true
+		sparkIntegration.Logs = emrLogs
+	}
+	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 }
