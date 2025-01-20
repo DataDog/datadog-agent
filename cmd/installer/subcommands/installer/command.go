@@ -14,6 +14,9 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
+
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/fleet/bootstrapper"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
@@ -21,8 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v2"
 )
 
 const (

@@ -17,6 +17,13 @@ import (
 	"strconv"
 	"strings"
 
+	yy "github.com/ghodss/yaml"
+	"github.com/swaggest/jsonschema-go"
+	"github.com/xeipuuv/gojsonschema"
+	"go.uber.org/fx"
+	"golang.org/x/sys/windows/registry"
+	"gopkg.in/yaml.v3"
+
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -31,12 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	agentLog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	yy "github.com/ghodss/yaml"
-	"github.com/swaggest/jsonschema-go"
-	"github.com/xeipuuv/gojsonschema"
-	"go.uber.org/fx"
-	"golang.org/x/sys/windows/registry"
-	"gopkg.in/yaml.v2"
 )
 
 const (

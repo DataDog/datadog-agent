@@ -51,7 +51,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.60.1
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.23.0
-	gopkg.in/yaml.v2 v2.4.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -105,7 +105,7 @@ require (
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	google.golang.org/protobuf v1.36.2 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 replace github.com/DataDog/datadog-agent/pkg/config/mock => ../mock
