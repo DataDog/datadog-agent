@@ -62,20 +62,18 @@ var (
 	}
 	emrLogs = []common.IntegrationConfigLogs{
 		{
-			Type:       "file",
-			Path:       "/var/logs/hadoop-yarn/containers/*/*/stdout",
-			Source:     "worker_logs",
-			Service:    "hadoop-yarn",
-			Tags:       "log_source:stdout",
-			Processors: logProcessor,
+			Type:    "file",
+			Path:    "/var/log/hadoop-yarn/containers/*/*/stdout",
+			Source:  "worker_logs",
+			Service: "hadoop-yarn",
+			Tags:    "log_source:stdout",
 		},
 		{
-			Type:       "file",
-			Path:       "/var/logs/hadoop-yarn/containers/*/*/stderr",
-			Source:     "worker_logs",
-			Service:    "hadoop-yarn",
-			Tags:       "log_source:stderr",
-			Processors: logProcessor,
+			Type:    "file",
+			Path:    "/var/log/hadoop-yarn/containers/*/*/stderr",
+			Source:  "worker_logs",
+			Service: "hadoop-yarn",
+			Tags:    "log_source:stderr",
 		},
 	}
 )
