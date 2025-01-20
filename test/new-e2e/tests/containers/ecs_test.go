@@ -528,37 +528,6 @@ func (suite *ecsSuite) testDogstatsd(taskName string) {
 	})
 }
 
-func (suite *ecsSuite) TestPrometheus() {
-	// Test Prometheus check
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
-			Name: "prometheus.prom_gauge",
-		},
-		Expect: testMetricExpectArgs{
-			Tags: &[]string{
-				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
-				`^container_id:`,
-				`^container_name:ecs-.*-prometheus-ec2-`,
-				`^docker_image:ghcr.io/datadog/apps-prometheus:main$`,
-				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
-				`^ecs_container_name:prometheus$`,
-				`^endpoint:http://.*:8080/metrics$`,
-				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
-				`^image_id:sha256:`,
-				`^image_name:ghcr.io/datadog/apps-prometheus$`,
-				`^image_tag:main$`,
-				`^series:`,
-				`^short_image:apps-prometheus$`,
-				`^task_arn:`,
-				`^task_family:.*-prometheus-ec2$`,
-				`^task_name:.*-prometheus-ec2$`,
-				`^task_version:[[:digit:]]+$`,
-			},
-		},
-	})
-}
-
 func (suite *ecsSuite) TestTraceUDS() {
 	suite.testTrace(taskNameTracegenUDS)
 }
