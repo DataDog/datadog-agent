@@ -52,27 +52,30 @@ var (
 			Value: "true",
 		},
 	}
-	logProcessor = common.IntegrationConfigLogProcessor{
-		Type:   "regex_parser",
-		Source: "filename",
-		Regex:  "/var/log/hadoop-yarn/containers/(?P<application_id>application_[0-9]+_[0-9]+)/(?P<container_id>container_[0-9]+_[0-9]+_[0-9]+_[0-9]+)",
-		Target: "attributes",
+	logProcessor = []common.IntegrationConfigLogProcessor{
+		{
+			Type:   "regex_parser",
+			Source: "filename",
+			Regex:  "/var/log/hadoop-yarn/containers/(?P<application_id>application_[0-9]+_[0-9]+)/(?P<container_id>container_[0-9]+_[0-9]+_[0-9]+_[0-9]+)",
+			Target: "attributes",
+		},
 	}
 	emrLogs = []common.IntegrationConfigLogs{
 		{
-			Type:    "file",
-			Path:    "/var/logs/hadoop-yarn/containers/*/*/stdout",
-			Source:  "worker_logs",
-			Service: "hadoop-yarn",
-			Tags:    "log_source:stdout",
+			Type:       "file",
+			Path:       "/var/logs/hadoop-yarn/containers/*/*/stdout",
+			Source:     "worker_logs",
+			Service:    "hadoop-yarn",
+			Tags:       "log_source:stdout",
+			Processors: logProcessor,
 		},
 		{
-			Type:      "file",
-			Path:      "/var/logs/hadoop-yarn/containers/*/*/stderr",
-			Source:    "worker_logs",
-			Service:   "hadoop-yarn",
-			Tags:      "log_source:stderr",
-			Processor: logProcessor,
+			Type:       "file",
+			Path:       "/var/logs/hadoop-yarn/containers/*/*/stderr",
+			Source:     "worker_logs",
+			Service:    "hadoop-yarn",
+			Tags:       "log_source:stderr",
+			Processors: logProcessor,
 		},
 	}
 )
