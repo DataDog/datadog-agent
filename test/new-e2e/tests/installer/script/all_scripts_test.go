@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -39,7 +38,6 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
-		e2eos.FedoraDefault,
 		e2eos.CentOS7,
 		e2eos.Suse15,
 	}
@@ -50,7 +48,9 @@ var (
 	}
 	scriptTestsWithSkippedFlavors = []installerScriptTestsWithSkippedFlavors{
 		{t: testDatabricksScript},
-		{t: testDefaultScript, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7}},
+		{t: testDefaultScript, skippedFlavors: []e2eos.Descriptor{
+			e2eos.CentOS7, // CentOS 7 is not supported by the default script because of SELinux
+		}},
 	}
 )
 
@@ -88,10 +88,6 @@ func TestScripts(t *testing.T) {
 			suite := test.t(flavor, flavor.Architecture)
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
-				// FIXME: Fedora currently has DNS issues
-				if flavor.Flavor == e2eos.Fedora {
-					flake.Mark(t)
-				}
 
 				opts := []awshost.ProvisionerOption{
 					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),

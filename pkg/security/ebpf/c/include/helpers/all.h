@@ -8,14 +8,11 @@
 #include "container.h"
 #include "dentry_resolver.h"
 #include "discaders.h"
-#include "dns.h"
-#include "imds.h"
 #include "erpc.h"
 #include "events.h"
 #include "events_predicates.h"
 #include "filesystem.h"
 #include "iouring.h"
-#include "network.h"
 #include "process.h"
 #include "raw_syscalls.h"
 #include "selinux.h"
@@ -24,5 +21,12 @@
 #include "syscalls.h"
 #include "user_sessions.h"
 #include "utils.h"
+
+#include "network/context.h"
+#include "network/parser.h"
+#include "network/pid_resolver.h"
+#include "network/router.h"
+#include "network/dns.h"
+#include "network/imds.h"
 
 #endif

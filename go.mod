@@ -168,9 +168,9 @@ require (
 	github.com/DataDog/ebpf-manager v0.7.7
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.9
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.22.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.22.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.22.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.24.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.24.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.24.0
 	github.com/DataDog/sketches-go v1.4.6
 	github.com/DataDog/viper v1.14.0
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
@@ -688,7 +688,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.59.0
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.59.0
-	github.com/DataDog/datadog-agent/pkg/proto v0.60.1
+	github.com/DataDog/datadog-agent/pkg/proto v0.63.0-devel
 	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.56.0
 	github.com/DataDog/datadog-agent/pkg/serializer v0.59.0
 	github.com/DataDog/datadog-agent/pkg/status/health v0.60.1
@@ -786,8 +786,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.60.1 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.34.0 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.22.0 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.22.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.24.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.24.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.25.0 // indirect
 	github.com/Intevation/gval v1.3.0 // indirect
 	github.com/Intevation/jsonpath v0.2.1 // indirect
