@@ -6,7 +6,6 @@ package udp
 
 import (
 	"fmt"
-	"math/rand/v2"
 	"net"
 	"time"
 
@@ -24,7 +23,12 @@ func (u *UDPv4) TracerouteSequential() (*common.Results, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local address for target: %w", err)
 	}
-	defer conn.Close()
+	// TODO: Need to call bind on our port?
+	// When the UDP socket for this remains claimed, ICMP messages that we wish
+	// to read on the raw socket created below are not received with the raw socket
+	// This makes a case to investigate using 2 separate sockets for
+	// Windows implementations in the future.
+	conn.Close()
 	u.srcIP = addr.IP
 	u.srcPort = addr.AddrPort().Port()
 
@@ -37,8 +41,7 @@ func (u *UDPv4) TracerouteSequential() (*common.Results, error) {
 	hops := make([]*common.Hop, 0, int(u.MaxTTL-u.MinTTL)+1)
 
 	for i := int(u.MinTTL); i <= int(u.MaxTTL); i++ {
-		seqNumber := rand.Uint32()
-		hop, err := u.sendAndReceive(rs, i, seqNumber, u.Timeout)
+		hop, err := u.sendAndReceive(rs, i, u.Timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run traceroute: %w", err)
 		}
@@ -60,10 +63,10 @@ func (u *UDPv4) TracerouteSequential() (*common.Results, error) {
 	}, nil
 }
 
-func (u *UDPv4) sendAndReceive(rs *common.Winrawsocket, ttl int, seqNum uint32, timeout time.Duration) (*common.Hop, error) {
+func (u *UDPv4) sendAndReceive(rs *common.Winrawsocket, ttl int, timeout time.Duration) (*common.Hop, error) {
 	_, buffer, udpChecksum, _, err := createRawUDPBuffer(u.srcIP, u.srcPort, u.Target, u.TargetPort, ttl)
 	if err != nil {
-		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
+		log.Errorf("failed to create UDP packet with TTL: %d, error: %s", ttl, err.Error())
 		return nil, err
 	}
 

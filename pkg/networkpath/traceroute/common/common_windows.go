@@ -110,7 +110,8 @@ func (w *Winrawsocket) ListenPackets(timeout time.Duration, localIP net.IP, loca
 // packet on the connection and then return. If no packet is received within the
 // timeout or if the listener is canceled, it should return a canceledError
 func (w *Winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, matcherFuncs map[int]MatcherFunc) (net.IP, time.Time, error) {
-	buf := make([]byte, 512)
+	// TODO: reset to 512 before merge?
+	buf := make([]byte, 4096)
 	for {
 		select {
 		case <-ctx.Done():
@@ -157,6 +158,8 @@ func (w *Winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 			// the error
 			if _, ok := err.(MismatchError); !ok {
 				log.Tracef("decoder error: %s", err.Error())
+			} else {
+				log.Tracef("mismatch error: %s", err.Error())
 			}
 			continue
 		}

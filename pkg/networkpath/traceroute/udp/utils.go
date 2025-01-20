@@ -20,7 +20,7 @@ func createRawUDPBuffer(sourceIP net.IP, sourcePort uint16, destIP net.IP, destP
 		Length:   20,
 		TTL:      uint8(ttl),
 		Id:       uint16(41821),
-		Protocol: 6,
+		Protocol: 17, // hard code UDP so other OSs can use it
 		DstIP:    destIP,
 		SrcIP:    sourceIP,
 		Flags:    layers.IPv4DontFragment, // needed for dublin-traceroute-like NAT detection
