@@ -169,11 +169,20 @@ type IntegrationConfig struct {
 
 // IntegrationConfigLogs represents the configuration for the logs of an integration
 type IntegrationConfigLogs struct {
-	Type    string `yaml:"type,omitempty"`
-	Path    string `yaml:"path,omitempty"`
-	Service string `yaml:"service,omitempty"`
-	Source  string `yaml:"source,omitempty"`
-	Tags    string `yaml:"tags,omitempty"`
+	Type      string                        `yaml:"type,omitempty"`
+	Path      string                        `yaml:"path,omitempty"`
+	Service   string                        `yaml:"service,omitempty"`
+	Source    string                        `yaml:"source,omitempty"`
+	Tags      string                        `yaml:"tags,omitempty"`
+	Processor IntegrationConfigLogProcessor `yaml:"processors,omitempty"`
+}
+
+// IntegrationConfigLogProcessor represents the configuration for the log processor of an integration
+type IntegrationConfigLogProcessor struct {
+	Type   string `yaml:"type,omitempty"`
+	Source string `yaml:"source,omitempty"`
+	Regex  string `yaml:"regex,omitempty"`
+	Target string `yaml:"target,omitempty"`
 }
 
 // IntegrationConfigInstanceSpark represents the configuration for the Spark integration

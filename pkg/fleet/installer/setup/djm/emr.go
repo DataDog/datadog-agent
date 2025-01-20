@@ -52,6 +52,12 @@ var (
 			Value: "true",
 		},
 	}
+	logProcessor = common.IntegrationConfigLogProcessor{
+		Type:   "regex_parser",
+		Source: "filename",
+		Regex:  "/var/log/hadoop-yarn/containers/(?P<application_id>application_[0-9]+_[0-9]+)/(?P<container_id>container_[0-9]+_[0-9]+_[0-9]+_[0-9]+)",
+		Target: "attributes",
+	}
 	emrLogs = []common.IntegrationConfigLogs{
 		{
 			Type:    "file",
@@ -61,11 +67,12 @@ var (
 			Tags:    "log_source:stdout",
 		},
 		{
-			Type:    "file",
-			Path:    "/var/logs/hadoop-yarn/containers/*/*/stderr",
-			Source:  "worker_logs",
-			Service: "hadoop-yarn",
-			Tags:    "log_source:stderr",
+			Type:      "file",
+			Path:      "/var/logs/hadoop-yarn/containers/*/*/stderr",
+			Source:    "worker_logs",
+			Service:   "hadoop-yarn",
+			Tags:      "log_source:stderr",
+			Processor: logProcessor,
 		},
 	}
 )
@@ -226,5 +233,5 @@ func setupYarnWorkers(s *common.Setup) {
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = emrLogs
 	}
-	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
+	s.Config.IntegrationConfigs["spark.d/conf.yaml"] = sparkIntegration
 }
