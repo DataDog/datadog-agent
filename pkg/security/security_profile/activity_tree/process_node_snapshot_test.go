@@ -37,6 +37,9 @@ func TestSnapshotMemoryMappedFiles(t *testing.T) {
 		if len(smap.Path) == 0 {
 			continue
 		}
+		if smap.Path[0] == '[' {
+			continue
+		}
 		gopsutilFiles = append(gopsutilFiles, smap.Path)
 	}
 
