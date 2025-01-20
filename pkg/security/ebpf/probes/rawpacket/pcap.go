@@ -143,6 +143,7 @@ func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, senderInsts as
 				asm.LoadMapPtr(asm.R2, opts.tailCallMapFd),
 				asm.Mov.Imm(asm.R3, int32(probes.TCRawPacketFilterKey+uint32(tailCalls)+1)),
 				asm.FnTailCall.Call(),
+				asm.Mov.Imm(asm.R0, 0),
 			}
 		}
 
