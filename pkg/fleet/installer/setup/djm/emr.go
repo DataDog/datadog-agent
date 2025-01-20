@@ -123,9 +123,14 @@ func SetupEmr(s *common.Setup) error {
 	}
 	if isMaster {
 		setupResourceManager(s, clusterName)
-	} else {
-		setupYarnWorkers(s)
 	}
+	// Add logs config to both Resource Manager and Workers
+	var sparkIntegration common.IntegrationConfig
+	if os.Getenv("DD_LOGS_ENABLED") == "true" {
+		s.Config.DatadogYAML.LogsEnabled = true
+		sparkIntegration.Logs = emrLogs
+	}
+	s.Config.IntegrationConfigs["spark.d/conf.yaml"] = sparkIntegration
 	return nil
 }
 
@@ -228,13 +233,4 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 		return jobFlowID
 	}
 	return clusterName
-}
-
-func setupYarnWorkers(s *common.Setup) {
-	var sparkIntegration common.IntegrationConfig
-	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
-		s.Config.DatadogYAML.LogsEnabled = true
-		sparkIntegration.Logs = emrLogs
-	}
-	s.Config.IntegrationConfigs["spark.d/conf.yaml"] = sparkIntegration
 }
