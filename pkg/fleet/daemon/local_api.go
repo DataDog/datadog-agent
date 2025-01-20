@@ -136,7 +136,7 @@ func (l *localAPIImpl) setCatalog(w http.ResponseWriter, r *http.Request) {
 func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
-	var request taskWithVersionParams
+	var request experimentTaskParams
 	var response APIResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
@@ -200,7 +200,7 @@ func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request)
 func (l *localAPIImpl) startConfigExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
-	var request taskWithVersionParams
+	var request experimentTaskParams
 	var response APIResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
@@ -257,7 +257,7 @@ func (l *localAPIImpl) promoteConfigExperiment(w http.ResponseWriter, r *http.Re
 func (l *localAPIImpl) install(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
-	var request taskWithVersionParams
+	var request experimentTaskParams
 	var response APIResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
@@ -358,7 +358,7 @@ func (c *localAPIClientImpl) SetCatalog(catalog string) error {
 
 // StartExperiment starts an experiment for a package.
 func (c *localAPIClientImpl) StartExperiment(pkg, version string) error {
-	params := taskWithVersionParams{
+	params := experimentTaskParams{
 		Version: version,
 	}
 	body, err := json.Marshal(params)
@@ -437,7 +437,7 @@ func (c *localAPIClientImpl) PromoteExperiment(pkg string) error {
 
 // StartConfigExperiment starts a config experiment for a package.
 func (c *localAPIClientImpl) StartConfigExperiment(pkg, version string) error {
-	params := taskWithVersionParams{
+	params := experimentTaskParams{
 		Version: version,
 	}
 	body, err := json.Marshal(params)
@@ -516,7 +516,7 @@ func (c *localAPIClientImpl) PromoteConfigExperiment(pkg string) error {
 
 // Install installs a package with a specific version.
 func (c *localAPIClientImpl) Install(pkg, version string) error {
-	params := taskWithVersionParams{
+	params := experimentTaskParams{
 		Version: version,
 	}
 	body, err := json.Marshal(params)

@@ -31,10 +31,10 @@ const (
 )
 
 // SetupAPMInjector sets up the injector at bootstrap
-func SetupAPMInjector(ctx context.Context) (err error) {
+func SetupAPMInjector(ctx context.Context, args []string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "setup_injector")
 	defer func() { span.Finish(err) }()
-	installer := newAPMInjectorInstaller(injectorPath)
+	installer := newAPMInjectorInstaller(injectorPath, args...)
 	defer func() { installer.Finish(err) }()
 	return installer.Setup(ctx)
 }
@@ -68,10 +68,20 @@ func UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	return installer.Uninstrument(ctx)
 }
 
-func newAPMInjectorInstaller(path string) *apmInjectorInstaller {
+func newAPMInjectorInstaller(path string, args ...string) *apmInjectorInstaller {
 	a := &apmInjectorInstaller{
 		installPath: path,
 		envs:        env.FromEnv(),
+	}
+	// Override env if there are args from Remote Config
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "DD_APM_INSTRUMENTATION_ENABLED=") {
+			value := strings.TrimPrefix(arg, "DD_APM_INSTRUMENTATION_ENABLED=")
+			if value == env.APMInstrumentationEnabledHost || value == env.APMInstrumentationEnabledDocker || value == env.APMInstrumentationEnabledAll {
+				a.envs.InstallScript.APMInstrumentationEnabled = value
+			}
+			break
+		}
 	}
 	a.ldPreloadFileInstrument = newFileMutator(ldSoPreloadPath, a.setLDPreloadConfigContent, nil, nil)
 	a.ldPreloadFileUninstrument = newFileMutator(ldSoPreloadPath, a.deleteLDPreloadConfigContent, nil, nil)

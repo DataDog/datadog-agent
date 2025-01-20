@@ -42,6 +42,11 @@ const (
 	refreshStateInterval = 30 * time.Second
 )
 
+var (
+	// errStateDoesntMatch is the error returned when the state doesn't match
+	errStateDoesntMatch = errors.New("state doesn't match")
+)
+
 // PackageState represents a package state.
 type PackageState struct {
 	Version repository.State
@@ -484,35 +489,38 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
-	s, err := d.installer.State(request.Package)
+	err = d.verifyState(ctx, request)
 	if err != nil {
-		return fmt.Errorf("could not get installer state: %w", err)
+		if errors.Is(err, errStateDoesntMatch) {
+			return nil // Error already reported to RC
+		}
+		return fmt.Errorf("couldn't verify state: %w", err)
 	}
 
-	c, err := d.installer.ConfigState(request.Package)
-	if err != nil {
-		return fmt.Errorf("could not get installer config state: %w", err)
-	}
-
-	versionEqual := request.ExpectedState.InstallerVersion == "" || version.AgentVersion == request.ExpectedState.InstallerVersion
-	if versionEqual &&
-		(s.Stable != request.ExpectedState.Stable ||
-			s.Experiment != request.ExpectedState.Experiment ||
-			c.Stable != request.ExpectedState.StableConfig ||
-			c.Experiment != request.ExpectedState.ExperimentConfig) {
-		log.Infof(
-			"remote request %s not executed as state does not match: expected %v, got package: %v, config: %v",
-			request.ID, request.ExpectedState, s, c,
-		)
-		setRequestInvalid(ctx)
-		d.refreshState(ctx)
-		return nil
-	}
 	defer func() { setRequestDone(ctx, err) }()
 
 	switch request.Method {
+	case methodInstallPackage:
+		var params installPackageTaskParams
+		err = json.Unmarshal(request.Params, &params)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal install package params: %w", err)
+		}
+		log.Infof("Installer: Received remote request %s to install package %s version %s", request.ID, request.Package, params.Version)
+
+		// Handle install args
+		installArgs := []string{}
+		if params.ApmInstrumentation != "" {
+			installArgs = append(installArgs, "DD_APM_INSTRUMENTATION_ENABLED="+params.ApmInstrumentation)
+		}
+		return d.install(ctx, request.Package, installArgs)
+
+	case methodUninstallPackage:
+		log.Infof("Installer: Received remote request %s to uninstall package %s", request.ID, request.Package)
+		return nil // TODO
+
 	case methodStartExperiment:
-		var params taskWithVersionParams
+		var params experimentTaskParams
 		err = json.Unmarshal(request.Params, &params)
 		if err != nil {
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
@@ -530,24 +538,28 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			return d.startInstallerExperiment(ctx, experimentPackage.URL)
 		}
 		return d.startExperiment(ctx, experimentPackage.URL)
+
 	case methodStopExperiment:
 		log.Infof("Installer: Received remote request %s to stop experiment for package %s", request.ID, request.Package)
 		return d.stopExperiment(ctx, request.Package)
+
 	case methodPromoteExperiment:
 		log.Infof("Installer: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
 		return d.promoteExperiment(ctx, request.Package)
 
 	case methodStartConfigExperiment:
-		var params taskWithVersionParams
+		var params experimentTaskParams
 		err = json.Unmarshal(request.Params, &params)
 		if err != nil {
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
 		log.Infof("Installer: Received remote request %s to start config experiment for package %s", request.ID, request.Package)
 		return d.startConfigExperiment(ctx, request.Package, params.Version)
+
 	case methodStopConfigExperiment:
 		log.Infof("Installer: Received remote request %s to stop config experiment for package %s", request.ID, request.Package)
 		return d.stopConfigExperiment(ctx, request.Package)
+
 	case methodPromoteConfigExperiment:
 		log.Infof("Installer: Received remote request %s to promote config experiment for package %s", request.ID, request.Package)
 		return d.promoteConfigExperiment(ctx, request.Package)
@@ -555,6 +567,40 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	default:
 		return fmt.Errorf("unknown method: %s", request.Method)
 	}
+}
+
+func (d *daemonImpl) verifyState(ctx context.Context, request remoteAPIRequest) error {
+	if request.Method == methodInstallPackage {
+		// No state verification if the method is to install a package, as the package may
+		// not be installed yet.
+		return nil
+	}
+
+	s, err := d.installer.State(request.Package)
+	if err != nil {
+		return fmt.Errorf("could not get installer state: %w", err)
+	}
+
+	c, err := d.installer.ConfigState(request.Package)
+	if err != nil {
+		return fmt.Errorf("could not get installer config state: %w", err)
+	}
+
+	installerVersionEqual := request.ExpectedState.InstallerVersion == "" || version.AgentVersion == request.ExpectedState.InstallerVersion
+	packageVersionEqual := s.Stable == request.ExpectedState.Stable && s.Experiment == request.ExpectedState.Experiment
+	configVersionEqual := c.Stable == request.ExpectedState.StableConfig && c.Experiment == request.ExpectedState.ExperimentConfig
+
+	if installerVersionEqual && (!packageVersionEqual || !configVersionEqual) {
+		log.Infof(
+			"remote request %s not executed as state does not match: expected %v, got package: %v, config: %v",
+			request.ID, request.ExpectedState, s, c,
+		)
+		setRequestInvalid(ctx)
+		d.refreshState(ctx)
+		return errStateDoesntMatch
+	}
+
+	return nil
 }
 
 type requestKey int

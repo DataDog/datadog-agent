@@ -328,7 +328,7 @@ func TestRemoteRequest(t *testing.T) {
 	c := catalog{
 		Packages: []Package{testExperimentPackage},
 	}
-	versionParams := taskWithVersionParams{
+	versionParams := experimentTaskParams{
 		Version: testExperimentPackage.Version,
 	}
 	versionParamsJSON, _ := json.Marshal(versionParams)
