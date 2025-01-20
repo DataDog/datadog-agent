@@ -39,14 +39,15 @@ type IngressCollector struct {
 func NewIngressCollector() *IngressCollector {
 	return &IngressCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "ingresses",
-			NodeType:                  orchestrator.K8sIngress,
-			Version:                   "networking.k8s.io/v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "ingresses",
+			NodeType:                             orchestrator.K8sIngress,
+			Version:                              "networking.k8s.io/v1",
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.IngressHandlers)),
 	}

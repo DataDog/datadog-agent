@@ -43,14 +43,15 @@ type UnassignedPodCollector struct {
 func NewUnassignedPodCollector(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) *UnassignedPodCollector {
 	return &UnassignedPodCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "pods",
-			NodeType:                  orchestrator.K8sPod,
-			Version:                   "v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "pods",
+			NodeType:                             orchestrator.K8sPod,
+			Version:                              "v1",
+			SupportsTerminatedResourceCollection: false,
 		},
 		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(cfg, store, tagger)),
 	}

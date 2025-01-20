@@ -215,6 +215,8 @@ func (o *OrchestratorCheck) Run() error {
 func (o *OrchestratorCheck) Cancel() {
 	log.Infoc(fmt.Sprintf("Shutting down informers used by the check '%s'", o.ID()), orchestrator.ExtraLogContext...)
 	close(o.stopCh)
+	// send all terminated resources
+	o.collectorBundle.GetTerminatedResourceBundle().Stop()
 }
 
 func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.OrchestratorInformerFactory {

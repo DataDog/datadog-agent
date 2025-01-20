@@ -39,14 +39,15 @@ type NamespaceCollector struct {
 func NewNamespaceCollector() *NamespaceCollector {
 	return &NamespaceCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "namespaces",
-			NodeType:                  orchestrator.K8sNamespace,
-			Version:                   "v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "namespaces",
+			NodeType:                             orchestrator.K8sNamespace,
+			Version:                              "v1",
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.NamespaceHandlers)),
 	}

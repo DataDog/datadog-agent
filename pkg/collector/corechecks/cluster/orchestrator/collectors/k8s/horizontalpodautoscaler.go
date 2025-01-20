@@ -40,14 +40,15 @@ type HorizontalPodAutoscalerCollector struct {
 func NewHorizontalPodAutoscalerCollector() *HorizontalPodAutoscalerCollector {
 	return &HorizontalPodAutoscalerCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "horizontalpodautoscalers",
-			NodeType:                  orchestrator.K8sHorizontalPodAutoscaler,
-			Version:                   "autoscaling/v2",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "horizontalpodautoscalers",
+			NodeType:                             orchestrator.K8sHorizontalPodAutoscaler,
+			Version:                              "autoscaling/v2",
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.HorizontalPodAutoscalerHandlers)),
 	}

@@ -39,14 +39,15 @@ type DaemonSetCollector struct {
 func NewDaemonSetCollector() *DaemonSetCollector {
 	return &DaemonSetCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "daemonsets",
-			NodeType:                  orchestrator.K8sDaemonSet,
-			Version:                   "apps/v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "daemonsets",
+			NodeType:                             orchestrator.K8sDaemonSet,
+			Version:                              "apps/v1",
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.DaemonSetHandlers)),
 	}

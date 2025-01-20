@@ -39,14 +39,15 @@ type ClusterRoleCollector struct {
 func NewClusterRoleCollector() *ClusterRoleCollector {
 	return &ClusterRoleCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "clusterroles",
-			NodeType:                  orchestrator.K8sClusterRole,
-			Version:                   "rbac.authorization.k8s.io/v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "clusterroles",
+			NodeType:                             orchestrator.K8sClusterRole,
+			Version:                              "rbac.authorization.k8s.io/v1",
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ClusterRoleHandlers)),
 	}

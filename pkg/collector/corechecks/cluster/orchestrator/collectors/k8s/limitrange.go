@@ -39,14 +39,15 @@ type LimitRangeCollector struct {
 func NewLimitRangeCollector() *LimitRangeCollector {
 	return &LimitRangeCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "limitranges",
-			NodeType:                  orchestrator.K8sLimitRange,
-			Version:                   "v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "limitranges",
+			NodeType:                             orchestrator.K8sLimitRange,
+			Version:                              "v1",
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.LimitRangeHandlers)),
 	}

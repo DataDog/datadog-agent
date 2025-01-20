@@ -38,14 +38,15 @@ type NodeCollector struct {
 func NewNodeCollector() *NodeCollector {
 	return &NodeCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "nodes",
-			NodeType:                  orchestrator.K8sNode,
-			Version:                   "v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "nodes",
+			NodeType:                             orchestrator.K8sNode,
+			Version:                              "v1",
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.NodeHandlers)),
 	}

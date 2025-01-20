@@ -38,14 +38,15 @@ type RoleCollector struct {
 func NewRoleCollector() *RoleCollector {
 	return &RoleCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "roles",
-			NodeType:                  orchestrator.K8sRole,
-			Version:                   "rbac.authorization.k8s.io/v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "roles",
+			NodeType:                             orchestrator.K8sRole,
+			Version:                              "rbac.authorization.k8s.io/v1",
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.RoleHandlers)),
 	}

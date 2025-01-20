@@ -41,16 +41,17 @@ type Collector interface {
 
 // CollectorMetadata contains information about a collector.
 type CollectorMetadata struct {
-	IsDefaultVersion          bool
-	IsMetadataProducer        bool
-	IsManifestProducer        bool
-	IsStable                  bool
-	SupportsManifestBuffering bool
-	Name                      string
-	NodeType                  pkgorchestratormodel.NodeType
-	Version                   string
-	IsSkipped                 bool
-	SkippedReason             string
+	IsDefaultVersion                     bool
+	IsMetadataProducer                   bool
+	IsManifestProducer                   bool
+	IsStable                             bool
+	SupportsManifestBuffering            bool
+	Name                                 string
+	NodeType                             pkgorchestratormodel.NodeType
+	Version                              string
+	IsSkipped                            bool
+	SkippedReason                        string
+	SupportsTerminatedResourceCollection bool
 }
 
 // FullName returns a string that contains the collector name and version.

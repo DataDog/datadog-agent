@@ -39,14 +39,15 @@ type ServiceAccountCollector struct {
 func NewServiceAccountCollector() *ServiceAccountCollector {
 	return &ServiceAccountCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "serviceaccounts",
-			NodeType:                  orchestrator.K8sServiceAccount,
-			Version:                   "v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "serviceaccounts",
+			NodeType:                             orchestrator.K8sServiceAccount,
+			Version:                              "v1",
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ServiceAccountHandlers)),
 	}

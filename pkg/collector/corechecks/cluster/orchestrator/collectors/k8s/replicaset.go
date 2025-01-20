@@ -39,14 +39,15 @@ type ReplicaSetCollector struct {
 func NewReplicaSetCollector() *ReplicaSetCollector {
 	return &ReplicaSetCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "replicasets",
-			NodeType:                  orchestrator.K8sReplicaSet,
-			Version:                   "apps/v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "replicasets",
+			NodeType:                             orchestrator.K8sReplicaSet,
+			Version:                              "apps/v1",
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ReplicaSetHandlers)),
 	}

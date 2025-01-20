@@ -39,14 +39,15 @@ type ServiceCollector struct {
 func NewServiceCollector() *ServiceCollector {
 	return &ServiceCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "services",
-			NodeType:                  orchestrator.K8sService,
-			Version:                   "v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "services",
+			NodeType:                             orchestrator.K8sService,
+			Version:                              "v1",
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ServiceHandlers)),
 	}

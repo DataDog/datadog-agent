@@ -39,14 +39,15 @@ type StorageClassCollector struct {
 func NewStorageClassCollector() *StorageClassCollector {
 	return &StorageClassCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "storageclasses",
-			NodeType:                  orchestrator.K8sStorageClass,
-			Version:                   "storage.k8s.io/v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "storageclasses",
+			NodeType:                             orchestrator.K8sStorageClass,
+			Version:                              "storage.k8s.io/v1",
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.StorageClassHandlers)),
 	}
