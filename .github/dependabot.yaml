@@ -34,6 +34,11 @@ updates:
       aws-sdk-go-v2:
         patterns:
           - "github.com/aws/aws-sdk-go-v2*"
+      k8s-io:
+        patterns:
+          - "k8s.io/*"
+        update-types:
+          - patch
   - package-ecosystem: gomod
     directory: /pkg/trace
     labels:
