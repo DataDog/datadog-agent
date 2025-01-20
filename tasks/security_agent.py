@@ -591,10 +591,9 @@ DEFAULT_BTFHUB_CONSTANTS_PATH = "./pkg/security/probe/constantfetch/btfhub/const
 
 
 @task
-def generate_btfhub_constants(ctx, archive_path, force_refresh=False, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
-    force_refresh_opt = "-force-refresh" if force_refresh else ""
+def generate_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
     ctx.run(
-        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
+        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
     )
 
 
