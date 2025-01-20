@@ -643,14 +643,14 @@ func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets 
 
 			switch messageType {
 			case serviceCheckType:
-				serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.Origin, packet.ProcessID)
+				serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.ProcessID)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
 					continue
 				}
 				batcher.appendServiceCheck(serviceCheck)
 			case eventType:
-				event, err := s.parseEventMessage(parser, message, packet.Origin, packet.ProcessID)
+				event, err := s.parseEventMessage(parser, message, packet.ProcessID)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
 					continue
@@ -759,7 +759,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		}
 	}
 
-	metricSamples = enrichMetricSample(metricSamples, sample, origin, processID, listenerID, s.enrichConfig)
+	metricSamples = enrichMetricSample(metricSamples, sample, processID, listenerID, s.enrichConfig)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)
@@ -779,28 +779,28 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 	return metricSamples, nil
 }
 
-func (s *server) parseEventMessage(parser *parser, message []byte, origin string, processID uint32) (*event.Event, error) {
+func (s *server) parseEventMessage(parser *parser, message []byte, processID uint32) (*event.Event, error) {
 	sample, err := parser.parseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
 		s.tlmProcessed.Inc("events", "error", "")
 		return nil, err
 	}
-	event := enrichEvent(sample, origin, processID, s.enrichConfig)
+	event := enrichEvent(sample, processID, s.enrichConfig)
 	event.Tags = append(event.Tags, s.extraTags...)
 	s.tlmProcessed.Inc("events", "ok", "")
 	dogstatsdEventPackets.Add(1)
 	return event, nil
 }
 
-func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin string, processID uint32) (*servicecheck.ServiceCheck, error) {
+func (s *server) parseServiceCheckMessage(parser *parser, message []byte, processID uint32) (*servicecheck.ServiceCheck, error) {
 	sample, err := parser.parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)
 		s.tlmProcessed.Inc("service_checks", "error", "")
 		return nil, err
 	}
-	serviceCheck := enrichServiceCheck(sample, origin, processID, s.enrichConfig)
+	serviceCheck := enrichServiceCheck(sample, processID, s.enrichConfig)
 	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
 	dogstatsdServiceCheckPackets.Add(1)
 	s.tlmProcessed.Inc("service_checks", "ok", "")

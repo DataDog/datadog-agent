@@ -33,7 +33,6 @@ import (
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
@@ -222,66 +221,6 @@ func (t *localTagger) Tag(entityID types.EntityID, cardinality types.TagCardinal
 	return tags.Copy(), nil
 }
 
-// GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
-// The resolutions will be done in the following order:
-// * OriginInfo.LocalData.ContainerID: If the container ID is already known, return it.
-// * OriginInfo.LocalData.ProcessID: If the process ID is known, do a PID resolution.
-// * OriginInfo.LocalData.Inode: If the inode is known, do an inode resolution.
-// * OriginInfo.ExternalData: If the ExternalData are known, do an ExternalData resolution.
-func (t *localTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (containerID string, err error) {
-	t.log.Debugf("Generating container ID from OriginInfo: %+v", originInfo)
-	// If the container ID is already known, return it.
-	if originInfo.LocalData.ContainerID != "" {
-		t.log.Debugf("Found OriginInfo.LocalData.ContainerID: %s", originInfo.LocalData.ContainerID)
-		containerID = originInfo.LocalData.ContainerID
-		return
-	}
-
-	// Get the MetaCollector from WorkloadMeta.
-	metaCollector := metrics.GetProvider(option.New(t.workloadStore)).GetMetaCollector()
-
-	// If the process ID is known, do a PID resolution.
-	if originInfo.LocalData.ProcessID != 0 {
-		t.log.Debugf("Resolving container ID from PID: %d", originInfo.LocalData.ProcessID)
-		containerID, err = metaCollector.GetContainerIDForPID(int(originInfo.LocalData.ProcessID), pidCacheTTL)
-		if err != nil {
-			t.log.Debugf("Error resolving container ID from PID: %v", err)
-		} else if containerID == "" {
-			t.log.Debugf("No container ID found for PID: %d", originInfo.LocalData.ProcessID)
-		} else {
-			return
-		}
-	}
-
-	// If the inode is known, do an inode resolution.
-	if originInfo.LocalData.Inode != 0 {
-		t.log.Debugf("Resolving container ID from inode: %d", originInfo.LocalData.Inode)
-		containerID, err = metaCollector.GetContainerIDForInode(originInfo.LocalData.Inode, inodeCacheTTL)
-		if err != nil {
-			t.log.Debugf("Error resolving container ID from inode: %v", err)
-		} else if containerID == "" {
-			t.log.Debugf("No container ID found for inode: %d", originInfo.LocalData.Inode)
-		} else {
-			return
-		}
-	}
-
-	// If the ExternalData are known, do an ExternalData resolution.
-	if originInfo.ExternalData.PodUID != "" && originInfo.ExternalData.ContainerName != "" {
-		t.log.Debugf("Resolving container ID from ExternalData: %+v", originInfo.ExternalData)
-		containerID, err = metaCollector.ContainerIDForPodUIDAndContName(originInfo.ExternalData.PodUID, originInfo.ExternalData.ContainerName, originInfo.ExternalData.Init, externalDataCacheTTL)
-		if err != nil {
-			t.log.Debugf("Error resolving container ID from ExternalData: %v", err)
-		} else if containerID == "" {
-			t.log.Debugf("No container ID found for ExternalData: %+v", originInfo.ExternalData)
-		} else {
-			return
-		}
-	}
-
-	return "", fmt.Errorf("unable to resolve container ID from OriginInfo: %+v", originInfo)
-}
-
 // Standard returns standard tags for a given entity
 // It triggers a tagger fetch if the no tags are found
 func (t *localTagger) Standard(entityID types.EntityID) ([]string, error) {
@@ -356,6 +295,7 @@ func (t *localTagger) globalTagBuilder(cardinality types.TagCardinality, tb tags
 // TODO: extract this function to a share function so it can be used in both implementations
 func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
 	cardinality := taggerCardinality(originInfo.Cardinality, t.datadogConfig.dogstatsdCardinality, t.log)
+	metaCollector := metrics.GetProvider(option.New(t.workloadStore)).GetMetaCollector()
 
 	productOrigin := originInfo.ProductOrigin
 	// If origin_detection_unified is disabled, we use DogStatsD's Legacy Origin Detection.
@@ -364,12 +304,10 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 		productOrigin = origindetection.ProductOriginDogStatsDLegacy
 	}
 
-	containerIDFromSocketCutIndex := len(types.ContainerID) + types.GetSeparatorLengh()
-
 	// Generate container ID from Inode
 	if originInfo.LocalData.ContainerID == "" {
 		var inodeResolutionError error
-		originInfo.LocalData.ContainerID, inodeResolutionError = t.generateContainerIDFromInode(originInfo.LocalData, metrics.GetProvider(option.New(t.workloadStore)).GetMetaCollector())
+		originInfo.LocalData.ContainerID, inodeResolutionError = t.generateContainerIDFromInode(originInfo.LocalData, metaCollector)
 		if inodeResolutionError != nil {
 			t.log.Tracef("Failed to resolve container ID from inode %d: %v", originInfo.LocalData.Inode, inodeResolutionError)
 		}
@@ -403,7 +341,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 		// | empty                  | not empty       || container prefix + originFromMsg    |
 		// | none                   | not empty       || container prefix + originFromMsg    |
 		if t.datadogConfig.dogstatsdOptOutEnabled && originInfo.Cardinality == types.NoneCardinalityString {
-			originInfo.ContainerIDFromSocket = packets.NoOrigin
+			originInfo.LocalData.ProcessID = 0
 			originInfo.LocalData.PodUID = ""
 			originInfo.LocalData.ContainerID = ""
 			return
@@ -411,13 +349,15 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 
 		// We use the UDS socket origin if no origin ID was specify in the tags
 		// or 'dogstatsd_entity_id_precedence' is set to False (default false).
-		if originInfo.ContainerIDFromSocket != packets.NoOrigin &&
-			(originInfo.LocalData.PodUID == "" || !t.datadogConfig.dogstatsdEntityIDPrecedenceEnabled) &&
-			len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
-			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]
-			originFromClient := types.NewEntityID(types.ContainerID, containerID)
-			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
-				t.log.Errorf("%s", err.Error())
+		if originInfo.LocalData.ProcessID != 0 && (originInfo.LocalData.PodUID == "" || !t.datadogConfig.dogstatsdEntityIDPrecedenceEnabled) {
+			containerID, err := t.GenerateContainerIDFromProcessID(originInfo.LocalData, metaCollector)
+			if err != nil {
+				t.log.Tracef("Failed to resolve container ID from process ID %d: %v", originInfo.LocalData.ProcessID, err)
+			} else {
+				originFromClient := types.NewEntityID(types.ContainerID, containerID)
+				if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
+					t.log.Errorf("%s", err.Error())
+				}
 			}
 		}
 
@@ -441,27 +381,35 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 	default:
 		// Disable origin detection if cardinality is none
 		if originInfo.Cardinality == types.NoneCardinalityString {
-			originInfo.ContainerIDFromSocket = packets.NoOrigin
+			originInfo.LocalData.ProcessID = 0
 			originInfo.LocalData.PodUID = ""
 			originInfo.LocalData.ContainerID = ""
 			return
 		}
 
 		// Tag using Local Data
-		if originInfo.ContainerIDFromSocket != packets.NoOrigin && len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
-			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]
-			originFromClient := types.NewEntityID(types.ContainerID, containerID)
-			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
-				t.log.Errorf("%s", err.Error())
+		if originInfo.LocalData.ProcessID != 0 {
+			generatedContainerID, err := t.GenerateContainerIDFromProcessID(originInfo.LocalData, metaCollector)
+			if err != nil {
+				t.log.Tracef("Failed to resolve container ID from process ID %d: %v", originInfo.LocalData.ProcessID, err)
+			}
+			if generatedContainerID != "" {
+				if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb); err != nil {
+					t.log.Errorf("%s", err.Error())
+				}
 			}
 		}
 
-		if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, originInfo.LocalData.ContainerID), cardinality, tb); err != nil {
-			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.ContainerID, err)
+		if originInfo.LocalData.ContainerID != "" {
+			if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, originInfo.LocalData.ContainerID), cardinality, tb); err != nil {
+				t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.ContainerID, err)
+			}
 		}
 
-		if err := t.AccumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.LocalData.PodUID), cardinality, tb); err != nil {
-			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.PodUID, err)
+		if originInfo.LocalData.PodUID != "" {
+			if err := t.AccumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.LocalData.PodUID), cardinality, tb); err != nil {
+				t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.PodUID, err)
+			}
 		}
 
 		// Accumulate tags for pod UID
@@ -472,7 +420,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 		}
 
 		// Generate container ID from External Data
-		generatedContainerID, err := t.generateContainerIDFromExternalData(originInfo.ExternalData, metrics.GetProvider(option.New(t.workloadStore)).GetMetaCollector())
+		generatedContainerID, err := t.generateContainerIDFromExternalData(originInfo.ExternalData, metaCollector)
 		if err != nil {
 			t.log.Tracef("Failed to generate container ID from %v: %s", originInfo.ExternalData, err)
 		}
@@ -490,14 +438,79 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 	}
 }
 
+// GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
+// The resolutions will be done in the following order:
+// * OriginInfo.LocalData.ContainerID: If the container ID is already known, return it.
+// * OriginInfo.LocalData.ProcessID: If the process ID is known, do a PID resolution.
+// * OriginInfo.LocalData.Inode: If the inode is known, do an inode resolution.
+// * OriginInfo.ExternalData: If the ExternalData are known, do an ExternalData resolution.
+func (t *localTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (containerID string, err error) {
+	t.log.Debugf("Generating container ID from OriginInfo: %+v", originInfo)
+	// If the container ID is already known, return it.
+	if originInfo.LocalData.ContainerID != "" {
+		t.log.Debugf("Found OriginInfo.LocalData.ContainerID: %s", originInfo.LocalData.ContainerID)
+		containerID = originInfo.LocalData.ContainerID
+		return
+	}
+
+	// Get the MetaCollector from WorkloadMeta.
+	metaCollector := metrics.GetProvider(option.New(t.workloadStore)).GetMetaCollector()
+
+	// If the process ID is known, do a PID resolution.
+	if originInfo.LocalData.ProcessID != 0 {
+		t.log.Debugf("Resolving container ID from PID: %d", originInfo.LocalData.ProcessID)
+		containerID, err = metaCollector.GetContainerIDForPID(int(originInfo.LocalData.ProcessID), pidCacheTTL)
+		if err != nil {
+			t.log.Debugf("Error resolving container ID from PID: %v", err)
+		} else if containerID == "" {
+			t.log.Debugf("No container ID found for PID: %d", originInfo.LocalData.ProcessID)
+		} else {
+			return
+		}
+	}
+
+	// If the inode is known, do an inode resolution.
+	if originInfo.LocalData.Inode != 0 {
+		t.log.Debugf("Resolving container ID from inode: %d", originInfo.LocalData.Inode)
+		containerID, err = metaCollector.GetContainerIDForInode(originInfo.LocalData.Inode, inodeCacheTTL)
+		if err != nil {
+			t.log.Debugf("Error resolving container ID from inode: %v", err)
+		} else if containerID == "" {
+			t.log.Debugf("No container ID found for inode: %d", originInfo.LocalData.Inode)
+		} else {
+			return
+		}
+	}
+
+	// If the ExternalData are known, do an ExternalData resolution.
+	if originInfo.ExternalData.PodUID != "" && originInfo.ExternalData.ContainerName != "" {
+		t.log.Debugf("Resolving container ID from ExternalData: %+v", originInfo.ExternalData)
+		containerID, err = metaCollector.ContainerIDForPodUIDAndContName(originInfo.ExternalData.PodUID, originInfo.ExternalData.ContainerName, originInfo.ExternalData.Init, externalDataCacheTTL)
+		if err != nil {
+			t.log.Debugf("Error resolving container ID from ExternalData: %v", err)
+		} else if containerID == "" {
+			t.log.Debugf("No container ID found for ExternalData: %+v", originInfo.ExternalData)
+		} else {
+			return
+		}
+	}
+
+	return "", fmt.Errorf("unable to resolve container ID from OriginInfo: %+v", originInfo)
+}
+
+// GenerateContainerIDFromProcessID generates a container ID from ProcessID.
+func (t *localTagger) GenerateContainerIDFromProcessID(localData origindetection.LocalData, metricsProvider provider.ContainerIDForPIDRetriever) (string, error) {
+	return metricsProvider.GetContainerIDForPID(int(localData.ProcessID), pidCacheTTL)
+}
+
 // generateContainerIDFromInode generates a container ID from the CGroup inode.
 func (t *localTagger) generateContainerIDFromInode(e origindetection.LocalData, metricsProvider provider.ContainerIDForInodeRetriever) (string, error) {
-	return metricsProvider.GetContainerIDForInode(e.Inode, time.Second)
+	return metricsProvider.GetContainerIDForInode(e.Inode, inodeCacheTTL)
 }
 
 // generateContainerIDFromExternalData generates a container ID from the External Data.
 func (t *localTagger) generateContainerIDFromExternalData(e origindetection.ExternalData, metricsProvider provider.ContainerIDForPodUIDAndContNameRetriever) (string, error) {
-	return metricsProvider.ContainerIDForPodUIDAndContName(e.PodUID, e.ContainerName, e.Init, time.Second)
+	return metricsProvider.ContainerIDForPodUIDAndContName(e.PodUID, e.ContainerName, e.Init, externalDataCacheTTL)
 }
 
 // taggerCardinality converts tagger cardinality string to types.TagCardinality

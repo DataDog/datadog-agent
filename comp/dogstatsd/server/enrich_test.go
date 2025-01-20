@@ -41,7 +41,7 @@ func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrich
 	}
 
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", 0, "", conf)
+	samples = enrichMetricSample(samples, parsed, 0, "", conf)
 	if len(samples) != 1 {
 		return metrics.MetricSample{}, fmt.Errorf("wrong number of metrics parsed")
 	}
@@ -58,7 +58,7 @@ func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enri
 	}
 
 	samples := []metrics.MetricSample{}
-	return enrichMetricSample(samples, parsed, "", 0, "", conf), nil
+	return enrichMetricSample(samples, parsed, 0, "", conf), nil
 }
 
 func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrichConfig) (*servicecheck.ServiceCheck, error) {
@@ -69,7 +69,7 @@ func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrich
 	if err != nil {
 		return nil, err
 	}
-	return enrichServiceCheck(parsed, "", 0, conf), nil
+	return enrichServiceCheck(parsed, 0, conf), nil
 }
 
 func parseAndEnrichEventMessage(t *testing.T, message []byte, conf enrichConfig) (*event.Event, error) {
@@ -80,7 +80,7 @@ func parseAndEnrichEventMessage(t *testing.T, message []byte, conf enrichConfig)
 	if err != nil {
 		return nil, err
 	}
-	return enrichEvent(parsed, "", 0, conf), nil
+	return enrichEvent(parsed, 0, conf), nil
 }
 
 func TestConvertParseMultiple(t *testing.T) {
@@ -99,7 +99,7 @@ func TestConvertParseMultiple(t *testing.T) {
 		assert.Equal(t, metricType, parsed[0].Mtype)
 		assert.Equal(t, 0, len(parsed[0].Tags))
 		assert.Equal(t, "default-hostname", parsed[0].Host)
-		assert.Equal(t, "", parsed[0].OriginInfo.ContainerIDFromSocket)
+		assert.Equal(t, uint32(0), parsed[0].OriginInfo.LocalData.ProcessID)
 		assert.Equal(t, "", parsed[0].OriginInfo.LocalData.PodUID)
 		assert.Equal(t, "", parsed[0].OriginInfo.LocalData.ContainerID)
 		assert.InEpsilon(t, 1.0, parsed[0].SampleRate, epsilon)
@@ -109,7 +109,7 @@ func TestConvertParseMultiple(t *testing.T) {
 		assert.Equal(t, metricType, parsed[1].Mtype)
 		assert.Equal(t, 0, len(parsed[1].Tags))
 		assert.Equal(t, "default-hostname", parsed[1].Host)
-		assert.Equal(t, "", parsed[0].OriginInfo.ContainerIDFromSocket)
+		assert.Equal(t, uint32(0), parsed[0].OriginInfo.LocalData.ProcessID)
 		assert.Equal(t, "", parsed[0].OriginInfo.LocalData.PodUID)
 		assert.Equal(t, "", parsed[0].OriginInfo.LocalData.ContainerID)
 		assert.InEpsilon(t, 1.0, parsed[1].SampleRate, epsilon)
@@ -133,7 +133,7 @@ func TestConvertParseSingle(t *testing.T) {
 		assert.Equal(t, metricType, parsed[0].Mtype)
 		assert.Equal(t, 0, len(parsed[0].Tags))
 		assert.Equal(t, "default-hostname", parsed[0].Host)
-		assert.Equal(t, "", parsed[0].OriginInfo.ContainerIDFromSocket)
+		assert.Equal(t, uint32(0), parsed[0].OriginInfo.LocalData.ProcessID)
 		assert.Equal(t, "", parsed[0].OriginInfo.LocalData.PodUID)
 		assert.Equal(t, "", parsed[0].OriginInfo.LocalData.ContainerID)
 		assert.InEpsilon(t, 1.0, parsed[0].SampleRate, epsilon)
@@ -159,7 +159,7 @@ func TestConvertParseSingleWithTags(t *testing.T) {
 		assert.Equal(t, "protocol:http", parsed[0].Tags[0])
 		assert.Equal(t, "bench", parsed[0].Tags[1])
 		assert.Equal(t, "default-hostname", parsed[0].Host)
-		assert.Equal(t, "", parsed[0].OriginInfo.ContainerIDFromSocket)
+		assert.Equal(t, uint32(0), parsed[0].OriginInfo.LocalData.ProcessID)
 		assert.Equal(t, "", parsed[0].OriginInfo.LocalData.PodUID)
 		assert.Equal(t, "", parsed[0].OriginInfo.LocalData.ContainerID)
 		assert.InEpsilon(t, 1.0, parsed[0].SampleRate, epsilon)
@@ -185,7 +185,7 @@ func TestConvertParseSingleWithHostTags(t *testing.T) {
 		assert.Equal(t, "protocol:http", parsed[0].Tags[0])
 		assert.Equal(t, "bench", parsed[0].Tags[1])
 		assert.Equal(t, "custom-host", parsed[0].Host)
-		assert.Equal(t, "", parsed[0].OriginInfo.ContainerIDFromSocket)
+		assert.Equal(t, uint32(0), parsed[0].OriginInfo.LocalData.ProcessID)
 		assert.Equal(t, "", parsed[0].OriginInfo.LocalData.PodUID)
 		assert.Equal(t, "", parsed[0].OriginInfo.LocalData.ContainerID)
 		assert.InEpsilon(t, 1.0, parsed[0].SampleRate, epsilon)
@@ -211,7 +211,7 @@ func TestConvertParseSingleWithEmptyHostTags(t *testing.T) {
 		assert.Equal(t, "protocol:http", parsed[0].Tags[0])
 		assert.Equal(t, "bench", parsed[0].Tags[1])
 		assert.Equal(t, "", parsed[0].Host)
-		assert.Equal(t, "", parsed[0].OriginInfo.ContainerIDFromSocket)
+		assert.Equal(t, uint32(0), parsed[0].OriginInfo.LocalData.ProcessID)
 		assert.Equal(t, "", parsed[0].OriginInfo.LocalData.PodUID)
 		assert.Equal(t, "", parsed[0].OriginInfo.LocalData.ContainerID)
 		assert.InEpsilon(t, 1.0, parsed[0].SampleRate, epsilon)
@@ -235,7 +235,7 @@ func TestConvertParseSingleWithSampleRate(t *testing.T) {
 		assert.Equal(t, metricType, parsed[0].Mtype)
 		assert.Equal(t, 0, len(parsed[0].Tags))
 		assert.Equal(t, "default-hostname", parsed[0].Host)
-		assert.Equal(t, "", parsed[0].OriginInfo.ContainerIDFromSocket)
+		assert.Equal(t, uint32(0), parsed[0].OriginInfo.LocalData.ProcessID)
 		assert.Equal(t, "", parsed[0].OriginInfo.LocalData.PodUID)
 		assert.Equal(t, "", parsed[0].OriginInfo.LocalData.ContainerID)
 		assert.InEpsilon(t, 0.21, parsed[0].SampleRate, epsilon)
@@ -256,7 +256,7 @@ func TestConvertParseSet(t *testing.T) {
 	assert.Equal(t, metrics.SetType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 	assert.Equal(t, "default-hostname", parsed.Host)
-	assert.Equal(t, "", parsed.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), parsed.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", parsed.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", parsed.OriginInfo.LocalData.ContainerID)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
@@ -276,7 +276,7 @@ func TestConvertParseSetUnicode(t *testing.T) {
 	assert.Equal(t, metrics.SetType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 	assert.Equal(t, "default-hostname", parsed.Host)
-	assert.Equal(t, "", parsed.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), parsed.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", parsed.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", parsed.OriginInfo.LocalData.ContainerID)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
@@ -296,7 +296,7 @@ func TestConvertParseGaugeWithPoundOnly(t *testing.T) {
 	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 	assert.Equal(t, "default-hostname", parsed.Host)
-	assert.Equal(t, "", parsed.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), parsed.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", parsed.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", parsed.OriginInfo.LocalData.ContainerID)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
@@ -317,7 +317,7 @@ func TestConvertParseGaugeWithUnicode(t *testing.T) {
 	require.Equal(t, 1, len(parsed.Tags))
 	assert.Equal(t, "intitulé:T0µ", parsed.Tags[0])
 	assert.Equal(t, "default-hostname", parsed.Host)
-	assert.Equal(t, "", parsed.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), parsed.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", parsed.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", parsed.OriginInfo.LocalData.ContainerID)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
@@ -393,7 +393,7 @@ func TestConvertServiceCheckMinimal(t *testing.T) {
 	assert.Equal(t, int64(0), sc.Ts)
 	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
-	assert.Equal(t, "", sc.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), sc.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.ContainerID)
 	assert.Equal(t, []string(nil), sc.Tags)
@@ -440,7 +440,7 @@ func TestConvertServiceCheckMetadataTimestamp(t *testing.T) {
 	assert.Equal(t, int64(21), sc.Ts)
 	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
-	assert.Equal(t, "", sc.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), sc.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.ContainerID)
 	assert.Equal(t, []string(nil), sc.Tags)
@@ -458,7 +458,7 @@ func TestConvertServiceCheckMetadataHostname(t *testing.T) {
 	assert.Equal(t, int64(0), sc.Ts)
 	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
-	assert.Equal(t, "", sc.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), sc.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.ContainerID)
 	assert.Equal(t, []string(nil), sc.Tags)
@@ -476,7 +476,7 @@ func TestConvertServiceCheckMetadataHostnameInTag(t *testing.T) {
 	assert.Equal(t, int64(0), sc.Ts)
 	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
-	assert.Equal(t, "", sc.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), sc.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.ContainerID)
 	assert.Equal(t, []string{}, sc.Tags)
@@ -494,7 +494,7 @@ func TestConvertServiceCheckMetadataEmptyHostTag(t *testing.T) {
 	assert.Equal(t, int64(0), sc.Ts)
 	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
-	assert.Equal(t, "", sc.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), sc.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.ContainerID)
 	assert.Equal(t, []string{"other:tag"}, sc.Tags)
@@ -512,7 +512,7 @@ func TestConvertServiceCheckMetadataTags(t *testing.T) {
 	assert.Equal(t, int64(0), sc.Ts)
 	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
-	assert.Equal(t, "", sc.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), sc.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.ContainerID)
 	assert.Equal(t, []string{"tag1", "tag2:test", "tag3"}, sc.Tags)
@@ -530,7 +530,7 @@ func TestConvertServiceCheckMetadataMessage(t *testing.T) {
 	assert.Equal(t, int64(0), sc.Ts)
 	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "this is fine", sc.Message)
-	assert.Equal(t, "", sc.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), sc.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.ContainerID)
 	assert.Equal(t, []string(nil), sc.Tags)
@@ -548,7 +548,7 @@ func TestConvertServiceCheckMetadataMultiple(t *testing.T) {
 	assert.Equal(t, int64(21), sc.Ts)
 	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "this is fine", sc.Message)
-	assert.Equal(t, "", sc.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), sc.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.ContainerID)
 	assert.Equal(t, []string{"tag1:test", "tag2"}, sc.Tags)
@@ -561,7 +561,7 @@ func TestConvertServiceCheckMetadataMultiple(t *testing.T) {
 	assert.Equal(t, int64(22), sc.Ts)
 	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
-	assert.Equal(t, "", sc.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), sc.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.ContainerID)
 	assert.Equal(t, []string(nil), sc.Tags)
@@ -578,7 +578,7 @@ func TestServiceCheckOriginTag(t *testing.T) {
 	assert.Equal(t, int64(21), sc.Ts)
 	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "this is fine", sc.Message)
-	assert.Equal(t, "", sc.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), sc.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "testID", sc.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", sc.OriginInfo.LocalData.ContainerID)
 	assert.Equal(t, []string{"tag1:test", "tag2"}, sc.Tags)
@@ -601,7 +601,7 @@ func TestConvertEventMinimal(t *testing.T) {
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
-	assert.Equal(t, "", e.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), e.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.ContainerID)
 }
@@ -623,7 +623,7 @@ func TestConvertEventMultilinesText(t *testing.T) {
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
-	assert.Equal(t, "", e.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), e.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.ContainerID)
 }
@@ -645,7 +645,7 @@ func TestConvertEventPipeInTitle(t *testing.T) {
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
-	assert.Equal(t, "", e.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), e.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.ContainerID)
 }
@@ -735,7 +735,7 @@ func TestConvertEventMetadataTimestamp(t *testing.T) {
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
-	assert.Equal(t, "", e.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), e.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.ContainerID)
 }
@@ -757,7 +757,7 @@ func TestConvertEventMetadataPriority(t *testing.T) {
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
-	assert.Equal(t, "", e.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), e.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.ContainerID)
 }
@@ -779,7 +779,7 @@ func TestConvertEventMetadataHostname(t *testing.T) {
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
-	assert.Equal(t, "", e.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), e.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.ContainerID)
 }
@@ -801,7 +801,7 @@ func TestConvertEventMetadataHostnameInTag(t *testing.T) {
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
-	assert.Equal(t, "", e.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), e.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.ContainerID)
 }
@@ -823,7 +823,7 @@ func TestConvertEventMetadataEmptyHostTag(t *testing.T) {
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
-	assert.Equal(t, "", e.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), e.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.ContainerID)
 }
@@ -845,7 +845,7 @@ func TestConvertEventMetadataAlertType(t *testing.T) {
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
-	assert.Equal(t, "", e.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), e.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.ContainerID)
 }
@@ -867,7 +867,7 @@ func TestConvertEventMetadataAggregatioKey(t *testing.T) {
 	assert.Equal(t, "some aggregation key", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
-	assert.Equal(t, "", e.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), e.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.ContainerID)
 }
@@ -889,7 +889,7 @@ func TestConvertEventMetadataSourceType(t *testing.T) {
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "this is the source", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
-	assert.Equal(t, "", e.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), e.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.ContainerID)
 }
@@ -911,7 +911,7 @@ func TestConvertEventMetadataTags(t *testing.T) {
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
-	assert.Equal(t, "", e.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), e.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.ContainerID)
 }
@@ -933,7 +933,7 @@ func TestConvertEventMetadataMultiple(t *testing.T) {
 	assert.Equal(t, "aggKey", e.AggregationKey)
 	assert.Equal(t, "source test", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
-	assert.Equal(t, "", e.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), e.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.ContainerID)
 }
@@ -955,7 +955,7 @@ func TestEventOriginTag(t *testing.T) {
 	assert.Equal(t, "aggKey", e.AggregationKey)
 	assert.Equal(t, "source test", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
-	assert.Equal(t, "", e.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), e.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "testID", e.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", e.OriginInfo.LocalData.ContainerID)
 
@@ -1005,7 +1005,7 @@ func TestMetricBlocklistShouldBlock(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", 0, "", conf)
+	samples = enrichMetricSample(samples, parsed, 0, "", conf)
 
 	assert.Equal(t, 0, len(samples))
 }
@@ -1023,7 +1023,7 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", 0, "", conf)
+	samples = enrichMetricSample(samples, parsed, 0, "", conf)
 
 	assert.Equal(t, 1, len(samples))
 	assert.Equal(t, "", samples[0].Host)
@@ -1044,7 +1044,7 @@ func TestMetricBlocklistShouldNotBlock(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", 0, "", conf)
+	samples = enrichMetricSample(samples, parsed, 0, "", conf)
 
 	assert.Equal(t, 1, len(samples))
 }
@@ -1063,7 +1063,7 @@ func TestConvertEntityOriginDetectionNoTags(t *testing.T) {
 	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
 	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
 	assert.Equal(t, "my-hostname", parsed.Host)
-	assert.Equal(t, "", parsed.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), parsed.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "foo", parsed.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", parsed.OriginInfo.LocalData.ContainerID)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
@@ -1082,7 +1082,7 @@ func TestConvertEntityOriginDetectionTags(t *testing.T) {
 	require.Equal(t, 2, len(parsed.Tags))
 	assert.ElementsMatch(t, []string{"sometag1:somevalue1", "sometag2:somevalue2"}, parsed.Tags)
 	assert.Equal(t, "my-hostname", parsed.Host)
-	assert.Equal(t, "", parsed.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), parsed.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "foo", parsed.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", parsed.OriginInfo.LocalData.ContainerID)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
@@ -1102,7 +1102,7 @@ func TestConvertEntityOriginDetectionTagsError(t *testing.T) {
 	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
 	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
 	assert.Equal(t, "my-hostname", parsed.Host)
-	assert.Equal(t, "", parsed.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(0), parsed.OriginInfo.LocalData.ProcessID)
 	assert.Equal(t, "foo", parsed.OriginInfo.LocalData.PodUID)
 	assert.Equal(t, "", parsed.OriginInfo.LocalData.ContainerID)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
@@ -1111,6 +1111,7 @@ func TestConvertEntityOriginDetectionTagsError(t *testing.T) {
 func TestEnrichTags(t *testing.T) {
 	type args struct {
 		tags          []string
+		processID     uint32
 		originFromUDS string
 		originFromMsg []byte
 		localData     origindetection.LocalData
@@ -1145,10 +1146,10 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId not present, host=foo, should return origin tags",
 			args: args{
-				tags:          []string{"env:prod"},
-				originFromUDS: "originID",
-				localData:     origindetection.LocalData{},
-				externalData:  origindetection.ExternalData{},
+				tags:         []string{"env:prod"},
+				processID:    123,
+				localData:    origindetection.LocalData{},
+				externalData: origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
 					entityIDPrecedenceEnabled: true,
@@ -1156,16 +1157,16 @@ func TestEnrichTags(t *testing.T) {
 			},
 			wantedTags:         []string{"env:prod"},
 			wantedHost:         "foo",
-			wantedOrigin:       taggertypes.OriginInfo{ContainerIDFromSocket: "originID"},
+			wantedOrigin:       taggertypes.OriginInfo{LocalData: origindetection.LocalData{ProcessID: 123}},
 			wantedMetricSource: metrics.MetricSourceDogstatsd,
 		},
 		{
 			name: "entityId not present, host=foo, empty tags list, should return origin tags",
 			args: args{
-				tags:          nil,
-				originFromUDS: "originID",
-				localData:     origindetection.LocalData{},
-				externalData:  origindetection.ExternalData{},
+				tags:         nil,
+				processID:    123,
+				localData:    origindetection.LocalData{},
+				externalData: origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
 					entityIDPrecedenceEnabled: true,
@@ -1173,16 +1174,16 @@ func TestEnrichTags(t *testing.T) {
 			},
 			wantedTags:         nil,
 			wantedHost:         "foo",
-			wantedOrigin:       taggertypes.OriginInfo{ContainerIDFromSocket: "originID"},
+			wantedOrigin:       taggertypes.OriginInfo{LocalData: origindetection.LocalData{ProcessID: 123}},
 			wantedMetricSource: metrics.MetricSourceDogstatsd,
 		},
 		{
 			name: "entityId present, host=foo, should not return origin tags",
 			args: args{
-				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "my-id")},
-				originFromUDS: "originID",
-				localData:     origindetection.LocalData{},
-				externalData:  origindetection.ExternalData{},
+				tags:         []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "my-id")},
+				processID:    123,
+				localData:    origindetection.LocalData{},
+				externalData: origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
 					entityIDPrecedenceEnabled: true,
@@ -1191,9 +1192,9 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags: []string{"env:prod"},
 			wantedHost: "foo",
 			wantedOrigin: taggertypes.OriginInfo{
-				ContainerIDFromSocket: "originID",
 				LocalData: origindetection.LocalData{
-					PodUID: "my-id",
+					ProcessID: 123,
+					PodUID:    "my-id",
 				},
 			},
 			wantedMetricSource: metrics.MetricSourceDogstatsd,
@@ -1201,10 +1202,10 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=none present, host=foo, should not call the originFromUDSFunc()",
 			args: args{
-				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "none")},
-				originFromUDS: "originID",
-				localData:     origindetection.LocalData{},
-				externalData:  origindetection.ExternalData{},
+				tags:         []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "none")},
+				processID:    123,
+				localData:    origindetection.LocalData{},
+				externalData: origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
 					entityIDPrecedenceEnabled: true,
@@ -1213,9 +1214,9 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags: []string{"env:prod"},
 			wantedHost: "foo",
 			wantedOrigin: taggertypes.OriginInfo{
-				ContainerIDFromSocket: "originID",
 				LocalData: origindetection.LocalData{
-					PodUID: "none",
+					ProcessID: 123,
+					PodUID:    "none",
 				},
 			},
 			wantedMetricSource: metrics.MetricSourceDogstatsd,
@@ -1223,10 +1224,10 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
 			args: args{
-				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42")},
-				originFromUDS: "originID",
-				localData:     origindetection.LocalData{},
-				externalData:  origindetection.ExternalData{},
+				tags:         []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42")},
+				processID:    123,
+				localData:    origindetection.LocalData{},
+				externalData: origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
 					entityIDPrecedenceEnabled: false,
@@ -1235,9 +1236,9 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags: []string{"env:prod"},
 			wantedHost: "foo",
 			wantedOrigin: taggertypes.OriginInfo{
-				ContainerIDFromSocket: "originID",
 				LocalData: origindetection.LocalData{
-					PodUID: "42",
+					ProcessID: 123,
+					PodUID:    "42",
 				},
 			},
 			wantedMetricSource: metrics.MetricSourceDogstatsd,
@@ -1245,10 +1246,10 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality=high present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
 			args: args{
-				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + types.HighCardinalityString},
-				originFromUDS: "originID",
-				localData:     origindetection.LocalData{},
-				externalData:  origindetection.ExternalData{},
+				tags:         []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + types.HighCardinalityString},
+				processID:    123,
+				localData:    origindetection.LocalData{},
+				externalData: origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
 					entityIDPrecedenceEnabled: false,
@@ -1257,9 +1258,9 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags: []string{"env:prod"},
 			wantedHost: "foo",
 			wantedOrigin: taggertypes.OriginInfo{
-				ContainerIDFromSocket: "originID",
 				LocalData: origindetection.LocalData{
-					PodUID: "42",
+					ProcessID: 123,
+					PodUID:    "42",
 				},
 				Cardinality: "high",
 			},
@@ -1268,10 +1269,10 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality=orchestrator present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
 			args: args{
-				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + types.OrchestratorCardinalityString},
-				originFromUDS: "originID",
-				localData:     origindetection.LocalData{},
-				externalData:  origindetection.ExternalData{},
+				tags:         []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + types.OrchestratorCardinalityString},
+				processID:    123,
+				localData:    origindetection.LocalData{},
+				externalData: origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
 					entityIDPrecedenceEnabled: false,
@@ -1280,9 +1281,9 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags: []string{"env:prod"},
 			wantedHost: "foo",
 			wantedOrigin: taggertypes.OriginInfo{
-				ContainerIDFromSocket: "originID",
 				LocalData: origindetection.LocalData{
-					PodUID: "42",
+					ProcessID: 123,
+					PodUID:    "42",
 				},
 				Cardinality: "orchestrator",
 			},
@@ -1291,10 +1292,10 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality=low present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
 			args: args{
-				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + types.LowCardinalityString},
-				originFromUDS: "originID",
-				localData:     origindetection.LocalData{},
-				externalData:  origindetection.ExternalData{},
+				tags:         []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + types.LowCardinalityString},
+				processID:    123,
+				localData:    origindetection.LocalData{},
+				externalData: origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
 					entityIDPrecedenceEnabled: false,
@@ -1303,9 +1304,9 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags: []string{"env:prod"},
 			wantedHost: "foo",
 			wantedOrigin: taggertypes.OriginInfo{
-				ContainerIDFromSocket: "originID",
 				LocalData: origindetection.LocalData{
-					PodUID: "42",
+					ProcessID: 123,
+					PodUID:    "42",
 				},
 				Cardinality: "low",
 			},
@@ -1314,10 +1315,10 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality=unknown present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
 			args: args{
-				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + types.UnknownCardinalityString},
-				originFromUDS: "originID",
-				localData:     origindetection.LocalData{},
-				externalData:  origindetection.ExternalData{},
+				tags:         []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + types.UnknownCardinalityString},
+				processID:    123,
+				localData:    origindetection.LocalData{},
+				externalData: origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
 					entityIDPrecedenceEnabled: false,
@@ -1326,9 +1327,9 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags: []string{"env:prod"},
 			wantedHost: "foo",
 			wantedOrigin: taggertypes.OriginInfo{
-				ContainerIDFromSocket: "originID",
 				LocalData: origindetection.LocalData{
-					PodUID: "42",
+					ProcessID: 123,
+					PodUID:    "42",
 				},
 				Cardinality: "unknown",
 			},
@@ -1337,10 +1338,10 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality='' present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
 			args: args{
-				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix},
-				originFromUDS: "originID",
-				localData:     origindetection.LocalData{},
-				externalData:  origindetection.ExternalData{},
+				tags:         []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix},
+				processID:    123,
+				localData:    origindetection.LocalData{},
+				externalData: origindetection.ExternalData{},
 				conf: enrichConfig{
 					defaultHostname:           "foo",
 					entityIDPrecedenceEnabled: false,
@@ -1349,9 +1350,9 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags: []string{"env:prod"},
 			wantedHost: "foo",
 			wantedOrigin: taggertypes.OriginInfo{
-				ContainerIDFromSocket: "originID",
 				LocalData: origindetection.LocalData{
-					PodUID: "42",
+					ProcessID: 123,
+					PodUID:    "42",
 				},
 				Cardinality: "",
 			},
@@ -1361,9 +1362,10 @@ func TestEnrichTags(t *testing.T) {
 			name: "entity_id=pod-uid, originFromMsg=container-id, should consider entity_id",
 			args: args{
 				tags:          []string{"env:prod", "dd.internal.entity_id:pod-uid"},
-				originFromUDS: "originID",
+				processID:     123,
 				originFromMsg: []byte("container-id"),
 				localData: origindetection.LocalData{
+					ProcessID:   123,
 					ContainerID: "container-id",
 				},
 				externalData: origindetection.ExternalData{},
@@ -1374,8 +1376,8 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags: []string{"env:prod"},
 			wantedHost: "foo",
 			wantedOrigin: taggertypes.OriginInfo{
-				ContainerIDFromSocket: "originID",
 				LocalData: origindetection.LocalData{
+					ProcessID:   123,
 					ContainerID: "container-id",
 					PodUID:      "pod-uid",
 				},
@@ -1386,9 +1388,10 @@ func TestEnrichTags(t *testing.T) {
 			name: "no entity_id, originFromMsg=container-id, should consider originFromMsg",
 			args: args{
 				tags:          []string{"env:prod"},
-				originFromUDS: "originID",
+				processID:     123,
 				originFromMsg: []byte("container-id"),
 				localData: origindetection.LocalData{
+					ProcessID:   123,
 					ContainerID: "container-id",
 				},
 				externalData: origindetection.ExternalData{},
@@ -1399,8 +1402,8 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags: []string{"env:prod"},
 			wantedHost: "foo",
 			wantedOrigin: taggertypes.OriginInfo{
-				ContainerIDFromSocket: "originID",
 				LocalData: origindetection.LocalData{
+					ProcessID:   123,
 					ContainerID: "container-id",
 				},
 			},
@@ -1434,9 +1437,10 @@ func TestEnrichTags(t *testing.T) {
 			name: "external data with entity_id=pod-uid and originFromMsg=container-id",
 			args: args{
 				tags:          []string{"env:prod", "dd.internal.entity_id:pod-uid"},
-				originFromUDS: "originID",
+				processID:     123,
 				originFromMsg: []byte("container-id"),
 				localData: origindetection.LocalData{
+					ProcessID:   123,
 					ContainerID: "container-id",
 				},
 				externalData: origindetection.ExternalData{
@@ -1451,8 +1455,8 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags: []string{"env:prod"},
 			wantedHost: "foo",
 			wantedOrigin: taggertypes.OriginInfo{
-				ContainerIDFromSocket: "originID",
 				LocalData: origindetection.LocalData{
+					ProcessID:   123,
 					ContainerID: "container-id",
 					PodUID:      "pod-uid",
 				},
@@ -1503,7 +1507,7 @@ func TestEnrichTags(t *testing.T) {
 		tt.wantedOrigin.ProductOrigin = origindetection.ProductOriginDogStatsD
 
 		t.Run(tt.name, func(t *testing.T) {
-			tags, host, origin, metricSource := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, 0, tt.args.localData, tt.args.externalData, tt.args.cardinality, tt.args.conf)
+			tags, host, origin, metricSource := extractTagsMetadata(tt.args.tags, tt.args.processID, tt.args.localData, tt.args.externalData, tt.args.cardinality, tt.args.conf)
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedHost, host)
 			assert.Equal(t, tt.wantedOrigin, origin)
@@ -1551,7 +1555,7 @@ func TestEnrichTagsWithJMXCheckName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags, _, _, metricSource := extractTagsMetadata(tt.tags, "", 0, origindetection.LocalData{}, origindetection.ExternalData{}, "", enrichConfig{})
+			tags, _, _, metricSource := extractTagsMetadata(tt.tags, 0, origindetection.LocalData{}, origindetection.ExternalData{}, "", enrichConfig{})
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedMetricSource, metricSource)
 			assert.NotContains(t, tags, tt.jmxCheckName)
