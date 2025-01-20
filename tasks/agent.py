@@ -146,7 +146,7 @@ def build(
     bundle_ebpf=False,
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
-    no_glibc=False,
+    glibc=True,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -220,7 +220,7 @@ def build(
             all_tags |= set(build_tags)
         build_tags = list(all_tags)
 
-    if no_glibc:
+    if not glibc:
         build_tags = list(set(build_tags).difference({"glibc"}))
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
