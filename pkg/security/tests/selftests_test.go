@@ -25,7 +25,7 @@ import (
 func TestSelfTests(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{enableSelfTests: true}), withForceReload())
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{enableSelfTests: true}))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -160,5 +160,6 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.enforcementDisarmerExecutableMaxAllowed == opts.enforcementDisarmerExecutableMaxAllowed &&
 		to.enforcementDisarmerExecutablePeriod == opts.enforcementDisarmerExecutablePeriod &&
 		to.eventServerRetention == opts.eventServerRetention &&
-		to.discardRuntime == opts.discardRuntime
+		to.discardRuntime == opts.discardRuntime &&
+		to.enableSelfTests == opts.enableSelfTests
 }
