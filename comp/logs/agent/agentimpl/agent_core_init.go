@@ -63,7 +63,7 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(a.config.GetInt("logs_config.pipelines"), sharedSender,
 		auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx,
-		status, a.hostname, a.config)
+		status, a.hostname, a.config, a.compression)
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, auditor, a.tracker)

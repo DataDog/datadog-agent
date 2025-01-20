@@ -85,15 +85,7 @@ func (s *testInstallSuite) testCodeSignatures(t *Tester, remoteMSIPath string) {
 	}
 	ddSigned := []string{}
 	otherSigned := []string{}
-	for _, path := range paths {
-		if strings.Contains(path, "embedded3") {
-			// As of 7.5?, the embedded Python3 should be signed by Python, not Datadog
-			// We still build our own Python2, so we need to check that still
-			otherSigned = append(otherSigned, path)
-		} else {
-			ddSigned = append(ddSigned, path)
-		}
-	}
+	ddSigned = append(ddSigned, paths...)
 	// MSI is signed by Datadog
 	if remoteMSIPath != "" {
 		ddSigned = append(ddSigned, remoteMSIPath)
@@ -106,13 +98,15 @@ func (s *testInstallSuite) testCodeSignatures(t *Tester, remoteMSIPath string) {
 		if !verify {
 			s.T().Skip("skipping code signature verification")
 		}
+		s.Assert().Empty(otherSigned, "no other signed files to check")
 		for _, path := range otherSigned {
 			subject := ""
-			if strings.Contains(path, "embedded3") {
-				subject = "CN=Python Software Foundation, O=Python Software Foundation, L=Beaverton, S=Oregon, C=US"
-			} else {
-				s.Assert().Failf("unexpected signed executable", "unexpected signed executable %s", path)
-			}
+			// As of 7.63, the embedded Python3 is back to being signed by Datadog, so it's checked above
+			// If we need to check it or other files again, we can add it back here
+			// 	subject = "CN=Python Software Foundation, O=Python Software Foundation, L=Beaverton, S=Oregon, C=US"
+			// } else {
+			// 	s.Assert().Failf("unexpected signed executable", "unexpected signed executable %s", path)
+			// }
 			sig, err := windowsCommon.GetAuthenticodeSignature(t.host, path)
 			if !s.Assert().NoError(err, "should get authenticode signature for %s", path) {
 				continue
@@ -473,4 +467,28 @@ func (s *testInstallFailSuite) TestInstallFail() {
 	s.Run("rollback does not change system file permissions", func() {
 		AssertDoesNotChangePathPermissions(s.T(), vm, s.beforeInstallPerms)
 	})
+}
+
+// TestInstallWithLanmanServerDisabled tests that the Agent can be installed when the LanmanServer service is disabled.
+// This is the case in Windows Containers, but is not likely to be encountered in other environments.
+func TestInstallWithLanmanServerDisabled(t *testing.T) {
+	s := &testInstallWithLanmanServerDisabledSuite{}
+	Run(t, s)
+}
+
+type testInstallWithLanmanServerDisabledSuite struct {
+	baseAgentMSISuite
+}
+
+func (s *testInstallWithLanmanServerDisabledSuite) TestInstallWithLanmanServerDisabled() {
+	vm := s.Env().RemoteHost
+
+	// Disable LanmanServer service to prevent it from starting again, and then stop it
+	_, err := vm.Execute("sc.exe config lanmanserver start= disabled")
+	s.Require().NoError(err)
+	err = windowsCommon.StopService(vm, "lanmanserver")
+	s.Require().NoError(err)
+
+	_ = s.installAgentPackage(vm, s.AgentPackage)
+	RequireAgentRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm))
 }

@@ -74,6 +74,7 @@ type testOpts struct {
 	enforcementDisarmerExecutablePeriod        time.Duration
 	eventServerRetention                       time.Duration
 	discardRuntime                             bool
+	enableSelfTests                            bool
 }
 
 type dynamicTestOpts struct {

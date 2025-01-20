@@ -92,6 +92,9 @@ const (
 	// in situations where we have a high value for `GOMAXPROCS`.
 	DefaultZstdCompressionLevel = 1
 
+	// DefaultGzipCompressionLevel is the default gzip compression level for logs.
+	DefaultGzipCompressionLevel = 6
+
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
 
@@ -418,12 +421,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("snmp_listener.min_collection_interval")
 	config.SetKnown("snmp_listener.namespace")
 	config.SetKnown("snmp_listener.use_device_id_as_hostname")
-	config.SetKnown("snmp_listener.ping")
 	config.SetKnown("snmp_listener.ping.enabled")
 	config.SetKnown("snmp_listener.ping.count")
 	config.SetKnown("snmp_listener.ping.interval")
 	config.SetKnown("snmp_listener.ping.timeout")
-	config.SetKnown("snmp_listener.ping.linux")
 	config.SetKnown("snmp_listener.ping.linux.use_raw_socket")
 
 	// network_devices.autodiscovery has precedence over snmp_listener config
@@ -439,12 +440,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("network_devices.autodiscovery.min_collection_interval")
 	config.SetKnown("network_devices.autodiscovery.namespace")
 	config.SetKnown("network_devices.autodiscovery.use_device_id_as_hostname")
-	config.SetKnown("network_devices.autodiscovery.ping")
 	config.SetKnown("network_devices.autodiscovery.ping.enabled")
 	config.SetKnown("network_devices.autodiscovery.ping.count")
 	config.SetKnown("network_devices.autodiscovery.ping.interval")
 	config.SetKnown("network_devices.autodiscovery.ping.timeout")
-	config.SetKnown("network_devices.autodiscovery.ping.linux")
 	config.SetKnown("network_devices.autodiscovery.ping.linux.use_raw_socket")
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
@@ -2431,7 +2430,9 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnv(prefix + "dd_url")
 	config.BindEnv(prefix + "additional_endpoints")
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
-	config.BindEnvAndSetDefault(prefix+"compression_level", 6) // Default level for the gzip/deflate algorithm
+	config.BindEnvAndSetDefault(prefix+"compression_kind", "gzip")
+	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault(prefix+"compression_level", DefaultGzipCompressionLevel)      // Default level for the gzip algorithm
 	config.BindEnvAndSetDefault(prefix+"batch_wait", DefaultBatchWait)
 	config.BindEnvAndSetDefault(prefix+"connection_reset_interval", 0) // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault(prefix+"logs_no_ssl", false)

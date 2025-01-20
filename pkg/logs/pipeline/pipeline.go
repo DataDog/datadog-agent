@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
+	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
 // Pipeline processes and sends messages to the backend
@@ -52,7 +54,9 @@ func NewPipeline(outputChan chan *message.Payload,
 	pipelineID int,
 	status statusinterface.Status,
 	hostname hostnameinterface.Component,
-	cfg pkgconfigmodel.Reader) *Pipeline {
+	cfg pkgconfigmodel.Reader,
+	compression logscompression.Component,
+) *Pipeline {
 
 	var flushWg *sync.WaitGroup
 	var senderDoneChan chan *sync.WaitGroup
@@ -87,7 +91,7 @@ func NewPipeline(outputChan chan *message.Payload,
 		senderImpl = sharedSender
 	}
 
-	strategy := getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverless, flushWg, senderImpl.PipelineMonitor())
+	strategy := getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverless, flushWg, senderImpl.PipelineMonitor(), compression)
 
 	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
@@ -128,18 +132,6 @@ func (p *Pipeline) Flush(ctx context.Context) {
 	}
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, flushWg *sync.WaitGroup, pipelineMonitor metrics.PipelineMonitor) sender.Strategy {
-	if endpoints.UseHTTP || serverless {
-		encoder := sender.IdentityContentType
-		if endpoints.Main.UseCompression {
-			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
-		}
-		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor)
-	}
-	return sender.NewStreamStrategy(inputChan, outputChan, sender.IdentityContentType)
-}
-
 // GetDestinations returns configured destinations instances for the given endpoints.
 func GetDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineMonitor metrics.PipelineMonitor, serverless bool, senderDoneChan chan *sync.WaitGroup, status statusinterface.Status, cfg pkgconfigmodel.Reader) *client.Destinations {
 	reliable := []client.Destination{}
@@ -172,4 +164,27 @@ func GetDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 	}
 
 	return client.NewDestinations(reliable, additionals)
+}
+
+//nolint:revive // TODO(AML) Fix revive linter
+func getStrategy(
+	inputChan chan *message.Message,
+	outputChan chan *message.Payload,
+	flushChan chan struct{},
+	endpoints *config.Endpoints,
+	serverless bool,
+	flushWg *sync.WaitGroup,
+	pipelineMonitor metrics.PipelineMonitor,
+	compressor logscompression.Component,
+) sender.Strategy {
+	if endpoints.UseHTTP || serverless {
+		var encoder compressioncommon.Compressor
+		encoder = compressor.NewCompressor(compressioncommon.NoneKind, 0)
+		if endpoints.Main.UseCompression {
+			encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
+		}
+
+		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor)
+	}
+	return sender.NewStreamStrategy(inputChan, outputChan, compressor.NewCompressor(compressioncommon.NoneKind, 0))
 }

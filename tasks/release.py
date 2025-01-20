@@ -26,6 +26,7 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
     GITHUB_REPO_NAME,
 )
+from tasks.libs.common.datadog_api import get_ci_pipeline_events
 from tasks.libs.common.git import (
     check_base_branch,
     check_clean_branch_state,
@@ -84,6 +85,7 @@ GITLAB_FILES_TO_UPDATE = [
 ]
 
 BACKPORT_LABEL_COLOR = "5319e7"
+TAG_BATCH_SIZE = 3
 
 
 @task
@@ -200,7 +202,9 @@ def tag_modules(
 
         if push:
             tags_list = ' '.join(tags)
-            ctx.run(f"git push origin {tags_list}{force_option}")
+            for idx in range(0, len(tags), TAG_BATCH_SIZE):
+                batch_tags = tags[idx : idx + TAG_BATCH_SIZE]
+                ctx.run(f"git push origin {' '.join(batch_tags)}{force_option}")
             print(f"Pushed tag {tags_list}")
         print(f"Created module tags for version {agent_version}")
 
@@ -482,8 +486,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
                 "pr_url": pr_url,
                 "version": str(new_highest_version),
             }
-
-            ctx.run(f"curl -X POST -H 'Content-Type: application/json' --data '{json.dumps(payload)}' {slack_webhook}")
+            send_slack_msg(ctx, payload, slack_webhook)
 
 
 @task
@@ -1267,3 +1270,37 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
             milestone_branch,
             next,
         )
+
+
+def send_slack_msg(ctx, payload, webhook):
+    ctx.run(f'curl -X POST -H "Content-Type: application/json" --data "{payload}" {webhook}')
+
+
+@task
+def check_previous_agent6_rc(ctx):
+    """
+    Validates that there are no existing Agent 6 release candidate pull requests
+    and checks if an Agent 6 build pipeline has been run in the past week
+    """
+    err_msg = ""
+    agent6_prs = ""
+    github = GithubAPI()
+    prs = github.get_pr_for_branch(None, "6.53.x")
+    for pr in prs:
+        if "Update release.json and Go modules for 6.53" in pr.title and not pr.draft:
+            agent6_prs += f"\n- {pr.title}: https://github.com/DataDog/datadog-agent/pull/{pr.number}"
+    if agent6_prs:
+        err_msg += "AGENT 6 ERROR: The following Agent 6 release candidate PRs already exist. Please address these PRs before creating a new release candidate"
+        err_msg += agent6_prs
+
+    response = get_ci_pipeline_events(
+        'ci_level:pipeline @ci.pipeline.name:"DataDog/datadog-agent" @git.tag:6.53.* -@ci.pipeline.downstream:true',
+        7,
+    )
+    if not response.data:
+        err_msg += "\nAGENT 6 ERROR: No Agent 6 build pipelines have run in the past week. Please trigger a build pipeline for the next agent 6 release candidate."
+
+    if err_msg:
+        payload = {'message': err_msg}
+        send_slack_msg(ctx, payload, os.environ.get("SLACK_DATADOG_AGENT_CI_WEBHOOK"))
+        raise Exit(message=err_msg, code=1)

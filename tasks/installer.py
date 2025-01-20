@@ -115,8 +115,10 @@ def build_linux_script(
 
     commit_sha = ctx.run('git rev-parse HEAD', hide=True).stdout.strip()
     install_script = install_script.replace('INSTALLER_COMMIT', commit_sha)
-
-    with open(os.path.join(DIR_BIN, f'install-{flavor}.sh'), 'w') as f:
+    filename = f'install-{flavor}.sh'
+    if flavor == "default":
+        filename = 'install.sh'
+    with open(os.path.join(DIR_BIN, filename), 'w') as f:
         f.write(install_script)
 
 

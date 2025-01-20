@@ -230,6 +230,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
 	}
+	if core.IsSet("apm_config.sql_obfuscation_mode") {
+		c.SQLObfuscationMode = core.GetString("apm_config.sql_obfuscation_mode")
+	}
 
 	/**
 	 * NOTE: PeerTagsAggregation is on by default as of Q4 2024. To get the default experience,

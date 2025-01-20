@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
@@ -58,6 +59,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		endpoints:            config.NewEndpoints(config.Endpoint{}, nil, true, false),
 		currentPipelineIndex: atomic.NewUint32(0),
 		sender:               sender,
+		compression:          compressionfx.NewMockCompressor(),
 	}
 }
 
