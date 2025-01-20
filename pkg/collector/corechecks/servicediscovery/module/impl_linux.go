@@ -47,7 +47,7 @@ const (
 	// Use a low cache validity to ensure that we refresh information every time
 	// the check is run if needed. This is the same as cacheValidityNoRT in
 	// pkg/process/checks/container.go.
-	containerCacheValidatity = 2 * time.Second
+	containerCacheValidity = 2 * time.Second
 )
 
 // Ensure discovery implements the module.Module interface.
@@ -815,7 +815,7 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 	}
 
 	alivePids := make(pidSet, len(pids))
-	containers, _, pidToCid, err := s.containerProvider.GetContainers(containerCacheValidatity, nil)
+	containers, _, pidToCid, err := s.containerProvider.GetContainers(containerCacheValidity, nil)
 	if err != nil {
 		log.Errorf("could not get containers: %s", err)
 	}

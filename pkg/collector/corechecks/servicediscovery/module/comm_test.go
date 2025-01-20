@@ -32,7 +32,7 @@ const (
 func TestIgnoreComm(t *testing.T) {
 	serverDir := buildFakeServer(t)
 	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidatity, nil).AnyTimes()
+	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
 	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	ctx, cancel := context.WithCancel(context.Background())
