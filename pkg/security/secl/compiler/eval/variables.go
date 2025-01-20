@@ -21,8 +21,8 @@ var (
 	errAppendNotSupported = errors.New("append is not supported")
 )
 
-// VariableValue describes a SECL variable value
-type VariableValue interface {
+// SECLVariable describes a SECL variable value
+type SECLVariable interface {
 	GetEvaluator() interface{}
 }
 
@@ -415,8 +415,8 @@ type VariableOpts struct {
 	TTL  time.Duration
 }
 
-// GetVariable returns new variable of the type of the specified value
-func (v *GlobalVariables) GetVariable(_ string, value interface{}, opts VariableOpts) (VariableValue, error) {
+// NewSECLVariable returns new variable of the type of the specified value
+func (v *GlobalVariables) NewSECLVariable(_ string, value interface{}, opts VariableOpts) (SECLVariable, error) {
 	switch value := value.(type) {
 	case bool:
 		return NewMutableBoolVariable(), nil
@@ -523,13 +523,13 @@ func (v *ScopedVariables) Len() int {
 	return len(v.vars)
 }
 
-func (v *ScopedVariables) getVariables(ctx *Context) *Variables {
-	key := v.scoper(ctx)
-	return v.vars[key]
-}
+// NewSECLVariable returns new variable of the type of the specified value
+func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, _ VariableOpts) (SECLVariable, error) {
+	getVariables := func(ctx *Context) *Variables {
+		v := v.vars[v.scoper(ctx)]
+		return v
+	}
 
-// GetVariable returns new variable of the type of the specified value
-func (v *ScopedVariables) GetVariable(name string, value interface{}, _ VariableOpts) (VariableValue, error) {
 	setVariable := func(ctx *Context, value interface{}) error {
 		key := v.scoper(ctx)
 		if key == nil {
@@ -550,35 +550,35 @@ func (v *ScopedVariables) GetVariable(name string, value interface{}, _ Variable
 	switch value.(type) {
 	case int:
 		return NewIntVariable(func(ctx *Context) int {
-			if vars := v.getVariables(ctx); vars != nil {
+			if vars := getVariables(ctx); vars != nil {
 				return vars.GetInt(name)
 			}
 			return 0
 		}, setVariable), nil
 	case bool:
 		return NewBoolVariable(func(ctx *Context) bool {
-			if vars := v.getVariables(ctx); vars != nil {
+			if vars := getVariables(ctx); vars != nil {
 				return vars.GetBool(name)
 			}
 			return false
 		}, setVariable), nil
 	case string:
 		return NewStringVariable(func(ctx *Context) string {
-			if vars := v.getVariables(ctx); vars != nil {
+			if vars := getVariables(ctx); vars != nil {
 				return vars.GetString(name)
 			}
 			return ""
 		}, setVariable), nil
 	case []string:
 		return NewStringArrayVariable(func(ctx *Context) []string {
-			if vars := v.getVariables(ctx); vars != nil {
+			if vars := getVariables(ctx); vars != nil {
 				return vars.GetStringArray(name)
 			}
 			return nil
 		}, setVariable), nil
 	case []int:
 		return NewIntArrayVariable(func(ctx *Context) []int {
-			if vars := v.getVariables(ctx); vars != nil {
+			if vars := getVariables(ctx); vars != nil {
 				return vars.GetIntArray(name)
 			}
 			return nil
