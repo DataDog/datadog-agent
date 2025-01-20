@@ -9655,13 +9655,6 @@
 			"distrib": "ol",
 			"version": "7",
 			"arch": "arm64",
-			"uname_release": "4.14.35-2047.543.3.1.el7uek.aarch64",
-			"cindex": 44
-		},
-		{
-			"distrib": "ol",
-			"version": "7",
-			"arch": "arm64",
 			"uname_release": "4.14.35-2047.543.3.el7uek.aarch64",
 			"cindex": 44
 		},
