@@ -71,7 +71,16 @@ func TestEnrichTags(t *testing.T) {
 	assert.NoError(t, err)
 	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
 
-	containerName, initContainerName, containerID, initContainerID, podUID := "container-name", "init-container-name", "container-id", "init-container-id", "pod-uid"
+	processID, containerName, initContainerName, containerID, initContainerID, podUID := uint32(123), "container-name", "init-container-name", "container-id", "init-container-id", "pod-uid"
+
+	// Overriding the GetProvider function to use the mock metrics provider
+	mockMetricsProvider := collectormock.NewMetricsProvider()
+	initContainerMetaCollector := collectormock.MetaCollector{ContainerID: initContainerID, CIDFromPodUIDContName: map[string]string{fmt.Sprint("i-", podUID, "/", initContainerName): initContainerID}}
+	containerMetaCollector := collectormock.MetaCollector{ContainerID: containerID, CIDFromPodUIDContName: map[string]string{fmt.Sprint(podUID, "/", containerName): containerID}}
+	processMetaCollector := collectormock.MetaCollector{ContainerID: containerID, CIDFromPID: map[int]string{int(processID): containerID}}
+	mockMetricsProvider.RegisterMetaCollector(&processMetaCollector)
+	cleanUp := setupFakeMetricsProvider(mockMetricsProvider)
+	defer cleanUp()
 
 	// Fill fake tagger with entities
 	fakeTagger.SetTags(types.NewEntityID(types.KubernetesPodUID, podUID), "host", []string{"pod-low"}, []string{"pod-orch"}, []string{"pod-high"}, []string{"pod-std"})
@@ -106,7 +115,8 @@ func TestEnrichTags(t *testing.T) {
 					ContainerID: containerID,
 				},
 				Cardinality: "high",
-			}, expectedTags: []string{"container-low", "container-orch", "container-high"},
+			},
+			expectedTags: []string{"container-low", "container-orch", "container-high"},
 		},
 		{
 			name: "with local data (podUID) and low cardinality",
@@ -129,11 +139,11 @@ func TestEnrichTags(t *testing.T) {
 			expectedTags: []string{"pod-low", "pod-orch", "pod-high"},
 		},
 		{
-			name: "with local data (podUID, containerIDFromSocket) and high cardinality, APM origin",
+			name: "with local data (ProcessID, PodUID) and high cardinality, APM origin",
 			originInfo: taggertypes.OriginInfo{
-				ContainerIDFromSocket: fmt.Sprintf("container_id://%s", containerID),
 				LocalData: origindetection.LocalData{
-					PodUID: podUID,
+					ProcessID: processID,
+					PodUID:    podUID,
 				},
 				Cardinality:   "high",
 				ProductOrigin: origindetection.ProductOriginAPM},
@@ -148,14 +158,6 @@ func TestEnrichTags(t *testing.T) {
 	}
 
 	// External data tests
-
-	// Overriding the GetProvider function to use the mock metrics provider
-	mockMetricsProvider := collectormock.NewMetricsProvider()
-	initContainerMetaCollector := collectormock.MetaCollector{ContainerID: initContainerID, CIDFromPodUIDContName: map[string]string{fmt.Sprint("i-", podUID, "/", initContainerName): initContainerID}}
-	containerMetaCollector := collectormock.MetaCollector{ContainerID: containerID, CIDFromPodUIDContName: map[string]string{fmt.Sprint(podUID, "/", containerName): containerID}}
-	cleanUp := setupFakeMetricsProvider(mockMetricsProvider)
-	defer cleanUp()
-
 	for _, tt := range []struct {
 		name         string
 		originInfo   taggertypes.OriginInfo
@@ -256,11 +258,18 @@ func TestEnrichTagsOrchestrator(t *testing.T) {
 	tagger, err := NewTaggerClient(params, c, wmeta, logComponent, noopTelemetry.GetCompatComponent())
 	assert.NoError(t, err)
 
+	// Overriding the GetProvider function to use the mock metrics provider
+	mockMetricsProvider := collectormock.NewMetricsProvider()
+	processMetaCollector := collectormock.MetaCollector{ContainerID: "bar", CIDFromPID: map[int]string{123: "bar"}}
+	mockMetricsProvider.RegisterMetaCollector(&processMetaCollector)
+	cleanUp := setupFakeMetricsProvider(mockMetricsProvider)
+	defer cleanUp()
+
 	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
 
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()
-	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", Cardinality: "orchestrator"})
+	tagger.EnrichTags(tb, taggertypes.OriginInfo{LocalData: origindetection.LocalData{ProcessID: 123}, Cardinality: "orchestrator"})
 	assert.Equal(t, []string{"container-low", "container-orch"}, tb.Get())
 }
 
@@ -283,13 +292,20 @@ func TestEnrichTagsOptOut(t *testing.T) {
 	assert.NoError(t, err)
 	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
 
+	// Overriding the GetProvider function to use the mock metrics provider
+	mockMetricsProvider := collectormock.NewMetricsProvider()
+	processMetaCollector := collectormock.MetaCollector{ContainerID: "bar", CIDFromPID: map[int]string{123: "bar"}}
+	mockMetricsProvider.RegisterMetaCollector(&processMetaCollector)
+	cleanUp := setupFakeMetricsProvider(mockMetricsProvider)
+	defer cleanUp()
+
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
 
 	tb := tagset.NewHashingTagsAccumulator()
 	// Test with none cardinality
 	tagger.EnrichTags(tb, taggertypes.OriginInfo{
-		ContainerIDFromSocket: "container_id://bar",
 		LocalData: origindetection.LocalData{
+			ProcessID:   123,
 			ContainerID: "container-id",
 		},
 		Cardinality:   "none",
@@ -299,8 +315,8 @@ func TestEnrichTagsOptOut(t *testing.T) {
 
 	// Test without none cardinality
 	tagger.EnrichTags(tb, taggertypes.OriginInfo{
-		ContainerIDFromSocket: "container_id://bar",
 		LocalData: origindetection.LocalData{
+			ProcessID:   123,
 			ContainerID: "container-id",
 			PodUID:      "pod-uid",
 		},
@@ -478,8 +494,15 @@ func TestGlobalTags(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"global-low", "global-orch"}, globalTags)
 
+	// Overriding the GetProvider function to use the mock metrics provider
+	mockMetricsProvider := collectormock.NewMetricsProvider()
+	processMetaCollector := collectormock.MetaCollector{ContainerID: "bar", CIDFromPID: map[int]string{123: "bar"}}
+	mockMetricsProvider.RegisterMetaCollector(&processMetaCollector)
+	cleanUp := setupFakeMetricsProvider(mockMetricsProvider)
+	defer cleanUp()
+
 	tb := tagset.NewHashingTagsAccumulator()
-	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", Cardinality: "orchestrator"})
+	tagger.EnrichTags(tb, taggertypes.OriginInfo{LocalData: origindetection.LocalData{ProcessID: 123}, Cardinality: "orchestrator"})
 	assert.Equal(t, []string{"container-low", "container-orch", "global-low", "global-orch"}, tb.Get())
 }
 
