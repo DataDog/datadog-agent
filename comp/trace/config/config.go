@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"go.uber.org/fx"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"

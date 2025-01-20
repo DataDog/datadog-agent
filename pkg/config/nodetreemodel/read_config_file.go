@@ -6,6 +6,7 @@
 package nodetreemodel
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -13,9 +14,10 @@ import (
 	"reflect"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/yaml.v2"
 )
 
 func (c *ntmConfig) findConfigFile() {
@@ -83,8 +85,9 @@ func (c *ntmConfig) readInConfig(filePath string) error {
 
 func (c *ntmConfig) readConfigurationContent(target InnerNode, source model.Source, content []byte) error {
 	var inData map[string]interface{}
-
-	if strictErr := yaml.UnmarshalStrict(content, &inData); strictErr != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(content))
+	decoder.KnownFields(true)
+	if strictErr := decoder.Decode(&inData); strictErr != nil {
 		log.Errorf("warning reading config file: %v\n", strictErr)
 		if err := yaml.Unmarshal(content, &inData); err != nil {
 			return err

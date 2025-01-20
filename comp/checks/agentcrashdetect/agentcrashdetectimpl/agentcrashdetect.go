@@ -15,7 +15,7 @@ import (
 
 	"go.uber.org/fx"
 	"golang.org/x/sys/windows/registry"
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"

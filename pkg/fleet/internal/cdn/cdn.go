@@ -16,10 +16,11 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"gopkg.in/yaml.v2"
 )
 
 const (

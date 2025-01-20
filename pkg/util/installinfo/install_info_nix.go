@@ -21,9 +21,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/uuid"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (

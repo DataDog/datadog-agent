@@ -22,7 +22,7 @@ Example:
 
 ```golang
 import (
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 
 	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
 )

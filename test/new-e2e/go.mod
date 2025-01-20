@@ -84,7 +84,7 @@ require (
 	golang.org/x/crypto v0.32.0
 	golang.org/x/sys v0.29.0
 	golang.org/x/term v0.28.0
-	gopkg.in/yaml.v2 v2.4.0
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	k8s.io/api v0.31.4
 	k8s.io/apimachinery v0.31.4

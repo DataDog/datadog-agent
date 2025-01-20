@@ -26,7 +26,7 @@ import (
 
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
