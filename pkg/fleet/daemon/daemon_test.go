@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// for now the installer is not supported on windows
-//go:build !windows
-
 package daemon
 
 import (
@@ -62,8 +59,8 @@ func (m *testPackageManager) ConfigStates() (map[string]repository.State, error)
 	return args.Get(0).(map[string]repository.State), args.Error(1)
 }
 
-func (m *testPackageManager) Install(ctx context.Context, url string, installArgs []string, force bool) error {
-	args := m.Called(ctx, url, installArgs, force)
+func (m *testPackageManager) Install(ctx context.Context, url string, installArgs []string, _ bool) error {
+	args := m.Called(ctx, url, installArgs)
 	return args.Error(0)
 }
 
