@@ -147,7 +147,7 @@ func (d *DatadogInstaller) RunInstallScript(extraEnvVars map[string]string) (str
 	}
 	cmd := fmt.Sprintf(`Set-ExecutionPolicy Bypass -Scope Process -Force;
 		[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
-		iex ((New-Object System.Net.WebClient).DownloadString('https://installtesting.datad0g.com/%s/scripts/Install-Datadog.ps1'));`, d.env.Environment.CommitSHA())
+		iex ((New-Object System.Net.WebClient).DownloadString('https://installtesting.datad0g.com/%s/scripts/Install-Datadog.ps1'));`, os.Getenv("CI_COMMIT_SHA"))
 	return d.env.RemoteHost.Execute(cmd, client.WithEnvVariables(envVars))
 }
 
