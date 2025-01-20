@@ -11,6 +11,7 @@
 package installinfo
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -67,7 +68,9 @@ func getFromPath(path string) (*InstallInfo, error) {
 	}
 
 	var install installInfoMethod
-	if err := yaml.UnmarshalStrict(yamlContent, &install); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(yamlContent))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&install); err != nil {
 		// file was manipulated and is not relevant to format
 		return nil, err
 	}
