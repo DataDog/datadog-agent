@@ -64,7 +64,6 @@ stages:
   - package_deps_build
   - kernel_matrix_testing_prepare
   - kernel_matrix_testing_system_probe
-  - kernel_matrix_testing_security_agent
   - kernel_matrix_testing_cleanup
   - integration_test
   - benchmarks
@@ -666,7 +665,6 @@ workflow:
   - test/kitchen/test/integration/security-agent-test/**/*
   - test/kitchen/test/integration/security-agent-stress/**/*
   - .gitlab/functional_test/security_agent.yml
-  - .gitlab/kernel_matrix_testing/security_agent.yml
   - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
