@@ -54,7 +54,7 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
-	partitions, err := diskPartitions(true)
+	partitions, err := diskPartitions(c.cfg.allDevices)
 	if err != nil {
 		return err
 	}

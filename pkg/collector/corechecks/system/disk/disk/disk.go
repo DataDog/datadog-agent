@@ -35,6 +35,21 @@ type diskConfig struct {
 	excludedMountpointRe *regexp.Regexp
 	allPartitions        bool
 	deviceTagRe          map[*regexp.Regexp][]string
+	allDevices           bool
+}
+
+func NewDiskConfig() *diskConfig {
+	return &diskConfig{
+		useMount:             false,
+		excludedFilesystems:  []string{},
+		excludedDisks:        []string{},
+		excludedDiskRe:       nil,
+		tagByFilesystem:      false,
+		excludedMountpointRe: nil,
+		allPartitions:        false,
+		deviceTagRe:          make(map[*regexp.Regexp][]string), // Initialize map
+		allDevices:           true,
+	}
 }
 
 func (c *Check) excludeDisk(mountpoint, device, fstype string) bool {
@@ -83,7 +98,7 @@ func (c *Check) excludeDisk(mountpoint, device, fstype string) bool {
 
 func (c *Check) instanceConfigure(data integration.Data) error {
 	conf := make(map[interface{}]interface{})
-	c.cfg = &diskConfig{}
+	c.cfg = NewDiskConfig()
 	err := yaml.Unmarshal([]byte(data), &conf)
 	if err != nil {
 		return err

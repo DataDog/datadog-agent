@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -89,6 +90,103 @@ func diskUsageSampler(mountpoint string) (*disk.UsageStat, error) {
 //nolint:revive // TODO(PLINT) Fix revive linter
 func diskIoSampler(_ ...string) (map[string]disk.IOCountersStat, error) {
 	return diskIoSamples, nil
+}
+
+func TestDiskCheckPartitionsAllDevicesDefault(t *testing.T) {
+	partitionsTrue := []disk.PartitionStat{
+		{
+			Device:     "/dev/sda1",
+			Mountpoint: "/",
+			Fstype:     "ext4",
+			Opts:       []string{"rw", "relatime"},
+		},
+		{
+			Device:     "/dev/sda2",
+			Mountpoint: "/home",
+			Fstype:     "ext4",
+			Opts:       []string{"rw", "relatime"},
+		},
+		{
+			Device:     "tmpfs",
+			Mountpoint: "/run",
+			Fstype:     "tmpfs",
+			Opts:       []string{"rw", "nosuid", "nodev", "relatime"},
+		},
+		{
+			Device:     "shm",
+			Mountpoint: "/dev/shm",
+			Fstype:     "tmpfs",
+			Opts:       []string{"rw", "nosuid", "nodev"},
+		},
+	}
+	diskPartitions = func(_ bool) ([]disk.PartitionStat, error) {
+		return partitionsTrue, nil
+	}
+	usageData := map[string]*disk.UsageStat{
+		"/": {
+			Path:              "/",
+			Fstype:            "ext4",
+			Total:             100000000000, // 100 GB
+			Free:              30000000000,  // 30 GB
+			Used:              70000000000,  // 70 GB
+			UsedPercent:       70.0,
+			InodesTotal:       1000000,
+			InodesUsed:        500000,
+			InodesFree:        500000,
+			InodesUsedPercent: 50.0,
+		},
+		"/home": {
+			Path:              "/home",
+			Fstype:            "ext4",
+			Total:             50000000000, // 50 GB
+			Free:              20000000000, // 20 GB
+			Used:              30000000000, // 30 GB
+			UsedPercent:       60.0,
+			InodesTotal:       500000,
+			InodesUsed:        200000,
+			InodesFree:        300000,
+			InodesUsedPercent: 40.0,
+		},
+		"/run": {
+			Path:              "/run",
+			Fstype:            "tmpfs",
+			Total:             2000000000, // 2 GB
+			Free:              1500000000, // 1.5 GB
+			Used:              500000000,  // 0.5 GB
+			UsedPercent:       25.0,
+			InodesTotal:       10000,
+			InodesUsed:        5000,
+			InodesFree:        5000,
+			InodesUsedPercent: 50.0,
+		},
+		"/dev/shm": {
+			Path:              "/dev/shm",
+			Fstype:            "tmpfs",
+			Total:             8000000000, // 8 GB
+			Free:              7000000000, // 7 GB
+			Used:              1000000000, // 1 GB
+			UsedPercent:       12.5,
+			InodesTotal:       20000,
+			InodesUsed:        1000,
+			InodesFree:        19000,
+			InodesUsedPercent: 5.0,
+		},
+	}
+	diskUsage = func(mountpoint string) (*disk.UsageStat, error) {
+		return usageData[mountpoint], nil
+	}
+	diskCheck := new(Check)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", 97656250, "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", 48828125, "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", 1953125, "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", 7812500, "", []string{"device:shm", "device_name:shm"})
 }
 
 func TestDiskCheck(t *testing.T) {
