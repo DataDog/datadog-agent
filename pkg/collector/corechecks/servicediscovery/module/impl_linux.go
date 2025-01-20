@@ -805,7 +805,6 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 	}
 
 	response := &model.ServicesResponse{
-		Services:          make([]model.Service, 0, len(s.runningServices)+len(s.potentialServices)),
 		StartedServices:   make([]model.Service, 0, len(s.potentialServices)),
 		StoppedServices:   make([]model.Service, 0),
 		HeartbeatServices: make([]model.Service, 0),
@@ -839,7 +838,6 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 			if service.LastHeartbeat == now.Unix() {
 				response.HeartbeatServices = append(response.HeartbeatServices, *service)
 			}
-			response.Services = append(response.Services, *service)
 			continue
 		}
 
@@ -848,7 +846,6 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 			// is confirmed to be running.
 			s.runningServices.add(pid)
 			delete(s.potentialServices, pid)
-			response.Services = append(response.Services, *service)
 			response.StartedServices = append(response.StartedServices, *service)
 			continue
 		}
