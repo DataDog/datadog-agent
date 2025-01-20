@@ -309,7 +309,7 @@ func TestDefaultSeries(t *testing.T) {
 	expectedSeries := metrics.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{"version:" + version.AgentVersion}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"version:" + version.AgentVersion, "config_id:default"}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",

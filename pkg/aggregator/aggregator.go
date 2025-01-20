@@ -10,7 +10,6 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -254,7 +253,6 @@ type BufferedAggregator struct {
 	serializer             serializer.MetricSerializer
 	eventPlatformForwarder eventplatform.Component
 	haAgent                haagent.Component
-	configID               string
 	hostname               string
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
@@ -309,14 +307,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		})
 	}
 
-	configVersion := "default"
-	if absFleetDir, err := filepath.EvalSymlinks(pkgconfigsetup.Datadog().GetString("fleet_policies_dir")); err == nil {
-		// If the agent is managed by the installer and the fleet_policies_dir is set, use the config version as the directory name
-		if len(configVersion) > 0 || configVersion != "." {
-			configVersion = filepath.Base(absFleetDir)
-		}
-	}
-
 	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
 
 	aggregator := &BufferedAggregator{
@@ -338,7 +328,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
 		haAgent:                     haAgent,
-		configID:                    configVersion,
 		hostname:                    hostname,
 		hostnameUpdate:              make(chan string),
 		hostnameUpdateDone:          make(chan struct{}),
@@ -886,7 +875,12 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		if version.AgentPackageVersion != "" {
 			tags = append(tags, "package_version:"+version.AgentPackageVersion)
 		}
-		tags = append(tags, "config_id:"+agg.configID)
+		configID := pkgconfigsetup.Datadog().GetString("config_id")
+		if configID == "" {
+			// Ensure we never report an empty config ID
+			configID = "default"
+		}
+		tags = append(tags, "config_id:"+configID)
 	}
 	// nil to empty string
 	// This is expected by other components/tests
