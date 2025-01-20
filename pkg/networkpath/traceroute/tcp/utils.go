@@ -25,9 +25,9 @@ type (
 		TCPResponse layers.TCP
 	}
 
-	// TCPParser encapsulates everything needed to
+	// tcpParser encapsulates everything needed to
 	// decode TCP packets off the wire into structs
-	TCPParser struct {
+	tcpParser struct {
 		layer               layers.TCP
 		decoded             []gopacket.LayerType
 		decodingLayerParser *gopacket.DecodingLayerParser
@@ -103,13 +103,13 @@ func createRawTCPSynBuffer(sourceIP net.IP, sourcePort uint16, destIP net.IP, de
 	return &ipHdr, packet, 20, nil
 }
 
-func newTCPParser() *TCPParser {
-	tcpParser := &TCPParser{}
+func newTCPParser() *tcpParser {
+	tcpParser := &tcpParser{}
 	tcpParser.decodingLayerParser = gopacket.NewDecodingLayerParser(layers.LayerTypeTCP, &tcpParser.layer)
 	return tcpParser
 }
 
-func (tp *TCPParser) parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
+func (tp *tcpParser) parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
 	if header.Protocol != syscall.IPPROTO_TCP || header.Version != 4 ||
 		header.Src == nil || header.Dst == nil {
 		return nil, fmt.Errorf("invalid IP header for TCP packet: %+v", header)

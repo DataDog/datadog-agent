@@ -70,6 +70,9 @@ type (
 		InnerIdentifier uint32
 	}
 
+	// ICMPParser encapsulates the data and logic
+	// for parsing ICMP packets with embedded TCP
+	// or UDP packets
 	ICMPParser struct {
 		icmpLayer     layers.ICMPv4
 		innerIPLayer  layers.IPv4
@@ -113,6 +116,8 @@ func LocalAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, net.Conn, e
 	return localUDPAddr, conn, nil
 }
 
+// NewICMPTCPParser creates a new ICMPParser that can parse ICMP packets with
+// embedded TCP packets
 func NewICMPTCPParser() *ICMPParser {
 	icmpParser := &ICMPParser{}
 	icmpParser.packetParser = gopacket.NewDecodingLayerParser(layers.LayerTypeICMPv4, &icmpParser.icmpLayer, &icmpParser.innerPayload)
@@ -123,6 +128,8 @@ func NewICMPTCPParser() *ICMPParser {
 	return icmpParser
 }
 
+// NewICMPUDPParser creates a new ICMPParser that can parse ICMP packets with
+// embedded UDP packets
 func NewICMPUDPParser() *ICMPParser {
 	icmpParser := &ICMPParser{}
 	icmpParser.packetParser = gopacket.NewDecodingLayerParser(layers.LayerTypeICMPv4, &icmpParser.icmpLayer)
@@ -132,6 +139,8 @@ func NewICMPUDPParser() *ICMPParser {
 	return icmpParser
 }
 
+// Parse parses an ICMP packet and returns the appropriate ICMPResponse
+// depending on the configuration of the parser
 func (p *ICMPParser) Parse(header *ipv4.Header, payload []byte) (*ICMPResponse, error) {
 	// in addition to parsing, it is probably not a bad idea to do some validation
 	// so we can ignore the ICMP packets we don't care about

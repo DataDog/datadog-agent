@@ -14,7 +14,10 @@ import (
 	"golang.org/x/net/ipv4"
 )
 
-func createRawUDPBuffer(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, ttl int) (*ipv4.Header, []byte, uint16, int, error) {
+// createRawUDPBuffer creates a raw UDP packet with the specified parameters
+//
+// the nolint:unused is necessary because we don't yet use this outside the Windows implementation
+func createRawUDPBuffer(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, ttl int) (*ipv4.Header, []byte, uint16, int, error) { //nolint:unused
 	ipLayer := &layers.IPv4{
 		Version:  4,
 		Length:   20,

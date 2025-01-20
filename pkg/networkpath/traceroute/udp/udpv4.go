@@ -30,6 +30,7 @@ type (
 	}
 )
 
+// NewUDPv4 initializes a new UDPv4 traceroute instance
 func NewUDPv4(target net.IP, targetPort uint16, numPaths uint16, minTTL uint8, maxTTL uint8, delay time.Duration, timeout time.Duration) *UDPv4 {
 	icmpParser := common.NewICMPUDPParser()
 
@@ -39,6 +40,8 @@ func NewUDPv4(target net.IP, targetPort uint16, numPaths uint16, minTTL uint8, m
 		NumPaths:   numPaths,
 		MinTTL:     minTTL,
 		MaxTTL:     maxTTL,
+		srcIP:      net.IP{}, // avoid linter error on linux as it's only used on windows
+		srcPort:    0,        // avoid linter error on linux as it's only used on windows
 		Delay:      delay,
 		Timeout:    timeout,
 		icmpParser: icmpParser,
