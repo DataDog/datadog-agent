@@ -63,8 +63,8 @@
     },
     "suse": {
         "x86_64": {
-            "sles-12": "ami-058c3f61e5f37c43f",
-            "sles-15": "ami-067dfda331f8296b0"
+            "sles-12": "ami-08d21b039336d9351",
+            "sles-15": "ami-08f3662e2d5b3989a"
         },
         "arm64": {
             "sles-15": "ami-0d446ba26bbe19573"
