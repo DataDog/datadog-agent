@@ -28,7 +28,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.60.0 // indirect
@@ -44,7 +44,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagset v0.60.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/cache v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/common v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.60.1 // indirect
@@ -52,7 +52,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.55.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1 // indirect
