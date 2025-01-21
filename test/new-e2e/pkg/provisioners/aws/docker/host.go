@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/dogstatsd"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
+	"github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
@@ -31,15 +32,18 @@ const (
 	defaultVMName     = "dockervm"
 )
 
+type preAgentInstallHook func(*aws.Environment, *remote.Host) (pulumi.Resource, error)
+
 // ProvisionerParams contains all the parameters needed to create the environment
 type ProvisionerParams struct {
 	name string
 
-	vmOptions         []ec2.VMOption
-	agentOptions      []dockeragentparams.Option
-	fakeintakeOptions []fakeintake.Option
-	extraConfigParams runner.ConfigMap
-	testingWorkload   bool
+	vmOptions            []ec2.VMOption
+	agentOptions         []dockeragentparams.Option
+	fakeintakeOptions    []fakeintake.Option
+	preAgentInstallHooks []preAgentInstallHook
+	extraConfigParams    runner.ConfigMap
+	testingWorkload      bool
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -130,6 +134,14 @@ func WithTestingWorkload() ProvisionerOption {
 	}
 }
 
+// WithPreAgentInstallHook adds a callback between host setup end and the agent starting up.
+func WithPreAgentInstallHook(cb preAgentInstallHook) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.preAgentInstallHooks = append(params.preAgentInstallHooks, cb)
+		return nil
+	}
+}
+
 // RunParams contains parameters for the run function
 type RunParams struct {
 	Environment       *aws.Environment
@@ -196,6 +208,16 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, runParams RunParams)
 	} else {
 		// Suite inits all fields by default, so we need to explicitly set it to nil
 		env.FakeIntake = nil
+	}
+
+	for _, hook := range params.preAgentInstallHooks {
+		res, err := hook(&awsEnv, host)
+		if err != nil {
+			return err
+		}
+		if res != nil {
+			params.agentOptions = append(params.agentOptions, dockeragentparams.WithPulumiDependsOn(utils.PulumiDependsOn(res)))
+		}
 	}
 
 	// Create Agent if required

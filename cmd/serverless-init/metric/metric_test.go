@@ -17,7 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -64,6 +65,17 @@ func TestAddShutdownMetric(t *testing.T) {
 	assert.Equal(t, metric.Tags[1], "tagb:valueb")
 }
 
+func TestNilDemuxDoesNotPanic(t *testing.T) {
+	demux := createDemultiplexer(t)
+	timestamp := time.Now()
+	// Pass nil for demux to mimic when a port is blocked and dogstatsd does not start properly.
+	// This previously led to a panic and segmentation fault
+	add("metric", []string{"taga:valuea", "tagb:valueb"}, timestamp, nil)
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Equal(t, 0, len(timedMetrics))
+	assert.Equal(t, 0, len(generatedMetrics))
+}
+
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
-	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), compressionmock.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), logscompression.MockModule(), metricscompression.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }

@@ -70,6 +70,11 @@ func IsNetworkNotSupported(kv *kernel.Version) bool {
 	return kv.IsRH7Kernel() || kv.IsOracleUEKKernel()
 }
 
+// IsNetworkFlowMonitorNotSupported returns if the network flow monitor feature is supported
+func IsNetworkFlowMonitorNotSupported(kv *kernel.Version) bool {
+	return IsNetworkNotSupported(kv) || !kv.IsMapValuesToMapHelpersAllowed() || !kv.HasBPFForEachMapElemHelper()
+}
+
 // NewAgentContainerContext returns the agent container context
 func NewAgentContainerContext() (*events.AgentContainerContext, error) {
 	pid := utils.Getpid()

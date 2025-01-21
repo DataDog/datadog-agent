@@ -518,10 +518,14 @@ func (s *TracerSuite) TestConntrackExpiration() {
 // connections when the first lookup fails
 func (s *TracerSuite) TestConntrackDelays() {
 	t := s.T()
+	cfg := testConfig()
+	// fargate does not have CAP_NET_ADMIN
+	skipOnEbpflessNotSupported(t, cfg)
+
 	netlinktestutil.SetupDNAT(t)
 	wg := sync.WaitGroup{}
 
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, cfg)
 	// This will ensure that the first lookup for every connection fails, while the following ones succeed
 	tr.conntracker = tracertestutil.NewDelayedConntracker(tr.conntracker, 1)
 
@@ -561,10 +565,14 @@ func (s *TracerSuite) TestConntrackDelays() {
 
 func (s *TracerSuite) TestTranslationBindingRegression() {
 	t := s.T()
+	cfg := testConfig()
+	// fargate does not have CAP_NET_ADMIN
+	skipOnEbpflessNotSupported(t, cfg)
+
 	netlinktestutil.SetupDNAT(t)
 	wg := sync.WaitGroup{}
 
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, cfg)
 
 	// Setup TCP server
 	server := tracertestutil.NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", 0), func(c net.Conn) {
