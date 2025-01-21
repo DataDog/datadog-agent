@@ -311,8 +311,8 @@ func getDDServices(manager *mgr.Mgr) ([]serviceInfo, error) {
 				log.Warnf("Error getting info for %s: %v", serviceName, err)
 			}
 			ddServices = append(ddServices, conf2)
+			srvc.Close()
 		}
-		srvc.Close()
 	}
 
 	return ddServices, nil
