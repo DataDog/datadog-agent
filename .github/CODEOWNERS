@@ -465,8 +465,6 @@
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-platform @DataDog/container-app
 /pkg/util/podman/                       @DataDog/container-integrations
 /pkg/util/port/                         @DataDog/agent-shared-components
-/pkg/util/port/*windows*.go          @DataDog/windows-agent
-/pkg/util/port/portlist/                @DataDog/agent-shared-components
 /pkg/util/port/portlist/*windows*.go    @DataDog/windows-agent
 /pkg/util/prometheus                    @DataDog/container-integrations
 /pkg/util/tags/                         @DataDog/container-platform
