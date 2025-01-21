@@ -86,7 +86,7 @@ func (dt *DynamicTable) setupDynamicTableMapCleaner(mgr *manager.Manager, cfg *c
 		return fmt.Errorf("error getting http2 dynamic table map: %w", err)
 	}
 
-	mapCleaner, err := ddebpf.NewMapCleaner[HTTP2DynamicTableIndex, HTTP2DynamicTableEntry](dynamicTableMap, defaultMapCleanerBatchSize, dynamicTable, "usm_monitor")
+	mapCleaner, err := ddebpf.NewMapCleaner[HTTP2DynamicTableIndex, HTTP2DynamicTableEntry](dynamicTableMap, 1, dynamicTable, "usm_monitor")
 	if err != nil {
 		return fmt.Errorf("error creating a map cleaner for http2 dynamic table: %w", err)
 	}
