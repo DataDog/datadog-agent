@@ -21,123 +21,14 @@ func getAttrProbes(fentry bool) []*manager.Probe {
 	}
 
 	// chmod
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "chmod",
-	}, fentry, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "fchmod",
-	}, fentry, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "fchmodat",
-	}, fentry, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "fchmodat2",
-	}, fentry, EntryAndExit)...)
+	attrProbes = appendSyscallProbes(attrProbes, fentry, EntryAndExit, "chmod", "fchmod", "fchmodat", "fchmodat2")
 
 	// chown
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "chown",
-	}, fentry, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "chown16",
-	}, fentry, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "fchown",
-	}, fentry, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "fchown16",
-	}, fentry, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "fchownat",
-	}, fentry, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "lchown",
-	}, fentry, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "lchown16",
-	}, fentry, EntryAndExit)...)
+	attrProbes = appendSyscallProbes(attrProbes, fentry, EntryAndExit, "chown", "chown16", "fchown", "fchown16", "fchownat", "lchown", "lchown16")
 
 	// utime
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "utime",
-	}, fentry, EntryAndExit, true)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "utime32",
-	}, fentry, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "utimes",
-	}, fentry, EntryAndExit, true)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "utimes",
-	}, fentry, EntryAndExit|ExpandTime32)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "utimensat",
-	}, fentry, EntryAndExit, true)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "utimensat",
-	}, fentry, EntryAndExit|ExpandTime32)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "futimesat",
-	}, fentry, EntryAndExit, true)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "futimesat",
-	}, fentry, EntryAndExit|ExpandTime32)...)
+	attrProbes = appendSyscallProbes(attrProbes, fentry, EntryAndExit, "utime", "utime32", "utimes", "utimensat", "futimesat")
+	attrProbes = appendSyscallProbes(attrProbes, fentry, EntryAndExit|ExpandTime32, "utimes", "utimensat", "futimesat")
+
 	return attrProbes
 }

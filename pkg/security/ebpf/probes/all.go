@@ -35,6 +35,20 @@ var (
 	EventsPerfRingBufferSize = 256 * os.Getpagesize()
 )
 
+func appendSyscallProbes(probes []*manager.Probe, fentry bool, flag int, syscalls ...string) []*manager.Probe {
+	for _, syscall := range syscalls {
+		probes = append(probes,
+			ExpandSyscallProbes(&manager.Probe{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					UID: SecurityAgentUID,
+				},
+				SyscallFuncName: syscall,
+			}, fentry, flag)...)
+	}
+
+	return probes
+}
+
 // computeDefaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
 // Must be a power of 2 and a multiple of the page size
 func computeDefaultEventsRingBufferSize() uint32 {
