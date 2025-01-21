@@ -108,8 +108,14 @@ jobs:
                   echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX")" >> $GITHUB_OUTPUT
                 fi
 
+            - name: Check if agent 6 is in qualification phase
+              if: ${{ env.IS_AGENT6_RELEASE == 'true' }}
+              run: |
+                is_qualification=$(inv -e release.is-qualification --output)
+                echo "IS_QUALIFICATION=$is_qualification" >> $GITHUB_ENV
+
             - name: Create RC PR
-              if: ${{ steps.check_for_changes.outputs.CHANGES == 'true' || env.IS_AGENT6_RELEASE == 'true' }}
+              if: ${{ steps.check_for_changes.outputs.CHANGES == 'true' || ( env.IS_AGENT6_RELEASE == 'true' && env.IS_QUALIFICATION == 'false') }}
               env:
                 MATRIX: ${{ matrix.value }}
               run: |
@@ -118,3 +124,8 @@ jobs:
                 else
                   inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }}
                 fi
+
+            - name: Rebuild agent 6 RC pipeline if no changes and in qualification phase
+              if: ${{ env.IS_AGENT6_RELEASE == 'true' && steps.check_for_changes.outputs.CHANGES == 'false' && env.IS_QUALIFICATION == 'true' }}
+              run: |
+                inv -e release.run-rc-pipeline 6.53.x
