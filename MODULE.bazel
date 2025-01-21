@@ -4,6 +4,7 @@ bazel_dep(name = "platforms", version = "0.0.10")
 bazel_dep(name = "rules_pkg", version = "0.10.1")
 bazel_dep(name = "rules_python", version = "0.32.2")
 bazel_dep(name = "rules_foreign_cc", version = "0.13.0")
+bazel_dep(name = "protobuf", version = "29.3", repo_name = "com_google_protobuf")
 bazel_dep(
     name = "hermetic_cc_toolchain",
     version = "3.1.0",
