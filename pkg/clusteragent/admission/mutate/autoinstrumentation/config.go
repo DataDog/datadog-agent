@@ -131,6 +131,10 @@ func getPinnedLibraries(datadogConfig config.Component, registry string) []libIn
 			continue
 		}
 
+		if version == defaultVersionMagicString {
+			version = l.defaultLibVersion()
+		}
+
 		log.Infof("Library version %s is specified for language %s", version, lang)
 		res = append(res, l.libInfo("", l.libImageName(registry, version)))
 	}
