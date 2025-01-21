@@ -271,6 +271,8 @@ namespace Datadog.CustomActions
         private ActionResult RunPreRemovePythonScript()
         {
             // add the .post_python_installed_packages.txt to the rollback data store
+            // This means the file can be restored on failure and still used to create a diff file for next retry
+            // Helps prevents silent failure of third party integration feature. Where there is no post file so it silenly continues.
             var pythonPackagesFile = Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "protected", ".post_python_installed_packages.txt");
             // check that file path exists
             if (!System.IO.File.Exists(pythonPackagesFile))
