@@ -26,57 +26,54 @@ var (
 	stagingRootConfig []byte
 )
 
-// EmbeddedRoot is an embedded root
-type EmbeddedRoot []byte
-
 // EmbeddedRoots is a map of version => EmbeddedRoot
-type EmbeddedRoots struct {
+type EmbeddedRoot struct {
 	latest uint64
-	root   EmbeddedRoot
+	root   []byte
 }
 
-func newEmbeddedRoots(embeddedRoot []byte) EmbeddedRoots {
+func NewEmbeddedRoot(embeddedRoot []byte) EmbeddedRoot {
 	version := parseRootVersion(embeddedRoot)
-	return EmbeddedRoots{
+	return EmbeddedRoot{
 		latest: version,
 		root:   embeddedRoot,
 	}
 }
 
 // RootsDirector returns all the roots of the director repo
-func RootsDirector(site string, directorRootOverride string) EmbeddedRoots {
+func RootsDirector(site string, directorRootOverride string) EmbeddedRoot {
 	if directorRootOverride != "" {
-		return newEmbeddedRoots([]byte(directorRootOverride))
+		return NewEmbeddedRoot([]byte(directorRootOverride))
 	}
 	switch site {
 	case "datad0g.com":
-		return newEmbeddedRoots(stagingRootDirector)
+		return NewEmbeddedRoot(stagingRootDirector)
 	default:
-		return newEmbeddedRoots(prodRootDirector)
+		return NewEmbeddedRoot(prodRootDirector)
 	}
 }
 
 // RootsConfig returns all the roots of the director repo
-func RootsConfig(site string, configRootOverride string) EmbeddedRoots {
+func RootsConfig(site string, configRootOverride string) EmbeddedRoot {
 	if configRootOverride != "" {
-		return newEmbeddedRoots([]byte(configRootOverride))
+		return NewEmbeddedRoot([]byte(configRootOverride))
 	}
 
 	switch site {
 	case "datad0g.com":
-		return newEmbeddedRoots(stagingRootConfig)
+		return NewEmbeddedRoot(stagingRootConfig)
 	default:
-		return newEmbeddedRoots(prodRootConfig)
+		return NewEmbeddedRoot(prodRootConfig)
 	}
 }
 
 // Last returns the last root the EmbeddedRoots
-func (roots EmbeddedRoots) Last() EmbeddedRoot {
+func (roots EmbeddedRoot) Root() []byte {
 	return roots.root
 }
 
 // LastVersion returns the last version of the EmbeddedRoots
-func (roots EmbeddedRoots) LastVersion() uint64 {
+func (roots EmbeddedRoot) Version() uint64 {
 	return roots.latest
 }
 
