@@ -18,46 +18,46 @@ message KubeNamespacedName {
 
 message AdvancedADIdentifier {
   // @gotags: json:"kube_service"
-	KubeNamespacedName kubeService   = 1;
+	KubeNamespacedName kube_service   = 1;
   // @gotags: json:"kube_endpoints"
-	KubeNamespacedName kubeEndpoints = 2;
+	KubeNamespacedName kube_endpoints = 2;
 }
 
 message Config {
   // @gotags: json:"check_name"
-  string name = 1;
+  string check_name = 1;
   // @gotags: json:"instances"
   repeated bytes instances = 2;
   // @gotags: json:"init_config"
-  bytes initConfig = 3;
+  bytes init_config = 3;
   // @gotags: json:"metrics_config"
-  bytes metricConfig = 4;
+  bytes metric_config = 4;
   // @gotags: json:"logs_config"
-  bytes logsConfig = 5;
+  bytes logs_config = 5;
   // @gotags: json:"ad_identifiers"
-  repeated string adIdentifiers = 6;
+  repeated string ad_identifiers = 6;
   // @gotags: json:"advance_ad_identifiers"
-  repeated AdvancedADIdentifier advancedAdIdentifiers = 7;
+  repeated AdvancedADIdentifier advanced_ad_identifiers = 7;
   // @gotags: json:"provider"
   string provider = 8;
   // @gotags: json:"service_id"
   string serviceId = 9;
   // @gotags: json:"-"
-  string taggerEntity = 10;
+  string tagger_entity = 10;
   // @gotags: json:"cluster_check"
-  bool clusterCheck = 11;
+  bool cluster_check = 11;
   // @gotags: json:"node_name"
-  string nodeName = 12;
+  string node_name = 12;
   // @gotags: json:"source"
   string source = 13;
   // @gotags: json:"ignore_autodiscovery_tags"
-  bool ignoreAutodiscoveryTags = 14;
+  bool ignore_autodiscovery_tags = 14;
   // @gotags: json:"metrics_excluded"
-  bool metricsExcluded = 15;
+  bool metrics_excluded = 15;
   // @gotags: json:"logs_excluded"
-  bool logsExcluded = 16;
+  bool logs_excluded = 16;
   // @gotags: json:"event_type"
-  string eventType = 17;
+  string event_type = 17;
 }
 
 message AutodiscoveryStreamResponse {

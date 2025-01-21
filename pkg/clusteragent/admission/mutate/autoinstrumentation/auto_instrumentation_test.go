@@ -697,6 +697,17 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
+			name:              "java with default version",
+			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "default"),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:v1",
+				},
+			},
+		},
+		{
 			name:              "java from common registry",
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
 			containerRegistry: "",

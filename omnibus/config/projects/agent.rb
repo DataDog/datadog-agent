@@ -334,8 +334,26 @@ if windows_target?
     windows_symbol_stripping_file bin
   end
 
-  if ENV['SIGN_WINDOWS_DD_WCS']
-    BINARIES_TO_SIGN = GO_BINARIES + [
+  if windows_signing_enabled?
+    # Sign additional binaries from here.
+    # We can't request signing from the respective components/software definitions
+    # for now since the binaries may be restored from cache, which would
+    # shortcut the associated build directives, which would not schedule the files
+    # for signing.
+    PYTHON_BINARIES = [
+      "#{python_3_embedded}\\python.exe",
+      "#{python_3_embedded}\\pythonw.exe",
+      "#{python_3_embedded}\\python3.dll",
+      "#{python_3_embedded}\\python312.dll",
+    ]
+    OPENSSL_BINARIES = [
+      "#{python_3_embedded}\\DLLs\\libcrypto-3-x64.dll",
+      "#{python_3_embedded}\\DLLs\\libssl-3-x64.dll",
+      "#{python_3_embedded}\\bin\\openssl.exe",
+      fips_mode? ? "#{python_3_embedded}\\lib\\ossl-modules\\fips.dll" : nil,
+    ].compact
+
+    BINARIES_TO_SIGN = GO_BINARIES + PYTHON_BINARIES + OPENSSL_BINARIES + [
       "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
     ]

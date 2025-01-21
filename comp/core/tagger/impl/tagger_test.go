@@ -109,18 +109,34 @@ func TestEnrichTags(t *testing.T) {
 			}, expectedTags: []string{"container-low", "container-orch", "container-high"},
 		},
 		{
-			name:         "with local data (podUID) and low cardinality",
-			originInfo:   taggertypes.OriginInfo{PodUID: podUID, Cardinality: "low"},
+			name: "with local data (podUID) and low cardinality",
+			originInfo: taggertypes.OriginInfo{
+				LocalData: origindetection.LocalData{
+					PodUID: podUID,
+				},
+				Cardinality: "low",
+			},
 			expectedTags: []string{"pod-low"},
 		},
 		{
-			name:         "with local data (podUID) and high cardinality",
-			originInfo:   taggertypes.OriginInfo{PodUID: podUID, Cardinality: "high"},
+			name: "with local data (podUID) and high cardinality",
+			originInfo: taggertypes.OriginInfo{
+				LocalData: origindetection.LocalData{
+					PodUID: podUID,
+				},
+				Cardinality: "high",
+			},
 			expectedTags: []string{"pod-low", "pod-orch", "pod-high"},
 		},
 		{
-			name:         "with local data (podUID, containerIDFromSocket) and high cardinality, APM origin",
-			originInfo:   taggertypes.OriginInfo{PodUID: podUID, Cardinality: "high", ContainerIDFromSocket: fmt.Sprintf("container_id://%s", containerID), ProductOrigin: origindetection.ProductOriginAPM},
+			name: "with local data (podUID, containerIDFromSocket) and high cardinality, APM origin",
+			originInfo: taggertypes.OriginInfo{
+				ContainerIDFromSocket: fmt.Sprintf("container_id://%s", containerID),
+				LocalData: origindetection.LocalData{
+					PodUID: podUID,
+				},
+				Cardinality:   "high",
+				ProductOrigin: origindetection.ProductOriginAPM},
 			expectedTags: []string{"container-low", "container-orch", "container-high", "pod-low", "pod-orch", "pod-high"},
 		},
 	} {
@@ -284,9 +300,9 @@ func TestEnrichTagsOptOut(t *testing.T) {
 	// Test without none cardinality
 	tagger.EnrichTags(tb, taggertypes.OriginInfo{
 		ContainerIDFromSocket: "container_id://bar",
-		PodUID:                "pod-uid",
 		LocalData: origindetection.LocalData{
 			ContainerID: "container-id",
+			PodUID:      "pod-uid",
 		},
 		Cardinality:   "low",
 		ProductOrigin: origindetection.ProductOriginDogStatsD,

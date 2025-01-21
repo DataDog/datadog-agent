@@ -164,6 +164,7 @@ SERVERLESS_TAGS = {"serverless", "otlp"}
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
 SYSTEM_PROBE_TAGS = {
     "datadog.no_waf",
+    "no_dynamic_plugins",
     "ec2",
     "linux_bpf",
     "netcgo",

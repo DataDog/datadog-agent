@@ -34,7 +34,6 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 
 	// checks implemented as components
 
@@ -124,6 +123,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/rcservicemrfimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
+	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
@@ -380,7 +380,6 @@ func getSharedFxOption() fx.Option {
 		authtokenimpl.Module(),
 		apiimpl.Module(),
 		commonendpoints.Module(),
-		compressionfx.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
@@ -474,6 +473,7 @@ func getSharedFxOption() fx.Option {
 		networkpath.Bundle(),
 		remoteagentregistryfx.Module(),
 		haagentfx.Module(),
+		metricscompressorfx.Module(),
 	)
 }
 

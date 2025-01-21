@@ -491,3 +491,19 @@ func TestObfuscateSpanEvent(t *testing.T) {
 		}
 	}
 }
+
+func TestLexerObfuscation(t *testing.T) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Features["sqllexer"] = struct{}{}
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	defer cancelFunc()
+	span := &pb.Span{
+		Resource: "SELECT * FROM [u].[users]",
+		Type:     "sql",
+		Meta:     map[string]string{"db.type": "sqlserver"},
+	}
+	agnt.obfuscateSpan(span)
+	assert.Equal(t, "SELECT * FROM [u].[users]", span.Resource)
+}

@@ -161,11 +161,11 @@ remove_remote_config_db()
 remove_persist_integration_files()
 {
     # Remove any file related to reinstalling non-core integrations (see python-scripts/packages.py for the names)
-    if [ -f "$INSTALL_DIR/.prerm_python_installed_packages.txt" ]; then
-        rm "$INSTALL_DIR/.prerm_python_installed_packages.txt" || true
+    if [ -f "$INSTALL_DIR/.pre_python_installed_packages.txt" ]; then
+        rm "$INSTALL_DIR/.pre_python_installed_packages.txt" || true
     fi
-    if [ -f "$INSTALL_DIR/.postinst_python_installed_packages.txt" ]; then
-        rm "$INSTALL_DIR/.postinst_python_installed_packages.txt" || true
+    if [ -f "$INSTALL_DIR/.post_python_installed_packages.txt" ]; then
+        rm "$INSTALL_DIR/.post_python_installed_packages.txt" || true
     fi
     if [ -f "$INSTALL_DIR/.diff_python_installed_packages.txt" ]; then
         rm "$INSTALL_DIR/.diff_python_installed_packages.txt" || true
@@ -183,7 +183,7 @@ case "$1" in #this can't be merged with the later case block because running 're
     upgrade)
         # We're upgrading.
         if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
-            ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/prerm.py" "${INSTALL_DIR}" || true
+            ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/pre.py" "${INSTALL_DIR}" || true
         fi
     ;;
     *)
