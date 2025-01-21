@@ -276,11 +276,11 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 	case deploymentKind:
 		entityID = types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", involvedObject.Namespace, involvedObject.Name))
 	default:
-		resourceType, err := cluster.GetResourceType(involvedObject.Kind, involvedObject.APIVersion)
-		if err == nil {
-			log.Warnf("error getting resource type for kind '%s' and version '%s': tags may be missing: %v", involvedObject.Kind, involvedObject.APIVersion, err)
-		}
 		apiGroup := getAPIGroup(involvedObject.APIVersion)
+		resourceType, err := cluster.GetResourceType(involvedObject.Kind, apiGroup)
+		if err != nil {
+			log.Warnf("error getting resource type for kind '%s' and group '%s', tags may be missing: %v", involvedObject.Kind, apiGroup, err)
+		}
 		entityID = types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID(apiGroup, resourceType, involvedObject.Namespace, involvedObject.Name)))
 	}
 
