@@ -589,6 +589,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
+	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/shirou/gopsutil/v4 v4.24.12
 	go.opentelemetry.io/collector/component/componenttest v0.117.0
 )
@@ -792,7 +793,6 @@ require (
 	github.com/Intevation/gval v1.3.0 // indirect
 	github.com/Intevation/jsonpath v0.2.1 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
-	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/Showmax/go-fqdn v1.0.0 // indirect
 	github.com/VividCortex/ewma v1.2.0 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
