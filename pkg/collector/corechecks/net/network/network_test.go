@@ -66,7 +66,7 @@ func (n *fakeNetworkStats) Connections(kind string) ([]net.ConnectionStat, error
 	return nil, nil
 }
 
-func (n *fakeNetworkStats) NetstatTCPExtCounters(procfsPath string, fs afero.Fs) (map[string]int64, error) {
+func (n *fakeNetworkStats) NetstatTCPExtCounters(_procfsPath string, fs afero.Fs) (map[string]int64, error) {
 	return n.netstatTCPExtCountersValues, n.netstatTCPExtCountersError
 }
 
@@ -520,10 +520,10 @@ excluded_interface_re: "eth[0-9]"
 
 func TestNetStatTCPExtCountersUsingMockedProcfsPath(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	output, err := netstatTCPExtCounters("/mocked/procfs", fs)
+	output, _ := netstatTCPExtCounters("/mocked/procfs", fs)
 	assert.Equal(t, output, map[string]int64(map[string]int64(nil)))
 
-	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
+	err := afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
 		`TCPExt: 1 0 46 79
 TCPExt: 32 34 192 32
 IpExt: 800 4343 4342 304
@@ -538,14 +538,14 @@ IpExt: 801 439 120 439`),
 		`bad file`),
 		0644)
 	assert.Nil(t, err)
-	output, err = netstatTCPExtCounters("/mocked/procfs", fs)
+	_, err = netstatTCPExtCounters("/mocked/procfs", fs)
 	assert.EqualError(t, err, "/mocked/procfs/net/netstat is not fomatted correctly, expected ':'")
 
 	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
 		`TCPExt: `),
 		0644)
 	assert.Nil(t, err)
-	output, err = netstatTCPExtCounters("/mocked/procfs", fs)
+	_, err = netstatTCPExtCounters("/mocked/procfs", fs)
 	assert.EqualError(t, err, "/mocked/procfs/net/netstat is not fomatted correctly, not data line")
 
 	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
@@ -555,7 +555,7 @@ IpExt: 800 4343 4342 304
 IpExt: 801 439 120 439`),
 		0644)
 	assert.Nil(t, err)
-	output, err = netstatTCPExtCounters("/mocked/procfs", fs)
+	_, err = netstatTCPExtCounters("/mocked/procfs", fs)
 	assert.EqualError(t, err, "/mocked/procfs/net/netstat is not fomatted correctly, expected same number of columns")
 
 	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
@@ -565,6 +565,6 @@ IpExt: 800 4343 4342 304
 IpExt: 801 439 120 439`),
 		0644)
 	assert.Nil(t, err)
-	output, err = netstatTCPExtCounters("/mocked/procfs", fs)
+	output, _ = netstatTCPExtCounters("/mocked/procfs", fs)
 	assert.Equal(t, output, map[string]int64(map[string]int64(nil)))
 }
