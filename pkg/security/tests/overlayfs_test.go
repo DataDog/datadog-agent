@@ -179,14 +179,14 @@ func TestOverlayFS(t *testing.T) {
 		if expectedInode != 0 {
 			assert.Equal(t, expectedInode, fileFields.Inode, "wrong inode using fallback")
 		}
-		assert.Equal(t, expectedUpperLayer, fileFields.IsInUpperLayer(), "wrong layer using fallback")
+		assert.Equal(t, expectedUpperLayer, fileFields.IsInUpperLayer(), "wrong layer using fallback for inode %d", expectedInode)
 	}
 
 	validateInodeAndLayerRuntime := func(t *testing.T, expectedInode uint64, expectedUpperLayer bool, fileFields *model.FileFields) {
 		if expectedInode != 0 {
 			assert.Equal(t, expectedInode, fileFields.Inode, "wrong inode in runtime event")
 		}
-		assert.Equal(t, expectedUpperLayer, fileFields.IsInUpperLayer(), "wrong layer in runtime event")
+		assert.Equal(t, expectedUpperLayer, fileFields.IsInUpperLayer(), "wrong layer in runtime event for inode %d", expectedInode)
 	}
 
 	validateInodeAndLayer := func(t *testing.T, filename string, expectedInode uint64, expectedUpperLayer bool, fileFields *model.FileFields) {

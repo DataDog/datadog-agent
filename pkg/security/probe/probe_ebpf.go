@@ -363,7 +363,7 @@ func (p *EBPFProbe) Init() error {
 		})
 	}
 
-	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors()...)
+	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
 
 	if err := p.Manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -1459,7 +1459,7 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		}
 	}
 
-	activatedProbes := probes.SnapshotSelectors()
+	activatedProbes := probes.SnapshotSelectors(p.useFentry)
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {

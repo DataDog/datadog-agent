@@ -105,6 +105,8 @@ const (
 	RawPacketEventType
 	// NetworkFlowMonitorEventType is sent to monitor network activity
 	NetworkFlowMonitorEventType
+	// StatEventType stat event (used kernel side only)
+	StatEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -237,8 +239,13 @@ func (t EventType) String() string {
 		return "ondemand"
 	case RawPacketEventType:
 		return "packet"
+<<<<<<< HEAD
 	case NetworkFlowMonitorEventType:
 		return "network_flow_monitor"
+=======
+	case StatEventType:
+		return "stat"
+>>>>>>> fd46f8516f (fix older kernel)
 	case CustomEventType:
 		return "custom_event"
 	case CreateNewFileEventType:

@@ -210,11 +210,7 @@ struct dentry *__attribute__((always_inline)) get_file_dentry(struct file *file)
 
 unsigned long __attribute__((always_inline)) get_path_ino(struct path *path) {
     struct dentry *dentry = get_path_dentry(path);
-
-    if (dentry) {
-        return get_dentry_ino(dentry);
-    }
-    return 0;
+    return get_dentry_ino(dentry);
 }
 
 void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void *buffer, size_t n) {
@@ -329,6 +325,30 @@ int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
 
 int __always_inline get_overlayfs_layer(struct dentry *dentry) {
     return get_ovl_upper_ino(dentry) != 0 ? UPPER_LAYER : LOWER_LAYER;
+}
+
+void __always_inline set_overlayfs_inode(struct dentry *dentry, struct file_t *file) {
+    u64 lower_inode = 0;
+    switch (get_ovl_path_in_inode()) {
+    case 2:
+        lower_inode = get_ovl_lower_ino_from_ovl_entry(dentry);
+        break;
+    case 1:
+        lower_inode = get_ovl_lower_ino_from_ovl_path(dentry);
+        break;
+    default:
+        lower_inode = get_ovl_lower_ino_direct(dentry);
+        break;
+    }
+
+    u64 upper_inode = get_ovl_upper_ino(dentry);
+
+    if (lower_inode) {
+        file->path_key.ino = lower_inode;
+    } else if (upper_inode) {
+        file->path_key.ino = upper_inode;
+    }
+    file->flags |= upper_inode != 0 ? UPPER_LAYER : LOWER_LAYER;
 }
 
 #define VFS_ARG_POSITION1 1

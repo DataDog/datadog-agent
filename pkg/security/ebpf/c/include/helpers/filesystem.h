@@ -161,6 +161,7 @@ void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file
 #endif
 	}
 
+    // set again the layer here as after update a file will be moved to the upper layer
     set_file_layer(dentry, file);
 }
 
@@ -177,6 +178,10 @@ static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry,
     file->path_key.path_id = get_path_id(file->path_key.mount_id, invalidate);
     if (!file->path_key.ino) {
         file->path_key.ino = get_dentry_ino(dentry);
+    }
+
+    if (is_overlayfs(dentry)) {
+        set_overlayfs_inode(dentry, file);
     }
 }
 

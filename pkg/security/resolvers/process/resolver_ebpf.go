@@ -1189,7 +1189,7 @@ func (p *EBPFResolver) FetchAWSSecurityCredentials(e *model.Event) []model.AWSSe
 // Start starts the resolver
 func (p *EBPFResolver) Start(ctx context.Context) error {
 	var err error
-	if p.execFileCacheMap, err = managerhelper.Map(p.manager, "exec_file_cache"); err != nil {
+	if p.execFileCacheMap, err = managerhelper.Map(p.manager, "inode_mount_id"); err != nil {
 		return err
 	}
 

@@ -9,24 +9,56 @@
 #include "helpers/utils.h"
 
 static __attribute__((always_inline)) void cache_file(struct dentry *dentry, u32 mount_id) {
-    u32 flags = 0;
     u64 inode = get_dentry_ino(dentry);
-    if (is_overlayfs(dentry)) {
-        flags = get_overlayfs_layer(dentry);
-    }
-
     struct file_t entry = {
         .path_key = {
             .ino = inode,
             .mount_id = mount_id,
         },
-        .flags = flags,
     };
+
+    if (is_overlayfs(dentry)) {
+        set_overlayfs_inode(dentry, &entry);
+    }
 
     fill_file(dentry, &entry);
 
-    // why not inode + mount id ?
-    bpf_map_update_elem(&exec_file_cache, &inode, &entry, BPF_ANY);
+    // cache with the inode only as this map is used to capture the mount_id
+    bpf_map_update_elem(&inode_mount_id, &entry.path_key.ino, &entry, BPF_ANY);
+}
+
+static __attribute__((always_inline)) int handle_stat() {
+    if (!is_runtime_request()) {
+        return 0;
+    }
+
+    struct syscall_cache_t syscall = {
+        .type = EVENT_STAT,
+    };
+    cache_syscall(&syscall);
+    return 0;
+}
+
+HOOK_SYSCALL_ENTRY0(newfstatat) {
+    return handle_stat();
+}
+
+static __attribute__((always_inline)) int handle_ret_stat() {
+    if (!is_runtime_request()) {
+        return 0;
+    }
+
+    pop_syscall(EVENT_STAT);
+    return 0;
+}
+
+HOOK_SYSCALL_EXIT(newfstatat) {
+    return handle_ret_stat();
+}
+
+SEC("tracepoint/handle_sys_newfstatat_exit")
+int tracepoint_handle_sys_newfstatat_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return handle_ret_stat();
 }
 
 // used by both snapshot and process resolver fallback
@@ -35,6 +67,16 @@ int hook_security_inode_getattr(ctx_t *ctx) {
     if (!is_runtime_request()) {
         return 0;
     }
+
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_STAT);
+    if (!syscall) {
+        return 0;
+    }
+
+    if (syscall->stat.in_progress) {
+        return 0;
+    }
+    syscall->stat.in_progress = 1;
 
     u32 mount_id = 0;
     struct dentry *dentry;
