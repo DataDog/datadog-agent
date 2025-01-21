@@ -196,7 +196,7 @@ require (
 	github.com/cilium/ebpf v0.16.0
 	github.com/clbanning/mxj v1.8.4
 	// pin the commit adding `no_dynamic_plugins` build tag, can be updated whenever a new release is out
-	github.com/containerd/containerd v1.7.25-0.20250106131559-142e855138e3
+	github.com/containerd/containerd v1.7.25
 	github.com/containernetworking/cni v1.2.3
 	github.com/coreos/go-semver v0.3.1
 	github.com/coreos/go-systemd/v22 v22.5.0
