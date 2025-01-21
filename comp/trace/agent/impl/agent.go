@@ -86,6 +86,13 @@ func (c component) SendStatsPayload(p *pb.StatsPayload) {
 	c.Agent.StatsWriter.SendPayload(p)
 }
 
+func (c component) GetHTTPHandler(endpoint string) http.Handler {
+	if v, ok := c.Agent.Receiver.Handlers[endpoint]; ok {
+		return v
+	}
+	return nil
+}
+
 type component struct {
 	*pkgagent.Agent
 

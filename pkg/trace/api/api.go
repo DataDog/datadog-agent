@@ -115,9 +115,10 @@ type HTTPReceiver struct {
 	// outOfCPUCounter is counter to throttle the out of cpu warning log
 	outOfCPUCounter *atomic.Uint32
 
-	statsd statsd.ClientInterface
-	timing timing.Reporter
-	info   *watchdog.CurrentInfo
+	statsd   statsd.ClientInterface
+	timing   timing.Reporter
+	info     *watchdog.CurrentInfo
+	Handlers map[string]http.Handler
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
@@ -128,7 +129,8 @@ func NewHTTPReceiver(
 	statsProcessor StatsProcessor,
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
-	timing timing.Reporter) *HTTPReceiver {
+	timing timing.Reporter,
+) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if conf.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
@@ -169,9 +171,10 @@ func NewHTTPReceiver(
 
 		outOfCPUCounter: atomic.NewUint32(0),
 
-		statsd: statsd,
-		timing: timing,
-		info:   watchdog.NewCurrentInfo(),
+		statsd:   statsd,
+		timing:   timing,
+		info:     watchdog.NewCurrentInfo(),
+		Handlers: make(map[string]http.Handler),
 	}
 }
 
@@ -200,8 +203,11 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 		if e.TimeoutOverride != nil {
 			timeout = e.TimeoutOverride(r.conf)
 		}
-		mux.Handle(e.Pattern, replyWithVersion(hash, r.conf.AgentVersion, timeoutMiddleware(timeout, e.Handler(r))))
+		h := replyWithVersion(hash, r.conf.AgentVersion, timeoutMiddleware(timeout, e.Handler(r)))
+		r.Handlers[e.Pattern] = h
+		mux.Handle(e.Pattern, h)
 	}
+	r.Handlers["/info"] = infoHandler
 	mux.HandleFunc("/info", infoHandler)
 
 	return mux
