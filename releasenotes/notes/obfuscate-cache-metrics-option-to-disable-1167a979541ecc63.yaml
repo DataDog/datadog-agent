@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add config option `apm.obfuscation.cache.metrics` to enable or disable obfuscation cache hit miss metrics. This option is enabled by default.
+    Add config option `apm_config.obfuscation.cache.metrics` to enable or disable obfuscation cache hit miss metrics. This option is enabled by default.
