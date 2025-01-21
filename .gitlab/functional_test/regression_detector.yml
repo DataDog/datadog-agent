@@ -26,10 +26,6 @@ single-machine-performance-regression_detector:
   # See 'decision_record.md' for the determination of whether this job passes or fails.
   allow_failure: false
   script:
-    # DockerHub login for build to limit rate limit when pulling base images
-    - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token | crane auth login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
-    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     # Start by tagging the failure mode as `unknown`. At each smp command we will catch any failure exit codes and update this tag properly.
