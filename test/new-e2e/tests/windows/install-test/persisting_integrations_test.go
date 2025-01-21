@@ -273,6 +273,12 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 	// add package to .post_python_installed_packages.txt to check for(this will be still there on rollback)
 	folderPath := "C:\\ProgramData\\Datadog\\protected"
 	filePath := filepath.Join(folderPath, ".post_python_installed_packages.txt")
+
+	// read file to make to back it up before we append
+	fileContent, err := vm.ReadFile(filePath)
+	s.Require().NoError(err, "should read file")
+
+	// append to file
 	_, err = vm.AppendFile("windows", filePath, []byte("test==1.0.0\n"))
 	s.Require().NoError(err, "should append file")
 
@@ -306,6 +312,28 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 	// NOTE: will need to update this if we add or remove services
 	_, err = windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServices())
 	s.Assert().NoError(err, "services should still be installed")
+
+	// remove the test==1.0.0 from .post_python_installed_packages.txt
+	_, err = vm.WriteFile(filePath, fileContent)
+	s.Require().NoError(err, "should write file")
+
+	// check to see if datadog-ping==1.0.2 is still installed
+	s.checkIntegrationInstall(vm, "datadog-ping==1.0.2")
+
+	// upgrade again without failure
+	if !s.Run(fmt.Sprintf("upgrade to %s", s.upgradeAgentPackge.AgentVersion()), func() {
+		_, err := s.InstallAgent(vm,
+			windowsAgent.WithPackage(s.upgradeAgentPackge),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
+			windowsAgent.WithValidAPIKey(),
+			windowsAgent.WithIntegrationsPersistence("1"),
+		)
+		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	s.checkIntegrationInstall(vm, "datadog-ping==1.0.2")
 
 	s.uninstallAgent()
 

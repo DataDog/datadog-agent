@@ -37,7 +37,7 @@ namespace Datadog.CustomActions.Rollback
         /// Write fileContent to the @FilePath for restore purposes.
         /// </summary>
         /// <remarks>
-        /// Files with no content will still be created.
+        /// Files with no content will not be created.
         /// </remarks>
         public void Restore(ISession session, IFileSystemServices _, IServiceController __)
         {
@@ -45,8 +45,6 @@ namespace Datadog.CustomActions.Rollback
             if (_content == null)
             {
                 session.Log($"File {_filePath} has no content");
-                // create an empty file
-                System.IO.File.Create(_filePath).Close();
                 return;
             }
             var fileContent = Convert.FromBase64String(_content);
