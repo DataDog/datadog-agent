@@ -159,10 +159,17 @@ func (v *gpuSuite) TestNvmlMetricsPresent() {
 }
 
 func (v *gpuSuite) TestWorkloadmetaHasGPUs() {
-	out, err := v.Env().RemoteHost.Execute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
-	v.Require().NoError(err)
-	v.Contains(out, "=== Entity gpu sources(merged):[runtime] id: ")
+	var out string
+	// Wait until our collector has ran and we have GPUs in the workloadmeta. We don't have exact control on the timing of execution
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		var err error
+		out, err = v.Env().RemoteHost.Execute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
+		assert.NoError(c, err)
+		assert.Contains(c, out, "=== Entity gpu sources(merged):[runtime] id: ")
+	}, 30*time.Second, 1*time.Second)
+
 	if v.T().Failed() {
+		// log the output for debugging in case of failure
 		v.T().Log(out)
 	}
 }
