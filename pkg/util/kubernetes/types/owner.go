@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubelet || kubeapiserver
-
 // Package types contains common Kubernetes types used by the Agent.
 package types
 
@@ -31,27 +29,3 @@ type GroupVersionResourceKind struct {
 func (g GroupVersionResourceKind) GetAPIVersion() string {
 	return g.Group + "/" + g.Version
 }
-
-// // GroupVersionKind represents a Kubernetes object's Group, Version, and Kind.
-// type GroupVersionKind struct {
-// 	Group   string
-// 	Version string
-// 	Kind    string
-// }
-
-// // GetAPIVersion returns the API version of the GroupVersionKind.
-// func (g GroupVersionKind) GetAPIVersion() string {
-// 	return g.Group + "/" + g.Version
-// }
-
-// // GroupVersionResource represents a Kubernetes object's Group, Version, and Resource.
-// type GroupVersionResource struct {
-// 	Group    string
-// 	Version  string
-// 	Resource string
-// }
-
-// // GetAPIVersion returns the API version of the GroupVersionResource.
-// func (g GroupVersionResource) GetAPIVersion() string {
-// 	return g.Group + "/" + g.Version
-// }
