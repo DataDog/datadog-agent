@@ -121,9 +121,13 @@ func (d *DiscoveryCollector) DiscoverRegularResource(resource string, groupVersi
 }
 
 func (d *DiscoveryCollector) isSupportCollector(collector collectors.K8sCollector) (collectors.K8sCollector, error) {
+	name := collector.Metadata().Name
+	if collector.Metadata().Name == "terminated-pods" {
+		name = "pods"
+	}
 	if _, ok := d.cache.collectorForVersion[collectorVersion{
 		version: collector.Metadata().Version,
-		name:    collector.Metadata().Name,
+		name:    name,
 	}]; ok {
 		return collector, nil
 	}
