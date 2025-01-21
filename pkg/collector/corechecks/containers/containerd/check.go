@@ -115,8 +115,8 @@ func (c *ContainerdCheck) Configure(senderManager sender.SenderManager, _ uint64
 	c.subscriber.isCacheConfigValid = c.isEventConfigValid()
 	if err := c.initializeImageCache(); err != nil {
 		log.Warnf("Failed to initialize image size cache: %v", err)
-
-	} else {
+	}
+	if !c.subscriber.isCacheConfigValid {
 		log.Debugf("Image event collection not configured. Starting periodic cache updates.")
 		go c.periodicImageSizeQuery()
 	}
