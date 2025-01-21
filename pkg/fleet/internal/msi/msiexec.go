@@ -277,7 +277,10 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 			_ = os.RemoveAll(tempDir)
 		})
 	}
-	args := append(a.additionalArgs, a.msiAction, a.target, "/qn", "MSIFASTINSTALL=7", "/log", a.logFile)
+	args := append(a.additionalArgs, a.msiAction, a.target, "/qn", "/log", a.logFile)
+	if a.msiAction == "/i" {
+		args = append(args, "ARPSYSTEMCOMPONENT=1", "MSIFASTINSTALL=7")
+	}
 	if a.ddagentUserName != "" {
 		args = append(args, fmt.Sprintf("DDAGENTUSER_NAME=%s", a.ddagentUserName))
 	}
