@@ -995,6 +995,7 @@ require (
 	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.29 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
+	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/signalfx/sapm-proto v0.17.0 // indirect
 	github.com/sigstore/cosign/v2 v2.2.4 // indirect
@@ -1122,3 +1123,5 @@ replace github.com/iceber/iouring-go => github.com/paulcacheux/iouring-go v0.0.0
 
 // github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
 replace github.com/golang/mock => github.com/golang/mock v1.6.0
+
+replace github.com/shirou/gopsutil/v4 => github.com/shirou/gopsutil/v4 v4.24.5
