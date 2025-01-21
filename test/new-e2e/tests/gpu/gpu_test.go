@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -102,15 +102,19 @@ func (v *gpuSuite) runCudaDockerWorkload() string {
 }
 
 func (v *gpuSuite) TestGPUCheckIsEnabled() {
-	statusOutput := v.Env().Agent.Client.Status(agentclient.WithArgs([]string{"collector", "--json"}))
+	// Note that the GPU check should be enabled by autodiscovery, so it can take some time to be enabled
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		statusOutput := v.Env().Agent.Client.Status(agentclient.WithArgs([]string{"collector", "--json"}))
 
-	var status collectorStatus
-	err := json.Unmarshal([]byte(statusOutput.Content), &status)
-	v.Require().NoError(err, "failed to unmarshal agent status")
-	v.Require().Contains(status.RunnerStats.Checks, "gpu")
+		var status collectorStatus
+		err := json.Unmarshal([]byte(statusOutput.Content), &status)
 
-	gpuCheckStatus := status.RunnerStats.Checks["gpu"]
-	v.Require().Equal(gpuCheckStatus.LastError, "")
+		assert.NoError(c, err, "failed to unmarshal agent status")
+		assert.Contains(c, status.RunnerStats.Checks, "gpu")
+
+		gpuCheckStatus := status.RunnerStats.Checks["gpu"]
+		assert.Equal(c, gpuCheckStatus.LastError, "")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
@@ -119,6 +123,26 @@ func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
 		assert.NoError(c, err)
 		assert.NotEmpty(c, out)
 	}, 2*time.Minute, 10*time.Second)
+}
+
+func (v *gpuSuite) requireGPUTags(metric *aggregator.MetricSeries) {
+	foundRequiredTags := map[string]bool{
+		"gpu_uuid":   false,
+		"gpu_device": false,
+		"gpu_vendor": false,
+	}
+
+	for _, tag := range metric.Tags {
+		for requiredTag := range foundRequiredTags {
+			if strings.HasPrefix(tag, requiredTag+":") {
+				foundRequiredTags[requiredTag] = true
+			}
+		}
+	}
+
+	for requiredTag, found := range foundRequiredTags {
+		v.Require().True(found, "required tag %s not found in %v", requiredTag, metric)
+	}
 }
 
 func (v *gpuSuite) TestVectorAddProgramDetected() {
@@ -136,9 +160,7 @@ func (v *gpuSuite) TestVectorAddProgramDetected() {
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
 
 			for _, metric := range metrics {
-				assert.True(c, slices.ContainsFunc(metric.Tags, func(tag string) bool {
-					return strings.HasPrefix(tag, "gpu_uuid:")
-				}), "no gpu_uuid tag found in %v", metric)
+				v.requireGPUTags(metric)
 			}
 		}
 	}, 5*time.Minute, 10*time.Second)
@@ -155,6 +177,19 @@ func (v *gpuSuite) TestNvmlMetricsPresent() {
 			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName)
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no metric '%s' found")
+
+			for _, metric := range metrics {
+				v.requireGPUTags(metric)
+			}
 		}
 	}, 5*time.Minute, 10*time.Second)
+}
+
+func (v *gpuSuite) TestWorkloadmetaHasGPUs() {
+	out, err := v.Env().RemoteHost.Execute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
+	v.Require().NoError(err)
+	v.Contains(out, "=== Entity gpu sources(merged):[runtime] id: ")
+	if v.T().Failed() {
+		v.T().Log(out)
+	}
 }

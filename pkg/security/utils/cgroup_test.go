@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 func TestCGroupvParseLine(t *testing.T) {
@@ -242,7 +241,7 @@ func TestCGroup(t *testing.T) {
 		var (
 			containerID   containerutils.ContainerID
 			runtime       containerutils.CGroupFlags
-			cgroupContext model.CGroupContext
+			cgroupContext CGroupContext
 			cgroupPath    string
 		)
 

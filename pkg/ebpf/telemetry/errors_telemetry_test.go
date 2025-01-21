@@ -56,7 +56,7 @@ var m2 = &manager.Manager{
 }
 
 func skipTestIfEBPFTelemetryNotSupported(t *testing.T) {
-	ok, err := ebpfTelemetrySupported()
+	ok, err := EBPFTelemetrySupported()
 	require.NoError(t, err)
 	if !ok {
 		t.Skip("EBPF telemetry is not supported for this kernel version")

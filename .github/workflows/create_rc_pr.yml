@@ -20,47 +20,34 @@ jobs:
           branches: ${{ steps.branches.outputs.value }}
           warning: ${{ steps.warning.outputs.value }}
         steps:
-            - name: Check if agent 6 rc PR already exists
-              if: ${{ env.IS_AGENT6_RELEASE == 'true' }}
-              run: |
-                prs=$(gh pr list \
-                    --repo "$GITHUB_REPOSITORY" \
-                    --base "$AGENT6_RELEASE_BRANCH" \
-                    --json url,title \
-                    --draft=false \
-                    --search "Update release.json and Go modules for in:title")
-
-                if [ "$(echo "$prs" | jq 'length')" -gt 0 ]; then
-                    pr_list=$(echo "$prs" | jq -r '.[] | "- \(.title): \(.url)"')
-                    error_message="AGENT 6 ERROR: The following Agent 6 release candidate PRs already exist. Please address these PRs before creating a new release candidate:\n$pr_list"
-                    curl -X POST -H 'Content-Type: application/json' \
-                    --data "{ 'channel_id': 'C0701E5KYSX', 'message': '$error_message' }" \
-                    ${{ secrets.SLACK_DATADOG_AGENT_CI_WEBHOOK }}
-                    echo -e "\n$error_message"
-                    exit 1
-                fi
-
             - name: Checkout repository
-              
               uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
               with:
                 sparse-checkout: 'tasks'
                 persist-credentials: false
 
             - name: Install python
-              if: ${{ env.IS_AGENT6_RELEASE == 'false' }}
               uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
               with:
                 python-version-file: .python-version
                 cache: "pip"
 
             - name: Install Python dependencies
-              if: ${{ env.IS_AGENT6_RELEASE == 'false' }}
               run: |
                 python -m pip install --upgrade pip
                 pip install -r requirements.txt
                 pip install -r tasks/libs/requirements-github.txt
                 pip install -r tasks/requirements_release_tasks.txt
+
+            - name: Check previous agent 6 RC status
+              if: ${{ env.IS_AGENT6_RELEASE == 'true' }}
+              env:
+                DD_SITE: 'datadoghq.com'
+                DD_API_KEY: ${{ secrets.DD_API_KEY }}
+                DD_APP_KEY: ${{ secrets.DD_APP_KEY }}
+                SLACK_DATADOG_AGENT_CI_WEBHOOK: ${{ secrets.SLACK_DATADOG_AGENT_CI_WEBHOOK }}
+              run: |
+                inv -e release.check-previous-agent6-rc
 
             - name: Determine the release active branches
               id: branches

@@ -697,3 +697,18 @@ func (c *APIClient) NewSPDYExecutor(apiPath string, groupVersion *schema.GroupVe
 
 	return remotecommand.NewSPDYExecutor(clientConfig, method, url)
 }
+
+// GetKubeSecret fetches a secret from k8s
+func GetKubeSecret(namespace string, name string) (map[string][]byte, error) {
+	kubeClient, err := GetKubeClient(10*time.Second, 0, 0) // Default QPS and burst to Kube client defaults using 0)
+	if err != nil {
+		return nil, err
+	}
+
+	secret, err := kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	return secret.Data, nil
+}

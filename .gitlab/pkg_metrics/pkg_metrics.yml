@@ -82,7 +82,13 @@ check_pkg_size:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules:
-    - !reference [.except_main_or_release_branch]
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: on_success
+      allow_failure: true
+    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
+      when: on_success
+      allow_failure: true
+    - !reference [.except_mergequeue]
     - when: on_success
   needs:
     - agent_deb-x64-a7

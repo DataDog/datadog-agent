@@ -167,11 +167,15 @@ func (h *Host) WaitForUnitActive(units ...string) {
 }
 
 // WaitForUnitActivating waits for a systemd unit to be activating
-func (h *Host) WaitForUnitActivating(units ...string) {
+func (h *Host) WaitForUnitActivating(t *testing.T, units ...string) {
 	for _, unit := range units {
 		_, err := h.remote.Execute(fmt.Sprintf("timeout=60; unit=%s; while ! grep -q \"Active: activating\" <(sudo systemctl status $unit) && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
-		require.NoError(h.t, err, "unit %s did not become activating. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
-
+		if err != nil {
+			h.t.Logf("installer logs:\n%s", h.remote.MustExecute("sudo journalctl -xeu datadog-installer"))
+			h.t.Logf("installer exp logs:\n%s", h.remote.MustExecute("sudo journalctl -xeu datadog-installer-exp"))
+			h.t.Logf("unit %s logs:\n%s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
+		}
+		require.NoError(t, err, "unit %s did not become activating")
 	}
 }
 
@@ -219,10 +223,8 @@ func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 		require.NoErrorf(
 			h.t,
 			err,
-			"package %s not installed by the installer. install logs: \n%s\n%s",
+			"package %s not installed by the installer",
 			pkg,
-			h.remote.MustExecute("cat /tmp/datadog-installer-stdout.log"),
-			h.remote.MustExecute("cat /tmp/datadog-installer-stderr.log"),
 		)
 	}
 }
