@@ -104,7 +104,7 @@ func WithLogFile(logFile string) MsiexecOption {
 // WithAdditionalArgs specifies additional arguments for msiexec
 func WithAdditionalArgs(additionalArgs []string) MsiexecOption {
 	return func(a *msiexecArgs) error {
-		a.additionalArgs = additionalArgs
+		a.additionalArgs = append(a.additionalArgs, additionalArgs...)
 		return nil
 	}
 }
@@ -113,6 +113,15 @@ func WithAdditionalArgs(additionalArgs []string) MsiexecOption {
 func WithDdAgentUserName(ddagentUserName string) MsiexecOption {
 	return func(a *msiexecArgs) error {
 		a.ddagentUserName = ddagentUserName
+		return nil
+	}
+}
+
+// HideControlPanelEntry passes a flag to msiexec so that the installed program
+// does not show in the Control Panel "Add/Remove Software"
+func HideControlPanelEntry() MsiexecOption {
+	return func(a *msiexecArgs) error {
+		a.additionalArgs = append(a.additionalArgs, "ARPSYSTEMCOMPONENT=1")
 		return nil
 	}
 }
@@ -279,7 +288,9 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 	}
 	args := append(a.additionalArgs, a.msiAction, a.target, "/qn", "/log", a.logFile)
 	if a.msiAction == "/i" {
-		args = append(args, "ARPSYSTEMCOMPONENT=1", "MSIFASTINSTALL=7")
+		// Enable fast installation
+		// See https://learn.microsoft.com/en-us/windows/win32/msi/msifastinstall
+		args = append(args, "MSIFASTINSTALL=7")
 	}
 	if a.ddagentUserName != "" {
 		args = append(args, fmt.Sprintf("DDAGENTUSER_NAME=%s", a.ddagentUserName))
