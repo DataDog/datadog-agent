@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -38,6 +39,15 @@ const vectorAddDockerImg = "ghcr.io/datadog/apps-cuda-basic"
 
 func dockerImageName() string {
 	return fmt.Sprintf("%s:%s", vectorAddDockerImg, *imageTag)
+}
+
+func mandatoryMetricTagRegexes() []*regexp.Regexp {
+	regexes := make([]*regexp.Regexp, 0, len(mandatoryMetricTags))
+	for _, tag := range mandatoryMetricTags {
+		regexes = append(regexes, regexp.MustCompile(fmt.Sprintf("%s:.*", tag)))
+	}
+
+	return regexes
 }
 
 // TestGPUSuite runs tests for the VM interface to ensure its implementation is correct.
@@ -141,7 +151,7 @@ func (v *gpuSuite) TestVectorAddProgramDetected() {
 		// memory usage" and that might be zero at the time it's checked
 		metricNames := []string{"gpu.utilization", "gpu.memory.max"}
 		for _, metricName := range metricNames {
-			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithTags[*aggregator.MetricSeries](mandatoryMetricTags))
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
 		}
@@ -156,9 +166,10 @@ func (v *gpuSuite) TestNvmlMetricsPresent() {
 		for _, metricName := range metricNames {
 			// We don't care about values, as long as the metrics are there. Values come from NVML
 			// so we cannot control that.
-			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithTags[*aggregator.MetricSeries](mandatoryMetricTags))
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
 			assert.NoError(c, err)
-			assert.Greater(c, len(metrics), 0, "no metric '%s' found")
+
+			assert.Greater(c, len(metrics), 0, "no metric '%s' found", metricName)
 		}
 	}, 5*time.Minute, 10*time.Second)
 }
