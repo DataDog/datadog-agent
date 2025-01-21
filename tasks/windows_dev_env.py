@@ -61,7 +61,18 @@ def run(
     """
     Runs a command on a remote Windows development environment.
     """
-    exit(_run_on_windows_dev_env(ctx, name, command))
+
+    with ctx.cd('../test-infra-definitions'):
+        # find connection info for the VM
+        result = ctx.run(f"inv aws.show-vm --stack-name={name}", hide=True)
+        if result is None or not result:
+            raise Exception("Failed to find the Windows development environment.")
+        host = RemoteHost(result.stdout)
+    rsync_command = _build_rsync_command(f"Administrator@{host.address}")
+    print("Syncing changes to the remote Windows development environment...")
+    ctx.run(rsync_command)    
+
+    exit(_run_on_windows_dev_env(ctx, name, f". ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -Command {{{command}}}"))
 
 
 def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
@@ -95,7 +106,10 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
             raise Exception("Failed to find pulumi output in stdout.")
         # extract username and address from connection message
         host = connection_message.split()[0]
-
+    print("Disabling Windows Defender and rebooting the Windows dev environment...")
+    _disable_WD_and_reboot(ctx, host)
+    _wait_for_windows_dev_env(ctx, host)
+    print("Host rebooted")
     # check if Windows dev container is already running
     should_start_container = True
     result = ctx.run(f"ssh {host} 'docker ps -q --filter name=windows-dev-env'", warn=True, hide=True)
@@ -113,6 +127,8 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     print("Syncing changes to the remote Windows development environment...")
     ctx.run(rsync_command)
     print("Syncing changes to the remote Windows development done")
+    print("Installing all dependencies in the Windows dev container...")
+    _run_on_windows_dev_env(ctx, name, ". ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallTestingDeps \\$true -InstallDeps \\$true -Command {inv -e tidy}")
     # print the time taken to start the dev env
     elapsed_time = time.time() - start_time
     print("♻️ Windows dev env started in", timedelta(seconds=elapsed_time))
@@ -120,6 +136,19 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     print("♻️ Windows dev env sync stopped")
     print("Start it again with `inv windows_dev_env.start`")
     print("Destroy the Windows dev env with `inv windows-dev-env.stop`")
+
+
+def _disable_WD_and_reboot(ctx, host):
+    ctx.run(f"ssh {host} 'Remove-WindowsFeature Windows-Defender'")
+    ctx.run(f"ssh {host} 'Restart-Computer'")
+
+
+def _wait_for_windows_dev_env(ctx, host):
+    res = ctx.run(f"ssh {host} 'echo Connected'", hide=True, warn=True)
+    while res is None or res.exited != 0:
+        time.sleep(5)
+        res = ctx.run(f"ssh {host} 'echo Connected'", hide=True, warn=True)
+        print("RES",res)
 
 
 def _build_rsync_command(host: str) -> str:
@@ -130,7 +159,7 @@ def _build_rsync_command(host: str) -> str:
     # -I: --ignore-times
     # -P: same as --partial --progress, show partial progress during transfer
     # -R: use relative path names
-    return f"rsync -azrcIPR --delete --rsync-path='C:\\cygwin\\bin\\rsync.exe' --filter=':- .gitignore' --exclude /.git/ . {host}:/cygdrive/c/mnt/datadog-agent/"
+    return f"rsync --chmod=ugo=rwX -azrcIPR --delete --rsync-path='C:\\cygwin\\bin\\rsync.exe' --filter=':- .gitignore' --exclude /.git/ . {host}:/cygdrive/c/mnt/datadog-agent/"
 
 
 def _run_command_on_local_changes(ctx: Context, command: str):
