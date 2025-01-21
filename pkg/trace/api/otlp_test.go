@@ -2304,32 +2304,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				}
 			}
 			for k, v := range got.Meta {
-				switch k {
-				case "events":
-					//// events contain maps with no guaranteed order of
-					//// traversal; best to unpack to compare
-					//var gote, wante []testutil.OTLPSpanEvent
-					//if err := json.Unmarshal([]byte(v), &wante); err != nil {
-					//	t.Fatalf("(%d) Error unmarshalling: %v", i, err)
-					//}
-					//if err := json.Unmarshal([]byte(got.Meta[k]), &gote); err != nil {
-					//	t.Fatalf("(%d) Error unmarshalling: %v", i, err)
-					//}
-					//assert.Equal(wante, gote)
-					continue
-				case "_dd.span_links":
-					// links contain maps with no guaranteed order of
-					// traversal; best to unpack to compare
-					//var gotl, wantl []testutil.OTLPSpanLink
-					//if err := json.Unmarshal([]byte(v), &wantl); err != nil {
-					//	t.Fatalf("(%d) Error unmarshalling: %v", i, err)
-					//}
-					//if err := json.Unmarshal([]byte(got.Meta[k]), &gotl); err != nil {
-					//	t.Fatalf("(%d) Error unmarshalling: %v", i, err)
-					//}
-					//assert.Equal(wantl, gotl)
-					continue
-				default:
+				if k != "events" && k != "_dd.span_links" {
 					assert.Equal(want.Meta[k], v, fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
 				}
 			}
