@@ -584,10 +584,21 @@ func zeroPages(data []byte) {
 func (s *SharedLibrarySuite) TestValidPathExistsInTheMemory() {
 	t := s.T()
 
-	// Allocate two contiguous pages using mmap
-	data, err := syscall.Mmap(-1, 0, 2*os.Getpagesize(), syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE)
+	pageSize := os.Getpagesize()
+
+	// We want to allocate two contiguous pages and ensure that the address
+	// after the two pages is inaccessible. So allocate 3 pages and change the
+	// protection of the last one with mprotect(2). If we only map two pages the
+	// kernel may merge this mmaping with another existing mapping after it.
+	data, err := syscall.Mmap(-1, 0, 3*pageSize, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = syscall.Munmap(data) })
+
+	err = syscall.Mprotect(data[2*pageSize:], 0)
+	require.NoError(t, err)
+	// Truncate the size so that the range loop on it in zeroPages() does not
+	// access the memory we've disabled access to.
+	data = data[:2*pageSize]
 
 	dummyPath, dummyPathID := createTempTestFile(t, "dummy.text")
 	soPath, soPathID := createTempTestFile(t, "foo-libssl.so")
@@ -611,7 +622,7 @@ func (s *SharedLibrarySuite) TestValidPathExistsInTheMemory() {
 			// Paths are written consecutively in memory, at the end of a page.
 			name: "end of a page",
 			writePaths: func(data []byte, textFilePath, soPath string) int {
-				offset := 2*os.Getpagesize() - len(textFilePath) - 1 - len(soPath) - 1
+				offset := 2*pageSize - len(textFilePath) - 1 - len(soPath) - 1
 				copy(data[offset:], textFilePath)
 				data[offset+len(textFilePath)] = 0 // Null-terminate the first path
 				copy(data[offset+len(textFilePath)+1:], soPath)
@@ -626,10 +637,10 @@ func (s *SharedLibrarySuite) TestValidPathExistsInTheMemory() {
 			name: "cross pages",
 			writePaths: func(data []byte, textFilePath, soPath string) int {
 				// Ensure the first path ends near the end of the first page, crossing into the second page
-				offset := os.Getpagesize() - len(textFilePath) - 1
+				offset := pageSize - len(textFilePath) - 1
 				copy(data[offset:], textFilePath)
 				data[offset+len(textFilePath)] = 0 // Null-terminate the first path
-				copy(data[os.Getpagesize():], soPath)
+				copy(data[pageSize:], soPath)
 
 				return offset
 			},
@@ -667,10 +678,10 @@ func (s *SharedLibrarySuite) TestValidPathExistsInTheMemory() {
 			// to avoid race conditions.
 			for i := 0; i < 10; i++ {
 				time.Sleep(100 * time.Millisecond)
-				require.Zero(t, watcher.libHits.Get())
-				require.Zero(t, watcher.libMatches.Get())
-				require.Zero(t, registerRecorder.CallsForPathID(dummyPathID))
-				require.Zero(t, registerRecorder.CallsForPathID(soPathID))
+				assert.Zero(t, watcher.libHits.Get())
+				assert.Zero(t, watcher.libMatches.Get())
+				assert.Zero(t, registerRecorder.CallsForPathID(dummyPathID))
+				assert.Zero(t, registerRecorder.CallsForPathID(soPathID))
 			}
 		})
 	}
