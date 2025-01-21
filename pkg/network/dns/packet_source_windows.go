@@ -8,6 +8,7 @@
 package dns
 
 import (
+	"sync"
 	"time"
 
 	"github.com/google/gopacket"
@@ -20,7 +21,9 @@ import (
 var _ filter.PacketSource = &windowsPacketSource{}
 
 type windowsPacketSource struct {
-	di *dnsDriver
+	di   *dnsDriver
+	exit chan struct{}
+	mu   sync.Mutex
 }
 
 // newWindowsPacketSource constructs a new packet source
@@ -29,24 +32,29 @@ func newWindowsPacketSource(telemetrycomp telemetry.Component) (filter.PacketSou
 	if err != nil {
 		return nil, err
 	}
-	return &windowsPacketSource{di: di}, nil
+	return &windowsPacketSource{
+		di:   di,
+		exit: make(chan struct{}),
+	}, nil
 }
 
-func (p *windowsPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, filter.PacketInfo, time.Time) error) error {
+func (p *windowsPacketSource) VisitPackets(visit func([]byte, filter.PacketInfo, time.Time) error) error {
+	mu.Lock()
+	defer mu.Unlock()
 	for {
+		// break out of loop if exit is closed
+		select {
+		case <-p.exit:
+			return nil
+		default:
+		}
+
 		didReadPacket, err := p.di.ReadDNSPacket(visit)
 		if err != nil {
 			return err
 		}
 		if !didReadPacket {
 			return nil
-		}
-
-		// break out of loop if exit is closed
-		select {
-		case <-exit:
-			return nil
-		default:
 		}
 	}
 }
@@ -56,5 +64,10 @@ func (p *windowsPacketSource) LayerType() gopacket.LayerType {
 }
 
 func (p *windowsPacketSource) Close() {
+	close(p.exit)
+
+	// wait for the VisitPackets loop to finish, then close
+	mu.Lock()
+	defer mu.Unlock()
 	_ = p.di.Close()
 }

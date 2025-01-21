@@ -18,14 +18,22 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-type mockPacketReader struct {
+type mockPacketCapture struct {
 	data []byte
 	ci   gopacket.CaptureInfo
 	err  error
 }
 
-func (m *mockPacketReader) ZeroCopyReadPacketDataWithExit(_ <-chan struct{}) (data []byte, ci gopacket.CaptureInfo, err error) {
-	return m.data, m.ci, m.err
+type mockPacketReader struct {
+	packets <-chan mockPacketCapture
+}
+
+func (m *mockPacketReader) ZeroCopyReadPacketData() (data []byte, ci gopacket.CaptureInfo, err error) {
+	capture, ok := <-m.packets
+	if !ok {
+		return nil, gopacket.CaptureInfo{}, afpacket.ErrCancelled
+	}
+	return capture.data, capture.ci, capture.err
 }
 func (m *mockPacketReader) GetPacketInfoBuffer() *AFPacketInfo {
 	return &AFPacketInfo{}
@@ -42,17 +50,21 @@ func mockCaptureInfo(ancillaryData []interface{}) gopacket.CaptureInfo {
 }
 
 func expectAncillaryPktType(t *testing.T, ancillaryData []interface{}, pktType uint8) {
-	exit := make(chan struct{})
-
-	p := mockPacketReader{
+	packets := make(chan mockPacketCapture, 1)
+	packets <- mockPacketCapture{
 		data: []byte{},
 		ci:   mockCaptureInfo(ancillaryData),
 		err:  nil,
 	}
+	close(packets)
+
+	p := mockPacketReader{
+		packets: packets,
+	}
 
 	visited := false
 
-	err := visitPackets(&p, exit, func(_ []byte, info PacketInfo, _ time.Time) error {
+	err := visitPackets(&p, func(_ []byte, info PacketInfo, _ time.Time) error {
 		// make sure the callback ran since it's responsible for the require call
 		visited = true
 
@@ -61,8 +73,6 @@ func expectAncillaryPktType(t *testing.T, ancillaryData []interface{}, pktType u
 		// use assert so that we close the exit channel on failure
 		assert.Equal(t, pktType, pktInfo.PktType)
 
-		// trigger exit so it only reads one packet
-		close(exit)
 		return nil
 	})
 	require.NoError(t, err)

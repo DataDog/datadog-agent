@@ -122,8 +122,10 @@ func (s *socketFilterSnooper) Start() error {
 func (s *socketFilterSnooper) Close() {
 	s.once.Do(func() {
 		close(s.exit)
-		s.wg.Wait()
+		// stop the packet capture loop
 		s.source.Close()
+		// wait for the packet capture loop to finish
+		s.wg.Wait()
 		s.cache.Close()
 		if s.statKeeper != nil {
 			s.statKeeper.Close()
@@ -170,7 +172,7 @@ func (s *socketFilterSnooper) processPacket(data []byte, _ filter.PacketInfo, ts
 
 func (s *socketFilterSnooper) pollPackets() {
 	for {
-		err := s.source.VisitPackets(s.exit, s.processPacket)
+		err := s.source.VisitPackets(s.processPacket)
 
 		if err != nil {
 			log.Warnf("error reading packet: %s", err)

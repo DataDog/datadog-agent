@@ -138,7 +138,7 @@ func (p *AFPacketSource) SetBPF(filter []bpf.RawInstruction) error {
 }
 
 type zeroCopyPacketReader interface {
-	ZeroCopyReadPacketDataWithExit(exit <-chan struct{}) (data []byte, ci gopacket.CaptureInfo, err error)
+	ZeroCopyReadPacketData() (data []byte, ci gopacket.CaptureInfo, err error)
 	// GetPacketInfoBuffer returns a pointer to AFPacketInfo which is reused between calls
 	GetPacketInfoBuffer() *AFPacketInfo
 }
@@ -147,24 +147,17 @@ type zeroCopyPacketReader interface {
 // The data buffer is reused between calls, so be careful
 type AFPacketVisitor = func(data []byte, info PacketInfo, t time.Time) error
 
-func visitPackets(p zeroCopyPacketReader, exit <-chan struct{}, visit AFPacketVisitor) error {
+func visitPackets(p zeroCopyPacketReader, visit AFPacketVisitor) error {
 	pktInfo := p.GetPacketInfoBuffer()
 	for {
-		// allow the read loop to be prematurely interrupted
-		select {
-		case <-exit:
-			return nil
-		default:
-		}
-
-		data, stats, err := p.ZeroCopyReadPacketDataWithExit(exit)
+		data, stats, err := p.ZeroCopyReadPacketData()
 
 		// Immediately retry for EAGAIN
 		if err == syscall.EAGAIN {
 			continue
 		}
 
-		if err == afpacket.ErrTimeout {
+		if err == afpacket.ErrTimeout || err == afpacket.ErrCancelled {
 			return nil
 		}
 
@@ -187,8 +180,8 @@ func visitPackets(p zeroCopyPacketReader, exit <-chan struct{}, visit AFPacketVi
 }
 
 // VisitPackets starts reading packets from the source
-func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit AFPacketVisitor) error {
-	return visitPackets(p, exit, visit)
+func (p *AFPacketSource) VisitPackets(visit AFPacketVisitor) error {
+	return visitPackets(p, visit)
 }
 
 // LayerType is the gopacket.LayerType for this source
