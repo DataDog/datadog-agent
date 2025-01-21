@@ -25,8 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// recommender is the local recommender for autoscaling workloads
-type recommender struct {
+type replicaCalculator struct {
 	PodWatcher common.PodWatcher
 }
 
@@ -37,14 +36,14 @@ type utilizationResult struct {
 	recommendationTimestamp time.Time
 }
 
-func newLocalRecommender(podWatcher common.PodWatcher) recommender {
-	return recommender{
+func newReplicaCalculator(podWatcher common.PodWatcher) replicaCalculator {
+	return replicaCalculator{
 		PodWatcher: podWatcher,
 	}
 }
 
 // CalculateHorizontalRecommendations is the entrypoint to calculate the horizontal recommendation for a given DatadogPodAutoscaler
-func (l recommender) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal, ctx context.Context, lStore loadstore.Store) (*model.ScalingValues, error) {
+func (r replicaCalculator) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal, ctx context.Context, lStore loadstore.Store) (*model.ScalingValues, error) {
 	currentTime := time.Now()
 
 	// Get current pods for the target
@@ -63,7 +62,7 @@ func (l recommender) CalculateHorizontalRecommendations(dpai model.PodAutoscaler
 		Name:      podOwnerName,
 		Kind:      targetGVK.Kind,
 	}
-	pods := l.PodWatcher.GetPodsForOwner(podOwner)
+	pods := r.PodWatcher.GetPodsForOwner(podOwner)
 	if len(pods) == 0 {
 		// If we found nothing, we'll wait just until the next sync
 		return nil, fmt.Errorf("No pods found for autoscaler: %s, gvk: %s, name: %s", dpai.ID(), targetGVK.String(), targetRef.Name)
