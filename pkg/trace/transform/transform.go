@@ -10,12 +10,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"strconv"
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	semconv127 "go.opentelemetry.io/collector/semconv/v1.27.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
 
 // OperationAndResourceNameV2Enabled checks if the new operation and resource name logic should be used
@@ -102,7 +103,22 @@ func OtelSpanToDDSpanMinimal(
 }
 
 func isDatadogAPMConventionKey(k string) bool {
-	return k == "service.name" || k == "operation.name" || k == "resource.name" || k == "span.type" || k == "deployment.environment.name" || k == semconv.AttributeDeploymentEnvironment
+	return k == "service.name" || k == "operation.name" || k == "resource.name" || k == "span.type" || k == semconv127.AttributeDeploymentEnvironmentName || k == semconv.AttributeDeploymentEnvironment || k == "http.method" || k == "http.status_code"
+}
+
+func mapHTTPAttributes(k string, value string, ddspan *pb.Span) {
+	datadogKey, found := attributes.HTTPMappings[k]
+	switch {
+	case found && value != "":
+		ddspan.Meta[datadogKey] = value
+	case strings.HasPrefix(k, "http.request.header."):
+		key := fmt.Sprintf("http.request.headers.%s", strings.TrimPrefix(k, "http.request.header."))
+		ddspan.Meta[key] = value
+		// Exclude Datadog APM conventions.
+		// These are handled above explicitly.
+	case !isDatadogAPMConventionKey(k):
+		SetMetaOTLP(ddspan, k, value)
+	}
 }
 
 // OtelSpanToDDSpan converts an OTel span to a DD span.
@@ -123,16 +139,7 @@ func OtelSpanToDDSpan(
 
 	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
 		value := v.AsString()
-
-		// HTTP attributes mapping
-		if datadogKey, found := attributes.HTTPMappings[k]; found && value != "" {
-			ddspan.Meta[datadogKey] = value
-		} else if strings.HasPrefix(k, "http.request.header.") {
-			key := fmt.Sprintf("http.request.headers.%s", strings.TrimPrefix(k, "http.request.header."))
-			ddspan.Meta[key] = value
-		} else if !isDatadogAPMConventionKey(k) {
-			SetMetaOTLP(ddspan, k, v.AsString())
-		}
+		mapHTTPAttributes(k, value, ddspan)
 		return true
 	})
 
@@ -169,17 +176,7 @@ func OtelSpanToDDSpan(
 		case pcommon.ValueTypeInt:
 			SetMetricOTLP(ddspan, k, float64(v.Int()))
 		default:
-			// HTTP attributes mapping
-			if datadogKey, found := attributes.HTTPMappings[k]; found && value != "" {
-				ddspan.Meta[datadogKey] = value
-			} else if strings.HasPrefix(k, "http.request.header.") {
-				key := fmt.Sprintf("http.request.headers.%s", strings.TrimPrefix(k, "http.request.header."))
-				ddspan.Meta[key] = value
-				// Exclude Datadog APM conventions.
-				// These are handled above explicitly.
-			} else if k != "http.method" && k != "http.status_code" && !isDatadogAPMConventionKey(k) {
-				SetMetaOTLP(ddspan, k, value)
-			}
+			mapHTTPAttributes(k, value, ddspan)
 		}
 
 		// `http.method` was renamed to `http.request.method` in the HTTP stabilization from v1.23.
