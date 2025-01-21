@@ -2029,12 +2029,13 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	}
 
 	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(p.numCPU, probes.MapSpecEditorOpts{
-		TracedCgroupSize:        config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
-		UseRingBuffers:          useRingBuffers,
-		UseMmapableMaps:         useMmapableMaps,
-		RingBufferSize:          uint32(config.Probe.EventStreamBufferSize),
-		PathResolutionEnabled:   probe.Opts.PathResolutionEnabled,
-		SecurityProfileMaxCount: config.RuntimeSecurity.SecurityProfileMaxCount,
+		TracedCgroupSize:          config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
+		UseRingBuffers:            useRingBuffers,
+		UseMmapableMaps:           useMmapableMaps,
+		RingBufferSize:            uint32(config.Probe.EventStreamBufferSize),
+		PathResolutionEnabled:     probe.Opts.PathResolutionEnabled,
+		SecurityProfileMaxCount:   config.RuntimeSecurity.SecurityProfileMaxCount,
+		NetworkFlowMonitorEnabled: config.Probe.NetworkFlowMonitorEnabled,
 	})
 
 	if config.RuntimeSecurity.ActivityDumpEnabled {
