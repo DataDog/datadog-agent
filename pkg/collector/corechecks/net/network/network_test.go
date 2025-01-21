@@ -66,7 +66,7 @@ func (n *fakeNetworkStats) Connections(kind string) ([]net.ConnectionStat, error
 	return nil, nil
 }
 
-func (n *fakeNetworkStats) NetstatTCPExtCounters(_procfsPath string, fs afero.Fs) (map[string]int64, error) {
+func (n *fakeNetworkStats) NetstatTCPExtCounters(_procfsPath string, _fs afero.Fs) (map[string]int64, error) {
 	return n.netstatTCPExtCountersValues, n.netstatTCPExtCountersError
 }
 
