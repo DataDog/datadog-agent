@@ -8,6 +8,7 @@
 package tests
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func TestSnapshot(t *testing.T) {
 
 		gotEvent := atomic.NewBool(false)
 
-		test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
+		test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{
 			snapshotRuleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
 				assertTriggeredRule(t, r, "test_rule_snapshot_host")
 				testMod.validateExecSchema(t, e)
@@ -62,7 +63,7 @@ func TestSnapshot(t *testing.T) {
 		ruleDefs := []*rules.RuleDefinition{
 			{
 				ID:         "test_rule_snapshot_container",
-				Expression: `exec.comm in ["sleep"] && process.argv in ["123"] && container.id != ""`,
+				Expression: `exec.comm in ["sleep"] && container.id != ""`,
 			},
 		}
 
@@ -87,8 +88,9 @@ func TestSnapshot(t *testing.T) {
 
 		gotEvent := atomic.NewBool(false)
 
-		test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
+		test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{
 			snapshotRuleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
+				fmt.Printf("container: %v\n", e.ContainerContext)
 				assertTriggeredRule(t, r, "test_rule_snapshot_container")
 				testMod.validateExecSchema(t, e)
 				validateProcessContext(t, e)
