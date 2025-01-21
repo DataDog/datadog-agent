@@ -359,7 +359,7 @@ func NewMutableStringArrayVariable(size int, ttl time.Duration) *MutableStringAr
 
 // MutableIntArrayVariable describes a mutable integer array variable
 type MutableIntArrayVariable struct {
-	Values []int
+	LRU *ttlcache.Cache[int, bool]
 }
 
 // Set the variable with the specified value
@@ -367,7 +367,11 @@ func (m *MutableIntArrayVariable) Set(_ *Context, values interface{}) error {
 	if i, ok := values.(int); ok {
 		values = []int{i}
 	}
-	m.Values = values.([]int)
+
+	for _, v := range values.([]int) {
+		m.LRU.Set(v, true, ttlcache.DefaultTTL)
+	}
+
 	return nil
 }
 
@@ -375,9 +379,11 @@ func (m *MutableIntArrayVariable) Set(_ *Context, values interface{}) error {
 func (m *MutableIntArrayVariable) Append(_ *Context, value interface{}) error {
 	switch value := value.(type) {
 	case int:
-		m.Values = append(m.Values, value)
+		m.LRU.Set(value, true, ttlcache.DefaultTTL)
 	case []int:
-		m.Values = append(m.Values, value...)
+		for _, v := range value {
+			m.LRU.Set(v, true, ttlcache.DefaultTTL)
+		}
 	default:
 		return errAppendNotSupported
 	}
@@ -388,14 +394,23 @@ func (m *MutableIntArrayVariable) Append(_ *Context, value interface{}) error {
 func (m *MutableIntArrayVariable) GetEvaluator() interface{} {
 	return &IntArrayEvaluator{
 		EvalFnc: func(*Context) []int {
-			return m.Values
+			return m.LRU.Keys()
 		},
 	}
 }
 
 // NewMutableIntArrayVariable returns a new mutable integer array variable
-func NewMutableIntArrayVariable() *MutableIntArrayVariable {
-	return &MutableIntArrayVariable{}
+func NewMutableIntArrayVariable(size int, ttl time.Duration) *MutableIntArrayVariable {
+	if size == 0 {
+		size = defaultMaxVariables
+	}
+
+	lru := ttlcache.New(ttlcache.WithCapacity[int, bool](uint64(size)), ttlcache.WithTTL[int, bool](ttl))
+	go lru.Start()
+
+	return &MutableIntArrayVariable{
+		LRU: lru,
+	}
 }
 
 // ScopedVariable is the interface to be implemented by scoped variable in order to be released
@@ -427,7 +442,7 @@ func (v *GlobalVariables) NewSECLVariable(_ string, value interface{}, opts Vari
 	case []string:
 		return NewMutableStringArrayVariable(opts.Size, opts.TTL), nil
 	case []int:
-		return NewMutableIntArrayVariable(), nil
+		return NewMutableIntArrayVariable(opts.Size, opts.TTL), nil
 	default:
 		return nil, fmt.Errorf("unsupported value type: %s", reflect.TypeOf(value))
 	}
