@@ -17,7 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 )
 
-func (tp *TCPParser) MatchTCP(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, error) {
+// MatchTCP parses a TCP packet from a header and packet bytes and compares the information
+// contained in the packet to what's expected and returns the source IP of the incoming packet
+// if it's successful or a MismatchError if the packet can be read but doesn't match
+func (tp *tcpParser) MatchTCP(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, error) {
 	if header.Protocol != windows.IPPROTO_TCP {
 		return net.IP{}, errors.New("expected a TCP packet")
 	}
