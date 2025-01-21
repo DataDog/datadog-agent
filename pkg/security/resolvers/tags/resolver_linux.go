@@ -53,7 +53,6 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 		if workload, ok := t.workloads[cgce.CGroupID]; ok {
 			t.NotifyListeners(WorkloadSelectorDeleted, workload)
 			delete(t.workloads, cgce.CGroupID)
-
 		}
 	}); err != nil {
 		return err
