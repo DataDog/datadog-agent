@@ -112,10 +112,6 @@ func TestMapCleaner(t *testing.T) {
 }
 
 func TestMapCleanerBatchSize1ForcesSingleItem(t *testing.T) {
-	if !maps.BatchAPISupported() {
-		t.Skip("Cannot test if batch API is not supported")
-	}
-
 	const numMapEntries = 100
 	m, err := ebpf.NewMap(&ebpf.MapSpec{
 		Type:       ebpf.Hash,
@@ -130,15 +126,14 @@ func TestMapCleanerBatchSize1ForcesSingleItem(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, cleaner)
 		require.False(t, cleaner.useBatchAPI)
-		require.Equal(t, cleaner.cleanWithoutBatches, cleaner.getCleanerFunction())
 	})
 
 	t.Run("batch size not 1", func(t *testing.T) {
 		cleaner, err := NewMapCleaner[int64, int64](m, 100, "test", "")
 		require.NoError(t, err)
 		require.NotNil(t, cleaner)
-		require.True(t, cleaner.useBatchAPI)
-		require.Equal(t, cleaner.cleanWithBatches, cleaner.getCleanerFunction())
+
+		require.Equal(t, maps.BatchAPISupported(), cleaner.useBatchAPI)
 	})
 
 	t.Run("map does not support batches", func(t *testing.T) {
@@ -150,11 +145,10 @@ func TestMapCleanerBatchSize1ForcesSingleItem(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		cleaner, err := NewMapCleaner[int64, int64](m, 100, "test", "")
+		cleaner, err := NewMapCleaner[int64, []int64](m, 100, "test", "")
 		require.NoError(t, err)
 		require.NotNil(t, cleaner)
 		require.False(t, cleaner.useBatchAPI)
-		require.Equal(t, cleaner.cleanWithoutBatches, cleaner.getCleanerFunction())
 	})
 }
 
