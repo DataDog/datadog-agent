@@ -27,6 +27,7 @@ import (
 
 var devMode = flag.Bool("devmode", false, "enable dev mode")
 var imageTag = flag.String("image-tag", "main", "Docker image tag to use")
+var mandatoryMetricTags = []string{"gpu_uuid", "gpu_device", "gpu_vendor"}
 
 type gpuSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -125,26 +126,6 @@ func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
 	}, 2*time.Minute, 10*time.Second)
 }
 
-func (v *gpuSuite) requireGPUTags(c *assert.CollectT, metric *aggregator.MetricSeries) {
-	foundRequiredTags := map[string]bool{
-		"gpu_uuid":   false,
-		"gpu_device": false,
-		"gpu_vendor": false,
-	}
-
-	for _, tag := range metric.Tags {
-		for requiredTag := range foundRequiredTags {
-			if strings.HasPrefix(tag, requiredTag+":") {
-				foundRequiredTags[requiredTag] = true
-			}
-		}
-	}
-
-	for requiredTag, found := range foundRequiredTags {
-		assert.True(c, found, "required tag %s not found in %v", requiredTag, metric)
-	}
-}
-
 func (v *gpuSuite) TestVectorAddProgramDetected() {
 	flake.Mark(v.T())
 
@@ -155,13 +136,9 @@ func (v *gpuSuite) TestVectorAddProgramDetected() {
 		// memory usage" and that might be zero at the time it's checked
 		metricNames := []string{"gpu.utilization", "gpu.memory.max"}
 		for _, metricName := range metricNames {
-			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0))
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithTags[*aggregator.MetricSeries](mandatoryMetricTags))
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
-
-			for _, metric := range metrics {
-				v.requireGPUTags(c, metric)
-			}
 		}
 	}, 5*time.Minute, 10*time.Second)
 }
@@ -174,20 +151,14 @@ func (v *gpuSuite) TestNvmlMetricsPresent() {
 		for _, metricName := range metricNames {
 			// We don't care about values, as long as the metrics are there. Values come from NVML
 			// so we cannot control that.
-			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName)
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithTags[*aggregator.MetricSeries](mandatoryMetricTags))
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no metric '%s' found")
-
-			for _, metric := range metrics {
-				v.requireGPUTags(c, metric)
-			}
 		}
 	}, 5*time.Minute, 10*time.Second)
 }
 
-func (v *gpuSuite) Test00WorkloadmetaHasGPUs() {
-	// This test should run before the other ones to ensure we have the GPUs in the workload list
-	// and that both autodiscovery and tagging are working as expected
+func (v *gpuSuite) TestWorkloadmetaHasGPUs() {
 	out, err := v.Env().RemoteHost.Execute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
 	v.Require().NoError(err)
 	v.Contains(out, "=== Entity gpu sources(merged):[runtime] id: ")
