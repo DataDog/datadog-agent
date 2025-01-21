@@ -13,8 +13,6 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"k8s.io/apimachinery/pkg/labels"
 	rbacv1Informers "k8s.io/client-go/informers/rbac/v1"
 	rbacv1Listers "k8s.io/client-go/listers/rbac/v1"
@@ -42,8 +40,6 @@ func NewClusterRoleCollector(metadataAsTags utils.MetadataAsTags) *ClusterRoleCo
 	resourceType := getResourceType(clusterRoleName, clusterRoleVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
-	log.Infof("ethan_test_log resourceType: %v labelsAsTags: %v annotationsAsTags: %v", resourceType, labelsAsTags, annotationsAsTags)
 
 	return &ClusterRoleCollector{
 		metadata: &collectors.CollectorMetadata{
