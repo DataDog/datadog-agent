@@ -5,13 +5,13 @@ modules:
   .:
     independent: false
     lint_targets:
-      - ./pkg
-      - ./cmd
-      - ./comp
+    - ./pkg
+    - ./cmd
+    - ./comp
     test_targets:
-      - ./pkg
-      - ./cmd
-      - ./comp
+    - ./pkg
+    - ./cmd
+    - ./comp
   comp/api/api/def:
     used_by_otel: true
   comp/api/authtoken: default
@@ -282,13 +282,13 @@ modules:
   test/integration/serverless/src: ignored
   test/new-e2e:
     lint_targets:
-      - .
-      - ./examples
+    - .
+    - ./examples
     should_test_condition: is_linux
     test_targets:
-      - ./pkg/runner
-      - ./pkg/utils/e2e/client
-      - ./system-probe/
+    - ./pkg/runner
+    - ./pkg/utils/e2e/client
+    - ./system-probe/
   test/otel:
     used_by_otel: true
   tools/retry_file_dump:
