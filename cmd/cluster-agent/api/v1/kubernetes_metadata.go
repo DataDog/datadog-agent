@@ -104,7 +104,12 @@ func getOwnerReferences(w http.ResponseWriter, nsName, resourceName, group, vers
 		queue = queue[1:]
 
 		// TODO: maybe cache the response or check wmeta for the object first?
-		response, _ := apiClient.DynamicCl.Resource(curr.gvr).Namespace(nsName).Get(context.TODO(), curr.name, metav1.GetOptions{})
+		response, err := apiClient.DynamicCl.Resource(curr.gvr).Namespace(nsName).Get(context.TODO(), curr.name, metav1.GetOptions{})
+		if err != nil {
+			log.Errorf("Could not get the object: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		ownerReferences := response.GetOwnerReferences()
 
 		for _, owner := range ownerReferences {
@@ -120,7 +125,7 @@ func getOwnerReferences(w http.ResponseWriter, nsName, resourceName, group, vers
 
 			restMapping, err := apiClient.RESTMapper.RESTMapping(ownerGVK.GroupKind(), ownerGVK.Version)
 			if err != nil {
-				log.Errorf("Could not get the REST mapping: %v", err)
+				log.Errorf("Could not get %v the REST mapping: %v", ownerGVK, err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
