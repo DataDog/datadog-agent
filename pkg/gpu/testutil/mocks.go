@@ -48,6 +48,15 @@ var DefaultGpuUUID = GPUUUIDs[0]
 // DefaultGPUName is the name for the default device returned by the mock
 var DefaultGPUName = "Tesla T4"
 
+// DefaultGPUComputeCapMajor is the major number for the compute capabilities for the default device returned by the mock
+var DefaultGPUComputeCapMajor = 7
+
+// DefaultGPUComputeCapMinor is the minor number for the compute capabilities for the default device returned by the mock
+var DefaultGPUComputeCapMinor = 5
+
+// DefaultGPUArch is the architecture for the default device returned by the mock
+var DefaultGPUArch = nvml.DeviceArchitecture(nvml.DEVICE_ARCH_HOPPER)
+
 // GetDeviceMock returns a mock of the nvml.Device with the given UUID.
 func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 	return &nvmlmock.Device{
@@ -62,6 +71,9 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 		},
 		GetNameFunc: func() (string, nvml.Return) {
 			return DefaultGPUName, nvml.SUCCESS
+		},
+		GetArchitectureFunc: func() (nvml.DeviceArchitecture, nvml.Return) {
+			return DefaultGPUArch, nvml.SUCCESS
 		},
 	}
 }

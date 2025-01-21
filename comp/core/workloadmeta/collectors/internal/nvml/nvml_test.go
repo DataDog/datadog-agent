@@ -40,6 +40,9 @@ func TestPull(t *testing.T) {
 		require.Equal(t, nvidiaVendor, gpu.Vendor)
 		require.Equal(t, testutil.DefaultGPUName, gpu.Name)
 		require.Equal(t, testutil.DefaultGPUName, gpu.Device)
+		require.Equal(t, "hopper", gpu.Architecture)
+		require.Equal(t, testutil.DefaultGPUComputeCapMajor, gpu.ComputeCapability.Major)
+		require.Equal(t, testutil.DefaultGPUComputeCapMinor, gpu.ComputeCapability.Minor)
 	}
 
 	for _, uuid := range testutil.GPUUUIDs {
