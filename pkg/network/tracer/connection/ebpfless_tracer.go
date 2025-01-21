@@ -148,9 +148,6 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 				return
 			default:
 			}
-
-			// Sleep briefly and try again
-			time.Sleep(5 * time.Millisecond)
 		}
 	}()
 
