@@ -233,6 +233,7 @@ type testRemoteAgentServer struct {
 	StatusMain  map[string]string
 	StatusNamed map[string]map[string]string
 	FlareFiles  map[string][]byte
+	pbgo.UnimplementedRemoteAgentServer
 }
 
 func (t *testRemoteAgentServer) GetStatusDetails(context.Context, *pbgo.GetStatusDetailsRequest) (*pbgo.GetStatusDetailsResponse, error) {
