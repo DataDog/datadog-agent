@@ -82,7 +82,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.60.0 // indirect
@@ -96,6 +95,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/ebitengine/purego v0.8.1 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
@@ -118,8 +118,7 @@ require (
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.61.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/shirou/gopsutil/v3 v3.23.12 // indirect
-	github.com/shoenig/go-m1cpu v0.1.6 // indirect
+	github.com/shirou/gopsutil/v4 v4.24.12 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/cobra v1.8.1 // indirect
@@ -147,3 +146,53 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../flare/builder
+
+replace github.com/DataDog/datadog-agent/comp/core/flare/types => ../../flare/types
+
+replace github.com/DataDog/datadog-agent/comp/core/secrets => ../../secrets
+
+replace github.com/DataDog/datadog-agent/comp/core/tagger/origindetection => ../origindetection
+
+replace github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
+
+replace github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
+
+replace github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
+
+replace github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../../pkg/config/nodetreemodel
+
+replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
+
+replace github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../pkg/config/structure
+
+replace github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../../pkg/config/teeconfig
+
+replace github.com/DataDog/datadog-agent/pkg/util/cache => ../../../../pkg/util/cache
+
+replace github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
+
+replace github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../pkg/util/filesystem
+
+replace github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
+
+replace github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
+
+replace github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../../pkg/util/log/setup
+
+replace github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../pkg/util/pointer
+
+replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
+
+replace github.com/DataDog/datadog-agent/pkg/util/sort => ../../../../pkg/util/sort
+
+replace github.com/DataDog/datadog-agent/pkg/util/system => ../../../../pkg/util/system
+
+replace github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../pkg/util/system/socket
+
+replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../pkg/util/testutil
+
+replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
+
+replace github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version

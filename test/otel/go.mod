@@ -12,7 +12,16 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/log/mock => ./../../comp/core/log/mock
 	github.com/DataDog/datadog-agent/comp/core/secrets => ./../../comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ../../comp/core/status
+	github.com/DataDog/datadog-agent/comp/core/tagger/def => ../../comp/core/tagger/def/
+	github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote => ../../comp/core/tagger/fx-remote/
+	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store => ../../comp/core/tagger/generic_store/
+	github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote => ../../comp/core/tagger/impl-remote/
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection => ../../comp/core/tagger/origindetection
+	github.com/DataDog/datadog-agent/comp/core/tagger/subscriber => ../../comp/core/tagger/subscriber/
+	github.com/DataDog/datadog-agent/comp/core/tagger/tags => ../../comp/core/tagger/tags
+	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry => ../../comp/core/tagger/telemetry/
+	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../comp/core/tagger/types
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../comp/core/tagger/utils
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ./../../comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../comp/forwarder/defaultforwarder
