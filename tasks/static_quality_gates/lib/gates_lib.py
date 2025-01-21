@@ -1,4 +1,5 @@
 import glob
+import math
 import os
 from datetime import datetime
 from types import SimpleNamespace
@@ -24,6 +25,16 @@ def argument_extractor(entry_args, **kwargs) -> SimpleNamespace:
     return SimpleNamespace(**kwargs)
 
 
+def byte_to_string(size):
+    if not size:
+        return "0B"
+    size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+    i = int(math.log(size, 1000))
+    p = math.pow(1000, i)
+    s = round(size / p, 2)
+    return f"{s}{size_name[i]}"
+
+
 def find_package_path(flavor, package_os, arch):
     package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
     separator = '_' if package_os == 'debian' else '-'
@@ -43,6 +54,9 @@ class GateMetricHandler:
         self.metadata = {}
         self.git_ref = git_ref
         self.bucket_branch = bucket_branch
+
+    def get_formated_metric(self, gate_name, metric_name):
+        return byte_to_string(self.metrics[gate_name][metric_name])
 
     def register_metric(self, gate_name, metric_name, metric_value):
         if self.metrics.get(gate_name, None) is None:
