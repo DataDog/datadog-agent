@@ -9,6 +9,7 @@ def calculate_image_on_disk_size(ctx, url):
     ctx.run(f"crane pull {url} output.tar")
     ctx.run("tar -xf output.tar")
     image_content = ctx.run("tar -tvf output.tar | awk -F' ' '{print $5; print $9}'").stdout.splitlines()
+    print(image_content)
     total_size = 0
     image_tar_gz = None
     for k, line in enumerate(image_content):
