@@ -84,7 +84,7 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 			Name: container.Name,
 		}
 		if cpuReq, found := container.Resources.Requests[corev1.ResourceCPU]; found {
-			c.Resources.CPURequest = util.FormatCpuRequests(cpuReq)
+			c.Resources.CPURequest = util.FormatCPURequests(cpuReq)
 		}
 		if memoryReq, found := container.Resources.Requests[corev1.ResourceMemory]; found {
 			c.Resources.MemoryRequest = util.FormatMemoryRequests(memoryReq)

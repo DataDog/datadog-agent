@@ -13,9 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
-// FormatCpuRequests converts a CPU request to a percentage of a CPU core pointer
+// FormatCPURequests converts a CPU request to a percentage of a CPU core pointer
 // For 100Mi, AsApproximate returns 0.1, we return 10%
-func FormatCpuRequests(cpuRequest resource.Quantity) *float64 {
+func FormatCPURequests(cpuRequest resource.Quantity) *float64 {
 	return pointer.Ptr(cpuRequest.AsApproximateFloat64() * 100)
 }
 

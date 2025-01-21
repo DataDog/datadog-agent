@@ -431,7 +431,7 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
 	resources := workloadmeta.ContainerResources{}
 	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
-		resources.CPURequest = util.FormatCpuRequests(cpuReq)
+		resources.CPURequest = util.FormatCPURequests(cpuReq)
 	}
 
 	if memoryReq, found := spec.Resources.Requests[kubelet.ResourceMemory]; found {
