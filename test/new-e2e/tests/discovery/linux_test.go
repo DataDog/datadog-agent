@@ -156,15 +156,18 @@ type collectorStatus struct {
 	RunnerStats runnerStats `json:"runnerStats"`
 }
 
-// assertRunningCheck asserts that the given process agent check is running
-func assertRunningCheck(t *assert.CollectT, remoteHost *components.RemoteHost, check string) {
-	statusOutput := remoteHost.MustExecute("sudo datadog-agent status collector --json")
-
+func assertCollectorStatusFromJSON(t *assert.CollectT, statusOutput, check string) {
 	var status collectorStatus
 	err := json.Unmarshal([]byte(statusOutput), &status)
 	require.NoError(t, err, "failed to unmarshal agent status")
 
 	assert.Contains(t, status.RunnerStats.Checks, check)
+}
+
+// assertRunningCheck asserts that the given process agent check is running
+func assertRunningCheck(t *assert.CollectT, remoteHost *components.RemoteHost, check string) {
+	statusOutput := remoteHost.MustExecute("sudo datadog-agent status collector --json")
+	assertCollectorStatusFromJSON(t, statusOutput, check)
 }
 
 func (s *linuxTestSuite) provisionServer() {

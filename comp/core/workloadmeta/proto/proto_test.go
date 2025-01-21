@@ -382,6 +382,76 @@ func TestConversions(t *testing.T) {
 	}
 }
 
+// This is added to test cases where some fields are unpopulated, resulting in asymmetric
+// conversion (i.e. chaining both conversions doesn't yield an identity conversion)
+func TestConvertWorkloadEventToProtoWithUnpopulatedFields(t *testing.T) {
+	createdAt := time.Unix(1669071600, 0)
+
+	wlmEvent := workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "123",
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "abc",
+				Namespace: "default",
+			},
+			Image: workloadmeta.ContainerImage{
+				ID:        "123",
+				RawName:   "datadog/agent:7",
+				Name:      "datadog/agent",
+				ShortName: "agent",
+				Tag:       "7",
+			},
+			State: workloadmeta.ContainerState{
+				Running:    true,
+				CreatedAt:  createdAt,
+				StartedAt:  createdAt,
+				FinishedAt: time.Time{},
+				ExitCode:   nil,
+			},
+		},
+	}
+
+	expectedProtoEvent := &pb.WorkloadmetaEvent{
+		Type: pb.WorkloadmetaEventType_EVENT_TYPE_SET,
+		Container: &pb.Container{
+			EntityId: &pb.WorkloadmetaEntityId{
+				Kind: pb.WorkloadmetaKind_CONTAINER,
+				Id:   "123",
+			},
+			EntityMeta: &pb.EntityMeta{
+				Name:      "abc",
+				Namespace: "default",
+			},
+			Image: &pb.ContainerImage{
+				Id:        "123",
+				RawName:   "datadog/agent:7",
+				Name:      "datadog/agent",
+				ShortName: "agent",
+				Tag:       "7",
+			},
+			Pid:     0,
+			Runtime: pb.Runtime_UNKNOWN,
+			State: &pb.ContainerState{
+				Running:    true,
+				Status:     pb.ContainerStatus_CONTAINER_STATUS_UNKNOWN,
+				Health:     pb.ContainerHealth_CONTAINER_HEALTH_UNKNOWN,
+				CreatedAt:  createdAt.Unix(),
+				StartedAt:  createdAt.Unix(),
+				FinishedAt: time.Time{}.Unix(),
+				ExitCode:   0,
+			},
+		},
+	}
+
+	actualProtoEvent, err := ProtobufEventFromWorkloadmetaEvent(wlmEvent)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedProtoEvent, actualProtoEvent)
+}
+
 func TestProtobufFilterFromWorkloadmetaFilter(t *testing.T) {
 
 	filter := workloadmeta.NewFilterBuilder().

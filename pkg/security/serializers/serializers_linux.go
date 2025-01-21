@@ -432,6 +432,13 @@ type SpliceEventSerializer struct {
 	PipeExitFlag string `json:"pipe_exit_flag"`
 }
 
+// AcceptEventSerializer serializes a bind event to JSON
+// easyjson:json
+type AcceptEventSerializer struct {
+	// Bound address (if any)
+	Addr IPPortFamilySerializer `json:"addr"`
+}
+
 // BindEventSerializer serializes a bind event to JSON
 // easyjson:json
 type BindEventSerializer struct {
@@ -647,23 +654,25 @@ type EventSerializer struct {
 	*SecurityProfileContextSerializer `json:"security_profile,omitempty"`
 	*CGroupContextSerializer          `json:"cgroup,omitempty"`
 
-	*SELinuxEventSerializer   `json:"selinux,omitempty"`
-	*BPFEventSerializer       `json:"bpf,omitempty"`
-	*MMapEventSerializer      `json:"mmap,omitempty"`
-	*MProtectEventSerializer  `json:"mprotect,omitempty"`
-	*PTraceEventSerializer    `json:"ptrace,omitempty"`
-	*ModuleEventSerializer    `json:"module,omitempty"`
-	*SignalEventSerializer    `json:"signal,omitempty"`
-	*SpliceEventSerializer    `json:"splice,omitempty"`
-	*DNSEventSerializer       `json:"dns,omitempty"`
-	*IMDSEventSerializer      `json:"imds,omitempty"`
-	*BindEventSerializer      `json:"bind,omitempty"`
-	*ConnectEventSerializer   `json:"connect,omitempty"`
-	*MountEventSerializer     `json:"mount,omitempty"`
-	*SyscallsEventSerializer  `json:"syscalls,omitempty"`
-	*UserContextSerializer    `json:"usr,omitempty"`
-	*SyscallContextSerializer `json:"syscall,omitempty"`
-	*RawPacketSerializer      `json:"packet,omitempty"`
+	*SELinuxEventSerializer       `json:"selinux,omitempty"`
+	*BPFEventSerializer           `json:"bpf,omitempty"`
+	*MMapEventSerializer          `json:"mmap,omitempty"`
+	*MProtectEventSerializer      `json:"mprotect,omitempty"`
+	*PTraceEventSerializer        `json:"ptrace,omitempty"`
+	*ModuleEventSerializer        `json:"module,omitempty"`
+	*SignalEventSerializer        `json:"signal,omitempty"`
+	*SpliceEventSerializer        `json:"splice,omitempty"`
+	*DNSEventSerializer           `json:"dns,omitempty"`
+	*IMDSEventSerializer          `json:"imds,omitempty"`
+	*AcceptEventSerializer        `json:"accept,omitempty"`
+	*BindEventSerializer          `json:"bind,omitempty"`
+	*ConnectEventSerializer       `json:"connect,omitempty"`
+	*MountEventSerializer         `json:"mount,omitempty"`
+	*SyscallsEventSerializer      `json:"syscalls,omitempty"`
+	*UserContextSerializer        `json:"usr,omitempty"`
+	*SyscallContextSerializer     `json:"syscall,omitempty"`
+	*RawPacketSerializer          `json:"packet,omitempty"`
+	*NetworkFlowMonitorSerializer `json:"network_flow_monitor,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -973,6 +982,14 @@ func newSpliceEventSerializer(e *model.Event) *SpliceEventSerializer {
 	}
 }
 
+func newAcceptEventSerializer(e *model.Event) *AcceptEventSerializer {
+	ces := &AcceptEventSerializer{
+		Addr: newIPPortFamilySerializer(&e.Accept.Addr,
+			model.AddressFamily(e.Accept.AddrFamily).String()),
+	}
+	return ces
+}
+
 func newBindEventSerializer(e *model.Event) *BindEventSerializer {
 	bes := &BindEventSerializer{
 		Addr: newIPPortFamilySerializer(&e.Bind.Addr,
@@ -1048,6 +1065,36 @@ func newRawPacketEventSerializer(rp *model.RawPacketEvent, e *model.Event) *RawP
 	}
 }
 
+func newNetworkStatsSerializer(networkStats *model.NetworkStats, _ *model.Event) *NetworkStatsSerializer {
+	return &NetworkStatsSerializer{
+		DataSize:    networkStats.DataSize,
+		PacketCount: networkStats.PacketCount,
+	}
+}
+
+func newFlowSerializer(flow *model.Flow, e *model.Event) *FlowSerializer {
+	return &FlowSerializer{
+		L3Protocol:  model.L3Protocol(flow.L3Protocol).String(),
+		L4Protocol:  model.L4Protocol(flow.L4Protocol).String(),
+		Source:      newIPPortSerializer(&flow.Source),
+		Destination: newIPPortSerializer(&flow.Destination),
+		Ingress:     newNetworkStatsSerializer(&flow.Ingress, e),
+		Egress:      newNetworkStatsSerializer(&flow.Egress, e),
+	}
+}
+
+func newNetworkFlowMonitorSerializer(nm *model.NetworkFlowMonitorEvent, e *model.Event) *NetworkFlowMonitorSerializer {
+	s := &NetworkFlowMonitorSerializer{
+		Device: newNetworkDeviceSerializer(&nm.Device, e),
+	}
+
+	for _, flow := range nm.Flows {
+		s.Flows = append(s.Flows, newFlowSerializer(&flow, e))
+	}
+
+	return s
+}
+
 func serializeOutcome(retval int64) string {
 	switch {
 	case retval < 0:
@@ -1104,7 +1151,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 		ancestor = pce
 		prev = s
 
-		ptr = it.Next()
+		ptr = it.Next(ctx)
 	}
 
 	// shrink the middle of the ancestors list if it is too long
@@ -1150,7 +1197,7 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 			break
 		}
 
-		ptr = it.Next()
+		ptr = it.Next(ctx)
 	}
 	return s
 }
@@ -1158,12 +1205,13 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 // nolint: deadcode, unused
 func newNetworkContextSerializer(e *model.Event, networkCtx *model.NetworkContext) *NetworkContextSerializer {
 	return &NetworkContextSerializer{
-		Device:      newNetworkDeviceSerializer(&networkCtx.Device, e),
-		L3Protocol:  model.L3Protocol(networkCtx.L3Protocol).String(),
-		L4Protocol:  model.L4Protocol(networkCtx.L4Protocol).String(),
-		Source:      newIPPortSerializer(&networkCtx.Source),
-		Destination: newIPPortSerializer(&networkCtx.Destination),
-		Size:        networkCtx.Size,
+		Device:           newNetworkDeviceSerializer(&networkCtx.Device, e),
+		L3Protocol:       model.L3Protocol(networkCtx.L3Protocol).String(),
+		L4Protocol:       model.L4Protocol(networkCtx.L4Protocol).String(),
+		Source:           newIPPortSerializer(&networkCtx.Source),
+		Destination:      newIPPortSerializer(&networkCtx.Destination),
+		Size:             networkCtx.Size,
+		NetworkDirection: model.NetworkDirection(networkCtx.NetworkDirection).String(),
 	}
 }
 
@@ -1446,6 +1494,9 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 				FileSerializer: *newFileSerializer(&event.Splice.File, event),
 			}
 		}
+	case model.AcceptEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Accept.Retval)
+		s.AcceptEventSerializer = newAcceptEventSerializer(event)
 	case model.BindEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Bind.Retval)
 		s.BindEventSerializer = newBindEventSerializer(event)
@@ -1470,6 +1521,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		})
 	case model.RawPacketEventType:
 		s.RawPacketSerializer = newRawPacketEventSerializer(&event.RawPacket, event)
+	case model.NetworkFlowMonitorEventType:
+		s.NetworkFlowMonitorSerializer = newNetworkFlowMonitorSerializer(&event.NetworkFlowMonitor, event)
 	}
 
 	return s

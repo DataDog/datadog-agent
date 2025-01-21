@@ -348,7 +348,7 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     for prog in test_programs:
         infile = os.path.join(ebpf_c_dir, f"{prog}.c")
         outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-        ninja_ebpf_program(
+        ninja_ebpf_co_re_program(
             nw, infile, outfile, {"flags": test_flags}
         )  # All test ebpf programs are just for testing, so we always build them with debug symbols
 
@@ -604,7 +604,7 @@ def ninja_generate(
             )
             ninja_define_co_re_compiler(nw, arch=arch, compiler=ebpf_compiler)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
-            ninja_test_ebpf_programs(nw, build_dir)
+            ninja_test_ebpf_programs(nw, co_re_build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
@@ -1459,6 +1459,7 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
         print(f"All {total_metadata_files} object files have valid metadata")
 
 
+@task(aliases=["object-files"])
 def build_object_files(
     ctx,
     major_version='7',
@@ -1578,15 +1579,6 @@ def build_cws_object_files(
 
     if bundle_ebpf:
         copy_bundled_ebpf_files(ctx, arch=arch)
-
-
-@task
-def object_files(
-    ctx, kernel_release=None, with_unit_test=False, arch: str = CURRENT_ARCH, ebpf_compiler: str = 'clang'
-):
-    build_object_files(
-        ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, arch=arch, ebpf_compiler=ebpf_compiler
-    )
 
 
 def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
