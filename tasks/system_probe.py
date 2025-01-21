@@ -1459,6 +1459,7 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
         print(f"All {total_metadata_files} object files have valid metadata")
 
 
+@task(aliases=["object-files"])
 def build_object_files(
     ctx,
     major_version='7',
@@ -1578,15 +1579,6 @@ def build_cws_object_files(
 
     if bundle_ebpf:
         copy_bundled_ebpf_files(ctx, arch=arch)
-
-
-@task
-def object_files(
-    ctx, kernel_release=None, with_unit_test=False, arch: str = CURRENT_ARCH, ebpf_compiler: str = 'clang'
-):
-    build_object_files(
-        ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, arch=arch, ebpf_compiler=ebpf_compiler
-    )
 
 
 def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):

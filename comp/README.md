@@ -615,11 +615,17 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 Package rdnsquerier provides the reverse DNS querier component.
 
-### [comp/serializer/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/compression)
+### [comp/serializer/logscompression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/logscompression)
 
-*Datadog Team*: agent-metrics-logs
+*Datadog Team*: agent-processing-and-routing
 
-Package compression provides a compression implementation based on the configuration or available build tags.
+Package logscompression provides the component for logs compression
+
+### [comp/serializer/metricscompression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/metricscompression)
+
+*Datadog Team*: agent-processing-and-routing
+
+Package metricscompression provides the component for metrics compression
 
 ### [comp/snmpscan](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmpscan)
 
