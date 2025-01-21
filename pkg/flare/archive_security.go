@@ -15,9 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// for testing purpose
-var linuxKernelSymbols = getLinuxKernelSymbols
-
 // CreateSecurityAgentArchive packages up the files
 func CreateSecurityAgentArchive(local bool, logFilePath string, statusComponent status.Component) (string, error) {
 	fb, err := flarehelpers.NewFlareBuilder(local, flaretypes.FlareArgs{})
@@ -46,18 +43,14 @@ func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, 
 		}
 	}
 
-	getLogFiles(fb, logFilePath)
-	getConfigFiles(fb, searchPaths{})
+	GetLogFiles(fb, logFilePath)
+	GetConfigFiles(fb, searchPaths{})
 	getComplianceFiles(fb)                        //nolint:errcheck
 	getRuntimeFiles(fb)                           //nolint:errcheck
-	getExpVar(fb)                                 //nolint:errcheck
-	fb.AddFileFromFunc("envvars.log", getEnvVars) //nolint:errcheck
-	linuxKernelSymbols(fb)                        //nolint:errcheck
-	getLinuxPid1MountInfo(fb)                     //nolint:errcheck
-	getLinuxDmesg(fb)                             //nolint:errcheck
-	getLinuxKprobeEvents(fb)                      //nolint:errcheck
-	getLinuxTracingAvailableEvents(fb)            //nolint:errcheck
-	getLinuxTracingAvailableFilterFunctions(fb)   //nolint:errcheck
+	GetExpVar(fb)                                 //nolint:errcheck
+	fb.AddFileFromFunc("envvars.log", GetEnvVars) //nolint:errcheck
+
+	addSecurityAgentPlatformSpecificEntries(fb)
 }
 
 func getComplianceFiles(fb flaretypes.FlareBuilder) error {

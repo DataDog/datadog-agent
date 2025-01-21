@@ -27,7 +27,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
@@ -59,7 +59,7 @@ type UDSListener struct {
 	OriginDetection         bool
 	config                  model.Reader
 
-	wmeta optional.Option[workloadmeta.Component]
+	wmeta option.Option[workloadmeta.Component]
 
 	transport string
 
@@ -150,7 +150,7 @@ func NewUDSOobPoolManager() *packets.PoolManager[[]byte] {
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (*UDSListener, error) {
+func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (*UDSListener, error) {
 	originDetection := cfg.GetBool("dogstatsd_origin_detection")
 
 	listener := &UDSListener{
@@ -328,6 +328,7 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 				udsOriginDetectionErrors.Add(1)
 				l.telemetryStore.tlmUDSOriginDetectionError.Inc(tlmListenerID, l.transport)
 			} else {
+				packet.ProcessID = uint32(pid)
 				packet.Origin = container
 				if capBuff != nil {
 					capBuff.ContainerID = container

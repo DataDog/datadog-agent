@@ -37,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
 	statutil "github.com/DataDog/datadog-agent/pkg/util/stat"
 	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
@@ -77,7 +77,7 @@ type dependencies struct {
 	Replay    replay.Component
 	PidMap    pidmap.Component
 	Params    Params
-	WMeta     optional.Option[workloadmeta.Component]
+	WMeta     option.Option[workloadmeta.Component]
 	Telemetry telemetry.Component
 }
 
@@ -150,16 +150,15 @@ type server struct {
 	cachedOrder          []cachedOriginCounter // for cache eviction
 
 	// ServerlessMode is set to true if we're running in a serverless environment.
-	ServerlessMode     bool
-	udsListenerRunning bool
-	udpLocalAddr       string
+	ServerlessMode bool
+	udpLocalAddr   string
 
 	// originTelemetry is true if we want to report telemetry per origin.
 	originTelemetry bool
 
 	enrichConfig enrichConfig
 
-	wmeta optional.Option[workloadmeta.Component]
+	wmeta option.Option[workloadmeta.Component]
 
 	// telemetry
 	telemetry               telemetry.Component
@@ -199,7 +198,7 @@ func newServer(deps dependencies) provides {
 	}
 }
 
-func newServerCompat(cfg model.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
+func newServerCompat(cfg model.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *statutil.Stats
@@ -291,7 +290,6 @@ func newServerCompat(cfg model.Reader, log log.Component, capture replay.Compone
 			cfg.GetBool("telemetry.dogstatsd_origin"),
 		tCapture:             capture,
 		pidMap:               pidMap,
-		udsListenerRunning:   false,
 		cachedOriginCounters: make(map[string]cachedOriginCounter),
 		ServerlessMode:       serverless,
 		enrichConfig: enrichConfig{
@@ -351,8 +349,6 @@ func (s *server) start(context.Context) error {
 	sharedPacketPool := packets.NewPool(s.config.GetInt("dogstatsd_buffer_size"), s.packetsTelemetry)
 	sharedPacketPoolManager := packets.NewPoolManager[packets.Packet](sharedPacketPool)
 
-	udsListenerRunning := false
-
 	socketPath := s.config.GetString("dogstatsd_socket")
 	socketStreamPath := s.config.GetString("dogstatsd_stream_socket")
 	originDetection := s.config.GetBool("dogstatsd_origin_detection")
@@ -378,7 +374,6 @@ func (s *server) start(context.Context) error {
 			s.log.Errorf("Can't init UDS listener on path %s: %s", socketPath, err.Error())
 		} else {
 			tmpListeners = append(tmpListeners, unixListener)
-			udsListenerRunning = true
 		}
 	}
 
@@ -416,7 +411,6 @@ func (s *server) start(context.Context) error {
 		return fmt.Errorf("listening on neither udp nor socket, please check your configuration")
 	}
 
-	s.udsListenerRunning = udsListenerRunning
 	s.packetsIn = packetsChannel
 	s.captureChan = packetsChannel
 	s.sharedPacketPool = sharedPacketPool
@@ -610,10 +604,6 @@ func nextMessage(packet *[]byte, eolTermination bool) (message []byte) {
 	return message
 }
 
-func (s *server) UdsListenerRunning() bool {
-	return s.udsListenerRunning
-}
-
 func (s *server) eolEnabled(sourceType packets.SourceType) bool {
 	switch sourceType {
 	case packets.UDS:
@@ -653,14 +643,14 @@ func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets 
 
 			switch messageType {
 			case serviceCheckType:
-				serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.Origin)
+				serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.Origin, packet.ProcessID)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
 					continue
 				}
 				batcher.appendServiceCheck(serviceCheck)
 			case eventType:
-				event, err := s.parseEventMessage(parser, message, packet.Origin)
+				event, err := s.parseEventMessage(parser, message, packet.Origin, packet.ProcessID)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
 					continue
@@ -671,7 +661,7 @@ func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets 
 
 				samples = samples[0:0]
 
-				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, packet.ListenerID, s.originTelemetry)
+				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, packet.ProcessID, packet.ListenerID, s.originTelemetry)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 					continue
@@ -746,7 +736,7 @@ func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter,
 // which will be slower when processing millions of samples. It could use a boolean returned by `parseMetricSample` which
 // is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
 // which we can't do today.
-func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, listenerID string, originTelemetry bool) ([]metrics.MetricSample, error) {
+func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, processID uint32, listenerID string, originTelemetry bool) ([]metrics.MetricSample, error) {
 	okCnt := s.tlmProcessedOk
 	errorCnt := s.tlmProcessedError
 	if origin != "" && originTelemetry {
@@ -769,7 +759,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		}
 	}
 
-	metricSamples = enrichMetricSample(metricSamples, sample, origin, listenerID, s.enrichConfig)
+	metricSamples = enrichMetricSample(metricSamples, sample, origin, processID, listenerID, s.enrichConfig)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)
@@ -789,28 +779,28 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 	return metricSamples, nil
 }
 
-func (s *server) parseEventMessage(parser *parser, message []byte, origin string) (*event.Event, error) {
+func (s *server) parseEventMessage(parser *parser, message []byte, origin string, processID uint32) (*event.Event, error) {
 	sample, err := parser.parseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
 		s.tlmProcessed.Inc("events", "error", "")
 		return nil, err
 	}
-	event := enrichEvent(sample, origin, s.enrichConfig)
+	event := enrichEvent(sample, origin, processID, s.enrichConfig)
 	event.Tags = append(event.Tags, s.extraTags...)
 	s.tlmProcessed.Inc("events", "ok", "")
 	dogstatsdEventPackets.Add(1)
 	return event, nil
 }
 
-func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin string) (*servicecheck.ServiceCheck, error) {
+func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin string, processID uint32) (*servicecheck.ServiceCheck, error) {
 	sample, err := parser.parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)
 		s.tlmProcessed.Inc("service_checks", "error", "")
 		return nil, err
 	}
-	serviceCheck := enrichServiceCheck(sample, origin, s.enrichConfig)
+	serviceCheck := enrichServiceCheck(sample, origin, processID, s.enrichConfig)
 	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
 	dogstatsdServiceCheckPackets.Add(1)
 	s.tlmProcessed.Inc("service_checks", "ok", "")

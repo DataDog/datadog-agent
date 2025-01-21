@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -40,7 +40,7 @@ var ecsUnsetMemoryLimit = uint64(math.Pow(2, 62))
 func init() {
 	provider.RegisterCollector(provider.CollectorFactory{
 		ID: collectorID,
-		Constructor: func(cache *provider.Cache, _ optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
+		Constructor: func(cache *provider.Cache, _ option.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 			return newEcsFargateCollector(cache)
 		},
 	})

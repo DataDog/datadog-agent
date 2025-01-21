@@ -11,18 +11,17 @@ import (
 	"fmt"
 	"time"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"go.uber.org/fx"
@@ -48,8 +47,8 @@ type dependencies struct {
 }
 
 // newRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
-func newRemoteConfigServiceOptional(deps dependencies) optional.Option[rcservice.Component] {
-	none := optional.NewNoneOption[rcservice.Component]()
+func newRemoteConfigServiceOptional(deps dependencies) option.Option[rcservice.Component] {
+	none := option.None[rcservice.Component]()
 	if !pkgconfigsetup.IsRemoteConfigEnabled(deps.Cfg) {
 		return none
 	}
@@ -60,7 +59,7 @@ func newRemoteConfigServiceOptional(deps dependencies) optional.Option[rcservice
 		return none
 	}
 
-	return optional.NewOption[rcservice.Component](configService)
+	return option.New[rcservice.Component](configService)
 }
 
 // newRemoteConfigServiceOptional creates and configures a new remote config service

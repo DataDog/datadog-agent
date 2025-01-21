@@ -418,3 +418,92 @@ func BenchmarkCCObfuscation(b *testing.B) {
 		agnt.obfuscateSpan(span)
 	}
 }
+
+func TestObfuscateSpanEvent(t *testing.T) {
+	assert := assert.New(t)
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Obfuscation = &config.ObfuscationConfig{
+		CreditCards: obfuscate.CreditCardsConfig{Enabled: true},
+	}
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	defer cancelFunc()
+	testCases := []*struct {
+		span *pb.Span
+	}{
+		{
+			&pb.Span{
+				Resource: "rrr",
+				Type:     "aaa",
+				Meta:     map[string]string{},
+				SpanEvents: []*pb.SpanEvent{
+					{
+						Name: "evt",
+						Attributes: map[string]*pb.AttributeAnyValue{
+							"str": {
+								Type:        pb.AttributeAnyValue_STRING_VALUE,
+								StringValue: "5105-1051-0510-5100",
+							},
+							"int": {
+								Type:     pb.AttributeAnyValue_INT_VALUE,
+								IntValue: 5105105105105100,
+							},
+							"dbl": {
+								Type:        pb.AttributeAnyValue_DOUBLE_VALUE,
+								DoubleValue: 5105105105105100,
+							},
+							"arr": {
+								Type: pb.AttributeAnyValue_ARRAY_VALUE,
+								ArrayValue: &pb.AttributeArray{
+									Values: []*pb.AttributeArrayValue{
+										{
+											Type:        pb.AttributeArrayValue_STRING_VALUE,
+											StringValue: "5105-1051-0510-5100",
+										},
+										{
+											Type:     pb.AttributeArrayValue_INT_VALUE,
+											IntValue: 5105105105105100,
+										},
+										{
+											Type:        pb.AttributeArrayValue_DOUBLE_VALUE,
+											DoubleValue: 5105105105105100,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		agnt.obfuscateSpan(tc.span)
+		for _, v := range tc.span.SpanEvents[0].Attributes {
+			if v.Type == pb.AttributeAnyValue_ARRAY_VALUE {
+				for _, arrayValue := range v.ArrayValue.Values {
+					assert.Equal("?", arrayValue.StringValue)
+				}
+			} else {
+				assert.Equal("?", v.StringValue)
+			}
+		}
+	}
+}
+
+func TestLexerObfuscation(t *testing.T) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Features["sqllexer"] = struct{}{}
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	defer cancelFunc()
+	span := &pb.Span{
+		Resource: "SELECT * FROM [u].[users]",
+		Type:     "sql",
+		Meta:     map[string]string{"db.type": "sqlserver"},
+	}
+	agnt.obfuscateSpan(span)
+	assert.Equal(t, "SELECT * FROM [u].[users]", span.Resource)
+}

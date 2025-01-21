@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
 	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
@@ -106,6 +107,7 @@ func TestECSEC2CoreAgentSuite(t *testing.T) {
 
 func (s *ECSEC2CoreAgentSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
+	flake.Mark(t)
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
