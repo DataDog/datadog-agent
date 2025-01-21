@@ -10,7 +10,6 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.libs.releasing.version import get_version
 
@@ -107,10 +106,6 @@ def build_linux_script(
     with open(INSTALL_SCRIPT_TEMPLATE) as f:
         install_script = f.read()
 
-    # default version on pipelines, using the commit sha instead
-    if version == "nightly-a7":
-        version = get_commit_sha(ctx)
-
     archs = ['amd64', 'arm64']
     for arch in archs:
         build_downloader(ctx, flavor=flavor, version=version, os='linux', arch=arch)
@@ -120,8 +115,10 @@ def build_linux_script(
 
     commit_sha = ctx.run('git rev-parse HEAD', hide=True).stdout.strip()
     install_script = install_script.replace('INSTALLER_COMMIT', commit_sha)
-
-    with open(os.path.join(DIR_BIN, f'install-{flavor}.sh'), 'w') as f:
+    filename = f'install-{flavor}.sh'
+    if flavor == "default":
+        filename = 'install.sh'
+    with open(os.path.join(DIR_BIN, filename), 'w') as f:
         f.write(install_script)
 
 

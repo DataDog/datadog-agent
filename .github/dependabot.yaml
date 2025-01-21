@@ -11,20 +11,9 @@ updates:
       # These dependencies are replaced in the main go.mod file.
       # They are ignored since bumping them would have no effect on the build.
       # To update them automatically, it is necessary to remove the `replace` directive.
-      - dependency-name: k8s.io/*
-      - dependency-name: github.com/cihub/seelog
-      - dependency-name: github.com/containerd/cgroups
-      - dependency-name: github.com/containerd/containerd
-      - dependency-name: github.com/coreos/go-systemd
-      # We only replace github.com/docker/distribution but we ignore all Docker dependencies.
-      - dependency-name: github.com/docker/*
-      - dependency-name: github.com/florianl/go-conntrack
-      - dependency-name: github.com/iovisor/gobpf
-      - dependency-name: github.com/lxn/walk
-      - dependency-name: github.com/mholt/archiver
-      - dependency-name: github.com/prometheus/client_golang
+      - dependency-name: github.com/cihub/seelog  # https://github.com/DataDog/datadog-agent/pull/5647
       - dependency-name: github.com/spf13/cast
-      - dependency-name: github.com/ugorji/go
+      # We only replace github.com/docker/distribution but we ignore all Docker dependencies.
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
@@ -45,6 +34,11 @@ updates:
       aws-sdk-go-v2:
         patterns:
           - "github.com/aws/aws-sdk-go-v2*"
+      k8s-io:
+        patterns:
+          - "k8s.io/*"
+        update-types:
+          - patch
   - package-ecosystem: gomod
     directory: /pkg/trace
     labels:
@@ -167,6 +161,13 @@ updates:
       - dependency-name: github.com/pulumi*
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
+    groups:
+      aws-sdk-go-v2:
+        patterns:
+          - "github.com/aws/aws-sdk-go-v2*"
+      k8s-io:
+        patterns:
+          - "k8s.io/*"
 
     schedule:
       interval: weekly

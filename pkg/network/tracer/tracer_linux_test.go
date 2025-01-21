@@ -518,10 +518,14 @@ func (s *TracerSuite) TestConntrackExpiration() {
 // connections when the first lookup fails
 func (s *TracerSuite) TestConntrackDelays() {
 	t := s.T()
+	cfg := testConfig()
+	// fargate does not have CAP_NET_ADMIN
+	skipOnEbpflessNotSupported(t, cfg)
+
 	netlinktestutil.SetupDNAT(t)
 	wg := sync.WaitGroup{}
 
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, cfg)
 	// This will ensure that the first lookup for every connection fails, while the following ones succeed
 	tr.conntracker = tracertestutil.NewDelayedConntracker(tr.conntracker, 1)
 
@@ -561,10 +565,14 @@ func (s *TracerSuite) TestConntrackDelays() {
 
 func (s *TracerSuite) TestTranslationBindingRegression() {
 	t := s.T()
+	cfg := testConfig()
+	// fargate does not have CAP_NET_ADMIN
+	skipOnEbpflessNotSupported(t, cfg)
+
 	netlinktestutil.SetupDNAT(t)
 	wg := sync.WaitGroup{}
 
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, cfg)
 
 	// Setup TCP server
 	server := tracertestutil.NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", 0), func(c net.Conn) {
@@ -2034,13 +2042,12 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 		}
 
 		m := outgoing.Monotonic
-		assert.Equal(collect, clientMessageSize, int(m.SentBytes))
-		// ebpfless RecvBytes is based off acknowledgements, so it can miss the first
-		// packet in a pre-existing connection
+		// skip byte counts in ebpfless: for ebpfless pre-existing connections,
+		// byte counts will miss the first couple packets while in connStatAttempted.
 		if !tr.config.EnableEbpfless {
+			assert.Equal(collect, clientMessageSize, int(m.SentBytes))
 			assert.Equal(collect, serverMessageSize, int(m.RecvBytes))
-		}
-		if !tr.config.EnableEbpfless {
+
 			assert.Equal(collect, os.Getpid(), int(outgoing.Pid))
 		}
 		assert.Equal(collect, addrPort(server.Address()), int(outgoing.DPort))
@@ -2048,13 +2055,12 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 		assert.Equal(collect, network.OUTGOING, outgoing.Direction)
 
 		m = incoming.Monotonic
-		// ebpfless RecvBytes is based off acknowledgements, so it can miss the first
-		// packet in a pre-existing connection
+		// skip byte counts in ebpfless: for ebpfless pre-existing connections,
+		// byte counts will miss the first couple packets while in connStatAttempted.
 		if !tr.config.EnableEbpfless {
 			assert.Equal(collect, clientMessageSize, int(m.RecvBytes))
-		}
-		assert.Equal(collect, serverMessageSize, int(m.SentBytes))
-		if !tr.config.EnableEbpfless {
+			assert.Equal(collect, serverMessageSize, int(m.SentBytes))
+
 			assert.Equal(collect, os.Getpid(), int(incoming.Pid))
 		}
 		assert.Equal(collect, addrPort(server.Address()), int(incoming.SPort))

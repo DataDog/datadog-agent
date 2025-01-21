@@ -21,26 +21,33 @@ jobs:
           warning: ${{ steps.warning.outputs.value }}
         steps:
             - name: Checkout repository
-              
               uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
               with:
                 sparse-checkout: 'tasks'
                 persist-credentials: false
 
             - name: Install python
-              if: ${{ env.IS_AGENT6_RELEASE == 'false' }}
               uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
               with:
                 python-version-file: .python-version
                 cache: "pip"
 
             - name: Install Python dependencies
-              if: ${{ env.IS_AGENT6_RELEASE == 'false' }}
               run: |
                 python -m pip install --upgrade pip
                 pip install -r requirements.txt
                 pip install -r tasks/libs/requirements-github.txt
                 pip install -r tasks/requirements_release_tasks.txt
+
+            - name: Check previous agent 6 RC status
+              if: ${{ env.IS_AGENT6_RELEASE == 'true' }}
+              env:
+                DD_SITE: 'datadoghq.com'
+                DD_API_KEY: ${{ secrets.DD_API_KEY }}
+                DD_APP_KEY: ${{ secrets.DD_APP_KEY }}
+                SLACK_DATADOG_AGENT_CI_WEBHOOK: ${{ secrets.SLACK_DATADOG_AGENT_CI_WEBHOOK }}
+              run: |
+                inv -e release.check-previous-agent6-rc
 
             - name: Determine the release active branches
               id: branches
@@ -107,7 +114,7 @@ jobs:
                 MATRIX: ${{ matrix.value }}
               run: |
                 if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
-                  inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }} --patch-version
+                  inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT6_RELEASE_SLACK_WEBHOOK }} --patch-version
                 else
                   inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }}
                 fi

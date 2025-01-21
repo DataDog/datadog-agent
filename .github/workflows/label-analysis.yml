@@ -140,7 +140,7 @@ jobs:
         run: inv -e github.agenttelemetry-list-change-ack-check --pr-id=${{ github.event.pull_request.number }}
 
   ask-reviews:
-    if: github.triggering_actor != 'dd-devflow[bot]' && github.event.action != 'synchronize'
+    if: github.triggering_actor != 'dd-devflow[bot]' && github.event.action == 'labeled' && github.event.label.name == 'ask-review'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

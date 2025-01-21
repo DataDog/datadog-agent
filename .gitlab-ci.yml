@@ -6,8 +6,6 @@ include:
   - .gitlab/check_deploy/check_deploy.yml
   - .gitlab/check_merge/do_not_merge.yml
   - .gitlab/choco_build/choco_build.yml
-  - .gitlab/powershell_script_signing/powershell_script_signing.yml
-  - .gitlab/powershell_script_deploy/powershell_script_deploy.yml
   - .gitlab/common/shared.yml
   - .gitlab/common/skip_ci_check.yml
   - .gitlab/common/test_infra_version.yml
@@ -44,7 +42,9 @@ include:
 default:
   retry:
     max: 2
-    exit_codes: 42
+    exit_codes:
+      - 42
+      - 101 # Failed to extract dependencies
     when:
       - runner_system_failure
       - stuck_or_timeout_failure
@@ -83,7 +83,7 @@ stages:
   - deploy_packages
   - deploy_cws_instrumentation
   - deploy_dca
-  - choco_and_install_script_build
+  - choco_build
   - trigger_release
   - install_script_deploy
   - internal_image_deploy
@@ -170,49 +170,49 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v50263243-1a30c934
+  DATADOG_AGENT_BUILDIMAGES: v53408733-3b43fd22
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v50263243-1a30c934
+  DATADOG_AGENT_WINBUILDIMAGES: v53408733-3b43fd22
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v50263243-1a30c934
+  DATADOG_AGENT_ARMBUILDIMAGES: v53408733-3b43fd22
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v50263243-1a30c934
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v53408733-3b43fd22
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v50263243-1a30c934
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v53408733-3b43fd22
   # New images to enable different version per image - not used yet
-  CI_IMAGE_BTF_GEN: v50263243-1a30c934
+  CI_IMAGE_BTF_GEN: v53408733-3b43fd22
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v50263243-1a30c934
+  CI_IMAGE_DEB_X64: v53408733-3b43fd22
   CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v50263243-1a30c934
+  CI_IMAGE_DEB_ARM64: v53408733-3b43fd22
   CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v50263243-1a30c934
+  CI_IMAGE_DEB_ARMHF: v53408733-3b43fd22
   CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DD_AGENT_TESTING: v50263243-1a30c934
+  CI_IMAGE_DD_AGENT_TESTING: v53408733-3b43fd22
   CI_IMAGE_DD_AGENT_TESTING_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v50263243-1a30c934
+  CI_IMAGE_DOCKER_X64: v53408733-3b43fd22
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v50263243-1a30c934
+  CI_IMAGE_DOCKER_ARM64: v53408733-3b43fd22
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v50263243-1a30c934
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v53408733-3b43fd22
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v50263243-1a30c934
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v53408733-3b43fd22
   CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v50263243-1a30c934
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v53408733-3b43fd22
   CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_X64: v50263243-1a30c934
+  CI_IMAGE_SYSTEM_PROBE_X64: v53408733-3b43fd22
   CI_IMAGE_SYSTEM_PROBE_X64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_ARM64: v50263243-1a30c934
+  CI_IMAGE_SYSTEM_PROBE_ARM64: v53408733-3b43fd22
   CI_IMAGE_SYSTEM_PROBE_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v50263243-1a30c934
+  CI_IMAGE_RPM_X64: v53408733-3b43fd22
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v50263243-1a30c934
+  CI_IMAGE_RPM_ARM64: v53408733-3b43fd22
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v50263243-1a30c934
+  CI_IMAGE_RPM_ARMHF: v53408733-3b43fd22
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_1809_X64: v50263243-1a30c934
+  CI_IMAGE_WIN_1809_X64: v53408733-3b43fd22
   CI_IMAGE_WIN_1809_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v50263243-1a30c934
+  CI_IMAGE_WIN_LTSC2022_X64: v53408733-3b43fd22
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -343,9 +343,6 @@ variables:
 .if_installer_tests: &if_installer_tests
   if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on" || $DDR_WORKFLOW_ID != null) && $RUN_E2E_TESTS != "off"
 
-.if_testing_cleanup: &if_testing_cleanup
-  if: $TESTING_CLEANUP == "true"
-
 .if_run_all_e2e_tests: &if_run_all_e2e_tests
   if: $RUN_E2E_TESTS == "on"
 
@@ -381,7 +378,7 @@ variables:
   if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
 
 .if_scheduled_main: &if_scheduled_main
-  if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH == "main"
+  if: ($CI_PIPELINE_SOURCE == "schedule" || ($DDR_WORKFLOW_ID != null && $APPS =~ /^beta-build-/)) && $CI_COMMIT_BRANCH == "main"
 
 # Rule to trigger jobs only when a branch matches the mergequeue pattern.
 .if_mergequeue: &if_mergequeue
@@ -645,11 +642,6 @@ workflow:
 .on_all_builds:
   - <<: *if_run_all_builds
 
-.on_all_builds_manual:
-  - <<: *if_run_all_builds
-    when: manual
-    allow_failure: true
-
 .on_e2e_tests:
   - <<: *if_installer_tests
 
@@ -664,13 +656,6 @@ workflow:
   - <<: *if_auto_e2e_tests
     variables:
       E2E_OSVERS: $E2E_BRANCH_OSVERS
-
-.on_main_or_testing_cleanup:
-  - <<: *if_main_branch
-  - <<: *if_testing_cleanup
-
-.on_testing_cleanup:
-  - <<: *if_testing_cleanup
 
 .security_agent_change_paths: &security_agent_change_paths
   - pkg/ebpf/**/*
@@ -708,6 +693,11 @@ workflow:
         - test/new-e2e/tests/windows/install-test/**/*
         - test/new-e2e/tests/windows/domain-test/**/*
         - tasks/msi.py
+        - omnibus/python-scripts/**/*
+        - omnibus/lib/**/*
+        - omnibus/config/projects/agent.rb
+        - omnibus/config/software/**/*
+        - omnibus/config/templates/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .except_windows_installer_changes:
@@ -887,7 +877,7 @@ workflow:
         - comp/dogstatsd/**/*
         - comp/forwarder/**/*
         - comp/logs/**/*
-        - comp/serializer/compression/**/*
+        - comp/serializer/**/*
         - pkg/aggregator/**/*
         - pkg/collector/**/*
         - pkg/commonchecks/**/*
@@ -1183,4 +1173,30 @@ workflow:
         - pkg/gpu/**/*
         - test/new-e2e/tests/gpu/**/*
         - pkg/collector/corechecks/gpu/**/*
+        - comp/core/workloadmeta/collectors/internal/nvml/**/*
+        - comp/core/autodiscovery/providers/gpu.go
+        - pkg/config/autodiscovery/autodiscovery.go
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+# windows_docker_2022 configures the job to use the Windows Server 2022 runners.
+# Use in jobs that need to run on Windows Server 2022 runners.
+.windows_docker_2022:
+  tags: ["runner:windows-docker", "windowsversion:2022"]
+  variables:
+    # Full image name for Agent windows build image, for use in docker run command
+    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${DATADOG_AGENT_WINBUILDIMAGES}
+
+# windows_docker_2019 configures the job to use the Windows Server 2019 runners.
+# Use in jobs that need to run on Windows Server 2019 runners.
+.windows_docker_2019:
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  variables:
+    # Full image name for Agent windows build image, for use in docker run command
+    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${DATADOG_AGENT_WINBUILDIMAGES}
+
+# windows_docker_default configures the job to use the default Windows Server runners
+# Use in jobs that may need to have their version updated in the future.
+#
+# Current default: Windows Server 2022
+.windows_docker_default:
+  extends: .windows_docker_2022

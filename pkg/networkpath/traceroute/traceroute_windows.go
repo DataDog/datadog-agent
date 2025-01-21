@@ -13,9 +13,7 @@ import (
 	"errors"
 	"net/http"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,12 +43,8 @@ func New(cfg config.Config, _ telemetry.Component) (*WindowsTraceroute, error) {
 	}
 
 	return &WindowsTraceroute{
-		cfg: cfg,
-		sysprobeClient: &http.Client{
-			Transport: &http.Transport{
-				DialContext: sysprobeclient.DialContextFunc(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
-			},
-		},
+		cfg:            cfg,
+		sysprobeClient: getSysProbeClient(),
 	}, nil
 }
 

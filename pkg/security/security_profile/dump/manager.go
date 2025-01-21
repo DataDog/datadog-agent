@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 )
 
 // ActivityDumpHandler represents an handler for the activity dumps sent by the probe
@@ -333,7 +334,7 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 
 func (adm *ActivityDumpManager) prepareContextTags() {
 	// add hostname tag
-	hostname, err := utils.GetHostname()
+	hostname, err := hostnameutils.GetHostname()
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}

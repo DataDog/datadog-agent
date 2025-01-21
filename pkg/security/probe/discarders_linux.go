@@ -237,7 +237,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 		return nil, nil
 	}
 
-	if _, err := id.discarderEvent.GetFieldType(field); err != nil {
+	if _, _, err := id.discarderEvent.GetFieldMetadata(field); err != nil {
 		return nil, err
 	}
 
@@ -246,7 +246,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 	}
 
 	basenameField := strings.Replace(field, model.PathSuffix, model.NameSuffix, 1)
-	if _, err := id.discarderEvent.GetFieldType(basenameField); err != nil {
+	if _, _, err := id.discarderEvent.GetFieldMetadata(basenameField); err != nil {
 		return nil, err
 	}
 

@@ -21,7 +21,7 @@ import (
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Module defines the fx options for this component.
@@ -39,7 +39,7 @@ func newOrchestratorForwarder(log log.Component, config config.Component, lc fx.
 	}
 	if params.useOrchestratorForwarder {
 		if !config.GetBool(orchestratorconfig.OrchestratorNSKey("enabled")) {
-			forwarder := optional.NewNoneOption[defaultforwarder.Forwarder]()
+			forwarder := option.None[defaultforwarder.Forwarder]()
 			return &forwarder
 		}
 		orchestratorCfg := orchestratorconfig.NewDefaultOrchestratorConfig()
@@ -63,11 +63,11 @@ func newOrchestratorForwarder(log log.Component, config config.Component, lc fx.
 		return createComponent(forwarder)
 	}
 
-	forwarder := optional.NewNoneOption[defaultforwarder.Forwarder]()
+	forwarder := option.None[defaultforwarder.Forwarder]()
 	return &forwarder
 }
 
 func createComponent(forwarder defaultforwarder.Forwarder) orchestrator.Component {
-	o := optional.NewOption(forwarder)
+	o := option.New(forwarder)
 	return &o
 }

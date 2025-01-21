@@ -15,6 +15,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/link"
+
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -105,6 +110,11 @@ type EbpfProgram struct {
 	// otherwise used to check if the program needs to be stopped and re-started
 	// when adding new libsets
 	isInitialized bool
+
+	// enabledProbes is a list of the probes that are enabled for the current system.
+	enabledProbes []manager.ProbeIdentificationPair
+	// disabledProbes is a list of the probes that are disabled for the current system.
+	disabledProbes []manager.ProbeIdentificationPair
 }
 
 // IsSupported returns true if the shared libraries monitoring is supported on the current system.
@@ -196,14 +206,13 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() {
 		handler.perfHandler = perfHandler
 	}
 
-	probeIDs := getSysOpenHooksIdentifiers()
-	for _, identifier := range probeIDs {
-		mgr.Probes = append(mgr.Probes,
-			&manager.Probe{
-				ProbeIdentificationPair: identifier,
-				KProbeMaxActive:         maxActive,
-			},
-		)
+	e.initializeProbes()
+	for _, identifier := range e.enabledProbes {
+		probe := &manager.Probe{
+			ProbeIdentificationPair: identifier,
+			KProbeMaxActive:         maxActive,
+		}
+		mgr.Probes = append(mgr.Probes, probe)
 	}
 
 	e.Manager = ddebpf.NewManager(mgr, "shared-libraries", &ebpftelemetry.ErrorsTelemetryModifier{})
@@ -303,6 +312,7 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 		return fmt.Errorf("cannot start manager: %w", err)
 	}
 
+	ddebpf.AddNameMappings(e.Manager.Manager, "shared-libraries")
 	e.isInitialized = true
 	return nil
 }
@@ -462,8 +472,10 @@ func (e *EbpfProgram) Stop() {
 
 func (e *EbpfProgram) stopImpl() {
 	if e.Manager != nil {
-		_ = e.Manager.Stop(manager.CleanAll)
-		ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
+		err := e.Manager.Stop(manager.CleanAll)
+		if err != nil {
+			log.Errorf("error stopping manager: %s", err)
+		}
 	}
 
 	for _, handler := range e.libsets {
@@ -480,12 +492,15 @@ func (e *EbpfProgram) stopImpl() {
 func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
 	options.RemoveRlimit = true
 
-	for _, probe := range e.Probes {
+	for _, probe := range e.enabledProbes {
 		options.ActivatedProbes = append(options.ActivatedProbes,
 			&manager.ProbeSelector{
-				ProbeIdentificationPair: probe.ProbeIdentificationPair,
+				ProbeIdentificationPair: probe,
 			},
 		)
+	}
+	for _, probe := range e.disabledProbes {
+		options.ExcludedFunctions = append(options.ExcludedFunctions, probe.EBPFFuncName)
 	}
 
 	var enabledMsgs []string
@@ -537,25 +552,60 @@ func (e *EbpfProgram) initPrebuilt() error {
 func sysOpenAt2Supported() bool {
 	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
 
-	if err == nil && len(missing) == 0 {
-		return true
-	}
+	return err == nil && len(missing) == 0
+}
 
-	kversion, err := kernel.HostVersion()
-
-	if err != nil {
-		log.Error("could not determine the current kernel version. fallback to do_sys_open")
+// fexitSupported checks if fexit type of probe is supported on the current host.
+// It does this by creating a dummy program that attaches to the given function name, and returns true if it succeeds.
+// Method was adapted from the CWS code.
+func fexitSupported(funcName string) bool {
+	if features.HaveProgramType(ebpf.Tracing) != nil {
 		return false
 	}
 
-	return kversion >= kernel.VersionCode(5, 6, 0)
+	spec := &ebpf.ProgramSpec{
+		Type:       ebpf.Tracing,
+		AttachType: ebpf.AttachTraceFExit,
+		AttachTo:   funcName,
+		Instructions: asm.Instructions{
+			asm.LoadImm(asm.R0, 0, asm.DWord),
+			asm.Return(),
+		},
+	}
+	prog, err := ebpf.NewProgramWithOptions(spec, ebpf.ProgramOptions{
+		LogDisabled: true,
+	})
+	if err != nil {
+		return false
+	}
+	defer prog.Close()
+
+	l, err := link.AttachTracing(link.TracingOptions{
+		Program: prog,
+	})
+	if err != nil {
+		return false
+	}
+	defer l.Close()
+
+	return true
 }
 
-// getSysOpenHooksIdentifiers returns the enter and exit tracepoints for supported open*
-// system calls.
-func getSysOpenHooksIdentifiers() []manager.ProbeIdentificationPair {
+// initializedProbes initializes the probes that are enabled for the current system
+func (e *EbpfProgram) initializeProbes() {
+	openat2Supported := sysOpenAt2Supported()
+	isFexitSupported := fexitSupported("do_sys_openat2")
+
+	// Tracing represents fentry/fexit probes.
+	tracingProbes := []manager.ProbeIdentificationPair{
+		{
+			EBPFFuncName: fmt.Sprintf("do_sys_%s_exit", openat2SysCall),
+			UID:          probeUID,
+		},
+	}
+
 	openatProbes := []string{openatSysCall}
-	if sysOpenAt2Supported() {
+	if openat2Supported {
 		openatProbes = append(openatProbes, openat2SysCall)
 	}
 	// amd64 has open(2), arm64 doesn't
@@ -563,17 +613,24 @@ func getSysOpenHooksIdentifiers() []manager.ProbeIdentificationPair {
 		openatProbes = append(openatProbes, openSysCall)
 	}
 
-	res := make([]manager.ProbeIdentificationPair, 0, len(traceTypes)*len(openatProbes))
+	// tp stands for tracepoints, which is the older format of the probes.
+	tpProbes := make([]manager.ProbeIdentificationPair, 0, len(traceTypes)*len(openatProbes))
 	for _, probe := range openatProbes {
 		for _, traceType := range traceTypes {
-			res = append(res, manager.ProbeIdentificationPair{
+			tpProbes = append(tpProbes, manager.ProbeIdentificationPair{
 				EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", traceType, probe),
 				UID:          probeUID,
 			})
 		}
 	}
 
-	return res
+	if isFexitSupported && openat2Supported {
+		e.enabledProbes = tracingProbes
+		e.disabledProbes = tpProbes
+	} else {
+		e.enabledProbes = tpProbes
+		e.disabledProbes = tracingProbes
+	}
 }
 
 func getAssetName(module string, debug bool) string {
