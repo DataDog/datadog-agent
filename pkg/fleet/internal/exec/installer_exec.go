@@ -83,7 +83,7 @@ func (i *InstallerExec) Install(ctx context.Context, url string, args []string, 
 		cmdLineArgs += fmt.Sprintf("--install_args \"%s\" ", strings.Join(args, ","))
 	}
 	// url must be at the end of the command
-	cmdLineArgs += fmt.Sprintf("%s", url)
+	cmdLineArgs += url
 	cmd := i.newInstallerCmd(ctx, "install", cmdLineArgs)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
