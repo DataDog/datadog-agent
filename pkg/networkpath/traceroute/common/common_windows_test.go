@@ -127,7 +127,7 @@ func Test_handlePackets(t *testing.T) {
 		{
 			description: "canceled context returns canceledErr",
 			ctxTimeout:  300 * time.Millisecond,
-			recvFrom: func(_ windows.Handle, buf []byte, _ int) (int, windows.Sockaddr, error) {
+			recvFrom: func(_ windows.Handle, _ []byte, _ int) (int, windows.Sockaddr, error) {
 				time.Sleep(100 * time.Millisecond)
 				return 0, nil, windows.WSAETIMEDOUT
 			},
@@ -136,7 +136,7 @@ func Test_handlePackets(t *testing.T) {
 		{
 			description: "oversized messages eventually returns canceledErr",
 			ctxTimeout:  300 * time.Millisecond,
-			recvFrom: func(_ windows.Handle, buf []byte, _ int) (int, windows.Sockaddr, error) {
+			recvFrom: func(_ windows.Handle, _ []byte, _ int) (int, windows.Sockaddr, error) {
 				time.Sleep(100 * time.Millisecond)
 				return 0, nil, windows.WSAEMSGSIZE
 			},
@@ -145,7 +145,7 @@ func Test_handlePackets(t *testing.T) {
 		{
 			description: "non-timeout read error returns an error",
 			ctxTimeout:  1 * time.Second,
-			recvFrom: func(_ windows.Handle, buf []byte, _ int) (int, windows.Sockaddr, error) {
+			recvFrom: func(_ windows.Handle, _ []byte, _ int) (int, windows.Sockaddr, error) {
 				return 0, nil, errors.New("test read error")
 			},
 			errMsg: "test read error",
@@ -153,7 +153,7 @@ func Test_handlePackets(t *testing.T) {
 		{
 			description: "failed parsing eventually returns cancel timeout",
 			ctxTimeout:  500 * time.Millisecond,
-			recvFrom: func(_ windows.Handle, buf []byte, _ int) (int, windows.Sockaddr, error) {
+			recvFrom: func(_ windows.Handle, _ []byte, _ int) (int, windows.Sockaddr, error) {
 				copy(buf, tcpBytes)
 
 				return len(tcpBytes), nil, nil
@@ -168,7 +168,7 @@ func Test_handlePackets(t *testing.T) {
 		{
 			description: "no matcher eventually returns cancel timeout",
 			ctxTimeout:  500 * time.Millisecond,
-			recvFrom: func(_ windows.Handle, buf []byte, _ int) (int, windows.Sockaddr, error) {
+			recvFrom: func(_ windows.Handle, _ []byte, _ int) (int, windows.Sockaddr, error) {
 				copy(buf, tcpBytes)
 
 				return len(tcpBytes), nil, nil
@@ -179,7 +179,7 @@ func Test_handlePackets(t *testing.T) {
 		{
 			description: "successful matching returns IP, port, and type code",
 			ctxTimeout:  500 * time.Millisecond,
-			recvFrom: func(_ windows.Handle, buf []byte, _ int) (int, windows.Sockaddr, error) {
+			recvFrom: func(_ windows.Handle, _ []byte, _ int) (int, windows.Sockaddr, error) {
 				copy(buf, tcpBytes)
 
 				return len(tcpBytes), nil, nil
@@ -233,7 +233,7 @@ func Test_SendRawPacket(t *testing.T) {
 			destIP:      net.ParseIP("8.8.8.8"),
 			destPort:    161,
 			payload:     []byte{},
-			sendTo: func(_ windows.Handle, payload []byte, flags int, addr windows.Sockaddr) error {
+			sendTo: func(_ windows.Handle, _ []byte, _ int, _ windows.Sockaddr) error {
 				return errors.New("test error")
 			},
 			expectedErrMsg: "test error",
@@ -243,7 +243,7 @@ func Test_SendRawPacket(t *testing.T) {
 			destIP:      net.ParseIP("8.8.8.8"),
 			destPort:    161,
 			payload:     []byte{1, 2, 3},
-			sendTo: func(_ windows.Handle, payload []byte, flags int, addr windows.Sockaddr) error {
+			sendTo: func(_ windows.Handle, payload []byte, _ int, addr windows.Sockaddr) error {
 				expectedPayload := []byte{1, 2, 3}
 				expectedSockaddr := &windows.SockaddrInet4{
 					Port: 161,

@@ -23,9 +23,6 @@ import (
 var (
 	srcIP = net.ParseIP("1.2.3.4")
 	dstIP = net.ParseIP("5.6.7.8")
-
-	innerSrcIP = net.ParseIP("10.0.0.1")
-	innerDstIP = net.ParseIP("192.168.1.1")
 )
 
 func Test_reserveLocalPort(t *testing.T) {

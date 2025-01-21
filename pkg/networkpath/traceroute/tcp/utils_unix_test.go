@@ -23,6 +23,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/testutils"
 )
 
+var (
+	innerSrcIP = net.ParseIP("10.0.0.1")
+	innerDstIP = net.ParseIP("192.168.1.1")
+)
+
 type (
 	mockRawConn struct {
 		setReadDeadlineErr error

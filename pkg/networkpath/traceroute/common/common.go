@@ -144,6 +144,10 @@ func NewICMPUDPParser() *ICMPParser {
 func (p *ICMPParser) Parse(header *ipv4.Header, payload []byte) (*ICMPResponse, error) {
 	// in addition to parsing, it is probably not a bad idea to do some validation
 	// so we can ignore the ICMP packets we don't care about
+	if len(payload) <= 0 {
+		return nil, fmt.Errorf("received empty ICMP packet")
+	}
+
 	if header.Protocol != IPProtoICMP || header.Version != 4 ||
 		header.Src == nil || header.Dst == nil {
 		return nil, fmt.Errorf("invalid IP header for ICMP packet: %+v", header)
@@ -159,10 +163,6 @@ func (p *ICMPParser) Parse(header *ipv4.Header, payload []byte) (*ICMPResponse, 
 	p.icmpResponse = &ICMPResponse{} // ensure we get a fresh ICMPResponse each run
 	p.icmpResponse.SrcIP = header.Src
 	p.icmpResponse.DstIP = header.Dst
-
-	if len(payload) <= 0 {
-		return nil, fmt.Errorf("received empty ICMP packet")
-	}
 
 	if p.isTCP {
 		return p.parseWithInnerTCP(payload)

@@ -36,7 +36,7 @@ type (
 	// a traceroute based on the source/destination addresses and an identifier
 	MatcherFunc func(*ipv4.Header, []byte, net.IP, uint16, net.IP, uint16, uint32) (net.IP, error)
 
-	// MistmatchError is an error type that indicates a MatcherFunc
+	// MismatchError is an error type that indicates a MatcherFunc
 	// failed due to one or more fields from the packet not matching
 	// the expected information
 	MismatchError string
