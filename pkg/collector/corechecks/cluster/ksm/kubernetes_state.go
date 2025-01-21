@@ -656,11 +656,15 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 				}
 				continue
 			}
+			metricPrefix := ksmMetricPrefix
+			if strings.HasPrefix(metricFamily.Name, "kube_customresource_") {
+				metricPrefix = metricPrefix[:len(metricPrefix)-1] + "_"
+			}
 			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
 					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
-					sender.Gauge(ksmMetricPrefix+ddname, m.Val, hostname, tagList)
+					sender.Gauge(metricPrefix+ddname, m.Val, hostname, tagList)
 				}
 				continue
 			}

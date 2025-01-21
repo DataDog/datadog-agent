@@ -809,7 +809,7 @@ func (suite *k8sSuite) TestKSM() {
 
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
-			Name: "kubernetes_state.customresource.ddm_value",
+			Name: "kubernetes_state_customresource.ddm_value",
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
