@@ -44,14 +44,14 @@ var (
 	dataprocLogs = []common.IntegrationConfigLogs{
 		{
 			Type:    "file",
-			Path:    "/var/log/hadoop-yarn/containers/*/*/stdout",
+			Path:    "/var/log/hadoop-yarn/userlogs/*/*/stdout",
 			Source:  "worker_logs",
 			Service: "hadoop-yarn",
 			Tags:    "log_source:stdout",
 		},
 		{
 			Type:    "file",
-			Path:    "/var/log/hadoop-yarn/containers/*/*/stderr",
+			Path:    "/var/log/hadoop-yarn/userlogs/*/*/stderr",
 			Source:  "worker_logs",
 			Service: "hadoop-yarn",
 			Tags:    "log_source:stderr",
@@ -61,7 +61,7 @@ var (
 
 // SetupDataproc sets up the DJM environment on Dataproc
 func SetupDataproc(s *common.Setup) error {
-
+	s.DdAgentAdditionalGroups = append(s.DdAgentAdditionalGroups, "yarn")
 	metadataClient := metadata.NewClient(nil)
 	s.Packages.Install(common.DatadogAgentPackage, dataprocAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, dataprocInjectorVersion)
@@ -87,8 +87,8 @@ func SetupDataproc(s *common.Setup) error {
 		setupResourceManager(s, clusterName)
 	}
 	// Add logs config to both Resource Manager and Workers
-	var sparkIntegration common.IntegrationConfig
-	if os.Getenv("DD_LOGS_ENABLED") == "true" {
+	sparkIntegration := s.Config.IntegrationConfigs["spark.d/conf.yaml"]
+	if os.Getenv("DD_DATAPROC_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = dataprocLogs
 	}
