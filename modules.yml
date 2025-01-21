@@ -5,13 +5,13 @@ modules:
   .:
     independent: false
     lint_targets:
-    - ./pkg
-    - ./cmd
-    - ./comp
+      - ./pkg
+      - ./cmd
+      - ./comp
     test_targets:
-    - ./pkg
-    - ./cmd
-    - ./comp
+      - ./pkg
+      - ./cmd
+      - ./comp
   comp/api/api/def:
     used_by_otel: true
   comp/api/authtoken: default
@@ -218,7 +218,8 @@ modules:
     used_by_otel: true
   pkg/util/buf:
     used_by_otel: true
-  pkg/util/cache: default
+  pkg/util/cache:
+    used_by_otel: true
   pkg/util/cgroups:
     should_test_condition: is_linux
     used_by_otel: true
@@ -237,7 +238,8 @@ modules:
   pkg/util/flavor: default
   pkg/util/fxutil:
     used_by_otel: true
-  pkg/util/grpc: default
+  pkg/util/grpc:
+    used_by_otel: true
   pkg/util/hostname/validate:
     used_by_otel: true
   pkg/util/http:
@@ -280,13 +282,13 @@ modules:
   test/integration/serverless/src: ignored
   test/new-e2e:
     lint_targets:
-    - .
-    - ./examples
+      - .
+      - ./examples
     should_test_condition: is_linux
     test_targets:
-    - ./pkg/runner
-    - ./pkg/utils/e2e/client
-    - ./system-probe/
+      - ./pkg/runner
+      - ./pkg/utils/e2e/client
+      - ./system-probe/
   test/otel:
     used_by_otel: true
   tools/retry_file_dump:
