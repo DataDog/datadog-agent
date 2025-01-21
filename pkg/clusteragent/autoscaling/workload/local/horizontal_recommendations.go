@@ -25,6 +25,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// recommender is the local recommender for autoscaling workloads
+type recommender struct {
+	PodWatcher common.PodWatcher
+}
+
 type utilizationResult struct {
 	averageUtilization      float64
 	podToUtilization        map[string]float64
@@ -32,8 +37,14 @@ type utilizationResult struct {
 	recommendationTimestamp time.Time
 }
 
+func newLocalRecommender(podWatcher common.PodWatcher) recommender {
+	return recommender{
+		PodWatcher: podWatcher,
+	}
+}
+
 // CalculateHorizontalRecommendations is the entrypoint to calculate the horizontal recommendation for a given DatadogPodAutoscaler
-func (l recommender) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal, ctx context.Context) (*model.ScalingValues, error) {
+func (l recommender) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal, ctx context.Context, lStore loadstore.Store) (*model.ScalingValues, error) {
 	currentTime := time.Now()
 
 	// Get current pods for the target
@@ -66,11 +77,6 @@ func (l recommender) CalculateHorizontalRecommendations(dpai model.PodAutoscaler
 			return nil, fmt.Errorf("Failed to get resource recommender settings: %s", err)
 		}
 
-		lStore := loadstore.GetWorkloadMetricStore(ctx)
-		if lStore == nil {
-			log.Debugf("Unable to fetch local metrics store")
-			break
-		}
 		queryResult := lStore.GetMetricsRaw(recSettings.metricName, namespace, podOwnerName, recSettings.containerName)
 		rec, ts, err := recSettings.recommend(currentTime, pods, queryResult, float64(*dpai.CurrentReplicas()))
 		if err != nil {
@@ -114,7 +120,7 @@ func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*wo
 
 	scaleDirection := common.GetScaleDirection(int32(currentReplicas), recommendedReplicas)
 	if scaleDirection != common.NoScale && len(utilizationResult.missingPods) > 0 {
-		adjustedpodToUtilization := adjustmissingPods(scaleDirection, utilizationResult.podToUtilization, utilizationResult.missingPods)
+		adjustedpodToUtilization := adjustMissingPods(scaleDirection, utilizationResult.podToUtilization, utilizationResult.missingPods)
 		newRecommendation := r.calculateReplicas(currentReplicas, getAveragePodUtilization(adjustedpodToUtilization))
 
 		// If scale direction is reversed, we should not scale
@@ -242,7 +248,7 @@ func processAverageContainerMetricValue(series []loadstore.EntityValue, currentT
 	return average(values), lastTimestamp, nil
 }
 
-func adjustmissingPods(scaleDirection common.ScaleDirection, podToUtilization map[string]float64, missingPods []string) map[string]float64 {
+func adjustMissingPods(scaleDirection common.ScaleDirection, podToUtilization map[string]float64, missingPods []string) map[string]float64 {
 	for _, pod := range missingPods {
 		// adjust based on scale direction
 		if scaleDirection == common.ScaleUp {

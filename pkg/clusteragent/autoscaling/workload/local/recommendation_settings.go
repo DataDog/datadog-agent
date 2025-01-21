@@ -14,16 +14,7 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
-
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 )
-
-// Recommender is the local recommender for autoscaling workloads
-type recommender struct {
-	PodWatcher common.PodWatcher
-	Store      loadstore.Store
-}
 
 const (
 	staleDataThresholdSeconds      = 180 // 3 minutes
@@ -43,12 +34,6 @@ type resourceRecommenderSettings struct {
 	containerName string
 	lowWatermark  float64
 	highWatermark float64
-}
-
-func newLocalRecommender(podWatcher common.PodWatcher) recommender {
-	return recommender{
-		PodWatcher: podWatcher,
-	}
 }
 
 func newResourceRecommenderSettings(target datadoghq.DatadogPodAutoscalerTarget) (*resourceRecommenderSettings, error) {

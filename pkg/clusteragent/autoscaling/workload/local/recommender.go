@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -22,25 +23,25 @@ const (
 	localRecommenderID string = "lr"
 )
 
-// RecommenderInterface is the interface for the local recommender
-type RecommenderInterface struct {
+// recommenderInterface is the interface for the local recommender
+type recommenderInterface struct {
 	localRecommender recommender
 	store            *autoscaling.Store[model.PodAutoscalerInternal]
 	context          context.Context
 }
 
 // NewInterface creates a new RecommenderInterface
-func NewInterface(podWatcher common.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) (*RecommenderInterface, error) {
+func NewInterface(podWatcher common.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) (*recommenderInterface, error) {
 	localRecommender := newLocalRecommender(podWatcher)
 
-	return &RecommenderInterface{
+	return &recommenderInterface{
 		localRecommender: localRecommender,
 		store:            store,
 	}, nil
 }
 
 // Run starts the recommender interface to generate local recommendations
-func (ri *RecommenderInterface) Run(ctx context.Context) {
+func (ri *recommenderInterface) Run(ctx context.Context) {
 	if ctx == nil {
 		log.Errorf("Cannot run with a nil context")
 		return
@@ -65,15 +66,23 @@ func (ri *RecommenderInterface) Run(ctx context.Context) {
 	}()
 }
 
-func (ri *RecommenderInterface) process(ctx context.Context) {
+func (ri *recommenderInterface) process(ctx context.Context) {
+	// Call loadstore when processing
+	lStore := loadstore.GetWorkloadMetricStore(ctx)
+	if lStore == nil {
+		log.Debugf("Local metrics store not initialized, skipping calculations.")
+		return
+	}
+
 	podAutoscalers := ri.store.GetAll()
+
 	for _, podAutoscaler := range podAutoscalers {
 		if podAutoscaler.CustomRecommenderConfiguration() != nil {
 			// TODO: Process custom recommender
 			continue
 		}
 		// Generate local recommendations
-		horizontalRecommendation, err := ri.localRecommender.CalculateHorizontalRecommendations(podAutoscaler, ctx)
+		horizontalRecommendation, err := ri.localRecommender.CalculateHorizontalRecommendations(podAutoscaler, ctx, lStore)
 		if err != nil || horizontalRecommendation == nil {
 			log.Debugf("Error calculating horizontal recommendations for pod autoscaler %s: %s", podAutoscaler.ID(), err)
 			continue
@@ -82,6 +91,5 @@ func (ri *RecommenderInterface) process(ctx context.Context) {
 		podAutoscaler.UpdateFromLocalValues(*horizontalRecommendation)
 		ri.store.Set(podAutoscaler.ID(), podAutoscaler, localRecommenderID)
 		log.Debugf("Updated local fallback values for pod autoscaler %s", podAutoscaler.ID())
-
 	}
 }
