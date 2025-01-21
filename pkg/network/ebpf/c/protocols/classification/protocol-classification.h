@@ -7,12 +7,12 @@
 #include "port_range.h"
 
 #include "protocols/amqp/helpers.h"
+#include "protocols/classification/classification-context.h"
 #include "protocols/classification/common.h"
 #include "protocols/classification/defs.h"
 #include "protocols/classification/maps.h"
 #include "protocols/classification/structs.h"
 #include "protocols/classification/stack-helpers.h"
-#include "protocols/classification/usm-context.h"
 #include "protocols/classification/routing.h"
 #include "protocols/grpc/defs.h"
 #include "protocols/grpc/helpers.h"
