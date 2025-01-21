@@ -73,7 +73,9 @@ class TestWasher:
             if not flakes:
                 return
             for package, tests in flakes.items():
-                self.known_flaky_tests[f"github.com/DataDog/datadog-agent/{package}"].update(set(tests))
+                self.known_flaky_tests[f"github.com/DataDog/datadog-agent/{package}"].update(
+                    {test['test'] for test in tests}
+                )
 
     def parse_test_results(self, module_path: str) -> tuple[dict, dict]:
         failing_tests = defaultdict(set)
