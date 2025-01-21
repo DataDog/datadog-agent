@@ -23,6 +23,13 @@ test/new-e2e/tests/containers:
   - test: TestKindSuite/TestAdmissionControllerWithAutoDetectedLanguage
   - test: TestEKSSuite/TestAdmissionControllerWithAutoDetectedLanguage
 
+# test/new-e2e/tests/agent-metrics-logs/log-agent/linux-log/file-tailing:
+#   - test: TestMultiLineSuite/TestMultiLine/MultiLinePattern
+#     on-log: "Append.*to"
+
+on-log:
+  - "Append.*to"
+
 # It is possible to specify a log pattern for all tests:
 # on-log:
 #   - "I'm flaky..."
