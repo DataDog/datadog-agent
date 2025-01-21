@@ -39,8 +39,8 @@ func newWindowsPacketSource(telemetrycomp telemetry.Component) (filter.PacketSou
 }
 
 func (p *windowsPacketSource) VisitPackets(visit func([]byte, filter.PacketInfo, time.Time) error) error {
-	mu.Lock()
-	defer mu.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	for {
 		// break out of loop if exit is closed
 		select {
@@ -67,7 +67,7 @@ func (p *windowsPacketSource) Close() {
 	close(p.exit)
 
 	// wait for the VisitPackets loop to finish, then close
-	mu.Lock()
-	defer mu.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	_ = p.di.Close()
 }
