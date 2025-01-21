@@ -13,7 +13,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -23,10 +22,10 @@ import (
 // StatusResponse is the response to the status endpoint.
 type StatusResponse struct {
 	APIResponse
-	Version            string                      `json:"version"`
-	Packages           map[string]repository.State `json:"packages"`
-	ApmInjectionStatus APMInjectionStatus          `json:"apm_injection_status"`
-	RemoteConfigState  []*pbgo.PackageState        `json:"remote_config_state"`
+	Version            string                  `json:"version"`
+	Packages           map[string]PackageState `json:"packages"`
+	ApmInjectionStatus APMInjectionStatus      `json:"apm_injection_status"`
+	RemoteConfigState  []*pbgo.PackageState    `json:"remote_config_state"`
 }
 
 // APMInjectionStatus contains the instrumentation status of the APM injection.

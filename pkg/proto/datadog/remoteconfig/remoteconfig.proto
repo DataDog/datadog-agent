@@ -121,17 +121,9 @@ message PackageState {
   string stable_version = 2;
   string experiment_version = 3;
   PackageStateTask task = 4;
-  reserved 5;
-  reserved 6;
-  reserved 7;
-  PoliciesState stable_config_state = 8;
-  PoliciesState experiment_config_state = 9;
-  PoliciesState remote_config_state = 10;
-}
-
-message PoliciesState {
-  string version = 1;
-  repeated string matched_policies = 2;
+  reserved 5, 6, 7, 8, 9, 10;
+  string stable_config_version = 11;
+  string experiment_config_version = 12;
 }
 
 message PackageStateTask {

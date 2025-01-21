@@ -298,7 +298,7 @@ func (a *APIServer) start(ctx context.Context) {
 				return true
 			})
 		case <-ctx.Done():
-			a.stopChan <- struct{}{}
+			close(a.stopChan)
 			return
 		}
 	}
