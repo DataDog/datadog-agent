@@ -16,8 +16,6 @@ import (
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
-	corev1 "k8s.io/api/core/v1"
-
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
@@ -27,95 +25,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Recommender is the local recommender for autoscaling workloads
-type recommender struct {
-	PodWatcher common.PodWatcher
-	Store      loadstore.Store
-}
-
-const (
-	staleDataThresholdSeconds      = 180 // 3 minutes
-	containerCPUUsageMetricName    = "container.cpu.usage"
-	containerMemoryUsageMetricName = "container.memory.usage"
-)
-
-var (
-	resourceToMetric = map[corev1.ResourceName]string{
-		corev1.ResourceCPU:    containerCPUUsageMetricName,
-		corev1.ResourceMemory: containerMemoryUsageMetricName,
-	}
-)
-
-type resourceRecommenderSettings struct {
-	metricName    string
-	containerName string
-	lowWatermark  float64
-	highWatermark float64
-}
-
 type utilizationResult struct {
 	averageUtilization      float64
 	podToUtilization        map[string]float64
 	missingPods             []string
 	recommendationTimestamp time.Time
-}
-
-func newLocalRecommender(podWatcher common.PodWatcher) recommender {
-	return recommender{
-		PodWatcher: podWatcher,
-	}
-}
-
-func newResourceRecommenderSettings(target datadoghq.DatadogPodAutoscalerTarget) (*resourceRecommenderSettings, error) {
-	if target.Type == datadoghq.DatadogPodAutoscalerContainerResourceTargetType {
-		return getOptionsFromContainerResource(target.ContainerResource)
-	}
-	if target.Type == datadoghq.DatadogPodAutoscalerResourceTargetType {
-		return getOptionsFromPodResource(target.PodResource)
-	}
-	return nil, fmt.Errorf("Invalid target type: %s", target.Type)
-}
-
-func getOptionsFromPodResource(target *datadoghq.DatadogPodAutoscalerResourceTarget) (*resourceRecommenderSettings, error) {
-	if target == nil {
-		return nil, fmt.Errorf("nil target")
-	}
-	if target.Value.Type != datadoghq.DatadogPodAutoscalerUtilizationTargetValueType {
-		return nil, fmt.Errorf("invalid value type: %s", target.Value.Type)
-	}
-	metric, ok := resourceToMetric[target.Name]
-	if !ok {
-		return nil, fmt.Errorf("invalid resource name: %s", target.Name)
-	}
-
-	recSettings := &resourceRecommenderSettings{
-		metricName:    metric,
-		lowWatermark:  float64((*target.Value.Utilization - 5)) / 100.0,
-		highWatermark: float64((*target.Value.Utilization + 5)) / 100.0,
-	}
-	return recSettings, nil
-}
-
-func getOptionsFromContainerResource(target *datadoghq.DatadogPodAutoscalerContainerResourceTarget) (*resourceRecommenderSettings, error) {
-	if target == nil {
-		return nil, fmt.Errorf("nil target")
-	}
-	if target.Value.Type != datadoghq.DatadogPodAutoscalerUtilizationTargetValueType {
-		return nil, fmt.Errorf("invalid value type: %s", target.Value.Type)
-	}
-
-	metric, ok := resourceToMetric[target.Name]
-	if !ok {
-		return nil, fmt.Errorf("invalid resource name: %s", target.Name)
-	}
-
-	recSettings := &resourceRecommenderSettings{
-		metricName:    metric,
-		lowWatermark:  float64((*target.Value.Utilization - 5)) / 100.0,
-		highWatermark: float64((*target.Value.Utilization + 5)) / 100.0,
-		containerName: target.Container,
-	}
-	return recSettings, nil
 }
 
 // CalculateHorizontalRecommendations is the entrypoint to calculate the horizontal recommendation for a given DatadogPodAutoscaler
