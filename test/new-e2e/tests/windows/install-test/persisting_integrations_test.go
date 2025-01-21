@@ -242,7 +242,7 @@ func TestIntegrationRollback(t *testing.T) {
 	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
 	require.NoError(t, err, "should get upgrade test package")
 	s.upgradeAgentPackge = upgradeAgentPackge
-	run(t, s)
+	Run(t, s)
 }
 
 type testIntegrationRollback struct {
