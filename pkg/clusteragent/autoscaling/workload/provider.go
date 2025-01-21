@@ -52,7 +52,7 @@ func StartWorkloadAutoscaling(
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
 	podPatcher := newPODPatcher(store, le.IsLeader, apiCl.DynamicCl, eventRecorder)
 	podWatcher := newPodWatcher(wlm, podPatcher)
-	autoscalingInterface, err := local.NewInterface(podWatcher, store)
+	localRecommender, err := local.NewInterface(podWatcher, store)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling interface: %w", err)
 	}
@@ -83,7 +83,7 @@ func StartWorkloadAutoscaling(
 	// TODO: Wait POD Watcher sync before running the controller
 	go podWatcher.Run(ctx)
 	go controller.Run(ctx)
-	go autoscalingInterface.Run(ctx)
+	go localRecommender.Run(ctx)
 
 	return podPatcher, nil
 }
