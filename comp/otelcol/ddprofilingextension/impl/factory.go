@@ -25,7 +25,7 @@ func NewFactory() extension.Factory {
 }
 
 func (f *ddExtensionFactory) Create(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
-	return NewExtension(cfg.(*Config))
+	return NewExtension(cfg.(*Config), set.BuildInfo)
 }
 
 func (f *ddExtensionFactory) Stability() component.StabilityLevel {

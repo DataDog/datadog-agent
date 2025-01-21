@@ -10,10 +10,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/component"
 )
 
 func TestNewExtension(t *testing.T) {
-	ext, err := NewExtension(&Config{})
+	ext, err := NewExtension(&Config{}, component.BuildInfo{})
 	assert.NoError(t, err)
 
 	_, ok := ext.(*ddExtension)

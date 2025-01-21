@@ -8,7 +8,6 @@ package ddprofilingextensionimpl
 
 import (
 	"context"
-	"time"
 
 	ddprofilingextensiondef "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def"
 	"go.opentelemetry.io/collector/component"
@@ -23,21 +22,22 @@ var _ component.Config = (*Config)(nil)
 type ddExtension struct {
 	extension.Extension // Embed base Extension for common functionality.
 
-	cfg *Config // Extension configuration.
+	cfg  *Config // Extension configuration.
+	info component.BuildInfo
 }
 
 // NewExtension creates a new instance of the extension.
-func NewExtension(cfg *Config) (ddprofilingextensiondef.Component, error) {
+func NewExtension(cfg *Config, info component.BuildInfo) (ddprofilingextensiondef.Component, error) {
 	return &ddExtension{
-		cfg: cfg,
+		cfg:  cfg,
+		info: info,
 	}, nil
 }
 
 func (e *ddExtension) Start(ctx context.Context, _ component.Host) error {
 	profilerOptions := []profiler.Option{
-		profiler.WithService("opentelemetry-collector"),
-		profiler.WithEnv("opentelemetry-collector"),
-		profiler.WithPeriod(10 * time.Second),
+		profiler.WithService(e.info.Command),
+		profiler.WithVersion(e.info.Version),
 		profiler.WithProfileTypes(
 			profiler.CPUProfile,
 			profiler.HeapProfile,
@@ -48,6 +48,18 @@ func (e *ddExtension) Start(ctx context.Context, _ component.Host) error {
 			// profiler.MutexProfile,
 			// profiler.GoroutineProfile,
 		),
+	}
+
+	if e.cfg.Service != "" {
+		profilerOptions = append(profilerOptions, profiler.WithService(e.cfg.Service))
+	}
+
+	if e.cfg.Env != "" {
+		profilerOptions = append(profilerOptions, profiler.WithEnv(e.cfg.Env))
+	}
+
+	if e.cfg.Version != "" {
+		profilerOptions = append(profilerOptions, profiler.WithVersion(e.cfg.Version))
 	}
 
 	if string(e.cfg.API.Key) != "" {
@@ -68,7 +80,7 @@ func (e *ddExtension) Start(ctx context.Context, _ component.Host) error {
 	if err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
