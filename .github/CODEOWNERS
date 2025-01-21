@@ -153,7 +153,6 @@
 /.gitlab/integration_test/windows.yml                @DataDog/agent-devx-infra @DataDog/windows-agent
 
 /.gitlab/kernel_matrix_testing                       @DataDog/ebpf-platform
-/.gitlab/kernel_matrix_testing/security_agent.yml    @DataDog/agent-security
 
 /.gitlab/common/container_publish_job_templates.yml  @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/container_build/                            @DataDog/container-integrations @DataDog/agent-delivery
