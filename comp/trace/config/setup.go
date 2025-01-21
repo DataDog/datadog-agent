@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	configdefaults "github.com/DataDog/datadog-agent/pkg/config/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -547,7 +548,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	c.Site = core.GetString("site")
 	if c.Site == "" {
-		c.Site = pkgconfigsetup.DefaultSite
+		c.Site = configdefaults.DefaultSite
 	}
 	if k := "use_dogstatsd"; core.IsSet(k) {
 		c.StatsdEnabled = core.GetBool(k)

@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/config/utils
 
-go 1.22.0
+go 1.23.3
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
@@ -10,11 +10,12 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/defaults => ../defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../env
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../model/
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../pkg/config/nodetreemodel
-	github.com/DataDog/datadog-agent/pkg/config/setup => ../setup/
+	github.com/DataDog/datadog-agent/pkg/config/setup => ../setup
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../telemetry
@@ -34,9 +35,9 @@ replace (
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/config/defaults v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1
 	github.com/DataDog/datadog-agent/pkg/version v0.59.1
@@ -48,6 +49,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.60.1 // indirect

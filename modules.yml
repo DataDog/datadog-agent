@@ -123,6 +123,7 @@ modules:
     used_by_otel: true
   pkg/collector/check/defaults:
     used_by_otel: true
+  pkg/config/defaults: default
   pkg/config/env:
     used_by_otel: true
   pkg/config/mock:

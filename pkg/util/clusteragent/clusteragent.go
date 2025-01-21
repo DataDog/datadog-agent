@@ -118,7 +118,7 @@ func GetClusterAgentClient() (DCAClientInterface, error) {
 func (c *DCAClient) init() error {
 	var err error
 
-	c.clusterAgentAPIEndpoint, err = utils.GetClusterAgentEndpoint()
+	c.clusterAgentAPIEndpoint, err = utils.GetClusterAgentEndpoint(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}

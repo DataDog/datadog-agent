@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configdefaults "github.com/DataDog/datadog-agent/pkg/config/defaults"
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -306,7 +306,7 @@ func (w *Webhook) addSecurityConfigToAgent(agentContainer *corev1.Container) {
 func (w *Webhook) getDefaultSidecarTemplate() *corev1.Container {
 	ddSite := os.Getenv("DD_SITE")
 	if ddSite == "" {
-		ddSite = pkgconfigsetup.DefaultSite
+		ddSite = configdefaults.DefaultSite
 	}
 
 	agentContainer := &corev1.Container{

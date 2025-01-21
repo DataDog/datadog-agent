@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,11 +23,11 @@ import (
 // 2nd. environment variables associated with "cluster_agent.kubernetes_service_name"
 //
 //	${dcaServiceName}_SERVICE_HOST and ${dcaServiceName}_SERVICE_PORT
-func GetClusterAgentEndpoint() (string, error) {
+func GetClusterAgentEndpoint(conf model.Reader) (string, error) {
 	const configDcaURL = "cluster_agent.url"
 	const configDcaSvcName = "cluster_agent.kubernetes_service_name"
 
-	dcaURL := pkgconfigsetup.Datadog().GetString(configDcaURL)
+	dcaURL := conf.GetString(configDcaURL)
 	if dcaURL != "" {
 		if strings.HasPrefix(dcaURL, "http://") {
 			return "", fmt.Errorf("cannot get cluster agent endpoint, not a https scheme: %s", dcaURL)
@@ -49,7 +49,7 @@ func GetClusterAgentEndpoint() (string, error) {
 
 	// Construct the URL with the Kubernetes service environment variables
 	// *_SERVICE_HOST and *_SERVICE_PORT
-	dcaSvc := pkgconfigsetup.Datadog().GetString(configDcaSvcName)
+	dcaSvc := conf.GetString(configDcaSvcName)
 	log.Debugf("Identified service for the Datadog Cluster Agent: %s", dcaSvc)
 	if dcaSvc == "" {
 		return "", fmt.Errorf("cannot get a cluster agent endpoint, both %s and %s are empty", configDcaURL, configDcaSvcName)

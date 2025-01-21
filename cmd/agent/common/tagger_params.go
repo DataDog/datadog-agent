@@ -24,7 +24,7 @@ func DualTaggerParams() (tagger.DualParams, tagger.Params, tagger.RemoteParams) 
 			},
 		}, tagger.Params{}, tagger.RemoteParams{
 			RemoteTarget: func(config.Component) (string, error) {
-				target, err := utils.GetClusterAgentEndpoint()
+				target, err := utils.GetClusterAgentEndpoint(pkgconfigsetup.Datadog())
 				if err != nil {
 					return "", err
 				}

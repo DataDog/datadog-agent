@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/serializer/logscompression
 
-go 1.22.0
+go 1.23.3
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../core/config
@@ -23,6 +23,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/defaults v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0 // indirect
@@ -111,6 +112,8 @@ replace github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config
 replace github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../pkg/config/nodetreemodel
 
 replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup
+
+replace github.com/DataDog/datadog-agent/pkg/config/defaults => ../../../pkg/config/defaults
 
 replace github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../pkg/config/teeconfig
 

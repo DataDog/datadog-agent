@@ -185,7 +185,7 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 
 	// domainforwarder to local DCA for autoscaling failover metrics
 	if config.GetBool("autoscaling.failover.enabled") && config.GetBool("cluster_agent.enabled") {
-		if domain, err := utils.GetClusterAgentEndpoint(); err != nil {
+		if domain, err := utils.GetClusterAgentEndpoint(config); err != nil {
 			log.Errorf("Could not get cluster agent endpoint for autoscaling failover metrics: %s", err)
 		} else if authToken, err := security.GetClusterAgentAuthToken(config); err != nil {
 			log.Errorf("Failed to get cluster agent auth token: ", err)

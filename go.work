@@ -1,6 +1,4 @@
-go 1.23.1
-
-toolchain go1.23.3
+go 1.23.3
 
 use (
 	.
@@ -57,6 +55,7 @@ use (
 	pkg/aggregator/ckey
 	pkg/api
 	pkg/collector/check/defaults
+	pkg/config/defaults
 	pkg/config/env
 	pkg/config/mock
 	pkg/config/model
