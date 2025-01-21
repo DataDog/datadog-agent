@@ -100,6 +100,7 @@ func newSQLStore() *sqlStore {
 	CREATE TABLE IF NOT EXISTS payloads (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		timestamp INTEGER NOT NULL,
+		apiKey VARCHAR(32) NOT NULL,
 		data BLOB NOT NULL,
 		encoding VARCHAR(10) NOT NULL,
 		content_type VARCHAR(20),
@@ -129,7 +130,7 @@ func (s *sqlStore) MostRecentPayloadAPIKey(route string) (string, error) {
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
 func (s *sqlStore) AppendPayload(route string, apiKey string, data []byte, encoding string, contentType string, collectTime time.Time) error {
 	now := time.Now()
-	_, err := s.db.Exec("INSERT INTO payloads (timestamp, apiKey, data, encoding, content_type, route) VALUES (?, ?, ?, ?, ?, ?)", collectTime.Unix(), data, encoding, contentType, route)
+	_, err := s.db.Exec("INSERT INTO payloads (timestamp, apiKey, data, encoding, content_type, route) VALUES (?, ?, ?, ?, ?, ?)", collectTime.Unix(), apiKey, data, encoding, contentType, route)
 	if err != nil {
 		return err
 	}
@@ -159,7 +160,7 @@ func (s *sqlStore) CleanUpPayloadsOlderThan(time time.Time) {
 // GetRawPayloads returns all raw payloads for a given route
 func (s *sqlStore) GetRawPayloads(route string) []api.Payload {
 	now := time.Now()
-	rows, err := s.db.Query("SELECT timestamp, data, encoding, content_type FROM payloads WHERE route = ?", route)
+	rows, err := s.db.Query("SELECT timestamp, apiKey, data, encoding, content_type FROM payloads WHERE route = ?", route)
 	if err != nil {
 		log.Println("Error fetching raw payloads: ", err)
 		return nil
@@ -168,18 +169,20 @@ func (s *sqlStore) GetRawPayloads(route string) []api.Payload {
 	s.metrics.readLatency.WithLabelValues(route).Observe(time.Since(now).Seconds())
 
 	var timestamp int64
+	var apiKey string
 	var data []byte
 	var encoding string
 	var contentType string
 	payloads := []api.Payload{}
 	for rows.Next() {
-		err := rows.Scan(&timestamp, &data, &encoding, &contentType)
+		err := rows.Scan(&timestamp, &apiKey, &data, &encoding, &contentType)
 		if err != nil {
 			log.Println("Error scanning raw payload: ", err)
 			continue
 		}
 		payloads = append(payloads, api.Payload{
 			Timestamp:   time.Unix(timestamp, 0),
+			APIKey:      apiKey,
 			Data:        data,
 			Encoding:    encoding,
 			ContentType: contentType,
