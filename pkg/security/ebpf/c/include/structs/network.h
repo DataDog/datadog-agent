@@ -12,9 +12,6 @@ struct pid_route_t {
 struct pid_route_entry_t {
     u32 pid;
     u32 type;
-    char comm[16];
-    u16 family;
-    u16 dport;
 };
 
 struct flow_t {

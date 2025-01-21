@@ -38,7 +38,12 @@ __attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_fl
     evt->event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
 
     // Delete the entry now to try to limit race conditions with exiting processes.
-    // Note that the "worse" that can happen with this race is that we send the same flows twice.
+    // Two races may happen here:
+    // - we may send the same flows twice if both the ticker and the PID_EXIT hook points call this function
+    // at the same time and both get a hold of the same active_flows_t *entry.
+    // - we may miss some flows if a packet with a new flow is sent right when this function is called by the ticker,
+    // and if the TC program that captures the new flow appends it to the ticker active_flows_t *entry after the end
+    // of the unrolled loop.
     bpf_map_delete_elem(&active_flows, &pid);
 
     // process context
