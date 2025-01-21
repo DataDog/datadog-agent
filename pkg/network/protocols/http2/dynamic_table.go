@@ -21,8 +21,6 @@ import (
 
 const (
 	terminatedConnectionsEventStream = "terminated_http2"
-
-	defaultMapCleanerBatchSize = 1024
 )
 
 // DynamicTable encapsulates the management of the dynamic table in the user mode.
