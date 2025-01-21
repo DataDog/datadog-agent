@@ -92,6 +92,7 @@ type Node struct {
 	Count      int      `json:"count"`
 }
 
+// Item represents a node in the tree.
 type Item struct {
 	GVKR k8stypes.GroupVersionResourceKind `json:"gvkr"`
 	Name string                            `json:"name"`
