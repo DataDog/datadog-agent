@@ -9,7 +9,6 @@
 package local
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"time"
@@ -43,7 +42,7 @@ func newReplicaCalculator(podWatcher common.PodWatcher) replicaCalculator {
 }
 
 // CalculateHorizontalRecommendations is the entrypoint to calculate the horizontal recommendation for a given DatadogPodAutoscaler
-func (r replicaCalculator) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal, ctx context.Context, lStore loadstore.Store) (*model.ScalingValues, error) {
+func (r replicaCalculator) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal, lStore loadstore.Store) (*model.ScalingValues, error) {
 	currentTime := time.Now()
 
 	// Get current pods for the target

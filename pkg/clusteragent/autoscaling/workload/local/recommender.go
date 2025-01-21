@@ -30,13 +30,13 @@ type recommender struct {
 }
 
 // NewInterface creates a new RecommenderInterface
-func NewInterface(podWatcher common.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) (*recommender, error) {
+func NewInterface(podWatcher common.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) *recommender {
 	replicaCalculator := newReplicaCalculator(podWatcher)
 
 	return &recommender{
 		replicaCalculator: replicaCalculator,
 		store:             store,
-	}, nil
+	}
 }
 
 // Run starts the recommender interface to generate local recommendations
@@ -80,15 +80,20 @@ func (r *recommender) process(ctx context.Context) {
 			// TODO: Process custom recommender
 			continue
 		}
+
+		// Lock the store to avoid concurrent writes
+		podAutoscalerInternal, _ := r.store.LockRead(podAutoscaler.ID(), true)
+
 		// Generate local recommendations
-		horizontalRecommendation, err := r.replicaCalculator.CalculateHorizontalRecommendations(podAutoscaler, ctx, lStore)
+		horizontalRecommendation, err := r.replicaCalculator.CalculateHorizontalRecommendations(podAutoscalerInternal, lStore)
 		if err != nil || horizontalRecommendation == nil {
-			log.Debugf("Error calculating horizontal recommendations for pod autoscaler %s: %s", podAutoscaler.ID(), err)
+			log.Debugf("Error calculating horizontal recommendations for pod autoscaler %s: %s", podAutoscalerInternal.ID(), err)
+			r.store.Unlock(podAutoscalerInternal.ID())
 			continue
 		}
 
-		podAutoscaler.UpdateFromLocalValues(*horizontalRecommendation)
-		r.store.Set(podAutoscaler.ID(), podAutoscaler, localRecommenderID)
-		log.Debugf("Updated local fallback values for pod autoscaler %s", podAutoscaler.ID())
+		podAutoscalerInternal.UpdateFromLocalValues(*horizontalRecommendation)
+		r.store.UnlockSet(podAutoscalerInternal.ID(), podAutoscalerInternal, localRecommenderID)
+		log.Debugf("Updated local fallback values for pod autoscaler %s", podAutoscalerInternal.ID())
 	}
 }
