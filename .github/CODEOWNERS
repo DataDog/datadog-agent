@@ -302,7 +302,7 @@
 /comp/netflow @DataDog/ndm-integrations
 /comp/networkpath @DataDog/Networks @DataDog/network-device-monitoring
 /comp/otelcol @DataDog/opentelemetry
-/comp/ownerdetection @DataDog/container-app
+/comp/ownerdetection @DataDog/container-platform
 /comp/process @DataDog/container-intake
 /comp/remote-config @DataDog/remote-config
 /comp/snmptraps @DataDog/ndm-core
