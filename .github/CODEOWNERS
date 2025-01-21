@@ -427,7 +427,8 @@
 /pkg/containerlifecycle/                @Datadog/container-integrations
 /pkg/diagnose/                          @Datadog/container-platform
 /pkg/diagnose/connectivity/             @DataDog/agent-shared-components
-/pkg/diagnose/ports/                    @DataDog/agent-shared-components
+/pkg/diagnose/ports/                    @DataDog/agent-shared-components 
+/pkg/diagnose/ports/*windows*.go        @DataDog/windows-agent
 /pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/dynamicinstrumentation/            @DataDog/debugger
 /pkg/flare/                             @DataDog/agent-shared-components
@@ -465,6 +466,10 @@
 /pkg/util/ktime                         @DataDog/agent-security
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-platform @DataDog/container-app
 /pkg/util/podman/                       @DataDog/container-integrations
+/pkg/util/port/                         @DataDog/agent-shared-components
+/pkg/util/port/*windows*.go          @DataDog/windows-agent
+/pkg/util/port/portlist/                @DataDog/agent-shared-components
+/pkg/util/port/portlist/*windows*.go    @DataDog/windows-agent
 /pkg/util/prometheus                    @DataDog/container-integrations
 /pkg/util/tags/                         @DataDog/container-platform
 /pkg/util/trivy/                        @DataDog/container-integrations @DataDog/agent-security
