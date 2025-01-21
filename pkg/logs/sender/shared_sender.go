@@ -14,8 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"go.uber.org/atomic"
 )
 
 // PipelineComponent abstracts a pipeline component
@@ -32,8 +30,9 @@ type PipelineComponent interface {
 // Do not re-use a SharedSender, reinstantiate one instead.
 type SharedSender struct {
 	senders []*Sender
-	started *atomic.Bool // can't be started twice
-	stopped *atomic.Bool // but also can't be stopped twice
+	started bool // can't be started twice
+	stopped bool // but also can't be stopped twice
+	mu      sync.Mutex
 
 	queues []chan *message.Payload
 
@@ -70,8 +69,6 @@ func NewSharedSender(config pkgconfigmodel.Reader, auditor auditor.Auditor, dest
 
 	return &SharedSender{
 		senders:         senders,
-		started:         atomic.NewBool(false),
-		stopped:         atomic.NewBool(false),
 		pipelineMonitor: pipelineMonitor,
 		utilization:     pipelineMonitor.MakeUtilizationMonitor("shared_sender"),
 		queues:          queues,
@@ -92,32 +89,39 @@ func (s *SharedSender) PipelineMonitor() metrics.PipelineMonitor {
 
 // Start starts all shared sender.
 func (s *SharedSender) Start() {
-	if s.started.Load() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.started {
 		return // do not start a shared sender twice
 	}
-	if s.started.CompareAndSwap(false, true) {
-		for _, sender := range s.senders {
-			sender.Start()
-		}
+
+	for _, sender := range s.senders {
+		sender.Start()
 	}
+
+	s.started = true
 }
 
 // Stop stops all shared senders.
 func (s *SharedSender) Stop() {
-	if !s.started.Load() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.started {
 		return // do not stop a shared sender which has never been started
 	}
-	if s.stopped.Load() {
+	if s.stopped {
 		return // do not stop a shared sender twice
 	}
-	if s.stopped.CompareAndSwap(false, true) {
-		log.Info("shared sender stopping")
-		for _, s := range s.senders {
-			s.Stop()
-		}
-		for i := range s.queues {
-			close(s.queues[i])
-		}
-		s.started.Store(false)
+
+	log.Info("shared sender stopping")
+	for _, s := range s.senders {
+		s.Stop()
 	}
+	for i := range s.queues {
+		close(s.queues[i])
+	}
+
+	s.stopped = true
 }
