@@ -153,10 +153,6 @@ func (p *provider) Start() {
 func (p *provider) Stop() {
 	stopper := startstop.NewParallelStopper()
 
-	if p.sender != nil {
-		stopper.Add(p.sender) // close the shared senders
-	}
-
 	// close the pipelines
 	for _, pipeline := range p.pipelines {
 		stopper.Add(pipeline)

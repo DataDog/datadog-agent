@@ -31,6 +31,8 @@ var (
 // one reliable destination is also sending logs. However they do not update
 // the auditor or block the pipeline if they fail. There will always be at
 // least 1 reliable destination (the main destination).
+// This sender could be managed by a SharedSender, in this case, the `isShared`
+// bool is set to true.
 type Sender struct {
 	auditor        auditor.Auditor
 	config         pkgconfigmodel.Reader
