@@ -28,7 +28,7 @@ import (
 )
 
 // Recommender is the local recommender for autoscaling workloads
-type Recommender struct {
+type recommender struct {
 	PodWatcher common.PodWatcher
 	Store      loadstore.Store
 }
@@ -47,10 +47,10 @@ var (
 )
 
 type resourceRecommenderSettings struct {
-	MetricName    string
-	ContainerName string
-	LowWatermark  float64
-	HighWatermark float64
+	metricName    string
+	containerName string
+	lowWatermark  float64
+	highWatermark float64
 }
 
 type utilizationResult struct {
@@ -60,10 +60,9 @@ type utilizationResult struct {
 	recommendationTimestamp time.Time
 }
 
-func newLocalRecommender(podWatcher common.PodWatcher, loadStore loadstore.Store) Recommender {
-	return Recommender{
+func newLocalRecommender(podWatcher common.PodWatcher) recommender {
+	return recommender{
 		PodWatcher: podWatcher,
-		Store:      loadStore,
 	}
 }
 
@@ -90,9 +89,9 @@ func getOptionsFromPodResource(target *datadoghq.DatadogPodAutoscalerResourceTar
 	}
 
 	recSettings := &resourceRecommenderSettings{
-		MetricName:    metric,
-		LowWatermark:  float64((*target.Value.Utilization - 5)) / 100.0,
-		HighWatermark: float64((*target.Value.Utilization + 5)) / 100.0,
+		metricName:    metric,
+		lowWatermark:  float64((*target.Value.Utilization - 5)) / 100.0,
+		highWatermark: float64((*target.Value.Utilization + 5)) / 100.0,
 	}
 	return recSettings, nil
 }
@@ -111,26 +110,16 @@ func getOptionsFromContainerResource(target *datadoghq.DatadogPodAutoscalerConta
 	}
 
 	recSettings := &resourceRecommenderSettings{
-		MetricName:    metric,
-		LowWatermark:  float64((*target.Value.Utilization - 5)) / 100.0,
-		HighWatermark: float64((*target.Value.Utilization + 5)) / 100.0,
-		ContainerName: target.Container,
+		metricName:    metric,
+		lowWatermark:  float64((*target.Value.Utilization - 5)) / 100.0,
+		highWatermark: float64((*target.Value.Utilization + 5)) / 100.0,
+		containerName: target.Container,
 	}
 	return recSettings, nil
 }
 
-// ReinitLoadstore reinitializes the loadstore for the local recommender
-func (l *Recommender) ReinitLoadstore(ctx context.Context) error {
-	lStore := loadstore.GetWorkloadMetricStore(ctx)
-	if lStore == nil {
-		return fmt.Errorf("Failed to reinitialize local recommender loadstore")
-	}
-	l.Store = lStore
-	return nil
-}
-
 // CalculateHorizontalRecommendations is the entrypoint to calculate the horizontal recommendation for a given DatadogPodAutoscaler
-func (l Recommender) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal) (*model.ScalingValues, error) {
+func (l recommender) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal, ctx context.Context) (*model.ScalingValues, error) {
 	currentTime := time.Now()
 
 	// Get current pods for the target
@@ -163,7 +152,12 @@ func (l Recommender) CalculateHorizontalRecommendations(dpai model.PodAutoscaler
 			return nil, fmt.Errorf("Failed to get resource recommender settings: %s", err)
 		}
 
-		queryResult := l.Store.GetMetricsRaw(recSettings.MetricName, namespace, podOwnerName, recSettings.ContainerName)
+		lStore := loadstore.GetWorkloadMetricStore(ctx)
+		if lStore == nil {
+			log.Debugf("Unable to fetch local metrics store")
+			break
+		}
+		queryResult := lStore.GetMetricsRaw(recSettings.metricName, namespace, podOwnerName, recSettings.containerName)
 		rec, ts, err := recSettings.recommend(currentTime, pods, queryResult, float64(*dpai.CurrentReplicas()))
 		if err != nil {
 			log.Debugf("Got error calculating recommendation: %s", err)
@@ -240,13 +234,13 @@ func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.
 		totalRequests := 0.0
 
 		for _, container := range pod.Containers {
-			if r.ContainerName != "" && container.Name != r.ContainerName {
+			if r.containerName != "" && container.Name != r.containerName {
 				continue
 			}
 
-			if r.MetricName == "container.memory.usage" && container.Resources.MemoryRequest != nil {
+			if r.metricName == "container.memory.usage" && container.Resources.MemoryRequest != nil {
 				totalRequests += float64(*container.Resources.MemoryRequest)
-			} else if r.MetricName == "container.cpu.usage" && container.Resources.CPURequest != nil {
+			} else if r.metricName == "container.cpu.usage" && container.Resources.CPURequest != nil {
 				totalRequests += convertCPURequestToNanocores(*container.Resources.CPURequest)
 			} else {
 				continue // skip; no request information
@@ -349,23 +343,23 @@ func adjustmissingPods(scaleDirection common.ScaleDirection, podToUtilization ma
 func (r *resourceRecommenderSettings) calculateReplicas(currentReplicas float64, averageUtilization float64) int32 {
 	recommendedReplicas := int32(currentReplicas)
 
-	if averageUtilization > r.HighWatermark {
-		rec := int32(math.Ceil(averageUtilization / r.HighWatermark * currentReplicas))
+	if averageUtilization > r.highWatermark {
+		rec := int32(math.Ceil(averageUtilization / r.highWatermark * currentReplicas))
 
 		if rec > recommendedReplicas {
 			recommendedReplicas = rec
 		}
 	}
 
-	if averageUtilization < r.LowWatermark {
-		proposedReplicas := math.Max(math.Floor(averageUtilization/r.LowWatermark*currentReplicas), 1)
+	if averageUtilization < r.lowWatermark {
+		proposedReplicas := math.Max(math.Floor(averageUtilization/r.lowWatermark*currentReplicas), 1)
 
 		// Adjust to be below the high watermark
 		for ; proposedReplicas < currentReplicas; proposedReplicas++ {
 			forecastValue := (currentReplicas * averageUtilization / proposedReplicas)
 
 			// Only allow if we don't break the high watermark
-			if forecastValue < r.HighWatermark {
+			if forecastValue < r.highWatermark {
 				recommendedReplicas = int32(proposedReplicas)
 				break
 			}

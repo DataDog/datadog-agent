@@ -50,9 +50,9 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				},
 			},
 			want: &resourceRecommenderSettings{
-				MetricName:    "container.cpu.usage",
-				LowWatermark:  0.75,
-				HighWatermark: 0.85,
+				metricName:    "container.cpu.usage",
+				lowWatermark:  0.75,
+				highWatermark: 0.85,
 			},
 			err: nil,
 		},
@@ -69,9 +69,9 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				},
 			},
 			want: &resourceRecommenderSettings{
-				MetricName:    "container.memory.usage",
-				LowWatermark:  0.75,
-				HighWatermark: 0.85,
+				metricName:    "container.memory.usage",
+				lowWatermark:  0.75,
+				highWatermark: 0.85,
 			},
 			err: nil,
 		},
@@ -127,10 +127,10 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				},
 			},
 			want: &resourceRecommenderSettings{
-				MetricName:    "container.cpu.usage",
-				LowWatermark:  0.75,
-				HighWatermark: 0.85,
-				ContainerName: "container-foo",
+				metricName:    "container.cpu.usage",
+				lowWatermark:  0.75,
+				highWatermark: 0.85,
+				containerName: "container-foo",
 			},
 			err: nil,
 		},
@@ -148,10 +148,10 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				},
 			},
 			want: &resourceRecommenderSettings{
-				MetricName:    "container.memory.usage",
-				LowWatermark:  0.75,
-				HighWatermark: 0.85,
-				ContainerName: "container-foo",
+				metricName:    "container.memory.usage",
+				lowWatermark:  0.75,
+				highWatermark: 0.85,
+				containerName: "container-foo",
 			},
 			err: nil,
 		},
@@ -203,7 +203,7 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				assert.Error(t, err, tt.err.Error())
 			} else {
 				assert.NoError(t, err)
-				if diff := cmp.Diff(recommenderSettings, tt.want); diff != "" {
+				if diff := cmp.Diff(recommenderSettings, tt.want, cmp.AllowUnexported(resourceRecommenderSettings{})); diff != "" {
 					t.Error(diff)
 				}
 			}

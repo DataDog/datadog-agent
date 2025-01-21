@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,14 +24,14 @@ const (
 
 // RecommenderInterface is the interface for the local recommender
 type RecommenderInterface struct {
-	localRecommender Recommender
+	localRecommender recommender
 	store            *autoscaling.Store[model.PodAutoscalerInternal]
 	context          context.Context
 }
 
 // NewInterface creates a new RecommenderInterface
-func NewInterface(ctx context.Context, podWatcher common.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) (*RecommenderInterface, error) {
-	localRecommender := newLocalRecommender(podWatcher, loadstore.GetWorkloadMetricStore(ctx))
+func NewInterface(podWatcher common.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) (*RecommenderInterface, error) {
+	localRecommender := newLocalRecommender(podWatcher)
 
 	return &RecommenderInterface{
 		localRecommender: localRecommender,
@@ -74,13 +73,7 @@ func (ri *RecommenderInterface) process(ctx context.Context) {
 			continue
 		}
 		// Generate local recommendations
-		if ri.localRecommender.Store == nil {
-			if err := ri.localRecommender.ReinitLoadstore(ctx); err != nil {
-				log.Debugf("Skipping local recommendation for pod autoscaler %s: %s", podAutoscaler.ID(), err)
-				continue
-			}
-		}
-		horizontalRecommendation, err := ri.localRecommender.CalculateHorizontalRecommendations(podAutoscaler)
+		horizontalRecommendation, err := ri.localRecommender.CalculateHorizontalRecommendations(podAutoscaler, ctx)
 		if err != nil || horizontalRecommendation == nil {
 			log.Debugf("Error calculating horizontal recommendations for pod autoscaler %s: %s", podAutoscaler.ID(), err)
 			continue
