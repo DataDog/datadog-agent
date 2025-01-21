@@ -1,0 +1,60 @@
+cc_library(name = "rtloader_three",
+  srcs = [
+     'common/cgo_free.h',
+     'common/cgo_free.c',
+     'common/log.c',
+     'common/log.h',
+     'common/rtloader_mem.c',
+     'common/rtloader_mem.h',
+     'common/stringutils.c',
+     'common/stringutils.h',
+     'common/builtins/_util.c',
+     'common/builtins/_util.h',
+     'common/builtins/aggregator.c',
+     'common/builtins/aggregator.h',
+     'common/builtins/containers.c',
+     'common/builtins/containers.h',
+     'common/builtins/datadog_agent.c',
+     'common/builtins/datadog_agent.h',
+     'common/builtins/kubeutil.c',
+     'common/builtins/kubeutil.h',
+     'common/builtins/tagger.c',
+     'common/builtins/tagger.h',
+     'common/builtins/util.c',
+     'common/builtins/util.h',
+     'include/rtloader_types.h',
+  ],
+  local_defines = [
+      'DATADOG_AGENT_THREE',
+  ],
+  deps = [
+     '@rules_python//python/cc:current_py_cc_headers',
+     '@rules_python//python/cc:current_py_cc_libs',
+  ],
+  copts = [
+    '-Irtloader/include',
+    '-Irtloader/common',
+  ],
+)
+
+cc_library(name = "rtloader",
+  srcs = [
+     'rtloader/api.cpp',
+     'rtloader/rtloader.cpp',
+  ],
+  hdrs = [
+    'include/datadog_agent_rtloader.h',
+    'include/rtloader.h',
+    'include/rtloader_types.h',
+  ],
+  includes = [
+    'include/',
+  ],
+  copts = [
+    '-Irtloader/common',
+  ],
+  deps = [
+      ':rtloader_three',
+  ],
+  visibility = ["//visibility:public"],
+)
