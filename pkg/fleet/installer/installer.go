@@ -164,10 +164,6 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string, 
 		span.SetResourceName(pkg.Name)
 		span.SetTag("package_version", pkg.Version)
 	}
-	err = i.preparePackage(ctx, pkg.Name, args) // Preinst
-	if err != nil {
-		return fmt.Errorf("could not prepare package: %w", err)
-	}
 	dbPkg, err := i.db.GetPackage(pkg.Name)
 	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
 		return fmt.Errorf("could not get package: %w", err)
@@ -178,6 +174,10 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string, 
 			return nil
 		}
 		log.Warnf("overriding existing version")
+	}
+	err = i.preparePackage(ctx, pkg.Name, args) // Preinst
+	if err != nil {
+		return fmt.Errorf("could not prepare package: %w", err)
 	}
 	err = checkAvailableDiskSpace(i.packages, pkg)
 	if err != nil {
