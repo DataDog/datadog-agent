@@ -609,6 +609,12 @@ Package haagent handles states for HA Agent feature.
 
 Package client implements a component to send process metadata to the Cluster-Agent
 
+### [comp/ownerdetection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ownerdetection)
+
+*Datadog Team*: container-platform
+
+Package ownerdetection provides the owner detection client
+
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
 *Datadog Team*: ndm-integrations

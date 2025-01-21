@@ -302,7 +302,6 @@
 /comp/netflow @DataDog/ndm-integrations
 /comp/networkpath @DataDog/Networks @DataDog/network-device-monitoring
 /comp/otelcol @DataDog/opentelemetry
-/comp/ownerdetection @DataDog/container-platform
 /comp/process @DataDog/container-intake
 /comp/remote-config @DataDog/remote-config
 /comp/snmptraps @DataDog/ndm-core
@@ -325,6 +324,7 @@
 /comp/etw @DataDog/windows-agent
 /comp/haagent @DataDog/ndm-core
 /comp/languagedetection/client @DataDog/container-platform
+/comp/ownerdetection @DataDog/container-platform
 /comp/rdnsquerier @DataDog/ndm-integrations
 /comp/serializer/compression @DataDog/agent-metrics-logs
 /comp/snmpscan @DataDog/ndm-core

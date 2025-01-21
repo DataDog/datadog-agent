@@ -6,6 +6,8 @@
 // Package ownerdetection provides the owner detection client
 package ownerdetection
 
+// team: container-platform
+
 import "context"
 
 // Component is the component type.
