@@ -14,19 +14,20 @@ SUCCESS_CHAR = "✅"
 
 body_info_pattern = """### Info
 
-<details>
-<summary>Full details</summary>
-
-|Result|Quality gate|Details|Run|
-|----|----|----|----|
+|Result|Quality gate|On disk size|Maximum on disk size|On wire size|Maximum on wire size|
+|----|----|----|----|----|----|
 """
 body_error_pattern = """### Error
 
-<details>
-<summary>Full details</summary>
+|Result|Quality gate|On disk size|Maximum on disk size|On wire size|Maximum on wire size|
+|----|----|----|----|----|----|
+"""
 
-|Result|Quality gate|Details|Run|
-|----|----|----|----|
+body_error_feet_pattern = """<details>
+<summary>Gate failure full details</summary>
+
+|Quality Gate|Error message|
+|----|--------|
 """
 
 
@@ -34,23 +35,24 @@ def format_gate_message(message):
     return bash_color_to_html(message).replace("\n", "<br>")
 
 
-def display_pr_comment(ctx, finalState, gateStates):
+def display_pr_comment(ctx, finalState, gateStates, metricHandler: GateMetricHandler):
     title = f"Static quality checks {SUCCESS_CHAR if finalState else FAIL_CHAR}"
     body_info = body_info_pattern
     body_error = body_error_pattern
+    body_error_feet = body_error_feet_pattern
     withError = False
     withInfo = False
     for gate in sorted(gateStates, key=lambda x: x["error_type"] is None):
+        gateMetrics = metricHandler.metrics[gate['name']]
         if gate["error_type"] is None:
-            body_info += f"|✅|{gate['name']}|{format_gate_message(gate['message'])}| WIP |\n"
+            body_info += f"|✅|{gate['name']}|{gateMetrics['current_on_disk_size']}|{gateMetrics['max_on_disk_size']}|{gateMetrics['current_on_wire_size']}|{gateMetrics['max_on_wire_size']}|\n"
             withInfo = True
         else:
-            body_error += f"|❌|{gate['name']}|{format_gate_message(gate['message'])}| WIP |\n"
+            body_error += f"|❌|{gate['name']}|{gateMetrics['current_on_disk_size']}|{gateMetrics['max_on_disk_size']}|{gateMetrics['current_on_wire_size']}|{gateMetrics['max_on_wire_size']}|\n"
+            body_error_feet += f"|{gate['name']}|{format_gate_message(gate['message'])}|\n"
             withError = True
-    body_info += "\n</details>\n"
-    body_error += "\n</details>\n"
-
-    body = f"Please find below the results from static quality gates\n{body_error if withError else ""}\n\n{body_info if withInfo else ""}"
+    body_error_feet += "\n</details>\n"
+    body = f"Please find below the results from static quality gates\n{body_error+body_error_feet if withError else ""}\n\n{body_info if withInfo else ""}"
 
     pr_commenter(ctx, title=title, body=body)
 
@@ -122,4 +124,4 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
     github = GithubAPI()
     branch = os.environ["CI_COMMIT_BRANCH"]
     if github.get_pr_for_branch(branch).totalCount > 0:
-        display_pr_comment(ctx, finalState, gateStates)
+        display_pr_comment(ctx, finalState, gateStates, metricHandler)

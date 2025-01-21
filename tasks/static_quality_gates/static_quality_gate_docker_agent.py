@@ -45,10 +45,12 @@ def entrypoint(**kwargs):
 
     error_message = ""
     if image_on_wire_size > max_on_wire_size:
-        error_message += color_message(
+        err_msg = color_message(
             f"Image size on wire (compressed image size) {image_on_wire_size} is higher than the maximum allowed {max_on_wire_size} by the gate !\n",
             "red",
         )
+        print(err_msg)
+        error_message += err_msg
     else:
         print(
             color_message(
@@ -57,10 +59,12 @@ def entrypoint(**kwargs):
             )
         )
     if image_on_disk_size > max_on_disk_size:
-        error_message += color_message(
+        err_msg = color_message(
             f"Image size on disk (uncompressed image size) {image_on_disk_size} is higher than the maximum allowed {max_on_disk_size} by the gate !\n",
             "red",
         )
+        print(err_msg)
+        error_message += err_msg
     else:
         print(
             color_message(

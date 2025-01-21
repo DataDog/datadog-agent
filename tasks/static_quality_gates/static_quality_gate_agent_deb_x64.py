@@ -32,10 +32,12 @@ def entrypoint(**kwargs):
 
         error_message = ""
         if package_on_wire_size > max_on_wire_size:
-            error_message += color_message(
+            err_msg = color_message(
                 f"Package size on wire (compressed package size) {package_on_wire_size} is higher than the maximum allowed {max_on_wire_size} by the gate !\n",
                 "red",
             )
+            print(err_msg)
+            error_message += err_msg
         else:
             print(
                 color_message(
@@ -44,10 +46,12 @@ def entrypoint(**kwargs):
                 )
             )
         if package_on_disk_size > max_on_disk_size:
-            error_message += color_message(
+            err_msg = color_message(
                 f"Package size on disk (uncompressed package size) {package_on_disk_size} is higher than the maximum allowed {max_on_disk_size} by the gate !\n",
                 "red",
             )
+            print(err_msg)
+            error_message += err_msg
         else:
             print(
                 color_message(
