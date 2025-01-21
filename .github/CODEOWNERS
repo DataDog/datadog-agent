@@ -93,6 +93,7 @@
 /.gitlab/binary_build/include.yml                    @DataDog/agent-devx-infra
 /.gitlab/binary_build/linux.yml                      @DataDog/agent-devx-infra @DataDog/agent-delivery
 /.gitlab/functional_test/include.yml                 @DataDog/agent-devx-infra
+/.gitlab/functional_test/static_quality_gate.yml     @DataDog/agent-delivery
 /.gitlab/install_script_testing/install_script_testing.yml          @DataDog/agent-delivery @DataDog/container-ecosystems
 /.gitlab/integration_test/dogstatsd.yml              @DataDog/agent-devx-infra @DataDog/agent-metrics-logs
 /.gitlab/integration_test/include.yml                @DataDog/agent-devx-infra
@@ -571,6 +572,8 @@
 /tasks/kernel_matrix_testing/           @DataDog/ebpf-platform
 /tasks/ebpf_verifier/                   @DataDog/ebpf-platform
 /tasks/trace_agent.py                   @DataDog/agent-apm
+/tasks/quality_gates.py                 @DataDog/agent-delivery
+/tasks/static_quality_gates/            @DataDog/agent-delivery
 /tasks/rtloader.py                      @DataDog/agent-metrics-logs
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/sds.py                           @DataDog/agent-processing-and-routing
@@ -632,6 +635,7 @@
 /test/new-e2e/tests/installer/script          @DataDog/fleet @DataDog/data-jobs-monitoring
 /test/new-e2e/tests/gpu                       @Datadog/ebpf-platform
 /test/otel/                                   @DataDog/opentelemetry
+/test/static/                                 @DataDog/agent-delivery
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
