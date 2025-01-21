@@ -94,6 +94,11 @@ func (v *gpuSuite) runCudaDockerWorkload() string {
 	v.Require().NoError(err)
 	v.Require().NotEmpty(out)
 
+	v.T().Cleanup(func() {
+		// Cleanup the container
+		_, _ = v.Env().RemoteHost.Execute(fmt.Sprintf("docker rm -f %s", containerName))
+	})
+
 	containerIDCmd := fmt.Sprintf("docker inspect -f {{.Id}} %s", containerName)
 	idOut, err := v.Env().RemoteHost.Execute(containerIDCmd)
 	v.Require().NoError(err)
