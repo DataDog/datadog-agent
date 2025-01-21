@@ -45,11 +45,10 @@ func newLocalStore(db *transactionalStore, repository string, initialRoots meta.
 
 func (s *localStore) init(initialRoots meta.EmbeddedRoots) error {
 	err := s.store.update(func(tx *transaction) error {
-		for _, root := range initialRoots {
-			err := s.writeRoot(tx, json.RawMessage(root))
-			if err != nil {
-				return fmt.Errorf("failed to set embedded root in roots bucket: %v", err)
-			}
+		root := initialRoots.Last()
+		err := s.writeRoot(tx, json.RawMessage(root))
+		if err != nil {
+			return fmt.Errorf("failed to set embedded root in roots bucket: %v", err)
 		}
 
 		data, err := tx.get(s.metasBucket, metaRoot)

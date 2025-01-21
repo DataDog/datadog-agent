@@ -6,7 +6,6 @@
 package uptane
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -214,10 +213,6 @@ func (t *transaction) get(bucketName string, path string) ([]byte, error) {
 	// check if it's present in the in-memory cache
 	data, ok := bucket[path]
 	if ok {
-		if data == nil {
-			err := fmt.Errorf("File empty or not found: %s in bucket %s", path, bucketName)
-			return nil, err
-		}
 		return data, nil
 	}
 
