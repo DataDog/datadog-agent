@@ -24,7 +24,7 @@ var (
 		subsystem,
 		"horizontal_scaling_recommended_replicas",
 		[]string{"namespace", "target_name", "autoscaler_name", "source", le.JoinLeaderLabel},
-		"Tracks the value of replicas applied by the horizontal scaling recommendation",
+		"Tracks the value of replicas recommended by the local recommender",
 		commonOpts,
 	)
 )
