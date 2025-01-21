@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/shirou/gopsutil/v4/net"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -65,7 +66,7 @@ func (n *fakeNetworkStats) Connections(kind string) ([]net.ConnectionStat, error
 	return nil, nil
 }
 
-func (n *fakeNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
+func (n *fakeNetworkStats) NetstatTCPExtCounters(procfsPath string, fs afero.Fs) (map[string]int64, error) {
 	return n.netstatTCPExtCountersValues, n.netstatTCPExtCountersError
 }
 
@@ -515,4 +516,55 @@ excluded_interface_re: "eth[0-9]"
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(31), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.drop", float64(32), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(33), "", lo0Tags)
+}
+
+func TestNetStatTCPExtCountersUsingMockedProcfsPath(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	output, err := netstatTCPExtCounters("/mocked/procfs", fs)
+	assert.Equal(t, output, map[string]int64(map[string]int64(nil)))
+
+	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
+		`TCPExt: 1 0 46 79
+TCPExt: 32 34 192 32
+IpExt: 800 4343 4342 304
+IpExt: 801 439 120 439`),
+		0644)
+	assert.Nil(t, err)
+	output, err = netstatTCPExtCounters("/mocked/procfs", fs)
+	assert.Nil(t, err)
+	assert.Equal(t, 4, len(output))
+
+	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
+		`bad file`),
+		0644)
+	assert.Nil(t, err)
+	output, err = netstatTCPExtCounters("/mocked/procfs", fs)
+	assert.EqualError(t, err, "/mocked/procfs/net/netstat is not fomatted correctly, expected ':'")
+
+	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
+		`TCPExt: `),
+		0644)
+	assert.Nil(t, err)
+	output, err = netstatTCPExtCounters("/mocked/procfs", fs)
+	assert.EqualError(t, err, "/mocked/procfs/net/netstat is not fomatted correctly, not data line")
+
+	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
+		`TCPExt: 1 0 46 79
+TCPExt: 32 34 192
+IpExt: 800 4343 4342 304
+IpExt: 801 439 120 439`),
+		0644)
+	assert.Nil(t, err)
+	output, err = netstatTCPExtCounters("/mocked/procfs", fs)
+	assert.EqualError(t, err, "/mocked/procfs/net/netstat is not fomatted correctly, expected same number of columns")
+
+	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
+		`TCPExt: 1 0 46 79
+TCPExt: 32 34 ar 32
+IpExt: 800 4343 4342 304
+IpExt: 801 439 120 439`),
+		0644)
+	assert.Nil(t, err)
+	output, err = netstatTCPExtCounters("/mocked/procfs", fs)
+	assert.Equal(t, output, map[string]int64(map[string]int64(nil)))
 }

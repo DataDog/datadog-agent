@@ -12,18 +12,19 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/shirou/gopsutil/v4/net"
+	"github.com/spf13/afero"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -98,7 +99,7 @@ type networkStats interface {
 	IOCounters(pernic bool) ([]net.IOCountersStat, error)
 	ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error)
 	Connections(kind string) ([]net.ConnectionStat, error)
-	NetstatTCPExtCounters() (map[string]int64, error)
+	NetstatTCPExtCounters(procfsPath string, fs afero.Fs) (map[string]int64, error)
 }
 
 type defaultNetworkStats struct{}
@@ -115,8 +116,8 @@ func (n defaultNetworkStats) Connections(kind string) ([]net.ConnectionStat, err
 	return net.Connections(kind)
 }
 
-func (n defaultNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
-	return netstatTCPExtCounters()
+func (n defaultNetworkStats) NetstatTCPExtCounters(procfsPath string, fs afero.Fs) (map[string]int64, error) {
+	return netstatTCPExtCounters(procfsPath, fs)
 }
 
 // Run executes the check
@@ -136,6 +137,12 @@ func (c *NetworkCheck) Run() error {
 		}
 	}
 
+	procfsPath := "/proc"
+	if pkgconfigsetup.Datadog().IsConfigured("procfs_path") {
+		procfsPath = pkgconfigsetup.Datadog().GetString("procfs_path")
+	}
+	fs := afero.NewOsFs()
+
 	protocols := []string{"tcp", "udp"}
 	protocolsStats, err := c.net.ProtoCounters(protocols)
 	if err != nil {
@@ -144,7 +151,7 @@ func (c *NetworkCheck) Run() error {
 	for _, protocolStats := range protocolsStats {
 		// For TCP we want some extra counters coming from /proc/net/netstat if available
 		if protocolStats.Protocol == "tcp" {
-			counters, err := c.net.NetstatTCPExtCounters()
+			counters, err := c.net.NetstatTCPExtCounters(procfsPath, fs)
 			if err != nil {
 				log.Debug(err)
 			} else {
@@ -236,8 +243,8 @@ func submitConnectionsMetrics(sender sender.Sender, protocolName string, stateMe
 	}
 }
 
-func netstatTCPExtCounters() (map[string]int64, error) {
-	f, err := os.Open("/proc/net/netstat")
+func netstatTCPExtCounters(procfsPath string, fs afero.Fs) (map[string]int64, error) {
+	f, err := fs.Open(procfsPath + "/net/netstat")
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +256,7 @@ func netstatTCPExtCounters() (map[string]int64, error) {
 		line := scanner.Text()
 		i := strings.IndexRune(line, ':')
 		if i == -1 {
-			return nil, errors.New("/proc/net/netstat is not fomatted correctly, expected ':'")
+			return nil, errors.New(procfsPath + "/net/netstat is not fomatted correctly, expected ':'")
 		}
 		proto := strings.ToLower(line[:i])
 		if proto != "tcpext" {
@@ -259,13 +266,13 @@ func netstatTCPExtCounters() (map[string]int64, error) {
 		counterNames := strings.Split(line[i+2:], " ")
 
 		if !scanner.Scan() {
-			return nil, errors.New("/proc/net/netstat is not fomatted correctly, not data line")
+			return nil, errors.New(procfsPath + "/net/netstat is not fomatted correctly, not data line")
 		}
 		line = scanner.Text()
 
 		counterValues := strings.Split(line[i+2:], " ")
 		if len(counterNames) != len(counterValues) {
-			return nil, errors.New("/proc/net/netstat is not fomatted correctly, expected same number of columns")
+			return nil, errors.New(procfsPath + "/net/netstat is not fomatted correctly, expected same number of columns")
 		}
 
 		for j := range counterNames {
