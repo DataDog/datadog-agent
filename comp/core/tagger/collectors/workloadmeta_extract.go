@@ -651,11 +651,6 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tagList *taglist.TagList) {
 	switch owner.Kind {
 	case kubernetes.DeploymentKind:
-		// Remove the hacky deployment tag
-		deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
-		if len(deployment) > 0 {
-			tagList.RemoveLow(tags.KubeDeployment, deployment)
-		}
 		tagList.AddLow(tags.KubeDeployment, owner.Name)
 
 	case kubernetes.DaemonSetKind:
@@ -675,38 +670,32 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 		}
 
 	case kubernetes.JobKind:
-		cronjob, _ := kubernetes.ParseCronJobForJob(owner.Name)
-		if cronjob != "" {
-			tagList.AddOrchestrator(tags.KubeJob, owner.Name)
-			tagList.AddLow(tags.KubeCronjob, cronjob)
-		} else {
-			tagList.AddLow(tags.KubeJob, owner.Name)
+		if pod.RelatedOwners == nil {
+			cronjob, _ := kubernetes.ParseCronJobForJob(owner.Name)
+			if cronjob != "" {
+				tagList.AddOrchestrator(tags.KubeJob, owner.Name)
+				tagList.AddLow(tags.KubeCronjob, cronjob)
+			} else {
+				tagList.AddLow(tags.KubeJob, owner.Name)
+			}
 		}
 
 	case kubernetes.CronJobKind:
-		// Remove the hacky cronjob tag
-		cronjob, _ := kubernetes.ParseCronJobForJob(owner.Name)
-		if cronjob != "" {
-			tagList.RemoveLow(tags.KubeCronjob, cronjob)
-		}
 		tagList.AddLow(tags.KubeCronjob, owner.Name)
 
 	case kubernetes.ReplicaSetKind:
-		deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
-		if len(deployment) > 0 {
-			tagList.AddLow(tags.KubeDeployment, deployment)
+		if pod.RelatedOwners == nil {
+			deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
+			if len(deployment) > 0 {
+				tagList.AddLow(tags.KubeDeployment, deployment)
+			}
 		}
 		tagList.AddLow(tags.KubeReplicaSet, owner.Name)
 
-	case kubernetes.ServiceKind:
-		tagList.AddLow(tags.KubeService, owner.Name)
-
-	case kubernetes.NamespaceKind:
-		tagList.AddLow(tags.KubeNamespace, owner.Name)
-
-	default:
-		log.Debugf("Could not set a tag for kind %s", owner.Kind)
 	}
+
+	// Experimental feature to add all owners kind and name as tags
+	tagList.AddLow("kube_owner", strings.ToLower(owner.Kind)+"/"+owner.Name)
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.KubernetesPod, podContainer workloadmeta.OrchestratorContainer, tagList *taglist.TagList) (*types.TagInfo, error) {

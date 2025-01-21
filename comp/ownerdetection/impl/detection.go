@@ -80,12 +80,12 @@ func (c *ownerDetectionClient) handlePods(pods []*workloadmeta.KubernetesPod) {
 			cachedItems := c.ownerCache.GetParentTree(pod.Namespace, owner.Kind, owner.Name)
 			if len(cachedItems) == 1 {
 				// If we have a single parent, it's already the owner we know about
-				log.Infof("Gabe: Cache hit. No parents for %s/%s", owner.Kind, owner.Name)
+				log.Tracef("Cache hit. No parents for %s/%s", owner.Kind, owner.Name)
 				continue
 			}
 			if len(cachedItems) > 1 {
 				// If we have multiple cached items, we have a parent tree (grandParents+)
-				log.Infof("Gabe: Cache hit. Parents for %s/%s", owner.Kind, owner.Name)
+				log.Tracef("Cache hit. Parents for %s/%s", owner.Kind, owner.Name)
 				for _, item := range cachedItems {
 					// Ignore the known parent
 					if item.Name == owner.Name && item.GVKR.Kind == owner.Kind {
@@ -101,7 +101,7 @@ func (c *ownerDetectionClient) handlePods(pods []*workloadmeta.KubernetesPod) {
 			}
 
 			ownerRelations, err := dcaClient.GetOwnerReferences(pod.Namespace, owner.Name, owner.APIVersion, owner.Kind)
-			log.Infof("Gabe: Cache miss. Parents for %s/%s: %v", owner.Kind, owner.Name, ownerRelations)
+			c.log.Infof("Cache miss. Parents for %s/%s: %v", owner.Kind, owner.Name, ownerRelations)
 			if err != nil {
 				c.log.Debugf("Failed to get owner references for %s/%s: %s", pod.Namespace, owner.Name, err)
 			}
@@ -135,8 +135,12 @@ func (c *ownerDetectionClient) handlePods(pods []*workloadmeta.KubernetesPod) {
 			continue
 		}
 
-		pod.RelatedOwners = relatedOwners
-		newEvent := workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod}
+		newPod := &workloadmeta.KubernetesPod{
+			EntityID:      pod.EntityID,
+			EntityMeta:    pod.EntityMeta,
+			RelatedOwners: relatedOwners,
+		}
+		newEvent := workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: newPod}
 		newEvents = append(newEvents, newEvent)
 	}
 

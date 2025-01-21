@@ -13,7 +13,6 @@ import (
 	"time"
 
 	k8stypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/types"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Cache is a map of trees, keyed by the namespace.
@@ -170,8 +169,6 @@ func (t *Forest) GetTree(kind, name string) []Item {
 		tree = append(tree, node.Item)
 		queue = append(queue, node.Parents...)
 	}
-
-	log.Errorf("GABE: Tree for %s/%s: %s", kind, name, tree)
 
 	return tree
 }

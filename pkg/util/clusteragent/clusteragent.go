@@ -219,7 +219,6 @@ func (c *DCAClient) GetOwnerReferences(nsName string, resourceName string, apiVe
 	var result []k8stypes.ObjectRelation
 	// Note: apiVersion can be either {group}/{version} or {version} so we need 2 endpoints
 	endpoint := fmt.Sprintf("api/v1/owners/%s/%s/%s/%s", nsName, resourceName, apiVersion, kind)
-	log.Errorf("GABE: requested endpoint: %s", endpoint)
 	err := c.doJSONQuery(context.TODO(), endpoint, "GET", nil, &result, false)
 	return result, err
 }
