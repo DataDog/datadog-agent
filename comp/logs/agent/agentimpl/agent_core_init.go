@@ -45,8 +45,6 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	auditorTTL := time.Duration(a.config.GetInt("logs_config.auditor_ttl")) * time.Hour
 	auditor := auditor.New(a.config.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
-	destinationsCtx.WithTracing = true
-	destinationsCtx.Start()
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname)
 
 	// TODO(remy): create a pool of senders
