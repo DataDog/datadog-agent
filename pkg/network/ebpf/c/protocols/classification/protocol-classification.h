@@ -61,20 +61,20 @@
 // times will result in traversing only the api and encryption-layer programs
 
 // updates the the protocol stack and adds the current layer to the routing skip list
-static __always_inline void update_protocol_information(usm_context_t *usm_ctx, protocol_stack_t *stack, protocol_t proto) {
+static __always_inline void update_protocol_information(classification_context_t *classification_ctx, protocol_stack_t *stack, protocol_t proto) {
     set_protocol(stack, proto);
-    usm_ctx->routing_skip_layers |= proto;
+    classification_ctx->routing_skip_layers |= proto;
 }
 
 // Check if the connections is used for gRPC traffic.
-static __always_inline void classify_grpc(usm_context_t *usm_ctx, protocol_stack_t *protocol_stack, struct __sk_buff *skb, skb_info_t *skb_info) {
+static __always_inline void classify_grpc(classification_context_t *classification_ctx, protocol_stack_t *protocol_stack, struct __sk_buff *skb, skb_info_t *skb_info) {
     grpc_status_t status = is_grpc(skb, skb_info);
     if (status == PAYLOAD_UNDETERMINED) {
         return;
     }
 
     if (status == PAYLOAD_GRPC) {
-        update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_GRPC);
+        update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_GRPC);
     }
 
     // Whether the traffic is gRPC or not, we can mark the stack as fully
@@ -142,40 +142,40 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    usm_context_t *usm_ctx = usm_context_init(skb, &skb_tup, &skb_info);
-    if (!usm_ctx) {
+    classification_context_t *classification_ctx = classification_context_init(skb, &skb_tup, &skb_info);
+    if (!classification_ctx) {
         return;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&usm_ctx->tuple);
+    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
 
     if (is_fully_classified(protocol_stack) || is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION)) {
         return;
     }
 
     // Load information that will be later on used to route tail-calls
-    init_routing_cache(usm_ctx, protocol_stack);
+    init_routing_cache(classification_ctx, protocol_stack);
 
-    const char *buffer = &(usm_ctx->buffer.data[0]);
+    const char *buffer = &(classification_ctx->buffer.data[0]);
 
     protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
 
     tls_record_header_t tls_hdr = {0};
 
     if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(skb, skb_info.data_off, skb_info.data_end, &tls_hdr)) {
-        protocol_stack = get_or_create_protocol_stack(&usm_ctx->tuple);
+        protocol_stack = get_or_create_protocol_stack(&classification_ctx->tuple);
         if (!protocol_stack) {
             return;
         }
         // TLS classification
         if (tls_hdr.content_type != TLS_HANDSHAKE) {
             // We can't classify TLS encrypted traffic further, so return early
-            update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
+            update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_TLS);
             return;
         }
 
         // Parse TLS handshake payload
-        tls_info_t *tags = get_or_create_tls_enhanced_tags(&usm_ctx->tuple);
+        tls_info_t *tags = get_or_create_tls_enhanced_tags(&classification_ctx->tuple);
         if (tags) {
             // The packet is a TLS handshake, so trigger tail calls to extract metadata from the payload
             goto next_program;
@@ -188,15 +188,15 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     if (app_layer_proto == PROTOCOL_UNKNOWN) {
-        app_layer_proto =  classify_applayer_protocols(buffer, usm_ctx->buffer.size);
+        app_layer_proto =  classify_applayer_protocols(buffer, classification_ctx->buffer.size);
     }
 
     if (app_layer_proto != PROTOCOL_UNKNOWN) {
-        protocol_stack = get_or_create_protocol_stack(&usm_ctx->tuple);
+        protocol_stack = get_or_create_protocol_stack(&classification_ctx->tuple);
         if (!protocol_stack) {
             return;
         }
-        update_protocol_information(usm_ctx, protocol_stack, app_layer_proto);
+        update_protocol_information(classification_ctx, protocol_stack, app_layer_proto);
 
         if (app_layer_proto == PROTOCOL_HTTP2) {
             // If we found HTTP2, then we try to classify its content.
@@ -208,21 +208,21 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
  next_program:
-    classification_next_program(skb, usm_ctx);
+    classification_next_program(skb, classification_ctx);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_handshake_client(struct __sk_buff *skb) {
-    usm_context_t *usm_ctx = usm_context(skb);
-    if (!usm_ctx) {
+    classification_context_t *classification_ctx = classification_context(skb);
+    if (!classification_ctx) {
         return;
     }
-    tls_info_t* tls_info = get_tls_enhanced_tags(&usm_ctx->tuple);
+    tls_info_t* tls_info = get_tls_enhanced_tags(&classification_ctx->tuple);
     if (!tls_info) {
         goto next_program;
     }
-    __u32 offset = usm_ctx->skb_info.data_off + sizeof(tls_record_header_t);
-    __u32 data_end = usm_ctx->skb_info.data_end;
-    if (!is_tls_handshake_client_hello(skb, offset, usm_ctx->skb_info.data_end)) {
+    __u32 offset = classification_ctx->skb_info.data_off + sizeof(tls_record_header_t);
+    __u32 data_end = classification_ctx->skb_info.data_end;
+    if (!is_tls_handshake_client_hello(skb, offset, classification_ctx->skb_info.data_end)) {
         goto next_program;
     }
     if (!parse_client_hello(skb, offset, data_end, tls_info)) {
@@ -230,20 +230,20 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     }
 
 next_program:
-    classification_next_program(skb, usm_ctx);
+    classification_next_program(skb, classification_ctx);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_handshake_server(struct __sk_buff *skb) {
-    usm_context_t *usm_ctx = usm_context(skb);
-    if (!usm_ctx) {
+    classification_context_t *classification_ctx = classification_context(skb);
+    if (!classification_ctx) {
         return;
     }
-    tls_info_t* tls_info = get_tls_enhanced_tags(&usm_ctx->tuple);
+    tls_info_t* tls_info = get_tls_enhanced_tags(&classification_ctx->tuple);
     if (!tls_info) {
         goto next_program;
     }
-    __u32 offset = usm_ctx->skb_info.data_off + sizeof(tls_record_header_t);
-    __u32 data_end = usm_ctx->skb_info.data_end;
+    __u32 offset = classification_ctx->skb_info.data_off + sizeof(tls_record_header_t);
+    __u32 data_end = classification_ctx->skb_info.data_end;
     if (!is_tls_handshake_server_hello(skb, offset, data_end)) {
         goto next_program;
     }
@@ -251,82 +251,82 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
         return;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&usm_ctx->tuple);
+    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
     if (!protocol_stack) {
         return;
     }
-    update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
+    update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_TLS);
     // We can't classify TLS encrypted traffic further, so return early
     return;
 
 next_program:
-    classification_next_program(skb, usm_ctx);
+    classification_next_program(skb, classification_ctx);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues(struct __sk_buff *skb) {
-    usm_context_t *usm_ctx = usm_context(skb);
-    if (!usm_ctx) {
+    classification_context_t *classification_ctx = classification_context(skb);
+    if (!classification_ctx) {
         return;
     }
-    const char *buffer = &(usm_ctx->buffer.data[0]);
-    protocol_t cur_fragment_protocol = classify_queue_protocols(skb, &usm_ctx->skb_info, buffer, usm_ctx->buffer.size);
+    const char *buffer = &(classification_ctx->buffer.data[0]);
+    protocol_t cur_fragment_protocol = classify_queue_protocols(skb, &classification_ctx->skb_info, buffer, classification_ctx->buffer.size);
     if (!cur_fragment_protocol) {
         goto next_program;
     }
 
-    protocol_stack_t *protocol_stack = get_or_create_protocol_stack(&usm_ctx->tuple);
+    protocol_stack_t *protocol_stack = get_or_create_protocol_stack(&classification_ctx->tuple);
     if (!protocol_stack) {
         return;
     }
-    update_protocol_information(usm_ctx, protocol_stack, cur_fragment_protocol);
+    update_protocol_information(classification_ctx, protocol_stack, cur_fragment_protocol);
     mark_as_fully_classified(protocol_stack);
 
  next_program:
-    classification_next_program(skb, usm_ctx);
+    classification_next_program(skb, classification_ctx);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(struct __sk_buff *skb) {
-    usm_context_t *usm_ctx = usm_context(skb);
-    if (!usm_ctx) {
+    classification_context_t *classification_ctx = classification_context(skb);
+    if (!classification_ctx) {
         return;
     }
 
-    const char *buffer = &usm_ctx->buffer.data[0];
-    protocol_t cur_fragment_protocol = classify_db_protocols(&usm_ctx->tuple, buffer, usm_ctx->buffer.size);
+    const char *buffer = &classification_ctx->buffer.data[0];
+    protocol_t cur_fragment_protocol = classify_db_protocols(&classification_ctx->tuple, buffer, classification_ctx->buffer.size);
     if (!cur_fragment_protocol) {
         goto next_program;
     }
 
-    protocol_stack_t *protocol_stack = get_or_create_protocol_stack(&usm_ctx->tuple);
+    protocol_stack_t *protocol_stack = get_or_create_protocol_stack(&classification_ctx->tuple);
     if (!protocol_stack) {
         return;
     }
 
-    update_protocol_information(usm_ctx, protocol_stack, cur_fragment_protocol);
+    update_protocol_information(classification_ctx, protocol_stack, cur_fragment_protocol);
     mark_as_fully_classified(protocol_stack);
  next_program:
-    classification_next_program(skb, usm_ctx);
+    classification_next_program(skb, classification_ctx);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_grpc(struct __sk_buff *skb) {
-    usm_context_t *usm_ctx = usm_context(skb);
-    if (!usm_ctx) {
+    classification_context_t *classification_ctx = classification_context(skb);
+    if (!classification_ctx) {
         return;
     }
 
     // gRPC classification can happen only if the application layer is known
     // So if we don't have a protocol stack, we can continue to the next program.
-    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&usm_ctx->tuple);
+    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
     if (protocol_stack) {
         // The GRPC classification program can be called without a prior
         // classification of HTTP2, which is a precondition.
         protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
         if (app_layer_proto == PROTOCOL_HTTP2) {
-            classify_grpc(usm_ctx, protocol_stack, skb, &usm_ctx->skb_info);
+            classify_grpc(classification_ctx, protocol_stack, skb, &classification_ctx->skb_info);
         }
     }
 
-    classification_next_program(skb, usm_ctx);
+    classification_next_program(skb, classification_ctx);
 }
 
 #endif

@@ -1,5 +1,5 @@
-#ifndef __USM_CONTEXT_H
-#define __USM_CONTEXT_H
+#ifndef __CLASSIFICATION_CONTEXT_H
+#define __CLASSIFICATION_CONTEXT_H
 
 #include "tracer/tracer.h"
 #include "protocols/classification/common.h"
@@ -20,10 +20,10 @@ typedef struct {
     conn_tuple_t tuple;
     skb_info_t  skb_info;
     classification_buffer_t buffer;
-    // bit mask with layers that should be skiped
+    // bit mask with layers that should be skipped
     u16 routing_skip_layers;
     classification_prog_t routing_current_program;
-} usm_context_t;
+} classification_context_t;
 
 // Kernels before 4.7 do not know about per-cpu array maps.
 #if defined(COMPILE_PREBUILT) || defined(COMPILE_CORE) || (defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0))
@@ -42,12 +42,12 @@ typedef struct {
 // words, there is a chance that ingress and egress packets can be processed
 // concurrently on the same CPU, which is why have a dedicated per CPU map entry
 // for each direction in order to avoid data corruption.
-BPF_PERCPU_ARRAY_MAP(classification_buf, usm_context_t, 2)
+BPF_PERCPU_ARRAY_MAP(classification_buf, classification_context_t, 2)
 #else
 BPF_ARRAY_MAP(classification_buf, __u8, 1)
 #endif
 
-static __always_inline usm_context_t* __get_usm_context(struct __sk_buff *skb) {
+static __always_inline classification_context_t* __get_classification_context(struct __sk_buff *skb) {
     // we use the packet direction as the key to the CPU map
     const u32 key = skb->pkt_type == PACKET_OUTGOING;
     return bpf_map_lookup_elem(&classification_buf, &key);
@@ -60,36 +60,36 @@ static __always_inline void __init_buffer(struct __sk_buff *skb, skb_info_t *skb
     buffer->size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
 }
 
-static __always_inline usm_context_t* usm_context_init(struct __sk_buff *skb, conn_tuple_t *tuple, skb_info_t *skb_info) {
+static __always_inline classification_context_t* classification_context_init(struct __sk_buff *skb, conn_tuple_t *tuple, skb_info_t *skb_info) {
     if (!skb || !skb_info) {
         return NULL;
     }
 
-    usm_context_t *usm_context = __get_usm_context(skb);
-    if (!usm_context) {
+    classification_context_t *classification_context = __get_classification_context(skb);
+    if (!classification_context) {
         return NULL;
     }
 
-    usm_context->owner = skb;
-    usm_context->tuple = *tuple;
-    usm_context->skb_info = *skb_info;
-    __init_buffer(skb, skb_info, &usm_context->buffer);
-    return usm_context;
+    classification_context->owner = skb;
+    classification_context->tuple = *tuple;
+    classification_context->skb_info = *skb_info;
+    __init_buffer(skb, skb_info, &classification_context->buffer);
+    return classification_context;
 }
 
-static __always_inline usm_context_t* usm_context(struct __sk_buff *skb) {
-    usm_context_t *usm_context = __get_usm_context(skb);
-    if (!usm_context) {
+static __always_inline classification_context_t* classification_context(struct __sk_buff *skb) {
+    classification_context_t *classification_context = __get_classification_context(skb);
+    if (!classification_context) {
         return NULL;
     }
 
     // sanity check
-    if (usm_context->owner != skb) {
-        log_debug("invalid usm context");
+    if (classification_context->owner != skb) {
+        log_debug("invalid classification context");
         return NULL;
     }
 
-    return usm_context;
+    return classification_context;
 }
 
 #endif
