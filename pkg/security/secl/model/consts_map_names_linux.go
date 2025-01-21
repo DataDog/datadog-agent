@@ -31,7 +31,7 @@ var bpfMapNames = []string{
 	"events",
 	"events_ringbuf_",
 	"events_stats",
-	"inode_mount_id",
+	"inode_file",
 	"exec_pid_transf",
 	"fb_approver_sta",
 	"fb_discarder_st",

@@ -24,7 +24,7 @@ static __attribute__((always_inline)) void cache_file(struct dentry *dentry, u32
     fill_file(dentry, &entry);
 
     // cache with the inode only as this map is used to capture the mount_id
-    bpf_map_update_elem(&inode_mount_id, &entry.path_key.ino, &entry, BPF_ANY);
+    bpf_map_update_elem(&inode_file, &entry.path_key.ino, &entry, BPF_ANY);
 }
 
 static __attribute__((always_inline)) int handle_stat() {

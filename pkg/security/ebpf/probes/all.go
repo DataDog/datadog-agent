@@ -141,8 +141,8 @@ func AllMaps() []*manager.Map {
 		{Name: "basename_approvers"},
 		// Dentry resolver table
 		{Name: "pathnames"},
-		// Snapshot table
-		{Name: "inode_mount_id"},
+		// Procfs fallback table
+		{Name: "inode_file"},
 		// Open tables
 		{Name: "open_flags_approvers"},
 		// Exec tables
