@@ -284,10 +284,12 @@ namespace Datadog.CustomActions
                 _rollbackDataStore.Add(new FileStorageRollbackData(pythonPackagesFile));
             }
 
-            try {
+            try
+            {
                 return RunPythonScript(_session, "pre.py");
             }
-            finally{
+            finally
+            {
                 _rollbackDataStore.Store();
             }
         }
