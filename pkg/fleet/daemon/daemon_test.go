@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -212,8 +213,11 @@ func newTestInstaller(t *testing.T) *testInstaller {
 	pm.On("ConfigStates").Return(map[string]repository.State{}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
-	env := &env.Env{RemoteUpdates: true}
-	daemon := newDaemon(rc, pm, env)
+	daemon := newDaemon(
+		rc,
+		func(_ *env.Env) installer.Installer { return pm },
+		&env.Env{RemoteUpdates: true},
+	)
 	i := &testInstaller{
 		daemonImpl: daemon,
 		rcc:        rcc,

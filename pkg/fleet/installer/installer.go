@@ -619,7 +619,7 @@ func (i *installerImpl) setupPackage(ctx context.Context, pkg string, args []str
 	case packageDatadogAgent:
 		return packages.SetupAgent(ctx, args)
 	case packageAPMInjector:
-		return packages.SetupAPMInjector(ctx, args)
+		return packages.SetupAPMInjector(ctx)
 	default:
 		return nil
 	}
