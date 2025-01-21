@@ -26,7 +26,7 @@ var (
 	stagingRootConfig []byte
 )
 
-// EmbeddedRoots is a map of version => EmbeddedRoot
+// EmbeddedRoot is an embedded root with its version parsed
 type EmbeddedRoot struct {
 	latest uint64
 	root   []byte
@@ -67,14 +67,14 @@ func RootsConfig(site string, configRootOverride string) EmbeddedRoot {
 	}
 }
 
-// Last returns the last root the EmbeddedRoots
-func (roots EmbeddedRoot) Root() []byte {
-	return roots.root
+// Root returns the last root the EmbeddedRoots
+func (root EmbeddedRoot) Root() []byte {
+	return root.root
 }
 
-// LastVersion returns the last version of the EmbeddedRoots
-func (roots EmbeddedRoot) Version() uint64 {
-	return roots.latest
+// Version returns the last version of the EmbeddedRoots
+func (root EmbeddedRoot) Version() uint64 {
+	return root.latest
 }
 
 // parseRootVersion from the embedded roots for easy update
