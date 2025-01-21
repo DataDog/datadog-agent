@@ -1,21 +1,18 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name="libgcrypt",
-    lib_source = "@libgcrypt//:all",
+    name = "libgcrypt",
     configure_options = [
         "--enable-maintainer-mode",
     ],
-    deps = [
-        "//deps/libgpg-error",
-    ],
+    lib_source = "@libgcrypt//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
             "libgcrypt.so",
         ],
     }),
     visibility = ["//visibility:public"],
+    deps = [
+        "//deps/libgpg-error",
+    ],
 )
-
-
-

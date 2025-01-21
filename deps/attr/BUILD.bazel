@@ -1,10 +1,10 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name="attr",
-    lib_source = "@attr//:all",
+    name = "attr",
     configure_options = [
     ],
+    lib_source = "@attr//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
             "libattr.so",
@@ -12,4 +12,3 @@ configure_make(
     }),
     visibility = ["//visibility:public"],
 )
-

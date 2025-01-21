@@ -1,8 +1,7 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name="openssl",
-    lib_source = "@openssl//:all",
+    name = "openssl",
     configure_command = "config",
     configure_options = [
         "no-idea",
@@ -15,11 +14,7 @@ configure_make(
         "--libdir=lib",
         "zlib",
     ],
-    deps = [
-        "@zlib//:zlib",
-        "@bzip2//:bz2",
-        "@xz//:lzma",
-    ],
+    lib_source = "@openssl//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
             "libssl.so",
@@ -29,6 +24,9 @@ configure_make(
         ],
     }),
     visibility = ["//visibility:public"],
+    deps = [
+        "@bzip2//:bz2",
+        "@xz//:lzma",
+        "@zlib",
+    ],
 )
-
-

@@ -1,7 +1,7 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "make")
 
 make(
-    name="libsepol",
+    name = "libsepol",
     lib_source = "@libsepol//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
@@ -10,7 +10,3 @@ make(
     }),
     visibility = ["//visibility:public"],
 )
-
-
-
-

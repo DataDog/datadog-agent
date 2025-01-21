@@ -1,19 +1,18 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name="gmp",
-    lib_source = "@gmp//:all",
-    deps = [
-        "//deps/nettle",
-    ],
+    name = "gmp",
     configure_options = [
         "--enable-fat",
         "--disable-static",
     ],
+    lib_source = "@gmp//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
         ],
     }),
     visibility = ["//visibility:public"],
+    deps = [
+        "//deps/nettle",
+    ],
 )
-

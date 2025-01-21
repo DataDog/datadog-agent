@@ -1,13 +1,13 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name="expat",
-    lib_source = "@expat//:all",
+    name = "expat",
     configure_options = [
         "--disable-static",
         "--without-examples",
         "--without-tests",
     ],
+    lib_source = "@expat//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
             "libexpat.so",
@@ -15,4 +15,3 @@ configure_make(
     }),
     visibility = ["//visibility:public"],
 )
-

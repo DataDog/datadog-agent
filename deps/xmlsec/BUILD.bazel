@@ -1,22 +1,21 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name="xmlsec",
-    lib_source = "@xmlsec//:all",
+    name = "xmlsec",
     configure_options = [
         "--disable-static",
         "--disable-pedantic",
     ],
-    deps = [
-        "//deps/libxml2",
-        "//deps/libxslt",
-        "//deps/libgcrypt",
-        "//deps/gnutls",
-    ],
+    lib_source = "@xmlsec//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
         ],
     }),
     visibility = ["//visibility:public"],
+    deps = [
+        "//deps/gnutls",
+        "//deps/libgcrypt",
+        "//deps/libxml2",
+        "//deps/libxslt",
+    ],
 )
-

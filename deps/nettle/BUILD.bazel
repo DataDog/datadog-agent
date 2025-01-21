@@ -1,17 +1,16 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name="nettle",
-    lib_source = "@nettle//:all",
+    name = "nettle",
     configure_options = [
         "--disable-assembler",
         "--enable-mini-gmp",
         "--disable-static",
     ],
+    lib_source = "@nettle//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
         ],
     }),
     visibility = ["//visibility:public"],
 )
-

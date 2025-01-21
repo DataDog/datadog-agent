@@ -1,8 +1,7 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name="libxcrypt",
-    lib_source = "@libxcrypt//:all",
+    name = "libxcrypt",
     configure_options = [
         "--disable-obsolete-api",
         "--disable-werror",
@@ -11,11 +10,11 @@ configure_make(
         # https://github.com/besser82/libxcrypt/issues/181
         "--disable-symvers",
     ],
-    deps = [
-        "@zlib//:zlib",
-        "@bzip2//:bz2",
-        "@xz//:lzma",
-    ],
+    # Workaround for https://github.com/bazel-contrib/rules_foreign_cc/issues/1160
+    env = {
+        "LD": "",
+    },
+    lib_source = "@libxcrypt//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
             "libcrypt.so",
@@ -24,9 +23,9 @@ configure_make(
         ],
     }),
     visibility = ["//visibility:public"],
-    # Workaround for https://github.com/bazel-contrib/rules_foreign_cc/issues/1160
-    env = {
-        "LD": "",
-    },
+    deps = [
+        "@bzip2//:bz2",
+        "@xz//:lzma",
+        "@zlib",
+    ],
 )
-

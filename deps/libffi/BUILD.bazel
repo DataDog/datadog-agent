@@ -1,12 +1,14 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name="libffi",
-    lib_source = "@libffi//:all",
+    name = "libffi",
     configure_options = [
         "--disable-doc",
         "--disable-multi-os-directory",
     ],
+    # Workaround for https://github.com/bazel-contrib/rules_foreign_cc/issues/1160
+    env = {"LD": ""},
+    lib_source = "@libffi//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
             "libffi.so",
@@ -15,7 +17,4 @@ configure_make(
         ],
     }),
     visibility = ["//visibility:public"],
-    # Workaround for https://github.com/bazel-contrib/rules_foreign_cc/issues/1160
-    env = {"LD": ""},
 )
-

@@ -1,8 +1,7 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name="python3",
-    lib_source = "@python3//:all",
+    name = "python3",
     configure_options = [
         "--enable-ipv6",
         "--with-ensurepip=yes",
@@ -19,20 +18,8 @@ configure_make(
         "@platforms//os:macos": [
             "--with-universal-archs=intel",
         ],
-        "//conditions:default": []
+        "//conditions:default": [],
     }),
-    out_binaries = [
-        "python3",
-        "pip3",
-        "python3.11",
-    ],
-    out_shared_libs = select({
-        "@platforms//os:linux": [
-            "libffi.so",
-        ],
-        "//conditions:default": []
-    }),
-    install_prefix = "py_install",
     env = {
         "OPT": "-DNDEBUG -fwrapv",
         # manually provide some dependencies cflags/ldflags instead of
@@ -42,20 +29,31 @@ configure_make(
         "LIBFFI_CFLAGS": "-I.",
         "LIBFFI_LIBS": "-lffi",
         # Ensure we don't use the system provided .pc
-        "PKG_CONFIG_LIBDIR": "/does/not/exist"
+        "PKG_CONFIG_LIBDIR": "/does/not/exist",
     },
-    deps = [
-        "@zlib//:zlib",
-        "@bzip2//:bz2",
-        "@sqlite3//:sqlite3",
-        "@xz//:lzma",
-        "@libyaml//:libyaml",
-        "@ncurses//:ncurses",
-        "//deps/libxcrypt",
-        "//deps/libffi",
-        "//deps/openssl",
+    install_prefix = "py_install",
+    lib_source = "@python3//:all",
+    out_binaries = [
+        "python3",
+        "pip3",
+        "python3.11",
     ],
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libffi.so",
+        ],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
+    deps = [
+        "//deps/libffi",
+        "//deps/libxcrypt",
+        "//deps/openssl",
+        "@bzip2//:bz2",
+        "@libyaml",
+        "@ncurses",
+        "@sqlite3",
+        "@xz//:lzma",
+        "@zlib",
+    ],
 )
-
-
