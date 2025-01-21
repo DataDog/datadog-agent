@@ -93,3 +93,4 @@ apm_config:
     cache:
       enabled: true
       max_size: 5555555
+      metrics: true

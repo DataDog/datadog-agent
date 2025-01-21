@@ -54,6 +54,7 @@ type cacheOptions struct {
 	On      bool
 	Statsd  StatsClient
 	MaxSize int64
+	Metrics bool
 }
 
 // newMeasuredCache returns a new measuredCache.
@@ -68,8 +69,8 @@ func newMeasuredCache(opts cacheOptions) *measuredCache {
 		// that can be stored is calculated as opts.MaxSize / 10.
 		// Multiplying this maximum number by 10 (opts.MaxSize / 10 * 10) as per the ristretto documentation.
 		NumCounters: opts.MaxSize,
-		BufferItems: 64,   // default recommended value
-		Metrics:     true, // enable hit/miss counters
+		BufferItems: 64,           // default recommended value
+		Metrics:     opts.Metrics, // enable hit/miss counters
 	}
 	cache, err := ristretto.NewCache(cfg)
 	if err != nil {
