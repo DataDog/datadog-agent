@@ -611,7 +611,7 @@ func (s *SharedLibrarySuite) TestValidPathExistsInTheMemory() {
 			// Paths are written consecutively in memory, at the end of a page.
 			name: "end of a page",
 			writePaths: func(data []byte, textFilePath, soPath string) int {
-				offset := os.Getpagesize() - len(textFilePath) - 1 - len(soPath) - 1
+				offset := 2*os.Getpagesize() - len(textFilePath) - 1 - len(soPath) - 1
 				copy(data[offset:], textFilePath)
 				data[offset+len(textFilePath)] = 0 // Null-terminate the first path
 				copy(data[offset+len(textFilePath)+1:], soPath)
