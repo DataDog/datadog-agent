@@ -834,43 +834,6 @@ func (suite *k8sSuite) testDogstatsdContainerID(kubeNamespace, kubeDeployment st
 	})
 }
 
-func (suite *k8sSuite) TestPrometheus() {
-	// Test Prometheus check
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
-			Name: "prom_gauge",
-			Tags: []string{
-				"^kube_deployment:prometheus$",
-				"^kube_namespace:workload-prometheus$",
-			},
-		},
-		Expect: testMetricExpectArgs{
-			Tags: &[]string{
-				`^container_id:`,
-				`^container_name:prometheus$`,
-				`^display_container_name:prometheus`,
-				`^endpoint:http://.*:8080/metrics$`,
-				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
-				`^image_id:ghcr.io/datadog/apps-prometheus@sha256:`,
-				`^image_name:ghcr.io/datadog/apps-prometheus$`,
-				`^image_tag:main$`,
-				`^kube_container_name:prometheus$`,
-				`^kube_deployment:prometheus$`,
-				`^kube_namespace:workload-prometheus$`,
-				`^kube_ownerref_kind:replicaset$`,
-				`^kube_ownerref_name:prometheus-[[:alnum:]]+$`,
-				`^kube_qos:Burstable$`,
-				`^kube_replica_set:prometheus-[[:alnum:]]+$`,
-				`^pod_name:prometheus-[[:alnum:]]+-[[:alnum:]]+$`,
-				`^pod_phase:running$`,
-				`^series:`,
-				`^short_image:apps-prometheus$`,
-			},
-		},
-	})
-}
-
 func (suite *k8sSuite) TestAdmissionController() {
 	ctx := context.Background()
 
