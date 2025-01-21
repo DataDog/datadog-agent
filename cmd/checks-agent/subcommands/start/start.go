@@ -7,8 +7,10 @@
 package start
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -23,9 +25,6 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
@@ -34,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/proto"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -151,6 +149,17 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 	)
 }
 
+// Custom HTTP client with Authorization header middleware
+type customClient struct {
+	client *http.Client
+	token  string
+}
+
+func (c *customClient) Do(req *http.Request) (*http.Response, error) {
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.token))
+	return c.client.Do(req)
+}
+
 func start(
 	cliParams *CLIParams,
 	config config.Component,
@@ -184,31 +193,16 @@ func start(
 		return fmt.Errorf("unable to fetch authentication token")
 	}
 
-	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
-	}
-	ctx, StreamCancel := context.WithCancel(metadata.NewOutgoingContext(ctx, md))
-	defer StreamCancel()
-
-	// NOTE: we're using InsecureSkipVerify because the gRPC server only
-	// persists its TLS certs in memory, and we currently have no
-	// infrastructure to make them available to clients. This is NOT
-	// equivalent to grpc.WithInsecure(), since that assumes a non-TLS
-	// connection.
-	creds := credentials.NewTLS(&tls.Config{
-		InsecureSkipVerify: true,
-	})
-
-	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
-		ctx,
-		fmt.Sprintf(":%v", config.GetInt("cmd_port")),
-		grpc.WithTransportCredentials(creds),
-	)
-	if err != nil {
-		return err
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
 	}
 
-	client := core.NewAgentSecureClient(conn)
+	customClient := &customClient{
+		client: client,
+		token:  token,
+	}
 
 	// TODO: figure out how to initial.ize checks context
 	// check.InitializeInventoryChecksContext(invChecks)
@@ -216,12 +210,12 @@ func start(
 	scheduler := pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, option.None[integrations.Component](), tagger)
 
 	// // Start the scheduler
-	go startScheduler(ctx, StreamCancel, client, scheduler, log)
+	go startScheduler(ctx, customClient, scheduler, log, config)
 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh, log)
 
-	err = Run(ctx, cliParams, config, log)
+	err := Run(ctx, cliParams, config, log)
 	if err != nil {
 		return err
 	}
@@ -321,46 +315,63 @@ func (a *autodiscoveryStream) initStream(ctx context.Context, client core.AgentS
 	}, expBackoff)
 }
 
-func startScheduler(ctx context.Context, f context.CancelFunc, client core.AgentSecureClient, scheduler *pkgcollector.CheckScheduler, log log.Component) {
-	// Start a stream using the grpc Client to consume autodiscovery updates for the different configurations
-	autodiscoveryStream := &autodiscoveryStream{
-		autodiscoveryStreamCancel: f,
+type auConfig struct {
+	integration.Config
+	EventType string `json:"event_type,omitempty"`
+}
+
+type results struct {
+	Results []auConfig `json:"results,omitempty"`
+}
+
+func startScheduler(ctx context.Context, client *customClient, scheduler *pkgcollector.CheckScheduler, log log.Component, config config.Component) {
+	url := fmt.Sprintf("https://localhost:%v/v1/grpc/tagger/stream_entities", config.GetInt("cmd_port"))
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		log.Warnf("Failed to create request: %v", err)
+		return
+	}
+	// Send the HTTP request
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Warnf("Failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Warnf("Received non-200 response: %d %s", resp.StatusCode, resp.Status)
 	}
 
+	log.Info("Received 200 response: %d %s", resp.StatusCode, resp.Status)
+
+	// Read the streaming response
+	reader := bufio.NewReader(resp.Body)
 	for {
-		if autodiscoveryStream.autodiscoveryStream == nil {
-			err := autodiscoveryStream.initStream(ctx, client, log)
-			if err != nil {
-				log.Warnf("error received trying to start stream: %s", err)
-				continue
-			}
-		}
-		log.Infof("autodiscoveryStream: %+v\n", autodiscoveryStream.autodiscoveryStream)
-
-		streamConfigs, err := autodiscoveryStream.autodiscoveryStream.Recv()
-
+		line, err := reader.ReadString('\n')
 		if err != nil {
-			autodiscoveryStream.autodiscoveryStreamCancel()
-
-			autodiscoveryStream.autodiscoveryStream = nil
-
-			if err != io.EOF {
-				log.Warnf("error received from autodiscovery stream: %s", err)
+			if err == io.EOF {
+				fmt.Println("Stream closed by server")
+				break
 			}
-
-			continue
+			log.Warnf("Error reading response: %v", err)
+		}
+		results := results{}
+		err = json.Unmarshal([]byte(line), &results)
+		if err != nil {
+			log.Warnf("Failed to parse json: %v", err)
+			break
 		}
 
 		scheduleConfigs := []integration.Config{}
 		unscheduleConfigs := []integration.Config{}
 
-		for _, config := range streamConfigs.Configs {
-			log.Infof("received autodiscovery scheduler config event %s for check %s", config.EventType.String(), config.Name)
-			if config.EventType == core.ConfigEventType_SCHEDULE {
-				scheduleConfigs = append(scheduleConfigs, proto.AutodiscoveryConfigFromProtobufConfig(config))
-			} else if config.EventType == core.ConfigEventType_UNSCHEDULE {
-				unscheduleConfigs = append(unscheduleConfigs, proto.AutodiscoveryConfigFromProtobufConfig(config))
-			}
+		for _, config := range results.Results {
+			log.Infof("received autodiscovery scheduler config event %s for check %s", config.EventType, config.Name)
+			// if config.EventType == core.ConfigEventType_SCHEDULE.String() {
+			// 	scheduleConfigs = config
+			// } else if config.EventType == core.ConfigEventType_UNSCHEDULE.String() {
+			// 	unscheduleConfigs = config
+			// }
 		}
 
 		scheduler.Schedule(scheduleConfigs)

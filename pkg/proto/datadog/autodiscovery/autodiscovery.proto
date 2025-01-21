@@ -10,33 +10,54 @@ enum ConfigEventType {
 }
 
 message KubeNamespacedName {
+  // @gotags: json:"name"
   string name = 1;
+  // @gotags: json:"namespace"
   string namespace = 2;
 }
 
 message AdvancedADIdentifier {
+  // @gotags: json:"kube_service"
 	KubeNamespacedName kubeService   = 1;
+  // @gotags: json:"kube_endpoints"
 	KubeNamespacedName kubeEndpoints = 2;
 }
 
 message Config {
+  // @gotags: json:"check_name"
   string name = 1;
+  // @gotags: json:"instances"
   repeated bytes instances = 2;
+  // @gotags: json:"init_config"
   bytes initConfig = 3;
+  // @gotags: json:"metrics_config"
   bytes metricConfig = 4;
+  // @gotags: json:"logs_config"
   bytes logsConfig = 5;
+  // @gotags: json:"ad_identifiers"
   repeated string adIdentifiers = 6;
+  // @gotags: json:"advance_ad_identifiers"
   repeated AdvancedADIdentifier advancedAdIdentifiers = 7;
+  // @gotags: json:"provider"
   string provider = 8;
+  // @gotags: json:"service_id"
   string serviceId = 9;
+  // @gotags: json:"-"
   string taggerEntity = 10;
+  // @gotags: json:"cluster_check"
   bool clusterCheck = 11;
+  // @gotags: json:"node_name"
   string nodeName = 12;
+  // @gotags: json:"source"
   string source = 13;
+  // @gotags: json:"ignore_autodiscovery_tags"
   bool ignoreAutodiscoveryTags = 14;
+  // @gotags: json:"metrics_excluded"
   bool metricsExcluded = 15;
+  // @gotags: json:"logs_excluded"
   bool logsExcluded = 16;
-  ConfigEventType eventType = 17;
+  // @gotags: json:"event_type"
+  string eventType = 17;
 }
 
 message AutodiscoveryStreamResponse {
