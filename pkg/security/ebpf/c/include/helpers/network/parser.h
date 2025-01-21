@@ -1,39 +1,9 @@
-#ifndef _HELPERS_NETWORK_H_
-#define _HELPERS_NETWORK_H_
+#ifndef _HELPERS_NETWORK_PARSER_H_
+#define _HELPERS_NETWORK_PARSER_H_
 
 #include "constants/custom.h"
 #include "constants/macros.h"
 #include "maps.h"
-
-__attribute__((always_inline)) s64 get_flow_pid(struct pid_route_t *key) {
-    u32 *value = bpf_map_lookup_elem(&flow_pid, key);
-    if (!value) {
-        // Try with IP set to 0.0.0.0
-        key->addr[0] = 0;
-        key->addr[1] = 0;
-        value = bpf_map_lookup_elem(&flow_pid, key);
-        if (!value) {
-            return -1;
-        }
-    }
-
-    return *value;
-}
-
-__attribute__((always_inline)) void flip(struct flow_t *flow) {
-    u64 tmp = 0;
-    tmp = flow->sport;
-    flow->sport = flow->dport;
-    flow->dport = tmp;
-
-    tmp = flow->saddr[0];
-    flow->saddr[0] = flow->daddr[0];
-    flow->daddr[0] = tmp;
-
-    tmp = flow->saddr[1];
-    flow->saddr[1] = flow->daddr[1];
-    flow->daddr[1] = tmp;
-}
 
 __attribute__((always_inline)) void tc_cursor_init(struct cursor *c, struct __sk_buff *skb) {
     c->end = (void *)(long)skb->data_end;
@@ -62,31 +32,6 @@ __attribute__((always_inline)) struct packet_t *reset_packet() {
     return get_packet();
 }
 
-__attribute__((always_inline)) void fill_network_process_context(struct process_context_t *process, struct packet_t *pkt) {
-    if (pkt->pid >= 0) {
-        process->pid = pkt->pid;
-        process->tid = pkt->pid;
-    } else {
-        process->pid = 0;
-        process->tid = 0;
-    }
-    process->netns = pkt->translated_ns_flow.netns;
-}
-
-__attribute__((always_inline)) void fill_network_device_context(struct network_device_context_t *device_ctx, struct __sk_buff *skb, struct packet_t *pkt) {
-    device_ctx->netns = pkt->translated_ns_flow.netns;
-    device_ctx->ifindex = skb->ifindex;
-}
-
-__attribute__((always_inline)) void fill_network_context(struct network_context_t *net_ctx, struct __sk_buff *skb, struct packet_t *pkt) {
-    net_ctx->l3_protocol = htons(pkt->eth.h_proto);
-    net_ctx->l4_protocol = pkt->l4_protocol;
-    net_ctx->size = skb->len;
-    net_ctx->flow = pkt->translated_ns_flow.flow;
-
-    fill_network_device_context(&net_ctx->device, skb, pkt);
-}
-
 __attribute__((always_inline)) void parse_tuple(struct nf_conntrack_tuple *tuple, struct flow_t *flow) {
     flow->sport = tuple->src.u.all;
     flow->dport = tuple->dst.u.all;
@@ -109,8 +54,11 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
         return NULL;
     }
 
-    switch (pkt->eth.h_proto) {
-    case htons(ETH_P_IP):
+    pkt->network_direction = direction;
+    pkt->ns_flow.flow.l3_protocol = ntohs(pkt->eth.h_proto);
+
+    switch (pkt->ns_flow.flow.l3_protocol) {
+    case ETH_P_IP:
         // parse IPv4 header
         if (!(parse_iphdr(&c, &pkt->ipv4))) {
             return NULL;
@@ -124,19 +72,19 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
             }
         }
 
-        pkt->l4_protocol = pkt->ipv4.protocol;
+        pkt->ns_flow.flow.l4_protocol = pkt->ipv4.protocol;
         pkt->ns_flow.flow.saddr[0] = pkt->ipv4.saddr;
         pkt->ns_flow.flow.daddr[0] = pkt->ipv4.daddr;
         break;
 
-    case htons(ETH_P_IPV6):
+    case ETH_P_IPV6:
         // parse IPv6 header
         // TODO: handle multiple IPv6 extension headers
         if (!(parse_ipv6hdr(&c, &pkt->ipv6))) {
             return NULL;
         }
 
-        pkt->l4_protocol = pkt->ipv6.nexthdr;
+        pkt->ns_flow.flow.l4_protocol = pkt->ipv6.nexthdr;
         pkt->ns_flow.flow.saddr[0] = *(u64 *)&pkt->ipv6.saddr;
         pkt->ns_flow.flow.saddr[1] = *((u64 *)(&pkt->ipv6.saddr) + 1);
         pkt->ns_flow.flow.daddr[0] = *(u64 *)&pkt->ipv6.daddr;
@@ -148,7 +96,7 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
         return NULL;
     }
 
-    switch (pkt->l4_protocol) {
+    switch (pkt->ns_flow.flow.l4_protocol) {
     case IPPROTO_TCP:
         // parse TCP header
         if (!(parse_tcphdr(&c, &pkt->tcp))) {
@@ -183,7 +131,6 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
         return NULL;
     }
 
-    struct pid_route_t pid_route = {};
     struct namespaced_flow_t tmp_ns_flow = pkt->ns_flow; // for compatibility with older kernels
     pkt->translated_ns_flow = pkt->ns_flow;
 
@@ -200,25 +147,6 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
     }
 
     // TODO: if nothing was found in the conntrack map, lookup ingress nat rules (nothing to do for egress though)
-
-    // resolve pid
-    switch (direction) {
-    case EGRESS: {
-        pid_route.addr[0] = pkt->translated_ns_flow.flow.saddr[0];
-        pid_route.addr[1] = pkt->translated_ns_flow.flow.saddr[1];
-        pid_route.port = pkt->translated_ns_flow.flow.sport;
-        pid_route.netns = pkt->translated_ns_flow.netns;
-        break;
-    }
-    case INGRESS: {
-        pid_route.addr[0] = pkt->translated_ns_flow.flow.daddr[0];
-        pid_route.addr[1] = pkt->translated_ns_flow.flow.daddr[1];
-        pid_route.port = pkt->translated_ns_flow.flow.dport;
-        pid_route.netns = pkt->translated_ns_flow.netns;
-        break;
-    }
-    }
-    pkt->pid = get_flow_pid(&pid_route);
 
     return pkt;
 };

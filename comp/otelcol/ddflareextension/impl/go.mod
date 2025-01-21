@@ -103,7 +103,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker => ../../../../pkg/util/utilizationtracker
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
-	github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
 )
 
 require (

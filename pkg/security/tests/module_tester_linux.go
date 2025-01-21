@@ -78,6 +78,8 @@ event_monitoring_config:
     - "*custom*"
   network:
     enabled: true
+    flow_monitor:
+      enabled: {{ .NetworkFlowMonitorEnabled }}
     ingress:
       enabled: {{ .NetworkIngressEnabled }}
     raw_packet:
@@ -1452,6 +1454,16 @@ func searchForBind(ad *dump.ActivityDump) bool {
 func searchForSyscalls(ad *dump.ActivityDump) bool {
 	for _, node := range ad.ActivityTree.ProcessNodes {
 		if len(node.Syscalls) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+//nolint:deadcode,unused
+func searchForNetworkFlowMonitorEvents(ad *dump.ActivityDump) bool {
+	for _, node := range ad.ActivityTree.ProcessNodes {
+		if len(node.NetworkDevices) > 0 {
 			return true
 		}
 	}

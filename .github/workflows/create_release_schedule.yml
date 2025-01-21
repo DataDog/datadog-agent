@@ -40,4 +40,4 @@ jobs:
         INPUT_VERSION: ${{ github.event.inputs.version }}
         CUTOFF_DATE: ${{ github.event.inputs.cutoff_date }}
       run: |
-        inv -e release.create-schedule --version "$INPUT_VERSION" --cutoff-date "CUTOFF_DATE"
+        inv -e release.create-schedule --version "$INPUT_VERSION" --cutoff-date "$CUTOFF_DATE"
