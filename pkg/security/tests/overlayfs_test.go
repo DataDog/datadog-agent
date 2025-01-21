@@ -182,7 +182,7 @@ func TestOverlayFS(t *testing.T) {
 		assert.Equal(t, expectedUpperLayer, fileFields.IsInUpperLayer(), "wrong layer using fallback")
 	}
 
-	validateInodeAndLayerRuntime := func(t *testing.T, filename string, expectedInode uint64, expectedUpperLayer bool, fileFields *model.FileFields) {
+	validateInodeAndLayerRuntime := func(t *testing.T, expectedInode uint64, expectedUpperLayer bool, fileFields *model.FileFields) {
 		if expectedInode != 0 {
 			assert.Equal(t, expectedInode, fileFields.Inode, "wrong inode in runtime event")
 		}
@@ -190,7 +190,7 @@ func TestOverlayFS(t *testing.T) {
 	}
 
 	validateInodeAndLayer := func(t *testing.T, filename string, expectedInode uint64, expectedUpperLayer bool, fileFields *model.FileFields) {
-		validateInodeAndLayerRuntime(t, filename, expectedInode, expectedUpperLayer, fileFields)
+		validateInodeAndLayerRuntime(t, expectedInode, expectedUpperLayer, fileFields)
 		validateInodeAndLayerFallback(t, filename, expectedInode, expectedUpperLayer)
 	}
 
@@ -275,18 +275,15 @@ func TestOverlayFS(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			return os.Rename(oldFile, newFile)
 		}, func(event *model.Event, _ *rules.Rule) {
-			success := true
-
 			if value, _ := event.GetFieldValue("rename.file.path"); value.(string) != oldFile {
 				t.Errorf("expected filename not found %s != %s", value.(string), oldFile)
-				success = false
 			}
 
 			inode = getInode(t, newFile)
 
-			success = assert.Equal(t, inode, event.Rename.New.Inode, "wrong rename inode") && success
-			success = assert.Equal(t, false, event.Rename.Old.IsInUpperLayer(), "should be in base layer") && success
-			success = assert.Equal(t, true, event.Rename.New.IsInUpperLayer(), "should be in upper layer") && success
+			assert.Equal(t, inode, event.Rename.New.Inode, "wrong rename inode")
+			assert.Equal(t, false, event.Rename.Old.IsInUpperLayer(), "should be in base layer")
+			assert.Equal(t, true, event.Rename.New.IsInUpperLayer(), "should be in upper layer")
 
 			validateInodeAndLayerFallback(t, newFile, inode, true)
 		})
@@ -494,7 +491,7 @@ func TestOverlayFS(t *testing.T) {
 			return os.Remove(testFile)
 		}, func(event *model.Event, _ *rules.Rule) {
 			// impossible to test with the fallback, the file is deleted
-			validateInodeAndLayerRuntime(t, testFile, inode, false, &event.Unlink.File.FileFields)
+			validateInodeAndLayerRuntime(t, inode, false, &event.Unlink.File.FileFields)
 		})
 	})
 }
