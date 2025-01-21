@@ -7,7 +7,6 @@
 package repository
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -17,7 +16,6 @@ import (
 
 	"github.com/DataDog/gopsutil/process"
 
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -64,9 +62,6 @@ type Repository struct {
 type State struct {
 	Stable     string
 	Experiment string
-
-	StablePoliciesState     *pbgo.PoliciesState
-	ExperimentPoliciesState *pbgo.PoliciesState
 }
 
 // HasStable returns true if the repository has a stable package.
@@ -103,49 +98,10 @@ func (r *Repository) GetState() (State, error) {
 	if experiment == stable {
 		experiment = ""
 	}
-
-	// Load the policies state
-	stablePoliciesState, err := r.loadPoliciesMetadata(stable)
-	if err != nil {
-		return State{}, fmt.Errorf("could not load stable policies state: %w", err)
-	}
-
-	experimentPoliciesState, err := r.loadPoliciesMetadata(experiment)
-	if err != nil {
-		return State{}, fmt.Errorf("could not load experiment policies state: %w", err)
-	}
-
 	return State{
 		Stable:     stable,
 		Experiment: experiment,
-
-		StablePoliciesState:     stablePoliciesState,
-		ExperimentPoliciesState: experimentPoliciesState,
 	}, nil
-}
-
-func (r *Repository) loadPoliciesMetadata(version string) (*pbgo.PoliciesState, error) {
-	if version == "" {
-		return nil, nil
-	}
-
-	statePath := filepath.Join(r.rootPath, version, "policy.metadata")
-	stateFile, err := os.ReadFile(statePath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("could not read policies state: %w", err)
-	}
-
-	state := &pbgo.PoliciesState{}
-	err = json.Unmarshal(stateFile, state)
-	if err != nil {
-		return nil, fmt.Errorf("could not unmarshal policies state: %w", err)
-	}
-	state.Version = version
-
-	return state, nil
 }
 
 // Create creates a fresh new repository at the given root path

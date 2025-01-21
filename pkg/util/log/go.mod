@@ -2,7 +2,11 @@ module github.com/DataDog/datadog-agent/pkg/util/log
 
 go 1.22.0
 
-replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber
+replace (
+	github.com/DataDog/datadog-agent/pkg/util/compression => ../compression
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber
+	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
+)
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3
