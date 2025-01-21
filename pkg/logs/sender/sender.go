@@ -39,6 +39,7 @@ type Sender struct {
 	inputChan      chan *message.Payload
 	outputChan     chan *message.Payload
 	destinations   *client.Destinations
+	done           chan struct{}
 	bufferSize     int
 	senderDoneChan chan *sync.WaitGroup
 	flushWg        *sync.WaitGroup
@@ -59,6 +60,7 @@ func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, au
 		bufferSize:     bufferSize,
 		senderDoneChan: senderDoneChan,
 		flushWg:        flushWg,
+		done:           make(chan struct{}),
 
 		// Telemetry
 		pipelineMonitor: pipelineMonitor,
@@ -79,6 +81,7 @@ func (s *Sender) Stop() {
 	if !s.isShared {
 		close(s.inputChan)
 	}
+	<-s.done
 }
 
 // In returns the Sender input chan.
@@ -169,6 +172,7 @@ func (s *Sender) run() {
 		destSender.Stop()
 	}
 	close(sink)
+	s.done <- struct{}{}
 }
 
 // Drains the output channel from destinations that don't update the auditor.
