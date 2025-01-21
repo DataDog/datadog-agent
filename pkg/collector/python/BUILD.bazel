@@ -37,7 +37,7 @@ go_library(
         "version.go",
     ],
     cdeps = [
-        "//bazel/prebuilt_inputs:rtloader",  # keep
+        "//rtloader",  # keep
     ],
     cgo = True,
     clinkopts = select({
