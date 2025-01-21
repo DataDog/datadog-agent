@@ -91,12 +91,12 @@ func (s *service) Run(svcctx context.Context) error {
 
 	params := &cliParams{}
 	err := fxutil.OneShot(
-		func(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component,
+		func(log log.Component, config config.Component, secrets secrets.Component, _ statsd.Component, _ sysprobeconfig.Component,
 			telemetry telemetry.Component, _ workloadmeta.Component, _ *cliParams, statusComponent status.Component, _ autoexit.Component,
 			settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component) error {
 			defer start.StopAgent(log)
 
-			err := start.RunAgent(log, config, telemetry, statusComponent, settings, wmeta, at)
+			err := start.RunAgent(log, config, secrets, telemetry, statusComponent, settings, wmeta, at)
 			if err != nil {
 				if errors.Is(err, start.ErrAllComponentsDisabled) {
 					// If all components are disabled, we should exit cleanly
