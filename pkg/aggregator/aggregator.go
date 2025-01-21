@@ -253,6 +253,7 @@ type BufferedAggregator struct {
 	serializer             serializer.MetricSerializer
 	eventPlatformForwarder eventplatform.Component
 	haAgent                haagent.Component
+	configID               string
 	hostname               string
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
@@ -307,6 +308,12 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		})
 	}
 
+	configID := pkgconfigsetup.Datadog().GetString("config_id")
+	if configID == "" {
+		// Ensure we never report an empty config ID
+		configID = "default"
+	}
+
 	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
 
 	aggregator := &BufferedAggregator{
@@ -328,6 +335,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
 		haAgent:                     haAgent,
+		configID:                    configID,
 		hostname:                    hostname,
 		hostnameUpdate:              make(chan string),
 		hostnameUpdateDone:          make(chan struct{}),
@@ -875,12 +883,9 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		if version.AgentPackageVersion != "" {
 			tags = append(tags, "package_version:"+version.AgentPackageVersion)
 		}
-		configID := pkgconfigsetup.Datadog().GetString("config_id")
-		if configID == "" {
-			// Ensure we never report an empty config ID
-			configID = "default"
+		if agg.configID != "" {
+			tags = append(tags, "config_id:"+agg.configID)
 		}
-		tags = append(tags, "config_id:"+configID)
 	}
 	// nil to empty string
 	// This is expected by other components/tests
