@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -567,6 +568,99 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 
 	// Check there are no more processes registered
 	assert.Len(t, watcher.registry.GetRegisteredProcesses(), 0)
+}
+
+func zeroPages(data []byte) {
+	for i := range data {
+		data[i] = 0
+	}
+}
+
+// This test ensures that the shared library watcher correctly identifies and processes the first file path in memory,
+// even when a second path is present, particularly in scenarios where the first path crosses a memory page boundary.
+// The goal is to verify that the presence of the second path does not inadvertently cause the watcher to send to the
+// user mode the first path. Before each iteration, the memory-mapped pages are zeroed to ensure consistent and isolated
+// test conditions.
+func (s *SharedLibrarySuite) TestValidPathExistsInTheMemory() {
+	t := s.T()
+
+	// Allocate two contiguous pages using mmap
+	data, err := syscall.Mmap(-1, 0, 2*os.Getpagesize(), syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = syscall.Munmap(data) })
+
+	dummyPath, dummyPathID := createTempTestFile(t, "dummy.text")
+	soPath, soPathID := createTempTestFile(t, "foo-libssl.so")
+
+	tests := []struct {
+		name       string
+		writePaths func(data []byte, textFilePath, soPath string) int
+	}{
+		{
+			// Paths are written consecutively in memory, without crossing a page boundary.
+			name: "sanity",
+			writePaths: func(data []byte, textFilePath, soPath string) int {
+				copy(data, textFilePath)
+				data[len(textFilePath)] = 0 // Null-terminate the first path
+				copy(data[len(textFilePath)+1:], soPath)
+
+				return 0
+			},
+		},
+		{
+			// The first path is written at the end of the first page, and the second path is written at the beginning
+			// of the second page.
+			name: "cross pages",
+			writePaths: func(data []byte, textFilePath, soPath string) int {
+				// Ensure the first path ends near the end of the first page, crossing into the second page
+				offset := os.Getpagesize() - len(textFilePath) - 1
+				copy(data[offset:], textFilePath)
+				data[offset+len(textFilePath)] = 0 // Null-terminate the first path
+				copy(data[os.Getpagesize():], soPath)
+
+				return offset
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			zeroPages(data)
+
+			// Ensure the first path ends near the end of the first page, crossing into the second page
+			offset := tt.writePaths(data, dummyPath, soPath)
+
+			registerRecorder := new(utils.CallbackRecorder)
+			unregisterRecorder := new(utils.CallbackRecorder)
+
+			watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+				Rule{
+					Re:           regexp.MustCompile(`foo-libssl.so`),
+					RegisterCB:   registerRecorder.Callback(),
+					UnregisterCB: unregisterRecorder.Callback(),
+				},
+			)
+			require.NoError(t, err)
+			watcher.Start()
+			t.Cleanup(watcher.Stop)
+			// Overriding PID, to allow the watcher to watch the test process
+			watcher.thisPID = 0
+
+			pathPtr := uintptr(unsafe.Pointer(&data[offset]))
+			dirfd := int(unix.AT_FDCWD)
+			fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, uintptr(dirfd), pathPtr, uintptr(os.O_RDONLY), 0644, 0, 0)
+			require.Zero(t, errno)
+			t.Cleanup(func() { _ = syscall.Close(int(fd)) })
+			// Since we want to verify that the write _hasn't_ been detected, we need to try it multiple times
+			// to avoid race conditions.
+			for i := 0; i < 10; i++ {
+				time.Sleep(100 * time.Millisecond)
+				require.Zero(t, watcher.libHits.Get())
+				require.Zero(t, watcher.libMatches.Get())
+				require.Zero(t, registerRecorder.CallsForPathID(dummyPathID))
+				require.Zero(t, registerRecorder.CallsForPathID(soPathID))
+			}
+		})
+	}
 }
 
 func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier) {
