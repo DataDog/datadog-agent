@@ -22,3 +22,7 @@ test/new-e2e/tests/containers:
   - test: TestKindSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
   - test: TestKindSuite/TestAdmissionControllerWithAutoDetectedLanguage
   - test: TestEKSSuite/TestAdmissionControllerWithAutoDetectedLanguage
+
+# It is possible to specify a log pattern for all tests:
+# on-log:
+#   - "I'm flaky..."

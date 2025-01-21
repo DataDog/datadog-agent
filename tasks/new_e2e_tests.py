@@ -432,10 +432,10 @@ def cc(ctx):
     washer = TestWasher(test_output_json_file=path, flakes_file_path='flakes.yaml')
     washer.parse_test_results('/tmp')
     failing_tests, marked_flaky_tests = washer.parse_test_results('/tmp')
-    all_known_flakes = washer.merge_known_flakes(marked_flaky_tests)
+    # all_known_flakes = washer.merge_known_flakes(marked_flaky_tests)
 
     print('marked', marked_flaky_tests)
-    print('known', all_known_flakes)
+    # print('known', all_known_flakes)
 
 
 @task
