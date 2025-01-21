@@ -40,14 +40,15 @@ type HorizontalPodAutoscalerCollector struct {
 func NewHorizontalPodAutoscalerCollector() *HorizontalPodAutoscalerCollector {
 	return &HorizontalPodAutoscalerCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "horizontalpodautoscalers",
-			NodeType:                  orchestrator.K8sHorizontalPodAutoscaler,
-			Version:                   "autoscaling/v2",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "horizontalpodautoscalers",
+			NodeType:                             orchestrator.K8sHorizontalPodAutoscaler,
+			Version:                              "autoscaling/v2",
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.HorizontalPodAutoscalerHandlers)),
 	}
@@ -76,7 +77,12 @@ func (c *HorizontalPodAutoscalerCollector) Run(rcfg *collectors.CollectorRunConf
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
+	return c.Process(rcfg, list, false)
+}
+
+// Process is used to process the list of resources and return the result.
+func (c *HorizontalPodAutoscalerCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}, isTerminatedResource bool) (*collectors.CollectorRunResult, error) {
+	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata, isTerminatedResource)
 
 	processResult, processed := c.processor.Process(ctx, list)
 
@@ -86,7 +92,7 @@ func (c *HorizontalPodAutoscalerCollector) Run(rcfg *collectors.CollectorRunConf
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
 		ResourcesProcessed: processed,
 	}
 

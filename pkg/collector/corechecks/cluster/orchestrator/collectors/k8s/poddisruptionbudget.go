@@ -77,7 +77,12 @@ func (c *PodDisruptionBudgetCollector) Run(rcfg *collectors.CollectorRunConfig) 
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
+	return c.Process(rcfg, list, false)
+}
+
+// Process is used to process the list of resources and return the result.
+func (c *PodDisruptionBudgetCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}, isTerminatedResource bool) (*collectors.CollectorRunResult, error) {
+	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata, isTerminatedResource)
 
 	processResult, processed := c.processor.Process(ctx, list)
 
@@ -87,7 +92,7 @@ func (c *PodDisruptionBudgetCollector) Run(rcfg *collectors.CollectorRunConfig) 
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
 		ResourcesProcessed: processed,
 	}
 

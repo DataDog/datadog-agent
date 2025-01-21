@@ -48,7 +48,7 @@ func (h *VerticalPodAutoscalerHandlers) BuildMessageBody(ctx processors.Processo
 		GroupId:                pctx.MsgGroupID,
 		GroupSize:              int32(groupSize),
 		VerticalPodAutoscalers: models,
-		Tags:                   append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:                   pctx.Tags(),
 	}
 }
 

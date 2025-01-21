@@ -39,14 +39,15 @@ type ReplicaSetCollector struct {
 func NewReplicaSetCollector() *ReplicaSetCollector {
 	return &ReplicaSetCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "replicasets",
-			NodeType:                  orchestrator.K8sReplicaSet,
-			Version:                   "apps/v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 "replicasets",
+			NodeType:                             orchestrator.K8sReplicaSet,
+			Version:                              "apps/v1",
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ReplicaSetHandlers)),
 	}
@@ -75,7 +76,12 @@ func (c *ReplicaSetCollector) Run(rcfg *collectors.CollectorRunConfig) (*collect
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
+	return c.Process(rcfg, list, false)
+}
+
+// Process is used to process the list of resources and return the result.
+func (c *ReplicaSetCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}, isTerminatedResource bool) (*collectors.CollectorRunResult, error) {
+	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata, isTerminatedResource)
 
 	processResult, processed := c.processor.Process(ctx, list)
 
@@ -85,7 +91,7 @@ func (c *ReplicaSetCollector) Run(rcfg *collectors.CollectorRunConfig) (*collect
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
 		ResourcesProcessed: processed,
 	}
 

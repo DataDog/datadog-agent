@@ -31,11 +31,12 @@ type TaskCollector struct {
 func NewTaskCollector(tagger tagger.Component) *TaskCollector {
 	return &TaskCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable:           false,
-			IsMetadataProducer: true,
-			IsManifestProducer: false,
-			Name:               "ecstasks",
-			NodeType:           orchestrator.ECSTask,
+			IsStable:                             false,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   false,
+			Name:                                 "ecstasks",
+			NodeType:                             orchestrator.ECSTask,
+			SupportsTerminatedResourceCollection: false,
 		},
 		processor: processors.NewProcessor(ecs.NewTaskHandlers(tagger)),
 	}
@@ -60,13 +61,19 @@ func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 		tasks = append(tasks, t.fetchContainers(rcfg, newTask))
 	}
 
+	return t.Process(rcfg, tasks, false)
+}
+
+// Process is used to process the resources.
+func (t *TaskCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}, isTerminatedResource bool) (*collectors.CollectorRunResult, error) {
 	ctx := &processors.ECSProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
-			Cfg:              rcfg.Config,
-			MsgGroupID:       rcfg.MsgGroupRef.Inc(),
-			NodeType:         t.metadata.NodeType,
-			ManifestProducer: t.metadata.IsManifestProducer,
-			ClusterID:        rcfg.ClusterID,
+			Cfg:                  rcfg.Config,
+			MsgGroupID:           rcfg.MsgGroupRef.Inc(),
+			NodeType:             t.metadata.NodeType,
+			ManifestProducer:     t.metadata.IsManifestProducer,
+			ClusterID:            rcfg.ClusterID,
+			IsTerminatedResource: isTerminatedResource,
 		},
 		AWSAccountID: rcfg.AWSAccountID,
 		ClusterName:  rcfg.ClusterName,
@@ -75,7 +82,7 @@ func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 		Hostname:     rcfg.HostName,
 	}
 
-	processResult, processed := t.processor.Process(ctx, tasks)
+	processResult, processed := t.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, fmt.Errorf("unable to process resources: a panic occurred")
@@ -83,7 +90,7 @@ func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    len(t.processor.Handlers().ResourceList(ctx, list)),
 		ResourcesProcessed: processed,
 	}
 

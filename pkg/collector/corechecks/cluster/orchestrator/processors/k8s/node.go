@@ -49,7 +49,7 @@ func (h *NodeHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourc
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Nodes:       models,
-		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:        pctx.Tags(),
 	}
 }
 
