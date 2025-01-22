@@ -747,24 +747,16 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 }
 
 func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, cgroupFlags containerutils.CGroupFlags, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
-	pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, newEntryCb)
-	if pce != nil {
-		cgroupContext, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey, cgroupFlags)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resorve cgroup for pid %d: %w", pid, err)
-		}
-
-		pce.Process.CGroup = *cgroupContext
-		pce.CGroup = *cgroupContext
-		if cgroupContext.CGroupFlags.IsContainer() {
-			containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
-			pce.ContainerID = containerID
-			pce.Process.ContainerID = containerID
-		}
-	} else {
-		return nil, fmt.Errorf("entry not found for pid %d", pid)
+	cgroupContext, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey, cgroupFlags)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resorve cgroup for pid %d: %w", pid, err)
 	}
-	return &pce.CGroup, nil
+	updated := p.Resolvers.ProcessResolver.UpdateProcessCGroupContext(pid, cgroupContext, newEntryCb)
+	if !updated {
+		return nil, fmt.Errorf("failed to update cgroup for pid %d", pid)
+	}
+
+	return cgroupContext, nil
 }
 
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
