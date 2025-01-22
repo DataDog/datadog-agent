@@ -1,0 +1,5 @@
+prelude:
+    |
+    Release on: 2025-01-22
+
+    - Please refer to the `6.53.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6531>`_ for the list of changes on the Core Checks
