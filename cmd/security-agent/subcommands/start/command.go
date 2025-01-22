@@ -94,7 +94,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 			// note that any changes to the arguments to OneShot need to be reflected into
 			// the service initialization in ../../main_windows.go
-			return fxutil.OneShot(start,
+			return fxutil.OneShot(startPhase1,
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewSecurityAgentParams(params.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
@@ -102,91 +102,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfigsetup.DefaultSecurityAgentLogFile),
 				}),
 				core.Bundle(),
-				dogstatsd.ClientBundle,
-				// workloadmeta setup
-				wmcatalog.GetCatalog(),
-				workloadmetafx.Module(workloadmeta.Params{
-					AgentType: workloadmeta.Remote,
-				}),
-				remoteTaggerfx.Module(tagger.RemoteParams{
-					RemoteTarget: func(c config.Component) (string, error) {
-						return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
-					},
-					RemoteTokenFetcher: func(c config.Component) func() (string, error) {
-						return func() (string, error) {
-							return security.FetchAuthToken(c)
-						}
-					},
-					RemoteFilter: taggerTypes.NewMatchAllFilter(),
-				}),
-				fx.Provide(func() startstop.Stopper {
-					return startstop.NewSerialStopper()
-				}),
-				fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
-					return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
-				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, wmeta workloadmeta.Component, compression logscompression.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
-					hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO())
-					if err != nil {
-						return status.NewInformationProvider(nil), nil, err
-					}
-
-					runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, wmeta, compression)
-					if err != nil {
-						return status.NewInformationProvider(nil), nil, err
-					}
-
-					if runtimeAgent == nil {
-						return status.NewInformationProvider(nil), nil, nil
-					}
-
-					// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
-					return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
-				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component, compression logscompression.Component) (status.InformationProvider, *pkgCompliance.Agent, error) {
-					hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO())
-					if err != nil {
-						return status.NewInformationProvider(nil), nil, err
-					}
-
-					// start compliance security agent
-					complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, wmeta, compression)
-					if err != nil {
-						return status.NewInformationProvider(nil), nil, err
-					}
-
-					if complianceAgent == nil {
-						return status.NewInformationProvider(nil), nil, nil
-					}
-
-					// TODO - components: Do not remove complianceAgent ref until "github.com/DataDog/datadog-agent/pkg/compliance" is a component so they're not GCed
-					return status.NewInformationProvider(complianceAgent.StatusProvider()), complianceAgent, nil
-				}),
-				fx.Supply(
-					status.Params{
-						PythonVersionGetFunc: python.GetPythonVersion,
-					},
-				),
-				fx.Provide(func(config config.Component) status.HeaderInformationProvider {
-					return status.NewHeaderInformationProvider(hostimpl.StatusProvider{
-						Config: config,
-					})
-				}),
-				statusimpl.Module(),
-				fetchonlyimpl.Module(),
 				configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
-				autoexitimpl.Module(),
 				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
-				fx.Provide(func(c config.Component) settings.Params {
-					return settings.Params{
-						Settings: map[string]settings.RuntimeSetting{
-							"log_level": commonsettings.NewLogLevelRuntimeSetting(),
-						},
-						Config: c,
-					}
-				}),
-				settingsimpl.Module(),
-				logscompressionfx.Module(),
+				fetchonlyimpl.Module(),
 			)
 		},
 	}
@@ -196,18 +114,155 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-// start will start the security-agent.
+func startEarlyCheck(log log.Component, config config.Component) error {
+	// Check if we have at least one component to start based on config
+	if !config.GetBool("compliance_config.enabled") && !config.GetBool("runtime_security_config.enabled") {
+		log.Infof("All security-agent components are deactivated, exiting")
+		return ErrAllComponentsDisabled
+	}
+
+	if !config.IsSet("api_key") {
+		log.Critical("No API key configured, exiting")
+		return errNoAPIKeyConfigured
+	}
+
+	return nil
+}
+
+type phase1Params struct {
+	fx.In
+	Log            log.Component
+	Config         config.Component
+	SysprobeConfig sysprobeconfig.Component
+	Secrets        secrets.Component
+	Pid            pid.Component
+	Authtoken      authtoken.Component
+	Telemetry      telemetry.Component
+}
+
+func startPhase1(params phase1Params) error {
+	if err := startEarlyCheck(params.Log, params.Config); err != nil {
+		// A sleep is necessary so that sysV doesn't think the agent has failed
+		// to startup because of an error. Only applies on Debian 7.
+		time.Sleep(5 * time.Second)
+
+		if errors.Is(err, ErrAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
+			return nil
+		}
+		return err
+	}
+
+	// TODO: Similar to the agent itself, once the security agent is represented as a component, and not a function (start),
+	// this will use `fxutil.Run` instead of `fxutil.OneShot`.
+
+	// note that any changes to the arguments to OneShot need to be reflected into
+	// the service initialization in ../../main_windows.go
+	return fxutil.OneShot(startPhase2,
+		fx.Supply(
+			fx.Annotate(params.Log, fx.As(new(log.Component))),
+			fx.Annotate(params.Config, fx.As(new(config.Component))),
+			fx.Annotate(params.SysprobeConfig, fx.As(new(sysprobeconfig.Component))),
+			fx.Annotate(params.Secrets, fx.As(new(secrets.Component))),
+			fx.Annotate(params.Pid, fx.As(new(pid.Component))),
+			fx.Annotate(params.Authtoken, fx.As(new(authtoken.Component))),
+			fx.Annotate(params.Telemetry, fx.As(new(telemetry.Component))),
+		),
+
+		dogstatsd.ClientBundle,
+		// workloadmeta setup
+		wmcatalog.GetCatalog(),
+		workloadmetafx.Module(workloadmeta.Params{
+			AgentType: workloadmeta.Remote,
+		}),
+		remoteTaggerfx.Module(tagger.RemoteParams{
+			RemoteTarget: func(c config.Component) (string, error) {
+				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+			},
+			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
+				return func() (string, error) {
+					return security.FetchAuthToken(c)
+				}
+			},
+			RemoteFilter: taggerTypes.NewMatchAllFilter(),
+		}),
+		fx.Provide(func() startstop.Stopper {
+			return startstop.NewSerialStopper()
+		}),
+		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
+			return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+		}),
+		fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, wmeta workloadmeta.Component, compression logscompression.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
+			hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO())
+			if err != nil {
+				return status.NewInformationProvider(nil), nil, err
+			}
+
+			runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, wmeta, compression)
+			if err != nil {
+				return status.NewInformationProvider(nil), nil, err
+			}
+
+			if runtimeAgent == nil {
+				return status.NewInformationProvider(nil), nil, nil
+			}
+
+			// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
+			return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
+		}),
+		fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component, compression logscompression.Component) (status.InformationProvider, *pkgCompliance.Agent, error) {
+			hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO())
+			if err != nil {
+				return status.NewInformationProvider(nil), nil, err
+			}
+
+			// start compliance security agent
+			complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, wmeta, compression)
+			if err != nil {
+				return status.NewInformationProvider(nil), nil, err
+			}
+
+			if complianceAgent == nil {
+				return status.NewInformationProvider(nil), nil, nil
+			}
+
+			// TODO - components: Do not remove complianceAgent ref until "github.com/DataDog/datadog-agent/pkg/compliance" is a component so they're not GCed
+			return status.NewInformationProvider(complianceAgent.StatusProvider()), complianceAgent, nil
+		}),
+		fx.Supply(
+			status.Params{
+				PythonVersionGetFunc: python.GetPythonVersion,
+			},
+		),
+		fx.Provide(func(config config.Component) status.HeaderInformationProvider {
+			return status.NewHeaderInformationProvider(hostimpl.StatusProvider{
+				Config: config,
+			})
+		}),
+		statusimpl.Module(),
+		autoexitimpl.Module(),
+		fx.Provide(func(c config.Component) settings.Params {
+			return settings.Params{
+				Settings: map[string]settings.RuntimeSetting{
+					"log_level": commonsettings.NewLogLevelRuntimeSetting(),
+				},
+				Config: c,
+			}
+		}),
+		settingsimpl.Module(),
+		logscompressionfx.Module(),
+	)
+
+}
+
+// startPhase2 will start the security-agent.
 //
 // TODO(components): note how workloadmeta is passed anonymously, it is still required as it is used
 // as a global. This should eventually be fixed and all workloadmeta interactions should be via the
 // injected instance.
-func start(log log.Component, config config.Component, secrets secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ pid.Component, _ autoexit.Component, settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component) error {
+func startPhase2(log log.Component, config config.Component, secrets secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ autoexit.Component, settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component) error {
 	defer StopAgent(log)
 
 	err := RunAgent(log, config, secrets, telemetry, statusComponent, settings, wmeta, at)
-	if errors.Is(err, ErrAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
-		return nil
-	}
 	if err != nil {
 		return err
 	}
@@ -259,27 +314,6 @@ var errNoAPIKeyConfigured = errors.New("no API key configured")
 func RunAgent(log log.Component, config config.Component, secrets secrets.Component, telemetry telemetry.Component, statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component) (err error) {
 	if err := coredump.Setup(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
-	}
-
-	// Check if we have at least one component to start based on config
-	if !config.GetBool("compliance_config.enabled") && !config.GetBool("runtime_security_config.enabled") {
-		log.Infof("All security-agent components are deactivated, exiting")
-
-		// A sleep is necessary so that sysV doesn't think the agent has failed
-		// to startup because of an error. Only applies on Debian 7.
-		time.Sleep(5 * time.Second)
-
-		return ErrAllComponentsDisabled
-	}
-
-	if !config.IsSet("api_key") {
-		log.Critical("No API key configured, exiting")
-
-		// A sleep is necessary so that sysV doesn't think the agent has failed
-		// to startup because of an error. Only applies on Debian 7.
-		time.Sleep(5 * time.Second)
-
-		return errNoAPIKeyConfigured
 	}
 
 	// Setup expvar server
