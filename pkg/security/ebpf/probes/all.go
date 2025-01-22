@@ -35,7 +35,7 @@ var (
 	EventsPerfRingBufferSize = 256 * os.Getpagesize()
 )
 
-func appendSyscallProbes(probes []*manager.Probe, fentry bool, flag int, syscalls ...string) []*manager.Probe {
+func appendSyscallProbes(probes []*manager.Probe, fentry bool, flag int, compat bool, syscalls ...string) []*manager.Probe {
 	for _, syscall := range syscalls {
 		probes = append(probes,
 			ExpandSyscallProbes(&manager.Probe{
@@ -43,7 +43,7 @@ func appendSyscallProbes(probes []*manager.Probe, fentry bool, flag int, syscall
 					UID: SecurityAgentUID,
 				},
 				SyscallFuncName: syscall,
-			}, fentry, flag)...)
+			}, fentry, flag, compat)...)
 	}
 
 	return probes

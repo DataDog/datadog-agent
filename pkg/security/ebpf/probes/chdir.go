@@ -19,6 +19,6 @@ func getChdirProbes(fentry bool) []*manager.Probe {
 			},
 		},
 	}
-	chdirProbes = appendSyscallProbes(chdirProbes, fentry, EntryAndExit, "chdir", "fchdir")
+	chdirProbes = appendSyscallProbes(chdirProbes, fentry, EntryAndExit, false, "chdir", "fchdir")
 	return chdirProbes
 }
