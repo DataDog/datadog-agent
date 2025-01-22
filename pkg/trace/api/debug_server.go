@@ -55,11 +55,23 @@ func (ds *DebugServer) Start() {
 		WriteTimeout: defaultTimeout,
 		Handler:      ds.setupMux(),
 	}
+
+	// TODO: Improve certificate delivery
+	if ds.tlsConfig == nil {
+		log.Warnf("Debug server wasn't able to start: uninitialized IPC certificate")
+		// Removing server to avoid blocking on shutdown step
+		ds.server = nil
+		return
+	}
+
 	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(ds.conf.DebugServerPort)))
 	if err != nil {
 		log.Errorf("Error creating debug server listener: %s", err)
+		// Removing server to avoid blocking on shutdown step
+		ds.server = nil
 		return
 	}
+
 	tlsListener := tls.NewListener(listener, ds.tlsConfig)
 	go func() {
 		if err := ds.server.Serve(tlsListener); err != nil && err != http.ErrServerClosed {

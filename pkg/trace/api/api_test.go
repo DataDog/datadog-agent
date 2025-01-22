@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1077,6 +1078,39 @@ func TestExpvar(t *testing.T) {
 			assert.NotNil(t, out["receiver"], "expvar receiver must not be nil")
 		}
 	})
+}
+
+func TestWithoutIPCCert(t *testing.T) {
+	c := newTestReceiverConfig()
+
+	// Getting an available port
+	a, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	var l *net.TCPListener
+	l, err = net.ListenTCP("tcp", a)
+	require.NoError(t, err)
+
+	availablePort := l.Addr().(*net.TCPAddr).Port
+	require.NoError(t, l.Close())
+	require.NotZero(t, availablePort)
+
+	c.DebugServerPort = availablePort
+	info.InitInfo(c)
+
+	// Starting Debug Server
+	s := NewDebugServer(c)
+
+	// Starting the Debug server
+	s.Start()
+	defer s.Stop()
+
+	// Server should not be able to connect because it didn't start
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(c.DebugServerPort)), time.Second)
+	require.Error(t, err)
+	if conn != nil {
+		conn.Close()
+	}
 }
 
 func TestNormalizeHTTPHeader(t *testing.T) {
