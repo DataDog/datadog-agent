@@ -505,6 +505,13 @@ func (v *Variables) Set(name string, value interface{}) bool {
 	return !existed
 }
 
+// Stop the underlying ttl lru
+func (v *Variables) Stop() {
+	if v.lru != nil {
+		v.lru.Stop()
+	}
+}
+
 // ScopedVariables holds a set of scoped variables
 type ScopedVariables struct {
 	scoper Scoper
@@ -584,7 +591,10 @@ func (v *ScopedVariables) GetVariable(name string, value interface{}, _ Variable
 
 // ReleaseVariable releases a scoped variable
 func (v *ScopedVariables) ReleaseVariable(key ScopedVariable) {
-	delete(v.vars, key)
+	if variables, ok := v.vars[key]; ok {
+		variables.Stop()
+		delete(v.vars, key)
+	}
 }
 
 // NewScopedVariables returns a new set of scope variables

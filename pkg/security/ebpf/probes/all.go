@@ -144,6 +144,14 @@ func AllSKStorageMaps() []string {
 	}
 }
 
+// AllNoPreallocMapsInPerfEventPrograms returns the list of maps with the BPF_F_NO_PREALLOC flag that are used in
+// perf_event programs
+func AllNoPreallocMapsInPerfEventPrograms() []string {
+	return []string{
+		"active_flows",
+	}
+}
+
 // AllBPFForEachMapElemProgramFunctions returns the list of programs that leverage the bpf_for_each_map_elem helper
 func AllBPFForEachMapElemProgramFunctions() []string {
 	return []string{
@@ -162,13 +170,14 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 
 // MapSpecEditorOpts defines some options of the map spec editor
 type MapSpecEditorOpts struct {
-	TracedCgroupSize        int
-	UseMmapableMaps         bool
-	UseRingBuffers          bool
-	RingBufferSize          uint32
-	PathResolutionEnabled   bool
-	SecurityProfileMaxCount int
-	ReducedProcPidCacheSize bool
+	TracedCgroupSize          int
+	UseMmapableMaps           bool
+	UseRingBuffers            bool
+	RingBufferSize            uint32
+	PathResolutionEnabled     bool
+	SecurityProfileMaxCount   int
+	ReducedProcPidCacheSize   bool
+	NetworkFlowMonitorEnabled bool
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -178,6 +187,15 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.Ma
 		procPidCacheMaxEntries = getMaxEntries(numCPU, minProcEntries, maxProcEntries/2)
 	} else {
 		procPidCacheMaxEntries = getMaxEntries(numCPU, minProcEntries, maxProcEntries)
+	}
+
+	var activeFlowsMaxEntries, nsFlowToNetworkStats uint32
+	if opts.NetworkFlowMonitorEnabled {
+		activeFlowsMaxEntries = procPidCacheMaxEntries
+		nsFlowToNetworkStats = 4096
+	} else {
+		activeFlowsMaxEntries = 1
+		nsFlowToNetworkStats = 1
 	}
 
 	editors := map[string]manager.MapSpecEditor{
@@ -199,11 +217,15 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.Ma
 		},
 
 		"active_flows": {
-			MaxEntries: procPidCacheMaxEntries,
+			MaxEntries: activeFlowsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"active_flows_spin_locks": {
-			MaxEntries: procPidCacheMaxEntries,
+			MaxEntries: activeFlowsMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"ns_flow_to_network_stats": {
+			MaxEntries: nsFlowToNetworkStats,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"inet_bind_args": {

@@ -56,8 +56,6 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
         return 0;
     }
 
-    bpf_get_current_comm(&value.comm, sizeof(value.comm));
-
     // add netns information
     key.netns = get_netns_from_sock(sk);
 
@@ -334,18 +332,21 @@ int hook_inet_bind(ctx_t *ctx) {
 
 HOOK_EXIT("inet_bind")
 int rethook_inet_bind(ctx_t *ctx) {
-    int ret = CTX_PARMRET(ctx);
-    if (ret < 0) {
-        // we only care about successful bind operations
-        return 0;
-    }
-
     // fetch inet_bind arguments
     u64 id = bpf_get_current_pid_tgid();
     u32 tid = (u32)id;
     struct inet_bind_args_t *args = bpf_map_lookup_elem(&inet_bind_args, &id);
     if (args == NULL) {
         // should never happen, ignore
+        return 0;
+    }
+
+    // delete the entry in inet_bind_args to make sure we always cleanup inet_bind_args and we don't leak entries
+    bpf_map_delete_elem(&inet_bind_args, &id);
+
+    int ret = CTX_PARMRET(ctx);
+    if (ret < 0) {
+        // we only care about successful bind operations
         return 0;
     }
 

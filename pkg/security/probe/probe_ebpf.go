@@ -2029,12 +2029,13 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	}
 
 	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(p.numCPU, probes.MapSpecEditorOpts{
-		TracedCgroupSize:        config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
-		UseRingBuffers:          useRingBuffers,
-		UseMmapableMaps:         useMmapableMaps,
-		RingBufferSize:          uint32(config.Probe.EventStreamBufferSize),
-		PathResolutionEnabled:   probe.Opts.PathResolutionEnabled,
-		SecurityProfileMaxCount: config.RuntimeSecurity.SecurityProfileMaxCount,
+		TracedCgroupSize:          config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
+		UseRingBuffers:            useRingBuffers,
+		UseMmapableMaps:           useMmapableMaps,
+		RingBufferSize:            uint32(config.Probe.EventStreamBufferSize),
+		PathResolutionEnabled:     probe.Opts.PathResolutionEnabled,
+		SecurityProfileMaxCount:   config.RuntimeSecurity.SecurityProfileMaxCount,
+		NetworkFlowMonitorEnabled: config.Probe.NetworkFlowMonitorEnabled,
 	})
 
 	if config.RuntimeSecurity.ActivityDumpEnabled {
@@ -2249,6 +2250,19 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 				ValueSize:  1,
 				MaxEntries: 1,
 				EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries,
+			}
+		}
+	}
+
+	if !p.kernelVersion.HasNoPreallocMapsInPerfEvent() {
+		// Edit maps used in perf_event programs with BPF_F_NO_PREALLOC flag so that they are pre-allocated
+		if p.managerOptions.MapSpecEditors == nil {
+			p.managerOptions.MapSpecEditors = make(map[string]manager.MapSpecEditor, len(probes.AllSKStorageMaps()))
+		}
+		for _, noPreallocMapName := range probes.AllNoPreallocMapsInPerfEventPrograms() {
+			p.managerOptions.MapSpecEditors[noPreallocMapName] = manager.MapSpecEditor{
+				Flags:      unix.BPF_ANY,
+				EditorFlag: manager.EditFlags,
 			}
 		}
 	}
