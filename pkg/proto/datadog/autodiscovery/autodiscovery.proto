@@ -41,7 +41,7 @@ message Config {
   // @gotags: json:"provider"
   string provider = 8;
   // @gotags: json:"service_id"
-  string serviceId = 9;
+  string service_id = 9;
   // @gotags: json:"-"
   string tagger_entity = 10;
   // @gotags: json:"cluster_check"

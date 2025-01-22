@@ -20,9 +20,7 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
-	"time"
 
-	"github.com/cenkalti/backoff"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -52,10 +50,10 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	compressionimpl "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
+	logscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -113,12 +111,13 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		telemetryimpl.Module(),
 		collectorimpl.Module(),
 		// Sending metrics to the backend
-		compressionimpl.Module(),
+		metricscompressionimpl.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
 		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
 		eventplatformreceiverimpl.Module(),
 		defaultforwarder.Module(defaultforwarder.NewParams()),
+		logscompressionimpl.Module(),
 		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
@@ -283,37 +282,37 @@ func StopAgent(cancel context.CancelFunc, log log.Component) {
 	log.Flush()
 }
 
-type autodiscoveryStream struct {
-	autodiscoveryStream       core.AgentSecure_AutodiscoveryStreamConfigClient
-	autodiscoveryStreamCancel context.CancelFunc
-}
+// type autodiscoveryStream struct {
+// 	autodiscoveryStream       core.AgentSecure_AutodiscoveryStreamConfigClient
+// 	autodiscoveryStreamCancel context.CancelFunc
+// }
 
-func (a *autodiscoveryStream) initStream(ctx context.Context, client core.AgentSecureClient, log log.Component) error {
-	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 500 * time.Millisecond
-	expBackoff.MaxInterval = 5 * time.Minute
-	expBackoff.MaxElapsedTime = 0 * time.Minute
+// func (a *autodiscoveryStream) initStream(ctx context.Context, client core.AgentSecureClient, log log.Component) error {
+// 	expBackoff := backoff.NewExponentialBackOff()
+// 	expBackoff.InitialInterval = 500 * time.Millisecond
+// 	expBackoff.MaxInterval = 5 * time.Minute
+// 	expBackoff.MaxElapsedTime = 0 * time.Minute
 
-	return backoff.Retry(func() error {
-		select {
-		case <-ctx.Done():
-			return &backoff.PermanentError{}
-		default:
-		}
+// 	return backoff.Retry(func() error {
+// 		select {
+// 		case <-ctx.Done():
+// 			return &backoff.PermanentError{}
+// 		default:
+// 		}
 
-		stream, err := client.AutodiscoveryStreamConfig(ctx, nil)
-		if err != nil {
-			log.Infof("unable to establish stream, will possibly retry: %s", err)
-			// We need to handle the case that the kernel agent dies
-			return err
-		}
+// 		stream, err := client.AutodiscoveryStreamConfig(ctx, nil)
+// 		if err != nil {
+// 			log.Infof("unable to establish stream, will possibly retry: %s", err)
+// 			// We need to handle the case that the kernel agent dies
+// 			return err
+// 		}
 
-		a.autodiscoveryStream = stream
+// 		a.autodiscoveryStream = stream
 
-		log.Info("autodiscovery stream established successfully")
-		return nil
-	}, expBackoff)
-}
+// 		log.Info("autodiscovery stream established successfully")
+// 		return nil
+// 	}, expBackoff)
+// }
 
 type auConfig struct {
 	integration.Config
@@ -321,11 +320,11 @@ type auConfig struct {
 }
 
 type results struct {
-	Results []auConfig `json:"results,omitempty"`
+	Results map[string][]auConfig `json:"result,omitempty"`
 }
 
 func startScheduler(ctx context.Context, client *customClient, scheduler *pkgcollector.CheckScheduler, log log.Component, config config.Component) {
-	url := fmt.Sprintf("https://localhost:%v/v1/grpc/tagger/stream_entities", config.GetInt("cmd_port"))
+	url := fmt.Sprintf("https://localhost:%v/v1/grpc/autodiscovery/stream_configs", config.GetInt("cmd_port"))
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		log.Warnf("Failed to create request: %v", err)
@@ -365,13 +364,15 @@ func startScheduler(ctx context.Context, client *customClient, scheduler *pkgcol
 		scheduleConfigs := []integration.Config{}
 		unscheduleConfigs := []integration.Config{}
 
-		for _, config := range results.Results {
-			log.Infof("received autodiscovery scheduler config event %s for check %s", config.EventType, config.Name)
-			// if config.EventType == core.ConfigEventType_SCHEDULE.String() {
-			// 	scheduleConfigs = config
-			// } else if config.EventType == core.ConfigEventType_UNSCHEDULE.String() {
-			// 	unscheduleConfigs = config
-			// }
+		for _, configs := range results.Results {
+			for _, config := range configs {
+				log.Infof("received autodiscovery scheduler config event %s for check %s", config.EventType, config.Name)
+				if config.EventType == "SCHEDULE" {
+					scheduleConfigs = append(scheduleConfigs, config.Config)
+				} else if config.EventType == "UNSCHEDULE" {
+					unscheduleConfigs = append(scheduleConfigs, config.Config)
+				}
+			}
 		}
 
 		scheduler.Schedule(scheduleConfigs)
