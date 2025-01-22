@@ -75,7 +75,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	assert.Nil(t, s.mapper)
 
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
-	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", "", false)
+	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", 0, "", false)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
 }
@@ -133,19 +133,19 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	parser.dsdOriginEnabled = true
 
 	// Metric
-	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container"), "", "", false)
+	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container"), "", 0, "", false)
 	assert.NoError(err)
 	assert.Len(metrics, 1)
 	assert.Equal("metric-container", metrics[0].OriginInfo.LocalData.ContainerID)
 
 	// Event
-	event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "")
+	event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "", 0)
 	assert.NoError(err)
 	assert.NotNil(event)
 	assert.Equal("event-container", event.OriginInfo.LocalData.ContainerID)
 
 	// Service check
-	serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "")
+	serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "", 0)
 	assert.NoError(err)
 	assert.NotNil(serviceCheck)
 	assert.Equal("service-check-container", serviceCheck.OriginInfo.LocalData.ContainerID)
@@ -177,22 +177,25 @@ func TestOrigin(t *testing.T) {
 		parser.dsdOriginEnabled = true
 
 		// Metric
-		metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container|#dd.internal.card:none"), "", "", false)
+		metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container|#dd.internal.card:none"), "", 1234, "", false)
 		assert.NoError(err)
 		assert.Len(metrics, 1)
 		assert.Equal("metric-container", metrics[0].OriginInfo.LocalData.ContainerID)
+		assert.Equal(uint32(1234), metrics[0].OriginInfo.LocalData.ProcessID)
 
 		// Event
-		event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container|#dd.internal.card:none"), "")
+		event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container|#dd.internal.card:none"), "", 1234)
 		assert.NoError(err)
 		assert.NotNil(event)
 		assert.Equal("event-container", event.OriginInfo.LocalData.ContainerID)
+		assert.Equal(uint32(1234), event.OriginInfo.LocalData.ProcessID)
 
 		// Service check
-		serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container|#dd.internal.card:none"), "")
+		serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container|#dd.internal.card:none"), "", 1234)
 		assert.NoError(err)
 		assert.NotNil(serviceCheck)
 		assert.Equal("service-check-container", serviceCheck.OriginInfo.LocalData.ContainerID)
+		assert.Equal(uint32(1234), serviceCheck.OriginInfo.LocalData.ProcessID)
 	})
 }
 

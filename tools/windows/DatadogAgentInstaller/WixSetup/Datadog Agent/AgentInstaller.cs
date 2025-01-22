@@ -102,6 +102,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("INSTALL_PYTHON_THIRD_PARTY_DEPS", "0")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // set this property to anything to indicate to the merge module that on install rollback, it should
                 // execute the install custom action rollback; otherwise it won't.
                 new Property("DDDRIVERROLLBACK_NPM", "1"),
@@ -372,7 +376,10 @@ namespace WixSetup.Datadog_Agent
                 new DirFiles($@"{InstallerSource}\LICENSE"),
                 new DirFiles($@"{InstallerSource}\*.json"),
                 new DirFiles($@"{InstallerSource}\*.txt"),
-                new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
+                new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3"),
+                new Dir("python-scripts",
+                    new Files($@"{InstallerSource}\python-scripts\*")
+                )
             );
 
             // Recursively delete/backup all files/folders in these paths, they will be restored
@@ -564,6 +571,7 @@ namespace WixSetup.Datadog_Agent
             var appData = new Dir(new Id("APPLICATIONDATADIRECTORY"), "Datadog",
                 new DirFiles($@"{EtcSource}\*.yaml.example"),
                 new Dir("checks.d"),
+                new Dir("protected"),
                 new Dir("run"),
                 new Dir("logs"),
                 new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",

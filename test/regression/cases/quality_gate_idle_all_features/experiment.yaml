@@ -28,9 +28,9 @@ target:
     DD_INTERNAL_PROFILING_CPU_DURATION: 1m
     DD_SECURITY_AGENT_INTERNAL_PROFILING_CPU_DURATION: 1m
     # destination
-    DD_INTERNAL_PROFILING_UNIX_SOCKET: /var/run/datadog/apm.socket
-    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_UNIX_SOCKET: /var/run/datadog/apm.socket
-    DD_SECURITY_AGENT_INTERNAL_PROFILING_UNIX_SOCKET: /var/run/datadog/apm.socket
+    DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
+    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
+    DD_SECURITY_AGENT_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
     # tags
     DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_idle_all_features
     DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_idle_all_features

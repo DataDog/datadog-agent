@@ -18,7 +18,6 @@ retract (
 // Internal deps fix version
 replace (
 	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
-	github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
 	github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 )
 
@@ -202,7 +201,7 @@ require (
 	github.com/containerd/containerd v1.7.25-0.20250106131559-142e855138e3
 	github.com/containernetworking/cni v1.2.3
 	github.com/coreos/go-semver v0.3.1
-	github.com/coreos/go-systemd v22.5.0+incompatible
+	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/cri-o/ocicni v0.4.3
 	github.com/cyphar/filepath-securejoin v0.3.4
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
@@ -399,7 +398,6 @@ require (
 	github.com/containerd/stargz-snapshotter/estargz v0.15.1 // indirect
 	github.com/containerd/ttrpc v1.2.5 // indirect
 	github.com/containernetworking/plugins v1.4.1 // indirect
-	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/dgryski/go-jump v0.0.0-20211018200510-ba001c3ffce0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
@@ -594,6 +592,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
 	github.com/Masterminds/sprig/v3 v3.3.0
+	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e
 	github.com/shirou/gopsutil/v4 v4.24.12
 	go.opentelemetry.io/collector/component/componenttest v0.117.0
 )

@@ -18,12 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/zstd"
 	"github.com/gorilla/mux"
 )
 
 const (
 	encodingGzip           = "gzip"
 	encodingDeflate        = "deflate"
+	encodingZstd           = "zstd"
 	loadMetricsHandlerName = "load-metrics-handler"
 )
 
@@ -69,6 +71,8 @@ func (h *seriesHandler) handle(w http.ResponseWriter, r *http.Request) {
 		rc, err = gzip.NewReader(r.Body)
 	case encodingDeflate:
 		rc, err = zlib.NewReader(r.Body)
+	case encodingZstd:
+		rc = zstd.NewReader(r.Body)
 	default:
 		rc = r.Body
 	}
