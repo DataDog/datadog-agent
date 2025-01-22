@@ -46,14 +46,16 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			os.Exit(1)
 		}
 		senders[i] = newSender(&senderConfig{
-			client:     cfg.NewHTTPClient(),
-			maxConns:   int(maxConns),
-			maxQueued:  qsize,
-			maxRetries: cfg.MaxSenderRetries,
-			url:        url,
-			apiKey:     endpoint.APIKey,
-			recorder:   r,
-			userAgent:  fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
+			client:       cfg.NewHTTPClient(),
+			maxConns:     int(maxConns),
+			maxQueued:    qsize,
+			maxRetries:   cfg.MaxSenderRetries,
+			url:          url,
+			apiKey:       endpoint.APIKey,
+			recorder:     r,
+			userAgent:    fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
+			isMRF:        endpoint.IsMRF,
+			isMRFEnabled: cfg.IsMRFEnabled,
 		}, statsd)
 	}
 	return senders
@@ -136,6 +138,10 @@ type senderConfig struct {
 	recorder eventRecorder
 	// userAgent is the computed user agent we'll use when communicating with Datadog
 	userAgent string
+	// IsMRF determines whether this is a Multi-Region Failover endpoint.
+	isMRF bool
+	// IsMRFEnabled determines whether Multi-Region Failover is enabled.
+	isMRFEnabled func() bool
 }
 
 // sender is responsible for sending payloads to a given URL. It uses a size-limited
@@ -147,9 +153,10 @@ type sender struct {
 	inflight   *atomic.Int32 // inflight payloads
 	maxRetries int32
 
-	mu     sync.RWMutex // guards closed
-	closed bool         // closed reports if the loop is stopped
-	statsd statsd.ClientInterface
+	mu      sync.RWMutex // guards closed
+	closed  bool         // closed reports if the loop is stopped
+	statsd  statsd.ClientInterface
+	enabled bool // false on inactive MRF senders. True otherwise
 }
 
 // newSender returns a new sender based on the given config cfg.
@@ -160,6 +167,7 @@ func newSender(cfg *senderConfig, statsd statsd.ClientInterface) *sender {
 		inflight:   atomic.NewInt32(0),
 		maxRetries: int32(cfg.maxRetries),
 		statsd:     statsd,
+		enabled:    true,
 	}
 	for i := 0; i < cfg.maxConns; i++ {
 		go s.loop()
@@ -326,6 +334,32 @@ func (s *sender) recordEvent(t eventType, data *eventData) {
 	s.cfg.recorder.recordEvent(t, data)
 }
 
+// isEnabled returns true if the sender is enabled. Non-MRF senders are always enabled, and MRF ones
+// only when isMRFEnabled is true
+func (s *sender) isEnabled() bool {
+	if !s.cfg.isMRF {
+		return true
+	}
+	if s.cfg.isMRFEnabled == nil {
+		log.Errorf("Error checking MRF. isMRFEnabled() is not configured on domain %v", s.cfg.url)
+		return true
+	}
+	if s.cfg.isMRFEnabled() {
+		if !s.enabled {
+			log.Infof("Sender for domain %v has been failed over to, enabling it for MRF.", s.cfg.url)
+			s.enabled = true
+		}
+	} else {
+		if s.enabled {
+			s.enabled = false
+			log.Infof("Sender for domain %v was disabled; payloads will be dropped for this domain.", s.cfg.url)
+		} else {
+			log.Debugf("Sender for domain %v is disabled; dropping payload for this domain.", s.cfg.url)
+		}
+	}
+	return s.enabled
+}
+
 // retriableError is an error returned by the server which may be retried at a later time.
 type retriableError struct{ err error }
 
@@ -445,28 +479,35 @@ func stopSenders(senders []*sender) {
 
 // sendPayloads sends the payload p to all senders.
 func sendPayloads(senders []*sender, p *payload, syncMode bool) {
-	if syncMode {
-		defer waitForSenders(senders)
+	enabledSenders := make([]*sender, 0, len(senders))
+	for _, s := range senders {
+		if s.isEnabled() {
+			enabledSenders = append(enabledSenders, s)
+		}
 	}
 
-	if len(senders) == 1 {
+	if syncMode {
+		defer waitForSenders(enabledSenders)
+	}
+
+	if len(enabledSenders) == 1 {
 		// fast path
-		senders[0].Push(p)
+		enabledSenders[0].Push(p)
 		return
 	}
 	// Create a clone for each payload because each sender places payloads
 	// back onto the pool after they are sent.
-	payloads := make([]*payload, 0, len(senders))
+	payloads := make([]*payload, 0, len(enabledSenders))
 	// Perform all the clones before any sends are to ensure the original
 	// payload body is completely unread.
-	for i := range senders {
+	for i := range enabledSenders {
 		if i == 0 {
 			payloads = append(payloads, p)
 		} else {
 			payloads = append(payloads, p.clone())
 		}
 	}
-	for i, sender := range senders {
+	for i, sender := range enabledSenders {
 		sender.Push(payloads[i])
 	}
 }
