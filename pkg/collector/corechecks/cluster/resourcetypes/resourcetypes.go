@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package resourcetypes provides utilities for resolving Kubernetes resourceTypes using the discovery client.
 package resourcetypes
 
 import (
@@ -56,7 +57,6 @@ func InitializeGlobalResourceTypeCache() error {
 			cacheErr = fmt.Errorf("failed to prepopulate resource type cache: %w", err)
 		}
 	})
-	log.Infof("Global resource type cache initialized: %v", cache)
 	return cacheErr
 }
 
@@ -75,7 +75,6 @@ func (r *ResourceTypeCache) getResourceType(kind, group string) (string, error) 
 	// Check the cache
 	r.lock.RLock()
 	resourceType, found := r.kindGroupToType[cacheKey]
-	fmt.Printf("Checking kind %s and group %s\n", kind, group)
 	r.lock.RUnlock()
 	if found {
 		return resourceType, nil
@@ -133,7 +132,6 @@ func (r *ResourceTypeCache) prepopulateCache() error {
 	// Proceed with populating the cache for valid resource groups
 	for _, list := range apiResourceLists {
 		for _, resource := range list.APIResources {
-			log.Infof("Resource Name: %s, Resource Kind: %s, Resource Group: %s", resource.Name, resource.Kind, getAPIGroup(list.GroupVersion))
 			if !isValidSubresource(resource.Name) {
 				continue
 			}
