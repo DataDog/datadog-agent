@@ -35,11 +35,6 @@ type (
 	// MatcherFunc defines functions for matching a packet from the wire to
 	// a traceroute based on the source/destination addresses and an identifier
 	MatcherFunc func(*ipv4.Header, []byte, net.IP, uint16, net.IP, uint16, uint32) (net.IP, error)
-
-	// MismatchError is an error type that indicates a MatcherFunc
-	// failed due to one or more fields from the packet not matching
-	// the expected information
-	MismatchError string
 )
 
 // Close closes the raw socket
@@ -170,28 +165,4 @@ func (w *Winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 		}
 		return ip, received, nil
 	}
-}
-
-// MatchICMP parses an ICMP packet from a header and packet bytes and compares the information
-// contained in the packet to what's expected and returns the source IP of the incoming packet
-// if it's successful or a MismatchError if the packet can be read but is not a match
-func (p *ICMPParser) MatchICMP(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32) (net.IP, error) {
-	if header.Protocol != windows.IPPROTO_ICMP {
-		return net.IP{}, errors.New("expected an ICMP packet")
-	}
-	icmpResponse, err := p.Parse(header, packet)
-	if err != nil {
-		return net.IP{}, fmt.Errorf("ICMP parse error: %w", err)
-	}
-	if !ICMPMatch(localIP, localPort, remoteIP, remotePort, innerIdentifier, icmpResponse) {
-		return net.IP{}, MismatchError("ICMP packet doesn't match")
-	}
-
-	return icmpResponse.SrcIP, nil
-}
-
-// Error implements the error interface for
-// MismatchError
-func (m MismatchError) Error() string {
-	return string(m)
 }

@@ -10,7 +10,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/icmp"
 )
 
 type (
@@ -26,13 +26,13 @@ type (
 		MaxTTL     uint8
 		Delay      time.Duration // delay between sending packets (not applicable if we go the serial send/receive route)
 		Timeout    time.Duration // full timeout for all packets
-		icmpParser *common.ICMPParser
+		icmpParser icmp.ICMPParser
 	}
 )
 
 // NewUDPv4 initializes a new UDPv4 traceroute instance
 func NewUDPv4(target net.IP, targetPort uint16, numPaths uint16, minTTL uint8, maxTTL uint8, delay time.Duration, timeout time.Duration) *UDPv4 {
-	icmpParser := common.NewICMPUDPParser()
+	icmpParser := icmp.NewICMPUDPParser()
 
 	return &UDPv4{
 		Target:     target,

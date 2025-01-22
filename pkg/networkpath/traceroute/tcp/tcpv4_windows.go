@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/icmp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows"
 )
@@ -76,10 +77,10 @@ func (t *TCPv4) sendAndReceive(rs *common.Winrawsocket, ttl int, seqNum uint32, 
 		return nil, err
 	}
 
-	icmpParser := common.NewICMPTCPParser()
+	icmpParser := icmp.NewICMPTCPParser()
 	tcpParser := newTCPParser()
 	matcherFuncs := map[int]common.MatcherFunc{
-		windows.IPPROTO_ICMP: icmpParser.MatchICMP,
+		windows.IPPROTO_ICMP: icmpParser.Match,
 		windows.IPPROTO_TCP:  tcpParser.MatchTCP,
 	}
 	start := time.Now() // TODO: is this the best place to start?
