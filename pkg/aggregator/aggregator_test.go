@@ -296,7 +296,7 @@ func TestDefaultSeries(t *testing.T) {
 		require.Equal(t, 1, len(m))
 		require.Equal(t, "datadog.agent.up", m[0].CheckName)
 		require.Equal(t, servicecheck.ServiceCheckOK, m[0].Status)
-		require.Equal(t, []string{"ha_agent_enabled"}, m[0].Tags)
+		require.Equal(t, []string{"ha_agent_enabled:true"}, m[0].Tags)
 		require.Equal(t, agg.hostname, m[0].Host)
 
 		return true
@@ -306,14 +306,14 @@ func TestDefaultSeries(t *testing.T) {
 	expectedSeries := metrics.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{"version:" + version.AgentVersion, "ha_agent_enabled"}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"version:" + version.AgentVersion, "ha_agent_enabled:true"}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	}, &metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
 		Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{"ha_agent_enabled", "agent_state:standby"}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"ha_agent_enabled:true", "agent_state:standby"}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -321,7 +321,7 @@ func TestDefaultSeries(t *testing.T) {
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
 		Host:           agg.hostname,
-		Tags:           tagset.CompositeTagsFromSlice([]string{"ha_agent_enabled"}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"ha_agent_enabled:true"}),
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 		NoIndex:        true,
@@ -653,7 +653,7 @@ func TestTags(t *testing.T) {
 			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             false,
 			haAgentEnabled:          true,
-			want:                    []string{"ha_agent_enabled"},
+			want:                    []string{"ha_agent_enabled:true"},
 		},
 	}
 	for _, tt := range tests {
