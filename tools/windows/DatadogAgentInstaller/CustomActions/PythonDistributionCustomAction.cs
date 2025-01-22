@@ -1,5 +1,7 @@
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
+using Datadog.CustomActions.Native;
+using Datadog.CustomActions.Rollback;
 using Microsoft.Deployment.WindowsInstaller;
 using System;
 using System.Diagnostics;
@@ -8,8 +10,13 @@ using System.Text;
 
 namespace Datadog.CustomActions
 {
+
     public class PythonDistributionCustomAction
     {
+        private readonly ISession _session;
+        private readonly IFileSystemServices _fileSystemServices;
+        private readonly IServiceController _serviceController;
+        private readonly RollbackDataStore _rollbackDataStore;
         public static class MessageRecordFields
         {
             /// <summary>
@@ -31,6 +38,29 @@ namespace Datadog.CustomActions
             /// Enables an action (such as CustomAction) to add ticks to the expected total number of progress of the progress bar.
             /// </summary>
             public const int ProgressAddition = 1;
+        }
+
+        public PythonDistributionCustomAction(
+            ISession session,
+            string rollbackDataName,
+            IFileSystemServices fileSystemServices,
+            IServiceController serviceController)
+        {
+            _session = session;
+            _fileSystemServices = fileSystemServices;
+            _serviceController = serviceController;
+
+            _rollbackDataStore = new RollbackDataStore(session, rollbackDataName, _fileSystemServices, _serviceController);
+        }
+
+        public PythonDistributionCustomAction(ISession session, string rollbackDataName)
+            : this(
+                session,
+                rollbackDataName,
+                new FileSystemServices(),
+                new ServiceController()
+            )
+        {
         }
 
         private static ActionResult DecompressPythonDistribution(
@@ -173,6 +203,127 @@ namespace Datadog.CustomActions
         public static ActionResult PrepareDecompressPythonDistributions(Session session)
         {
             return PrepareDecompressPythonDistributions(new SessionWrapper(session));
+        }
+
+        private static ActionResult RunPythonScript(ISession session, string script)
+        {
+            var projectLocation = session.Property("PROJECTLOCATION");
+            var dataDirectory = session.Property("APPLICATIONDATADIRECTORY");
+            // get protected directory path
+            dataDirectory = Path.Combine(dataDirectory, "protected");
+
+            var pythonPath = Path.Combine(projectLocation, "embedded3", "python.exe");
+            var postInstScript = Path.Combine(projectLocation, "python-scripts", script);
+            if (!File.Exists(pythonPath))
+            {
+                session.Log($"Python executable not found at {pythonPath}");
+                return ActionResult.Failure;
+            }
+            if (!File.Exists(postInstScript))
+            {
+                session.Log($"install script not found at {postInstScript}");
+                return ActionResult.Failure;
+            }
+            // remove trailing backslash, a backslash followed by a double quote causes the command line to be spit incorrectly 
+            projectLocation = projectLocation.TrimEnd('\\');
+            dataDirectory = dataDirectory.TrimEnd('\\');
+
+            var psi = new ProcessStartInfo
+            {
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                FileName = pythonPath,
+                Arguments = $"\"{postInstScript}\" \"{projectLocation}\" \"{dataDirectory}\""
+            };
+            var proc = new Process();
+            proc.StartInfo = psi;
+            proc.OutputDataReceived += (_, args) => session.Log(args.Data);
+            proc.ErrorDataReceived += (_, args) => session.Log(args.Data);
+            proc.Start();
+            proc.BeginOutputReadLine();
+            proc.BeginErrorReadLine();
+            proc.WaitForExit();
+            if (proc.ExitCode != 0)
+            {
+                session.Log($"install script exited with code: {proc.ExitCode}");
+                proc.Close();
+                return ActionResult.Failure;
+            }
+            proc.Close();
+            return ActionResult.Success;
+        }
+
+        private ActionResult RunPostInstPythonScript()
+        {
+            // check if INSTALL_PYTHON_THIRD_PARTY_DEPS property is set
+            var installPythonThirdPartyDeps = _session.Property("INSTALL_PYTHON_THIRD_PARTY_DEPS");
+            if (string.IsNullOrEmpty(installPythonThirdPartyDeps) || installPythonThirdPartyDeps != "1")
+            {
+                _session.Log("Skipping installation of third-party Python deps. Set INSTALL_PYTHON_THIRD_PARTY_DEPS=1 to enable this feature.");
+                return ActionResult.Success;
+            }
+            return RunPythonScript(_session, "post.py");
+
+        }
+
+        private ActionResult RunPreRemovePythonScript()
+        {
+            // add the .post_python_installed_packages.txt to the rollback data store
+            // This means the file can be restored on failure and still used to create a diff file for next retry
+            // Helps prevents silent failure of third party integration feature. Where there is no post file so it silenly continues.
+            var pythonPackagesFile = Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "protected", ".post_python_installed_packages.txt");
+            // check that file path exists
+            if (!System.IO.File.Exists(pythonPackagesFile))
+            {
+                _session.Log($"File {pythonPackagesFile} does not exist, skipping rollback data store addition.");
+            }
+            else
+            {
+                _rollbackDataStore.Add(new FileStorageRollbackData(pythonPackagesFile));
+            }
+
+            try
+            {
+                return RunPythonScript(_session, "pre.py");
+            }
+            finally
+            {
+                _rollbackDataStore.Store();
+            }
+        }
+        private void RunRollbackDataRestore()
+        {
+            try
+            {
+                _rollbackDataStore.Restore();
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Error while restoring rollback post install file: {e}");
+            }
+        }
+
+        private ActionResult RunPreRemovePythonScriptRollback()
+        {
+            RunRollbackDataRestore();
+            return ActionResult.Success;
+        }
+
+        public static ActionResult RunPostInstPythonScript(Session session)
+        {
+            return new PythonDistributionCustomAction(new SessionWrapper(session), "pythonPostDistribution").RunPostInstPythonScript();
+        }
+
+        public static ActionResult RunPreRemovePythonScript(Session session)
+        {
+            return new PythonDistributionCustomAction(new SessionWrapper(session), "pythonDistribution").RunPreRemovePythonScript();
+        }
+
+        public static ActionResult RunPreRemovePythonScriptRollback(Session session)
+        {
+            return new PythonDistributionCustomAction(new SessionWrapper(session), "pythonDistribution").RunPreRemovePythonScriptRollback();
         }
     }
 }

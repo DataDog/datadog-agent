@@ -25,9 +25,7 @@ import (
 func TestSelfTests(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
-		enableSelfTests: true,
-	}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{enableSelfTests: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,6 +59,6 @@ func TestSelfTests(t *testing.T) {
 		})
 
 		return nil
-	}, retry.Delay(1*time.Second), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+	}, retry.Attempts(5), retry.Delay(2*time.Second), retry.MaxDelay(60*time.Second), retry.DelayType(retry.BackOffDelay))
 	assert.NoError(t, err)
 }

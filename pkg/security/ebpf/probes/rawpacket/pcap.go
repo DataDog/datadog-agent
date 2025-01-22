@@ -120,6 +120,7 @@ func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, senderInsts as
 
 	// prepend a return instruction in case of fail
 	footerInsts := append(asm.Instructions{
+		asm.Mov.Imm(asm.R0, 0),
 		asm.Return(),
 	}, senderInsts...)
 
