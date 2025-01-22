@@ -190,6 +190,11 @@ func (p *EBPFProbe) UseRingBuffers() bool {
 	return p.config.Probe.EventStreamUseRingBuffer && p.kernelVersion.HaveRingBuffers()
 }
 
+// GetUseFentry returns true if fentry is used
+func (p *EBPFProbe) GetUseFentry() bool {
+	return p.useFentry
+}
+
 func (p *EBPFProbe) selectFentryMode() {
 	if !p.config.Probe.EventStreamUseFentry {
 		p.useFentry = false
