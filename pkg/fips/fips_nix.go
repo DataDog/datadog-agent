@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build goexperiment.systemcrypto
+//go:build goexperiment.systemcrypto && !windows
 
 package fips
 
@@ -13,9 +13,13 @@ import (
 )
 
 func Status() string {
-	return strconv.FormatBool(Enabled())
+	enabled, err := Enabled()
+	if err != nil {
+		return err
+	}
+	return strconv.FormatBool(enabled)
 }
 
-func Enabled() bool {
-	return os.Getenv("GOFIPS") == "1"
+func Enabled() (bool, error) {
+	return os.Getenv("GOFIPS") == "1", nil
 }

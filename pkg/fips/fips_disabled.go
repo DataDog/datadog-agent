@@ -11,6 +11,6 @@ func Status() string {
 	return ""
 }
 
-func Enabled() bool {
-	return false
+func Enabled() (bool, error) {
+	return false, nil
 }
