@@ -8,6 +8,8 @@
 package network
 
 import (
+	"bufio"
+	"bytes"
 	"testing"
 
 	"github.com/shirou/gopsutil/v4/net"
@@ -18,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type fakeNetworkStats struct {
@@ -66,7 +69,7 @@ func (n *fakeNetworkStats) Connections(kind string) ([]net.ConnectionStat, error
 	return nil, nil
 }
 
-func (n *fakeNetworkStats) NetstatTCPExtCounters(_procfsPath string, _fs afero.Fs) (map[string]int64, error) {
+func (n *fakeNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
 	return n.netstatTCPExtCountersValues, n.netstatTCPExtCountersError
 }
 
@@ -518,36 +521,175 @@ excluded_interface_re: "eth[0-9]"
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(33), "", lo0Tags)
 }
 
-func TestNetStatTCPExtCountersUsingMockedProcfsPath(t *testing.T) {
-	fs := afero.NewMemMapFs()
-	output, _ := netstatTCPExtCounters("/mocked/procfs", fs)
-	assert.Equal(t, output, map[string]int64(map[string]int64(nil)))
+func TestNetStatTCPExtCountersUsingCorrectMockedProcfsPath(t *testing.T) {
+	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
+	networkCheck := NetworkCheck{
+		net: net,
+	}
 
-	err := afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
-		`TCPExt: 1 0 46 79
-TCPExt: 32 34 192 32
+	rawInstanceConfig := []byte(`
+procfs_path: "/mocked/procfs"
+`)
+	var customTags []string
+
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	filesystem = afero.NewMemMapFs()
+	fs := filesystem
+	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
+		`TCPExt: ListenOverflows ListenDrops TCPBacklogDrop TCPRetransFail
+TCPExt: 32 33 34 35
 IpExt: 800 4343 4342 304
 IpExt: 801 439 120 439`),
 		0644)
 	assert.Nil(t, err)
-	output, err = netstatTCPExtCounters("/mocked/procfs", fs)
-	assert.Nil(t, err)
-	assert.Equal(t, 4, len(output))
 
+	err = networkCheck.Run()
+	assert.Nil(t, err)
+
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.listen_overflows", float64(32), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.listen_drops", float64(33), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.backlog_drops", float64(34), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.failed_retransmits", float64(35), "", customTags)
+}
+
+func TestNetStatTCPExtCountersWrongConfiguredLocation(t *testing.T) {
+	net := &defaultNetworkStats{procPath: "/wrong_mocked/procfs"}
+	networkCheck := NetworkCheck{
+		net: net,
+	}
+
+	rawInstanceConfig := []byte(`
+procfs_path: "/wrong_mocked/procfs"
+`)
+
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	filesystem = afero.NewMemMapFs()
+	fs := filesystem
+	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
+		`TCPExt: ListenOverflows ListenDrops TCPBacklogDrop TCPRetransFail
+TCPExt: 32 33 34 35
+IpExt: 800 4343 4342 304
+IpExt: 801 439 120 439`),
+		0644)
+	assert.Nil(t, err)
+
+	err = networkCheck.Run()
+	assert.Equal(t, err, nil)
+}
+
+func TestNetStatTCPExtCountersNoColonFile(t *testing.T) {
+	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
+	networkCheck := NetworkCheck{
+		net: net,
+	}
+
+	rawInstanceConfig := []byte(`
+procfs_path: "/mocked/procfs"
+`)
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	err = networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	filesystem = afero.NewMemMapFs()
+	fs := filesystem
 	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
 		`bad file`),
 		0644)
 	assert.Nil(t, err)
-	_, err = netstatTCPExtCounters("/mocked/procfs", fs)
-	assert.EqualError(t, err, "/mocked/procfs/net/netstat is not fomatted correctly, expected ':'")
 
+	err = networkCheck.Run()
+
+	w.Flush()
+	assert.Contains(t, b.String(), "/mocked/procfs/net/netstat is not fomatted correctly, expected ':'")
+}
+
+func TestNetStatTCPExtCountersBadDataLine(t *testing.T) {
+	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
+	networkCheck := NetworkCheck{
+		net: net,
+	}
+
+	rawInstanceConfig := []byte(`
+procfs_path: "/mocked/procfs"
+`)
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	err = networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	filesystem = afero.NewMemMapFs()
+	fs := filesystem
 	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
 		`TCPExt: `),
 		0644)
 	assert.Nil(t, err)
-	_, err = netstatTCPExtCounters("/mocked/procfs", fs)
-	assert.EqualError(t, err, "/mocked/procfs/net/netstat is not fomatted correctly, not data line")
+	err = networkCheck.Run()
 
+	w.Flush()
+	assert.Contains(t, b.String(), "/mocked/procfs/net/netstat is not fomatted correctly, not data line")
+}
+
+func TestNetStatTCPExtCountersMismatchedColumns(t *testing.T) {
+	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
+	networkCheck := NetworkCheck{
+		net: net,
+	}
+
+	rawInstanceConfig := []byte(`
+procfs_path: "/mocked/procfs"
+`)
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	err = networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	filesystem = afero.NewMemMapFs()
+	fs := filesystem
 	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
 		`TCPExt: 1 0 46 79
 TCPExt: 32 34 192
@@ -555,16 +697,46 @@ IpExt: 800 4343 4342 304
 IpExt: 801 439 120 439`),
 		0644)
 	assert.Nil(t, err)
-	_, err = netstatTCPExtCounters("/mocked/procfs", fs)
-	assert.EqualError(t, err, "/mocked/procfs/net/netstat is not fomatted correctly, expected same number of columns")
+	err = networkCheck.Run()
 
+	w.Flush()
+	assert.Contains(t, b.String(), "/mocked/procfs/net/netstat is not fomatted correctly, expected same number of columns")
+}
+
+func TestNetStatTCPExtCountersLettersForNumbers(t *testing.T) {
+	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
+	networkCheck := NetworkCheck{
+		net: net,
+	}
+
+	rawInstanceConfig := []byte(`
+procfs_path: "/mocked/procfs"
+`)
+	var customTags []string
+
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	filesystem = afero.NewMemMapFs()
+	fs := filesystem
 	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
 		`TCPExt: 1 0 46 79
-TCPExt: 32 34 ar 32
+TCPExt: ab cd ef gh
 IpExt: 800 4343 4342 304
 IpExt: 801 439 120 439`),
+
 		0644)
 	assert.Nil(t, err)
-	output, _ = netstatTCPExtCounters("/mocked/procfs", fs)
-	assert.Equal(t, output, map[string]int64(map[string]int64(nil)))
+	err = networkCheck.Run()
+	assert.Nil(t, err)
+
+	mockSender.AssertNotCalled(t, "Rate", "system.net.tcp.listen_overflows", float64(32), "", customTags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.tcp.listen_drops", float64(33), "", customTags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.tcp.backlog_drops", float64(34), "", customTags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.tcp.failed_retransmits", float64(35), "", customTags)
 }

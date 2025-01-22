@@ -72,6 +72,8 @@ var (
 	udpStateMetricsSuffixMapping = map[string]string{
 		"NONE": "connections",
 	}
+
+	filesystem = afero.NewOsFs()
 )
 
 // NetworkCheck represent a network check
@@ -99,10 +101,12 @@ type networkStats interface {
 	IOCounters(pernic bool) ([]net.IOCountersStat, error)
 	ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error)
 	Connections(kind string) ([]net.ConnectionStat, error)
-	NetstatTCPExtCounters(procfsPath string, fs afero.Fs) (map[string]int64, error)
+	NetstatTCPExtCounters() (map[string]int64, error)
 }
 
-type defaultNetworkStats struct{}
+type defaultNetworkStats struct {
+	procPath string
+}
 
 func (n defaultNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
 	return net.IOCounters(pernic)
@@ -116,8 +120,8 @@ func (n defaultNetworkStats) Connections(kind string) ([]net.ConnectionStat, err
 	return net.Connections(kind)
 }
 
-func (n defaultNetworkStats) NetstatTCPExtCounters(procfsPath string, fs afero.Fs) (map[string]int64, error) {
-	return netstatTCPExtCounters(procfsPath, fs)
+func (n defaultNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
+	return netstatTCPExtCounters(n.procPath)
 }
 
 // Run executes the check
@@ -137,12 +141,6 @@ func (c *NetworkCheck) Run() error {
 		}
 	}
 
-	procfsPath := "/proc"
-	if pkgconfigsetup.Datadog().IsConfigured("procfs_path") {
-		procfsPath = pkgconfigsetup.Datadog().GetString("procfs_path")
-	}
-	fs := afero.NewOsFs()
-
 	protocols := []string{"tcp", "udp"}
 	protocolsStats, err := c.net.ProtoCounters(protocols)
 	if err != nil {
@@ -151,7 +149,7 @@ func (c *NetworkCheck) Run() error {
 	for _, protocolStats := range protocolsStats {
 		// For TCP we want some extra counters coming from /proc/net/netstat if available
 		if protocolStats.Protocol == "tcp" {
-			counters, err := c.net.NetstatTCPExtCounters(procfsPath, fs)
+			counters, err := c.net.NetstatTCPExtCounters()
 			if err != nil {
 				log.Debug(err)
 			} else {
@@ -243,7 +241,8 @@ func submitConnectionsMetrics(sender sender.Sender, protocolName string, stateMe
 	}
 }
 
-func netstatTCPExtCounters(procfsPath string, fs afero.Fs) (map[string]int64, error) {
+func netstatTCPExtCounters(procfsPath string) (map[string]int64, error) {
+	fs := filesystem
 	f, err := fs.Open(procfsPath + "/net/netstat")
 	if err != nil {
 		return nil, err
@@ -283,7 +282,6 @@ func netstatTCPExtCounters(procfsPath string, fs afero.Fs) (map[string]int64, er
 			counters[counterNames[j]] = value
 		}
 	}
-
 	return counters, nil
 }
 
@@ -320,8 +318,12 @@ func Factory() option.Option[func() check.Check] {
 }
 
 func newCheck() check.Check {
+	procfsPath := "/proc"
+	if pkgconfigsetup.Datadog().IsConfigured("procfs_path") {
+		procfsPath = pkgconfigsetup.Datadog().GetString("procfs_path")
+	}
 	return &NetworkCheck{
-		net:       defaultNetworkStats{},
+		net:       defaultNetworkStats{procPath: procfsPath},
 		CheckBase: core.NewCheckBase(CheckName),
 	}
 }
