@@ -53,7 +53,7 @@ func (s *haAgentTestSuite) TestHaAgentRunningMetrics() {
 			s.T().Logf("    datadog.agent.ha_agent.running metric tags: %+v", metric.Tags)
 		}
 
-		tags := []string{"agent_state:unknown"}
+		tags := []string{"agent_state:unknown", "ha_agent_enabled:true"}
 		metrics, err = fakeClient.FilterMetrics("datadog.agent.ha_agent.running", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
 		require.NoError(c, err)
 		assert.NotEmpty(c, metrics)
