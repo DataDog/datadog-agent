@@ -283,6 +283,43 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 	}
 }
 
+func Test_haAgentImpl_IsIntegration(t *testing.T) {
+	testAgentHostname := "my-agent-hostname"
+	tests := []struct {
+		name                  string
+		leader                string
+		agentConfigs          map[string]interface{}
+		expectIsHaIntegration map[string]bool
+	}{
+		{
+			name: "base case",
+			// should run HA-integrations
+			// should run "non HA integrations"
+			agentConfigs: map[string]interface{}{
+				"hostname": testAgentHostname,
+			},
+			leader: testAgentHostname,
+			expectIsHaIntegration: map[string]bool{
+				"snmp":                true,
+				"cisco_aci":           true,
+				"cisco_sdwan":         true,
+				"network_path":        true,
+				"unknown_integration": false,
+				"cpu":                 false,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			haAgent := newTestHaAgentComponent(t, tt.agentConfigs)
+
+			for integrationName, shouldRun := range tt.expectIsHaIntegration {
+				assert.Equalf(t, shouldRun, haAgent.Comp.IsHaIntegration(integrationName), "fail for integration: "+integrationName)
+			}
+		})
+	}
+}
+
 func Test_haAgentImpl_resetAgentState(t *testing.T) {
 	// GIVEN
 	haAgent := newTestHaAgentComponent(t, nil)
