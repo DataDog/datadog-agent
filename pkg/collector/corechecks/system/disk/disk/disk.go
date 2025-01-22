@@ -47,7 +47,7 @@ func NewDiskConfig() *diskConfig {
 		tagByFilesystem:      false,
 		excludedMountpointRe: nil,
 		allPartitions:        false,
-		deviceTagRe:          make(map[*regexp.Regexp][]string), // Initialize map
+		deviceTagRe:          make(map[*regexp.Regexp][]string),
 		allDevices:           true,
 	}
 }
@@ -117,10 +117,20 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 	// Force exclusion of CDROM (iso9660) from disk check
 	c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, "iso9660")
 
-	excludedDisks, found := conf["excluded_disks"]
-	if excludedDisks, ok := excludedDisks.([]string); found && ok {
-		c.cfg.excludedDisks = excludedDisks
+	for _, key := range []string{"device_exclude"} {
+		if deviceExclude, ok := conf[key].([]interface{}); ok {
+			for _, val := range deviceExclude {
+				if strVal, ok := val.(string); ok {
+					c.cfg.excludedDisks = append(c.cfg.excludedDisks, strVal)
+				}
+			}
+		}
 	}
+
+	// excludedDisks, found := conf["excluded_disks"]
+	// if excludedDisks, ok := excludedDisks.([]string); found && ok {
+	// 	c.cfg.excludedDisks = excludedDisks
+	// }
 
 	excludedDiskRe, found := conf["excluded_disk_re"]
 	if excludedDiskRe, ok := excludedDiskRe.(string); found && ok {
