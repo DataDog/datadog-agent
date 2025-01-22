@@ -141,6 +141,7 @@ modules:
   pkg/config/utils:
     used_by_otel: true
   pkg/errors: default
+  pkg/fips: default
   pkg/gohai: default
   pkg/linters/components/pkgconfigusage:
     independent: false
