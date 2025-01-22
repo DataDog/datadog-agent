@@ -118,6 +118,8 @@ func mapHTTPAttributes(k string, value string, ddspan *pb.Span) {
 		// These are handled above explicitly.
 	case !isDatadogAPMConventionKey(k):
 		SetMetaOTLP(ddspan, k, value)
+	default:
+		return
 	}
 }
 
