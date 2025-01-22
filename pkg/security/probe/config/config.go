@@ -9,7 +9,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 
@@ -115,6 +114,15 @@ type Config struct {
 	// RawNetworkClassifierHandle defines the handle at which CWS should insert its Raw TC classifiers.
 	RawNetworkClassifierHandle uint16
 
+	// NetworkFlowMonitorEnabled defines if the network flow monitor should be enabled.
+	NetworkFlowMonitorEnabled bool
+
+	// NetworkFlowMonitorPeriod defines the period at which collected flows should flushed to user space.
+	NetworkFlowMonitorPeriod time.Duration
+
+	// NetworkFlowMonitorSKStorageEnabled defines if the network flow monitor should use a SK_STORAGE map (higher memory footprint).
+	NetworkFlowMonitorSKStorageEnabled bool
+
 	// ProcessConsumerEnabled defines if the process-agent wants to receive kernel events
 	ProcessConsumerEnabled bool
 
@@ -150,34 +158,37 @@ func NewConfig() (*Config, error) {
 	setEnv()
 
 	c := &Config{
-		Config:                       *ebpf.NewConfig(),
-		EnableAllProbes:              getBool("enable_all_probes"),
-		EnableKernelFilters:          getBool("enable_kernel_filters"),
-		EnableApprovers:              getBool("enable_approvers"),
-		EnableDiscarders:             getBool("enable_discarders"),
-		FlushDiscarderWindow:         getInt("flush_discarder_window"),
-		PIDCacheSize:                 getInt("pid_cache_size"),
-		StatsTagsCardinality:         getString("events_stats.tags_cardinality"),
-		CustomSensitiveWords:         getStringSlice("custom_sensitive_words"),
-		ERPCDentryResolutionEnabled:  getBool("erpc_dentry_resolution_enabled"),
-		MapDentryResolutionEnabled:   getBool("map_dentry_resolution_enabled"),
-		DentryCacheSize:              getInt("dentry_cache_size"),
-		RuntimeMonitor:               getBool("runtime_monitor.enabled"),
-		NetworkLazyInterfacePrefixes: getStringSlice("network.lazy_interface_prefixes"),
-		NetworkClassifierPriority:    uint16(getInt("network.classifier_priority")),
-		NetworkClassifierHandle:      uint16(getInt("network.classifier_handle")),
-		RawNetworkClassifierHandle:   uint16(getInt("network.raw_classifier_handle")),
-		EventStreamUseRingBuffer:     getBool("event_stream.use_ring_buffer"),
-		EventStreamBufferSize:        getInt("event_stream.buffer_size"),
-		EventStreamUseFentry:         getEventStreamFentryValue(),
-		EnvsWithValue:                getStringSlice("envs_with_value"),
-		NetworkEnabled:               getBool("network.enabled"),
-		NetworkIngressEnabled:        getBool("network.ingress.enabled"),
-		NetworkRawPacketEnabled:      getBool("network.raw_packet.enabled"),
-		NetworkPrivateIPRanges:       getStringSlice("network.private_ip_ranges"),
-		NetworkExtraPrivateIPRanges:  getStringSlice("network.extra_private_ip_ranges"),
-		StatsPollingInterval:         time.Duration(getInt("events_stats.polling_interval")) * time.Second,
-		SyscallsMonitorEnabled:       getBool("syscalls_monitor.enabled"),
+		Config:                             *ebpf.NewConfig(),
+		EnableAllProbes:                    getBool("enable_all_probes"),
+		EnableKernelFilters:                getBool("enable_kernel_filters"),
+		EnableApprovers:                    getBool("enable_approvers"),
+		EnableDiscarders:                   getBool("enable_discarders"),
+		FlushDiscarderWindow:               getInt("flush_discarder_window"),
+		PIDCacheSize:                       getInt("pid_cache_size"),
+		StatsTagsCardinality:               getString("events_stats.tags_cardinality"),
+		CustomSensitiveWords:               getStringSlice("custom_sensitive_words"),
+		ERPCDentryResolutionEnabled:        getBool("erpc_dentry_resolution_enabled"),
+		MapDentryResolutionEnabled:         getBool("map_dentry_resolution_enabled"),
+		DentryCacheSize:                    getInt("dentry_cache_size"),
+		RuntimeMonitor:                     getBool("runtime_monitor.enabled"),
+		NetworkLazyInterfacePrefixes:       getStringSlice("network.lazy_interface_prefixes"),
+		NetworkClassifierPriority:          uint16(getInt("network.classifier_priority")),
+		NetworkClassifierHandle:            uint16(getInt("network.classifier_handle")),
+		RawNetworkClassifierHandle:         uint16(getInt("network.raw_classifier_handle")),
+		NetworkFlowMonitorPeriod:           getDuration("network.flow_monitor.period"),
+		NetworkFlowMonitorEnabled:          getBool("network.flow_monitor.enabled"),
+		NetworkFlowMonitorSKStorageEnabled: getBool("network.flow_monitor.sk_storage.enabled"),
+		EventStreamUseRingBuffer:           getBool("event_stream.use_ring_buffer"),
+		EventStreamBufferSize:              getInt("event_stream.buffer_size"),
+		EventStreamUseFentry:               getBool("event_stream.use_fentry"),
+		EnvsWithValue:                      getStringSlice("envs_with_value"),
+		NetworkEnabled:                     getBool("network.enabled"),
+		NetworkIngressEnabled:              getBool("network.ingress.enabled"),
+		NetworkRawPacketEnabled:            getBool("network.raw_packet.enabled"),
+		NetworkPrivateIPRanges:             getStringSlice("network.private_ip_ranges"),
+		NetworkExtraPrivateIPRanges:        getStringSlice("network.extra_private_ip_ranges"),
+		StatsPollingInterval:               time.Duration(getInt("events_stats.polling_interval")) * time.Second,
+		SyscallsMonitorEnabled:             getBool("syscalls_monitor.enabled"),
 
 		// event server
 		SocketPath:       pkgconfigsetup.SystemProbe().GetString(join(evNS, "socket")),
@@ -253,21 +264,6 @@ func (c *Config) sanitizeConfigNetwork() {
 	}
 }
 
-func getEventStreamFentryValue() bool {
-	if getBool("event_stream.use_fentry") {
-		return true
-	}
-
-	switch runtime.GOARCH {
-	case "amd64":
-		return getBool("event_stream.use_fentry_amd64")
-	case "arm64":
-		return getBool("event_stream.use_fentry_arm64")
-	default:
-		return false
-	}
-}
-
 func join(pieces ...string) string {
 	return strings.Join(pieces, ".")
 }
@@ -299,6 +295,15 @@ func getInt(key string) int {
 		return pkgconfigsetup.SystemProbe().GetInt(deprecatedKey)
 	}
 	return pkgconfigsetup.SystemProbe().GetInt(newKey)
+}
+
+func getDuration(key string) time.Duration {
+	deprecatedKey, newKey := getAllKeys(key)
+	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
+		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
+		return pkgconfigsetup.SystemProbe().GetDuration(deprecatedKey)
+	}
+	return pkgconfigsetup.SystemProbe().GetDuration(newKey)
 }
 
 func getString(key string) string {

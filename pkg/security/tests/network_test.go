@@ -9,11 +9,13 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -225,7 +227,7 @@ func TestRawPacketFilter(t *testing.T) {
 
 	runTest := func(t *testing.T, filters []rawpacket.Filter, opts rawpacket.ProgOpts) {
 		progSpecs, err := rawpacket.FiltersToProgramSpecs(rawPacketEventMap.FD(), clsRouterMapFd.FD(), filters, opts)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.NotEmpty(t, progSpecs)
 
 		colSpec := ebpf.CollectionSpec{
@@ -236,7 +238,7 @@ func TestRawPacketFilter(t *testing.T) {
 		}
 
 		progsCol, err := ebpf.NewCollection(&colSpec)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		if err == nil {
 			progsCol.Close()
 		}
@@ -253,10 +255,73 @@ func TestRawPacketFilter(t *testing.T) {
 	})
 
 	t.Run("all-with-limit", func(t *testing.T) {
-		t.Skip("This test is disabled because it is too flaky")
+		// kernels < 5.2 have a limit of 4k instructions for the eBPF program size
+		checkKernelCompatibility(t, "Old debian kernels", func(kv *kernel.Version) bool {
+			return kv.IsDebianKernel() && kv.Code < kernel.Kernel5_2
+		})
+
 		opts := rawpacket.DefaultProgOpts
 		opts.MaxProgSize = 4000
 		opts.NopInstLen = 3500
 		runTest(t, filters, opts)
+	})
+}
+
+func TestNetworkFlowSendUDP4(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "RHEL, SLES, SUSE and Oracle kernels", func(kv *kernel.Version) bool {
+		// TODO: Oracle because we are missing offsets
+		// OpenSUSE distributions are missing the dummy kernel module
+		return kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel() || probe.IsNetworkFlowMonitorNotSupported(kv)
+	})
+
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
+		if out, err := loadModule("veth"); err != nil {
+			t.Fatalf("couldn't load 'veth' module: %s, %v", string(out), err)
+		}
+	}
+
+	testDestIP := "127.0.0.1"
+	testUDPDestPort := 12345
+
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule_network_flow",
+		Expression: `network_flow_monitor.flows.length > 0 && process.file.name == "syscall_tester"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(
+		testOpts{
+			networkFlowMonitorEnabled: true,
+		},
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("test_network_flow_send_udp4", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "network_flow_send_udp4", testDestIP, strconv.Itoa(testUDPDestPort))
+		}, func(event *model.Event, _ *rules.Rule) {
+			assert.Equal(t, "network_flow_monitor", event.GetType(), "wrong event type")
+			assert.Equal(t, uint64(1), event.NetworkFlowMonitor.FlowsCount, "wrong FlowsCount")
+			assert.Equal(t, 1, len(event.NetworkFlowMonitor.Flows), "wrong flows count")
+			if len(event.NetworkFlowMonitor.Flows) > 0 {
+				assert.Equal(t, testDestIP, event.NetworkFlowMonitor.Flows[0].Destination.IPNet.IP.To4().String(), "wrong destination IP")
+				assert.Equal(t, uint16(testUDPDestPort), event.NetworkFlowMonitor.Flows[0].Destination.Port, "wrong destination Port")
+				assert.Equal(t, uint16(model.IPProtoUDP), event.NetworkFlowMonitor.Flows[0].L4Protocol, "wrong L4 protocol")
+				assert.Equal(t, uint16(model.EthPIP), event.NetworkFlowMonitor.Flows[0].L3Protocol, "wrong L3 protocol")
+				assert.Equal(t, uint64(1), event.NetworkFlowMonitor.Flows[0].Egress.PacketCount, "wrong egress packet count")
+				assert.Equal(t, uint64(46), event.NetworkFlowMonitor.Flows[0].Egress.DataSize, "wrong egress data size") // full packet size including l2 header
+				assert.Equal(t, uint64(0), event.NetworkFlowMonitor.Flows[0].Ingress.PacketCount, "wrong ingress packet count")
+				assert.Equal(t, uint64(0), event.NetworkFlowMonitor.Flows[0].Ingress.DataSize, "wrong ingress data size")
+			}
+		})
 	})
 }
