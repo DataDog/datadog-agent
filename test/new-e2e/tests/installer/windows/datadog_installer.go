@@ -23,31 +23,6 @@ import (
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
-const (
-	// AgentPackage is the name of the Datadog Agent package
-	// We use a constant to make it easier for calling code, because depending on the context
-	// the Agent package can be referred to as "agent-package" (like in the OCI registry) or "datadog-agent" (in the
-	// local database once the Agent is installed).
-	AgentPackage string = "datadog-agent"
-	// Path is the path where the Datadog Installer is installed on disk
-	Path string = "C:\\Program Files\\Datadog\\Datadog Installer"
-	// BinaryName is the name of the Datadog Installer binary on disk
-	BinaryName string = "datadog-installer.exe"
-	// ServiceName the installer service name
-	ServiceName string = "Datadog Installer"
-	// ConfigPath is the location of the Datadog Installer's configuration on disk
-	ConfigPath string = "C:\\ProgramData\\Datadog\\datadog.yaml"
-	// RegistryKeyPath is the root registry key that the Datadog Installer uses to store some state
-	RegistryKeyPath string = `HKLM:\SOFTWARE\Datadog\Datadog Installer`
-	// NamedPipe is the name of the named pipe used by the Datadog Installer
-	NamedPipe string = `\\.\pipe\dd_installer`
-)
-
-var (
-	// BinaryPath is the path of the Datadog Installer binary on disk
-	BinaryPath = path.Join(Path, BinaryName)
-)
-
 // DatadogInstaller represents an interface to the Datadog Installer on the remote host.
 type DatadogInstaller struct {
 	binaryPath string
@@ -136,19 +111,6 @@ func (d *DatadogInstaller) runCommand(command, packageName string, opts ...insta
 	packageURL := fmt.Sprintf("oci://%s/%s:%s", packageConfig.Registry, registryTag, packageConfig.Version)
 
 	return d.execute(fmt.Sprintf("%s %s", command, packageURL), client.WithEnvVariables(envVars))
-}
-
-// RunInstallScript runs the Datadog Installer install script on the remote host.
-func (d *DatadogInstaller) RunInstallScript(extraEnvVars map[string]string) (string, error) {
-	// Set the environment variables for the install script
-	envVars := installer.InstallScriptEnv(e2eos.AMD64Arch)
-	for k, v := range extraEnvVars {
-		envVars[k] = v
-	}
-	cmd := fmt.Sprintf(`Set-ExecutionPolicy Bypass -Scope Process -Force;
-		[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
-		iex ((New-Object System.Net.WebClient).DownloadString('https://installtesting.datad0g.com/%s/scripts/Install-Datadog.ps1'));`, os.Getenv("CI_COMMIT_SHA"))
-	return d.env.RemoteHost.Execute(cmd, client.WithEnvVariables(envVars))
 }
 
 // InstallPackage will attempt to use the Datadog Installer to install the package given in parameter.
@@ -305,14 +267,4 @@ func (d *DatadogInstaller) Uninstall(opts ...Option) error {
 		msiArgs = strings.Join(params.msiArgs, " ")
 	}
 	return windowsCommon.MsiExec(d.env.RemoteHost, "/x", productCode, msiArgs, logPath)
-}
-
-// GetExperimentDirFor is the path to the experiment symbolic link on disk
-func GetExperimentDirFor(packageName string) string {
-	return fmt.Sprintf("C:\\ProgramData\\Datadog Installer\\packages\\%s\\experiment", packageName)
-}
-
-// GetStableDirFor is the path to the stable symbolic link on disk
-func GetStableDirFor(packageName string) string {
-	return fmt.Sprintf("C:\\ProgramData\\Datadog Installer\\packages\\%s\\stable", packageName)
 }

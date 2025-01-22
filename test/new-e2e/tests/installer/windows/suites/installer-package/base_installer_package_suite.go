@@ -15,12 +15,12 @@ import (
 //go:embed fixtures/sample_config
 var fixturesFS embed.FS
 
-// baseInstallerSuite is the base test suite for tests of the installer MSI
-type baseInstallerSuite struct {
+// baseInstallerPackageSuite is the base test suite for tests of the installer MSI
+type baseInstallerPackageSuite struct {
 	installerwindows.BaseInstallerSuite
 }
 
-func (s *baseInstallerSuite) freshInstall() {
+func (s *baseInstallerPackageSuite) freshInstall() {
 	// Arrange
 
 	// Act
@@ -41,7 +41,7 @@ func (s *baseInstallerSuite) freshInstall() {
 	s.Require().Error(err)
 }
 
-func (s *baseInstallerSuite) startServiceWithConfigFile() {
+func (s *baseInstallerPackageSuite) startServiceWithConfigFile() {
 	// Arrange
 	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config", installerwindows.ConfigPath)
 
@@ -54,7 +54,7 @@ func (s *baseInstallerSuite) startServiceWithConfigFile() {
 		WithStatus("Running")
 }
 
-func (s *baseInstallerSuite) requireInstalled() {
+func (s *baseInstallerPackageSuite) requireInstalled() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(installerwindows.BinaryPath).
 		WithSignature(agent.GetCodeSignatureThumbprints()).
@@ -67,7 +67,7 @@ func (s *baseInstallerSuite) requireInstalled() {
 		WithValueEqual("installedUser", agent.DefaultAgentUserName)
 }
 
-func (s *baseInstallerSuite) requireUninstalled() {
+func (s *baseInstallerPackageSuite) requireUninstalled() {
 	s.Require().Host(s.Env().RemoteHost).
 		NoFileExists(installerwindows.BinaryPath).
 		HasNoService(installerwindows.ServiceName).

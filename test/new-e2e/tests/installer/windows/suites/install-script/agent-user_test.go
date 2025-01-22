@@ -18,7 +18,7 @@ import (
 )
 
 type testInstallScriptWithAgentUserSuite struct {
-	installerwindows.BaseInstallerSuite
+	installerwindows.BaseSuite
 	agentUser string
 }
 
@@ -39,7 +39,7 @@ func (s *testInstallScriptWithAgentUserSuite) TestInstallScriptWithAgentUser() {
 	// Arrange
 
 	// Act
-	out, err := s.Installer().RunInstallScript(map[string]string{
+	out, err := installerwindows.RunInstallScript(s.Env(), map[string]string{
 		"DD_AGENT_USER_NAME": s.agentUser,
 	})
 	s.T().Log(out)

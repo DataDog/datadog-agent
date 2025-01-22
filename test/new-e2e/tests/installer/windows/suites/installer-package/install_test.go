@@ -16,7 +16,7 @@ import (
 )
 
 type testInstallerSuite struct {
-	baseInstallerSuite
+	baseInstallerPackageSuite
 }
 
 // TestInstaller tests the installation of the Datadog installer on a system.
@@ -51,28 +51,7 @@ func (s *testInstallerSuite) startServiceWithConfigFile() {
 	s.Require().NoError(common.StartService(s.Env().RemoteHost, installerwindows.ServiceName))
 
 	// Assert
-	s.Require().Host(s.Env().RemoteHost).
-		HasAService(installerwindows.ServiceName).
-		WithStatus("Running").
-		HasNamedPipe(installerwindows.NamedPipe).
-		WithSecurity(
-			// Only accessible to Administrators and LocalSystem
-			common.NewProtectedSecurityInfo(
-				common.GetIdentityForSID(common.AdministratorsSID),
-				common.GetIdentityForSID(common.LocalSystemSID),
-				[]common.AccessRule{
-					common.NewExplicitAccessRule(
-						common.GetIdentityForSID(common.LocalSystemSID),
-						common.FileFullControl,
-						common.AccessControlTypeAllow,
-					),
-					common.NewExplicitAccessRule(
-						common.GetIdentityForSID(common.AdministratorsSID),
-						common.FileFullControl,
-						common.AccessControlTypeAllow,
-					),
-				},
-			))
+	s.Require().Host(s.Env().RemoteHost).HasARunningDatadogInstallerService()
 	status, err := s.Installer().Status()
 	s.Require().NoError(err)
 	// with no packages installed just prints version
