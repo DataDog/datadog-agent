@@ -622,7 +622,7 @@ procfs_path: "/mocked/procfs"
 		0644)
 	assert.Nil(t, err)
 
-	err = networkCheck.Run()
+	_ = networkCheck.Run()
 
 	w.Flush()
 	assert.Contains(t, b.String(), "/mocked/procfs/net/netstat is not fomatted correctly, expected ':'")
@@ -658,7 +658,7 @@ procfs_path: "/mocked/procfs"
 		`TCPExt: `),
 		0644)
 	assert.Nil(t, err)
-	err = networkCheck.Run()
+	_ = networkCheck.Run()
 
 	w.Flush()
 	assert.Contains(t, b.String(), "/mocked/procfs/net/netstat is not fomatted correctly, not data line")
@@ -697,7 +697,7 @@ IpExt: 800 4343 4342 304
 IpExt: 801 439 120 439`),
 		0644)
 	assert.Nil(t, err)
-	err = networkCheck.Run()
+	_ = networkCheck.Run()
 
 	w.Flush()
 	assert.Contains(t, b.String(), "/mocked/procfs/net/netstat is not fomatted correctly, expected same number of columns")
