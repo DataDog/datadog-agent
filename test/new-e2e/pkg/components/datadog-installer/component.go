@@ -8,6 +8,7 @@
 package installer
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 	"github.com/DataDog/test-infra-definitions/common"
 	"github.com/DataDog/test-infra-definitions/common/config"
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/command"
 	remoteComp "github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"path"
 	"strings"
 )
 
@@ -43,8 +45,9 @@ func (h *Component) Export(ctx *pulumi.Context, out *Output) error {
 
 // Configuration represents the Windows NewDefender configuration
 type Configuration struct {
-	URL       string
-	AgentUser string
+	URL                  string
+	AgentUser            string
+	CreateInstallerPaths bool
 }
 
 // Option is an optional function parameter type for Configuration options
@@ -66,8 +69,18 @@ func WithAgentUser(user string) func(*Configuration) error {
 	}
 }
 
+// CreateInstallerPaths creates some directories that are normally created when using the
+// PowerShell install script but are not when using the installer directly.
+func CreateInstallerPaths() func(*Configuration) error {
+	return func(p *Configuration) error {
+		p.CreateInstallerPaths = true
+		return nil
+	}
+}
+
 // NewConfig creates a default config
 func NewConfig(env config.Env, options ...Option) (*Configuration, error) {
+	options = append([]Option{CreateInstallerPaths()})
 	if env.PipelineID() != "" {
 		artifactURL, err := pipeline.GetPipelineArtifact(env.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
 			return strings.Contains(artifact, "datadog-installer") && strings.HasSuffix(artifact, ".msi")
@@ -97,10 +110,21 @@ func NewInstaller(e config.Env, host *remoteComp.Host, options ...Option) (*Comp
 		comp.namer = e.CommonNamer().WithPrefix("datadog-installer")
 		comp.Host = host
 
+		createCmd := fmt.Sprintf("Exit (Start-Process -Wait msiexec -PassThru -ArgumentList '/qn /i %s %s').ExitCode", params.URL, agentUserArg)
+		if params.CreateInstallerPaths {
+			basePath := "C:/ProgramData/Datadog Installer"
+			paths := []string{
+				path.Join(basePath, "packages"),
+				path.Join(basePath, "configs"),
+				path.Join(basePath, "locks"),
+				path.Join(basePath, "tmp"),
+			}
+			for _, p := range paths {
+				createCmd = fmt.Sprintf("New-Item -Path \"%s\" -ItemType Directory -Force; %s", p, createCmd)
+			}
+		}
 		_, err = host.OS.Runner().Command(comp.namer.ResourceName("install"), &command.Args{
-			Create: pulumi.Sprintf(`
-Exit (Start-Process -Wait msiexec -PassThru -ArgumentList '/qn /i %s %s').ExitCode
-`, params.URL, agentUserArg),
+			Create: pulumi.String(createCmd).ToStringOutput(),
 			Delete: pulumi.Sprintf(`
 $installerList = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {$_.DisplayName -like 'Datadog Installer'}
 if (($installerList | measure).Count -ne 1) {

@@ -17,7 +17,7 @@ var fixturesFS embed.FS
 
 // baseInstallerPackageSuite is the base test suite for tests of the installer MSI
 type baseInstallerPackageSuite struct {
-	installerwindows.BaseInstallerSuite
+	installerwindows.BaseSuite
 }
 
 func (s *baseInstallerPackageSuite) freshInstall() {

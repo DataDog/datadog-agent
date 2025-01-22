@@ -19,7 +19,7 @@ import (
 )
 
 type testAgentInstallWithAgentUserSuite struct {
-	installerwindows.BaseInstallerSuite
+	installerwindows.BaseSuite
 	agentUser string
 }
 

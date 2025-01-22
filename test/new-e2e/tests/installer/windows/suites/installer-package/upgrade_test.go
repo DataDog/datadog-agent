@@ -10,43 +10,43 @@ import (
 
 	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	win "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	ins "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 )
 
 type testInstallerUpgradesSuite struct {
-	installerwindows.BaseInstallerSuite
+	ins.BaseSuite
 }
 
 // TestInstallerUpgrades tests the upgrades of the Datadog installer on a system.
 func TestInstallerUpgrades(t *testing.T) {
-	e2e.Run(t, &testInstallerUpgradesSuite{}, e2e.WithProvisioner(winawshost.ProvisionerNoAgentNoFakeIntake()))
+	e2e.Run(t, &testInstallerUpgradesSuite{}, e2e.WithProvisioner(win.ProvisionerNoAgentNoFakeIntake()))
 }
 
 // TestUpgrades tests upgrading the stable version of the Datadog installer to the latest from the pipeline.
 func (s *testInstallerUpgradesSuite) TestUpgrades() {
 	// Arrange
 	s.Require().NoError(s.Installer().Install(
-		installerwindows.WithInstallerURLFromInstallersJSON(pipeline.StableURL, s.StableInstallerVersion().PackageVersion())),
-		installerwindows.WithMSILogFile("install.log"),
+		ins.WithOption(ins.WithInstallerURLFromInstallersJSON(pipeline.StableURL, s.StableInstallerVersion().PackageVersion()))),
+		ins.WithMSILogFile("install.log"),
 	)
 	// sanity check: make sure we did indeed install the stable version
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(installerwindows.BinaryPath).
+		HasBinary(ins.BinaryPath).
 		// Don't check the binary signature because it could have been updated since the last stable was built
 		WithVersionEqual(s.StableInstallerVersion().Version())
 
 	// Act
 	// Install "latest" from the pipeline
 	s.Require().NoError(s.Installer().Install(
-		installerwindows.WithMSILogFile("upgrade.log"),
+		ins.WithMSILogFile("upgrade.log"),
 	))
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(installerwindows.BinaryPath).
+		HasBinary(ins.BinaryPath).
 		WithSignature(agent.GetCodeSignatureThumbprints()).
 		WithVersionMatchPredicate(func(version string) {
 			// We have to use a predicate and parse the installer's version here because unlike the stable format

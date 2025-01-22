@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package installer contains code for the E2E tests for the Datadog installer on Windows
 package installer
 
 import (
@@ -18,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 )
@@ -149,63 +147,10 @@ func (d *DatadogInstaller) Purge() (string, error) {
 	return d.executeFromCopy("purge")
 }
 
-// Params contains the optional parameters for the Datadog Installer Install command
-type Params struct {
-	installerURL   string
-	msiArgs        []string
-	msiLogFilename string
-}
-
-// Option is an optional function parameter type for the Datadog Installer Install command
-type Option func(*Params) error
-
-// WithInstallerURL uses a specific URL for the Datadog Installer Install command instead of using the pipeline URL.
-func WithInstallerURL(installerURL string) Option {
-	return func(params *Params) error {
-		params.installerURL = installerURL
-		return nil
-	}
-}
-
-// WithMSIArg uses a specific URL for the Datadog Installer Install command instead of using the pipeline URL.
-func WithMSIArg(arg string) Option {
-	return func(params *Params) error {
-		params.msiArgs = append(params.msiArgs, arg)
-		return nil
-	}
-}
-
-// WithMSILogFile sets the filename for the MSI log file, to be stored in the output directory.
-func WithMSILogFile(filename string) Option {
-	return func(params *Params) error {
-		params.msiLogFilename = filename
-		return nil
-	}
-}
-
-// WithInstallerURLFromInstallersJSON uses a specific URL for the Datadog Installer from an installers_v2.json
-// file.
-// jsonURL: The URL of the installers_v2.json file, i.e. pipeline.StableURL
-// version: The artifact version to retrieve, i.e. "7.56.0-installer-0.4.5-1"
-//
-// Example: WithInstallerURLFromInstallersJSON(pipeline.StableURL, "7.56.0-installer-0.4.5-1")
-// will look into "https://s3.amazonaws.com/ddagent-windows-stable/stable/installers_v2.json" for the Datadog Installer
-// version "7.56.0-installer-0.4.5-1"
-func WithInstallerURLFromInstallersJSON(jsonURL, version string) Option {
-	return func(params *Params) error {
-		url, err := installers.GetProductURL(jsonURL, "datadog-installer", version, "x86_64")
-		if err != nil {
-			return err
-		}
-		params.installerURL = url
-		return nil
-	}
-}
-
 // Install will attempt to install the Datadog Installer on the remote host.
 // By default, it will use the installer from the current pipeline.
-func (d *DatadogInstaller) Install(opts ...Option) error {
-	params := Params{
+func (d *DatadogInstaller) Install(opts ...MsiOption) error {
+	params := MsiParams{
 		msiLogFilename: "install.log",
 	}
 	err := optional.ApplyOptions(&params, opts)
@@ -244,8 +189,8 @@ func (d *DatadogInstaller) Install(opts ...Option) error {
 }
 
 // Uninstall will attempt to uninstall the Datadog Installer on the remote host.
-func (d *DatadogInstaller) Uninstall(opts ...Option) error {
-	params := Params{
+func (d *DatadogInstaller) Uninstall(opts ...MsiOption) error {
+	params := MsiParams{
 		msiLogFilename: "uninstall.log",
 	}
 	err := optional.ApplyOptions(&params, opts)

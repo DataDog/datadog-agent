@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package installer
 
 import (
@@ -25,10 +30,20 @@ import (
 //	STABLE_AGENT_VERSION_PACKAGE=7.55.2-1
 type BaseSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
+	installer              *DatadogInstaller
+	installScript          *DatadogInstallScript
 	currentAgentVersion    agentVersion.Version
 	stableInstallerVersion PackageVersion
 	stableAgentVersion     PackageVersion
 }
+
+// Installer The Datadog Installer for testing.
+func (s *BaseSuite) Installer() *DatadogInstaller {
+	return s.installer
+}
+
+// InstallScript The Datadog Install script for testing.
+func (s *BaseSuite) InstallScript() *DatadogInstallScript { return s.installScript }
 
 // Require instantiates a suiteAssertions for the current suite.
 // This allows writing assertions in a "natural" way, i.e.:
@@ -79,4 +94,11 @@ func (s *BaseSuite) SetupSuite() {
 	if s.stableAgentVersion.PackageVersion() == "" {
 		s.FailNow("STABLE_AGENT_VERSION_PACKAGE was not set")
 	}
+}
+
+// BeforeTest creates a new Datadog Installer and sets the output logs directory for each tests
+func (s *BaseSuite) BeforeTest(suiteName, testName string) {
+	s.BaseSuite.BeforeTest(suiteName, testName)
+	s.installer = NewDatadogInstaller(s.Env(), s.SessionOutputDir())
+	s.installScript = NewDatadogInstallScript(s.Env())
 }

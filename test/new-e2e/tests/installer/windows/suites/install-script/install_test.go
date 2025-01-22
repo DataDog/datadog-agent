@@ -6,7 +6,6 @@
 package agenttests
 
 import (
-	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
@@ -37,9 +36,7 @@ func (s *testInstallScriptSuite) bootstap() {
 	// Arrange
 
 	// Act
-	output, err := installerwindows.RunInstallScript(s.Env(), map[string]string{
-		"DD_INSTALLER_URL": fmt.Sprintf("https://s3.amazonaws.com/dd-agent-mstesting/pipelines/A7/%s/datadog-installer-%s-1-x86_64.exe", s.Env().Environment.PipelineID(), s.CurrentAgentVersion().GetNumberAndPre()),
-	})
+	output, err := s.InstallScript().Run()
 
 	// Assert
 	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
