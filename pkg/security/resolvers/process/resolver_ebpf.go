@@ -850,7 +850,9 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 	}
 
 	// first 4 bytes are the actual cookie
-	procCache, err := p.procCacheMap.LookupBytes(pidCache[0:model.SizeOfCookie])
+	cookie := pidCache[0:model.SizeOfCookie]
+
+	procCache, err := p.procCacheMap.LookupBytes(cookie)
 	if err != nil {
 		// LookupBytes doesn't return an error if the key is not found thus it is a critical error
 		seclog.Errorf("kernel map lookup error: %v", err)
@@ -883,6 +885,11 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 
 	if _, err := entry.UnmarshalPidCacheBinary(pidCache); err != nil {
 		return nil
+	}
+
+	// the process has exited, we can remove the entry from the proc cache
+	if !entry.ExitTime.IsZero() {
+		_ = p.procCacheMap.Delete(cookie)
 	}
 
 	// If we fall back to the kernel maps for a process in a container that was already running when the agent
