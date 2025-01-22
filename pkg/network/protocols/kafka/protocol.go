@@ -335,7 +335,7 @@ func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) error {
 	if err != nil {
 		return err
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[KafkaTransactionKey, KafkaTransaction](kafkaInFlight, 1, inFlightMap, "usm_monitor")
+	mapCleaner, err := ddebpf.NewMapCleaner[KafkaTransactionKey, KafkaTransaction](kafkaInFlight, protocols.DefaultMapCleanerBatchSize, inFlightMap, "usm_monitor")
 	if err != nil {
 		return err
 	}

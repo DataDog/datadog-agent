@@ -195,7 +195,7 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 		log.Errorf("error getting http_in_flight map: %s", err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, EbpfTx](httpMap, 1, inFlightMap, "usm_monitor")
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, EbpfTx](httpMap, protocols.DefaultMapCleanerBatchSize, inFlightMap, "usm_monitor")
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
