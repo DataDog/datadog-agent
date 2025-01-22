@@ -323,31 +323,40 @@ int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
     return get_dentry_ino(upper);
 }
 
+int __attribute__((always_inline)) get_ovl_lower_ino(struct dentry *dentry) {
+    switch (get_ovl_path_in_inode()) {
+    case 2:
+        return get_ovl_lower_ino_from_ovl_entry(dentry);
+    case 1:
+        return get_ovl_lower_ino_from_ovl_path(dentry);
+    default:
+        return get_ovl_lower_ino_direct(dentry);
+    }
+
+    return 0;
+}
+
 int __always_inline get_overlayfs_layer(struct dentry *dentry) {
     return get_ovl_upper_ino(dentry) != 0 ? UPPER_LAYER : LOWER_LAYER;
 }
 
 void __always_inline set_overlayfs_inode(struct dentry *dentry, struct file_t *file) {
-    u64 lower_inode = 0;
-    switch (get_ovl_path_in_inode()) {
-    case 2:
-        lower_inode = get_ovl_lower_ino_from_ovl_entry(dentry);
-        break;
-    case 1:
-        lower_inode = get_ovl_lower_ino_from_ovl_path(dentry);
-        break;
-    default:
-        lower_inode = get_ovl_lower_ino_direct(dentry);
-        break;
-    }
-
+    u64 orig_inode = file->path_key.ino;
+    u64 lower_inode = get_ovl_lower_ino(dentry);
     u64 upper_inode = get_ovl_upper_ino(dentry);
+
+    // NOTE(safchain) both lower & upper inode seems to be incorrect somtimes on kernel >= 6.8.
+    // Need to investigate the root cause.
+    if (get_ovl_path_in_inode() == 2 && lower_inode != orig_inode && upper_inode != orig_inode) {
+        return;
+    }
 
     if (lower_inode) {
         file->path_key.ino = lower_inode;
     } else if (upper_inode) {
         file->path_key.ino = upper_inode;
     }
+
     file->flags |= upper_inode != 0 ? UPPER_LAYER : LOWER_LAYER;
 }
 

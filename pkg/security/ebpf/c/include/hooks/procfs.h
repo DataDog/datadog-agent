@@ -17,6 +17,7 @@ static __attribute__((always_inline)) void cache_file(struct dentry *dentry, u32
         },
     };
 
+
     if (is_overlayfs(dentry)) {
         set_overlayfs_inode(dentry, &entry);
     }
@@ -24,6 +25,8 @@ static __attribute__((always_inline)) void cache_file(struct dentry *dentry, u32
     fill_file(dentry, &entry);
 
     // cache with the inode only as this map is used to capture the mount_id
+    // insert the dentry one and the overlayfs one in order to be able to find the entry userspace side
+    bpf_map_update_elem(&inode_file, &inode, &entry, BPF_ANY);
     bpf_map_update_elem(&inode_file, &entry.path_key.ino, &entry, BPF_ANY);
 }
 
