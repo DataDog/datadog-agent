@@ -71,7 +71,7 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 			FallbackLogLevel: level.String(),
 		},
 		configSetEndpointFormatString: fmt.Sprintf(
-			"https://127.0.0.1:%s/config/set?log_level=%%s", strconv.Itoa(conf.DebugServerPort),
+			"http://127.0.0.1:%s/config/set?log_level=%%s", strconv.Itoa(conf.DebugServerPort),
 		),
 	}
 }
