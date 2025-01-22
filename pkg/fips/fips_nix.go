@@ -17,7 +17,7 @@ import (
 func Status() string {
 	enabled, err := Enabled()
 	if err != nil {
-		return err
+		return err.Error()
 	}
 	return strconv.FormatBool(enabled)
 }
