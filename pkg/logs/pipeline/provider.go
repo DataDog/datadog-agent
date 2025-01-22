@@ -135,11 +135,6 @@ func (p *provider) Start() {
 	// This requires the auditor to be started before.
 	p.outputChan = p.auditor.Channel()
 
-	// shared sender
-	if p.sender != nil {
-		p.sender.Start()
-	}
-
 	for i := 0; i < p.numberOfPipelines; i++ {
 		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.auditor, p.sender,
 			p.diagnosticMessageReceiver, p.serverless, i, p.status, p.hostname, p.cfg, p.compression)
