@@ -26,6 +26,7 @@ const (
 	emrJavaTracerVersion   = "1.42.2-1"
 	emrAgentVersion        = "7.58.2-1"
 	commandTimeoutDuration = 10 * time.Second
+	hadoopLogFolder        = "/var/log/hadoop-yarn/containers/"
 )
 
 var (
@@ -63,14 +64,14 @@ var (
 	emrLogs = []common.IntegrationConfigLogs{
 		{
 			Type:    "file",
-			Path:    "/var/log/hadoop-yarn/containers/*/*/stdout",
+			Path:    hadoopLogFolder + "*/*/stdout",
 			Source:  "worker_logs",
 			Service: "hadoop-yarn",
 			Tags:    "log_source:stdout",
 		},
 		{
 			Type:    "file",
-			Path:    "/var/log/hadoop-yarn/containers/*/*/stderr",
+			Path:    hadoopLogFolder + "*/*/stderr",
 			Source:  "worker_logs",
 			Service: "hadoop-yarn",
 			Tags:    "log_source:stderr",
@@ -125,6 +126,12 @@ func SetupEmr(s *common.Setup) error {
 	// Add logs config to both Resource Manager and Workers
 	var sparkIntegration common.IntegrationConfig
 	if os.Getenv("DD_LOGS_ENABLED") == "true" {
+		// Add dd-agent to yarn group to give the Agent permission to READ the Spark log files
+		_, err := executeCommandWithTimeout(s, "sudo", "usermod", "-aG", "yarn", "dd-agent")
+		if err != nil {
+			log.Warnf("error changing permission group for log file, dd-agent won't have access to EMR logs: %v", err)
+			return nil
+		}
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = emrLogs
 	}
