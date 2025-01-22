@@ -101,7 +101,7 @@ def versions_equal(version1, version2):
     idx = version1.find("/")
     if idx != -1:
         # version may be in the format of "v1.xx.0/v0.yyy.0"
-        version1 = version1[idx+1:]
+        version1 = version1[idx + 1 :]
     # strip leading 'v' if present
     if version1.startswith("v"):
         version1 = version1[1:]
