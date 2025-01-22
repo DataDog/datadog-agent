@@ -119,14 +119,14 @@ func TestConfig(t *testing.T) {
 		sent := <-sendChan
 		require.NotNil(t, sent)
 		require.Len(t, sent.Configs, 1)
-		require.Equal(t, "test", sent.Configs[0].Name)
+		require.Equal(t, "test", sent.Configs[0].CheckName)
 		require.Equal(t, pb.ConfigEventType_SCHEDULE, sent.Configs[0].EventType)
 
 		scheduler.Unschedule(configs)
 		sent = <-sendChan
 		require.NotNil(t, sent)
 		require.Len(t, sent.Configs, 1)
-		require.Equal(t, "test", sent.Configs[0].Name)
+		require.Equal(t, "test", sent.Configs[0].CheckName)
 		require.Equal(t, pb.ConfigEventType_UNSCHEDULE, sent.Configs[0].EventType)
 
 		cancel()
@@ -145,7 +145,7 @@ func TestConfig(t *testing.T) {
 		sent := <-sendChan
 		require.NotNil(t, sent)
 		require.Len(t, sent.Configs, 1)
-		require.Equal(t, "test", sent.Configs[0].Name)
+		require.Equal(t, "test", sent.Configs[0].CheckName)
 		require.Equal(t, pb.ConfigEventType_SCHEDULE, sent.Configs[0].EventType)
 
 		require.ErrorIs(t, <-configErrChan, sendError)
