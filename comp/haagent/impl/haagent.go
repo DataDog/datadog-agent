@@ -34,8 +34,8 @@ func (h *haAgentImpl) Enabled() bool {
 	return h.haAgentConfigs.enabled
 }
 
-func (h *haAgentImpl) GetGroup() string {
-	return h.haAgentConfigs.group
+func (h *haAgentImpl) GetConfigID() string {
+	return h.haAgentConfigs.configID
 }
 
 func (h *haAgentImpl) GetState() haagent.State {
@@ -103,12 +103,12 @@ func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyS
 			})
 			continue
 		}
-		if haAgentMsg.ConfigID != h.GetGroup() {
-			h.log.Warnf("Skipping invalid HA_AGENT update %s: expected group %s, got %s",
-				configPath, h.GetGroup(), haAgentMsg.ConfigID)
+		if haAgentMsg.ConfigID != h.GetConfigID() {
+			h.log.Warnf("Skipping invalid HA_AGENT update %s: expected configID %s, got %s",
+				configPath, h.GetConfigID(), haAgentMsg.ConfigID)
 			applyStateCallback(configPath, state.ApplyStatus{
 				State: state.ApplyStateError,
-				Error: "group does not match",
+				Error: "configID does not match",
 			})
 			continue
 		}
