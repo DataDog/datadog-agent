@@ -425,7 +425,7 @@ class CollectorRepo:
 
     def fetch_latest_release(self):
         gh = GithubAPI(self.repo)
-        self.version = gh.latest_release()
+        self.version = gh.latest_release_tag()
         return self.version
 
     def fetch_module_versions(self):
