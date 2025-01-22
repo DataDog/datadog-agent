@@ -33,7 +33,7 @@ func TestHaAgentSuite(t *testing.T) {
 	agentConfig := `
 ha_agent:
     enabled: true
-config_id: test-config01
+    group: test-group01
 log_level: debug
 `
 	e2e.Run(t, &haAgentTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
@@ -53,13 +53,8 @@ func (s *haAgentTestSuite) TestHaAgentRunningMetrics() {
 			s.T().Logf("    datadog.agent.ha_agent.running metric tags: %+v", metric.Tags)
 		}
 
-		tags := []string{"agent_state:unknown", "config_id:test-config01"}
+		tags := []string{"agent_state:unknown"}
 		metrics, err = fakeClient.FilterMetrics("datadog.agent.ha_agent.running", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
-		require.NoError(c, err)
-		assert.NotEmpty(c, metrics)
-
-		tags = []string{"config_id:test-config01"}
-		metrics, err = fakeClient.FilterMetrics("datadog.agent.running", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
 		require.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 	}, 5*time.Minute, 3*time.Second)
