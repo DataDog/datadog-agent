@@ -78,10 +78,10 @@ type EBPFResolver struct {
 	pathResolver      spath.ResolverInterface
 	envVarsResolver   *envvars.Resolver
 
-	execFileCacheMap *lib.Map
-	procCacheMap     *lib.Map
-	pidCacheMap      *lib.Map
-	opts             ResolverOpts
+	inodeFileMap *lib.Map
+	procCacheMap *lib.Map
+	pidCacheMap  *lib.Map
+	opts         ResolverOpts
 
 	// stats
 	cacheSize                 *atomic.Int64
@@ -514,7 +514,7 @@ func (p *EBPFResolver) RetrieveFileFieldsFromProcfs(filename string) (*model.Fil
 	inodeb := make([]byte, 8)
 	binary.NativeEndian.PutUint64(inodeb, inode)
 
-	data, err := p.execFileCacheMap.LookupBytes(inodeb)
+	data, err := p.inodeFileMap.LookupBytes(inodeb)
 	// go back to a sane error value
 	if data == nil && err == nil {
 		err = lib.ErrKeyNotExist
@@ -1189,7 +1189,7 @@ func (p *EBPFResolver) FetchAWSSecurityCredentials(e *model.Event) []model.AWSSe
 // Start starts the resolver
 func (p *EBPFResolver) Start(ctx context.Context) error {
 	var err error
-	if p.execFileCacheMap, err = managerhelper.Map(p.manager, "inode_file"); err != nil {
+	if p.inodeFileMap, err = managerhelper.Map(p.manager, "inode_file"); err != nil {
 		return err
 	}
 
