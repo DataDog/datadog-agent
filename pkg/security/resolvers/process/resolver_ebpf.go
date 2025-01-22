@@ -498,21 +498,51 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	return nil
 }
 
-// RetrieveFileFieldsFromProcfs fetches inode metadata from kernel space.
-// stat the file which triggers the security_inode_getattr, which fill a map with the needed data
-func (p *EBPFResolver) RetrieveFileFieldsFromProcfs(filename string) (*model.FileFields, error) {
+func (p *EBPFResolver) statFile(filename string) (uint64, []byte, error) {
+	// first stat to reserve the entry in the map and let the second stat update the entry
 	fi, err := os.Stat(filename)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	stat, ok := fi.Sys().(*syscall.Stat_t)
 	if !ok {
-		return nil, errors.New("wrong type")
+		return 0, nil, errors.New("wrong type")
 	}
-	inode := stat.Ino
 
 	inodeb := make([]byte, 8)
-	binary.NativeEndian.PutUint64(inodeb, inode)
+	binary.NativeEndian.PutUint64(inodeb, stat.Ino)
+
+	// push to allocate the entry
+	fileFields := model.FileFields{
+		PathKey: model.PathKey{
+			Inode: stat.Ino,
+		},
+	}
+
+	data := make([]byte, model.FileFieldsSize)
+	if _, err = fileFields.MarshalBinary(data); err != nil {
+		return 0, inodeb, err
+	}
+
+	if err = p.inodeFileMap.Put(inodeb, data); err != nil {
+		return 0, nil, err
+	}
+
+	// stat again to let the kernel part update the entry
+	if _, err = os.Stat(filename); err != nil {
+		return 0, nil, err
+	}
+
+	return stat.Ino, inodeb, nil
+}
+
+// RetrieveFileFieldsFromProcfs fetches inode metadata from kernel space.
+// stat the file which triggers the security_inode_getattr, which fill a map with the needed data
+func (p *EBPFResolver) RetrieveFileFieldsFromProcfs(filename string) (*model.FileFields, error) {
+	inode, inodeb, err := p.statFile(filename)
+	if err != nil {
+		return nil, err
+	}
 
 	data, err := p.inodeFileMap.LookupBytes(inodeb)
 	// go back to a sane error value

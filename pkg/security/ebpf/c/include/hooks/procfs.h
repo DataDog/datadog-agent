@@ -17,17 +17,17 @@ static __attribute__((always_inline)) void cache_file(struct dentry *dentry, u32
         },
     };
 
-
     if (is_overlayfs(dentry)) {
         set_overlayfs_inode(dentry, &entry);
     }
 
     fill_file(dentry, &entry);
 
-    // cache with the inode only as this map is used to capture the mount_id
+    // cache with the inode as key only as this map is used to capture the mount_id
     // insert the dentry one and the overlayfs one in order to be able to find the entry userspace side
-    bpf_map_update_elem(&inode_file, &inode, &entry, BPF_ANY);
-    bpf_map_update_elem(&inode_file, &entry.path_key.ino, &entry, BPF_ANY);
+    // the userspace as to first push an entry so that it limits to eviction caused by other stats from system-probe.
+    bpf_map_update_elem(&inode_file, &inode, &entry, BPF_EXIST);
+    bpf_map_update_elem(&inode_file, &entry.path_key.ino, &entry, BPF_EXIST);
 }
 
 static __attribute__((always_inline)) int handle_stat() {

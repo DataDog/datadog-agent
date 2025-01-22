@@ -386,7 +386,7 @@ func (p *PathKey) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 72 {
+	if len(data) < FileFieldsSize {
 		return 0, ErrNotEnoughData
 	}
 
@@ -413,7 +413,7 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	timeNsec = binary.NativeEndian.Uint64(data[48:56])
 	e.MTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
 
-	return 72, nil
+	return FileFieldsSize, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

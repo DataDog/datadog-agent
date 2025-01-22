@@ -32,7 +32,7 @@ func MarshalBinary(data []byte, binaryMarshalers ...BinaryMarshaler) (int, error
 
 // MarshalBinary marshals a binary representation of itself
 func (e *FileFields) MarshalBinary(data []byte) (int, error) {
-	if len(data) < 72 {
+	if len(data) < FileFieldsSize {
 		return 0, ErrNotEnoughSpace
 	}
 	binary.NativeEndian.PutUint64(data[0:8], e.Inode)
@@ -66,7 +66,8 @@ func (e *FileFields) MarshalBinary(data []byte) (int, error) {
 	}
 	binary.NativeEndian.PutUint64(data[56:64], uint64(timeSec))
 	binary.NativeEndian.PutUint64(data[64:72], uint64(timeNsec))
-	return 72, nil
+
+	return FileFieldsSize, nil
 }
 
 // MarshalProcCache marshals a binary representation of itself
@@ -175,4 +176,33 @@ func (adlc *ActivityDumpLoadConfig) MarshalBinary() ([]byte, error) {
 	binary.NativeEndian.PutUint32(raw[44:48], adlc.Paused)
 
 	return raw, nil
+}
+
+// MarshalBinary returns the binary representation of a path key
+func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
+	buff := make([]byte, PathLeafSize)
+
+	pl.Parent.Write(buff)
+	copy(buff[16:], pl.Name[:])
+	binary.NativeEndian.PutUint16(buff[16+len(pl.Name):], pl.Len)
+
+	return buff, nil
+}
+
+func (p *PathKey) Write(buffer []byte) {
+	binary.NativeEndian.PutUint64(buffer[0:8], p.Inode)
+	binary.NativeEndian.PutUint32(buffer[8:12], p.MountID)
+	binary.NativeEndian.PutUint32(buffer[12:16], p.PathID)
+}
+
+// MarshalBinary returns the binary representation of a path key
+func (p *PathKey) MarshalBinary() ([]byte, error) {
+	if p.IsNull() {
+		return nil, &ErrInvalidKeyPath{Inode: p.Inode, MountID: p.MountID}
+	}
+
+	buff := make([]byte, 16)
+	p.Write(buff)
+
+	return buff, nil
 }
