@@ -14,6 +14,10 @@ import (
 	"golang.org/x/net/ipv4"
 )
 
+var (
+	buf = gopacket.NewSerializeBuffer() // nolint:unused // used for Windows but not Linux
+)
+
 // createRawUDPBuffer creates a raw UDP packet with the specified parameters
 //
 // the nolint:unused is necessary because we don't yet use this outside the Windows implementation
@@ -43,7 +47,11 @@ func createRawUDPBuffer(sourceIP net.IP, sourcePort uint16, destIP net.IP, destP
 	if err != nil {
 		return nil, nil, 0, 0, fmt.Errorf("failed to create packet checksum: %w", err)
 	}
-	buf := gopacket.NewSerializeBuffer()
+
+	// clear the gopacket.SerializeBuffer
+	if len(buf.Bytes()) > 0 {
+		buf.Clear() // nolint:errcheck
+	}
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 	err = gopacket.SerializeLayers(buf, opts,
 		ipLayer,

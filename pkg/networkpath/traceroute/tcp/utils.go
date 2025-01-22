@@ -14,6 +14,10 @@ import (
 	"golang.org/x/net/ipv4"
 )
 
+var (
+	buf = gopacket.NewSerializeBuffer()
+)
+
 // reserveLocalPort reserves an ephemeral TCP port
 // and returns both the listener and port because the
 // listener should be held until the port is no longer
@@ -64,7 +68,11 @@ func createRawTCPSynBuffer(sourceIP net.IP, sourcePort uint16, destIP net.IP, de
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("failed to create packet checksum: %w", err)
 	}
-	buf := gopacket.NewSerializeBuffer()
+
+	// clear the gopacket.SerializeBuffer
+	if len(buf.Bytes()) > 0 {
+		buf.Clear() // nolint:errcheck
+	}
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 	err = gopacket.SerializeLayers(buf, opts,
 		ipLayer,
