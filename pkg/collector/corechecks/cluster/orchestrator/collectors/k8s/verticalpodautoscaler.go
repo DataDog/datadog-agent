@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	v1Informers "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions/autoscaling.k8s.io/v1"
@@ -21,9 +22,9 @@ import (
 )
 
 // NewVerticalPodAutoscalerCollectorVersions builds the group of collector versions.
-func NewVerticalPodAutoscalerCollectorVersions() collectors.CollectorVersions {
+func NewVerticalPodAutoscalerCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewVerticalPodAutoscalerCollector(),
+		NewVerticalPodAutoscalerCollector(metadataAsTags),
 	)
 }
 
@@ -37,7 +38,11 @@ type VerticalPodAutoscalerCollector struct {
 
 // NewVerticalPodAutoscalerCollector creates a new collector for the Kubernetes
 // VerticalPodAutoscaler resource.
-func NewVerticalPodAutoscalerCollector() *VerticalPodAutoscalerCollector {
+func NewVerticalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *VerticalPodAutoscalerCollector {
+	resourceType := getResourceType(vpaName, vpaVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &VerticalPodAutoscalerCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -45,9 +50,11 @@ func NewVerticalPodAutoscalerCollector() *VerticalPodAutoscalerCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "verticalpodautoscalers",
+			Name:                      vpaName,
 			NodeType:                  orchestrator.K8sVerticalPodAutoscaler,
-			Version:                   "autoscaling.k8s.io/v1",
+			Version:                   vpaVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.VerticalPodAutoscalerHandlers)),
 	}

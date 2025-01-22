@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	"sort"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 )
 
 func TestExtractHorizontalPodAutoscaler(t *testing.T) {
@@ -34,8 +36,10 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 	*averageUtilization = 60
 
 	tests := map[string]struct {
-		input    v2.HorizontalPodAutoscaler
-		expected model.HorizontalPodAutoscaler
+		input             v2.HorizontalPodAutoscaler
+		labelsAsTags      map[string]string
+		annotationsAsTags map[string]string
+		expected          model.HorizontalPodAutoscaler
 	}{
 		"standard": {
 			input: v2.HorizontalPodAutoscaler{
@@ -258,6 +262,12 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 					},
 				},
 			},
+			labelsAsTags: map[string]string{
+				"app": "application",
+			},
+			annotationsAsTags: map[string]string{
+				"annotation": "annotation_key",
+			},
 			expected: model.HorizontalPodAutoscaler{
 				Metadata: &model.Metadata{
 					Name:              "HPATest",
@@ -475,6 +485,8 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 					},
 				},
 				Tags: []string{
+					"application:my-app",
+					"annotation_key:my-annotation",
 					"kube_condition_abletoscale:true",
 					"kube_condition_scalingactive:true",
 					"kube_condition_scalinglimited:false",
@@ -897,7 +909,14 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, &tc.expected, ExtractHorizontalPodAutoscaler(&tc.input))
+			pctx := &processors.K8sProcessorContext{
+				LabelsAsTags:      tc.labelsAsTags,
+				AnnotationsAsTags: tc.annotationsAsTags,
+			}
+			actual := ExtractHorizontalPodAutoscaler(pctx, &tc.input)
+			sort.Strings(tc.expected.Tags)
+			sort.Strings(actual.Tags)
+			assert.Equal(t, &tc.expected, actual)
 		})
 	}
 }

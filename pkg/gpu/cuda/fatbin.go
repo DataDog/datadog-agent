@@ -20,6 +20,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"iter"
+	"maps"
 	"unsafe"
 
 	"github.com/pierrec/lz4/v4"
@@ -45,6 +47,12 @@ type Fatbin struct {
 
 	// kernelNames is a map of kernel names to make easy lookup for HasKernelWithName
 	kernelNames map[string]struct{}
+
+	// CompressedPayloads is the number of compressed payloads found in the fatbin
+	CompressedPayloads int
+
+	// UncompressedPayloads is the number of uncompressed payloads found in the fatbin
+	UncompressedPayloads int
 }
 
 // NewFatbin creates a new Fatbin instance
@@ -62,6 +70,16 @@ func (fb *Fatbin) GetKernel(name string, smVersion uint32) *CubinKernel {
 		return nil
 	}
 	return fb.kernels[key]
+}
+
+// GetKernels returns an iterator over the kernels in the fatbin
+func (fb *Fatbin) GetKernels() iter.Seq[*CubinKernel] {
+	return maps.Values(fb.kernels)
+}
+
+// NumKernels returns the number of kernels in the fatbin
+func (fb *Fatbin) NumKernels() int {
+	return len(fb.kernels)
 }
 
 // HasKernelWithName returns true if the fatbin has a kernel with the given name
@@ -244,6 +262,7 @@ func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
 	// have once uncompressed. If it's zero, the payload is not compressed.
 	var payload []byte
 	if fbData.UncompressedPayloadSize != 0 {
+		fatbin.CompressedPayloads++
 		compressedPayload := make([]byte, fbData.PaddedPayloadSize)
 		_, err := io.ReadFull(buffer, compressedPayload)
 		if err != nil {
@@ -259,6 +278,7 @@ func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
 			return fmt.Errorf("failed to decompress fatbin payload: %w", err)
 		}
 	} else {
+		fatbin.UncompressedPayloads++
 		payload = make([]byte, fbData.PaddedPayloadSize)
 		_, err := io.ReadFull(buffer, payload)
 		if err != nil {
