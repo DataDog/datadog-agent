@@ -27,7 +27,8 @@ func getAttrProbes(fentry bool) []*manager.Probe {
 	attrProbes = appendSyscallProbes(attrProbes, fentry, EntryAndExit, false, "chown", "chown16", "fchown", "fchown16", "fchownat", "lchown", "lchown16")
 
 	// utime
-	attrProbes = appendSyscallProbes(attrProbes, fentry, EntryAndExit, true, "utime", "utime32", "utimes", "utimensat", "futimesat")
+	attrProbes = appendSyscallProbes(attrProbes, fentry, EntryAndExit, true, "utime", "utimes", "utimensat", "futimesat")
+	attrProbes = appendSyscallProbes(attrProbes, fentry, EntryAndExit, false, "utime32")
 	attrProbes = appendSyscallProbes(attrProbes, fentry, EntryAndExit|ExpandTime32, false, "utimes", "utimensat", "futimesat")
 
 	return attrProbes
