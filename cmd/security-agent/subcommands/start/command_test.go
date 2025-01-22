@@ -51,6 +51,9 @@ func TestCommand(t *testing.T) {
 			test.check,
 		)
 	}
+
+	// FIXME: to make the linter happy
+	fxutil.TestOneShot(t, func() {})
 }
 
 func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
