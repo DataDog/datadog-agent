@@ -41,6 +41,11 @@ func (m *testDaemon) Install(ctx context.Context, url string, installArgs []stri
 	return args.Error(0)
 }
 
+func (m *testDaemon) Remove(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
 func (m *testDaemon) StartExperiment(ctx context.Context, url string) error {
 	args := m.Called(ctx, url)
 	return args.Error(0)
