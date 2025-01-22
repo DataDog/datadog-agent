@@ -2,6 +2,44 @@
 Release Notes
 =============
 
+.. _Release Notes_6.53.1_6.53.x:
+
+6.53.1
+======
+
+.. _Release Notes_6.53.1_6.53.x_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-01-22
+
+- Please refer to the `7.53.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7530>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_6.53.1_6.53.x_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.21.11``.
+
+- The Datadog agent container image is now using Ubuntu 24.04 noble
+  as the base image.
+
+
+.. _Release Notes_6.53.1_6.53.x_Security Notes:
+
+Security Notes
+--------------
+
+- Fix CVE 2024-41110.
+
+- Update ``golang.org/x/crypto`` to fix CVE-2024-45337.
+
+- Fix CVE-2025-21613.
+
+
 .. _Release Notes_7.53.0:
 
 7.53.0 / 6.53.0

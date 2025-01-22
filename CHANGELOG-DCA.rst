@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_6.53.1_6.53.x:
+
+6.53.1
+======
+
+.. _Release Notes_6.53.1_6.53.x_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-01-22
+Pinned to datadog-agent v6.53.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/6.53.x/CHANGELOG.rst#6531>`_.
+
+
+.. _Release Notes_6.53.1_6.53.x_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Datadog cluster-agent container image is now using Ubuntu 24.04 noble
+  as the base image.
+
+
 .. _Release Notes_7.53.0:
 
 7.53.0 / 6.53.0
