@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -25,6 +26,7 @@ const flakyTestMessage = "flakytest: this is a known flaky test"
 
 var skipFlake = flag.Bool("skip-flake", false, "skip tests labeled as flakes")
 var flakyPatternsConfig = flag.String("flaky-patterns-config", "/tmp/e2e-flaky-patterns.yaml", "path to the flaky patterns configuration file that will be created when MarkOnLog is used")
+var flakyPatternsConfigMutex = sync.Mutex{}
 
 // Mark test as a known flaky.
 // If any of skip-flake flag or GO_TEST_SKIP_FLAKE environment variable is set, the test will be skipped.
@@ -74,7 +76,10 @@ func MarkOnLog(t testing.TB, pattern string) {
 		return
 	}
 
-	// TODO: Lock file (multithread)
+	// Avoid race conditions
+	flakyPatternsConfigMutex.Lock()
+	defer flakyPatternsConfigMutex.Unlock()
+
 	flakyConfig := make(map[string]interface{})
 
 	// Read initial config
@@ -106,7 +111,7 @@ func MarkOnLog(t testing.TB, pattern string) {
 	entry["test"] = t.Name()
 	entry["on-log"] = pattern
 	if packageConfig, ok := flakyConfig[packageName]; ok {
-		flakyConfig[packageName] = append(packageConfig.([]map[string]interface{}), entry)
+		flakyConfig[packageName] = append(packageConfig.([]interface{}), entry)
 	} else {
 		flakyConfig[packageName] = []map[string]interface{}{entry}
 	}
