@@ -2254,6 +2254,19 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		}
 	}
 
+	if !p.kernelVersion.HasNoPreallocMapsInPerfEvent() {
+		// Edit maps used in perf_event programs with BPF_F_NO_PREALLOC flag so that they are pre-allocated
+		if p.managerOptions.MapSpecEditors == nil {
+			p.managerOptions.MapSpecEditors = make(map[string]manager.MapSpecEditor, len(probes.AllSKStorageMaps()))
+		}
+		for _, noPreallocMapName := range probes.AllNoPreallocMapsInPerfEventPrograms() {
+			p.managerOptions.MapSpecEditors[noPreallocMapName] = manager.MapSpecEditor{
+				Flags:      unix.BPF_ANY,
+				EditorFlag: manager.EditFlags,
+			}
+		}
+	}
+
 	if p.useFentry {
 		afBasedExcluder, err := newAvailableFunctionsBasedExcluder()
 		if err != nil {

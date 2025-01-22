@@ -130,6 +130,7 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 	setHostTag(s, "cluster_id", extraInfo.JobFlowID)
 	setHostTag(s, "emr_version", extraInfo.ReleaseLabel)
 	s.Span.SetTag("emr_version", extraInfo.ReleaseLabel)
+	setHostTag(s, "data_workload_monitoring_trial", "true")
 
 	clusterName := resolveEmrClusterName(s, extraInfo.JobFlowID)
 	setHostTag(s, "cluster_name", clusterName)

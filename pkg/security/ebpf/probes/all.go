@@ -144,6 +144,14 @@ func AllSKStorageMaps() []string {
 	}
 }
 
+// AllNoPreallocMapsInPerfEventPrograms returns the list of maps with the BPF_F_NO_PREALLOC flag that are used in
+// perf_event programs
+func AllNoPreallocMapsInPerfEventPrograms() []string {
+	return []string{
+		"active_flows",
+	}
+}
+
 // AllBPFForEachMapElemProgramFunctions returns the list of programs that leverage the bpf_for_each_map_elem helper
 func AllBPFForEachMapElemProgramFunctions() []string {
 	return []string{
