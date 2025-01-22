@@ -348,11 +348,18 @@ func (suite *k8sSuite) testAgentCLI() {
 	})
 
 	suite.Run("agent workload-list", func() {
-		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `agent workload-list` should be empty")
-		suite.Contains(stdout, "=== Entity container sources(merged):[node_orchestrator runtime] id: ")
-		suite.Contains(stdout, "=== Entity kubernetes_pod sources(merged):[cluster_orchestrator node_orchestrator] id: ")
+		var stdout string
+		var stderr string
+		suite.EventuallyWithT(func(c *assert.CollectT) {
+			stdout, stderr, err = suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
+			if !assert.NoError(c, err) {
+				return
+			}
+			assert.Empty(c, stderr, "Standard error of `agent workload-list` should be empty")
+			assert.Contains(c, stdout, "=== Entity container sources(merged):[node_orchestrator runtime] id: ")
+			assert.Contains(c, stdout, "=== Entity kubernetes_pod sources(merged):[cluster_orchestrator node_orchestrator] id: ")
+			assert.Contains(c, stdout, "Language: python") // Added temporarily to investigate flaky e2e test
+		}, 2*time.Minute, 1*time.Second)
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}
