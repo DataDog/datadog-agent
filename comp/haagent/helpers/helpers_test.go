@@ -25,9 +25,3 @@ func TestGetConfigID(t *testing.T) {
 	cfg.SetWithoutSource("config_id", "my-config-id")
 	assert.Equal(t, "my-config-id", GetConfigID(cfg))
 }
-
-func TestGetHaAgentTags(t *testing.T) {
-	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("config_id", "my-config-id")
-	assert.Equal(t, []string{"agent_group:my-config-id"}, GetHaAgentTags(cfg))
-}

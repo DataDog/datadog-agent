@@ -19,9 +19,3 @@ func IsEnabled(agentConfig model.Reader) bool {
 func GetConfigID(agentConfig model.Reader) string {
 	return agentConfig.GetString("config_id")
 }
-
-// GetHaAgentTags returns HA Agent related tags
-func GetHaAgentTags(agentConfig model.Reader) []string {
-	// TODO(alexandre.yang): Remove agent_group tag
-	return []string{"agent_group:" + GetConfigID(agentConfig)}
-}
