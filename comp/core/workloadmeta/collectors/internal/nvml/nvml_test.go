@@ -44,7 +44,7 @@ func TestPull(t *testing.T) {
 		require.Equal(t, "hopper", gpu.Architecture)
 		require.Equal(t, testutil.DefaultGPUComputeCapMajor, gpu.ComputeCapability.Major)
 		require.Equal(t, testutil.DefaultGPUComputeCapMinor, gpu.ComputeCapability.Minor)
-		require.Equal(t, testutil.DefaultGPUAttributes.MultiprocessorCount, gpu.SMCount)
+		require.Equal(t, int(testutil.DefaultGPUAttributes.MultiprocessorCount), gpu.SMCount)
 	}
 
 	for _, uuid := range testutil.GPUUUIDs {
