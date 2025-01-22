@@ -531,7 +531,8 @@ def pull_request(ctx):
                 f'git commit -m "Update OTel Collector dependencies to {OCB_VERSION} and generate OTel Agent" --no-verify'
             )
             try:
-                check_clean_branch_state(ctx, gh, branch_name)
+                # don't check if local branch exists; we just created it
+                check_clean_branch_state(ctx, gh, branch_name, False)
             except Exit as e:
                 print(e)
                 return
