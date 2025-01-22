@@ -75,8 +75,7 @@ func (at *authToken) Get() string {
 // GetTLSClientConfig return a TLS configuration with the IPC certificate for http.Client
 func (at *authToken) GetTLSClientConfig() *tls.Config {
 	if err := at.setToken(); err != nil {
-		at.log.Debugf("%s", err.Error())
-		return nil
+		at.log.Debugf("unable to initialize authToken: %s", err.Error())
 	}
 
 	return util.GetTLSClientConfig()
@@ -85,8 +84,7 @@ func (at *authToken) GetTLSClientConfig() *tls.Config {
 // GetTLSServerConfig return a TLS configuration with the IPC certificate for http.Server
 func (at *authToken) GetTLSServerConfig() *tls.Config {
 	if err := at.setToken(); err != nil {
-		at.log.Debugf("%s", err.Error())
-		return nil
+		at.log.Debugf("unable to initialize authToken: %s", err.Error())
 	}
 
 	return util.GetTLSServerConfig()

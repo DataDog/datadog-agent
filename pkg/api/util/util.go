@@ -41,7 +41,7 @@ var (
 	clientTLSConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	serverTLSConfig *tls.Config
+	serverTLSConfig = &tls.Config{}
 	initSource      source
 )
 
