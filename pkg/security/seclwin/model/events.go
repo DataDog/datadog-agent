@@ -241,6 +241,8 @@ func (t EventType) String() string {
 		return "packet"
 	case NetworkFlowMonitorEventType:
 		return "network_flow_monitor"
+	case StatEventType:
+		return "stat"
 	case CustomEventType:
 		return "custom_event"
 	case CreateNewFileEventType:
@@ -263,8 +265,6 @@ func (t EventType) String() string {
 		return "login_uid_write"
 	case CgroupWriteEventType:
 		return "cgroup_write"
-	case StatEventType:
-		return "stat"
 	default:
 		return "unknown"
 	}

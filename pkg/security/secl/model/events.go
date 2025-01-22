@@ -239,13 +239,10 @@ func (t EventType) String() string {
 		return "ondemand"
 	case RawPacketEventType:
 		return "packet"
-<<<<<<< HEAD
 	case NetworkFlowMonitorEventType:
 		return "network_flow_monitor"
-=======
 	case StatEventType:
 		return "stat"
->>>>>>> fd46f8516f (fix older kernel)
 	case CustomEventType:
 		return "custom_event"
 	case CreateNewFileEventType:
