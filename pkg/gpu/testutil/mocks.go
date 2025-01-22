@@ -57,6 +57,7 @@ var DefaultGPUComputeCapMinor = 5
 // DefaultGPUArch is the architecture for the default device returned by the mock
 var DefaultGPUArch = nvml.DeviceArchitecture(nvml.DEVICE_ARCH_HOPPER)
 
+// DefaultGPUAttributes is the attributes for the default device returned by the mock
 var DefaultGPUAttributes = nvml.DeviceAttributes{
 	MultiprocessorCount: 10,
 }
