@@ -975,14 +975,14 @@ func TestCalculateReplicas(t *testing.T) {
 func TestRecommend(t *testing.T) {
 	testTime := time.Now()
 	tests := []struct {
-		name                    string
-		pods                    []*workloadmeta.KubernetesPod
-		queryResult             loadstore.QueryResult
-		currentTime             time.Time
-		currentReplicas         float64
-		recommendedReplicas     int32
-		recommendationTimestamp time.Time
-		err                     error
+		name                string
+		pods                []*workloadmeta.KubernetesPod
+		queryResult         loadstore.QueryResult
+		currentTime         time.Time
+		currentReplicas     float64
+		recommendedReplicas int32
+		utilizationRes      utilizationResult
+		err                 error
 	}{
 		{
 			name: "Pods with empty query results",
@@ -1007,12 +1007,12 @@ func TestRecommend(t *testing.T) {
 					},
 				},
 			},
-			queryResult:             loadstore.QueryResult{},
-			currentTime:             testTime,
-			currentReplicas:         4,
-			recommendedReplicas:     0,
-			recommendationTimestamp: time.Time{},
-			err:                     fmt.Errorf("Issue fetching metrics data"),
+			queryResult:         loadstore.QueryResult{},
+			currentTime:         testTime,
+			currentReplicas:     4,
+			recommendedReplicas: 0,
+			utilizationRes:      utilizationResult{},
+			err:                 fmt.Errorf("Issue fetching metrics data"),
 		},
 		{
 			name: "Pods with no corresponding metrics data",
@@ -1056,11 +1056,11 @@ func TestRecommend(t *testing.T) {
 					},
 				},
 			},
-			currentTime:             testTime,
-			recommendedReplicas:     0,
-			recommendationTimestamp: time.Time{},
-			currentReplicas:         4,
-			err:                     fmt.Errorf("Issue calculating pod utilization"),
+			currentTime:         testTime,
+			recommendedReplicas: 0,
+			utilizationRes:      utilizationResult{},
+			currentReplicas:     4,
+			err:                 fmt.Errorf("Issue calculating pod utilization"),
 		},
 		{
 			name: "Scale down expected",
@@ -1123,11 +1123,18 @@ func TestRecommend(t *testing.T) {
 					},
 				},
 			},
-			currentTime:             testTime,
-			currentReplicas:         4,
-			recommendedReplicas:     3,
-			recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
-			err:                     nil,
+			currentTime:         testTime,
+			currentReplicas:     4,
+			recommendedReplicas: 3,
+			utilizationRes: utilizationResult{
+				averageUtilization: 0.517,
+				missingPods:        []string{},
+				podToUtilization: map[string]float64{
+					"pod-name1": 0.517,
+				},
+				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+			},
+			err: nil,
 		},
 		{
 			name: "Scale up expected",
@@ -1190,11 +1197,18 @@ func TestRecommend(t *testing.T) {
 					},
 				},
 			},
-			currentTime:             testTime,
-			currentReplicas:         4,
-			recommendedReplicas:     5,
-			recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
-			err:                     nil,
+			currentTime:         testTime,
+			currentReplicas:     4,
+			recommendedReplicas: 5,
+			utilizationRes: utilizationResult{
+				averageUtilization: 0.944,
+				missingPods:        []string{},
+				podToUtilization: map[string]float64{
+					"pod-name1": 0.944,
+				},
+				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+			},
+			err: nil,
 		},
 		{
 			name: "Missing pod data reverses scaleDirection",
@@ -1259,11 +1273,19 @@ func TestRecommend(t *testing.T) {
 					},
 				},
 			},
-			currentTime:             testTime,
-			currentReplicas:         4,
-			recommendedReplicas:     4,
-			recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
-			err:                     nil,
+			currentTime:         testTime,
+			currentReplicas:     4,
+			recommendedReplicas: 4,
+			utilizationRes: utilizationResult{
+				averageUtilization: 0.94,
+				missingPods:        []string{"pod-name2"},
+				podToUtilization: map[string]float64{
+					"pod-name1": 0.94,
+					"pod-name2": 0.0,
+				},
+				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+			},
+			err: nil,
 		},
 		{
 			name: "Missing pod data changes recommendation",
@@ -1328,11 +1350,19 @@ func TestRecommend(t *testing.T) {
 					},
 				},
 			},
-			currentTime:             testTime,
-			currentReplicas:         4,
-			recommendedReplicas:     3, // original recommendation 1
-			recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
-			err:                     nil,
+			currentTime:         testTime,
+			currentReplicas:     4,
+			recommendedReplicas: 3, // original recommendation 1
+			utilizationRes: utilizationResult{
+				averageUtilization: 0.62,
+				missingPods:        []string{"pod-name2"},
+				podToUtilization: map[string]float64{
+					"pod-name1": 0.24,
+					"pod-name2": 1.0,
+				},
+				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+			},
+			err: nil,
 		},
 	}
 
@@ -1349,12 +1379,12 @@ func TestRecommend(t *testing.T) {
 				},
 			})
 			assert.NoError(t, err)
-			recommendedReplicas, recommendationTimestamp, err := r.recommend(tt.currentTime, tt.pods, tt.queryResult, tt.currentReplicas)
+			recommendedReplicas, utilizationRes, err := r.recommend(tt.currentTime, tt.pods, tt.queryResult, tt.currentReplicas)
 			if err != nil {
 				assert.Error(t, err, tt.err.Error())
 				assert.Equal(t, tt.err, err)
 			} else {
-				assert.Equal(t, tt.recommendationTimestamp, recommendationTimestamp)
+				assert.Equal(t, tt.utilizationRes, utilizationRes)
 				assert.Equal(t, tt.recommendedReplicas, recommendedReplicas)
 			}
 		})

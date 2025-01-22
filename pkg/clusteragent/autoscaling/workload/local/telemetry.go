@@ -27,4 +27,12 @@ var (
 		"Tracks the value of replicas recommended by the local recommender",
 		commonOpts,
 	)
+
+	telemetryHorizontalLocalUtilizationPct = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"horizontal_utilization_pct",
+		[]string{"namespace", "target_name", "autoscaler_name", "source", le.JoinLeaderLabel},
+		"Tracks the utilization value reported by the local recommender",
+		commonOpts,
+	)
 )

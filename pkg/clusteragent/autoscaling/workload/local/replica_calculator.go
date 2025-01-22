@@ -76,11 +76,21 @@ func (r replicaCalculator) CalculateHorizontalRecommendations(dpai model.PodAuto
 		}
 
 		queryResult := lStore.GetMetricsRaw(recSettings.metricName, namespace, podOwnerName, recSettings.containerName)
-		rec, ts, err := recSettings.recommend(currentTime, pods, queryResult, float64(*dpai.CurrentReplicas()))
+		rec, utilizationRes, err := recSettings.recommend(currentTime, pods, queryResult, float64(*dpai.CurrentReplicas()))
 		if err != nil {
 			log.Debugf("Got error calculating recommendation: %s", err)
 			break
 		}
+		ts := utilizationRes.recommendationTimestamp
+
+		telemetryHorizontalLocalUtilizationPct.Set(
+			float64(utilizationRes.averageUtilization),
+			namespace,
+			podOwnerName,
+			dpai.Name(),
+			string(recommendedReplicas.Source),
+			le.JoinLeaderValue,
+		)
 
 		// Always choose the highest recommendation given
 		if rec > recommendedReplicas.Replicas {
@@ -108,28 +118,30 @@ func (r replicaCalculator) CalculateHorizontalRecommendations(dpai model.PodAuto
 	}, nil
 }
 
-func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*workloadmeta.KubernetesPod, queryResult loadstore.QueryResult, currentReplicas float64) (int32, time.Time, error) {
-	utilizationResult, err := r.calculateUtilization(pods, queryResult, currentTime)
+func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*workloadmeta.KubernetesPod, queryResult loadstore.QueryResult, currentReplicas float64) (int32, utilizationResult, error) {
+	utilizationRes, err := r.calculateUtilization(pods, queryResult, currentTime)
 	if err != nil {
-		return 0, time.Time{}, err
+		return 0, utilizationResult{}, err
 	}
 
-	recommendedReplicas := r.calculateReplicas(currentReplicas, utilizationResult.averageUtilization)
+	recommendedReplicas := r.calculateReplicas(currentReplicas, utilizationRes.averageUtilization)
 
 	scaleDirection := common.GetScaleDirection(int32(currentReplicas), recommendedReplicas)
-	if scaleDirection != common.NoScale && len(utilizationResult.missingPods) > 0 {
-		adjustedpodToUtilization := adjustMissingPods(scaleDirection, utilizationResult.podToUtilization, utilizationResult.missingPods)
-		newRecommendation := r.calculateReplicas(currentReplicas, getAveragePodUtilization(adjustedpodToUtilization))
+	if scaleDirection != common.NoScale && len(utilizationRes.missingPods) > 0 {
+		adjustedPodToUtilization := adjustMissingPods(scaleDirection, utilizationRes.podToUtilization, utilizationRes.missingPods)
+		adjustedUtilization := getAveragePodUtilization(adjustedPodToUtilization)
+		newRecommendation := r.calculateReplicas(currentReplicas, adjustedUtilization)
 
 		// If scale direction is reversed, we should not scale
 		if common.GetScaleDirection(int32(currentReplicas), newRecommendation) != scaleDirection {
 			recommendedReplicas = int32(currentReplicas)
 		} else {
 			recommendedReplicas = newRecommendation
+			utilizationRes.averageUtilization = adjustedUtilization
 		}
 	}
 
-	return recommendedReplicas, utilizationResult.recommendationTimestamp, nil
+	return recommendedReplicas, utilizationRes, nil
 }
 
 func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.KubernetesPod, queryResult loadstore.QueryResult, currentTime time.Time) (utilizationResult, error) {
