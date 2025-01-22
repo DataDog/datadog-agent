@@ -359,6 +359,10 @@ class GithubAPI:
         release = self._repository.get_latest_release()
         return release.title
 
+    def latest_release_tag(self) -> str:
+        release = self._repository.get_latest_release()
+        return release.tag_name
+
     def get_releases(self):
         return self._repository.get_releases()
 
