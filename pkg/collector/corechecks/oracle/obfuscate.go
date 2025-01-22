@@ -10,7 +10,10 @@ package oracle
 import (
 	"sync"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -23,7 +26,14 @@ func (c *Check) LazyInitObfuscator() *obfuscate.Obfuscator {
 	defer obfuscatorLock.Unlock()
 
 	if c.obfuscator == nil {
-		c.obfuscator = obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
+		var obfuscaterConfig obfuscate.Config
+		if err := structure.UnmarshalKey(pkgconfigsetup.Datadog(), "apm_config.obfuscation", &obfuscaterConfig); err != nil {
+			log.Errorf("Failed to unmarshal apm_config.obfuscation: %s", err.Error())
+			obfuscaterConfig = obfuscate.Config{}
+		}
+		obfuscaterConfig.SQL = c.config.ObfuscatorOptions
+
+		c.obfuscator = obfuscate.NewObfuscator(obfuscaterConfig)
 	}
 
 	return c.obfuscator
