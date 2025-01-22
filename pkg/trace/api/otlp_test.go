@@ -39,6 +39,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
+	semconv127 "go.opentelemetry.io/collector/semconv/v1.27.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 )
 
@@ -1795,7 +1796,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				Error:    1,
 				Meta: map[string]string{
 					"name":                          "john",
-					"env":                           "",
+					"deployment.environment":        "prod",
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":              "Error",
 					"otel.status_description":       "Error",
@@ -1828,9 +1829,19 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			},
 		}, {
 			rattr: map[string]string{
-				"service.name":    "myservice",
-				"service.version": "v1.2.3",
-				"env":             "staging",
+				"service.name":                             "myservice",
+				"service.version":                          "v1.2.3",
+				"env":                                      "staging",
+				semconv127.AttributeClientAddress:          "sample_client_address",
+				semconv127.AttributeHTTPResponseBodySize:   "sample_content_length",
+				semconv127.AttributeHTTPResponseStatusCode: "sample_status_code",
+				semconv127.AttributeHTTPRequestBodySize:    "sample_content_length",
+				"http.request.header.referrer":             "sample_referrer",
+				semconv127.AttributeNetworkProtocolVersion: "sample_version",
+				semconv127.AttributeServerAddress:          "sample_server_name",
+				semconv127.AttributeURLFull:                "sample_url",
+				semconv127.AttributeUserAgentOriginal:      "sample_useragent",
+				"http.request.header.example":              "test",
 			},
 			libname: "ddtracer",
 			libver:  "v2",
@@ -1943,6 +1954,16 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"http.route":                    "/path",
 					"span.kind":                     "server",
 					"_dd.span_events.has_exception": "true",
+					"http.client_ip":                "sample_client_address",
+					"http.response.content_length":  "sample_content_length",
+					"http.status_code":              "sample_status_code",
+					"http.request.content_length":   "sample_content_length",
+					"http.referrer":                 "sample_referrer",
+					"http.version":                  "sample_version",
+					"http.server_name":              "sample_server_name",
+					"http.url":                      "sample_url",
+					"http.useragent":                "sample_useragent",
+					"http.request.headers.example":  "test",
 				},
 				Metrics: map[string]float64{
 					"approx":                               1.2,
@@ -2057,21 +2078,19 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				Duration: 200000000,
 				Error:    1,
 				Meta: map[string]string{
-					"env":                       "staging",
-					"otel.library.name":         "ddtracer",
-					"otel.library.version":      "v2",
-					"otel.status_code":          "Error",
-					"error.msg":                 "201",
-					"http.request.method":       "POST",
-					"http.method":               "POST",
-					"url.path":                  "/uploads/4",
-					"url.scheme":                "https",
-					"http.route":                "/uploads/:document_id",
-					"http.response.status_code": "201",
-					"http.status_code":          "201",
-					"error.type":                "WebSocketDisconnect",
-					"otel.trace_id":             "72df520af2bde7a5240031ead750e5f3",
-					"span.kind":                 "unspecified",
+					"env":                  "staging",
+					"otel.library.name":    "ddtracer",
+					"otel.library.version": "v2",
+					"otel.status_code":     "Error",
+					"error.msg":            "201",
+					"http.method":          "POST",
+					"url.path":             "/uploads/4",
+					"url.scheme":           "https",
+					"http.route":           "/uploads/:document_id",
+					"http.status_code":     "201",
+					"error.type":           "WebSocketDisconnect",
+					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
+					"span.kind":            "unspecified",
 				},
 				Type: "custom",
 			},
@@ -2119,21 +2138,19 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				Duration: 200000000,
 				Error:    1,
 				Meta: map[string]string{
-					"env":                       "staging",
-					"otel.library.name":         "ddtracer",
-					"otel.library.version":      "v2",
-					"otel.status_code":          "Error",
-					"error.msg":                 "201",
-					"http.request.method":       "POST",
-					"http.method":               "POST",
-					"url.path":                  "/uploads/4",
-					"url.scheme":                "https",
-					"http.route":                "/uploads/:document_id",
-					"http.response.status_code": "201",
-					"http.status_code":          "201",
-					"error.type":                "WebSocketDisconnect",
-					"otel.trace_id":             "72df520af2bde7a5240031ead750e5f3",
-					"span.kind":                 "unspecified",
+					"env":                  "staging",
+					"otel.library.name":    "ddtracer",
+					"otel.library.version": "v2",
+					"otel.status_code":     "Error",
+					"error.msg":            "201",
+					"http.method":          "POST",
+					"url.path":             "/uploads/4",
+					"url.scheme":           "https",
+					"http.route":           "/uploads/:document_id",
+					"http.status_code":     "201",
+					"error.type":           "WebSocketDisconnect",
+					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
+					"span.kind":            "unspecified",
 				},
 				Type: "custom",
 			},
@@ -2229,8 +2246,8 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				Duration: 200000000,
 				Error:    1,
 				Meta: map[string]string{
-					"container.id":                "do-not-use",
 					"deployment.environment.name": "do-not-use",
+					"container.id":                "do-not-use",
 					"k8s.pod.uid":                 "do-not-use",
 					"datadog.host.name":           "do-not-use",
 					"otel.library.name":           "ddtracer",
@@ -2286,6 +2303,11 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					assert.Equal(wantl, gotl)
 				default:
 					assert.Equal(v, got.Meta[k], fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
+				}
+			}
+			for k, v := range got.Meta {
+				if k != "events" && k != "_dd.span_links" {
+					assert.Equal(want.Meta[k], v, fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
 				}
 			}
 			if len(want.Metrics) != len(got.Metrics) {
@@ -3406,8 +3428,9 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 	}{
 		{
 			rattr: map[string]string{
-				"service.version": "v1.2.3",
-				"service.name":    "myservice",
+				"service.version":        "v1.2.3",
+				"service.name":           "myservice",
+				"deployment.environment": "prod",
 			},
 			libname: "ddtracer",
 			libver:  "v2",
@@ -3419,8 +3442,7 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 				Start:   now,
 				End:     now + 200000000,
 				Attributes: map[string]interface{}{
-					"peer.service":           "userbase",
-					"deployment.environment": "prod",
+					"peer.service": "userbase",
 				},
 			}),
 			operationNameV1: "ddtracer.server",
@@ -3435,6 +3457,7 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 				Start:    int64(now),
 				Duration: 200000000,
 				Meta: map[string]string{
+					"env":                    "prod",
 					"deployment.environment": "prod",
 					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":       "Unset",
@@ -3451,8 +3474,9 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 		},
 		{
 			rattr: map[string]string{
-				"service.version": "v1.2.3",
-				"service.name":    "myservice",
+				"service.version":        "v1.2.3",
+				"service.name":           "myservice",
+				"deployment.environment": "prod",
 			},
 			libname: "ddtracer",
 			libver:  "v2",
@@ -3464,9 +3488,8 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 				Start:   now,
 				End:     now + 200000000,
 				Attributes: map[string]interface{}{
-					"db.instance":            "postgres",
-					"peer.service":           "userbase",
-					"deployment.environment": "prod",
+					"db.instance":  "postgres",
+					"peer.service": "userbase",
 				},
 			}),
 			operationNameV1: "ddtracer.server",
@@ -3482,6 +3505,7 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 				Duration: 200000000,
 				Meta: map[string]string{
 					"db.instance":            "postgres",
+					"env":                    "prod",
 					"deployment.environment": "prod",
 					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":       "Unset",
@@ -3498,8 +3522,9 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 		},
 		{
 			rattr: map[string]string{
-				"service.version": "v1.2.3",
-				"service.name":    "myservice",
+				"service.version":        "v1.2.3",
+				"service.name":           "myservice",
+				"deployment.environment": "prod",
 			},
 			libname: "ddtracer",
 			libver:  "v2",
@@ -3511,9 +3536,8 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 				Start:   now,
 				End:     now + 200000000,
 				Attributes: map[string]interface{}{
-					"db.system":              "postgres",
-					"net.peer.name":          "remotehost",
-					"deployment.environment": "prod",
+					"db.system":     "postgres",
+					"net.peer.name": "remotehost",
 				},
 			}),
 			operationNameV1: "ddtracer.client",
@@ -3528,6 +3552,7 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 				Start:    int64(now),
 				Duration: 200000000,
 				Meta: map[string]string{
+					"env":                    "prod",
 					"deployment.environment": "prod",
 					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":       "Unset",
@@ -3545,8 +3570,9 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 		},
 		{
 			rattr: map[string]string{
-				"service.version": "v1.2.3",
-				"service.name":    "myservice",
+				"service.version":        "v1.2.3",
+				"service.name":           "myservice",
+				"deployment.environment": "prod",
 			},
 			libname: "ddtracer",
 			libver:  "v2",
@@ -3558,9 +3584,8 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 				Start:   now,
 				End:     now + 200000000,
 				Attributes: map[string]interface{}{
-					"rpc.service":            "GetInstance",
-					"net.peer.name":          "remotehost",
-					"deployment.environment": "prod",
+					"rpc.service":   "GetInstance",
+					"net.peer.name": "remotehost",
 				},
 			}),
 			operationNameV1: "ddtracer.client",
@@ -3575,6 +3600,7 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 				Start:    int64(now),
 				Duration: 200000000,
 				Meta: map[string]string{
+					"env":                    "prod",
 					"deployment.environment": "prod",
 					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":       "Unset",
@@ -3592,8 +3618,9 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 		},
 		{
 			rattr: map[string]string{
-				"service.version": "v1.2.3",
-				"service.name":    "myservice",
+				"service.version":        "v1.2.3",
+				"service.name":           "myservice",
+				"deployment.environment": "prod",
 			},
 			libname: "ddtracer",
 			libver:  "v2",
@@ -3605,8 +3632,7 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 				Start:   now,
 				End:     now + 200000000,
 				Attributes: map[string]interface{}{
-					"net.peer.name":          "remotehost",
-					"deployment.environment": "prod",
+					"net.peer.name": "remotehost",
 				},
 			}),
 			operationNameV1: "ddtracer.server",
@@ -3621,6 +3647,7 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 				Start:    int64(now),
 				Duration: 200000000,
 				Meta: map[string]string{
+					"env":                    "prod",
 					"deployment.environment": "prod",
 					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":       "Unset",
@@ -3637,8 +3664,9 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 		},
 		{
 			rattr: map[string]string{
-				"service.version": "v1.2.3",
-				"service.name":    "myservice",
+				"service.version":        "v1.2.3",
+				"service.name":           "myservice",
+				"deployment.environment": "prod",
 			},
 			libname: "ddtracer",
 			libver:  "v2",
@@ -3651,7 +3679,6 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 				End:     now + 200000000,
 				Attributes: map[string]interface{}{
 					"aws.dynamodb.table_names": "my-table",
-					"deployment.environment":   "prod",
 				},
 			}),
 			operationNameV1: "ddtracer.server",
@@ -3666,6 +3693,7 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 				Start:    int64(now),
 				Duration: 200000000,
 				Meta: map[string]string{
+					"env":                      "prod",
 					"deployment.environment":   "prod",
 					"otel.trace_id":            "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":         "Unset",
@@ -3682,8 +3710,9 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 		},
 		{
 			rattr: map[string]string{
-				"service.version": "v1.2.3",
-				"service.name":    "myservice",
+				"service.version":        "v1.2.3",
+				"service.name":           "myservice",
+				"deployment.environment": "prod",
 			},
 			libname: "ddtracer",
 			libver:  "v2",
@@ -3696,7 +3725,6 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 				End:     now + 200000000,
 				Attributes: map[string]interface{}{
 					"faas.document.collection": "my-s3-bucket",
-					"deployment.environment":   "prod",
 				},
 			}),
 			operationNameV1: "ddtracer.server",
@@ -3711,6 +3739,7 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 				Start:    int64(now),
 				Duration: 200000000,
 				Meta: map[string]string{
+					"env":                      "prod",
 					"deployment.environment":   "prod",
 					"otel.trace_id":            "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":         "Unset",
