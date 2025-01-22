@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 
 	datadogclientcomp "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
@@ -29,6 +31,9 @@ const (
 	maxCharactersPerChunk = 7000
 	// extraQueryCharacters accounts for the extra characters added to form a query to Datadog's API (e.g.: `avg:`, `.rollup(X)` ...)
 	extraQueryCharacters = 16
+	// maxParallelQueries returns the maximum number of parallel queries to Datadog.
+	// This value corresponds to a very high usage (max seen internally) and is just there to avoid mistakes in the configuration.
+	maxParallelQueries = 300
 )
 
 // ProcessorInterface is used to easily mock the interface for testing
@@ -40,16 +45,23 @@ type ProcessorInterface interface {
 
 // Processor embeds the configuration to refresh metrics from Datadog and process Ref structs to ExternalMetrics.
 type Processor struct {
-	externalMaxAge time.Duration
-	datadogClient  datadogclientcomp.Component
+	externalMaxAge  time.Duration
+	datadogClient   datadogclientcomp.Component
+	parallelQueries int
 }
 
 // NewProcessor returns a new Processor
 func NewProcessor(datadogCl datadogclientcomp.Component) *Processor {
 	externalMaxAge := math.Max(pkgconfigsetup.Datadog().GetFloat64("external_metrics_provider.max_age"), 3*pkgconfigsetup.Datadog().GetFloat64("external_metrics_provider.rollup"))
+	parallelQueries := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.max_parallel_queries")
+	if parallelQueries > maxParallelQueries || parallelQueries <= 0 {
+		parallelQueries = maxParallelQueries
+	}
+
 	return &Processor{
-		externalMaxAge: time.Duration(externalMaxAge) * time.Second,
-		datadogClient:  datadogCl,
+		externalMaxAge:  time.Duration(externalMaxAge) * time.Second,
+		datadogClient:   datadogCl,
+		parallelQueries: parallelQueries,
 	}
 }
 
@@ -181,11 +193,11 @@ func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Durati
 	// Chunk the queries
 	chunks := makeChunks(queries)
 
-	var waitResp sync.WaitGroup
-	waitResp.Add(len(chunks))
-	for _, c := range chunks {
-		go func(chunk []string) {
-			defer waitResp.Done()
+	var group errgroup.Group
+	group.SetLimit(p.parallelQueries)
+
+	for _, chunk := range chunks {
+		group.Go(func() error {
 			// Either resp or err is nil
 			resp, err := p.queryDatadogExternal(currentTime, chunk, timeWindow)
 
@@ -204,9 +216,11 @@ func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Durati
 					responses[k] = v
 				}
 			}
-		}(c)
+			return nil
+		})
 	}
-	waitResp.Wait()
+	// Errors are handled in `responses`, so we don't need to check the group error
+	_ = group.Wait()
 
 	log.Debugf("Processed %d chunks with %d chunks in global error", len(chunks), responsesGlobalErrors)
 	return responses
