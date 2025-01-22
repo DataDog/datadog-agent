@@ -29,6 +29,8 @@ include:
 
 tests_macos_gitlab_amd64:
   extends: .tests_macos_gitlab
+  rules:
+    - !reference [.fast_on_dev_branch_only]
   tags: ["macos:ventura-amd64", "specific:true"]
   after_script:
     - !reference [.vault_login]
@@ -39,7 +41,8 @@ tests_macos_gitlab_amd64:
 tests_macos_gitlab_arm64:
   extends: .tests_macos_gitlab
   rules:
-    !reference [.manual]
+    - !reference [.manual]
+    - !reference [.fast_on_dev_branch_only]
   tags: ["macos:ventura-arm64", "specific:true"]
   allow_failure: true
   after_script:
