@@ -116,7 +116,8 @@ class TestUtils(unittest.TestCase):
         )
         module_path = "tasks/unit_tests/testdata"
         _, marked_flaky_tests = test_washer.parse_test_results(module_path)
-        self.assertEqual(marked_flaky_tests, {})
+        flaky_tests = test_washer.merge_known_flakes(marked_flaky_tests)
+        self.assertEqual(flaky_tests, {})
 
     def test_flaky_on_log2(self):
         test_washer = TestWasher(
@@ -125,8 +126,9 @@ class TestUtils(unittest.TestCase):
         )
         module_path = "tasks/unit_tests/testdata"
         _, marked_flaky_tests = test_washer.parse_test_results(module_path)
+        flaky_tests = test_washer.merge_known_flakes(marked_flaky_tests)
         self.assertEqual(
-            marked_flaky_tests,
+            flaky_tests,
             {'github.com/DataDog/datadog-agent/pkg/serverless/trace': {'TestLoadConfigShouldBeFast'}},
         )
 
@@ -137,8 +139,9 @@ class TestUtils(unittest.TestCase):
         )
         module_path = "tasks/unit_tests/testdata"
         _, marked_flaky_tests = test_washer.parse_test_results(module_path)
+        flaky_tests = test_washer.merge_known_flakes(marked_flaky_tests)
         self.assertEqual(
-            marked_flaky_tests,
+            flaky_tests,
             {'github.com/DataDog/datadog-agent/pkg/serverless/trace': {'TestLoadConfigShouldBeFast'}},
         )
 
@@ -149,8 +152,9 @@ class TestUtils(unittest.TestCase):
         )
         module_path = "tasks/unit_tests/testdata"
         _, marked_flaky_tests = test_washer.parse_test_results(module_path)
+        flaky_tests = test_washer.merge_known_flakes(marked_flaky_tests)
         self.assertEqual(
-            marked_flaky_tests,
+            flaky_tests,
             {'github.com/DataDog/datadog-agent/pkg/serverless/trace': {'TestLoadConfigShouldBeFast'}},
         )
 
@@ -161,8 +165,9 @@ class TestUtils(unittest.TestCase):
         )
         module_path = "tasks/unit_tests/testdata"
         _, marked_flaky_tests = test_washer.parse_test_results(module_path)
+        flaky_tests = test_washer.merge_known_flakes(marked_flaky_tests)
         self.assertEqual(
-            marked_flaky_tests,
+            flaky_tests,
             {'github.com/DataDog/datadog-agent/pkg/serverless/trace': {'TestLoadConfigShouldBeFast'}},
         )
 
