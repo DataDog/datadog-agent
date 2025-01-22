@@ -147,7 +147,6 @@ func TestIntegrationConfigInstanceSpark(t *testing.T) {
 	err = yaml.Unmarshal(sparkYAML, &spark)
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{
-		// "init_config": []interface{}{},
 		"logs": []interface{}{
 			map[string]interface{}{
 				"type":    "file",

@@ -53,28 +53,30 @@ var (
 			Value: "true",
 		},
 	}
-	//logProcessor = []common.IntegrationConfigLogProcessor{
-	//	{
-	//		Type:   "regex_parser",
-	//		Source: "filename",
-	//		Regex:  "/var/log/hadoop-yarn/containers/(?P<application_id>application_[0-9]+_[0-9]+)/(?P<container_id>container_[0-9]+_[0-9]+_[0-9]+_[0-9]+)",
-	//		Target: "attributes",
-	//	},
-	//}
+	logProcessor = []common.IntegrationConfigLogProcessor{
+		{
+			Type:   "regex_parser",
+			Source: "filename",
+			Regex:  "/var/log/hadoop-yarn/containers/(?P<application_id>application_[0-9]+_[0-9]+)/(?P<container_id>container_[0-9]+_[0-9]+_[0-9]+_[0-9]+)",
+			Target: "attributes",
+		},
+	}
 	emrLogs = []common.IntegrationConfigLogs{
 		{
-			Type:    "file",
-			Path:    hadoopLogFolder + "*/*/stdout",
-			Source:  "worker_logs",
-			Service: "hadoop-yarn",
-			Tags:    "log_source:stdout",
+			Type:       "file",
+			Path:       hadoopLogFolder + "*/*/stdout",
+			Source:     "worker_logs",
+			Service:    "hadoop-yarn",
+			Tags:       "log_source:stdout",
+			Processors: logProcessor,
 		},
 		{
-			Type:    "file",
-			Path:    hadoopLogFolder + "*/*/stderr",
-			Source:  "worker_logs",
-			Service: "hadoop-yarn",
-			Tags:    "log_source:stderr",
+			Type:       "file",
+			Path:       hadoopLogFolder + "*/*/stderr",
+			Source:     "worker_logs",
+			Service:    "hadoop-yarn",
+			Tags:       "log_source:stderr",
+			Processors: logProcessor,
 		},
 	}
 )
@@ -125,7 +127,7 @@ func SetupEmr(s *common.Setup) error {
 	}
 	// Add logs config to both Resource Manager and Workers
 	var sparkIntegration common.IntegrationConfig
-	if os.Getenv("DD_LOGS_ENABLED") == "true" {
+	if os.Getenv("DD_EMR_LOGS_ENABLED") == "true" {
 		// Add dd-agent to yarn group to give the Agent permission to READ the Spark log files
 		_, err := executeCommandWithTimeout(s, "sudo", "usermod", "-aG", "yarn", "dd-agent")
 		if err != nil {
