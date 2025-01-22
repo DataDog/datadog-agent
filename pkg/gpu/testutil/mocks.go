@@ -81,7 +81,7 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 		},
 		GetAttributesFunc: func() (nvml.DeviceAttributes, nvml.Return) {
 			return DefaultGPUAttributes, nvml.SUCCESS
-		}
+		},
 	}
 }
 
