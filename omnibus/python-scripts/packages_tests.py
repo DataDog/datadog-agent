@@ -63,6 +63,3 @@ class TestPackages(unittest.TestCase):
         os.remove(new_file)
         os.remove(diff_file)
         os.rmdir(test_directory)
-
-if __name__ == '__main__':
-    unittest.main()

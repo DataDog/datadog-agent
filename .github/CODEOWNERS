@@ -592,7 +592,6 @@
 /tasks/unit_tests/omnibus_tests.py      @DataDog/agent-delivery
 /tasks/unit_tests/testdata/components_src/ @DataDog/agent-shared-components
 /tasks/installer.py                     @DataDog/fleet
-/tasks/python_scripts_tests.py          @DataDog/platform-integrations @DataDog/windows-agent
 /test/                                  @DataDog/agent-devx-loops
 /test/benchmarks/                       @DataDog/agent-metrics-logs
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations

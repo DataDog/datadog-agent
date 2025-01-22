@@ -56,6 +56,3 @@ class TestPost(unittest.TestCase):
         os.remove(diff_file)
         os.rmdir(install_directory)
         os.rmdir(storage_location)
-
-if __name__ == '__main__':
-    unittest.main()
