@@ -52,7 +52,7 @@ BPF_HASH_MAP(active_flows_spin_locks, u32, struct active_flows_spin_lock_t, 1) /
 
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
-BPF_LRU_MAP(mount_ref, u32, struct mount_ref_t, 64000)
+BPF_LRU_MAP(mount_ref, u32, struct mount_ref_t, 32000)
 BPF_LRU_MAP(bpf_maps, u32, struct bpf_map_t, 4096)
 BPF_LRU_MAP(bpf_progs, u32, struct bpf_prog_t, 4096)
 BPF_LRU_MAP(tgid_fd_map_id, struct bpf_tgid_fd_t, u32, 4096)
