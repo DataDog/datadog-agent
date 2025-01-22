@@ -5,8 +5,16 @@
 #include "constants/macros.h"
 #include "structs/rate_limiter.h"
 
+__attribute__((always_inline)) u32 shift_now(u64 now) {
+    return (u32)(now >> 16);
+}
+
+__attribute__((always_inline)) u64 unshift_delta(u32 delta) {
+    return (u64)delta << 16;
+}
+
 __attribute__((always_inline)) u8 rate_limiter_reset_period(u64 now, struct rate_limiter_ctx *rate_ctx_p) {
-    rate_ctx_p->current_period = now;
+    rate_ctx_p->current_period = shift_now(now);
     rate_ctx_p->counter = 0;
     return 1;
 }
@@ -24,10 +32,8 @@ __attribute__((always_inline)) u8 rate_limiter_allow_basic(u32 rate, u64 now, st
 }
 
 __attribute__((always_inline)) u8 rate_limiter_allow_gen(struct rate_limiter_ctx *rate_ctx_p, u32 rate, u64 now, u8 should_count) {
-    if (now < rate_ctx_p->current_period) { // this should never happen, ignore
-        return 0;
-    }
-    u64 delta = now - rate_ctx_p->current_period;
+    u32 shifted_now = shift_now(now);
+    u64 delta = unshift_delta(shifted_now - rate_ctx_p->current_period);
     u8 allow = rate_limiter_allow_basic(rate, now, rate_ctx_p, delta);
     if (allow && should_count) {
         __sync_fetch_and_add(&rate_ctx_p->counter, 1);
@@ -50,7 +56,7 @@ __attribute__((always_inline)) u8 rate_limiter_allow(u32 pid, u64 now, u8 should
     struct rate_limiter_ctx *rate_ctx_p = bpf_map_lookup_elem(&rate_limiters, &pid);
     if (rate_ctx_p == NULL) {
         struct rate_limiter_ctx rate_ctx = {
-            .current_period = now,
+            .current_period = shift_now(now),
             .counter = should_count,
         };
         bpf_map_update_elem(&rate_limiters, &pid, &rate_ctx, BPF_ANY);
@@ -70,7 +76,7 @@ __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(u32 rate, u64
     struct rate_limiter_ctx *rate_ctx_p = bpf_map_lookup_elem(&activity_dump_rate_limiters, &cookie);
     if (rate_ctx_p == NULL) {
         struct rate_limiter_ctx rate_ctx = {
-            .current_period = now,
+            .current_period = shift_now(now),
             .counter = should_count,
         };
         bpf_map_update_elem(&activity_dump_rate_limiters, &cookie, &rate_ctx, BPF_ANY);

@@ -16,7 +16,7 @@ int test_ad_ratelimiter() {
 
     struct rate_limiter_ctx ctx;
     ctx.counter = 0;
-    ctx.current_period = now;
+    ctx.current_period = shift_now(now);
     u64 cookie = 0;
     bpf_map_update_elem(&activity_dump_rate_limiters, &cookie, &ctx, BPF_ANY);
 
