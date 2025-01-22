@@ -1377,6 +1377,9 @@ type GPU struct {
 
 	// ComputeCapability contains the compute capability version of the GPU.
 	ComputeCapability GPUComputeCapability
+
+	// SMCount is the number of streaming multiprocessors in the GPU.
+	SMCount int
 }
 
 var _ Entity = &GPU{}
@@ -1423,6 +1426,7 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Index:", g.Index)
 	_, _ = fmt.Fprintln(&sb, "Architecture:", g.Architecture)
 	_, _ = fmt.Fprintln(&sb, "Compute Capability:", g.ComputeCapability)
+	_, _ = fmt.Fprintln(&sb, "Streaming Multiprocessor Count:", g.SMCount)
 
 	return sb.String()
 }

@@ -99,6 +99,11 @@ func (c *collector) Pull(_ context.Context) error {
 			return fmt.Errorf("failed to get CUDA compute capability for device index %d: %v", i, nvml.ErrorString(ret))
 		}
 
+		devAttr, ret := dev.GetAttributes()
+		if ret != nvml.SUCCESS {
+			return fmt.Errorf("failed to get device attributes for device index %d: %v", i, nvml.ErrorString(ret))
+		}
+
 		gpu := &workloadmeta.GPU{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindGPU,
@@ -115,6 +120,7 @@ func (c *collector) Pull(_ context.Context) error {
 				Major: major,
 				Minor: minor,
 			},
+			SMCount: int(devAttr.MultiprocessorCount),
 		}
 
 		event := workloadmeta.CollectorEvent{

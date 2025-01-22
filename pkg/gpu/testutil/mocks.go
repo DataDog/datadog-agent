@@ -57,6 +57,10 @@ var DefaultGPUComputeCapMinor = 5
 // DefaultGPUArch is the architecture for the default device returned by the mock
 var DefaultGPUArch = nvml.DeviceArchitecture(nvml.DEVICE_ARCH_HOPPER)
 
+var DefaultGPUAttributes = nvml.DeviceAttributes{
+	MultiprocessorCount: 10,
+}
+
 // GetDeviceMock returns a mock of the nvml.Device with the given UUID.
 func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 	return &nvmlmock.Device{
@@ -75,6 +79,9 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 		GetArchitectureFunc: func() (nvml.DeviceArchitecture, nvml.Return) {
 			return DefaultGPUArch, nvml.SUCCESS
 		},
+		GetAttributesFunc: func() (nvml.DeviceAttributes, nvml.Return) {
+			return DefaultGPUAttributes, nvml.SUCCESS
+		}
 	}
 }
 
