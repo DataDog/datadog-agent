@@ -5,7 +5,7 @@
 
 //go:build test
 
-package common
+package winconn
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/testutils"
 	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/assert"
@@ -49,7 +50,7 @@ func Test_listenPackets(t *testing.T) {
 	tts := []struct {
 		description    string
 		timeout        time.Duration
-		matcherFuncs   map[int]MatcherFunc
+		matcherFuncs   map[int]common.MatcherFunc
 		recvFrom       func(windows.Handle, []byte, int) (int, windows.Sockaddr, error)
 		expectedIP     net.IP
 		expectFinished bool // if true, we should test that a later finish timestamp is returned
@@ -77,7 +78,7 @@ func Test_listenPackets(t *testing.T) {
 		{
 			description: "successful call returns IP and timestamp",
 			timeout:     500 * time.Millisecond,
-			matcherFuncs: map[int]MatcherFunc{
+			matcherFuncs: map[int]common.MatcherFunc{
 				windows.IPPROTO_ICMP: func(_ *ipv4.Header, _ []byte, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32) (net.IP, error) {
 					return srcIP, nil
 				},
@@ -94,7 +95,7 @@ func Test_listenPackets(t *testing.T) {
 	}
 
 	// these don't matter in the test, but are required parameters
-	socket := &Winrawsocket{}
+	socket := &RawConn{}
 	inputIP := net.ParseIP("127.0.0.1")
 	inputPort := uint16(161)
 	seqNum := uint32(1)
@@ -126,7 +127,7 @@ func Test_handlePackets(t *testing.T) {
 		description string
 		// input
 		ctxTimeout   time.Duration
-		matcherFuncs map[int]MatcherFunc
+		matcherFuncs map[int]common.MatcherFunc
 		recvFrom     func(windows.Handle, []byte, int) (int, windows.Sockaddr, error)
 		// output
 		expectedIP net.IP
@@ -166,7 +167,7 @@ func Test_handlePackets(t *testing.T) {
 
 				return len(tcpBytes), nil, nil
 			},
-			matcherFuncs: map[int]MatcherFunc{
+			matcherFuncs: map[int]common.MatcherFunc{
 				windows.IPPROTO_TCP: func(_ *ipv4.Header, _ []byte, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32) (net.IP, error) {
 					return net.IP{}, errors.New("failed parsing packet")
 				},
@@ -181,7 +182,7 @@ func Test_handlePackets(t *testing.T) {
 
 				return len(tcpBytes), nil, nil
 			},
-			matcherFuncs: map[int]MatcherFunc{},
+			matcherFuncs: map[int]common.MatcherFunc{},
 			errMsg:       "canceled",
 		},
 		{
@@ -192,7 +193,7 @@ func Test_handlePackets(t *testing.T) {
 
 				return len(tcpBytes), nil, nil
 			},
-			matcherFuncs: map[int]MatcherFunc{
+			matcherFuncs: map[int]common.MatcherFunc{
 				windows.IPPROTO_TCP: func(_ *ipv4.Header, _ []byte, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32) (net.IP, error) {
 					return srcIP, nil
 				},
@@ -206,7 +207,7 @@ func Test_handlePackets(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), test.ctxTimeout)
 			defer cancel()
 			recvFrom = test.recvFrom
-			w := &Winrawsocket{}
+			w := &RawConn{}
 			actualIP, _, err := w.handlePackets(ctx, net.IP{}, uint16(0), net.IP{}, uint16(0), uint32(0), test.matcherFuncs)
 			if test.errMsg != "" {
 				require.Error(t, err)
@@ -265,7 +266,7 @@ func Test_SendRawPacket(t *testing.T) {
 		},
 	}
 
-	w := &Winrawsocket{}
+	w := &RawConn{}
 	for _, test := range tts {
 		t.Run(test.description, func(t *testing.T) {
 			sendTo = test.sendTo

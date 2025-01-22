@@ -3,9 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package common contains common functionality for both TCP and UDP
-// traceroute implementations
-package common
+package winconn
 
 import (
 	"context"
@@ -14,6 +12,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/sys/windows"
@@ -25,28 +24,24 @@ var (
 )
 
 type (
-	// Winrawsocket is a struct that encapsulates a raw socket
+	// RawConn is a struct that encapsulates a raw socket
 	// on Windows that can be used to listen to traffic on a host
 	// or send raw packets from a host
-	Winrawsocket struct {
+	RawConn struct {
 		Socket windows.Handle
 	}
-
-	// MatcherFunc defines functions for matching a packet from the wire to
-	// a traceroute based on the source/destination addresses and an identifier
-	MatcherFunc func(*ipv4.Header, []byte, net.IP, uint16, net.IP, uint16, uint32) (net.IP, error)
 )
 
 // Close closes the raw socket
-func (w *Winrawsocket) Close() {
-	if w.Socket != windows.InvalidHandle {
-		windows.Closesocket(w.Socket) // nolint: errcheck
+func (r *RawConn) Close() {
+	if r.Socket != windows.InvalidHandle {
+		windows.Closesocket(r.Socket) // nolint: errcheck
 	}
-	w.Socket = windows.InvalidHandle
+	r.Socket = windows.InvalidHandle
 }
 
-// CreateRawSocket creates a Winrawsocket
-func CreateRawSocket() (*Winrawsocket, error) {
+// NewRawConn creates a Winrawsocket
+func NewRawConn() (*RawConn, error) {
 	s, err := windows.Socket(windows.AF_INET, windows.SOCK_RAW, windows.IPPROTO_IP)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create raw socket: %w", err)
@@ -63,11 +58,11 @@ func CreateRawSocket() (*Winrawsocket, error) {
 		windows.Closesocket(s) // nolint: errcheck
 		return nil, fmt.Errorf("failed to set SO_RCVTIMEO: %w", err)
 	}
-	return &Winrawsocket{Socket: s}, nil
+	return &RawConn{Socket: s}, nil
 }
 
 // SendRawPacket sends a raw packet to a destination IP and port
-func (w *Winrawsocket) SendRawPacket(destIP net.IP, destPort uint16, payload []byte) error {
+func (r *RawConn) SendRawPacket(destIP net.IP, destPort uint16, payload []byte) error {
 
 	dst := destIP.To4()
 	if dst == nil {
@@ -77,7 +72,7 @@ func (w *Winrawsocket) SendRawPacket(destIP net.IP, destPort uint16, payload []b
 		Port: int(destPort),
 		Addr: [4]byte{dst[0], dst[1], dst[2], dst[3]},
 	}
-	if err := sendTo(w.Socket, payload, 0, sa); err != nil {
+	if err := sendTo(r.Socket, payload, 0, sa); err != nil {
 		return fmt.Errorf("failed to send packet: %w", err)
 	}
 	return nil
@@ -87,12 +82,12 @@ func (w *Winrawsocket) SendRawPacket(destIP net.IP, destPort uint16, payload []b
 // If neither decoderFunc receives a matching packet within the timeout, a blank response is returned.
 // Once a matching packet is received by a decoderFunc, it will cause the other decoderFuncs to be
 // canceled, and data from the matching packet will be returned to the caller
-func (w *Winrawsocket) ListenPackets(timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, matcherFuncs map[int]MatcherFunc) (net.IP, time.Time, error) {
+func (r *RawConn) ListenPackets(timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, matcherFuncs map[int]common.MatcherFunc) (net.IP, time.Time, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	ip, finished, err := w.handlePackets(ctx, localIP, localPort, remoteIP, remotePort, innerIdentifier, matcherFuncs)
+	ip, finished, err := r.handlePackets(ctx, localIP, localPort, remoteIP, remotePort, innerIdentifier, matcherFuncs)
 	if err != nil {
-		_, canceled := err.(CanceledError)
+		_, canceled := err.(common.CanceledError)
 		if canceled {
 			log.Trace("timed out waiting for responses")
 			return net.IP{}, time.Time{}, nil
@@ -109,20 +104,20 @@ func (w *Winrawsocket) ListenPackets(timeout time.Duration, localIP net.IP, loca
 // handlePackets in its current implementation should listen for the first matching
 // packet on the connection and then return. If no packet is received within the
 // timeout or if the listener is canceled, it should return a canceledError
-func (w *Winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, matcherFuncs map[int]MatcherFunc) (net.IP, time.Time, error) {
+func (r *RawConn) handlePackets(ctx context.Context, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, matcherFuncs map[int]common.MatcherFunc) (net.IP, time.Time, error) {
 	// TODO: reset to 512 before merge?
 	buf := make([]byte, 4096)
 	for {
 		select {
 		case <-ctx.Done():
-			return net.IP{}, time.Time{}, CanceledError("listener canceled")
+			return net.IP{}, time.Time{}, common.CanceledError("listener canceled")
 		default:
 		}
 
 		// the receive timeout is set to 100ms in the constructor, to match the
 		// linux side. This is a workaround for the lack of a deadline for sockets.
 		//err := conn.SetReadDeadline(now.Add(time.Millisecond * 100))
-		n, _, err := recvFrom(w.Socket, buf, 0)
+		n, _, err := recvFrom(r.Socket, buf, 0)
 		if err != nil {
 			if err == windows.WSAETIMEDOUT {
 				continue
@@ -156,7 +151,7 @@ func (w *Winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 		if err != nil {
 			// if packet is NOT a match continue, otherwise log
 			// the error
-			if _, ok := err.(MismatchError); !ok {
+			if _, ok := err.(common.MismatchError); !ok {
 				log.Tracef("decoder error: %s", err.Error())
 			} else {
 				log.Tracef("mismatch error: %s", err.Error())

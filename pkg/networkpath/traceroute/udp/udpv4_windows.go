@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/winconn"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows"
 )
@@ -32,7 +33,7 @@ func (u *UDPv4) TracerouteSequential() (*common.Results, error) {
 	u.srcIP = addr.IP
 	u.srcPort = addr.AddrPort().Port()
 
-	rs, err := common.CreateRawSocket()
+	rs, err := winconn.NewRawConn()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create raw socket: %w", err)
 	}
@@ -63,7 +64,7 @@ func (u *UDPv4) TracerouteSequential() (*common.Results, error) {
 	}, nil
 }
 
-func (u *UDPv4) sendAndReceive(rs *common.Winrawsocket, ttl int, timeout time.Duration) (*common.Hop, error) {
+func (u *UDPv4) sendAndReceive(rs *winconn.RawConn, ttl int, timeout time.Duration) (*common.Hop, error) {
 	_, buffer, udpChecksum, _, err := createRawUDPBuffer(u.srcIP, u.srcPort, u.Target, u.TargetPort, ttl)
 	if err != nil {
 		log.Errorf("failed to create UDP packet with TTL: %d, error: %s", ttl, err.Error())

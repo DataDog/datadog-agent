@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/gopacket/layers"
+	"golang.org/x/net/ipv4"
 )
 
 type (
@@ -45,6 +46,10 @@ type (
 	// failed due to one or more fields from the packet not matching
 	// the expected information
 	MismatchError string
+
+	// MatcherFunc defines functions for matching a packet from the wire to
+	// a traceroute based on the source/destination addresses and an identifier
+	MatcherFunc func(*ipv4.Header, []byte, net.IP, uint16, net.IP, uint16, uint32) (net.IP, error)
 )
 
 // Error implements the error interface for
