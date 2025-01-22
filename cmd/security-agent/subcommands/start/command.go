@@ -102,7 +102,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfigsetup.DefaultSecurityAgentLogFile),
 				}),
 				core.Bundle(),
-				configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 				fetchonlyimpl.Module(),
 			)
@@ -250,6 +249,7 @@ func startPhase1(params phase1Params) error {
 		}),
 		settingsimpl.Module(),
 		logscompressionfx.Module(),
+		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 	)
 
 }
