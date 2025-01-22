@@ -359,6 +359,10 @@ class GithubAPI:
         release = self._repository.get_latest_release()
         return release.title
 
+    def latest_release_tag(self) -> str:
+        release = self._repository.get_latest_release()
+        return release.tag_name
+
     def get_releases(self):
         return self._repository.get_releases()
 
@@ -540,14 +544,37 @@ class GithubAPI:
         auth_token = integration.get_access_token(install_id)
         print(auth_token.token)
 
-    def create_label(self, name, color, description=""):
+    def create_label(self, name, color, description="", exist_ok=False):
         """
         Creates a label in the given GitHub repository.
         """
-        return self._repository.create_label(name, color, description)
 
-    def create_milestone(self, title):
-        self._repository.create_milestone(title)
+        try:
+            return self._repository.create_label(name, color, description)
+        except GithubException as e:
+            if not (
+                e.status == 422
+                and len(e.data["errors"]) == 1
+                and e.data["errors"][0]["code"] == "already_exists"
+                and exist_ok
+            ):
+                raise e
+
+    def create_milestone(self, title, exist_ok=False):
+        """
+        Creates a milestone in the given GitHub repository.
+        """
+
+        try:
+            return self._repository.create_milestone(title)
+        except GithubException as e:
+            if not (
+                e.status == 422
+                and len(e.data["errors"]) == 1
+                and e.data["errors"][0]["code"] == "already_exists"
+                and exist_ok
+            ):
+                raise e
 
     def create_release(self, tag, message, draft=True):
         return self._repository.create_git_release(

@@ -10,10 +10,12 @@ package k8s
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -73,8 +75,10 @@ func TestExtractPod(t *testing.T) {
 	parseRequests := resource.MustParse("250M")
 	parseLimits := resource.MustParse("550M")
 	tests := map[string]struct {
-		input    v1.Pod
-		expected model.Pod
+		input             v1.Pod
+		labelsAsTags      map[string]string
+		annotationsAsTags map[string]string
+		expected          model.Pod
 	}{
 		"full pod with containers without resourceRequirements": {
 			input: v1.Pod{
@@ -143,10 +147,10 @@ func TestExtractPod(t *testing.T) {
 					Namespace:         "namespace",
 					CreationTimestamp: timestamp,
 					Labels: map[string]string{
-						"label": "foo",
+						"app": "my-app",
 					},
 					Annotations: map[string]string{
-						"annotation": "bar",
+						"annotation": "my-annotation",
 					},
 					OwnerReferences: []metav1.OwnerReference{
 						{
@@ -166,14 +170,21 @@ func TestExtractPod(t *testing.T) {
 					},
 					PriorityClassName: "high-priority",
 				},
-			}, expected: model.Pod{
+			},
+			labelsAsTags: map[string]string{
+				"app": "application",
+			},
+			annotationsAsTags: map[string]string{
+				"annotation": "annotation_key",
+			},
+			expected: model.Pod{
 				Metadata: &model.Metadata{
 					Name:              "pod",
 					Namespace:         "namespace",
 					Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
 					CreationTimestamp: 1389744000,
-					Labels:            []string{"label:foo"},
-					Annotations:       []string{"annotation:bar"},
+					Labels:            []string{"app:my-app"},
+					Annotations:       []string{"annotation:my-annotation"},
 					OwnerReferences: []*model.OwnerReference{
 						{
 							Name: "test-controller",
@@ -231,7 +242,12 @@ func TestExtractPod(t *testing.T) {
 						LastTransitionTime: timestamp.Unix(),
 					},
 				},
-				Tags: []string{"kube_condition_ready:true", "kube_condition_podscheduled:true"},
+				Tags: []string{
+					"kube_condition_ready:true",
+					"kube_condition_podscheduled:true",
+					"application:my-app",
+					"annotation_key:my-annotation",
+				},
 				ResourceRequirements: []*model.ResourceRequirements{
 					{
 						Limits:   map[string]int64{},
@@ -524,7 +540,14 @@ func TestExtractPod(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, &tc.expected, ExtractPod(&tc.input))
+			pctx := &processors.K8sProcessorContext{
+				LabelsAsTags:      tc.labelsAsTags,
+				AnnotationsAsTags: tc.annotationsAsTags,
+			}
+			actual := ExtractPod(pctx, &tc.input)
+			sort.Strings(actual.Tags)
+			sort.Strings(tc.expected.Tags)
+			assert.Equal(t, &tc.expected, actual)
 		})
 	}
 }

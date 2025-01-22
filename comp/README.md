@@ -16,7 +16,7 @@ Package autoexit lets setup automatic shutdown mechanism if necessary
 
 ### [comp/agent/cloudfoundrycontainer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer)
 
-*Datadog Team*: platform-integrations
+*Datadog Team*: agent-integrations
 
 Package cloudfoundrycontainer provides the cloud foundry container component.
 

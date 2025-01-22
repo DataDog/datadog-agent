@@ -9,7 +9,6 @@
 '@datadog/container-integrations': '#container-integrations'
 '@datadog/container-platform': '#container-platform'
 '@datadog/container-ecosystems': '#container-ecosystems'
-'@datadog/platform-integrations': '#platform-integrations'
 '@datadog/agent-security': '#security-and-compliance-agent'
 '@datadog/agent-apm': '#apm-agent'
 '@datadog/network-device-monitoring': '#network-device-monitoring'
@@ -46,3 +45,4 @@
 '@datadog/agent-devx-loops': '#agent-devx-loops-reviews'
 '@datadog/apm-onboarding': '#apm-onboarding'
 '@datadog/apm-ecosystems-performance': '#apm-benchmarking-platform'
+'@datadog/injection-platform': '#injection-platform'

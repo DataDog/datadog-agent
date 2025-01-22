@@ -9,15 +9,15 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
-
 	policyv1 "k8s.io/api/policy/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 // ExtractPodDisruptionBudget returns the protobuf model corresponding to a Kubernetes
-func ExtractPodDisruptionBudget(pdb *policyv1.PodDisruptionBudget) *model.PodDisruptionBudget {
+func ExtractPodDisruptionBudget(ctx processors.ProcessorContext, pdb *policyv1.PodDisruptionBudget) *model.PodDisruptionBudget {
 	if pdb == nil {
 		return nil
 	}
@@ -26,7 +26,9 @@ func ExtractPodDisruptionBudget(pdb *policyv1.PodDisruptionBudget) *model.PodDis
 		Spec:     extractPodDisruptionBudgetSpec(&pdb.Spec),
 		Status:   extractPodDisruptionBudgetStatus(&pdb.Status),
 	}
+	pctx := ctx.(*processors.K8sProcessorContext)
 	result.Tags = append(result.Tags, transformers.RetrieveUnifiedServiceTags(pdb.ObjectMeta.Labels)...)
+	result.Tags = append(result.Tags, transformers.RetrieveMetadataTags(pdb.ObjectMeta.Labels, pdb.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 	return &result
 }
 
