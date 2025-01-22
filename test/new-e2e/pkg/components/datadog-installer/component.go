@@ -80,7 +80,7 @@ func CreateInstallerPaths() func(*Configuration) error {
 
 // NewConfig creates a default config
 func NewConfig(env config.Env, options ...Option) (*Configuration, error) {
-	options = append([]Option{CreateInstallerPaths()})
+	options = append(options, CreateInstallerPaths())
 	if env.PipelineID() != "" {
 		artifactURL, err := pipeline.GetPipelineArtifact(env.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
 			return strings.Contains(artifact, "datadog-installer") && strings.HasSuffix(artifact, ".msi")
@@ -88,7 +88,7 @@ func NewConfig(env config.Env, options ...Option) (*Configuration, error) {
 		if err != nil {
 			return nil, err
 		}
-		options = append([]Option{WithInstallURL(artifactURL)}, options...)
+		options = append(options, WithInstallURL(artifactURL))
 	}
 	return common.ApplyOption(&Configuration{}, options)
 }
