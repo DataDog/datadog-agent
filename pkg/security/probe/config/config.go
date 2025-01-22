@@ -9,7 +9,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 
@@ -181,7 +180,7 @@ func NewConfig() (*Config, error) {
 		NetworkFlowMonitorSKStorageEnabled: getBool("network.flow_monitor.sk_storage.enabled"),
 		EventStreamUseRingBuffer:           getBool("event_stream.use_ring_buffer"),
 		EventStreamBufferSize:              getInt("event_stream.buffer_size"),
-		EventStreamUseFentry:               getEventStreamFentryValue(),
+		EventStreamUseFentry:               getBool("event_stream.use_fentry"),
 		EnvsWithValue:                      getStringSlice("envs_with_value"),
 		NetworkEnabled:                     getBool("network.enabled"),
 		NetworkIngressEnabled:              getBool("network.ingress.enabled"),
@@ -262,21 +261,6 @@ func (c *Config) sanitizeConfigNetwork() {
 		if !lazyInterfaces[name] {
 			c.NetworkLazyInterfacePrefixes = append(c.NetworkLazyInterfacePrefixes, name)
 		}
-	}
-}
-
-func getEventStreamFentryValue() bool {
-	if getBool("event_stream.use_fentry") {
-		return true
-	}
-
-	switch runtime.GOARCH {
-	case "amd64":
-		return getBool("event_stream.use_fentry_amd64")
-	case "arm64":
-		return getBool("event_stream.use_fentry_arm64")
-	default:
-		return false
 	}
 }
 
