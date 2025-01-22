@@ -197,17 +197,16 @@ func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 }
 
 // Factory creates a new check factory
-func Factory(agentConfig config.Component) option.Option[func() check.Check] {
+func Factory() option.Option[func() check.Check] {
 	return option.New(func() check.Check {
-		return newCheck(agentConfig)
+		return newCheck()
 	})
 }
 
-func newCheck(agentConfig config.Component) check.Check {
+func newCheck() check.Check {
 	return &Check{
 		CheckBase:                  core.NewCheckBase(common.SnmpIntegrationName),
 		sessionFactory:             session.NewGosnmpSession,
 		workerRunDeviceCheckErrors: atomic.NewUint64(0),
-		agentConfig:                agentConfig,
 	}
 }

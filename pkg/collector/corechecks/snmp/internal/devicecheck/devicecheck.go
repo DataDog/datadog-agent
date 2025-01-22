@@ -17,9 +17,8 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	haagenthelpers "github.com/DataDog/datadog-agent/comp/haagent/helpers"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
@@ -67,13 +66,12 @@ type DeviceCheck struct {
 	diagnoses               *diagnoses.Diagnoses
 	interfaceBandwidthState report.InterfaceBandwidthState
 	cacheKey                string
-	agentConfig             config.Component
 }
 
 const cacheKeyPrefix = "snmp-tags"
 
 // NewDeviceCheck returns a new DeviceCheck
-func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFactory session.Factory, agentConfig config.Component) (*DeviceCheck, error) {
+func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFactory session.Factory) (*DeviceCheck, error) {
 	newConfig := config.CopyWithNewIP(ipAddress)
 
 	var devicePinger pinger.Pinger
@@ -96,7 +94,6 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		diagnoses:               diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
 		interfaceBandwidthState: report.MakeInterfaceBandwidthState(),
 		cacheKey:                cacheKey,
-		agentConfig:             agentConfig,
 	}
 
 	d.readTagsFromCache()
@@ -247,17 +244,9 @@ func (d *DeviceCheck) setDeviceHostExternalTags() {
 	if deviceHostname == "" || err != nil {
 		return
 	}
-	agentTags := d.buildExternalTags()
+	agentTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
 	log.Debugf("Set external tags for device host, host=`%s`, agentTags=`%v`", deviceHostname, agentTags)
 	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceType, agentTags)
-}
-
-func (d *DeviceCheck) buildExternalTags() []string {
-	agentTags := configUtils.GetConfiguredTags(d.agentConfig, false)
-	if haagenthelpers.IsEnabled(d.agentConfig) {
-		agentTags = append(agentTags, haagenthelpers.GetHaAgentTags(d.agentConfig)...)
-	}
-	return agentTags
 }
 
 func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValueStore, error) {
