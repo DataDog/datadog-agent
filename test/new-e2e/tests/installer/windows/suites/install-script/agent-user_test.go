@@ -39,9 +39,9 @@ func (s *testInstallScriptWithAgentUserSuite) TestInstallScriptWithAgentUser() {
 	// Arrange
 
 	// Act
-	out, err := installerwindows.RunInstallScript(s.Env(), map[string]string{
+	out, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
 		"DD_AGENT_USER_NAME": s.agentUser,
-	})
+	}))
 	s.T().Log(out)
 
 	// Assert

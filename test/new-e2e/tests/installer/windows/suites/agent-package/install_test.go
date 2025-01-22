@@ -18,7 +18,7 @@ import (
 )
 
 type testAgentInstallSuite struct {
-	installerwindows.BaseInstallerSuite
+	installerwindows.BaseSuite
 }
 
 // TestAgentInstalls tests the usage of the Datadog installer to install the Datadog Agent package.
