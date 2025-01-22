@@ -15,7 +15,6 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv127 "go.opentelemetry.io/collector/semconv/v1.27.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -103,10 +102,10 @@ func OtelSpanToDDSpanMinimal(
 }
 
 func isDatadogAPMConventionKey(k string) bool {
-	return k == "service.name" || k == "operation.name" || k == "resource.name" || k == "span.type" || k == semconv127.AttributeDeploymentEnvironmentName || k == semconv.AttributeDeploymentEnvironment || k == "http.method" || k == "http.status_code"
+	return k == "service.name" || k == "operation.name" || k == "resource.name" || k == "span.type" || k == "http.method" || k == "http.status_code"
 }
 
-func mapHTTPAttributes(k string, value string, ddspan *pb.Span) {
+func setMetaOTLPWithHTTPMappings(k string, value string, ddspan *pb.Span) {
 	datadogKey, found := attributes.HTTPMappings[k]
 	switch {
 	case found && value != "":
@@ -141,7 +140,7 @@ func OtelSpanToDDSpan(
 
 	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
 		value := v.AsString()
-		mapHTTPAttributes(k, value, ddspan)
+		setMetaOTLPWithHTTPMappings(k, value, ddspan)
 		return true
 	})
 
@@ -178,7 +177,7 @@ func OtelSpanToDDSpan(
 		case pcommon.ValueTypeInt:
 			SetMetricOTLP(ddspan, k, float64(v.Int()))
 		default:
-			mapHTTPAttributes(k, value, ddspan)
+			setMetaOTLPWithHTTPMappings(k, value, ddspan)
 		}
 
 		// `http.method` was renamed to `http.request.method` in the HTTP stabilization from v1.23.
