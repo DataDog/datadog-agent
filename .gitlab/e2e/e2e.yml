@@ -471,6 +471,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentInstalls$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$"
       # install-script
+      - EXTRA_PARAMS: --run "TestInstallScript$"
       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
       # installer-package
       - EXTRA_PARAMS: --run "TestInstaller$"
