@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -39,7 +38,6 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
-		e2eos.FedoraDefault,
 		e2eos.CentOS7,
 		e2eos.Suse15,
 	}
@@ -50,7 +48,9 @@ var (
 	}
 	scriptTestsWithSkippedFlavors = []installerScriptTestsWithSkippedFlavors{
 		{t: testDatabricksScript},
-		{t: testDefaultScript, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7}},
+		{t: testDefaultScript, skippedFlavors: []e2eos.Descriptor{
+			e2eos.CentOS7, // CentOS 7 is not supported by the default script because of SELinux
+		}},
 	}
 )
 
@@ -64,9 +64,11 @@ func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool 
 }
 
 func TestScripts(t *testing.T) {
-	if _, ok := os.LookupEnv("CI_COMMIT_SHA"); !ok {
-		t.Log("CI_COMMIT_SHA env var is not set, this test requires this variable to be set to work")
-		t.FailNow()
+	if _, ok := os.LookupEnv("E2E_PIPELINE_ID"); !ok {
+		if _, ok := os.LookupEnv("CI_COMMIT_SHA"); !ok {
+			t.Log("CI_COMMIT_SHA & E2E_PIPELINE_ID env var are not set, this test requires one of these two variables to be set to work")
+			t.FailNow()
+		}
 	}
 
 	var flavors []e2eos.Descriptor
@@ -88,10 +90,6 @@ func TestScripts(t *testing.T) {
 			suite := test.t(flavor, flavor.Architecture)
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
-				// FIXME: Fedora currently has DNS issues
-				if flavor.Flavor == e2eos.Fedora {
-					flake.Mark(t)
-				}
 
 				opts := []awshost.ProvisionerOption{
 					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
@@ -115,12 +113,21 @@ type installerScriptSuite interface {
 }
 
 func newInstallerScriptSuite(pkg string, e2eos e2eos.Descriptor, arch e2eos.Architecture, opts ...awshost.ProvisionerOption) installerScriptBaseSuite {
+	var scriptURLPrefix string
+	if pipelineID, ok := os.LookupEnv("E2E_PIPELINE_ID"); ok {
+		scriptURLPrefix = fmt.Sprintf("https://installtesting.datad0g.com/pipeline-%s/scripts/", pipelineID)
+	} else if commitHash, ok := os.LookupEnv("CI_COMMIT_SHA"); ok {
+		scriptURLPrefix = fmt.Sprintf("https://installtesting.datad0g.com/%s/scripts/", commitHash)
+	} else {
+		require.FailNowf(nil, "missing script identifier", "CI_COMMIT_SHA or CI_PIPELINE_ID must be set")
+	}
+
 	return installerScriptBaseSuite{
-		commitHash: os.Getenv("CI_COMMIT_SHA"),
-		os:         e2eos,
-		arch:       arch,
-		pkg:        pkg,
-		opts:       opts,
+		scriptURLPrefix: scriptURLPrefix,
+		os:              e2eos,
+		arch:            arch,
+		pkg:             pkg,
+		opts:            opts,
 	}
 }
 
@@ -138,7 +145,7 @@ func (s *installerScriptBaseSuite) SetupSuite() {
 }
 
 type installerScriptBaseSuite struct {
-	commitHash string
+	scriptURLPrefix string
 	e2e.BaseSuite[environments.Host]
 
 	host *host.Host

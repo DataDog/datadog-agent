@@ -60,6 +60,7 @@ func TestSetupEmr(t *testing.T) {
 		{
 			name: "basic fields json",
 			wantTags: []string{
+				"data_workload_monitoring_trial:true",
 				"instance_group_id:ig-123",
 				"is_master_node:true",
 				"job_flow_id:j-456",
