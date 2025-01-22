@@ -53,13 +53,6 @@ func NewDiskConfig() *diskConfig {
 }
 
 func (c *Check) excludeDisk(mountpoint, device, fstype string) bool {
-
-	// Hack for NFS secure mounts
-	// Secure mounts might look like this: '/mypath (deleted)', we should
-	// ignore all the bits not part of the mountpoint name. Take also into
-	// account a space might be in the mountpoint.
-	mountpoint = strings.Split(mountpoint, " ")[0]
-
 	nameEmpty := device == "" || device == "none"
 
 	// allow empty names if `all_partitions` is `yes` so we can evaluate mountpoints
@@ -87,6 +80,11 @@ func (c *Check) excludeDisk(mountpoint, device, fstype string) bool {
 		return true
 	}
 
+	// Hack for NFS secure mounts
+	// Secure mounts might look like this: '/mypath (deleted)', we should
+	// ignore all the bits not part of the mountpoint name. Take also into
+	// account a space might be in the mountpoint.
+	mountpoint = strings.Split(mountpoint, " ")[0]
 	// device mountpoint matches `excluded_mountpoint_re`
 	if c.cfg.excludedMountpointRe != nil && c.cfg.excludedMountpointRe.MatchString(mountpoint) {
 		return true
