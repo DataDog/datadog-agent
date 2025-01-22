@@ -855,7 +855,7 @@ func (adm *ActivityDumpManager) SnapshotTracedCgroups() {
 
 		if err = adm.activityDumpsConfigMap.Lookup(&event.ConfigCookie, &event.Config); err != nil {
 			// this config doesn't exist anymore, remove expired entries
-			seclog.Infof("config not found for (%v): %v", cgroupFile, err)
+			seclog.Warnf("config not found for (%v): %v", cgroupFile, err)
 			_ = adm.tracedCgroupsMap.Delete(cgroupFile)
 			continue
 		}
@@ -864,7 +864,7 @@ func (adm *ActivityDumpManager) SnapshotTracedCgroups() {
 	}
 
 	if err = iterator.Err(); err != nil {
-		seclog.Infof("couldn't iterate over the map traced_cgroups: %v", err)
+		seclog.Warnf("couldn't iterate over the map traced_cgroups: %v", err)
 	}
 }
 
