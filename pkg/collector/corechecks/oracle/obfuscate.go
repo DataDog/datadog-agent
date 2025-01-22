@@ -20,7 +20,7 @@ var (
 	obfuscatorLock sync.Mutex
 )
 
-// Inits an obfuscator a single time the first time it is called
+// LazyInitObfuscator inits an obfuscator a single time the first time it is called
 func (c *Check) LazyInitObfuscator() *obfuscate.Obfuscator {
 	// Ensure thread safe initialization
 	obfuscatorLock.Lock()
