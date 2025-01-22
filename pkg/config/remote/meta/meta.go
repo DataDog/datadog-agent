@@ -32,6 +32,7 @@ type EmbeddedRoot struct {
 	root   []byte
 }
 
+// NewEmbeddedRoot creates a new EmbeddedRoot
 func NewEmbeddedRoot(embeddedRoot []byte) EmbeddedRoot {
 	version := parseRootVersion(embeddedRoot)
 	return EmbeddedRoot{
