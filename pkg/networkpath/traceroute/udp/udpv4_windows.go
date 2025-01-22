@@ -77,7 +77,7 @@ func (u *UDPv4) sendAndReceive(rs *common.Winrawsocket, ttl int, timeout time.Du
 	}
 
 	matcherFuncs := map[int]common.MatcherFunc{
-		windows.IPPROTO_ICMP: u.icmpParser.MatchICMP,
+		windows.IPPROTO_ICMP: u.icmpParser.Match,
 	}
 	start := time.Now() // TODO: is this the best place to start?
 	hopIP, end, err := rs.ListenPackets(timeout, u.srcIP, u.srcPort, u.Target, u.TargetPort, uint32(udpChecksum), matcherFuncs)
