@@ -138,7 +138,7 @@ func addFactories(reqs Requires, factories otelcol.Factories) {
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger, generateID)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
-	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactory()
+	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactoryForAgent(reqs.TraceAgent)
 }
 
 var buildInfo = component.BuildInfo{
@@ -198,6 +198,7 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 	}
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
+	// Not sure what to do here. The extension requires the trace-agent, so likely we shouldn't add it to the factories at all.
 	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactory()
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")

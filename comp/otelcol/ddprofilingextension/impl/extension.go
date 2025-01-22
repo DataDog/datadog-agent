@@ -8,34 +8,101 @@ package ddprofilingextensionimpl
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	ddprofilingextensiondef "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def"
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 )
 
-var _ extension.Extension = (*ddExtension)(nil)
-var _ component.Config = (*Config)(nil)
+var (
+	_               extension.Extension = (*ddExtension)(nil)
+	_               component.Config    = (*Config)(nil)
+	defaultEndpoint                     = "7501"
+)
 
 // ddExtension is a basic OpenTelemetry Collector extension.
 type ddExtension struct {
 	extension.Extension // Embed base Extension for common functionality.
 
-	cfg  *Config // Extension configuration.
-	info component.BuildInfo
+	cfg        *Config // Extension configuration.
+	info       component.BuildInfo
+	traceAgent traceagent.Component
+}
+
+// Requires declares the input types to the constructor
+type Requires struct {
+	TraceAgent traceagent.Component
 }
 
 // NewExtension creates a new instance of the extension.
-func NewExtension(cfg *Config, info component.BuildInfo) (ddprofilingextensiondef.Component, error) {
+func NewExtension(cfg *Config, info component.BuildInfo, traceAgent traceagent.Component) (ddprofilingextensiondef.Component, error) {
 	return &ddExtension{
-		cfg:  cfg,
-		info: info,
+		cfg:        cfg,
+		info:       info,
+		traceAgent: traceAgent,
 	}, nil
 }
 
 func (e *ddExtension) Start(ctx context.Context, _ component.Host) error {
+	// OTEL AGENT
+	if e.traceAgent != nil {
+		return e.startForOTelAgent()
+	}
+	// OCB
+	return e.startForOCB()
+
+}
+
+func (e *ddExtension) startForOTelAgent() error {
+	// start server that handles profiles
+	go e.StartServer()
+
+	profilerOptions := e.buildProfilerOptions()
+
+	// agent
+	if e.cfg.Endpoint != "" {
+		profilerOptions = append(profilerOptions, profiler.WithAgentAddr("localhost:"+e.cfg.Endpoint))
+	} else {
+		profilerOptions = append(profilerOptions, profiler.WithAgentAddr("localhost:"+defaultEndpoint))
+	}
+
+	return profiler.Start(
+		profilerOptions...,
+	)
+}
+
+func (e *ddExtension) startForOCB() error {
+	profilerOptions := e.buildProfilerOptions()
+
+	if string(e.cfg.API.Key) == "" {
+		return errors.New("API key is required for ddprofiling extension")
+	}
+	// agentless
+	profilerOptions = append(profilerOptions,
+		profiler.WithAgentlessUpload(),
+		profiler.WithAPIKey(string(e.cfg.API.Key)),
+	)
+
+	// todo(mackjmr): add datadogexporter hostmetadata provider to retrieve hostname, and
+	// pass it to profiler via profiler.WithHostname(). This requires a refactor in contrib,
+	// as the logic lives within an internal package.
+
+	if string(e.cfg.API.Site) != "" {
+		profilerOptions = append(profilerOptions, profiler.WithSite(string(e.cfg.API.Site)))
+	}
+
+	return profiler.Start(
+		profilerOptions...,
+	)
+}
+
+func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 	profilerOptions := []profiler.Option{
+		profiler.WithPeriod(10 * time.Second),
 		profiler.WithService(e.info.Command),
 		profiler.WithVersion(e.info.Version),
 		profiler.WithProfileTypes(
@@ -62,26 +129,7 @@ func (e *ddExtension) Start(ctx context.Context, _ component.Host) error {
 		profilerOptions = append(profilerOptions, profiler.WithVersion(e.cfg.Version))
 	}
 
-	if string(e.cfg.API.Key) != "" {
-		profilerOptions = append(profilerOptions,
-			profiler.WithAgentlessUpload(),
-			profiler.WithAPIKey(string(e.cfg.API.Key)),
-		)
-	}
-
-	if string(e.cfg.API.Site) != "" {
-		profilerOptions = append(profilerOptions, profiler.WithSite(string(e.cfg.API.Site)))
-	}
-
-	err := profiler.Start(
-		profilerOptions...,
-	)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return profilerOptions
 }
 
 func (e *ddExtension) Shutdown(ctx context.Context) error {

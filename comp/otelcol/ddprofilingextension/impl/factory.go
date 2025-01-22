@@ -9,6 +9,7 @@ package ddprofilingextensionimpl
 import (
 	"context"
 
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 )
@@ -16,16 +17,28 @@ import (
 // Type exports the internal metadata type for easy reference
 var Type = component.MustNewType("ddprofiling")
 
+// isOCB returns true if extension was built with OCB
+func (f *ddExtensionFactory) isOCB() bool {
+	return f.traceAgent == nil
+}
+
 type ddExtensionFactory struct {
 	extension.Factory
+	traceAgent traceagent.Component
 }
 
 func NewFactory() extension.Factory {
 	return &ddExtensionFactory{}
 }
 
+func NewFactoryForAgent(traceAgent traceagent.Component) extension.Factory {
+	return &ddExtensionFactory{
+		traceAgent: traceAgent,
+	}
+}
+
 func (f *ddExtensionFactory) Create(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
-	return NewExtension(cfg.(*Config), set.BuildInfo)
+	return NewExtension(cfg.(*Config), set.BuildInfo, f.traceAgent)
 }
 
 func (f *ddExtensionFactory) Stability() component.StabilityLevel {

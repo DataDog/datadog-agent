@@ -2,8 +2,8 @@ github.com/DataDog/appsec-internal-go v1.9.0 h1:cGOneFsg0JTRzWl5U2+og5dbtyW3N8Xa
 github.com/DataDog/appsec-internal-go v1.9.0/go.mod h1:wW0cRfWBo4C044jHGwYiyh5moQV2x0AhnwqMuiX7O/g=
 github.com/DataDog/datadog-agent/pkg/obfuscate v0.58.0 h1:nOrRNCHyriM/EjptMrttFOQhRSmvfagESdpyknb5VPg=
 github.com/DataDog/datadog-agent/pkg/obfuscate v0.58.0/go.mod h1:MfDvphBMmEMwE3a30h27AtPO7OzmvdoVTiGY1alEmo4=
-github.com/DataDog/datadog-agent/pkg/proto v0.60.0 h1:kJsUun2owz1ywuFKJKfOIkQXE2bhNKlqFX8cyGPmq30=
-github.com/DataDog/datadog-agent/pkg/proto v0.60.0/go.mod h1:SRAisQSN0djl2y7A/pwsSvlL2mZI7LPqMHO6iIFsLBM=
+github.com/DataDog/datadog-agent/pkg/proto v0.61.0 h1:CS0QhiHFNEWjixvNoan1c1wDCvCoCPo/eBHDOzUOdKc=
+github.com/DataDog/datadog-agent/pkg/proto v0.61.0/go.mod h1:DRlQmy6REnEngQoIWJXyARV4h1hlT2sr5N//fBOhUBU=
 github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.58.0 h1:5hGO0Z8ih0bRojuq+1ZwLFtdgsfO3TqIjbwJAH12sOQ=
 github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.58.0/go.mod h1:jN5BsZI+VilHJV1Wac/efGxS4TPtXa1Lh9SiUyv93F4=
 github.com/DataDog/datadog-agent/pkg/trace v0.58.0 h1:4AjohoBWWN0nNaeD/0SDZ8lRTYmnJ48CqREevUfSets=
@@ -28,8 +28,8 @@ github.com/DataDog/gostackparse v0.7.0 h1:i7dLkXHvYzHV308hnkvVGDL3BR4FWl7IsXNPz/
 github.com/DataDog/gostackparse v0.7.0/go.mod h1:lTfqcJKqS9KnXQGnyQMCugq3u1FP6UZMfWR0aitKFMM=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.22.0 h1:cXcKVEU1D0HlguR7GunnvuI70TghkarCa9DApqzMY94=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.22.0/go.mod h1:ES00EXfyEKgUkjd93tAXCxJA6i0seeOhZoS5Cj2qzzg=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.22.0 h1:yfk2cF8Bx98fSFpGrehEHh1FRqewfxcCTAbUDt5r3F8=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.22.0/go.mod h1:9qzpnBSxSOnKzbF/uHket3SSlQihQHix/ZRC2nZUUYQ=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.24.0 h1:Y65h9AvfQO7ONOBlqCetvvUhh2XO1wIzN7IfXVFjc84=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.24.0/go.mod h1:7aAFw4o5dZk/kqFniz7ljJwS8covz8DHouGl7BrsnLI=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.22.0 h1:w9+ngZDYUMLW+GSRA8x1DvVbuMR+cwlGb8VLwZfgBGs=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.22.0/go.mod h1:UsfqLgiD6Sjhpjkg+YzAd+TdKUZ2m6ZZ8t+tEkLNTMA=
 github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.22.0 h1:63SzQz9Ab8XJj8fQKQz6UZNBhOm8rucwzbDfwTVF6dQ=
@@ -137,8 +137,8 @@ github.com/outcaste-io/ristretto v0.2.3 h1:AK4zt/fJ76kjlYObOeNwh4T3asEuaCmp26pOv
 github.com/outcaste-io/ristretto v0.2.3/go.mod h1:W8HywhmtlopSB1jeMg3JtdIhf+DYkLAr0VN/s4+MHac=
 github.com/patrickmn/go-cache v2.1.0+incompatible h1:HRMgzkcYKYpi3C8ajMPV8OFXaaRUnok+kx1WdO15EQc=
 github.com/patrickmn/go-cache v2.1.0+incompatible/go.mod h1:3Qf8kWWT7OJRJbdiICTKqZju1ZixQ/KpMGzzAfe6+WQ=
-github.com/philhofer/fwd v1.1.3-0.20240612014219-fbbf4953d986 h1:jYi87L8j62qkXzaYHAQAhEapgukhenIMZRBKTNRLHJ4=
-github.com/philhofer/fwd v1.1.3-0.20240612014219-fbbf4953d986/go.mod h1:RqIHx9QI14HlwKwm98g9Re5prTQ6LdeRQn+gXJFxsJM=
+github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c h1:dAMKvw0MlJT1GshSTtih8C2gDs04w8dReiOGXrGLNoY=
+github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c/go.mod h1:RqIHx9QI14HlwKwm98g9Re5prTQ6LdeRQn+gXJFxsJM=
 github.com/pierrec/lz4/v4 v4.1.22 h1:cKFw6uJDK+/gfw5BcDL0JL5aBsAFdsIT18eRtLj7VIU=
 github.com/pierrec/lz4/v4 v4.1.22/go.mod h1:gZWDp/Ze/IJXGXf23ltt2EXimqmTUXEy0GFuRQyBid4=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
@@ -179,8 +179,8 @@ github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO
 github.com/stretchr/testify v1.8.1/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
 github.com/stretchr/testify v1.10.0 h1:Xv5erBjTwe/5IxqUQTdXv5kgmIvbHo3QQyRwhJsOfJA=
 github.com/stretchr/testify v1.10.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
-github.com/tinylib/msgp v1.2.1 h1:6ypy2qcCznxpP4hpORzhtXyTqrBs7cfM9MCCWY8zsmU=
-github.com/tinylib/msgp v1.2.1/go.mod h1:2vIGs3lcUo8izAATNobrCHevYZC/LMsJtw4JPiYPHro=
+github.com/tinylib/msgp v1.2.5 h1:WeQg1whrXRFiZusidTQqzETkRpGjFjcIhW6uqWH09po=
+github.com/tinylib/msgp v1.2.5/go.mod h1:ykjzy2wzgrlvpDCRc4LA8UXy6D8bzMSuAF3WD57Gok0=
 github.com/tklauser/go-sysconf v0.3.12 h1:0QaGUFOdQaIVdPgfITYzaTegZvdCjmYO52cSFAEVmqU=
 github.com/tklauser/go-sysconf v0.3.12/go.mod h1:Ho14jnntGE1fpdOqQEEaiKRpvIavV0hSfmBq8nJbHYI=
 github.com/tklauser/numcpus v0.6.1 h1:ng9scYS7az0Bk4OZLvrNXNSAO2Pxr1XXRAPyjhIx+Fk=

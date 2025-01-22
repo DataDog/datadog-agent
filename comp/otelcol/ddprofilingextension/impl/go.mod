@@ -4,23 +4,26 @@ go 1.23.3
 
 replace github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def => ../../ddprofilingextension/def
 
+replace github.com/DataDog/datadog-agent/comp/trace/agent/def => ../../../trace/agent/def
+
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.61.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.117.0
+	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/component v0.117.0
-	go.opentelemetry.io/collector/confmap v1.23.0
 	go.opentelemetry.io/collector/extension v0.117.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.70.3
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/proto v0.60.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1 // indirect
 	github.com/DataDog/datadog-go/v5 v5.6.0 // indirect
 	github.com/DataDog/gostackparse v0.7.0 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.22.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.24.0 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.22.0 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.22.0 // indirect
 	github.com/DataDog/sketches-go v1.4.5 // indirect
@@ -50,14 +53,13 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
-	github.com/philhofer/fwd v1.1.3-0.20240612014219-fbbf4953d986 // indirect
+	github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
-	github.com/stretchr/testify v1.10.0 // indirect
-	github.com/tinylib/msgp v1.2.1 // indirect
+	github.com/tinylib/msgp v1.2.5 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/collector/client v1.23.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v0.117.0 // indirect
@@ -68,6 +70,7 @@ require (
 	go.opentelemetry.io/collector/config/configretry v1.23.0 // indirect
 	go.opentelemetry.io/collector/config/configtelemetry v0.117.0 // indirect
 	go.opentelemetry.io/collector/config/configtls v1.23.0 // indirect
+	go.opentelemetry.io/collector/confmap v1.23.0 // indirect
 	go.opentelemetry.io/collector/consumer v1.23.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.117.0 // indirect
 	go.opentelemetry.io/collector/exporter v0.117.0 // indirect

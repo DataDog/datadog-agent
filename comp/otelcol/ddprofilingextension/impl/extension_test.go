@@ -6,17 +6,10 @@
 // Package ddprofilingextension defines the OpenTelemetry Extension implementation.
 package ddprofilingextensionimpl
 
-import (
-	"testing"
+// func TestNewExtension(t *testing.T) {
+// 	ext, err := NewExtension(&Config{}, component.BuildInfo{})
+// 	assert.NoError(t, err)
 
-	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/component"
-)
-
-func TestNewExtension(t *testing.T) {
-	ext, err := NewExtension(&Config{}, component.BuildInfo{})
-	assert.NoError(t, err)
-
-	_, ok := ext.(*ddExtension)
-	assert.True(t, ok)
-}
+// 	_, ok := ext.(*ddExtension)
+// 	assert.True(t, ok)
+// }

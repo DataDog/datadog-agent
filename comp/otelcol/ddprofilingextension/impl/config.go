@@ -8,19 +8,22 @@ package ddprofilingextensionimpl
 
 import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 
-// Config contains the config of the profiler. 
+// Config contains the config of the profiler.
 type Config struct {
 	// API contains the configuration for the api for the case of agentless uploads.
-	// api site is used in non agentless upload setups as well. 
+	// api site is used in non agentless upload setups as well.
 	// Not setting API section leads to upload to an agent with.
-	API     config.APIConfig `mapstructure:"api"`
-	// Service the profiler will report with. 
+	API config.APIConfig `mapstructure:"api"`
+	// Service the profiler will report with.
 	// Default: BuildInfo.Command (e.g. otel-agent)
-	Service string           `mapstructure:"service"`
-	// Env the profiler will report with. 
+	Service string `mapstructure:"service"`
+	// Env the profiler will report with.
 	// Default: none
-	Env     string           `mapstructure:"env"`
-	// Version the profiler will report with. 
+	Env string `mapstructure:"env"`
+	// Version the profiler will report with.
 	// Default: BuildInfo.Version (e.g. v0.117.0)
-	Version string           `mapstructure:"version"`
+	Version string `mapstructure:"version"`
+	// Endpoint reports the endpoint used for profiles.
+	// Default: BuildInfo.Version (e.g. v0.117.0)
+	Endpoint string `mapstructure:"endpoint"`
 }
