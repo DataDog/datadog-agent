@@ -168,7 +168,7 @@ func Test_handlePackets(t *testing.T) {
 		{
 			description: "no matcher eventually returns cancel timeout",
 			ctxTimeout:  500 * time.Millisecond,
-			recvFrom: func(_ windows.Handle, _ []byte, _ int) (int, windows.Sockaddr, error) {
+			recvFrom: func(_ windows.Handle, buf []byte, _ int) (int, windows.Sockaddr, error) {
 				copy(buf, tcpBytes)
 
 				return len(tcpBytes), nil, nil
@@ -179,7 +179,7 @@ func Test_handlePackets(t *testing.T) {
 		{
 			description: "successful matching returns IP, port, and type code",
 			ctxTimeout:  500 * time.Millisecond,
-			recvFrom: func(_ windows.Handle, _ []byte, _ int) (int, windows.Sockaddr, error) {
+			recvFrom: func(_ windows.Handle, buf []byte, _ int) (int, windows.Sockaddr, error) {
 				copy(buf, tcpBytes)
 
 				return len(tcpBytes), nil, nil

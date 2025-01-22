@@ -43,7 +43,7 @@ func Test_parseICMPTCP(t *testing.T) {
 		{
 			description: "empty IPv4 layer should return an error",
 			inHeader:    &ipv4.Header{},
-			inPayload:   []byte{},
+			inPayload:   []byte{1},
 			expected:    nil,
 			errMsg:      "invalid IP header for ICMP packet",
 		},
