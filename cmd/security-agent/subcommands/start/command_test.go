@@ -47,7 +47,7 @@ func TestCommand(t *testing.T) {
 		fxutil.TestOneShotSubcommand(t,
 			Commands(newGlobalParamsTest(t)),
 			test.cliInput,
-			start,
+			startPhase1,
 			test.check,
 		)
 	}
