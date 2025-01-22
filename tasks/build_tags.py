@@ -186,7 +186,7 @@ TRACE_AGENT_TAGS = {
     "containerd",
     "no_dynamic_plugins",
     "datadog.no_waf",
-    "glibc"
+    "glibc",
     "kubeapiserver",
     "kubelet",
     "otlp",
