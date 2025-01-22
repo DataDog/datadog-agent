@@ -44,16 +44,17 @@ func NewStatefulSetCollector(metadataAsTags utils.MetadataAsTags) *StatefulSetCo
 
 	return &StatefulSetCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      statefulSetName,
-			NodeType:                  orchestrator.K8sStatefulSet,
-			Version:                   statefulSetVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 statefulSetName,
+			NodeType:                             orchestrator.K8sStatefulSet,
+			Version:                              statefulSetVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.StatefulSetHandlers)),
 	}

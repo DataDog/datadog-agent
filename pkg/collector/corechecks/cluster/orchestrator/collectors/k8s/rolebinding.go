@@ -44,16 +44,17 @@ func NewRoleBindingCollector(metadataAsTags utils.MetadataAsTags) *RoleBindingCo
 
 	return &RoleBindingCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      roleBindingName,
-			NodeType:                  orchestrator.K8sRoleBinding,
-			Version:                   roleBindingVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 roleBindingName,
+			NodeType:                             orchestrator.K8sRoleBinding,
+			Version:                              roleBindingVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.RoleBindingHandlers)),
 	}

@@ -44,16 +44,17 @@ func NewNetworkPolicyCollector(metadataAsTags utils.MetadataAsTags) *NetworkPoli
 
 	return &NetworkPolicyCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      networkPolicyName,
-			NodeType:                  orchestrator.K8sNetworkPolicy,
-			Version:                   networkPolicyVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 networkPolicyName,
+			NodeType:                             orchestrator.K8sNetworkPolicy,
+			Version:                              networkPolicyVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.NetworkPolicyHandlers)),
 	}

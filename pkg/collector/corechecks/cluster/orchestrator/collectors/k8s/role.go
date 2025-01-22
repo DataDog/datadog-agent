@@ -43,16 +43,17 @@ func NewRoleCollector(metadataAsTags utils.MetadataAsTags) *RoleCollector {
 
 	return &RoleCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      roleName,
-			NodeType:                  orchestrator.K8sRole,
-			Version:                   roleVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 roleName,
+			NodeType:                             orchestrator.K8sRole,
+			Version:                              roleVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.RoleHandlers)),
 	}
