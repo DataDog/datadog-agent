@@ -201,7 +201,7 @@ func GetMetaData(config *GCPConfig, isCloudRun bool) map[string]string {
 	httpClient := &http.Client{
 		Timeout: config.timeout,
 	}
-	metadata := make(map[string]string)
+	metadata := make(map[string]string, 6)
 	go func() {
 		containerID := getSingleMetadata(httpClient, config.containerIDURL)
 		mlock.Lock()
