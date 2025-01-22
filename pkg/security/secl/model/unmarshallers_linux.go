@@ -1058,7 +1058,7 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 44 {
+	if len(data)-read < 48 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -1067,11 +1067,11 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 	SliceToArray(data[read+16:read+32], dstIP[:])
 	e.Source.Port = binary.BigEndian.Uint16(data[read+32 : read+34])
 	e.Destination.Port = binary.BigEndian.Uint16(data[read+34 : read+36])
-	// padding 4 bytes
+	e.L4Protocol = binary.NativeEndian.Uint16(data[read+36 : read+38])
+	e.L3Protocol = binary.NativeEndian.Uint16(data[read+38 : read+40])
 
 	e.Size = binary.NativeEndian.Uint32(data[read+40 : read+44])
-	e.L3Protocol = binary.NativeEndian.Uint16(data[read+44 : read+46])
-	e.L4Protocol = binary.NativeEndian.Uint16(data[read+46 : read+48])
+	e.NetworkDirection = binary.NativeEndian.Uint32(data[read+44 : read+48])
 
 	// readjust IP sizes depending on the protocol
 	switch e.L3Protocol {
@@ -1421,4 +1421,84 @@ func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	return len(data), nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *NetworkStats) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.DataSize = binary.NativeEndian.Uint64(data[0:8])
+	e.PacketCount = binary.NativeEndian.Uint64(data[8:16])
+	return 16, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *Flow) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 40 {
+		return 0, ErrNotEnoughData
+	}
+
+	var srcIP, dstIP [16]byte
+	SliceToArray(data[0:16], srcIP[:])
+	SliceToArray(data[16:32], dstIP[:])
+	e.Source.Port = binary.BigEndian.Uint16(data[32:34])
+	e.Destination.Port = binary.BigEndian.Uint16(data[34:36])
+	e.L4Protocol = binary.NativeEndian.Uint16(data[36:38])
+	e.L3Protocol = binary.NativeEndian.Uint16(data[38:40])
+
+	// readjust IP sizes depending on the protocol
+	switch e.L3Protocol {
+	case 0x800: // unix.ETH_P_IP
+		e.Source.IPNet = *eval.IPNetFromIP(srcIP[0:4])
+		e.Destination.IPNet = *eval.IPNetFromIP(dstIP[0:4])
+	default:
+		e.Source.IPNet = *eval.IPNetFromIP(srcIP[:])
+		e.Destination.IPNet = *eval.IPNetFromIP(dstIP[:])
+	}
+
+	// parse stats
+	readIngress, err := e.Ingress.UnmarshalBinary(data[40:])
+	if err != nil {
+		return 0, ErrNotEnoughData
+	}
+	readEgress, err := e.Egress.UnmarshalBinary(data[40+readIngress:])
+	if err != nil {
+		return 0, ErrNotEnoughData
+	}
+
+	return 40 + readIngress + readEgress, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *NetworkFlowMonitorEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := e.Device.UnmarshalBinary(data)
+	if err != nil {
+		return 0, ErrNotEnoughData
+	}
+	total := read
+	data = data[read:]
+
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+	e.FlowsCount = binary.NativeEndian.Uint64(data[0:8])
+	total += 8
+	data = data[8:]
+
+	for i := uint64(0); i < e.FlowsCount; i++ {
+		// parse flow
+		var flow Flow
+		read, err = flow.UnmarshalBinary(data)
+		if err != nil {
+			return 0, err
+		}
+		total += read
+		data = data[read:]
+
+		e.Flows = append(e.Flows, flow)
+	}
+
+	return total, nil
 }

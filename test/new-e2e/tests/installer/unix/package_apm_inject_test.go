@@ -404,7 +404,7 @@ func (s *packageApmInjectSuite) TestInstrumentDockerInactive() {
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"))
 	defer s.Purge()
 
-	s.Env().RemoteHost.MustExecute("sudo systemctl start docker")
+	s.host.InstallDocker() // Restart docker cleanly
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()

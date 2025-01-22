@@ -12,21 +12,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 )
 
 const (
-	tagRedisRawCommand  = "redis.raw_command"
-	tagMemcachedCommand = "memcached.command"
-	tagMongoDBQuery     = "mongodb.query"
-	tagElasticBody      = "elasticsearch.body"
-	tagOpenSearchBody   = "opensearch.body"
-	tagSQLQuery         = "sql.query"
-	tagHTTPURL          = "http.url"
+	tagRedisRawCommand  = transform.TagRedisRawCommand
+	tagMemcachedCommand = transform.TagMemcachedCommand
+	tagMongoDBQuery     = transform.TagMongoDBQuery
+	tagElasticBody      = transform.TagElasticBody
+	tagOpenSearchBody   = transform.TagOpenSearchBody
+	tagSQLQuery         = transform.TagSQLQuery
+	tagHTTPURL          = transform.TagHTTPURL
+	tagDBMS             = transform.TagDBMS
 )
 
 const (
-	textNonParsable = "Non-parsable SQL query"
+	textNonParsable = transform.TextNonParsable
 )
 
 func (a *Agent) obfuscateSpan(span *pb.Span) {
@@ -51,31 +52,21 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 		if span.Resource == "" {
 			return
 		}
-		oq, err := o.ObfuscateSQLString(span.Resource)
+		oq, err := transform.ObfuscateSQLSpan(o, span)
 		if err != nil {
 			// we have an error, discard the SQL to avoid polluting user resources.
 			log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
-			span.Resource = textNonParsable
-			traceutil.SetMeta(span, tagSQLQuery, textNonParsable)
 			return
 		}
-
-		span.Resource = oq.Query
-		if len(oq.Metadata.TablesCSV) > 0 {
-			traceutil.SetMeta(span, "sql.tables", oq.Metadata.TablesCSV)
+		if oq == nil {
+			// no error was thrown but no query was found/sanitized either
+			return
 		}
-		traceutil.SetMeta(span, tagSQLQuery, oq.Query)
 	case "redis":
+		// if a span is redis type, it should be quantized regardless of obfuscation setting
 		span.Resource = o.QuantizeRedisString(span.Resource)
 		if a.conf.Obfuscation.Redis.Enabled {
-			if span.Meta == nil || span.Meta[tagRedisRawCommand] == "" {
-				return
-			}
-			if a.conf.Obfuscation.Redis.RemoveAllArgs {
-				span.Meta[tagRedisRawCommand] = o.RemoveAllRedisArgs(span.Meta[tagRedisRawCommand])
-				return
-			}
-			span.Meta[tagRedisRawCommand] = o.ObfuscateRedisString(span.Meta[tagRedisRawCommand])
+			transform.ObfuscateRedisSpan(o, span, a.conf.Obfuscation.Redis.RemoveAllArgs)
 		}
 	case "memcached":
 		if !a.conf.Obfuscation.Memcached.Enabled {
@@ -166,7 +157,7 @@ func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
 
 	switch b.Type {
 	case "sql", "cassandra":
-		oq, err := o.ObfuscateSQLString(b.Resource)
+		oq, err := o.ObfuscateSQLStringForDBMS(b.Resource, b.DBType)
 		if err != nil {
 			log.Errorf("Error obfuscating stats group resource %q: %v", b.Resource, err)
 			b.Resource = textNonParsable

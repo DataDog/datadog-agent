@@ -32,6 +32,12 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction PrepareDecompressPythonDistributions { get; }
 
+        public ManagedAction RunPostInstPythonScript { get; }
+
+        public ManagedAction RunPreRemovePythonScriptRollback { get; }
+
+        public ManagedAction RunPreRemovePythonScript { get; }
+
         public ManagedAction DecompressPythonDistributions { get; }
 
         public ManagedAction CleanupOnRollback { get; }
@@ -257,6 +263,22 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.immediate
             };
 
+            RunPostInstPythonScript = new CustomAction<CustomActions>(
+                    new Id(nameof(RunPostInstPythonScript)),
+                    CustomActions.RunPostInstPythonScript,
+                    Return.check,
+                    When.After,
+                    Step.InstallServices,
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties(
+                    "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], INSTALL_PYTHON_THIRD_PARTY_DEPS=[INSTALL_PYTHON_THIRD_PARTY_DEPS]");
+
+
             // Cleanup leftover files on uninstall
             CleanupOnUninstall = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupOnUninstall)),
@@ -272,6 +294,34 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
+            RunPreRemovePythonScript = new CustomAction<CustomActions>(
+                    new Id(nameof(RunPreRemovePythonScript)),
+                    CustomActions.RunPreRemovePythonScript,
+                    Return.ignore,
+                    When.Before,
+                    Step.RemoveFiles,
+                    Conditions.RemovingForUpgrade | Conditions.Maintenance | Conditions.Uninstalling
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties(
+                    "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
+            RunPreRemovePythonScriptRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(RunPreRemovePythonScriptRollback)),
+                    CustomActions.RunPreRemovePythonScriptRollback,
+                    Return.check,
+                    When.Before,
+                    new Step(RunPreRemovePythonScript.Id),
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            };
 
             ConfigureUser = new CustomAction<CustomActions>(
                     new Id(nameof(ConfigureUser)),
