@@ -21,23 +21,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/testutils"
 )
 
-var (
-	srcIP = net.ParseIP("1.2.3.4")
-	dstIP = net.ParseIP("5.6.7.8")
-
-	innerSrcIP = net.ParseIP("10.0.0.1")
-	innerDstIP = net.ParseIP("192.168.1.1")
-)
-
-func TestTCPMatch(t *testing.T) {
+func TestUDPMatch(t *testing.T) {
 	srcPort := uint16(12345)
 	dstPort := uint16(443)
-	seqNum := uint32(2549)
+	checksum := uint16(576) // calculated field
 	mockHeader := testutils.CreateMockIPv4Header(srcIP, dstIP, 1)
 	icmpLayer := testutils.CreateMockICMPLayer(layers.ICMPv4CodeTTLExceeded)
-	innerIPv4Layer := testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP)
-	innerTCPLayer := testutils.CreateMockTCPLayer(srcPort, dstPort, seqNum, 12737, true, true, true)
-	icmpBytes := testutils.CreateMockICMPWithTCPPacket(nil, icmpLayer, innerIPv4Layer, innerTCPLayer, true)
+	innerIPv4Layer := testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolUDP)
+	innerUDPLayer := testutils.CreateMockUDPLayer(srcPort, dstPort, checksum)
+	icmpBytes := testutils.CreateMockICMPWithUDPPacket(nil, icmpLayer, innerIPv4Layer, innerUDPLayer)
 
 	tts := []struct {
 		description string
@@ -47,7 +39,7 @@ func TestTCPMatch(t *testing.T) {
 		localPort   uint16
 		remoteIP    net.IP
 		remotePort  uint16
-		seqNum      uint32
+		checksum    uint16
 		// expected
 		expectedIP     net.IP
 		expectedErrMsg string
@@ -76,7 +68,7 @@ func TestTCPMatch(t *testing.T) {
 			localPort:      srcPort,
 			remoteIP:       dstIP,
 			remotePort:     9001,
-			seqNum:         seqNum,
+			checksum:       checksum,
 			expectedIP:     net.IP{},
 			expectedErrMsg: "ICMP packet doesn't match",
 		},
@@ -88,7 +80,7 @@ func TestTCPMatch(t *testing.T) {
 			localPort:      srcPort,
 			remoteIP:       innerDstIP,
 			remotePort:     dstPort,
-			seqNum:         seqNum,
+			checksum:       checksum,
 			expectedIP:     srcIP,
 			expectedErrMsg: "",
 		},
@@ -96,8 +88,8 @@ func TestTCPMatch(t *testing.T) {
 
 	for _, test := range tts {
 		t.Run(test.description, func(t *testing.T) {
-			icmpParser := NewICMPTCPParser()
-			actualIP, err := icmpParser.Match(test.header, test.payload, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
+			icmpParser := NewICMPUDPParser()
+			actualIP, err := icmpParser.Match(test.header, test.payload, test.localIP, test.localPort, test.remoteIP, test.remotePort, uint32(test.checksum))
 			if test.expectedErrMsg != "" {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), test.expectedErrMsg), fmt.Sprintf("expected %q, got %q", test.expectedErrMsg, err.Error()))
@@ -109,11 +101,11 @@ func TestTCPMatch(t *testing.T) {
 	}
 }
 
-func TestTCPParse(t *testing.T) {
+func TestUDPParse(t *testing.T) {
 	ipv4Header := testutils.CreateMockIPv4Header(srcIP, dstIP, 1)
 	icmpLayer := testutils.CreateMockICMPLayer(layers.ICMPv4CodeTTLExceeded)
-	innerIPv4Layer := testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP)
-	innerTCPLayer := testutils.CreateMockTCPLayer(12345, 443, 28394, 12737, true, true, true)
+	innerIPv4Layer := testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolUDP)
+	innerUDPLayer := testutils.CreateMockUDPLayer(12345, 443, 28394)
 
 	tt := []struct {
 		description string
@@ -146,29 +138,14 @@ func TestTCPParse(t *testing.T) {
 		{
 			description: "missing inner layers should return an error",
 			inHeader:    ipv4Header,
-			inPayload:   testutils.CreateMockICMPWithTCPPacket(nil, icmpLayer, nil, nil, false),
+			inPayload:   testutils.CreateMockICMPWithUDPPacket(nil, icmpLayer, nil, nil),
 			expected:    nil,
 			errMsg:      "failed to decode inner ICMP payload",
 		},
 		{
-			description: "ICMP packet with partial TCP header should create icmpResponse",
-			inHeader:    ipv4Header,
-			inPayload:   testutils.CreateMockICMPWithTCPPacket(nil, icmpLayer, innerIPv4Layer, innerTCPLayer, true),
-			expected: &ICMPResponse{
-				SrcIP:           srcIP,
-				DstIP:           dstIP,
-				InnerSrcIP:      innerSrcIP,
-				InnerDstIP:      innerDstIP,
-				InnerSrcPort:    12345,
-				InnerDstPort:    443,
-				InnerIdentifier: 28394,
-			},
-			errMsg: "",
-		},
-		{
 			description: "full ICMP packet should create icmpResponse",
 			inHeader:    ipv4Header,
-			inPayload:   testutils.CreateMockICMPWithTCPPacket(nil, icmpLayer, innerIPv4Layer, innerTCPLayer, true),
+			inPayload:   testutils.CreateMockICMPWithUDPPacket(nil, icmpLayer, innerIPv4Layer, innerUDPLayer),
 			expected: &ICMPResponse{
 				SrcIP:           srcIP,
 				DstIP:           dstIP,
@@ -176,7 +153,7 @@ func TestTCPParse(t *testing.T) {
 				InnerDstIP:      innerDstIP,
 				InnerSrcPort:    12345,
 				InnerDstPort:    443,
-				InnerIdentifier: 28394,
+				InnerIdentifier: 576,
 			},
 			errMsg: "",
 		},
@@ -184,7 +161,7 @@ func TestTCPParse(t *testing.T) {
 
 	for _, test := range tt {
 		t.Run(test.description, func(t *testing.T) {
-			icmpParser := NewICMPTCPParser()
+			icmpParser := NewICMPUDPParser()
 			actual, err := icmpParser.Parse(test.inHeader, test.inPayload)
 			if test.errMsg != "" {
 				require.Error(t, err)

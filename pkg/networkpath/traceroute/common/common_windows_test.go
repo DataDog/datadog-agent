@@ -37,7 +37,7 @@ func Test_listenPackets(t *testing.T) {
 	dstIP := net.ParseIP("127.0.0.1")
 	innerSrcIP := net.ParseIP("88.88.88.88")
 	innerDstIP := net.ParseIP("77.77.77.77")
-	mockICMPPacket := testutils.CreateMockICMPPacket(
+	mockICMPPacket := testutils.CreateMockICMPWithTCPPacket(
 		testutils.CreateMockIPv4Layer(srcIP, dstIP, layers.IPProtocolICMPv4),
 		testutils.CreateMockICMPLayer(layers.ICMPv4CodeTTLExceeded),
 		testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP),

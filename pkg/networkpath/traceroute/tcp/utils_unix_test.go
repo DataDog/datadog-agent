@@ -128,7 +128,7 @@ func Test_handlePackets(t *testing.T) {
 			ctxTimeout:  500 * time.Millisecond,
 			conn: &mockRawConn{
 				header:  testutils.CreateMockIPv4Header(srcIP, dstIP, 1),
-				payload: testutils.CreateMockICMPPacket(nil, testutils.CreateMockICMPLayer(layers.ICMPv4CodeTTLExceeded), testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP), testutils.CreateMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false),
+				payload: testutils.CreateMockICMPWithTCPPacket(nil, testutils.CreateMockICMPLayer(layers.ICMPv4CodeTTLExceeded), testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP), testutils.CreateMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false),
 			},
 			localIP:          innerSrcIP,
 			localPort:        12345,
