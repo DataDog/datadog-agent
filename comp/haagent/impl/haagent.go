@@ -108,7 +108,7 @@ func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyS
 				configPath, h.GetConfigID(), haAgentMsg.ConfigID)
 			applyStateCallback(configPath, state.ApplyStatus{
 				State: state.ApplyStateError,
-				Error: "configID does not match",
+				Error: "config_id does not match",
 			})
 			continue
 		}

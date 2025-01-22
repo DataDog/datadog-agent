@@ -161,7 +161,7 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 			expectedApplyID: testRCConfigID,
 			expectedApplyStatus: state.ApplyStatus{
 				State: state.ApplyStateError,
-				Error: "configID does not match",
+				Error: "config_id does not match",
 			},
 			expectedAgentState: haagent.Unknown,
 		},
