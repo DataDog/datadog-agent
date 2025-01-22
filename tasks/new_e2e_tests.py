@@ -383,7 +383,7 @@ def pretty_print_test_logs(logs_per_test: list[tuple[str, str, str]], max_size):
     return size
 
 
-def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_file="flakes.yaml"):
+def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_files=None):
     """Pretty prints logs with a specific order.
 
     Print order:
@@ -395,7 +395,7 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_f
 
     result_json_name = result_json_path.split("/")[-1]
     result_json_dir = result_json_path.removesuffix('/' + result_json_name)
-    washer = TestWasher(test_output_json_file=result_json_name, flakes_file_path=flakes_file)
+    washer = TestWasher(test_output_json_file=result_json_name, flakes_file_paths=flakes_files or ["flakes.yaml"])
     failing_tests, marked_flaky_tests = washer.parse_test_results(result_json_dir)
     all_known_flakes = washer.merge_known_flakes(marked_flaky_tests)
 
@@ -424,6 +424,18 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_f
             color_message("WARNING", "yellow")
             + f": Too many logs to print, skipping logs printing to avoid Gitlab collapse. You can find your logs properly organized in the job artifacts: https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{os.getenv('CI_JOB_ID')}/artifacts/browse/e2e-output/logs/"
         )
+
+
+@task
+def cc(ctx):
+    path = 'module_test_output.json'
+    washer = TestWasher(test_output_json_file=path, flakes_file_paths=['flakes.yaml'])
+    washer.parse_test_results('/tmp')
+    failing_tests, marked_flaky_tests = washer.parse_test_results('/tmp')
+    # all_known_flakes = washer.merge_known_flakes(marked_flaky_tests)
+
+    print('marked', marked_flaky_tests)
+    # print('known', all_known_flakes)
 
 
 @task
