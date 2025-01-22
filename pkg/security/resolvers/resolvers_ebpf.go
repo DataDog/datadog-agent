@@ -254,6 +254,11 @@ func (r *EBPFResolvers) Snapshot() error {
 		return err
 	}
 
+	// snapshot sockets
+	if err := r.snapshotBoundSockets(); err != nil {
+		return fmt.Errorf("unable to snapshot bound sockets: %w", err)
+	}
+
 	return nil
 }
 
@@ -312,6 +317,24 @@ func (r *EBPFResolvers) snapshot() error {
 
 		// Sync the namespace cache
 		r.NamespaceResolver.SyncCache(pid)
+	}
+
+	return nil
+}
+
+func (r *EBPFResolvers) snapshotBoundSockets() error {
+	processes, err := utils.GetProcesses()
+	if err != nil {
+		return err
+	}
+
+	for _, proc := range processes {
+		bs, err := utils.GetBoundSockets(proc)
+		if err != nil {
+			log.Warnf("error while listing sockets (pid: %v): %s", proc.Pid, err)
+			continue
+		}
+		r.ProcessResolver.SyncBoundSockets(uint32(proc.Pid), bs)
 	}
 
 	return nil

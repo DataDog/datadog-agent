@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -559,7 +560,18 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 		}
 
 		events = append(events, event)
+
+		snapshotBoundSockets, ok := p.Resolvers.ProcessResolver.SnapshottedBoundSockets[event.ProcessContext.Pid]
+		if !ok {
+			return
+		}
+		for _, s := range snapshotBoundSockets {
+			bindEvent := p.newBindEventFromSnapshot(entry, s)
+			events = append(events, bindEvent)
+		}
+
 	}
+
 	p.Resolvers.ProcessResolver.Walk(entryToEvent)
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
@@ -2695,6 +2707,31 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 	event.Exec.Process = &entry.Process
 	event.ProcessContext.Process.ContainerID = entry.ContainerID
 	event.ProcessContext.Process.CGroup = entry.CGroup
+
+	return event
+}
+
+// newBindEventFromSnapshot returns a new bind event with a process context
+func (p *EBPFProbe) newBindEventFromSnapshot(entry *model.ProcessCacheEntry, snapshottedBind model.SnapshottedBoundSocket) *model.Event {
+
+	event := p.eventPool.Get()
+	event.TimestampRaw = uint64(time.Now().UnixNano())
+	event.Type = uint32(model.BindEventType)
+	event.ProcessCacheEntry = entry
+	event.ProcessContext = &entry.ProcessContext
+	event.ProcessContext.Process.ContainerID = entry.ContainerID
+	event.ProcessContext.Process.CGroup = entry.CGroup
+
+	event.Bind.SyscallEvent.Retval = 0
+	event.Bind.AddrFamily = snapshottedBind.Family
+	event.Bind.Addr.IPNet.IP = snapshottedBind.IP
+	event.Bind.Protocol = snapshottedBind.Protocol
+	if snapshottedBind.Family == unix.AF_INET {
+		event.Bind.Addr.IPNet.Mask = net.CIDRMask(32, 32)
+	} else {
+		event.Bind.Addr.IPNet.Mask = net.CIDRMask(128, 128)
+	}
+	event.Bind.Addr.Port = snapshottedBind.Port
 
 	return event
 }
