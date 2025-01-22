@@ -48,7 +48,7 @@ def _add_dca_prelude(ctx, version=None):
     print(f"git commit -m \"Add prelude for {version} release\"")
 
 
-def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
+def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file, branch):
     if new_version is None:
         latest_version = current_version(ctx, 7)
         ctx.run(f"reno -q --rel-notes-dir {changelog_dir} report --ignore-cache --earliest-version {latest_version}")
@@ -57,7 +57,7 @@ def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
 
     # removing releasenotes from bugfix on the old minor.
     branching_point = f"{new_version_int[0]}.{new_version_int[1]}.0-devel"
-    previous_minor = f"{new_version_int[0]}.{new_version_int[1] - 1}"
+    previous_minor = f"7.{new_version_int[1] - 1}"
     if previous_minor == "7.15":
         previous_minor = "6.15"  # 7.15 is the first release in the 7.x series
     log_result = ctx.run(
@@ -69,7 +69,7 @@ def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
 
     # generate the new changelog
     ctx.run(
-        f"reno --rel-notes-dir {changelog_dir} report --ignore-cache --earliest-version {branching_point} --version {new_version} --no-show-source > /tmp/new_changelog.rst"
+        f"reno --rel-notes-dir {changelog_dir} report --ignore-cache --earliest-version {branching_point} --version {new_version} --no-show-source --branch {branch} > /tmp/new_changelog.rst"
     )
 
     ctx.run(f"git checkout HEAD -- {changelog_dir}")

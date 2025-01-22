@@ -92,9 +92,9 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
             raise
 
         if generate_agent:
-            update_changelog_generic(ctx, new_version, "releasenotes", "CHANGELOG.rst")
+            update_changelog_generic(ctx, new_version, "releasenotes", "CHANGELOG.rst", branch)
         if generate_cluster_agent:
-            update_changelog_generic(ctx, new_version, "releasenotes-dca", "CHANGELOG-DCA.rst")
+            update_changelog_generic(ctx, new_version, "releasenotes-dca", "CHANGELOG-DCA.rst", branch)
 
         # Step 2 - commit changes
 
