@@ -23,31 +23,32 @@ const (
 	localRecommenderID string = "lr"
 )
 
-type recommender struct {
+// Recommender is the interface used to generate local recommendations
+type Recommender struct {
 	replicaCalculator replicaCalculator
 	store             *autoscaling.Store[model.PodAutoscalerInternal]
 	context           context.Context
 }
 
-// NewInterface creates a new RecommenderInterface
-func NewInterface(podWatcher common.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) *recommender {
+// NewRecommender creates a new Recommender to start generating local recommendations
+func NewRecommender(podWatcher common.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) *Recommender {
 	replicaCalculator := newReplicaCalculator(podWatcher)
 
-	return &recommender{
+	return &Recommender{
 		replicaCalculator: replicaCalculator,
 		store:             store,
 	}
 }
 
-// Run starts the recommender interface to generate local recommendations
-func (r *recommender) Run(ctx context.Context) {
+// Run starts the Recommender interface to generate local recommendations
+func (r *Recommender) Run(ctx context.Context) {
 	if ctx == nil {
 		log.Errorf("Cannot run with a nil context")
 		return
 	}
 	r.context = ctx
 
-	log.Infof("Starting autoscaling interface")
+	log.Infof("Starting local autoscaling recommender")
 	ticker := time.NewTicker(pollingInterval)
 
 	go func() {
@@ -58,14 +59,14 @@ func (r *recommender) Run(ctx context.Context) {
 			case <-ticker.C:
 				r.process(ctx)
 			case <-ctx.Done():
-				log.Infof("Stopping autoscaling interface")
+				log.Infof("Stopping local autoscaling recommender")
 				return
 			}
 		}
 	}()
 }
 
-func (r *recommender) process(ctx context.Context) {
+func (r *Recommender) process(ctx context.Context) {
 	// Call loadstore when processing
 	lStore := loadstore.GetWorkloadMetricStore(ctx)
 	if lStore == nil {
