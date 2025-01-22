@@ -973,7 +973,8 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 	}
 }
 
-// mergeLabelsOrAnnotationAsTags adds extra labels or annotations to the instance mapping
+// mergeLabelsOrAnnotationAsTags adds extra labels or annotations to the instance mapping; shouldTransformResource indicates that the resource name should be modified
+// to the singular form of the resource
 func mergeLabelsOrAnnotationAsTags(extra map[string]map[string]string, instanceMap map[string]map[string]string, shouldTransformResource bool) map[string]map[string]string {
 	if instanceMap == nil {
 		instanceMap = make(map[string]map[string]string)
