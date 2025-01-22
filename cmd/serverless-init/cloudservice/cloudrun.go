@@ -172,48 +172,6 @@ func getRegion(httpClient *http.Client, config *GCPConfig) string {
 	return tokens[len(tokens)-1]
 }
 
-// GetMetaData returns the container's metadata
-func GetMetaData(config *GCPConfig, isCloudRun bool) map[string]string {
-	wg := sync.WaitGroup{}
-	wg.Add(3)
-	httpClient := &http.Client{
-		Timeout: config.timeout,
-	}
-	metadata := make(map[string]string)
-	go func() {
-		containerID := getSingleMetadata(httpClient, config.containerIDURL)
-		metadata["container_id"] = containerID
-		if isCloudRun {
-			metadata[runContainerID] = containerID
-		} else {
-			metadata[functionContainerID] = containerID
-		}
-		wg.Done()
-	}()
-	go func() {
-		location := getRegion(httpClient, config)
-		metadata["location"] = location
-		if isCloudRun {
-			metadata[runLocation] = location
-		} else {
-			metadata[functionLocation] = location
-		}
-		wg.Done()
-	}()
-	go func() {
-		project := getSingleMetadata(httpClient, config.projectIDURL)
-		metadata["project_id"] = project
-		if isCloudRun {
-			metadata[runProjectID] = project
-		} else {
-			metadata[functionProjectID] = project
-		}
-		wg.Done()
-	}()
-	wg.Wait()
-	return metadata
-}
-
 func getSingleMetadata(httpClient *http.Client, url string) string {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -233,4 +191,53 @@ func getSingleMetadata(httpClient *http.Client, url string) string {
 		return "unknown"
 	}
 	return strings.ToLower(string(data))
+}
+
+// GetMetaData returns the container's metadata
+func GetMetaData(config *GCPConfig, isCloudRun bool) map[string]string {
+	wg := sync.WaitGroup{}
+	wg.Add(3)
+	mlock := sync.Mutex{}
+	httpClient := &http.Client{
+		Timeout: config.timeout,
+	}
+	metadata := make(map[string]string)
+	go func() {
+		containerID := getSingleMetadata(httpClient, config.containerIDURL)
+		mlock.Lock()
+		metadata["container_id"] = containerID
+		if isCloudRun {
+			metadata[runContainerID] = containerID
+		} else {
+			metadata[functionContainerID] = containerID
+		}
+		mlock.Unlock()
+		wg.Done()
+	}()
+	go func() {
+		location := getRegion(httpClient, config)
+		mlock.Lock()
+		metadata["location"] = location
+		if isCloudRun {
+			metadata[runLocation] = location
+		} else {
+			metadata[functionLocation] = location
+		}
+		mlock.Unlock()
+		wg.Done()
+	}()
+	go func() {
+		project := getSingleMetadata(httpClient, config.projectIDURL)
+		mlock.Lock()
+		metadata["project_id"] = project
+		if isCloudRun {
+			metadata[runProjectID] = project
+		} else {
+			metadata[functionProjectID] = project
+		}
+		mlock.Unlock()
+		wg.Done()
+	}()
+	wg.Wait()
+	return metadata
 }
