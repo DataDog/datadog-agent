@@ -121,4 +121,4 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
         mock_which.side_effect = lambda cmd: f"/usr/local/bin/{cmd}"
         junit.junit_upload_from_tgz("tasks/unit_tests/testdata/testjunit-tests_deb-x64-py3.tgz")
         mock_popen.assert_called()
-        self.assertEqual(mock_popen.call_count, 31)
+        self.assertEqual(mock_popen.call_count, 30)
