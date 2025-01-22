@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 	"github.com/DataDog/test-infra-definitions/components/os"
-	goos "os"
 	"strings"
 )
 
@@ -56,6 +55,6 @@ func (d *DatadogInstallScript) Run(opts ...Option) (string, error) {
 	}
 	cmd := fmt.Sprintf(`Set-ExecutionPolicy Bypass -Scope Process -Force;
 		[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
-		iex ((New-Object System.Net.WebClient).DownloadString('https://installtesting.datad0g.com/%s/scripts/Install-Datadog.ps1'))`, goos.Getenv("CI_COMMIT_SHA"))
+		iex ((New-Object System.Net.WebClient).DownloadString('https://installtesting.datad0g.com/%s/scripts/Install-Datadog.ps1'))`, d.env.Environment.PipelineID())
 	return d.env.RemoteHost.Execute(cmd, client.WithEnvVariables(envVars))
 }

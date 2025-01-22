@@ -29,5 +29,4 @@ qa_installer_script_windows:
   before_script:
     - ls $WINDOWS_POWERSHELL_DIR
   script:
-    - $S3_CP_CMD $WINDOWS_POWERSHELL_DIR/Install-Datadog.ps1 s3://${INSTALLER_TESTING_S3_BUCKET}/${CI_COMMIT_SHA}/scripts/Install-Datadog.ps1
-
+    - $S3_CP_CMD $WINDOWS_POWERSHELL_DIR/Install-Datadog.ps1 s3://${INSTALLER_TESTING_S3_BUCKET}/${CI_PIPELINE_ID}/scripts/Install-Datadog.ps1
