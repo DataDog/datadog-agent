@@ -25,8 +25,10 @@ u8 __attribute__((always_inline)) get_counter(struct rate_limiter_ctx *r) {
 }
 
 void __attribute__((always_inline)) inc_counter(struct rate_limiter_ctx *r, u8 delta) {
-    u8 new_counter = get_counter(r) + delta;
-    r->data = (r->data & ~0xff) | new_counter;
+    // this is an horrible hack, to keep the atomic property
+    // we do an atomic add on the full data, worse case scenario
+    // the current_period is increased by 256 nanoseconds
+    __sync_fetch_and_add(&r->data, delta);
 }
 
 #endif /* _STRUCTS_RATE_LIMITER_H_ */
