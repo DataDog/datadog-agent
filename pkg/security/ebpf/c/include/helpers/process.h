@@ -44,10 +44,6 @@ void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *src, st
     copy_proc_entry(&src->entry, &dst->entry);
 }
 
-void __attribute__((always_inline)) copy_credentials(struct credentials_t *src, struct credentials_t *dst) {
-    *dst = *src;
-}
-
 void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cache_t *src, struct pid_cache_t *dst) {
     dst->cookie = src->cookie;
     dst->user_session_id = src->user_session_id;

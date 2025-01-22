@@ -56,11 +56,12 @@ const (
 	TracerVersion = "Datadog-Meta-Tracer-Version"
 
 	// ComputedTopLevel specifies that the client has marked top-level spans, when set.
-	// Any non-empty value will mean 'yes'.
+	// Any value other than 0, f, F, FALSE, False, false will mean 'yes'.
 	ComputedTopLevel = "Datadog-Client-Computed-Top-Level"
 
 	// ComputedStats specifies whether the client has computed stats so that the agent
 	// doesn't have to.
+	// Any value other than 0, f, F, FALSE, False, false will mean 'yes'.
 	ComputedStats = "Datadog-Client-Computed-Stats"
 
 	// DroppedP0Traces contains the number of P0 trace chunks dropped by the client.
@@ -79,7 +80,7 @@ const (
 	// it wants to receive the "real" status in the response. By default, the agent
 	// will send a 200 OK response for every payload, even those dropped due to
 	// intake limits.
-	// Any value set in this header will cause the agent to send a 429 code to a client
+	// Any value other than 0, f, F, FALSE, False, false set in this header will cause the agent to send a 429 code to a client
 	// when the payload cannot be submitted.
 	SendRealHTTPStatus = "Datadog-Send-Real-Http-Status"
 )

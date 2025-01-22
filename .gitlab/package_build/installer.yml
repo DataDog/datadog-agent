@@ -108,7 +108,7 @@ installer-install-scripts:
     - inv -e installer.build-linux-script "databricks" "$VERSION"
     - inv -e installer.build-linux-script "emr" "$VERSION"
     - inv -e installer.build-linux-script "dataproc" "$VERSION"
-    - mv ./bin/installer/install-*.sh $OMNIBUS_PACKAGE_DIR/
+    - mv ./bin/installer/install*.sh $OMNIBUS_PACKAGE_DIR/
     - ls -la $OMNIBUS_PACKAGE_DIR
   artifacts:
     expire_in: 2 weeks

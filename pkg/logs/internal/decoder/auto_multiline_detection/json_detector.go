@@ -19,9 +19,9 @@ func NewJSONDetector() *JSONDetector {
 }
 
 // ProcessAndContinue checks if a message is a JSON message.
-// This implements the Herustic interface - so we should stop processing if we detect a JSON message by returning false.
+// This implements the Heuristic interface - so we should stop processing if we detect a JSON message by returning false.
 func (j *JSONDetector) ProcessAndContinue(context *messageContext) bool {
-	if jsonRegexp.Match(context.rawMessage) {
+	if context.labelAssignedBy == defaultLabelSource && jsonRegexp.Match(context.rawMessage) {
 		context.label = noAggregate
 		context.labelAssignedBy = "JSON_detector"
 		return false

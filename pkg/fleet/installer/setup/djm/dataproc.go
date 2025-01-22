@@ -82,6 +82,7 @@ func setupCommonDataprocHostTags(s *common.Setup, metadataClient *metadata.Clien
 	}
 	setHostTag(s, "cluster_id", clusterID)
 	setHostTag(s, "dataproc_cluster_id", clusterID)
+	setHostTag(s, "data_workload_monitoring_trial", "true")
 
 	dataprocRole, err := metadataClient.InstanceAttributeValueWithContext(ctx, "dataproc-role")
 	if err != nil {

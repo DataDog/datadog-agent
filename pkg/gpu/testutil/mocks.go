@@ -18,6 +18,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -93,6 +95,11 @@ func GetWorkloadMetaMock(t *testing.T) workloadmetamock.Mock {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
+}
+
+// GetTelemetryMock returns a mock of the telemetry.Component.
+func GetTelemetryMock(t *testing.T) telemetry.Component {
+	return fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 }
 
 // RequireDevicesEqual checks that the two devices are equal by comparing their UUIDs, which gives a better
