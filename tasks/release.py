@@ -35,6 +35,7 @@ from tasks.libs.common.git import (
     get_last_commit,
     get_last_release_tag,
     is_agent6,
+    push_tags_by_batch,
     set_git_config,
     try_git_command,
 )
@@ -85,7 +86,6 @@ GITLAB_FILES_TO_UPDATE = [
 ]
 
 BACKPORT_LABEL_COLOR = "5319e7"
-TAG_BATCH_SIZE = 3
 
 
 @task
@@ -201,11 +201,7 @@ def tag_modules(
                 tags.extend(new_tags)
 
         if push:
-            tags_list = ' '.join(tags)
-            for idx in range(0, len(tags), TAG_BATCH_SIZE):
-                batch_tags = tags[idx : idx + TAG_BATCH_SIZE]
-                ctx.run(f"git push origin {' '.join(batch_tags)}{force_option}")
-            print(f"Pushed tag {tags_list}")
+            push_tags_by_batch(ctx, tags, force_option)
         print(f"Created module tags for version {agent_version}")
 
 
@@ -238,9 +234,7 @@ def tag_version(
         tags = __tag_single_module(ctx, get_default_modules()["."], agent_version, commit, force_option, devel)
 
     if push:
-        tags_list = ' '.join(tags)
-        ctx.run(f"git push origin {tags_list}{force_option}")
-        print(f"Pushed tag {tags_list}")
+        push_tags_by_batch(ctx, tags, force_option)
     print(f"Created tags for version {agent_version}")
 
 
