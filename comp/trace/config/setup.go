@@ -187,13 +187,13 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	// Add MRF endpoint, if enabled
 	if core.GetBool("multi_region_failover.enabled") {
 		prefix := apiEndpointPrefix + mrfPrefix
-		mrfUrl, err := utils.GetMRFEndpoint(core, prefix, "multi_region_failover.dd_url")
+		mrfURL, err := utils.GetMRFEndpoint(core, prefix, "multi_region_failover.dd_url")
 		if err != nil {
 			return fmt.Errorf("cannot construct MRF endpoint: %s", err)
 		}
 
 		c.Endpoints = append(c.Endpoints, &config.Endpoint{
-			Host:   mrfUrl,
+			Host:   mrfURL,
 			APIKey: utils.SanitizeAPIKey(core.GetString("multi_region_failover.api_key")),
 			IsMRF:  true,
 		})
