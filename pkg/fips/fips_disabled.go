@@ -7,6 +7,10 @@
 
 package fips
 
+func Status() string {
+	return ""
+}
+
 func Enabled() bool {
 	return false
 }

@@ -7,7 +7,14 @@
 
 package fips
 
-import "os"
+import (
+	"os"
+	"strconv"
+)
+
+func Status() string {
+	return strconv.FormatBool(Enabled())
+}
 
 func Enabled() bool {
 	return os.Getenv("GOFIPS") == "1"

@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -89,6 +90,7 @@ func newCommonHeaderProvider(params status.Params, config config.Component) stat
 	data["agent_start_nano"] = startTimeProvider.UnixNano()
 	pythonVersion := params.PythonVersionGetFunc()
 	data["python_version"] = strings.Split(pythonVersion, " ")[0]
+	data["fips_status"] = fips.Status()
 	data["build_arch"] = runtime.GOARCH
 
 	return &headerProvider{
