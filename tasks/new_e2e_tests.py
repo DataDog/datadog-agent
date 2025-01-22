@@ -85,6 +85,7 @@ def run(
     logs_post_processing=False,
     logs_post_processing_test_depth=1,
     logs_folder="e2e_logs",
+    extra_flakes_config=None,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -174,7 +175,9 @@ def run(
         test_profiler=None,
     )
 
-    success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
+    success = process_test_result(
+        test_res, junit_tar, AgentFlavor.base, test_washer, extra_flakes_config=extra_flakes_config
+    )
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI

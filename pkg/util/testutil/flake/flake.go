@@ -66,10 +66,6 @@ func MarkOnLog(t testing.TB, pattern string) {
 
 	// TODO: Lock
 
-	// TODO A: Useful ?
-	println(t.Name())
-	t.Log("NOTE: This test will be marked flaky if the following pattern is found in the logs:", pattern)
-
 	// Add the pattern to the yaml config
 
 	// TODO: Lock file (multithread)
@@ -130,7 +126,11 @@ func MarkOnLog(t testing.TB, pattern string) {
 	entry := make(map[string]interface{})
 	entry["test"] = t.Name()
 	entry["on-log"] = pattern
-	flakyConfig[packageName] = entry
+	if packageConfig, ok := flakyConfig[packageName]; ok {
+		flakyConfig[packageName] = append(packageConfig.([]map[string]interface{}), entry)
+	} else {
+		flakyConfig[packageName] = []map[string]interface{}{entry}
+	}
 
 	_, err = f.Seek(0, 0)
 	if err != nil {

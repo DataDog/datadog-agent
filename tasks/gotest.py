@@ -205,7 +205,9 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
+def process_test_result(
+    test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool, extra_flakes_config: str | None = None
+) -> bool:
     if junit_tar:
         junit_files = [
             module_test_result.junit_file_path
@@ -225,7 +227,10 @@ def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_
         if not test_washer:
             print("Test washer is always enabled in the CI, enforcing it")
 
-        tw = TestWasher()
+        flakes_configs = ["flakes.yaml"]
+        if extra_flakes_config is not None:
+            flakes_configs.append(extra_flakes_config)
+        tw = TestWasher(flakes_file_paths=flakes_configs)
         print(
             "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
         )
@@ -271,6 +276,7 @@ def test(
     build_stdlib=False,
     test_washer=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
+    extra_flakes_config=None,
 ):
     """
     Run go tests on the given module and targets.
@@ -395,7 +401,7 @@ def test(
         # print("\n--- Top 15 packages sorted by run time:")
         test_profiler.print_sorted(15)
 
-    success = process_test_result(test_results, junit_tar, flavor, test_washer)
+    success = process_test_result(test_results, junit_tar, flavor, test_washer, extra_flakes_config=extra_flakes_config)
     if not success:
         raise Exit(code=1)
 
