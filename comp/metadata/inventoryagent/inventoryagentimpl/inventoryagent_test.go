@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
@@ -48,6 +49,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			authtokenimpl.Module(),
+			haagentmock.Module(),
 		),
 	)
 }
@@ -527,6 +529,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			sysprobeconfig.NoneModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			authtokenimpl.Module(),
+			haagentmock.Module(),
 		),
 	)
 	ia = p.Comp.(*inventoryagent)
@@ -662,6 +665,29 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["system_probe_gateway_lookup_enabled"].(bool))
 	assert.True(t, ia.data["system_probe_root_namespace_enabled"].(bool))
 	assert.True(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
+}
+
+func TestFetchHaAgentAgent(t *testing.T) {
+	haAgentMock := haagentmock.Module()
+
+	// Testing an inventoryagent without system-probe object
+	p := newInventoryAgentProvider(
+		fxutil.Test[dependencies](
+			t,
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			config.MockModule(),
+			sysprobeconfig.NoneModule(),
+			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
+			authtokenimpl.Module(),
+			haagentmock.Module(),
+			haAgentMock,
+		),
+	)
+	ia := p.Comp.(*inventoryagent)
+	ia.fetchHaAgentMetadata()
+
+	assert.True(t, ia.data["feature_cws_enabled"].(bool))
+
 }
 
 func TestGetProvidedConfigurationDisable(t *testing.T) {
