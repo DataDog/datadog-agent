@@ -87,13 +87,14 @@ class TestWasher:
                 continue
 
             for test in tests:
-                self.known_flaky_tests[f"github.com/DataDog/datadog-agent/{package}"].add(test['test'])
-
                 if 'on-log' in test:
                     patterns = test['on-log']
                     if isinstance(patterns, str):
                         patterns = [patterns]
                     self.flaky_log_patterns[f"github.com/DataDog/datadog-agent/{package}"][test['test']] = patterns
+                else:
+                    # If there is no `on-log`, we consider it as a known flaky test right away
+                    self.known_flaky_tests[f"github.com/DataDog/datadog-agent/{package}"].add(test['test'])
 
         # on-log patterns at the top level
         self.flaky_log_main_patterns = flakes.get('on-log', [])
