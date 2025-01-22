@@ -5,6 +5,7 @@
 
 //go:build goexperiment.systemcrypto && windows
 
+// Package fips is an interface for build specific status of FIPS compliance
 package fips
 
 import (
@@ -14,6 +15,7 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
+// Status returns a displayable string or error of FIPS compliance state of the agent build and runtime
 func Status() string {
 	enabled, err := Enabled()
 	if err != nil {
@@ -22,6 +24,7 @@ func Status() string {
 	return strconv.FormatBool(enabled)
 }
 
+// Enabled checks to see if the agent runtime environment is as expected relating to its build to be FIPS compliant. For Windows this means that FIPS mode is enabled via the Windows registry.
 func Enabled() (bool, error) {
 	// this is copied from how microsoft/go checks the windows registry that FIPS is enabled:
 	//   https://github.com/microsoft/go/blob/d0f965f87c51211b3ea554f88e94b4c68116f5d1/eng/_util/cmd/run-builder/systemfips_windows.go#L17-L54

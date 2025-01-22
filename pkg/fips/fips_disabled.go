@@ -5,12 +5,15 @@
 
 //go:build !goexperiment.systemcrypto
 
+// Package fips is an interface for build specific status of FIPS compliance
 package fips
 
+// Status returns an empty string when not the datadog-fips-agent flavor
 func Status() string {
 	return ""
 }
 
+// Enabled  returns false when not the datadog-fips-agent flavor
 func Enabled() (bool, error) {
 	return false, nil
 }
