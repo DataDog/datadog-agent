@@ -129,7 +129,7 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 		}
 
 		evt := newEvent()
-		fullPath := filepath.Join(utils.ProcRootPath(pn.Process.Pid), f)
+		fullPath := utils.ProcRootFilePath(pn.Process.Pid, f)
 		if evt.ProcessContext == nil {
 			evt.ProcessContext = &model.ProcessContext{}
 		}
@@ -216,20 +216,55 @@ func getMemoryMappedFiles(pid int32, processEventPath string) (files []string, _
 	scanner := bufio.NewScanner(smapsFile)
 
 	for scanner.Scan() && len(files) < MaxMmapedFiles {
-		line := scanner.Text()
-		fields := strings.Fields(line)
+		line := scanner.Bytes()
 
-		if len(fields) < 6 || strings.HasSuffix(fields[0], ":") {
+		path, ok := extractPathFromSmapsLine(line)
+		if !ok {
 			continue
 		}
 
-		path := strings.Join(fields[5:], " ")
-		if len(path) != 0 && path != processEventPath {
-			files = append(files, path)
+		if len(path) == 0 {
+			continue
 		}
+
+		if path == processEventPath {
+			continue
+		}
+
+		// skip [vdso], [stack], [heap] and similar mappings
+		if strings.HasPrefix(path, "[") {
+			continue
+		}
+
+		files = append(files, path)
 	}
 
 	return files, scanner.Err()
+}
+
+func extractPathFromSmapsLine(line []byte) (string, bool) {
+	inSpace := false
+	spaceCount := 0
+	for i, c := range line {
+		if c == ' ' || c == '\t' {
+			// check for fields separator
+			if !inSpace && spaceCount == 0 && i > 0 {
+				if line[i-1] == ':' {
+					return "", false
+				}
+			}
+
+			if !inSpace {
+				inSpace = true
+				spaceCount++
+			}
+		} else if spaceCount == 5 {
+			return string(line[i:]), true
+		} else {
+			inSpace = false
+		}
+	}
+	return "", false
 }
 
 func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *Stats, newEvent func() *model.Event) {

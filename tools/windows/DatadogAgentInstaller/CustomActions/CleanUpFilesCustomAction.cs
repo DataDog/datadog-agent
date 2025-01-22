@@ -17,6 +17,7 @@ namespace Datadog.CustomActions
                 // may contain python files created outside of install
                 Path.Combine(projectLocation, "embedded2"),
                 Path.Combine(projectLocation, "embedded3"),
+                Path.Combine(projectLocation, "python-scripts"),
                 // installation specific files
                 Path.Combine(applicationDataLocation, "install_info"),
                 Path.Combine(applicationDataLocation, "auth_token")
