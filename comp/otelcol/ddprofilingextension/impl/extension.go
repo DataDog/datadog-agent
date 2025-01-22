@@ -50,16 +50,16 @@ func NewExtension(cfg *Config, info component.BuildInfo, traceAgent traceagent.C
 func (e *ddExtension) Start(_ context.Context, host component.Host) error {
 	// OTEL AGENT
 	if e.traceAgent != nil {
-		return e.startForOTelAgent()
+		return e.startForOTelAgent(host)
 	}
 	// OCB
 	return e.startForOCB()
 }
 
-func (e *ddExtension) startForOTelAgent() error {
+func (e *ddExtension) startForOTelAgent(host component.Host) error {
 	// start server that handles profiles
 	e.newServer()
-	go e.startServer()
+	go e.startServer(host)
 
 	profilerOptions := e.buildProfilerOptions()
 
