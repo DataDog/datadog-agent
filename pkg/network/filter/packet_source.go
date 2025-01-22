@@ -23,6 +23,7 @@ type PacketSource interface {
 	// The format of the packet is dependent on the implementation of PacketSource -- i.e. it may be an ethernet frame, or a IP frame.
 	// The data buffer is reused between invocations of VisitPacket and thus should not be pointed to.
 	// If the cancel channel is closed, VisitPackets will stop reading.
+	// blah blah please trigger the system probe tests
 	VisitPackets(cancel <-chan struct{}, visitor func(data []byte, info PacketInfo, timestamp time.Time) error) error
 
 	// LayerType returns the type of packet this source reads
