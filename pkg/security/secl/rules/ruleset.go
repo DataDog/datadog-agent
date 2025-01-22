@@ -53,7 +53,7 @@ type RuleSet struct {
 	fakeEventCtor    func() eval.Event
 	listenersLock    sync.RWMutex
 	listeners        []RuleSetListener
-	globalVariables  eval.GlobalVariables
+	globalVariables  *eval.GlobalVariables
 	scopedVariables  map[Scope]VariableProvider
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []string
@@ -243,7 +243,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 					variableProvider = rs.scopedVariables[actionDef.Set.Scope]
 				} else {
-					variableProvider = &rs.globalVariables
+					variableProvider = rs.globalVariables
 				}
 
 				opts := eval.VariableOpts{TTL: actionDef.Set.TTL.GetDuration(), Size: actionDef.Set.Size}
@@ -858,5 +858,6 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		pool:             eval.NewContextPool(),
 		fieldEvaluators:  make(map[string]eval.Evaluator),
 		scopedVariables:  make(map[Scope]VariableProvider),
+		globalVariables:  eval.NewGlobalVariables(),
 	}
 }
