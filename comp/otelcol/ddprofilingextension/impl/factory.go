@@ -17,30 +17,29 @@ import (
 // Type exports the internal metadata type for easy reference
 var Type = component.MustNewType("ddprofiling")
 
-// isOCB returns true if extension was built with OCB
-func (f *ddExtensionFactory) isOCB() bool {
-	return f.traceAgent == nil
-}
-
 type ddExtensionFactory struct {
 	extension.Factory
 	traceAgent traceagent.Component
 }
 
+// NewFactory creates a factory for Datadog Profiling Extension for use with OCB and OSS Collector
 func NewFactory() extension.Factory {
 	return &ddExtensionFactory{}
 }
 
+// NewFactoryForAgent creates a factory for Datadog Profiling Extension for use with Agent
 func NewFactoryForAgent(traceAgent traceagent.Component) extension.Factory {
 	return &ddExtensionFactory{
 		traceAgent: traceAgent,
 	}
 }
 
-func (f *ddExtensionFactory) Create(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
+// Create creates a new instance of the Datadog Profiling Extension
+func (f *ddExtensionFactory) Create(_ context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
 	return NewExtension(cfg.(*Config), set.BuildInfo, f.traceAgent)
 }
 
+// Stability returns the stability level of the component
 func (f *ddExtensionFactory) Stability() component.StabilityLevel {
 	return component.StabilityLevelDevelopment
 }

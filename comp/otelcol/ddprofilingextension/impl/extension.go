@@ -47,7 +47,7 @@ func NewExtension(cfg *Config, info component.BuildInfo, traceAgent traceagent.C
 	}, nil
 }
 
-func (e *ddExtension) Start(ctx context.Context, _ component.Host) error {
+func (e *ddExtension) Start(_ context.Context, _ component.Host) error {
 	// OTEL AGENT
 	if e.traceAgent != nil {
 		return e.startForOTelAgent()
@@ -132,7 +132,7 @@ func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 	return profilerOptions
 }
 
-func (e *ddExtension) Shutdown(ctx context.Context) error {
+func (e *ddExtension) Shutdown(_ context.Context) error {
 	profiler.Stop()
 	return nil
 }
