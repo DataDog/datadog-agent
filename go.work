@@ -1,5 +1,7 @@
 go 1.23.3
 
+toolchain go1.23.3
+
 use (
 	.
 	comp/api/api/def
@@ -25,7 +27,7 @@ use (
 	comp/core/tagger/telemetry
 	comp/core/tagger/types
 	comp/core/tagger/utils
-
+	comp/core/telemetry
 	comp/def
 	comp/forwarder/defaultforwarder
 	comp/forwarder/orchestrator/orchestratorinterface
@@ -60,7 +62,6 @@ use (
 	internal/tools/worksynchronizer
 	pkg/aggregator/ckey
 	pkg/api
-	pkg/api/security
 	pkg/collector/check/defaults
 	pkg/config/env
 	pkg/config/mock

@@ -109,8 +109,8 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 }
 
 // InstallConfigExperiment installs an experiment.
-func (i *InstallerExec) InstallConfigExperiment(ctx context.Context, url string, version string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "install-config-experiment", url, version)
+func (i *InstallerExec) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) (err error) {
+	cmd := i.newInstallerCmd(ctx, "install-config-experiment", pkg, version, string(rawConfig))
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
