@@ -7,7 +7,7 @@ package assertions
 
 import (
 	"fmt"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/paths"
 	"io/fs"
 	"strings"
 
@@ -187,9 +187,9 @@ func (r *RemoteWindowsHostAssertions) HasNoNamedPipe(pipeName string) *RemoteWin
 func (r *RemoteWindowsHostAssertions) HasARunningDatadogInstallerService() *RemoteWindowsHostAssertions {
 	r.suite.T().Helper()
 
-	r.HasAService(installerwindows.ServiceName).
+	r.HasAService(paths.ServiceName).
 		WithStatus("Running").
-		HasNamedPipe(installerwindows.NamedPipe).
+		HasNamedPipe(paths.NamedPipe).
 		WithSecurity(
 			// Only accessible to Administrators and LocalSystem
 			common.NewProtectedSecurityInfo(
