@@ -18,6 +18,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -89,21 +90,6 @@ func (c *collector) Pull(_ context.Context) error {
 			return fmt.Errorf("failed to get device name for index %d: %v", i, nvml.ErrorString(ret))
 		}
 
-		arch, ret := dev.GetArchitecture()
-		if ret != nvml.SUCCESS {
-			return fmt.Errorf("failed to get architecture for device index %d: %v", i, nvml.ErrorString(ret))
-		}
-
-		major, minor, ret := dev.GetCudaComputeCapability()
-		if ret != nvml.SUCCESS {
-			return fmt.Errorf("failed to get CUDA compute capability for device index %d: %v", i, nvml.ErrorString(ret))
-		}
-
-		devAttr, ret := dev.GetAttributes()
-		if ret != nvml.SUCCESS {
-			return fmt.Errorf("failed to get device attributes for device index %d: %v", i, nvml.ErrorString(ret))
-		}
-
 		gpu := &workloadmeta.GPU{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindGPU,
@@ -112,15 +98,31 @@ func (c *collector) Pull(_ context.Context) error {
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: name,
 			},
-			Vendor:       nvidiaVendor,
-			Device:       name,
-			Index:        i,
-			Architecture: gpuArchToString(arch),
-			ComputeCapability: workloadmeta.GPUComputeCapability{
-				Major: major,
-				Minor: minor,
-			},
-			SMCount: int(devAttr.MultiprocessorCount),
+			Vendor: nvidiaVendor,
+			Device: name,
+			Index:  i,
+		}
+
+		arch, ret := dev.GetArchitecture()
+		if ret != nvml.SUCCESS {
+			log.Warnf("failed to get architecture for device index %d: %v", i, nvml.ErrorString(ret))
+		} else {
+			gpu.Architecture = gpuArchToString(arch)
+		}
+
+		major, minor, ret := dev.GetCudaComputeCapability()
+		if ret != nvml.SUCCESS {
+			log.Warnf("failed to get CUDA compute capability for device index %d: %v", i, nvml.ErrorString(ret))
+		} else {
+			gpu.ComputeCapability.Major = major
+			gpu.ComputeCapability.Minor = minor
+		}
+
+		devAttr, ret := dev.GetAttributes()
+		if ret != nvml.SUCCESS {
+			log.Warnf("failed to get device attributes for device index %d: %v", i, nvml.ErrorString(ret))
+		} else {
+			gpu.SMCount = int(devAttr.MultiprocessorCount)
 		}
 
 		event := workloadmeta.CollectorEvent{

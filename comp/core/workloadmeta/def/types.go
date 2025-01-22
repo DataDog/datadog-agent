@@ -1372,13 +1372,13 @@ type GPU struct {
 	// of containers.
 	Index int
 
-	// Architecture contains the architecture of the GPU (e.g., Pascal, Volta, etc.)
+	// Architecture contains the architecture of the GPU (e.g., Pascal, Volta, etc.). Optional, can be empty.
 	Architecture string
 
-	// ComputeCapability contains the compute capability version of the GPU.
+	// ComputeCapability contains the compute capability version of the GPU. Optional, can be 0/0
 	ComputeCapability GPUComputeCapability
 
-	// SMCount is the number of streaming multiprocessors in the GPU.
+	// SMCount is the number of streaming multiprocessors in the GPU. Optional, can be empty.
 	SMCount int
 }
 
