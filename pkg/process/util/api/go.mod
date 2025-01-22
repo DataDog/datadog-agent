@@ -12,16 +12,16 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.138
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.62.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.62.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/stretchr/testify v1.10.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.62.0-rc.7 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.62.0-rc.7 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.62.0-rc.7 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.62.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.62.0 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.62.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.62.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.62.0 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
