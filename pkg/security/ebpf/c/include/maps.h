@@ -116,6 +116,6 @@ BPF_PROG_ARRAY(dentry_resolver_tracepoint_progs, 3)
 BPF_PROG_ARRAY(classifier_router, 10)
 BPF_PROG_ARRAY(sys_exit_progs, 64)
 BPF_PROG_ARRAY(raw_packet_classifier_router, 32)
-BPF_PROG_ARRAY(flush_network_stats_progs, 3)
+BPF_PROG_ARRAY(flush_network_stats_progs, 2)
 
 #endif
