@@ -8,6 +8,8 @@ def calculate_image_on_disk_size(ctx, url):
     # Pull image locally to get on disk size
     ctx.run(f"crane pull {url} output.tar")
     ctx.run("tar -xf output.tar")
+    ctx.run(f"ls -la output.tar")
+    ctx.run("tar -tvf output.tar")
     image_content = ctx.run("tar -tvf output.tar | awk -F' ' '{print $5; print $9}'").stdout.splitlines()
     print(image_content)
     total_size = 0
