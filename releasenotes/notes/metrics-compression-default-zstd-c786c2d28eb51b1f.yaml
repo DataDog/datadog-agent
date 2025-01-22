@@ -6,7 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+upgrade:
   - |
     Metric payloads are compressed using `zstd` compression by default.
     This may be breaking for users who are sending metrics to systems other
