@@ -719,6 +719,8 @@ func TestClientComputedStatsHeader(t *testing.T) {
 			req.Header.Set(header.Lang, "lang1")
 			if on {
 				req.Header.Set(header.ComputedStats, "yes")
+			} else {
+				req.Header.Set(header.ComputedStats, "false")
 			}
 			var wg sync.WaitGroup
 			wg.Add(1)
