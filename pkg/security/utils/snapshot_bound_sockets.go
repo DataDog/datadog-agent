@@ -23,6 +23,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// GetBoundSockets returns the list of bound sockets for a given process
 func GetBoundSockets(p *process.Process) ([]model.SnapshottedBoundSocket, error) {
 
 	boundSockets := []model.SnapshottedBoundSocket{}
