@@ -221,7 +221,7 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.Ma
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"inet_bind_args": {
-			MaxEntries: procPidCacheMaxEntries,
+			MaxEntries: activeFlowsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"activity_dumps_config": {
