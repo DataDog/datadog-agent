@@ -262,6 +262,74 @@ func TestDiskCheckPartitionsError(t *testing.T) {
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 }
 
+func TestDiskCheckPartitionsEmptyDeviceIsNotReportedByDefault(t *testing.T) {
+	setupDefaultMocks()
+	diskPartitions = func(_ bool) ([]disk.PartitionStat, error) {
+		return []disk.PartitionStat{
+			{
+				Device:     "",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			}}, nil
+	}
+	diskCheck := new(Check)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+}
+
+func TestDiskCheckPartitionsEmptyDeviceIsNotReportedWhenAllPartitionsIsFalse(t *testing.T) {
+	setupDefaultMocks()
+	diskPartitions = func(_ bool) ([]disk.PartitionStat, error) {
+		return []disk.PartitionStat{
+			{
+				Device:     "",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			}}, nil
+	}
+	diskCheck := new(Check)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("all_partitions: false"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+}
+
+func TestDiskCheckPartitionsEmptyDeviceIsNotReportedWhenAllPartitionsIsTrue(t *testing.T) {
+	setupDefaultMocks()
+	diskPartitions = func(_ bool) ([]disk.PartitionStat, error) {
+		return []disk.PartitionStat{
+			{
+				Device:     "",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			}}, nil
+	}
+	diskCheck := new(Check)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("all_partitions: true"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", 97656250, "", []string{"device:", "device_name:."})
+}
+
 func TestDiskCheck(t *testing.T) {
 	diskPartitions = diskSampler
 	diskUsage = diskUsageSampler
