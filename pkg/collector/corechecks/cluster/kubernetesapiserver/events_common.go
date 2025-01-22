@@ -10,7 +10,7 @@ package kubernetesapiserver
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/resourcetypes"
 	"strings"
 	"time"
 
@@ -277,7 +277,7 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 		entityID = types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", involvedObject.Namespace, involvedObject.Name))
 	default:
 		apiGroup := getAPIGroup(involvedObject.APIVersion)
-		resourceType, err := cluster.GetResourceType(involvedObject.Kind, apiGroup)
+		resourceType, err := resourcetypes.GetResourceType(involvedObject.Kind, apiGroup)
 		if err != nil {
 			log.Warnf("error getting resource type for kind '%s' and group '%s', tags may be missing: %v", involvedObject.Kind, apiGroup, err)
 		}

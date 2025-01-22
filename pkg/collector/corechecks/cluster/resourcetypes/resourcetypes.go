@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package cluster
+package resourcetypes
 
 import (
 	"fmt"
@@ -75,6 +75,7 @@ func (r *ResourceTypeCache) getResourceType(kind, group string) (string, error) 
 	// Check the cache
 	r.lock.RLock()
 	resourceType, found := r.kindGroupToType[cacheKey]
+	fmt.Printf("Checking kind %s and group %s\n", kind, group)
 	r.lock.RUnlock()
 	if found {
 		return resourceType, nil
@@ -95,6 +96,9 @@ func (r *ResourceTypeCache) getResourceType(kind, group string) (string, error) 
 
 // discoverResourceType queries the Kubernetes API server to discover the resource type.
 func (r *ResourceTypeCache) discoverResourceType(kind, group string) (string, error) {
+	if r.discoveryClient == nil {
+		return "", fmt.Errorf("discovery client is not initialized")
+	}
 	_, apiResourceLists, err := r.discoveryClient.ServerGroupsAndResources()
 	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
 		return "", fmt.Errorf("failed to fetch server resources: %w", err)

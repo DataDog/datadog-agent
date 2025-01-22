@@ -9,6 +9,7 @@ package kubernetesapiserver
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/resourcetypes"
 	"reflect"
 	"testing"
 
@@ -59,6 +60,7 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesDeployment, "default/my-deployment-2"), "workloadmeta-kubernetes_deployment", nil, []string{"deployment_tag:redis-2"}, nil, nil)
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "default"))), "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("api-group", "resourcetypes", "default", "generic-resource"))), "workloadmeta-kubernetes_resource", []string{"generic_tag:generic-resource"}, nil, nil, nil)
+	resourcetypes.MockInitializeGlobalResourceTypeCache(map[string]string{"ResourceType/api-group": "resourcetypes"})
 
 	tests := []struct {
 		name           string
@@ -68,10 +70,11 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 		{
 			name: "get pod basic tags",
 			involvedObject: v1.ObjectReference{
-				UID:       "nginx",
-				Kind:      "Pod",
-				Name:      "my-pod",
-				Namespace: "my-namespace",
+				UID:        "nginx",
+				Kind:       "Pod",
+				Name:       "my-pod",
+				Namespace:  "my-namespace",
+				APIVersion: "v1",
 			},
 			tags: []string{
 				"kube_kind:Pod",
@@ -87,10 +90,11 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 		{
 			name: "get pod namespace tags",
 			involvedObject: v1.ObjectReference{
-				UID:       "nginx",
-				Kind:      "Pod",
-				Name:      "my-pod",
-				Namespace: "default",
+				UID:        "nginx",
+				Kind:       "Pod",
+				Name:       "my-pod",
+				Namespace:  "default",
+				APIVersion: "v1",
 			},
 			tags: []string{
 				"kube_kind:Pod",
@@ -107,9 +111,10 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 		{
 			name: "get deployment basic tags",
 			involvedObject: v1.ObjectReference{
-				Kind:      "Deployment",
-				Name:      "my-deployment-1",
-				Namespace: "workload-redis",
+				Kind:       "Deployment",
+				Name:       "my-deployment-1",
+				Namespace:  "workload-redis",
+				APIVersion: "apps/v1",
 			},
 			tags: []string{
 				"kube_kind:Deployment",
@@ -125,9 +130,10 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 		{
 			name: "get deployment namespace tags",
 			involvedObject: v1.ObjectReference{
-				Kind:      "Deployment",
-				Name:      "my-deployment-2",
-				Namespace: "default",
+				Kind:       "Deployment",
+				Name:       "my-deployment-2",
+				Namespace:  "default",
+				APIVersion: "apps/v1",
 			},
 			tags: []string{
 				"kube_kind:Deployment",

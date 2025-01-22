@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/resourcetypes"
 	"strings"
 	"time"
 
@@ -193,7 +194,7 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 		k.eventCollection.Filter = convertFilters(k.instance.FilteredEventTypes)
 	}
 
-	err = cluster.InitializeGlobalResourceTypeCache()
+	err = resourcetypes.InitializeGlobalResourceTypeCache()
 	if err != nil {
 		log.Errorf("Could not initialize the global resource type cache: %s", err)
 	}
