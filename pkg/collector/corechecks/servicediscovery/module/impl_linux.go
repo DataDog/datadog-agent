@@ -78,10 +78,10 @@ type serviceInfo struct {
 
 // toModelService fills the model.Service struct pointed to by out, using the
 // service info to do it.
-func (i *serviceInfo) toModelService(pid int32, out *model.Service) {
+func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Service {
 	if i == nil {
 		log.Warn("toModelService called with nil pointer")
-		return
+		return nil
 	}
 
 	out.PID = int(pid)
@@ -102,6 +102,8 @@ func (i *serviceInfo) toModelService(pid int32, out *model.Service) {
 	out.CPUCores = i.cpuUsage
 	out.ContainerID = i.containerID
 	out.LastHeartbeat = i.lastHeartbeat
+
+	return out
 }
 
 type timeProvider interface {
@@ -193,6 +195,7 @@ func (s *discovery) GetStats() map[string]interface{} {
 // Register registers the discovery module with the provided HTTP mux.
 func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
+	httpMux.HandleFunc("/debug", s.handleDebugEndpoint)
 	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
 	return nil
 }
@@ -209,6 +212,33 @@ func (s *discovery) Close() {
 // Reports the status of the discovery module.
 func (s *discovery) handleStatusEndpoint(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("Discovery Module is running"))
+}
+
+func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+
+	services := struct {
+		RunningServices   []model.Service `json:"running_services"`
+		PotentialServices []model.Service `json:"potential_services"`
+	}{
+		RunningServices:   make([]model.Service, 0, len(s.runningServices)),
+		PotentialServices: make([]model.Service, 0, len(s.potentialServices)),
+	}
+
+	for pid, service := range s.cache {
+		if s.runningServices.has(pid) {
+			services.RunningServices = append(services.RunningServices, *service.toModelService(pid, &model.Service{}))
+			continue
+		}
+
+		if s.potentialServices.has(pid) {
+			services.PotentialServices = append(services.PotentialServices, *service.toModelService(pid, &model.Service{}))
+			continue
+		}
+	}
+
+	utils.WriteAsJSON(w, services)
 }
 
 // handleServers is the handler for the /services endpoint.
