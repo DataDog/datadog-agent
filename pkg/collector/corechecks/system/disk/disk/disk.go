@@ -117,7 +117,7 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 	// Force exclusion of CDROM (iso9660) from disk check
 	c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, "iso9660")
 
-	for _, key := range []string{"device_exclude", "device_blacklist"} {
+	for _, key := range []string{"device_exclude", "device_blacklist", "excluded_disks"} {
 		if deviceExclude, ok := conf[key].([]interface{}); ok {
 			for _, val := range deviceExclude {
 				if strVal, ok := val.(string); ok {
@@ -126,11 +126,6 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 			}
 		}
 	}
-
-	// excludedDisks, found := conf["excluded_disks"]
-	// if excludedDisks, ok := excludedDisks.([]string); found && ok {
-	// 	c.cfg.excludedDisks = excludedDisks
-	// }
 
 	excludedDiskRe, found := conf["excluded_disk_re"]
 	if excludedDiskRe, ok := excludedDiskRe.(string); found && ok {
