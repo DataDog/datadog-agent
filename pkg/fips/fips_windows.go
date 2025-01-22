@@ -40,7 +40,7 @@ func Enabled() (bool, error) {
 	}
 
 	if enabledType != registry.DWORD {
-		return nil, fmt.Errorf("unexpected FIPS algorithm policy Enabled key type: %v", enabledType)
+		return nil, fmt.Errorf("unexpected FIPS algorithm policy Enabled key type: %v, expected: %v", enabledType, registry.DWORD)
 	}
 
 	return enabled == 1

@@ -40,10 +40,12 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSDefaultConfig() {
 	status := v.Env().RemoteHost.MustExecute("sudo GOFIPS=0 datadog-agent status")
 	assert.NotContains(v.T(), status, "can't enable FIPS mode for OpenSSL")
 	assert.Contains(v.T(), status, "Status date")
+	assert.Contains(v.T(), status, "FIPS compliant: false")
 
 	status = v.Env().RemoteHost.MustExecute("sudo GOFIPS=1 datadog-agent status")
 	assert.NotContains(v.T(), status, "can't enable FIPS mode for OpenSSL")
 	assert.Contains(v.T(), status, "Status date")
+	assert.Contains(v.T(), status, "FIPS compliant: true")
 }
 
 func (v *LinuxFIPSComplianceSuite) TestFIPSNoFIPSProvider() {
@@ -62,7 +64,7 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSNoFIPSProvider() {
 	v.Env().RemoteHost.MustExecute("sudo mv /opt/datadog-agent/embedded/ssl/openssl.cnf.tmp /opt/datadog-agent/embedded/ssl/openssl.cnf")
 }
 
-func (v *LinuxFIPSComplianceSuite) TestFIPSEnabledNoConfig() {
+func (v *LinuxFIPSComplianceSuite) TestFIPSEnabledNoOpenSSLConfig() {
 	v.Env().RemoteHost.MustExecute("sudo mv /opt/datadog-agent/embedded/ssl/openssl.cnf /opt/datadog-agent/embedded/ssl/openssl.cnf.tmp")
 
 	status, err := v.Env().RemoteHost.Execute("sudo GOFIPS=0 datadog-agent status")
