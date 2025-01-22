@@ -34,7 +34,10 @@ type EmbeddedRoot struct {
 
 // NewEmbeddedRoot creates a new EmbeddedRoot
 func NewEmbeddedRoot(embeddedRoot []byte) EmbeddedRoot {
-	version := parseRootVersion(embeddedRoot)
+	version, err := parseRootVersion(embeddedRoot)
+	if err != nil {
+		panic(err)
+	}
 	return EmbeddedRoot{
 		latest: version,
 		root:   embeddedRoot,
@@ -79,20 +82,20 @@ func (root EmbeddedRoot) Version() uint64 {
 }
 
 // parseRootVersion from the embedded roots for easy update
-func parseRootVersion(rootBytes []byte) uint64 {
+func parseRootVersion(rootBytes []byte) (uint64, error) {
 	var signedRoot data.Signed
 	err := json.Unmarshal(rootBytes, &signedRoot)
 	if err != nil {
 		log.Errorf("Corrupted root metadata: %v", err)
-		panic(err)
+		return 0, err
 	}
 
 	var root data.Root
 	err = json.Unmarshal(signedRoot.Signed, &root)
 	if err != nil {
 		log.Errorf("Corrupted root metadata: %v", err)
-		panic(err)
+		return 0, err
 	}
 
-	return uint64(root.Version)
+	return uint64(root.Version), nil
 }
