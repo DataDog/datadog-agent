@@ -46,3 +46,4 @@
 '@datadog/apm-onboarding': '#apm-onboarding'
 '@datadog/apm-ecosystems-performance': '#apm-benchmarking-platform'
 '@DataDog/container-ecosystems': '#container-ecosystems-ops'
+'@datadog/injection-platform': '#injection-platform'

@@ -134,6 +134,7 @@ func setupCommonHostTags(s *common.Setup) {
 		setHostTag(s, "jobid", jobID)
 		setHostTag(s, "runid", runID)
 	}
+	setHostTag(s, "data_workload_monitoring_trial", "true")
 }
 
 func getJobAndRunIDs() (jobID, runID string, ok bool) {

@@ -50,6 +50,9 @@ BPF_HASH_MAP(auid_approvers, u32, struct event_mask_filter_t, 128)
 BPF_HASH_MAP(auid_range_approvers, u32, struct u32_range_filter_t, EVENT_MAX)
 BPF_HASH_MAP(active_flows_spin_locks, u32, struct active_flows_spin_lock_t, 1) // max entry will be overridden at runtime
 
+BPF_HASH_MAP_FLAGS(active_flows, u32, struct active_flows_t, 1, BPF_F_NO_PREALLOC) // max entry will be overridden at runtime
+BPF_HASH_MAP_FLAGS(inet_bind_args, u64, struct inet_bind_args_t, 1, BPF_F_NO_PREALLOC) // max entries will be overridden at runtime
+
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(mount_ref, u32, struct mount_ref_t, 64000)
@@ -76,8 +79,6 @@ BPF_LRU_MAP(kill_list, u32, u32, 32)
 BPF_LRU_MAP(user_sessions, struct user_session_key_t, struct user_session_t, 1024)
 BPF_LRU_MAP(dentry_resolver_inputs, u64, struct dentry_resolver_input_t, 256)
 BPF_LRU_MAP(ns_flow_to_network_stats, struct namespaced_flow_t, struct network_stats_t, 4096) // TODO: size should be updated dynamically with "nf_conntrack_max"
-BPF_LRU_MAP(active_flows, u32, struct active_flows_t, 1) // max entries will be overridden at runtime
-BPF_LRU_MAP(inet_bind_args, u64, struct inet_bind_args_t, 1) // max entries will be overridden at runtime
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime

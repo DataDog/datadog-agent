@@ -22,6 +22,9 @@ NON_RELEASING_TEAMS = {
     'container-ecosystems',
     'apm-trace-storage',
     'iglendd',  # Not a team but he's in the codeowners file
+    'sdlc-security',
+    'data-jobs-monitoring',
+    'serverless-aws',
 }
 
 
