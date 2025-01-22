@@ -199,6 +199,9 @@ func validatePackage(pkg Package) error {
 }
 
 const (
+	methodInstallPackage   = "install_package"
+	methodUninstallPackage = "uninstall_package"
+
 	methodStartExperiment   = "start_experiment"
 	methodStopExperiment    = "stop_experiment"
 	methodPromoteExperiment = "promote_experiment"
@@ -226,9 +229,14 @@ type expectedState struct {
 	ExperimentConfig string `json:"experiment_config"`
 }
 
-type taskWithVersionParams struct {
+type experimentTaskParams struct {
 	Version     string   `json:"version"`
 	InstallArgs []string `json:"install_args"`
+}
+
+type installPackageTaskParams struct {
+	Version            string `json:"version"`
+	ApmInstrumentation string `json:"apm_instrumentation"`
 }
 
 type handleRemoteAPIRequest func(request remoteAPIRequest) error

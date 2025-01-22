@@ -54,6 +54,17 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 			})
 		},
 	}
+	removeCmd := &cobra.Command{
+		Use:   "remove package",
+		Short: "Removes a package",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(remove, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
+			})
+		},
+	}
 	startExperimentCmd := &cobra.Command{
 		Use:     "start-experiment package version",
 		Aliases: []string{"start"},
@@ -128,7 +139,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 			})
 		},
 	}
-	return []*cobra.Command{setCatalogCmd, startExperimentCmd, stopExperimentCmd, promoteExperimentCmd, installCmd, startConfigExperimentCmd, stopConfigExperimentCmd, promoteConfigExperimentCmd}
+	return []*cobra.Command{setCatalogCmd, startExperimentCmd, stopExperimentCmd, promoteExperimentCmd, installCmd, removeCmd, startConfigExperimentCmd, stopConfigExperimentCmd, promoteConfigExperimentCmd}
 }
 
 func experimentFxWrapper(f interface{}, params *cliParams) error {
@@ -211,7 +222,16 @@ func promoteConfig(params *cliParams, client localapiclient.Component) error {
 func install(params *cliParams, client localapiclient.Component) error {
 	err := client.Install(params.pkg, params.version)
 	if err != nil {
-		fmt.Println("Error bootstrapping package:", err)
+		fmt.Println("Error installing package:", err)
+		return err
+	}
+	return nil
+}
+
+func remove(params *cliParams, client localapiclient.Component) error {
+	err := client.Remove(params.pkg)
+	if err != nil {
+		fmt.Println("Error removing package:", err)
 		return err
 	}
 	return nil
