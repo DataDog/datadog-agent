@@ -63,7 +63,7 @@ func TestOverlayFS(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_rename",
-			Expression: `rename.file.path == "{{.Root}}/bind/create.txt"`,
+			Expression: `rename.file.path in ["{{.Root}}/bind/create.txt", "{{.Root}}/bind/new.txt"]`,
 		},
 		{
 			ID:         "test_rule_rmdir",
@@ -71,7 +71,7 @@ func TestOverlayFS(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_chmod",
-			Expression: `chmod.file.path == "{{.Root}}/bind/chmod.txt"`,
+			Expression: `chmod.file.path in ["{{.Root}}/bind/chmod.txt", "{{.Root}}/bind/new.txt"]`,
 		},
 		{
 			ID:         "test_rule_mkdir",
@@ -83,7 +83,7 @@ func TestOverlayFS(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_chown",
-			Expression: `chown.file.path == "{{.Root}}/bind/chown.txt"`,
+			Expression: `chown.file.path in ["{{.Root}}/bind/chown.txt", "{{.Root}}/bind/new.txt"]`,
 		},
 		{
 			ID:         "test_rule_xattr",
@@ -364,6 +364,23 @@ func TestOverlayFS(t *testing.T) {
 		})
 	})
 
+	t.Run("chmod-upper", func(t *testing.T) {
+		testFile, _, err := test.Path("bind/new.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		test.WaitSignal(t, func() error {
+			return os.Chmod(testFile, 0777)
+		}, func(event *model.Event, _ *rules.Rule) {
+			inode = getInode(t, testFile)
+
+			validateInodeAndLayer(t, testFile, inode, true, &event.Chmod.File.FileFields)
+		})
+	})
+
 	t.Run("mkdir-lower", func(t *testing.T) {
 		testFile, _, err := test.Path("bind/mkdir")
 		if err != nil {
@@ -400,6 +417,23 @@ func TestOverlayFS(t *testing.T) {
 
 	t.Run("chown-lower", func(t *testing.T) {
 		testFile, _, err := test.Path("bind/chown.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		test.WaitSignal(t, func() error {
+			return os.Chown(testFile, os.Getuid(), os.Getgid())
+		}, func(event *model.Event, _ *rules.Rule) {
+			inode = getInode(t, testFile)
+
+			validateInodeAndLayer(t, testFile, inode, true, &event.Chown.File.FileFields)
+		})
+	})
+
+	t.Run("chown-upper", func(t *testing.T) {
+		testFile, _, err := test.Path("bind/new.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -460,6 +494,23 @@ func TestOverlayFS(t *testing.T) {
 		})
 	})
 
+	t.Run("truncate-upper", func(t *testing.T) {
+		testFile, _, err := test.Path("bind/new.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		test.WaitSignal(t, func() error {
+			return os.Truncate(testFile, 0)
+		}, func(event *model.Event, _ *rules.Rule) {
+			inode = getInode(t, testFile)
+
+			validateInodeAndLayer(t, testFile, inode, true, &event.Open.File.FileFields)
+		})
+	})
+
 	t.Run("link-lower", func(t *testing.T) {
 		testSrc, _, err := test.Path("bind/linked.txt")
 		if err != nil {
@@ -492,6 +543,36 @@ func TestOverlayFS(t *testing.T) {
 		}, func(event *model.Event, _ *rules.Rule) {
 			// impossible to test with the fallback, the file is deleted
 			validateInodeAndLayerRuntime(t, inode, false, &event.Unlink.File.FileFields)
+		})
+	})
+
+	t.Run("rename-upper", func(t *testing.T) {
+		oldFile, _, err := test.Path("bind/new.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		newFile, _, err := test.Path("bind/new-renamed.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		test.WaitSignal(t, func() error {
+			return os.Rename(oldFile, newFile)
+		}, func(event *model.Event, _ *rules.Rule) {
+			if value, _ := event.GetFieldValue("rename.file.path"); value.(string) != oldFile {
+				t.Errorf("expected filename not found %s != %s", value.(string), oldFile)
+			}
+
+			inode = getInode(t, newFile)
+
+			assert.Equal(t, inode, event.Rename.New.Inode, "wrong rename inode")
+			assert.Equal(t, true, event.Rename.Old.IsInUpperLayer(), "should be in upper layer")
+			assert.Equal(t, true, event.Rename.New.IsInUpperLayer(), "should be in upper layer")
+
+			validateInodeAndLayerFallback(t, newFile, inode, true)
 		})
 	})
 }
