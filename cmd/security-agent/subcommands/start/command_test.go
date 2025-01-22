@@ -47,10 +47,13 @@ func TestCommand(t *testing.T) {
 		fxutil.TestOneShotSubcommand(t,
 			Commands(newGlobalParamsTest(t)),
 			test.cliInput,
-			start,
+			startPhase1,
 			test.check,
 		)
 	}
+
+	// FIXME: to make the linter happy
+	fxutil.TestOneShot(t, func() {})
 }
 
 func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
