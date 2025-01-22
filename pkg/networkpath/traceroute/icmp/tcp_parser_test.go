@@ -119,7 +119,7 @@ func TestTCPParse(t *testing.T) {
 		description string
 		inHeader    *ipv4.Header
 		inPayload   []byte
-		expected    *ICMPResponse
+		expected    *Response
 		errMsg      string
 	}{
 		{
@@ -154,7 +154,7 @@ func TestTCPParse(t *testing.T) {
 			description: "ICMP packet with partial TCP header should create icmpResponse",
 			inHeader:    ipv4Header,
 			inPayload:   testutils.CreateMockICMPWithTCPPacket(nil, icmpLayer, innerIPv4Layer, innerTCPLayer, true),
-			expected: &ICMPResponse{
+			expected: &Response{
 				SrcIP:           srcIP,
 				DstIP:           dstIP,
 				InnerSrcIP:      innerSrcIP,
@@ -169,7 +169,7 @@ func TestTCPParse(t *testing.T) {
 			description: "full ICMP packet should create icmpResponse",
 			inHeader:    ipv4Header,
 			inPayload:   testutils.CreateMockICMPWithTCPPacket(nil, icmpLayer, innerIPv4Layer, innerTCPLayer, true),
-			expected: &ICMPResponse{
+			expected: &Response{
 				SrcIP:           srcIP,
 				DstIP:           dstIP,
 				InnerSrcIP:      innerSrcIP,

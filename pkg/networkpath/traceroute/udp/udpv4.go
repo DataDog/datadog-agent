@@ -26,7 +26,7 @@ type (
 		MaxTTL     uint8
 		Delay      time.Duration // delay between sending packets (not applicable if we go the serial send/receive route)
 		Timeout    time.Duration // full timeout for all packets
-		icmpParser icmp.ICMPParser
+		icmpParser icmp.Parser
 	}
 )
 

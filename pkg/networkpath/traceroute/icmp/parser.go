@@ -23,16 +23,16 @@ const (
 )
 
 type (
-	// ICMPParser defines the interface for parsing
+	// Parser defines the interface for parsing
 	// ICMP packets
-	ICMPParser interface {
+	Parser interface {
 		Match(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32) (net.IP, error)
-		Parse(header *ipv4.Header, packet []byte) (*ICMPResponse, error)
+		Parse(header *ipv4.Header, packet []byte) (*Response, error)
 	}
 
-	// ICMPResponse encapsulates the data from
+	// Response encapsulates the data from
 	// an ICMP response packet needed for matching
-	ICMPResponse struct {
+	Response struct {
 		SrcIP        net.IP
 		DstIP        net.IP
 		TypeCode     layers.ICMPv4TypeCode
@@ -52,7 +52,7 @@ type (
 // Matches checks if an ICMPResponse matches the expected response
 // based on the local and remote IP, port, and identifier. In this context,
 // identifier will either be the TCP sequence number OR the UDP checksum
-func (i *ICMPResponse) Matches(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32) bool {
+func (i *Response) Matches(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32) bool {
 	return localIP.Equal(i.InnerSrcIP) &&
 		remoteIP.Equal(i.InnerDstIP) &&
 		localPort == i.InnerSrcPort &&

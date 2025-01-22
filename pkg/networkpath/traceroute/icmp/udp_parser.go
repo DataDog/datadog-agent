@@ -17,10 +17,10 @@ import (
 )
 
 type (
-	// ICMPUDPParser encapsulates the data and logic
+	// UDPParser encapsulates the data and logic
 	// for parsing ICMP packets with embedded UDP
 	// data
-	ICMPUDPParser struct {
+	UDPParser struct {
 		icmpLayer     layers.ICMPv4
 		innerIPLayer  layers.IPv4
 		innerUDPLayer layers.UDP
@@ -32,14 +32,14 @@ type (
 		// because gopacket does not allow the payload of
 		// an ICMP packet to be decoded in the same parser
 		innerPacketParser *gopacket.DecodingLayerParser
-		icmpResponse      *ICMPResponse
+		icmpResponse      *Response
 	}
 )
 
 // NewICMPUDPParser creates a new ICMPParser that can parse ICMP packets with
 // embedded UDP packets
-func NewICMPUDPParser() ICMPParser {
-	icmpParser := &ICMPUDPParser{}
+func NewICMPUDPParser() Parser {
+	icmpParser := &UDPParser{}
 	icmpParser.packetParser = gopacket.NewDecodingLayerParser(layers.LayerTypeICMPv4, &icmpParser.icmpLayer)
 	icmpParser.innerPacketParser = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &icmpParser.innerIPLayer, &icmpParser.innerUDPLayer)
 	// TODO: can we ignore unsupported layers?
@@ -47,7 +47,8 @@ func NewICMPUDPParser() ICMPParser {
 	return icmpParser
 }
 
-func (p *ICMPUDPParser) Match(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32) (net.IP, error) {
+// Match encapsulates to logic to both parse and match an ICMP packet
+func (p *UDPParser) Match(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32) (net.IP, error) {
 	if header.Protocol != IPProtoICMP {
 		return net.IP{}, errors.New("expected an ICMP packet")
 	}
@@ -62,7 +63,8 @@ func (p *ICMPUDPParser) Match(header *ipv4.Header, packet []byte, localIP net.IP
 	return icmpResponse.SrcIP, nil
 }
 
-func (p *ICMPUDPParser) Parse(header *ipv4.Header, payload []byte) (*ICMPResponse, error) {
+// Parse parses an ICMP packet with embedded UDP data and returns a Response
+func (p *UDPParser) Parse(header *ipv4.Header, payload []byte) (*Response, error) {
 	if err := validatePacket(header, payload); err != nil {
 		return nil, err
 	}
@@ -74,7 +76,7 @@ func (p *ICMPUDPParser) Parse(header *ipv4.Header, payload []byte) (*ICMPRespons
 	p.innerUDPLayer = layers.UDP{}
 	p.innerPayload = gopacket.Payload{}
 
-	p.icmpResponse = &ICMPResponse{} // ensure we get a fresh ICMPResponse each run
+	p.icmpResponse = &Response{} // ensure we get a fresh ICMPResponse each run
 	p.icmpResponse.SrcIP = header.Src
 	p.icmpResponse.DstIP = header.Dst
 
