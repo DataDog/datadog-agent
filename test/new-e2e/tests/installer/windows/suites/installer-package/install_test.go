@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/paths"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 
@@ -46,10 +46,10 @@ func (s *testInstallerSuite) TestInstalls() {
 
 func (s *testInstallerSuite) startServiceWithConfigFile() {
 	// Arrange
-	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config", paths.ConfigPath)
+	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config", consts.ConfigPath)
 
 	// Act
-	s.Require().NoError(common.StartService(s.Env().RemoteHost, paths.ServiceName))
+	s.Require().NoError(common.StartService(s.Env().RemoteHost, consts.ServiceName))
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).HasARunningDatadogInstallerService()
@@ -69,7 +69,7 @@ func (s *testInstallerSuite) uninstall() {
 	// Assert
 	s.requireUninstalled()
 	s.Require().Host(s.Env().RemoteHost).
-		FileExists(paths.ConfigPath)
+		FileExists(consts.ConfigPath)
 }
 
 func (s *testInstallerSuite) installWithExistingConfigFile(logFilename string) {
@@ -83,14 +83,14 @@ func (s *testInstallerSuite) installWithExistingConfigFile(logFilename string) {
 	// Assert
 	s.requireInstalled()
 	s.Require().Host(s.Env().RemoteHost).
-		HasAService(paths.ServiceName).
+		HasAService(consts.ServiceName).
 		WithStatus("Running")
 }
 
 func (s *testInstallerSuite) repair() {
 	// Arrange
-	s.Require().NoError(common.StopService(s.Env().RemoteHost, paths.ServiceName))
-	s.Require().NoError(s.Env().RemoteHost.Remove(paths.BinaryPath))
+	s.Require().NoError(common.StopService(s.Env().RemoteHost, consts.ServiceName))
+	s.Require().NoError(s.Env().RemoteHost.Remove(consts.BinaryPath))
 
 	// Act
 	s.Require().NoError(s.Installer().Install(
@@ -100,7 +100,7 @@ func (s *testInstallerSuite) repair() {
 	// Assert
 	s.requireInstalled()
 	s.Require().Host(s.Env().RemoteHost).
-		HasAService(paths.ServiceName).
+		HasAService(consts.ServiceName).
 		WithStatus("Running")
 }
 

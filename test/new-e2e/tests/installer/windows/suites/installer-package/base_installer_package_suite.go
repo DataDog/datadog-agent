@@ -8,6 +8,7 @@ package installertests
 import (
 	"embed"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
@@ -31,11 +32,11 @@ func (s *baseInstallerPackageSuite) freshInstall() {
 	// Assert
 	s.requireInstalled()
 	s.Require().Host(s.Env().RemoteHost).
-		HasAService(installerwindows.ServiceName).
+		HasAService(consts.ServiceName).
 		// the service cannot start because of the missing API key
 		WithStatus("Stopped").
 		// no named pipe when service is not running
-		HasNoNamedPipe(installerwindows.NamedPipe)
+		HasNoNamedPipe(consts.NamedPipe)
 	// no status when service is not running (no daemon/named pipe)
 	_, err := s.Installer().Status()
 	s.Require().Error(err)
@@ -43,33 +44,33 @@ func (s *baseInstallerPackageSuite) freshInstall() {
 
 func (s *baseInstallerPackageSuite) startServiceWithConfigFile() {
 	// Arrange
-	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config", installerwindows.ConfigPath)
+	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config", consts.ConfigPath)
 
 	// Act
-	s.Require().NoError(common.StartService(s.Env().RemoteHost, installerwindows.ServiceName))
+	s.Require().NoError(common.StartService(s.Env().RemoteHost, consts.ServiceName))
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
-		HasAService(installerwindows.ServiceName).
+		HasAService(consts.ServiceName).
 		WithStatus("Running")
 }
 
 func (s *baseInstallerPackageSuite) requireInstalled() {
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(installerwindows.BinaryPath).
+		HasBinary(consts.BinaryPath).
 		WithSignature(agent.GetCodeSignatureThumbprints()).
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().NotEmpty(version)
 		}).
-		HasAService(installerwindows.ServiceName).
+		HasAService(consts.ServiceName).
 		WithIdentity(common.GetIdentityForSID(common.LocalSystemSID)).
-		HasRegistryKey(installerwindows.RegistryKeyPath).
+		HasRegistryKey(consts.RegistryKeyPath).
 		WithValueEqual("installedUser", agent.DefaultAgentUserName)
 }
 
 func (s *baseInstallerPackageSuite) requireUninstalled() {
 	s.Require().Host(s.Env().RemoteHost).
-		NoFileExists(installerwindows.BinaryPath).
-		HasNoService(installerwindows.ServiceName).
-		HasNoRegistryKey(installerwindows.RegistryKeyPath)
+		NoFileExists(consts.BinaryPath).
+		HasNoService(consts.ServiceName).
+		HasNoRegistryKey(consts.RegistryKeyPath)
 }

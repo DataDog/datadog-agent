@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"testing"
 )
 
@@ -62,7 +63,7 @@ func (s *testInstallScriptSuite) InstallLastStable() {
 
 func (s *testInstallScriptSuite) UpgradeToLatestExperiment() {
 	// Act
-	output, err := s.Installer().InstallExperiment(installerwindows.AgentPackage)
+	output, err := s.Installer().InstallExperiment(consts.AgentPackage)
 
 	// Assert
 	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)

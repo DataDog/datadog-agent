@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
@@ -48,7 +49,7 @@ func (s *testInstallScriptWithAgentUserSuite) TestInstallScriptWithAgentUser() {
 	s.Require().NoErrorf(err, "install script failed")
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().
-		HasRegistryKey(installerwindows.RegistryKeyPath).
+		HasRegistryKey(consts.RegistryKeyPath).
 		WithValueEqual("installedUser", s.agentUser)
 	identity, err := windowsCommon.GetIdentityForUser(s.Env().RemoteHost, s.agentUser)
 	s.Require().NoError(err)

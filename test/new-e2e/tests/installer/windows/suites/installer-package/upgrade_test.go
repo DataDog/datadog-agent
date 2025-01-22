@@ -6,13 +6,13 @@
 package installertests
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/paths"
 	"testing"
 
 	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	win "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	ins "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 )
@@ -35,7 +35,7 @@ func (s *testInstallerUpgradesSuite) TestUpgrades() {
 	)
 	// sanity check: make sure we did indeed install the stable version
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(paths.BinaryPath).
+		HasBinary(consts.BinaryPath).
 		// Don't check the binary signature because it could have been updated since the last stable was built
 		WithVersionEqual(s.StableInstallerVersion().Version())
 
@@ -47,7 +47,7 @@ func (s *testInstallerUpgradesSuite) TestUpgrades() {
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(paths.BinaryPath).
+		HasBinary(consts.BinaryPath).
 		WithSignature(agent.GetCodeSignatureThumbprints()).
 		WithVersionMatchPredicate(func(version string) {
 			// We have to use a predicate and parse the installer's version here because unlike the stable format

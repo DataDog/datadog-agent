@@ -7,6 +7,7 @@ package installer
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"os"
 	"path"
 	"path/filepath"
@@ -36,7 +37,7 @@ func NewDatadogInstaller(env *environments.WindowsHost, outputDir string) *Datad
 	}
 
 	return &DatadogInstaller{
-		binaryPath: path.Join(Path, BinaryName),
+		binaryPath: path.Join(consts.Path, consts.BinaryName),
 		env:        env,
 		outputDir:  outputDir,
 	}
