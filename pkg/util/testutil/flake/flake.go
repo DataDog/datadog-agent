@@ -11,6 +11,7 @@ package flake
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"runtime"
 	"strconv"
@@ -37,55 +38,8 @@ func Mark(t testing.TB) {
 	t.Log(flakyTestMessage)
 }
 
-// func readFlakyPatternsConfig(path string) {
-
-// r, err := os.Open(*flakyPatternsConfig)
-// if err != nil {
-// 	t.Fatalf("failed to open flaky patterns config file: %v", err)
-// 	return
-// }
-// dec := yaml.NewDecoder(r)
-// // package -> []test -> {test: name, on-log: pattern}
-// pkgToTests := make(map[string][]map[string]interface{})
-// if err := dec.Decode(&pkgToTests); err != nil {
-// 	t.Errorf("unmarshal: %w", err)
-// 	return
-// }
-// println("Parsed")
-// }
-
-// func writeFlakyPatternsConfig(path string) {
-
-// MarkOnLog marks the test as flaky when the `pattern` regular expression is found in its logs.
-func MarkOnLog(t testing.TB, pattern string) {
-	t.Helper()
-	if *flakyPatternsConfig == "" {
-		t.Fatal("flaky-patterns-config flag is required when using MarkOnLog")
-		return
-	}
-
-	// TODO: Lock
-
-	// Add the pattern to the yaml config
-
-	// TODO: Lock file (multithread)
-	// TODO: Not created case
-	f, err := os.OpenFile(*flakyPatternsConfig, os.O_RDWR|os.O_CREATE, 0755)
-	if err != nil {
-		t.Fatalf("failed to open flaky patterns config file: %v", err)
-		return
-	}
-	defer f.Close()
-
-	dec := yaml.NewDecoder(f)
-	flakyConfig := make(map[string]interface{})
-	err = dec.Decode(&flakyConfig)
-	if err != nil {
-		t.Fatalf("failed to decode flaky patterns config file: %v", err)
-		return
-	}
-
-	// Get the test function package which is the topmost function in the stack that is part of the datadog-agent package
+// Get the test function package which is the topmost function in the stack that is part of the datadog-agent package
+func getPackageName() (string, error) {
 	fullPackageName := ""
 	for i := 0; i < 42; i++ {
 		pc, _, _, ok := runtime.Caller(i)
@@ -99,30 +53,55 @@ func MarkOnLog(t testing.TB, pattern string) {
 		}
 	}
 
-	// TODO A: Is it the same with subtests?
 	if fullPackageName == "" {
-		t.Fatalf("failed to fetch e2e test function information")
-		return
+		return "", fmt.Errorf("failed to fetch e2e test function information")
 	}
 
-	// println("Caller: " + e2eCaller)
-
-	// // TODO: How to get it properly ? If MarkOnLog is used in a subfunction, it doesn't work
-	// // Get package name
-	// pc, _, _, ok := runtime.Caller(1)
-	// if !ok {
-	// 	t.Fatalf("failed to get caller information")
-	// 	return
-	// }
-	// fullname := runtime.FuncForPC(pc).Name()
 	// TODO: Windows
 	prefix := "github.com/DataDog/datadog-agent/"
 	fullPackageName = strings.TrimPrefix(fullPackageName, prefix)
 	nameParts := strings.Split(fullPackageName, ".")
 	packageName := nameParts[0]
-	println(packageName)
-	println(t.Name())
 
+	return packageName, nil
+}
+
+// MarkOnLog marks the test as flaky when the `pattern` regular expression is found in its logs.
+func MarkOnLog(t testing.TB, pattern string) {
+	t.Helper()
+	if *flakyPatternsConfig == "" {
+		t.Fatal("flaky-patterns-config flag is required when using MarkOnLog")
+		return
+	}
+
+	// TODO: Lock file (multithread)
+	flakyConfig := make(map[string]interface{})
+
+	// Read initial config
+	_, err := os.Stat(*flakyPatternsConfig)
+	if err == nil {
+		f, err := os.Open(*flakyPatternsConfig)
+		if err != nil {
+			t.Fatalf("failed to open flaky patterns config file: %v", err)
+			return
+		}
+		defer f.Close()
+
+		dec := yaml.NewDecoder(f)
+		err = dec.Decode(&flakyConfig)
+		if err != nil {
+			t.Fatalf("failed to decode flaky patterns config file: %v", err)
+			return
+		}
+	}
+
+	packageName, err := getPackageName()
+	if err != nil {
+		t.Fatalf("failed to get package name: %v", err)
+		return
+	}
+
+	// Update config by adding an entry to this test with this pattern
 	entry := make(map[string]interface{})
 	entry["test"] = t.Name()
 	entry["on-log"] = pattern
@@ -132,9 +111,10 @@ func MarkOnLog(t testing.TB, pattern string) {
 		flakyConfig[packageName] = []map[string]interface{}{entry}
 	}
 
-	_, err = f.Seek(0, 0)
+	// Write config back
+	f, err := os.OpenFile(*flakyPatternsConfig, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		t.Fatalf("failed to seek flaky patterns config file: %v", err)
+		t.Fatalf("failed to open flaky patterns config file: %v", err)
 		return
 	}
 	encoder := yaml.NewEncoder(f)
