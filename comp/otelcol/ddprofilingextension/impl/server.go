@@ -7,12 +7,12 @@
 package ddprofilingextensionimpl
 
 import (
-	"log"
 	"net/http"
 )
 
-func (e *ddExtension) StartServer() {
-	http.Handle("/profiling/v1/input", e.traceAgent.GetHTTPHandler("/profiling/v1/input"))
+func (e *ddExtension) newServer() {
+	mux := http.NewServeMux()
+	mux.Handle("/profiling/v1/input", e.traceAgent.GetHTTPHandler("/profiling/v1/input"))
 
 	var endpoint string
 	if e.cfg.Endpoint != "" {
@@ -20,5 +20,16 @@ func (e *ddExtension) StartServer() {
 	} else {
 		endpoint = defaultEndpoint
 	}
-	log.Fatal(http.ListenAndServe("localhost:"+endpoint, nil))
+
+	server := &http.Server{
+		Addr:    "localhost:" + endpoint,
+		Handler: mux,
+	}
+	e.server = server
+}
+
+func (e *ddExtension) startServer() {
+	if err := e.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		e.log.Error("Unable to start ddprofiling extension server: ", err)
+	}
 }

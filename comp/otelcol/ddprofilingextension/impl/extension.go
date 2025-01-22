@@ -9,8 +9,10 @@ package ddprofilingextensionimpl
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
+	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ddprofilingextensiondef "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"go.opentelemetry.io/collector/component"
@@ -31,35 +33,33 @@ type ddExtension struct {
 	cfg        *Config // Extension configuration.
 	info       component.BuildInfo
 	traceAgent traceagent.Component
-}
-
-// Requires declares the input types to the constructor
-type Requires struct {
-	TraceAgent traceagent.Component
+	server     *http.Server
+	log        corelog.Component
 }
 
 // NewExtension creates a new instance of the extension.
-func NewExtension(cfg *Config, info component.BuildInfo, traceAgent traceagent.Component) (ddprofilingextensiondef.Component, error) {
+func NewExtension(cfg *Config, info component.BuildInfo, traceAgent traceagent.Component, log corelog.Component) (ddprofilingextensiondef.Component, error) {
 	return &ddExtension{
 		cfg:        cfg,
 		info:       info,
 		traceAgent: traceAgent,
+		log:        log,
 	}, nil
 }
 
-func (e *ddExtension) Start(_ context.Context, _ component.Host) error {
+func (e *ddExtension) Start(_ context.Context, host component.Host) error {
 	// OTEL AGENT
 	if e.traceAgent != nil {
 		return e.startForOTelAgent()
 	}
 	// OCB
 	return e.startForOCB()
-
 }
 
 func (e *ddExtension) startForOTelAgent() error {
 	// start server that handles profiles
-	go e.StartServer()
+	e.newServer()
+	go e.startServer()
 
 	profilerOptions := e.buildProfilerOptions()
 
@@ -132,7 +132,9 @@ func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 	return profilerOptions
 }
 
-func (e *ddExtension) Shutdown(_ context.Context) error {
+func (e *ddExtension) Shutdown(ctx context.Context) error {
+	// stop profiler
 	profiler.Stop()
-	return nil
+	// stop server
+	return e.server.Shutdown(ctx)
 }

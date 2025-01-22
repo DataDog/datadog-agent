@@ -6,7 +6,10 @@ replace github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def =
 
 replace github.com/DataDog/datadog-agent/comp/trace/agent/def => ../../../trace/agent/def
 
+replace github.com/DataDog/datadog-agent/comp/core/log/def => ../../../core/log/def
+
 require (
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.61.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.117.0

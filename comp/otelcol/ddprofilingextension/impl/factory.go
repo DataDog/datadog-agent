@@ -9,6 +9,7 @@ package ddprofilingextensionimpl
 import (
 	"context"
 
+	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
@@ -20,6 +21,7 @@ var Type = component.MustNewType("ddprofiling")
 type ddExtensionFactory struct {
 	extension.Factory
 	traceAgent traceagent.Component
+	log        corelog.Component
 }
 
 // NewFactory creates a factory for Datadog Profiling Extension for use with OCB and OSS Collector
@@ -28,15 +30,16 @@ func NewFactory() extension.Factory {
 }
 
 // NewFactoryForAgent creates a factory for Datadog Profiling Extension for use with Agent
-func NewFactoryForAgent(traceAgent traceagent.Component) extension.Factory {
+func NewFactoryForAgent(traceAgent traceagent.Component, log corelog.Component) extension.Factory {
 	return &ddExtensionFactory{
 		traceAgent: traceAgent,
+		log:        log,
 	}
 }
 
 // Create creates a new instance of the Datadog Profiling Extension
 func (f *ddExtensionFactory) Create(_ context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
-	return NewExtension(cfg.(*Config), set.BuildInfo, f.traceAgent)
+	return NewExtension(cfg.(*Config), set.BuildInfo, f.traceAgent, f.log)
 }
 
 // Stability returns the stability level of the component
