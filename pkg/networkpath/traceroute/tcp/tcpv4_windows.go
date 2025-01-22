@@ -78,7 +78,7 @@ func (t *TCPv4) sendAndReceive(rs *common.Winrawsocket, ttl int, seqNum uint32, 
 	}
 
 	icmpParser := icmp.NewICMPTCPParser()
-	tcpParser := newTCPParser()
+	tcpParser := newParser()
 	matcherFuncs := map[int]common.MatcherFunc{
 		windows.IPPROTO_ICMP: icmpParser.Match,
 		windows.IPPROTO_TCP:  tcpParser.MatchTCP,

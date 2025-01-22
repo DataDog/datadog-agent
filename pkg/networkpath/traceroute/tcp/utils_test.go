@@ -16,8 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/ipv4"
-
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/testutils"
 )
 
 var (
@@ -107,90 +105,4 @@ func Test_createRawTCPSynBuffer(t *testing.T) {
 	assert.Equal(t, expectedIPHeader, ipHeader)
 	assert.Equal(t, 20, headerLength)
 	assert.Equal(t, expectedPktBytes, pktBytes)
-}
-
-func Test_parseTCP(t *testing.T) {
-	ipv4Header := testutils.CreateMockIPv4Header(srcIP, dstIP, 6) // 6 is TCP
-	tcpLayer := testutils.CreateMockTCPLayer(12345, 443, 28394, 12737, true, true, true)
-
-	// full packet
-	encodedTCPLayer, fullTCPPacket := testutils.CreateMockTCPPacket(ipv4Header, tcpLayer, false)
-
-	tt := []struct {
-		description string
-		inHeader    *ipv4.Header
-		inPayload   []byte
-		expected    *tcpResponse
-		errMsg      string
-	}{
-		{
-			description: "empty IPv4 layer should return an error",
-			inHeader:    &ipv4.Header{},
-			inPayload:   []byte{},
-			expected:    nil,
-			errMsg:      "invalid IP header for TCP packet",
-		},
-		{
-			description: "nil TCP layer should return an error",
-			inHeader:    ipv4Header,
-			expected:    nil,
-			errMsg:      "received empty TCP payload",
-		},
-		{
-			description: "missing TCP layer should return an error",
-			inHeader:    ipv4Header,
-			inPayload:   []byte{},
-			expected:    nil,
-			errMsg:      "received empty TCP payload",
-		},
-		{
-			description: "full TCP packet should create tcpResponse",
-			inHeader:    ipv4Header,
-			inPayload:   fullTCPPacket,
-			expected: &tcpResponse{
-				SrcIP:       srcIP,
-				DstIP:       dstIP,
-				TCPResponse: *encodedTCPLayer,
-			},
-			errMsg: "",
-		},
-	}
-
-	tp := newTCPParser()
-	for _, test := range tt {
-		t.Run(test.description, func(t *testing.T) {
-			actual, err := tp.parseTCP(test.inHeader, test.inPayload)
-			if test.errMsg != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), test.errMsg)
-				assert.Nil(t, actual)
-				return
-			}
-			require.Nil(t, err)
-			require.NotNil(t, actual)
-			// assert.Equal doesn't handle net.IP well
-			assert.Equal(t, testutils.StructFieldCount(test.expected), testutils.StructFieldCount(actual))
-			assert.Truef(t, test.expected.SrcIP.Equal(actual.SrcIP), "mismatch source IPs: expected %s, got %s", test.expected.SrcIP.String(), actual.SrcIP.String())
-			assert.Truef(t, test.expected.DstIP.Equal(actual.DstIP), "mismatch dest IPs: expected %s, got %s", test.expected.DstIP.String(), actual.DstIP.String())
-			assert.Equal(t, test.expected.TCPResponse, actual.TCPResponse)
-		})
-	}
-}
-
-func BenchmarkParseTCP(b *testing.B) {
-	ipv4Header := testutils.CreateMockIPv4Header(srcIP, dstIP, 6) // 6 is TCP
-	tcpLayer := testutils.CreateMockTCPLayer(12345, 443, 28394, 12737, true, true, true)
-
-	// full packet
-	_, fullTCPPacket := testutils.CreateMockTCPPacket(ipv4Header, tcpLayer, false)
-
-	tp := newTCPParser()
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := tp.parseTCP(ipv4Header, fullTCPPacket)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
 }
