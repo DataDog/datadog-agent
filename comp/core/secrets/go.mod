@@ -27,8 +27,8 @@ require (
 	github.com/benbjohnson/clock v1.3.5
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.23.0
-	golang.org/x/exp v0.0.0-20241217172543-b2144cdd0a67
-	golang.org/x/sys v0.28.0
+	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
+	golang.org/x/sys v0.29.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -55,7 +55,7 @@ require (
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	google.golang.org/protobuf v1.36.1 // indirect
+	google.golang.org/protobuf v1.36.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

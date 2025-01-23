@@ -6,7 +6,9 @@
 package installer
 
 import (
+	"fmt"
 	"os"
+	"path"
 	"strings"
 
 	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
@@ -108,6 +110,7 @@ func (s *BaseInstallerSuite) SetupSuite() {
 // BeforeTest creates a new Datadog Installer and sets the output logs directory for each tests
 func (s *BaseInstallerSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
+	s.ensureDirs()
 	s.installer = NewDatadogInstaller(s.Env(), s.SessionOutputDir())
 }
 
@@ -121,4 +124,21 @@ func (s *BaseInstallerSuite) BeforeTest(suiteName, testName string) {
 // on the Windows Datadog installer `BaseInstallerSuite` object.
 func (s *BaseInstallerSuite) Require() *suiteasserts.SuiteAssertions {
 	return suiteasserts.New(s.BaseSuite.Require(), s)
+}
+
+// ensureDirs enforces the required dirs are created.
+// They should be created by the powershell script but here we use the MSI; so this
+// is a quick fix with hardcoded paths that should be removed once the powershell
+// script is used.
+func (s *BaseInstallerSuite) ensureDirs() {
+	basePath := "C:/ProgramData/Datadog Installer"
+	paths := []string{
+		path.Join(basePath, "packages"),
+		path.Join(basePath, "configs"),
+		path.Join(basePath, "locks"),
+		path.Join(basePath, "tmp"),
+	}
+	for _, p := range paths {
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf("New-Item -Path \"%s\" -ItemType Directory -Force", p))
+	}
 }

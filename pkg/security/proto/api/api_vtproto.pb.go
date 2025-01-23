@@ -1238,6 +1238,16 @@ func (m *EnvironmentStatus) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.UseFentry {
+		i--
+		if m.UseFentry {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x30
+	}
 	if m.UseRingBuffer {
 		i--
 		if m.UseRingBuffer {
@@ -2373,6 +2383,21 @@ func (m *ActivityTreeStatsMessage) MarshalToSizedBufferVT(dAtA []byte) (int, err
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.FlowNodesCount != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.FlowNodesCount))
+		i--
+		dAtA[i] = 0x40
+	}
+	if m.SyscallNodesCount != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.SyscallNodesCount))
+		i--
+		dAtA[i] = 0x38
+	}
+	if m.IMDSNodesCount != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.IMDSNodesCount))
+		i--
+		dAtA[i] = 0x30
+	}
 	if m.ApproximateSize != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.ApproximateSize))
 		i--
@@ -3336,6 +3361,9 @@ func (m *EnvironmentStatus) SizeVT() (n int) {
 	if m.UseRingBuffer {
 		n += 2
 	}
+	if m.UseFentry {
+		n += 2
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -3781,6 +3809,15 @@ func (m *ActivityTreeStatsMessage) SizeVT() (n int) {
 	}
 	if m.ApproximateSize != 0 {
 		n += 1 + protohelpers.SizeOfVarint(uint64(m.ApproximateSize))
+	}
+	if m.IMDSNodesCount != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.IMDSNodesCount))
+	}
+	if m.SyscallNodesCount != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.SyscallNodesCount))
+	}
+	if m.FlowNodesCount != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.FlowNodesCount))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -6753,6 +6790,26 @@ func (m *EnvironmentStatus) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.UseRingBuffer = bool(v != 0)
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UseFentry", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.UseFentry = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -9612,6 +9669,63 @@ func (m *ActivityTreeStatsMessage) UnmarshalVT(dAtA []byte) error {
 				b := dAtA[iNdEx]
 				iNdEx++
 				m.ApproximateSize |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IMDSNodesCount", wireType)
+			}
+			m.IMDSNodesCount = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.IMDSNodesCount |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 7:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SyscallNodesCount", wireType)
+			}
+			m.SyscallNodesCount = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.SyscallNodesCount |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 8:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FlowNodesCount", wireType)
+			}
+			m.FlowNodesCount = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.FlowNodesCount |= int64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}

@@ -190,6 +190,11 @@ func (p *EBPFProbe) UseRingBuffers() bool {
 	return p.config.Probe.EventStreamUseRingBuffer && p.kernelVersion.HaveRingBuffers()
 }
 
+// GetUseFentry returns true if fentry is used
+func (p *EBPFProbe) GetUseFentry() bool {
+	return p.useFentry
+}
+
 func (p *EBPFProbe) selectFentryMode() {
 	if !p.config.Probe.EventStreamUseFentry {
 		p.useFentry = false
@@ -231,6 +236,10 @@ func (p *EBPFProbe) isRawPacketNotSupported() bool {
 	return IsRawPacketNotSupported(p.kernelVersion)
 }
 
+func (p *EBPFProbe) isNetworkFlowMonitorNotSupported() bool {
+	return IsNetworkFlowMonitorNotSupported(p.kernelVersion)
+}
+
 func (p *EBPFProbe) sanityChecks() error {
 	// make sure debugfs is mounted
 	if _, err := tracefs.Root(); err != nil {
@@ -249,6 +258,16 @@ func (p *EBPFProbe) sanityChecks() error {
 	if p.config.Probe.NetworkRawPacketEnabled && p.isRawPacketNotSupported() {
 		seclog.Warnf("the raw packet feature of CWS isn't supported on this kernel version")
 		p.config.Probe.NetworkRawPacketEnabled = false
+	}
+
+	if p.config.Probe.NetworkFlowMonitorEnabled && !p.config.Probe.NetworkEnabled {
+		seclog.Warnf("The network flow monitor feature of CWS requires event_monitoring_config.network.enabled to be true, setting event_monitoring_config.network.flow_monitor.enabled to false")
+		p.config.Probe.NetworkFlowMonitorEnabled = false
+	}
+
+	if p.config.Probe.NetworkFlowMonitorEnabled && p.isNetworkFlowMonitorNotSupported() {
+		seclog.Warnf("The network flow monitor feature of CWS requires a more recent kernel (at least 5.13) with support the bpf_for_each_elem map helper, setting event_monitoring_config.network.flow_monitor.enabled to false")
+		p.config.Probe.NetworkFlowMonitorEnabled = false
 	}
 
 	return nil
@@ -647,7 +666,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 }
 
 func eventWithNoProcessContext(eventType model.EventType) bool {
-	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.RawPacketEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
+	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.RawPacketEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType || eventType == model.NetworkFlowMonitorEventType
 }
 
 func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
@@ -733,24 +752,16 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 }
 
 func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, cgroupFlags containerutils.CGroupFlags, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
-	pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, newEntryCb)
-	if pce != nil {
-		cgroupContext, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey, cgroupFlags)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resorve cgroup for pid %d: %w", pid, err)
-		}
-
-		pce.Process.CGroup = *cgroupContext
-		pce.CGroup = *cgroupContext
-		if cgroupContext.CGroupFlags.IsContainer() {
-			containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
-			pce.ContainerID = containerID
-			pce.Process.ContainerID = containerID
-		}
-	} else {
-		return nil, fmt.Errorf("entry not found for pid %d", pid)
+	cgroupContext, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey, cgroupFlags)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resorve cgroup for pid %d: %w", pid, err)
 	}
-	return &pce.CGroup, nil
+	updated := p.Resolvers.ProcessResolver.UpdateProcessCGroupContext(pid, cgroupContext, newEntryCb)
+	if !updated {
+		return nil, fmt.Errorf("failed to update cgroup for pid %d", pid)
+	}
+
+	return cgroupContext, nil
 }
 
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
@@ -1215,6 +1226,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.NetworkFlowMonitorEventType:
+		if _, err = event.NetworkFlowMonitor.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode NetworkFlowMonitor event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	case model.AcceptEventType:
 		if _, err = event.Accept.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode accept event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1424,6 +1440,8 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 		return p.probe.IsNetworkEnabled()
 	case "packet":
 		return p.probe.IsNetworkRawPacketEnabled()
+	case "network_flow_monitor":
+		return p.probe.IsNetworkFlowMonitorEnabled()
 	}
 	return true
 }
@@ -2008,12 +2026,13 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	}
 
 	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(p.numCPU, probes.MapSpecEditorOpts{
-		TracedCgroupSize:        config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
-		UseRingBuffers:          useRingBuffers,
-		UseMmapableMaps:         useMmapableMaps,
-		RingBufferSize:          uint32(config.Probe.EventStreamBufferSize),
-		PathResolutionEnabled:   probe.Opts.PathResolutionEnabled,
-		SecurityProfileMaxCount: config.RuntimeSecurity.SecurityProfileMaxCount,
+		TracedCgroupSize:          config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
+		UseRingBuffers:            useRingBuffers,
+		UseMmapableMaps:           useMmapableMaps,
+		RingBufferSize:            uint32(config.Probe.EventStreamBufferSize),
+		PathResolutionEnabled:     probe.Opts.PathResolutionEnabled,
+		SecurityProfileMaxCount:   config.RuntimeSecurity.SecurityProfileMaxCount,
+		NetworkFlowMonitorEnabled: config.Probe.NetworkFlowMonitorEnabled,
 	})
 
 	if config.RuntimeSecurity.ActivityDumpEnabled {
@@ -2123,6 +2142,18 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 			Value: uint64(config.RuntimeSecurity.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
 		},
 		manager.ConstantEditor{
+			Name:  "network_monitor_period",
+			Value: uint64(config.Probe.NetworkFlowMonitorPeriod.Nanoseconds()),
+		},
+		manager.ConstantEditor{
+			Name:  "is_sk_storage_supported",
+			Value: utils.BoolTouint64(p.useFentry && p.kernelVersion.HasSKStorageInTracingPrograms() && config.Probe.NetworkFlowMonitorSKStorageEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "is_network_flow_monitor_enabled",
+			Value: utils.BoolTouint64(p.config.Probe.NetworkFlowMonitorEnabled),
+		},
+		manager.ConstantEditor{
 			Name:  "send_signal",
 			Value: utils.BoolTouint64(p.kernelVersion.SupportBPFSendSignal()),
 		},
@@ -2179,7 +2210,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	)
 
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, config.Probe.NetworkRawPacketEnabled, useMmapableMaps)
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, config.Probe.NetworkFlowMonitorEnabled, config.Probe.NetworkRawPacketEnabled, useMmapableMaps)
 	if !config.Probe.ERPCDentryResolutionEnabled || useMmapableMaps {
 		// exclude the programs that use the bpf_probe_write_user helper
 		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
@@ -2190,6 +2221,47 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
 	} else if !p.config.Probe.NetworkRawPacketEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetRawPacketTCProgramFunctions()...)
+	}
+
+	// prevent some tal calls from loading
+	if !p.config.Probe.NetworkFlowMonitorEnabled {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllFlushNetworkStatsTaillCallFunctions()...)
+	}
+
+	// prevent some helpers from loading
+	if !p.kernelVersion.HasBPFForEachMapElemHelper() {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.AllBPFForEachMapElemProgramFunctions()...)
+	}
+
+	if !p.kernelVersion.HasSKStorage() {
+		// Edit each SK_Storage map and transform them to a basic hash maps so they can be loaded by older kernels.
+		// We need this so that the eBPF manager can link the SK_Storage maps in our eBPF programs, even if deadcode
+		// elimination will clean up the piece of code that work with them prior to running the verifier.
+		if p.managerOptions.MapSpecEditors == nil {
+			p.managerOptions.MapSpecEditors = make(map[string]manager.MapSpecEditor, len(probes.AllSKStorageMaps()))
+		}
+		for _, skMapName := range probes.AllSKStorageMaps() {
+			p.managerOptions.MapSpecEditors[skMapName] = manager.MapSpecEditor{
+				Type:       lib.Hash,
+				KeySize:    1,
+				ValueSize:  1,
+				MaxEntries: 1,
+				EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries,
+			}
+		}
+	}
+
+	if !p.kernelVersion.HasNoPreallocMapsInPerfEvent() {
+		// Edit maps used in perf_event programs with BPF_F_NO_PREALLOC flag so that they are pre-allocated
+		if p.managerOptions.MapSpecEditors == nil {
+			p.managerOptions.MapSpecEditors = make(map[string]manager.MapSpecEditor, len(probes.AllSKStorageMaps()))
+		}
+		for _, noPreallocMapName := range probes.AllNoPreallocMapsInPerfEventPrograms() {
+			p.managerOptions.MapSpecEditors[noPreallocMapName] = manager.MapSpecEditor{
+				Flags:      unix.BPF_ANY,
+				EditorFlag: manager.EditFlags,
+			}
+		}
 	}
 
 	if p.useFentry {
@@ -2508,6 +2580,11 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructSADDR, "struct flowi6", "saddr")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructULI, "struct flowi6", "uli")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSocketStructSK, "struct socket", "sk")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockCommonStructSKCNum, "struct sock_common", "skc_num")
+	// TODO: needed for l4_protocol resolution, see network/flow.h
+	//constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI4StructProto, "struct flowi4", "flowi4_proto")
+	// TODO: needed for l4_protocol resolution, see network/flow.h
+	//constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructProto, "struct flowi6", "flowi6_proto")
 
 	// Interpreter constants
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmStructFile, "struct linux_binprm", "file")

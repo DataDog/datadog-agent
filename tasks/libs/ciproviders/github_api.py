@@ -276,8 +276,13 @@ class GithubAPI:
         issues = self._repository.get_issues(milestone=m, state='all', labels=labels)
         return [i.as_pull_request() for i in issues if i.pull_request is not None]
 
-    def get_pr_for_branch(self, branch_name):
-        return self._repository.get_pulls(state="open", head=f'DataDog:{branch_name}')
+    def get_pr_for_branch(self, head_branch_name=None, base_branch_name=None):
+        query_params = {"state": "open"}
+        if head_branch_name:
+            query_params["head"] = f'DataDog:{head_branch_name}'
+        if base_branch_name:
+            query_params["base"] = base_branch_name
+        return self._repository.get_pulls(**query_params)
 
     def get_tags(self, pattern=""):
         """
@@ -353,6 +358,10 @@ class GithubAPI:
             return max((r for r in self.get_releases() if r.title.startswith('6.53')), key=lambda r: r.created_at).title
         release = self._repository.get_latest_release()
         return release.title
+
+    def latest_release_tag(self) -> str:
+        release = self._repository.get_latest_release()
+        return release.tag_name
 
     def get_releases(self):
         return self._repository.get_releases()
@@ -535,14 +544,37 @@ class GithubAPI:
         auth_token = integration.get_access_token(install_id)
         print(auth_token.token)
 
-    def create_label(self, name, color, description=""):
+    def create_label(self, name, color, description="", exist_ok=False):
         """
         Creates a label in the given GitHub repository.
         """
-        return self._repository.create_label(name, color, description)
 
-    def create_milestone(self, title):
-        self._repository.create_milestone(title)
+        try:
+            return self._repository.create_label(name, color, description)
+        except GithubException as e:
+            if not (
+                e.status == 422
+                and len(e.data["errors"]) == 1
+                and e.data["errors"][0]["code"] == "already_exists"
+                and exist_ok
+            ):
+                raise e
+
+    def create_milestone(self, title, exist_ok=False):
+        """
+        Creates a milestone in the given GitHub repository.
+        """
+
+        try:
+            return self._repository.create_milestone(title)
+        except GithubException as e:
+            if not (
+                e.status == 422
+                and len(e.data["errors"]) == 1
+                and e.data["errors"][0]["code"] == "already_exists"
+                and exist_ok
+            ):
+                raise e
 
     def create_release(self, tag, message, draft=True):
         return self._repository.create_git_release(
