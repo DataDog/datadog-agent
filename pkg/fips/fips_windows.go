@@ -28,7 +28,7 @@ func Status() string {
 func Enabled() (bool, error) {
 	// this is copied from how microsoft/go checks the windows registry that FIPS is enabled:
 	//   https://github.com/microsoft/go/blob/d0f965f87c51211b3ea554f88e94b4c68116f5d1/eng/_util/cmd/run-builder/systemfips_windows.go#L17-L54
-	key, _ := registry.OpenKey(
+	key, err := registry.OpenKey(
 		registry.LOCAL_MACHINE,
 		`SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy`,
 		registry.QUERY_VALUE,
