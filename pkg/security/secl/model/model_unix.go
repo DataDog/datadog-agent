@@ -22,6 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
+const (
+	// FileFieldsSize is the size used by the file_t structure
+	FileFieldsSize = 72
+)
+
 // Event represents an event sent from the kernel
 // genaccessors
 type Event struct {
