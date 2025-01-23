@@ -31,6 +31,7 @@ type diskConfig struct {
 	includedDevices      []string
 	excludedDevices      []string
 	excludedDeviceRe     *regexp.Regexp
+	includedFilesystems  []string
 	excludedFilesystems  []string
 	tagByFilesystem      bool
 	excludedMountpointRe *regexp.Regexp
@@ -45,6 +46,7 @@ func NewDiskConfig() *diskConfig {
 		includedDevices:      []string{},
 		excludedDevices:      []string{},
 		excludedDeviceRe:     nil,
+		includedFilesystems:  []string{},
 		excludedFilesystems:  []string{},
 		tagByFilesystem:      false,
 		excludedMountpointRe: nil,
@@ -118,6 +120,10 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 		return err
 	}
 	err = c.configureExcludeFileSystem(conf)
+	if err != nil {
+		return err
+	}
+	err = c.configureIncludeFileSystem(conf)
 	if err != nil {
 		return err
 	}
@@ -205,6 +211,19 @@ func (c *Check) configureExcludeFileSystem(conf map[interface{}]interface{}) err
 	}
 	// Force exclusion of CDROM (iso9660) from disk check
 	c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, "iso9660")
+	return nil
+}
+
+func (c *Check) configureIncludeFileSystem(conf map[interface{}]interface{}) error {
+	for _, key := range []string{"file_system_include", "file_system_whitelist"} {
+		if fileSystemInclude, ok := conf[key].([]interface{}); ok {
+			for _, val := range fileSystemInclude {
+				if strVal, ok := val.(string); ok {
+					c.cfg.includedFilesystems = append(c.cfg.includedFilesystems, strVal)
+				}
+			}
+		}
+	}
 	return nil
 }
 
