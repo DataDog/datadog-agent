@@ -121,7 +121,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessArgsOptions(ev *model.Event, process 
 
 // ResolveFileFieldsInUpperLayer resolves whether the file is in an upper layer
 func (fh *EBPFFieldHandlers) ResolveFileFieldsInUpperLayer(_ *model.Event, f *model.FileFields) bool {
-	return f.GetInUpperLayer()
+	return f.IsInUpperLayer()
 }
 
 // ResolveXAttrName returns the string representation of the extended attribute name
