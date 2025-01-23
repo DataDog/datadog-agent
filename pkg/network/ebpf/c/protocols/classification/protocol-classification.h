@@ -175,7 +175,6 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         // TLS classification
         if (tls_hdr.content_type != TLS_HANDSHAKE) {
             // We can't classify TLS encrypted traffic further, so return early
-            // update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_TLS);
             return;
         }
 
@@ -260,7 +259,6 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     if (!protocol_stack) {
         return;
     }
-    // update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_TLS);
     // We can't classify TLS encrypted traffic further, so return early
     return;
 
