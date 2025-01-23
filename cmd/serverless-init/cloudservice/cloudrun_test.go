@@ -54,7 +54,7 @@ func TestGetRegionUnknown(t *testing.T) {
 		timeout:   1 * time.Second,
 		regionURL: ts.URL,
 	}
-	assert.Equal(t, "unknown", getRegion(&http.Client{}, testConfig))
+	assert.Equal(t, "unknown", getRegion(&http.Client{}, testConfig.regionURL))
 }
 
 func TestGetRegionOK(t *testing.T) {
@@ -66,7 +66,7 @@ func TestGetRegionOK(t *testing.T) {
 		timeout:   1 * time.Second,
 		regionURL: ts.URL,
 	}
-	assert.Equal(t, "us-central1", getRegion(&http.Client{}, testConfig))
+	assert.Equal(t, "us-central1", getRegion(&http.Client{}, testConfig.regionURL))
 }
 
 func TestGetMetaDataComplete(t *testing.T) {

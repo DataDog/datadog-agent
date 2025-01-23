@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -21,8 +20,9 @@ const (
 	revisionNameEnvVar      = "K_REVISION"
 	ServiceNameEnvVar       = "K_SERVICE" // ServiceNameEnvVar is also used in the trace package
 	configurationNameEnvVar = "K_CONFIGURATION"
-	functionTypeEnvVar      = "FUNCTION_SIGNATURE_TYPE"
-	functionTargetEnvVar    = "FUNCTION_TARGET" // exists as a cloudrunfunction env var for all runtimes except Go
+	// exists as cloudrunfunction env var for all runtimes except Go
+	functionTypeEnvVar   = "FUNCTION_SIGNATURE_TYPE"
+	functionTargetEnvVar = "FUNCTION_TARGET"
 )
 
 const (
@@ -36,20 +36,17 @@ const (
 
 const (
 	// Span Tag with namespace specific for cloud run (gcr) and cloud run function (gcrfx)
-	cloudRunService      = "gcr."
-	cloudRunFunction     = "gcrfx."
-	runRevisionName      = "gcr.revision_name"
-	functionRevisionName = "gcrfx.revision_name"
-	runServiceName       = "gcr.service_name"
-	functionServiceName  = "gcrfx.service_name"
-	runConfigName        = "gcr.configuration_name"
-	functionConfigName   = "gcrfx.configuration_name"
-	runContainerID       = "gcr.container_id"
-	functionContainerID  = "gcrfx.container_id"
-	runLocation          = "gcr.location"
-	functionLocation     = "gcrfx.location"
-	runProjectID         = "gcr.project_id"
-	functionProjectID    = "gcrfx.project_id"
+	cloudRunService   = "gcr."
+	cloudRunFunction  = "gcrfx."
+	revisionName      = "revision_name"
+	serviceName       = "service_name"
+	configName        = "configuration_name"
+	containerID       = "container_id"
+	location          = "location"
+	projectID         = "project_id"
+	resourceName      = "resource_name"
+	functionTarget    = "function_target"
+	functionSignature = "function_signature_type"
 )
 
 var metadataHelperFunc = GetMetaData
@@ -74,33 +71,33 @@ func (c *CloudRun) GetTags() map[string]string {
 	tags["origin"] = c.GetOrigin()
 	tags["_dd.origin"] = c.GetOrigin()
 
-	revisionName := os.Getenv(revisionNameEnvVar)
-	serviceName := os.Getenv(ServiceNameEnvVar)
-	configName := os.Getenv(configurationNameEnvVar)
-	if revisionName != "" {
-		tags["revision_name"] = revisionName
+	revisionNameVal := os.Getenv(revisionNameEnvVar)
+	serviceNameVal := os.Getenv(ServiceNameEnvVar)
+	configNameVal := os.Getenv(configurationNameEnvVar)
+	if revisionNameVal != "" {
+		tags[revisionName] = revisionNameVal
 		if isCloudRun {
-			tags[runRevisionName] = revisionName
+			tags[cloudRunService+revisionName] = revisionNameVal
 		} else {
-			tags[functionRevisionName] = revisionName
+			tags[cloudRunFunction+revisionName] = revisionNameVal
 		}
 	}
 
-	if serviceName != "" {
-		tags["service_name"] = serviceName
+	if serviceNameVal != "" {
+		tags[serviceName] = serviceNameVal
 		if isCloudRun {
-			tags[runServiceName] = serviceName
+			tags[cloudRunService+serviceName] = serviceNameVal
 		} else {
-			tags[functionServiceName] = serviceName
+			tags[cloudRunFunction+serviceName] = serviceNameVal
 		}
 	}
 
-	if configName != "" {
-		tags["configuration_name"] = configName
+	if configNameVal != "" {
+		tags[configName] = configNameVal
 		if isCloudRun {
-			tags[runConfigName] = configName
+			tags[cloudRunService+configName] = configNameVal
 		} else {
-			tags[functionConfigName] = configName
+			tags[cloudRunFunction+configName] = configNameVal
 		}
 	}
 
@@ -108,23 +105,23 @@ func (c *CloudRun) GetTags() map[string]string {
 		return c.getFunctionTags(tags)
 	}
 
-	tags["gcr.resource_name"] = "projects/" + tags["project_id"] + "/locations/" + tags["location"] + "/services/" + serviceName
+	tags[cloudRunService+resourceName] = "projects/" + tags["project_id"] + "/locations/" + tags["location"] + "/services/" + serviceNameVal
 	return tags
 }
 
 func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
-	functionTarget := os.Getenv(functionTargetEnvVar)
+	functionTargetVal := os.Getenv(functionTargetEnvVar)
 	functionSignatureType := os.Getenv(functionTypeEnvVar)
 
-	if functionTarget != "" {
-		tags[c.spanNamespace+"function_target"] = functionTarget
+	if functionTargetVal != "" {
+		tags[cloudRunFunction+functionTarget] = functionTargetVal
 	}
 
 	if functionSignatureType != "" {
-		tags[c.spanNamespace+"function_signature_type"] = functionSignatureType
+		tags[cloudRunFunction+functionSignature] = functionSignatureType
 	}
 
-	tags["gcrfx.resource_name"] = "projects/" + tags["project_id"] + "/locations/" + tags["location"] + "/services/" + tags["service_name"] + "/functions/" + functionTarget
+	tags[cloudRunFunction+resourceName] = "projects/" + tags["project_id"] + "/locations/" + tags["location"] + "/services/" + tags["service_name"] + "/functions/" + functionTargetVal
 	return tags
 }
 
@@ -166,8 +163,8 @@ func GetDefaultConfig() *GCPConfig {
 	}
 }
 
-func getRegion(httpClient *http.Client, config *GCPConfig) string {
-	value := getSingleMetadata(httpClient, config.regionURL)
+func getRegion(httpClient *http.Client, url string) string {
+	value := getSingleMetadata(httpClient, url)
 	tokens := strings.Split(value, "/")
 	return tokens[len(tokens)-1]
 }
@@ -195,49 +192,34 @@ func getSingleMetadata(httpClient *http.Client, url string) string {
 
 // GetMetaData returns the container's metadata
 func GetMetaData(config *GCPConfig, isCloudRun bool) map[string]string {
-	wg := sync.WaitGroup{}
-	wg.Add(3)
-	mlock := sync.Mutex{}
+	type keyVal struct {
+		key, val string
+	}
 	httpClient := &http.Client{
 		Timeout: config.timeout,
 	}
+
 	metadata := make(map[string]string, 6)
-	go func() {
-		containerID := getSingleMetadata(httpClient, config.containerIDURL)
-		mlock.Lock()
-		metadata["container_id"] = containerID
+	metaChan := make(chan keyVal)
+	getMeta := func(fnMetadata func(*http.Client, string) string, url string, baseKey string) {
+		val := fnMetadata(httpClient, url)
+		metaChan <- keyVal{baseKey, val}
 		if isCloudRun {
-			metadata[runContainerID] = containerID
+			metaChan <- keyVal{cloudRunService + baseKey, val}
 		} else {
-			metadata[functionContainerID] = containerID
+			metaChan <- keyVal{cloudRunFunction + baseKey, val}
 		}
-		mlock.Unlock()
-		wg.Done()
-	}()
-	go func() {
-		location := getRegion(httpClient, config)
-		mlock.Lock()
-		metadata["location"] = location
-		if isCloudRun {
-			metadata[runLocation] = location
-		} else {
-			metadata[functionLocation] = location
+	}
+
+	go getMeta(getSingleMetadata, config.containerIDURL, containerID)
+	go getMeta(getRegion, config.regionURL, location)
+	go getMeta(getSingleMetadata, config.projectIDURL, projectID)
+
+	for {
+		tagSet := <-metaChan
+		metadata[tagSet.key] = tagSet.val
+		if len(metadata) == 6 {
+			return metadata
 		}
-		mlock.Unlock()
-		wg.Done()
-	}()
-	go func() {
-		project := getSingleMetadata(httpClient, config.projectIDURL)
-		mlock.Lock()
-		metadata["project_id"] = project
-		if isCloudRun {
-			metadata[runProjectID] = project
-		} else {
-			metadata[functionProjectID] = project
-		}
-		mlock.Unlock()
-		wg.Done()
-	}()
-	wg.Wait()
-	return metadata
+	}
 }
