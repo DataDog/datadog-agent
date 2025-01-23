@@ -107,7 +107,10 @@ func AllProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "sys_exit",
 			},
 		},
-		// Snapshot probe
+	)
+
+	// procfs fallback, used to get mount_id
+	allProbes = append(allProbes,
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
@@ -115,6 +118,7 @@ func AllProbes(fentry bool) []*manager.Probe {
 			},
 		},
 	)
+	allProbes = appendSyscallProbes(allProbes, fentry, EntryAndExit, false, "newfstatat")
 
 	return allProbes
 }
@@ -131,8 +135,8 @@ func AllMaps() []*manager.Map {
 		{Name: "basename_approvers"},
 		// Dentry resolver table
 		{Name: "pathnames"},
-		// Snapshot table
-		{Name: "exec_file_cache"},
+		// Procfs fallback table
+		{Name: "inode_file"},
 		// Open tables
 		{Name: "open_flags_approvers"},
 		// Exec tables
