@@ -238,7 +238,7 @@ deploy_containers_latest-dogstatsd:
     IMG_SOURCES: ${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: ${DSD_REPOSITORY}:7,${DSD_REPOSITORY}:latest
 
-deploy_containers_latest-a7:
+deploy_containers_latest-a7-ot:
   extends: .deploy_containers-a7-base-ot
   stage: deploy_containers
   rules:
