@@ -27,30 +27,30 @@ const (
 )
 
 type diskConfig struct {
-	useMount             bool
-	includedDevices      []regexp.Regexp
-	excludedDevices      []regexp.Regexp
-	includedFilesystems  []regexp.Regexp
-	excludedFilesystems  []regexp.Regexp
-	tagByFilesystem      bool
-	excludedMountpointRe *regexp.Regexp
-	allPartitions        bool
-	deviceTagRe          map[*regexp.Regexp][]string
-	allDevices           bool
+	useMount            bool
+	includedDevices     []regexp.Regexp
+	excludedDevices     []regexp.Regexp
+	includedFilesystems []regexp.Regexp
+	excludedFilesystems []regexp.Regexp
+	excludedMountpoints []regexp.Regexp
+	tagByFilesystem     bool
+	allPartitions       bool
+	deviceTagRe         map[*regexp.Regexp][]string
+	allDevices          bool
 }
 
 func NewDiskConfig() *diskConfig {
 	return &diskConfig{
-		useMount:             false,
-		includedDevices:      []regexp.Regexp{},
-		excludedDevices:      []regexp.Regexp{},
-		includedFilesystems:  []regexp.Regexp{},
-		excludedFilesystems:  []regexp.Regexp{},
-		tagByFilesystem:      false,
-		excludedMountpointRe: nil,
-		allPartitions:        false,
-		deviceTagRe:          make(map[*regexp.Regexp][]string),
-		allDevices:           true,
+		useMount:            false,
+		includedDevices:     []regexp.Regexp{},
+		excludedDevices:     []regexp.Regexp{},
+		includedFilesystems: []regexp.Regexp{},
+		excludedFilesystems: []regexp.Regexp{},
+		excludedMountpoints: []regexp.Regexp{},
+		tagByFilesystem:     false,
+		allPartitions:       false,
+		deviceTagRe:         make(map[*regexp.Regexp][]string),
+		allDevices:          true,
 	}
 }
 
@@ -138,14 +138,6 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 	tagByFilesystem, found := conf["tag_by_filesystem"]
 	if tagByFilesystem, ok := tagByFilesystem.(bool); found && ok {
 		c.cfg.tagByFilesystem = tagByFilesystem
-	}
-
-	excludedMountpointRe, found := conf["excluded_mountpoint_re"]
-	if excludedMountpointRe, ok := excludedMountpointRe.(string); found && ok {
-		c.cfg.excludedMountpointRe, err = regexp.Compile(excludedMountpointRe)
-		if err != nil {
-			return err
-		}
 	}
 
 	allPartitions, found := conf["all_partitions"]
@@ -256,13 +248,27 @@ func (c *Check) configureIncludeFileSystem(conf map[interface{}]interface{}) err
 }
 
 func (c *Check) configureExcludeMountPoint(conf map[interface{}]interface{}) error {
-	excludedMountPointRe, found := conf["excluded_mountpoint_re"]
+	for _, key := range []string{"mount_point_exclude", "mount_point_blacklist"} {
+		if mountPointExclude, ok := conf[key].([]interface{}); ok {
+			for _, val := range mountPointExclude {
+				if strVal, ok := val.(string); ok {
+					regexp, err := regexp.Compile(strVal)
+					if err != nil {
+						return err
+					}
+					c.cfg.excludedMountpoints = append(c.cfg.excludedMountpoints, *regexp)
+				}
+			}
+		}
+	}
+	excludedMountPointRe, found := conf["excluded_mountpoint_re"] //Maintained for backwards compatibility. It would now be easier to add regular expressions to the 'device_exclude' list key
 	if excludedMountPointRe, ok := excludedMountPointRe.(string); found && ok {
 		var err error
-		c.cfg.excludedMountpointRe, err = regexp.Compile(excludedMountPointRe)
+		regexp, err := regexp.Compile(excludedMountPointRe)
 		if err != nil {
 			return err
 		}
+		c.cfg.excludedMountpoints = append(c.cfg.excludedMountpoints, *regexp)
 	}
 	return nil
 }

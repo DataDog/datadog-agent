@@ -142,10 +142,10 @@ func (c *Check) includeFileSystem(fileSystem string) bool {
 }
 
 func (c *Check) excludeMountPoint(mountPoint string) bool {
-	if c.cfg.excludedMountpointRe == nil {
+	if len(c.cfg.excludedMountpoints) == 0 {
 		return false
 	}
-	return c.cfg.excludedMountpointRe.MatchString(mountPoint)
+	return sliceMatchesExpression(c.cfg.excludedMountpoints, mountPoint)
 }
 
 func (c *Check) collectDiskMetrics(sender sender.Sender) error {
