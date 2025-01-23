@@ -36,6 +36,9 @@ const (
 
 	// defaultprocessesWithoutPodCleanupPeriod defines the period to clean up process events from the map
 	defaultprocessesWithoutPodCleanupPeriod = time.Hour
+
+	// podCooldownPeriod defines the period to wait before sending fresh updates
+	podCooldownPeriod = 20 * time.Second
 )
 
 // Module defines the fx options for this component.
@@ -127,6 +130,7 @@ func newClient(
 		processesWithoutPodCleanupPeriod: defaultprocessesWithoutPodCleanupPeriod,
 		freshlyUpdatedPods:               make(map[string]time.Time),
 		periodicalFlushPeriod:            deps.Config.GetDuration("language_detection.reporting.refresh_period"),
+		podCooldownPeriod:                podCooldownPeriod,
 		timeProvider:                     time.Now,
 	}
 	deps.Lc.Append(fx.Hook{
