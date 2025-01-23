@@ -5,7 +5,7 @@
     - !reference [.except_mergequeue]
     - when: on_success
   needs: ["go_deps", "go_tools_deps"]
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  extends: .windows_docker_default
   before_script:
     - $tmpfile = [System.IO.Path]::GetTempFileName()
     - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" -parameterName "$Env:VCPKG_BLOB_SAS_URL" -tempFile "$tmpfile")
@@ -29,7 +29,7 @@
       -e GOMODCACHE="c:\modcache"
       -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl}"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
-      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      ${WINBUILDIMAGE}
       powershell.exe -c "c:\mnt\tasks\winbuildscripts\Invoke-IntegrationTests.ps1 -BuildOutOfSource 1 -CheckGoVersion 1 -InstallDeps 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 

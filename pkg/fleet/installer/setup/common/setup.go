@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -114,12 +115,20 @@ func (s *Setup) Run() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to install installer: %w", err)
 	}
+	err = installinfo.WriteInstallInfo("installer", fmt.Sprintf("installer-%s", version.AgentVersion), fmt.Sprintf("install-%s.sh", s.flavor))
+	if err != nil {
+		return fmt.Errorf("failed to write install info: %w", err)
+	}
 	for _, p := range packages {
 		url := oci.PackageURL(s.Env, p.name, p.version)
 		err = s.installPackage(p.name, url)
 		if err != nil {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}
+	}
+	err = s.restartServices(packages)
+	if err != nil {
+		return fmt.Errorf("failed to restart services: %w", err)
 	}
 	s.Out.WriteString(fmt.Sprintf("Successfully ran the %s install script in %s!\n", s.flavor, time.Since(s.start).Round(time.Second)))
 	return nil

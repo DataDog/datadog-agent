@@ -1501,6 +1501,7 @@ func TestAPMObfuscationDefaultValue(t *testing.T) {
 	assert.False(t, conf.GetBool("apm_config.obfuscation.credit_cards.luhn"))
 	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.credit_cards.keep_values"), 0)
 	assert.True(t, conf.GetBool("apm_config.obfuscation.cache.enabled"))
+	assert.Equal(t, int64(5000000), conf.GetInt64("apm_config.obfuscation.cache.max_size"))
 }
 
 func TestAgentConfigInit(t *testing.T) {

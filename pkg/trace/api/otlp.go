@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -26,10 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
-	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -37,6 +36,9 @@ import (
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 )
 
 // keyStatsComputed specifies the resource attribute key which indicates if stats have been
@@ -226,7 +228,7 @@ func (o *OTLPReceiver) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
 	if o.conf.HasFeature("enable_receive_resource_spans_v2") {
-		return o.receiveResourceSpansV2(ctx, rspans, httpHeader.Get(header.ComputedStats) != "")
+		return o.receiveResourceSpansV2(ctx, rspans, isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)))
 	}
 	return o.receiveResourceSpansV1(ctx, rspans, httpHeader)
 }
@@ -417,8 +419,8 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	_ = o.statsd.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	p := Payload{
 		Source:                 tagstats,
-		ClientComputedStats:    rattr[keyStatsComputed] != "" || httpHeader.Get(header.ComputedStats) != "",
-		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") || httpHeader.Get(header.ComputedTopLevel) != "",
+		ClientComputedStats:    rattr[keyStatsComputed] != "" || isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)),
+		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") || isHeaderTrue(header.ComputedTopLevel, httpHeader.Get(header.ComputedTopLevel)),
 	}
 	if env == "" {
 		env = o.conf.DefaultEnv
@@ -639,12 +641,12 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if span.Service == "" {
 		span.Service = "OTLPResourceNoServiceName"
 	}
+	res := pcommon.NewResource()
+	for k, v := range rattr {
+		res.Attributes().PutStr(k, v)
+	}
 	if span.Resource == "" {
 		if transform.OperationAndResourceNameV2Enabled(o.conf) {
-			res := pcommon.NewResource()
-			for k, v := range rattr {
-				res.Attributes().PutStr(k, v)
-			}
 			span.Resource = traceutil.GetOTelResourceV2(in, res)
 		} else {
 			if r := resourceFromTags(span.Meta); r != "" {
@@ -655,7 +657,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		}
 	}
 	if span.Type == "" {
-		span.Type = spanKind2Type(in.Kind(), span)
+		span.Type = traceutil.SpanKind2Type(in, res)
 	}
 	return span
 }
@@ -693,30 +695,6 @@ func resourceFromTags(meta map[string]string) string {
 		return typ
 	}
 	return ""
-}
-
-// spanKind2Type returns a span's type based on the given kind and other present properties.
-func spanKind2Type(kind ptrace.SpanKind, span *pb.Span) string {
-	var typ string
-	switch kind {
-	case ptrace.SpanKindServer:
-		typ = "web"
-	case ptrace.SpanKindClient:
-		typ = "http"
-		db, ok := span.Meta[string(semconv.AttributeDBSystem)]
-		if !ok {
-			break
-		}
-		switch db {
-		case "redis", "memcached":
-			typ = "cache"
-		default:
-			typ = "db"
-		}
-	default:
-		typ = "custom"
-	}
-	return typ
 }
 
 // computeTopLevelAndMeasured updates the span's top-level and measured attributes.

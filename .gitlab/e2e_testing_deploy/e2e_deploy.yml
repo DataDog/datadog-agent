@@ -190,6 +190,7 @@ deploy_windows_testing-a7:
       --recursive
       --exclude "*"
       --include "datadog-agent-7.*.msi"
+      --include "datadog-agent-upgrade-test-7.*.msi"
       --include "datadog-installer-*-1-x86_64.msi"
       --include "datadog-installer-*-1-x86_64.exe"
       $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET_A7

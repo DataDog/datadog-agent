@@ -80,7 +80,7 @@ func (c *CloudRun) GetTags() map[string]string {
 		return c.getFunctionTags(tags)
 	}
 
-	tags["_dd.gcr.resource_name"] = "projects/" + tags["project_id"] + "/locations/" + tags["location"] + "/services/" + serviceName
+	tags["gcr.resource_name"] = "projects/" + tags["project_id"] + "/locations/" + tags["location"] + "/services/" + serviceName
 	return tags
 }
 
@@ -96,7 +96,7 @@ func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 		tags[c.spanNamespace+"function_signature_type"] = functionSignatureType
 	}
 
-	tags["_dd.gcrfx.resource_name"] = "projects/" + tags["project_id"] + "/locations/" + tags["location"] + "/services/" + tags["service_name"] + "/functions/" + functionTarget
+	tags["gcrfx.resource_name"] = "projects/" + tags["project_id"] + "/locations/" + tags["location"] + "/services/" + tags["service_name"] + "/functions/" + functionTarget
 	return tags
 }
 
