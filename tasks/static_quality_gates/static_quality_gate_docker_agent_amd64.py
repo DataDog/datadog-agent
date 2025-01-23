@@ -1,7 +1,7 @@
 import os
 
 from tasks.libs.common.color import color_message
-from tasks.static_quality_gates.lib.gates_lib import argument_extractor
+from tasks.static_quality_gates.lib.gates_lib import argument_extractor, read_byte_input
 
 
 def calculate_image_on_disk_size(ctx, url):
@@ -25,7 +25,9 @@ def calculate_image_on_disk_size(ctx, url):
 
 
 def entrypoint(**kwargs):
-    arguments = argument_extractor(kwargs, max_on_wire_size=None, max_on_disk_size=None, ctx=None, metricHandler=None)
+    arguments = argument_extractor(
+        kwargs, max_on_wire_size=read_byte_input, max_on_disk_size=read_byte_input, ctx=None, metricHandler=None
+    )
     ctx = arguments.ctx
     metricHandler = arguments.metricHandler
     max_on_wire_size = arguments.max_on_wire_size

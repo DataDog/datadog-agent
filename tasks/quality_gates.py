@@ -141,13 +141,13 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
                 {"name": gate, "state": False, "error_type": "StackTrace", "message": traceback.format_exc()}
             )
     if not finalState:
-        ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"failed\"")
+        ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"failure\"")
     else:
-        ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"passed\"")
+        ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"success\"")
 
     _print_quality_gates_report(gateStates)
 
-    metricHandler.send_metrics()
+    metricHandler.send_metrics_to_datadog()
 
     github = GithubAPI()
     branch = os.environ["CI_COMMIT_BRANCH"]

@@ -1,6 +1,7 @@
 import glob
 import math
 import os
+import types
 from datetime import datetime
 from types import SimpleNamespace
 
@@ -14,25 +15,51 @@ from tasks.libs.common.utils import get_metric_origin
 
 def argument_extractor(entry_args, **kwargs) -> SimpleNamespace:
     """
-    Allow clean extraction of arguments from parsed quality gates
+    Allow clean extraction of arguments from parsed quality gates, also allows to execute pre-process function on kwargs
 
     :param entry_args: Dictionary containing parsed arguments from a static quality gate
-    :param kwargs: Dictionary containing arguments that we want to extract
+    :param kwargs: Dictionary containing arguments that we want to extract (optionally pre-process function to apply as values)
     :return: SimpleNamespace with extracted arguments as attributes
     """
     for key in kwargs.keys():
-        kwargs[key] = entry_args[key]
+        if isinstance(kwargs[key], types.FunctionType):
+            kwargs[key] = kwargs[key](entry_args[key])
+        else:
+            kwargs[key] = entry_args[key]
     return SimpleNamespace(**kwargs)
 
 
 def byte_to_string(size):
     if not size:
         return "0B"
-    size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
-    i = int(math.log(size, 1000))
-    p = math.pow(1000, i)
+    size_name = ("B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB")
+    i = int(math.log(size, 1024))
+    p = math.pow(1024, i)
     s = round(size / p, 2)
     return f"{s}{size_name[i]}"
+
+
+def string_to_byte(string):
+    if not string:
+        return 0
+    size_name = ("B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB")
+    value = None
+    power = 0
+    for k, unit in enumerate(size_name):
+        if unit in string:
+            value = float(string.replace(unit, ""))
+            power = k
+    if value:
+        return int(value * math.pow(1024, power))
+    else:
+        return int(string)
+
+
+def read_byte_input(byte_input):
+    if isinstance(byte_input, str):
+        return string_to_byte(byte_input)
+    else:
+        return byte_input
 
 
 def find_package_path(flavor, package_os, arch):
@@ -128,7 +155,7 @@ class GateMetricHandler:
             )
         return series
 
-    def send_metrics(self):
+    def send_metrics_to_datadog(self):
         series = self._generate_series()
 
         print(color_message("Data collected:", "blue"))
