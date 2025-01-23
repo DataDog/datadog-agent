@@ -111,6 +111,11 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 		c.cfg.useMount = useMount
 	}
 
+	includeAllDevices, found := conf["include_all_devices"]
+	if includeAllDevices, ok := includeAllDevices.(bool); found && ok {
+		c.cfg.allDevices = includeAllDevices
+	}
+
 	err = c.configureExcludeDevice(conf)
 	if err != nil {
 		return err
