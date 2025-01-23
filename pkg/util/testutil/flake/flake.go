@@ -13,6 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -59,8 +60,7 @@ func getPackageName() (string, error) {
 		return "", fmt.Errorf("failed to fetch e2e test function information")
 	}
 
-	// TODO: Windows
-	prefix := "github.com/DataDog/datadog-agent/"
+	prefix := filepath.FromSlash("github.com/DataDog/datadog-agent/")
 	fullPackageName = strings.TrimPrefix(fullPackageName, prefix)
 	nameParts := strings.Split(fullPackageName, ".")
 	packageName := nameParts[0]
