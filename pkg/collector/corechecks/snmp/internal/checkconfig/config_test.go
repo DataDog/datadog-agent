@@ -250,7 +250,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, expectedMetrics, config.Metrics)
 	assert.Equal(t, expectedMetricTags, config.MetricTags)
 	assert.Equal(t, []string{"snmp_profile:f5-big-ip", "device_vendor:f5", "static_tag:from_profile_root", "static_tag:from_base_profile"}, config.ProfileTags)
-	assert.Equal(t, 1, len(config.Profiles))
+	assert.True(t, config.ProfileProvider.HasProfile("f5-big-ip"))
 	assert.Equal(t, "default:1.2.3.4", config.DeviceID)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.DeviceIDTags)
 	assert.Equal(t, "127.0.0.0/30", config.ResolvedSubnetName)
@@ -372,7 +372,8 @@ profiles:
 	assert.Equal(t, "123", config.CommunityString)
 	assert.Equal(t, metrics, config.Metrics)
 	assert.Equal(t, metricsTags, config.MetricTags)
-	assert.Equal(t, 2, len(config.Profiles))
+	assert.True(t, config.ProfileProvider.HasProfile("f5-big-ip"))
+	assert.True(t, config.ProfileProvider.HasProfile("inline-profile"))
 	assert.Equal(t, "default:1.2.3.4", config.DeviceID)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.DeviceIDTags)
 	assert.Equal(t, false, config.AutodetectProfile)
@@ -406,8 +407,10 @@ community_string: abc
 
 	assert.Equal(t, metrics, config.Metrics)
 	assert.Equal(t, metricsTags, config.MetricTags)
-	assert.Equal(t, 2, len(config.Profiles))
-	assert.Equal(t, profile.FixtureProfileDefinitionMap()["f5-big-ip"].Definition.Metrics, config.Profiles["f5-big-ip"].Definition.Metrics)
+	// assert.Equal(t, 2, len(config.Profiles))
+	assert.True(t, config.ProfileProvider.HasProfile("f5-big-ip"))
+	assert.True(t, config.ProfileProvider.HasProfile("another_profile"))
+	assert.Equal(t, profile.FixtureProfileDefinitionMap()["f5-big-ip"].Definition.Metrics, config.ProfileProvider.GetProfile("f5-big-ip").Definition.Metrics)
 }
 
 func TestPortConfiguration(t *testing.T) {
@@ -927,17 +930,17 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 		SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 	}
 
-	mockProfiles := profile.ProfileConfigMap{
+	mockProfiles := profile.StaticProvider(profile.ProfileConfigMap{
 		"profile1": profile.ProfileConfig{
 			Definition: profile1,
 		},
 		"profile2": profile.ProfileConfig{
 			Definition: profile2,
 		},
-	}
+	})
 	c := &CheckConfig{
-		IPAddress: "1.2.3.4",
-		Profiles:  mockProfiles,
+		IPAddress:       "1.2.3.4",
+		ProfileProvider: mockProfiles,
 	}
 	err := c.SetProfile("f5")
 	assert.EqualError(t, err, "unknown profile `f5`")
@@ -945,8 +948,8 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 	err = c.SetProfile("profile1")
 	assert.NoError(t, err)
 
-	assert.Equal(t, "profile1", c.Profile)
-	assert.Equal(t, profile1, *c.ProfileDef)
+	assert.Equal(t, "profile1", c.ProfileName)
+	assert.Equal(t, &profile1, c.GetProfileDef())
 	assert.Equal(t, metrics, c.Metrics)
 	assert.Equal(t, []profiledefinition.MetricTagConfig{
 		{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
@@ -959,7 +962,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 
 	c = &CheckConfig{
 		IPAddress:             "1.2.3.4",
-		Profiles:              mockProfiles,
+		ProfileProvider:       mockProfiles,
 		CollectDeviceMetadata: true,
 		CollectTopology:       false,
 	}
@@ -1000,7 +1003,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 
 	c = &CheckConfig{
 		IPAddress:             "1.2.3.4",
-		Profiles:              mockProfiles,
+		ProfileProvider:       mockProfiles,
 		CollectDeviceMetadata: true,
 		CollectTopology:       false,
 	}
@@ -1329,181 +1332,6 @@ use_device_id_as_hostname: true
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, false, config.UseDeviceIDAsHostname)
-}
-
-func Test_buildConfig_DetectMetricsEnabled(t *testing.T) {
-	// language=yaml
-	rawInstanceConfig := []byte(`
-ip_address: 1.2.3.4
-community_string: "abc"
-`)
-	// language=yaml
-	rawInitConfig := []byte(`
-oid_batch_size: 10
-`)
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
-	assert.Nil(t, err)
-	assert.Equal(t, false, config.DetectMetricsEnabled)
-
-	// language=yaml
-	rawInstanceConfig = []byte(`
-ip_address: 1.2.3.4
-community_string: "abc"
-`)
-	// language=yaml
-	rawInitConfig = []byte(`
-oid_batch_size: 10
-experimental_detect_metrics_enabled: true
-`)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
-	assert.Nil(t, err)
-	assert.Equal(t, true, config.DetectMetricsEnabled)
-
-	// language=yaml
-	rawInstanceConfig = []byte(`
-ip_address: 1.2.3.4
-community_string: "abc"
-experimental_detect_metrics_enabled: true
-`)
-	// language=yaml
-	rawInitConfig = []byte(`
-oid_batch_size: 10
-`)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
-	assert.Nil(t, err)
-	assert.Equal(t, true, config.DetectMetricsEnabled)
-
-	// language=yaml
-	rawInstanceConfig = []byte(`
-ip_address: 1.2.3.4
-community_string: "abc"
-experimental_detect_metrics_enabled: false
-`)
-	// language=yaml
-	rawInitConfig = []byte(`
-oid_batch_size: 10
-experimental_detect_metrics_enabled: true
-`)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
-	assert.Nil(t, err)
-	assert.Equal(t, false, config.DetectMetricsEnabled)
-}
-
-func TestSetAutodetectPreservesRequests(t *testing.T) {
-	metric := func(oid, name string) profiledefinition.MetricsConfig {
-		return profiledefinition.MetricsConfig{Symbol: profiledefinition.SymbolConfig{OID: oid, Name: name}}
-	}
-
-	met1 := metric("1.1", "metricOne")
-	met2 := metric("1.2", "metricTwo")
-	met3 := metric("1.3", "metricThree")
-	tag1 := profiledefinition.MetricTagConfig{Tag: "tag_one", Symbol: profiledefinition.SymbolConfigCompat{OID: "2.1", Name: "tagOne"}}
-	tag2 := profiledefinition.MetricTagConfig{Tag: "tag_two", Symbol: profiledefinition.SymbolConfigCompat{OID: "2.2", Name: "tagTwo"}}
-	tag3 := profiledefinition.MetricTagConfig{Tag: "tag_three", Symbol: profiledefinition.SymbolConfigCompat{OID: "2.3", Name: "tagThree"}}
-
-	config := &CheckConfig{
-		CollectTopology:     false,
-		RequestedMetrics:    []profiledefinition.MetricsConfig{met1},
-		RequestedMetricTags: []profiledefinition.MetricTagConfig{tag1},
-	}
-
-	config.RebuildMetadataMetricsAndTags()
-
-	assert.Equal(t, []profiledefinition.MetricsConfig{met1}, config.Metrics)
-	assert.Equal(t, []profiledefinition.MetricTagConfig{tag1}, config.MetricTags)
-	assert.Equal(t, OidConfig{
-		ScalarOids: []string{
-			"1.1",
-			"2.1",
-		},
-		ColumnOids: nil,
-	}, config.OidConfig)
-
-	config.SetAutodetectProfile([]profiledefinition.MetricsConfig{met2}, []profiledefinition.MetricTagConfig{tag2})
-
-	assert.Equal(t, []profiledefinition.MetricsConfig{met1, met2}, config.Metrics)
-	assert.Equal(t, []profiledefinition.MetricTagConfig{tag1, tag2}, config.MetricTags)
-	assert.Equal(t, OidConfig{
-		ScalarOids: []string{
-			"1.1",
-			"1.2",
-			"2.1",
-			"2.2",
-		},
-		ColumnOids: nil,
-	}, config.OidConfig)
-
-	config.SetAutodetectProfile([]profiledefinition.MetricsConfig{met3}, []profiledefinition.MetricTagConfig{tag3})
-
-	assert.Equal(t, []profiledefinition.MetricsConfig{met1, met3}, config.Metrics)
-	assert.Equal(t, []profiledefinition.MetricTagConfig{tag1, tag3}, config.MetricTags)
-	assert.Equal(t, OidConfig{
-		ScalarOids: []string{
-			"1.1",
-			"1.3",
-			"2.1",
-			"2.3",
-		},
-		ColumnOids: nil,
-	}, config.OidConfig)
-}
-
-func Test_buildConfig_DetectMetricsRefreshInterval(t *testing.T) {
-	// language=yaml
-	rawInstanceConfig := []byte(`
-ip_address: 1.2.3.4
-community_string: "abc"
-`)
-	// language=yaml
-	rawInitConfig := []byte(`
-oid_batch_size: 10
-`)
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
-	assert.Nil(t, err)
-	assert.Equal(t, 3600, config.DetectMetricsRefreshInterval)
-
-	// language=yaml
-	rawInstanceConfig = []byte(`
-ip_address: 1.2.3.4
-community_string: "abc"
-`)
-	// language=yaml
-	rawInitConfig = []byte(`
-oid_batch_size: 10
-experimental_detect_metrics_refresh_interval: 10
-`)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
-	assert.Nil(t, err)
-	assert.Equal(t, 10, config.DetectMetricsRefreshInterval)
-
-	// language=yaml
-	rawInstanceConfig = []byte(`
-ip_address: 1.2.3.4
-community_string: "abc"
-experimental_detect_metrics_refresh_interval: 10
-`)
-	// language=yaml
-	rawInitConfig = []byte(`
-oid_batch_size: 20
-`)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
-	assert.Nil(t, err)
-	assert.Equal(t, 10, config.DetectMetricsRefreshInterval)
-
-	// language=yaml
-	rawInstanceConfig = []byte(`
-ip_address: 1.2.3.4
-community_string: "abc"
-experimental_detect_metrics_refresh_interval: 20
-`)
-	// language=yaml
-	rawInitConfig = []byte(`
-oid_batch_size: 10
-experimental_detect_metrics_refresh_interval: 30
-`)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
-	assert.Nil(t, err)
-	assert.Equal(t, 20, config.DetectMetricsRefreshInterval)
 }
 
 func Test_buildConfig_minCollectionInterval(t *testing.T) {
@@ -2113,16 +1941,13 @@ func TestCheckConfig_Copy(t *testing.T) {
 		},
 		OidBatchSize:       10,
 		BulkMaxRepetitions: 10,
-		Profiles: profile.ProfileConfigMap{"f5-big-ip": profile.ProfileConfig{
+		ProfileProvider: profile.StaticProvider(profile.ProfileConfigMap{"f5-big-ip": profile.ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
 				Device: profiledefinition.DeviceMeta{Vendor: "f5"},
 			},
-		}},
-		ProfileTags: []string{"profile_tag:atag"},
-		Profile:     "f5",
-		ProfileDef: &profiledefinition.ProfileDefinition{
-			Device: profiledefinition.DeviceMeta{Vendor: "f5"},
-		},
+		}}),
+		ProfileTags:           []string{"profile_tag:atag"},
+		ProfileName:           "f5",
 		ExtraTags:             []string{"ExtraTags:tag"},
 		InstanceTags:          []string{"InstanceTags:tag"},
 		CollectDeviceMetadata: true,

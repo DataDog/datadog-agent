@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	localhost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/local/host"
+	localhost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/local/host"
 )
 
 type vmLocalPodmanSuite struct {

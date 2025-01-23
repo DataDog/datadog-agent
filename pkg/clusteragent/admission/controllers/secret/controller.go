@@ -34,19 +34,19 @@ import (
 // Controller is responsible for creating and refreshing the Secret object
 // that contains the certificate of the Admission Webhook.
 type Controller struct {
-	clientSet      kubernetes.Interface
-	secretsLister  corelisters.SecretLister
-	secretsSynced  cache.InformerSynced
-	config         Config
-	dnsNames       []string
-	dnsNamesDigest uint64
-	queue          workqueue.TypedRateLimitingInterface[string]
-	isLeaderFunc   func() bool
-	isLeaderNotif  <-chan struct{}
+	clientSet            kubernetes.Interface
+	secretsLister        corelisters.SecretLister
+	secretsSynced        cache.InformerSynced
+	config               Config
+	dnsNames             []string
+	dnsNamesDigest       uint64
+	queue                workqueue.TypedRateLimitingInterface[string]
+	isLeaderFunc         func() bool
+	leadershipStateNotif <-chan struct{}
 }
 
 // NewController returns a new Secret Controller.
-func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config) *Controller {
+func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, config Config) *Controller {
 	dnsNames := generateDNSNames(config.GetNs(), config.GetSvc())
 	controller := &Controller{
 		clientSet:      client,
@@ -59,8 +59,8 @@ func NewController(client kubernetes.Interface, secretInformer coreinformers.Sec
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{Name: "secrets"},
 		),
-		isLeaderFunc:  isLeaderFunc,
-		isLeaderNotif: isLeaderNotif,
+		isLeaderFunc:         isLeaderFunc,
+		leadershipStateNotif: leadershipStateNotif,
 	}
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.handleObject,
@@ -101,9 +101,11 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 func (c *Controller) enqueueOnLeaderNotif(stop <-chan struct{}) {
 	for {
 		select {
-		case <-c.isLeaderNotif:
-			log.Infof("Got a leader notification, enqueuing a reconciliation for %s/%s", c.config.GetNs(), c.config.GetName())
-			c.triggerReconciliation()
+		case <-c.leadershipStateNotif:
+			if c.isLeaderFunc() {
+				log.Infof("Got a leader notification, enqueuing a reconciliation for %s/%s", c.config.GetNs(), c.config.GetName())
+				c.triggerReconciliation()
+			}
 		case <-stop:
 			return
 		}

@@ -101,7 +101,6 @@ class GoModule:
         test_targets: Directories to unit test.
         should_test_condition: When to execute tests, must be a enumerated field of `GoModule.CONDITIONS`.
         should_tag: Whether this module should be tagged or not.
-        importable: HACK: Workaround for modules that can be tested, but not imported (eg. gohai), because they define a main package A better solution would be to automatically detect if a module contains a main package, at the cost of spending some time parsing the module.
         independent: Specifies whether this modules is supposed to exist independently of the datadog-agent module. If True, a check will run to ensure this is true.
         lint_targets: Directories to lint.
         used_by_otel: Whether the module is an otel dependency or not.
@@ -109,7 +108,6 @@ class GoModule:
     Usage:
         A module is defined within the modules.yml file containing the following fields by default (these can be omitted if the default value is used):
         > should_test_condition: always
-        > importable: true
         > independent: true
         > lint_targets:
         > - .
@@ -140,11 +138,6 @@ class GoModule:
     should_test_condition: str = 'always'
     # Whether this module should be tagged or not
     should_tag: bool = True
-    # HACK: Workaround for modules that can be tested, but not imported (eg. gohai), because
-    # they define a main package
-    # A better solution would be to automatically detect if a module contains a main package,
-    # at the cost of spending some time parsing the module.
-    importable: bool = True
     # Whether this modules is supposed to exist independently of the datadog-agent module. If True, a check will run to ensure this is true.
     independent: bool = True
     # Directories to lint
@@ -164,7 +157,6 @@ class GoModule:
             lint_targets=data.get("lint_targets", default["lint_targets"]),
             should_test_condition=data.get("should_test_condition", default["should_test_condition"]),
             should_tag=data.get("should_tag", default["should_tag"]),
-            importable=data.get("importable", default["importable"]),
             independent=data.get("independent", default["independent"]),
             used_by_otel=data.get("used_by_otel", default["used_by_otel"]),
             legacy_go_mod_version=data.get("legacy_go_mod_version", default["legacy_go_mod_version"]),
@@ -197,7 +189,6 @@ class GoModule:
             "lint_targets": self.lint_targets,
             "should_test_condition": self.should_test_condition,
             "should_tag": self.should_tag,
-            "importable": self.importable,
             "independent": self.independent,
             "used_by_otel": self.used_by_otel,
             "legacy_go_mod_version": self.legacy_go_mod_version,
@@ -261,8 +252,13 @@ class GoModule:
         >>> [mod.tag("7.27.0") for mod in mods]
         [["7.27.0"], ["pkg/util/log/v0.27.0"]]
         """
+        from invoke import Context
+
+        from tasks.libs.common.git import is_agent6
+
+        major = "6" if is_agent6(Context()) else "7"
         if self.path == ".":
-            return ["7" + agent_version[1:]]
+            return [major + agent_version[1:]]
 
         return [f"{self.path}/{self.__version(agent_version)}"]
 

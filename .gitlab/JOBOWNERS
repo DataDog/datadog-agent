@@ -18,12 +18,13 @@ fetch_openjdk                        @DataDog/agent-metrics-logs
 
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
-tests_*                              @DataDog/multiple
-tests_ebpf*                          @DataDog/ebpf-platform
-tests_windows_sysprobe*              @DataDog/windows-kernel-integrations
-security_go_generate_check           @DataDog/agent-security
+tests_*                                 @DataDog/multiple
+tests_ebpf*                             @DataDog/ebpf-platform
+tests_windows_sysprobe*                 @DataDog/windows-kernel-integrations
+security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
+protobuf_test                           @DataDog/multiple
 
 # Send count metrics about Golang dependencies
 golang_deps_send_count_metrics       @DataDog/agent-shared-components
@@ -33,7 +34,7 @@ golang_deps_commenter                @DataDog/ebpf-platform
 
 # Binary build
 build_system-probe*                  @DataDog/ebpf-platform
-cluster_agent_cloudfoundry-build*    @Datadog/platform-integrations
+cluster_agent_cloudfoundry-build*    @Datadog/agent-integrations
 cluster_agent-build*                 @DataDog/container-integrations
 cws_instrumentation-build*           @DataDog/agent-security
 build_serverless*                    @DataDog/serverless
@@ -67,7 +68,7 @@ iot_agent_suse*                      @DataDog/agent-delivery
 dogstatsd_suse*                      @DataDog/agent-delivery
 agent_oci*                           @DataDog/agent-delivery
 installer_oci*                       @DataDog/agent-delivery
-new_check_pkg_size                   @DataDog/agent-delivery
+check_pkg_size                       @DataDog/agent-delivery
 
 # Testing package deploy
 deploy_deb_testing*                  @DataDog/agent-delivery
@@ -113,10 +114,10 @@ deploy_installer*                      @DataDog/agent-delivery
 deploy_packages*                       @DataDog/agent-delivery
 deploy_staging*                        @DataDog/agent-delivery
 publish_winget*                        @DataDog/windows-agent
-powershell_script_deploy               @DataDog/windows-agent
-windows_bootstrapper_deploy             @DataDog/windows-agent
+powershell_script_signing              @DataDog/windows-agent
+windows_bootstrapper_deploy            @DataDog/windows-agent
 qa_*_oci                               @DataDog/agent-delivery
-qa_installer_script                    @DataDog/agent-delivery
+qa_installer_script*                   @DataDog/agent-delivery
 
 # Deploy containers
 deploy_containers*                     @Datadog/agent-delivery
@@ -127,6 +128,7 @@ deploy_containers-cws-instrumentation* @DataDog/agent-security
 # Trigger release
 trigger_manual_prod_release            @DataDog/agent-delivery
 trigger_auto_staging_release           @DataDog/agent-delivery
+generate_windows_gitlab_runner_bump_pr* @DataDog/agent-delivery
 
 # Integration test
 integration_tests_windows*    @DataDog/windows-agent

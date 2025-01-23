@@ -85,7 +85,7 @@ type HTTP2Telemetry struct {
 	Exceeding_max_frames_to_filter   uint64
 	Path_size_bucket                 [8]uint64
 }
-type HTTP2RemainderEntry struct {
+type HTTP2IncompleteFrameEntry struct {
 	Remainder uint32
 	Length    uint32
 	Buf       [9]byte

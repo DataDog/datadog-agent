@@ -22,7 +22,7 @@ func (c *Scrubber) ScrubJSON(input []byte) ([]byte, error) {
 	if len(input) != 0 && err == nil {
 		c.ScrubDataObj(data)
 
-		newInput, err := json.Marshal(data)
+		newInput, err := json.MarshalIndent(data, "", "  ")
 		if err == nil {
 			return newInput, nil
 		}

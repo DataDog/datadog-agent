@@ -11,18 +11,16 @@ import (
 	stdLog "log"
 	"net"
 	"net/http"
-
-	"github.com/cihub/seelog"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 func startServer(listener net.Listener, srv *http.Server, name string) {
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := pkglogsetup.NewLogWriter(5, seelog.ErrorLvl)
+	logWriter, _ := pkglogsetup.NewLogWriter(5, log.ErrorLvl)
 
 	srv.ErrorLog = stdLog.New(logWriter, fmt.Sprintf("Error from the Agent HTTP server '%s': ", name), 0) // log errors to seelog
 
@@ -50,34 +48,11 @@ func (server *apiServer) startServers() error {
 		return fmt.Errorf("unable to get IPC address and port: %v", err)
 	}
 
-	additionalHostIdentities := []string{apiAddr}
-
-	ipcServerHost, ipcServerHostPort, ipcServerEnabled := getIPCServerAddressPort()
-	if ipcServerEnabled {
-		additionalHostIdentities = append(additionalHostIdentities, ipcServerHost)
-	}
-
-	tlsKeyPair, tlsCertPool, err := initializeTLS(additionalHostIdentities...)
-	if err != nil {
-		return fmt.Errorf("unable to initialize TLS: %v", err)
-	}
-
-	// tls.Config is written to when serving, so it has to be cloned for each server
-	tlsConfig := func() *tls.Config {
-		return &tls.Config{
-			Certificates: []tls.Certificate{*tlsKeyPair},
-			NextProtos:   []string{"h2"},
-			MinVersion:   tls.VersionTLS12,
-		}
-	}
-
 	tmf := observability.NewTelemetryMiddlewareFactory(server.telemetry)
 
 	// start the CMD server
 	if err := server.startCMDServer(
 		apiAddr,
-		tlsConfig(),
-		tlsCertPool,
 		tmf,
 		server.cfg,
 	); err != nil {
@@ -85,8 +60,11 @@ func (server *apiServer) startServers() error {
 	}
 
 	// start the IPC server
-	if ipcServerEnabled {
-		if err := server.startIPCServer(ipcServerHostPort, tlsConfig(), tmf); err != nil {
+	if ipcServerPort := server.cfg.GetInt("agent_ipc.port"); ipcServerPort > 0 {
+		ipcServerHost := server.cfg.GetString("agent_ipc.host")
+		ipcServerHostPort := net.JoinHostPort(ipcServerHost, strconv.Itoa(ipcServerPort))
+
+		if err := server.startIPCServer(ipcServerHostPort, tmf); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
 			server.stopServers()
 			return fmt.Errorf("unable to start IPC API server: %v", err)

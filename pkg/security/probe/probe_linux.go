@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	gopsutilProcess "github.com/shirou/gopsutil/v3/process"
+	gopsutilProcess "github.com/shirou/gopsutil/v4/process"
 )
 
 const (
@@ -68,6 +68,11 @@ func IsRawPacketNotSupported(kv *kernel.Version) bool {
 func IsNetworkNotSupported(kv *kernel.Version) bool {
 	// TODO: Oracle because we are missing offset
 	return kv.IsRH7Kernel() || kv.IsOracleUEKKernel()
+}
+
+// IsNetworkFlowMonitorNotSupported returns if the network flow monitor feature is supported
+func IsNetworkFlowMonitorNotSupported(kv *kernel.Version) bool {
+	return IsNetworkNotSupported(kv) || !kv.IsMapValuesToMapHelpersAllowed() || !kv.HasBPFForEachMapElemHelper()
 }
 
 // NewAgentContainerContext returns the agent container context

@@ -15,7 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	envecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	envecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
 
 	npmtools "github.com/DataDog/test-infra-definitions/components/datadog/apps/npm-tools"
 	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
@@ -39,7 +40,7 @@ type ecsVMSuite struct {
 	e2e.BaseSuite[ecsHttpbinEnv]
 }
 
-func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
+func ecsHttpbinEnvProvisioner() provisioners.PulumiEnvRunFunc[ecsHttpbinEnv] {
 	return func(ctx *pulumi.Context, env *ecsHttpbinEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -86,7 +87,7 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 func TestECSVMSuite(t *testing.T) {
 	t.Parallel()
 	s := &ecsVMSuite{}
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("ecsHttpbin", ecsHttpbinEnvProvisioner(), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("ecsHttpbin", ecsHttpbinEnvProvisioner(), nil))}
 
 	e2e.Run(t, s, e2eParams...)
 }

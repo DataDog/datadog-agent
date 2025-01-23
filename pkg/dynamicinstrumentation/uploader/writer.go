@@ -67,7 +67,7 @@ func (s *WriterSerializer[T]) Enqueue(item *T) error { //nolint:revive // TODO
 	if err != nil {
 		return fmt.Errorf("Failed to marshal item %v", item)
 	}
-
+	bs = append(bs, '\n')
 	_, err = s.output.Write(bs)
 	if err != nil {
 		return err

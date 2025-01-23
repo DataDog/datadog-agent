@@ -26,7 +26,6 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
@@ -701,10 +700,6 @@ func TestUprobeAttacher(t *testing.T) {
 
 	procMon := launchProcessMonitor(t, false)
 
-	buf, err := bytecode.GetReader(ebpfCfg.BPFDir, "uprobe_attacher-test.o")
-	require.NoError(t, err)
-	t.Cleanup(func() { buf.Close() })
-
 	connectProbeID := manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}
 	mainProbeID := manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__main"}
 
@@ -748,9 +743,15 @@ func TestUprobeAttacher(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
-	require.NoError(t, mgr.InitWithOptions(buf, manager.Options{}))
-	require.NoError(t, mgr.Start())
-	t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
+	err = ddebpf.LoadCOREAsset("uprobe_attacher-test.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+		require.NoError(t, mgr.InitWithOptions(buf, opts))
+		require.NoError(t, mgr.Start())
+		t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
+
+		return nil
+	})
+	require.NoError(t, err)
+
 	require.NoError(t, ua.Start())
 	t.Cleanup(ua.Stop)
 
@@ -827,11 +828,7 @@ type SharedLibrarySuite struct {
 }
 
 func TestAttacherSharedLibrary(t *testing.T) {
-	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !prebuilt.IsDeprecated() {
-		modes = append(modes, ebpftest.Prebuilt)
-	}
-	ebpftest.TestBuildModes(t, modes, "", func(tt *testing.T) {
+	ebpftest.TestBuildModes(t, ebpftest.SupportedBuildModes(), "", func(tt *testing.T) {
 		if !sharedlibraries.IsSupported(ddebpf.NewConfig()) {
 			tt.Skip("shared library tracing not supported for this platform")
 		}
@@ -985,9 +982,10 @@ func (s *SharedLibrarySuite) TestDetectionWithPIDAndRootNamespace() {
 	t.Cleanup(ua.Stop)
 
 	time.Sleep(10 * time.Millisecond)
-	// simulate a slow (1 second) : open, write, close of the file
+	// simulate a slow (1 second) : open, read, close of the file
 	// in a new pid and mount namespaces
-	o, err := exec.Command("unshare", "--fork", "--pid", "-R", root, "/ash", "-c", fmt.Sprintf("sleep 1 > %s", libpath)).CombinedOutput()
+	o, err := exec.Command("unshare", "--fork", "--pid", "-R", root, "/ash", "-c",
+		fmt.Sprintf("touch foo && mv foo %s && sleep 1 < %s", libpath, libpath)).CombinedOutput()
 	if err != nil {
 		t.Log(err, string(o))
 	}

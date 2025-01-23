@@ -208,6 +208,7 @@ func (rc *rcConfig) toProbe(service string) *ditypes.Probe {
 				CaptureParameters: ditypes.CaptureParameters,
 				ArgumentsMaxSize:  ditypes.ArgumentsMaxSize,
 				StringMaxSize:     ditypes.StringMaxSize,
+				SliceMaxLength:    ditypes.SliceMaxLength,
 				MaxReferenceDepth: rc.Capture.MaxReferenceDepth,
 			},
 		},

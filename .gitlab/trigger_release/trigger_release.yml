@@ -37,8 +37,6 @@ trigger_auto_staging_release:
     AUTO_RELEASE: "true"
     TARGET_REPO: staging
   rules:
-    - if: $DDR == "true"
-      when: never
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+){0,1}$/
       when: never
     - !reference [.on_deploy]
@@ -55,3 +53,53 @@ trigger_manual_prod_release:
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+){0,1}$/
       when: never
     - !reference [.on_deploy_stable_or_beta_manual_auto_on_stable]
+
+include:
+  - https://gitlab-templates.ddbuild.io/slack-notifier/v3-sdm/template.yml
+
+.setup_github_app_agent_platform_auto_pr:
+  # GitHub App rate-limits are per-app. Since we are rarely calling the job, we are only using the instance 2
+  - |
+    GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_2 key_b64) || exit $?; export GITHUB_KEY_B64
+    GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_2 app_id) || exit $?; export GITHUB_APP_ID
+    GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_2 installation_id) || exit $?; export GITHUB_INSTALLATION_ID
+    echo "Using GitHub App instance 2"
+
+generate_windows_gitlab_runner_bump_pr:
+  stage: trigger_release
+  extends: .slack-notifier-base
+  needs: ["trigger_auto_staging_release"]
+  tags: ["arch:amd64"]
+  rules:
+    - if: $DDR_WORKFLOW_ID != null
+      when: never
+    - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+){0,1}$/
+      when: never
+    - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$/
+
+  script:
+    # We are using the agent platform auto PR github app to access the buildenv repository (already used for macOS builds)
+    - !reference [.setup_github_app_agent_platform_auto_pr]
+    - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
+    - inv -e github.update-windows-runner-version
+
+# Manual job to generate the gitlab bump pr on buildenv if trigger_auto_staging_release fails
+generate_windows_gitlab_runner_bump_pr_manual:
+  stage: trigger_release
+  extends: .slack-notifier-base
+  needs: ["trigger_auto_staging_release"]
+  tags: ["arch:amd64"]
+  rules:
+    - if: $DDR_WORKFLOW_ID != null
+      when: never
+    - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+){0,1}$/
+      when: never
+    - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$/
+      when: manual
+  script:
+    # We are using the agent platform auto PR github app to access the buildenv repository (already used for macOS builds)
+    - !reference [.setup_github_app_agent_platform_auto_pr]
+    - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
+    - inv -e github.update-windows-runner-version

@@ -17,15 +17,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cihub/seelog"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	coreutilsort "github.com/DataDog/datadog-agent/pkg/util/sort"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
@@ -49,7 +48,6 @@ const defaultWorkers = 5
 const defaultDiscoveryWorkers = 5
 const defaultDiscoveryAllowedFailures = 3
 const defaultDiscoveryInterval = 3600
-const defaultDetectMetricsRefreshInterval = 3600
 
 // subnetTagKey is the prefix used for subnet tag
 const subnetTagKey = "autodiscovery_subnet"
@@ -81,18 +79,16 @@ type DeviceDigest string
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
-	Profiles                     profile.ProfileConfigMap          `yaml:"profiles"`
-	GlobalMetrics                []profiledefinition.MetricsConfig `yaml:"global_metrics"`
-	OidBatchSize                 Number                            `yaml:"oid_batch_size"`
-	BulkMaxRepetitions           Number                            `yaml:"bulk_max_repetitions"`
-	CollectDeviceMetadata        Boolean                           `yaml:"collect_device_metadata"`
-	CollectTopology              Boolean                           `yaml:"collect_topology"`
-	UseDeviceIDAsHostname        Boolean                           `yaml:"use_device_id_as_hostname"`
-	MinCollectionInterval        int                               `yaml:"min_collection_interval"`
-	Namespace                    string                            `yaml:"namespace"`
-	PingConfig                   snmpintegration.PackedPingConfig  `yaml:"ping"`
-	DetectMetricsEnabled         Boolean                           `yaml:"experimental_detect_metrics_enabled"`
-	DetectMetricsRefreshInterval int                               `yaml:"experimental_detect_metrics_refresh_interval"`
+	Profiles              profile.ProfileConfigMap          `yaml:"profiles"`
+	GlobalMetrics         []profiledefinition.MetricsConfig `yaml:"global_metrics"`
+	OidBatchSize          Number                            `yaml:"oid_batch_size"`
+	BulkMaxRepetitions    Number                            `yaml:"bulk_max_repetitions"`
+	CollectDeviceMetadata Boolean                           `yaml:"collect_device_metadata"`
+	CollectTopology       Boolean                           `yaml:"collect_topology"`
+	UseDeviceIDAsHostname Boolean                           `yaml:"use_device_id_as_hostname"`
+	MinCollectionInterval int                               `yaml:"min_collection_interval"`
+	Namespace             string                            `yaml:"namespace"`
+	PingConfig            snmpintegration.PackedPingConfig  `yaml:"ping"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -148,11 +144,6 @@ type InstanceConfig struct {
 	Workers                  int      `yaml:"workers"`
 	Namespace                string   `yaml:"namespace"`
 
-	// When DetectMetricsEnabled is enabled, instead of using profile detection using sysObjectID
-	// the integration will fetch OIDs from the devices and deduct which metrics  can be monitored (from all OOTB profile metrics definition)
-	DetectMetricsEnabled         *Boolean `yaml:"experimental_detect_metrics_enabled"`
-	DetectMetricsRefreshInterval int      `yaml:"experimental_detect_metrics_refresh_interval"`
-
 	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
 	// it's only supported for single device instance (`ip_address`)
 	InterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
@@ -185,10 +176,9 @@ type CheckConfig struct {
 	MetricTags            []profiledefinition.MetricTagConfig
 	OidBatchSize          int
 	BulkMaxRepetitions    uint32
-	Profiles              profile.ProfileConfigMap
+	ProfileProvider       profile.Provider
 	ProfileTags           []string
-	Profile               string
-	ProfileDef            *profiledefinition.ProfileDefinition
+	ProfileName           string
 	ExtraTags             []string
 	InstanceTags          []string
 	CollectDeviceMetadata bool
@@ -200,9 +190,6 @@ type CheckConfig struct {
 	Namespace             string
 	AutodetectProfile     bool
 	MinCollectionInterval time.Duration
-
-	DetectMetricsEnabled         bool
-	DetectMetricsRefreshInterval int
 
 	Network                  string
 	DiscoveryWorkers         int
@@ -217,41 +204,33 @@ type CheckConfig struct {
 }
 
 // SetProfile refreshes config based on profile
-func (c *CheckConfig) SetProfile(profile string) error {
-	if _, ok := c.Profiles[profile]; !ok {
-		return fmt.Errorf("unknown profile `%s`", profile)
+func (c *CheckConfig) SetProfile(profileName string) error {
+	profileConf := c.ProfileProvider.GetProfile(profileName)
+	if profileConf == nil {
+		return fmt.Errorf("unknown profile `%s`", profileName)
 	}
-	log.Debugf("Refreshing with profile `%s`", profile)
-	tags := []string{"snmp_profile:" + profile}
-	definition := c.Profiles[profile].Definition
-	c.ProfileDef = &definition
-	c.Profile = profile
+	log.Debugf("Refreshing with profile `%s`", profileName)
+	c.ProfileName = profileName
 
-	if log.ShouldLog(seelog.DebugLvl) {
-		profileDefJSON, _ := json.Marshal(definition)
-		log.Debugf("Profile content `%s`: %s", profile, string(profileDefJSON))
+	if log.ShouldLog(log.DebugLvl) {
+		profileDefJSON, _ := json.Marshal(profileConf.Definition)
+		log.Debugf("Profile content `%s`: %s", profileName, string(profileDefJSON))
 	}
-
-	if definition.Device.Vendor != "" {
-		tags = append(tags, "device_vendor:"+definition.Device.Vendor)
-	}
-	tags = append(tags, definition.StaticTags...)
-	c.ProfileTags = tags
 	c.RebuildMetadataMetricsAndTags()
 	return nil
 }
 
-// SetAutodetectProfile sets the profile to the provided auto-detected metrics
-// and tags. This overwrites any preexisting profile but does not affect
-// RequestedMetrics or RequestedMetricTags, which will still be queried.
-func (c *CheckConfig) SetAutodetectProfile(metrics []profiledefinition.MetricsConfig, tags []profiledefinition.MetricTagConfig) {
-	c.Profile = "autodetect"
-	c.ProfileDef = &profiledefinition.ProfileDefinition{
-		Metrics:    metrics,
-		MetricTags: tags,
+// GetProfileDef returns the autodetected profile definition if there is one,
+// the active profile if it exists, or nil if neither is true.
+func (c *CheckConfig) GetProfileDef() *profiledefinition.ProfileDefinition {
+	if c.ProfileName != "" {
+		profile := c.ProfileProvider.GetProfile(c.ProfileName)
+		if profile != nil {
+			return &profile.Definition
+		}
+		log.Warnf("profile `%s` not found", c.ProfileName)
 	}
-	c.ProfileTags = nil
-	c.RebuildMetadataMetricsAndTags()
+	return nil
 }
 
 // RebuildMetadataMetricsAndTags rebuilds c.Metrics, c.Metadata, c.MetricTags,
@@ -260,10 +239,17 @@ func (c *CheckConfig) SetAutodetectProfile(metrics []profiledefinition.MetricsCo
 func (c *CheckConfig) RebuildMetadataMetricsAndTags() {
 	c.Metrics = c.RequestedMetrics
 	c.MetricTags = c.RequestedMetricTags
-	if c.ProfileDef != nil {
-		c.Metadata = updateMetadataDefinitionWithDefaults(c.ProfileDef.Metadata, c.CollectTopology)
-		c.Metrics = append(c.Metrics, c.ProfileDef.Metrics...)
-		c.MetricTags = append(c.MetricTags, c.ProfileDef.MetricTags...)
+	c.ProfileTags = nil
+	profileDef := c.GetProfileDef()
+	if profileDef != nil {
+		c.ProfileTags = append(c.ProfileTags, "snmp_profile:"+c.ProfileName)
+		if profileDef.Device.Vendor != "" {
+			c.ProfileTags = append(c.ProfileTags, "device_vendor:"+profileDef.Device.Vendor)
+		}
+		c.ProfileTags = append(c.ProfileTags, profileDef.StaticTags...)
+		c.Metadata = updateMetadataDefinitionWithDefaults(profileDef.Metadata, c.CollectTopology)
+		c.Metrics = append(c.Metrics, profileDef.Metrics...)
+		c.MetricTags = append(c.MetricTags, profileDef.MetricTags...)
 	} else {
 		c.Metadata = updateMetadataDefinitionWithDefaults(nil, c.CollectTopology)
 	}
@@ -274,7 +260,7 @@ func (c *CheckConfig) RebuildMetadataMetricsAndTags() {
 
 // UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags
 func (c *CheckConfig) UpdateDeviceIDAndTags() {
-	c.DeviceIDTags = coreutil.SortUniqInPlace(c.getDeviceIDTags())
+	c.DeviceIDTags = coreutilsort.UniqInPlace(c.getDeviceIDTags())
 	c.DeviceID = c.Namespace + ":" + c.IPAddress
 }
 
@@ -395,20 +381,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.CollectTopology = bool(initConfig.CollectTopology)
 	}
 
-	if instance.DetectMetricsEnabled != nil {
-		c.DetectMetricsEnabled = bool(*instance.DetectMetricsEnabled)
-	} else {
-		c.DetectMetricsEnabled = bool(initConfig.DetectMetricsEnabled)
-	}
-
-	if instance.DetectMetricsRefreshInterval != 0 {
-		c.DetectMetricsRefreshInterval = int(instance.DetectMetricsRefreshInterval)
-	} else if initConfig.DetectMetricsRefreshInterval != 0 {
-		c.DetectMetricsRefreshInterval = int(initConfig.DetectMetricsRefreshInterval)
-	} else {
-		c.DetectMetricsRefreshInterval = defaultDetectMetricsRefreshInterval
-	}
-
 	if instance.UseDeviceIDAsHostname != nil {
 		c.UseDeviceIDAsHostname = bool(*instance.UseDeviceIDAsHostname)
 	} else {
@@ -520,15 +492,15 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
-	profiles, err := profile.GetProfiles(initConfig.Profiles)
+	profiles, err := profile.GetProfileProvider(initConfig.Profiles)
 	if err != nil {
 		return nil, err
 	}
-	c.Profiles = profiles
+	c.ProfileProvider = profiles
 
 	// profile configs
-	profile := instance.Profile
-	if profile != "" || len(instance.Metrics) > 0 {
+	profileName := instance.Profile
+	if profileName != "" || len(instance.Metrics) > 0 {
 		c.AutodetectProfile = false
 	} else {
 		c.AutodetectProfile = true
@@ -553,10 +525,10 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 	}
 
-	if profile != "" {
-		err = c.SetProfile(profile)
+	if profileName != "" {
+		err = c.SetProfile(profileName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to refresh with profile `%s`: %s", profile, err)
+			return nil, fmt.Errorf("failed to refresh with profile `%s`: %s", profileName, err)
 		}
 	} else {
 		c.RebuildMetadataMetricsAndTags()
@@ -689,10 +661,9 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	copy(newConfig.MetricTags, c.MetricTags)
 	newConfig.OidBatchSize = c.OidBatchSize
 	newConfig.BulkMaxRepetitions = c.BulkMaxRepetitions
-	newConfig.Profiles = c.Profiles
+	newConfig.ProfileProvider = c.ProfileProvider
 	newConfig.ProfileTags = netutils.CopyStrings(c.ProfileTags)
-	newConfig.Profile = c.Profile
-	newConfig.ProfileDef = c.ProfileDef
+	newConfig.ProfileName = c.ProfileName
 	newConfig.ExtraTags = netutils.CopyStrings(c.ExtraTags)
 	newConfig.InstanceTags = netutils.CopyStrings(c.InstanceTags)
 	newConfig.CollectDeviceMetadata = c.CollectDeviceMetadata
@@ -704,8 +675,6 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.ResolvedSubnetName = c.ResolvedSubnetName
 	newConfig.Namespace = c.Namespace
 	newConfig.AutodetectProfile = c.AutodetectProfile
-	newConfig.DetectMetricsEnabled = c.DetectMetricsEnabled
-	newConfig.DetectMetricsRefreshInterval = c.DetectMetricsRefreshInterval
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 	newConfig.InterfaceConfigs = c.InterfaceConfigs
 

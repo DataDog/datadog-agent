@@ -17,18 +17,21 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -53,12 +56,7 @@ func TestSharedLibrary(t *testing.T) {
 		t.Skip("shared library tracing not supported for this platform")
 	}
 
-	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !prebuilt.IsDeprecated() {
-		modes = append(modes, ebpftest.Prebuilt)
-	}
-
-	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		t.Run("netlink", func(t *testing.T) {
 			launchProcessMonitor(t, false)
 			suite.Run(t, new(SharedLibrarySuite))
@@ -102,6 +100,89 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	require.Eventually(t, func() bool {
 		return unregisterRecorder.CallsForPathID(fooPathID1) == 1
 	}, time.Second*10, 100*time.Millisecond)
+}
+
+// open abstracts open, openat, and openat2
+func open(dirfd int, pathname string, how *unix.OpenHow, syscallType string) (int, error) {
+	switch syscallType {
+	case "open":
+		return unix.Open(pathname, int(how.Flags), uint32(how.Mode))
+	case "openat":
+		return unix.Openat(dirfd, pathname, int(how.Flags), uint32(how.Mode))
+	case "openat2":
+		return unix.Openat2(dirfd, pathname, how)
+	default:
+		return -1, fmt.Errorf("unsupported syscall type: %s", syscallType)
+	}
+}
+
+// Test that shared library files opened for writing only are ignored.
+func (s *SharedLibrarySuite) TestSharedLibraryIgnoreWrite() {
+	t := s.T()
+
+	tests := []struct {
+		syscallType string
+		skipFunc    func(t *testing.T)
+	}{
+		{
+			syscallType: "open",
+		},
+		{
+			syscallType: "openat",
+		},
+		{
+			syscallType: "openat2",
+			skipFunc: func(t *testing.T) {
+				if !sysOpenAt2Supported() {
+					t.Skip("openat2 not supported")
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.syscallType, func(t *testing.T) {
+			if tt.skipFunc != nil {
+				tt.skipFunc(t)
+			}
+			// Since we want to detect that the write _hasn't_ been detected, verify the
+			// read too to try to ensure that test isn't broken and failing to detect
+			// the write due to some bug in the test itself.
+			readPath, readPathID := createTempTestFile(t, "read-foo-libssl.so")
+			writePath, writePathID := createTempTestFile(t, "write-foo-libssl.so")
+
+			registerRecorder := new(utils.CallbackRecorder)
+			unregisterRecorder := new(utils.CallbackRecorder)
+
+			watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+				Rule{
+					Re:           regexp.MustCompile(`foo-libssl.so`),
+					RegisterCB:   registerRecorder.Callback(),
+					UnregisterCB: unregisterRecorder.Callback(),
+				},
+			)
+			require.NoError(t, err)
+			watcher.Start()
+			t.Cleanup(watcher.Stop)
+			// Overriding PID, to allow the watcher to watch the test process
+			watcher.thisPID = 0
+
+			how := unix.OpenHow{Mode: 0644}
+
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				how.Flags = syscall.O_CREAT | syscall.O_RDONLY
+				fd, err := open(unix.AT_FDCWD, readPath, &how, tt.syscallType)
+				require.NoError(c, err)
+				require.NoError(c, syscall.Close(fd))
+				require.GreaterOrEqual(c, 1, registerRecorder.CallsForPathID(readPathID))
+
+				how.Flags = syscall.O_CREAT | syscall.O_WRONLY
+				fd, err = open(unix.AT_FDCWD, writePath, &how, tt.syscallType)
+				require.NoError(c, err)
+				require.NoError(c, syscall.Close(fd))
+				require.Equal(c, 0, registerRecorder.CallsForPathID(writePathID))
+			}, time.Second*5, 100*time.Millisecond)
+		})
+	}
 }
 
 func (s *SharedLibrarySuite) TestLongPath() {
@@ -151,6 +232,105 @@ func (s *SharedLibrarySuite) TestLongPath() {
 	}, time.Second*10, 100*time.Millisecond)
 }
 
+// Tests that the periodic scan is able to detect processes which are missed by
+// the eBPF-based watcher.
+func (s *SharedLibrarySuite) TestSharedLibraryDetectionPeriodic() {
+	t := s.T()
+
+	// Construct a large path to exceed the limits of the eBPF-based watcher
+	// (LIB_PATH_MAX_SIZE).  255 is the max filename size of ext4.  The path
+	// size will also include the directories leading up to this filename so the
+	// total size will be more.
+	var b strings.Builder
+	final := "foo-libssl.so"
+	for i := 0; i < 255-len(final); i++ {
+		b.WriteByte('x')
+	}
+	b.WriteString(final)
+	filename := b.String()
+
+	// Reduce interval to speed up test
+	orig := scanTerminatedProcessesInterval
+	t.Cleanup(func() { scanTerminatedProcessesInterval = orig })
+	scanTerminatedProcessesInterval = 10 * time.Millisecond
+
+	fooPath1, fooPathID1 := createTempTestFile(t, filename)
+	errPath, errorPathID := createTempTestFile(t, strings.Replace(filename, "xfoo", "yfoo", 1))
+
+	registerRecorder := new(utils.CallbackRecorder)
+	unregisterRecorder := new(utils.CallbackRecorder)
+
+	registerCallback := registerRecorder.Callback()
+
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+		Rule{
+			Re: regexp.MustCompile(`foo-libssl.so`),
+			RegisterCB: func(fp utils.FilePath) error {
+				registerCallback(fp)
+				if fp.ID == errorPathID {
+					return utils.ErrEnvironment
+				}
+				return nil
+			},
+			UnregisterCB: unregisterRecorder.Callback(),
+		},
+	)
+	require.NoError(t, err)
+	watcher.Start()
+	t.Cleanup(watcher.Stop)
+
+	// create files
+	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1)
+	pid := command1.Process.Pid
+	require.NoError(t, err)
+
+	command2, err := fileopener.OpenFromAnotherProcess(t, errPath)
+	pid2 := command2.Process.Pid
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Equal(c, 1, registerRecorder.CallsForPathID(fooPathID1))
+
+		// We expect at least one registration attempt to the error path, but
+		// there could be up to two since w.sync() can scan the maps file twice.
+		// We can't _guarantee_ there will be two registration attempts in this
+		// test though because the first attempt could have happened before the
+		// process opened the shared library (and we don't want to move the
+		// watcher start to after the process start since that would test the
+		// initial scan and not the periodic).
+		errorCalls := registerRecorder.CallsForPathID(errorPathID)
+		assert.GreaterOrEqual(c, errorCalls, 1)
+		assert.LessOrEqual(c, errorCalls, 2)
+	}, time.Second*10, 100*time.Millisecond, "")
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		watcher.syncMutex.Lock()
+		defer watcher.syncMutex.Unlock()
+
+		assert.Contains(c, watcher.scannedPIDs, uint32(pid))
+		assert.Contains(c, watcher.scannedPIDs, uint32(pid2))
+	}, time.Second*10, 100*time.Millisecond)
+
+	require.NoError(t, command1.Process.Kill())
+	require.NoError(t, command2.Process.Kill())
+
+	command1.Process.Wait()
+	command2.Process.Wait()
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Equal(c, 1, unregisterRecorder.CallsForPathID(fooPathID1))
+	}, time.Second*10, 100*time.Millisecond)
+
+	// Check that clean up of dead processes works.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		watcher.syncMutex.Lock()
+		defer watcher.syncMutex.Unlock()
+
+		assert.NotContains(c, watcher.scannedPIDs, uint32(pid))
+		assert.NotContains(c, watcher.scannedPIDs, uint32(pid2))
+	}, time.Second*10, 100*time.Millisecond)
+}
+
 func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDAndRootNamespace() {
 	t := s.T()
 	_, err := os.Stat("/usr/bin/busybox")
@@ -194,9 +374,10 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDAndRootNamespace()
 	t.Cleanup(watcher.Stop)
 
 	time.Sleep(10 * time.Millisecond)
-	// simulate a slow (1 second) : open, write, close of the file
+	// simulate a slow (1 second) : open, read, close of the file
 	// in a new pid and mount namespaces
-	o, err := exec.Command("unshare", "--fork", "--pid", "-R", root, "/ash", "-c", fmt.Sprintf("sleep 1 > %s", libpath)).CombinedOutput()
+	o, err := exec.Command("unshare", "--fork", "--pid", "-R", root, "/ash", "-c",
+		fmt.Sprintf("touch foo && mv foo %s && sleep 1 < %s", libpath, libpath)).CombinedOutput()
 	if err != nil {
 		t.Log(err, string(o))
 	}
@@ -387,6 +568,123 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 
 	// Check there are no more processes registered
 	assert.Len(t, watcher.registry.GetRegisteredProcesses(), 0)
+}
+
+func zeroPages(data []byte) {
+	for i := range data {
+		data[i] = 0
+	}
+}
+
+// This test ensures that the shared library watcher correctly identifies and processes the first file path in memory,
+// even when a second path is present, particularly in scenarios where the first path crosses a memory page boundary.
+// The goal is to verify that the presence of the second path does not inadvertently cause the watcher to send to the
+// user mode the first path. Before each iteration, the memory-mapped pages are zeroed to ensure consistent and isolated
+// test conditions.
+func (s *SharedLibrarySuite) TestValidPathExistsInTheMemory() {
+	t := s.T()
+
+	pageSize := os.Getpagesize()
+
+	// We want to allocate two contiguous pages and ensure that the address
+	// after the two pages is inaccessible. So allocate 3 pages and change the
+	// protection of the last one with mprotect(2). If we only map two pages the
+	// kernel may merge this mmaping with another existing mapping after it.
+	data, err := syscall.Mmap(-1, 0, 3*pageSize, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = syscall.Munmap(data) })
+
+	err = syscall.Mprotect(data[2*pageSize:], 0)
+	require.NoError(t, err)
+	// Truncate the size so that the range loop on it in zeroPages() does not
+	// access the memory we've disabled access to.
+	data = data[:2*pageSize]
+
+	dummyPath, dummyPathID := createTempTestFile(t, "dummy.text")
+	soPath, soPathID := createTempTestFile(t, "foo-libssl.so")
+
+	tests := []struct {
+		name       string
+		writePaths func(data []byte, textFilePath, soPath string) int
+	}{
+		{
+			// Paths are written consecutively in memory, without crossing a page boundary.
+			name: "sanity",
+			writePaths: func(data []byte, textFilePath, soPath string) int {
+				copy(data, textFilePath)
+				data[len(textFilePath)] = 0 // Null-terminate the first path
+				copy(data[len(textFilePath)+1:], soPath)
+
+				return 0
+			},
+		},
+		{
+			// Paths are written consecutively in memory, at the end of a page.
+			name: "end of a page",
+			writePaths: func(data []byte, textFilePath, soPath string) int {
+				offset := 2*pageSize - len(textFilePath) - 1 - len(soPath) - 1
+				copy(data[offset:], textFilePath)
+				data[offset+len(textFilePath)] = 0 // Null-terminate the first path
+				copy(data[offset+len(textFilePath)+1:], soPath)
+				data[offset+len(textFilePath)+1+len(soPath)] = 0 // Null-terminate the second path
+
+				return offset
+			},
+		},
+		{
+			// The first path is written at the end of the first page, and the second path is written at the beginning
+			// of the second page.
+			name: "cross pages",
+			writePaths: func(data []byte, textFilePath, soPath string) int {
+				// Ensure the first path ends near the end of the first page, crossing into the second page
+				offset := pageSize - len(textFilePath) - 1
+				copy(data[offset:], textFilePath)
+				data[offset+len(textFilePath)] = 0 // Null-terminate the first path
+				copy(data[pageSize:], soPath)
+
+				return offset
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			zeroPages(data)
+
+			// Ensure the first path ends near the end of the first page, crossing into the second page
+			offset := tt.writePaths(data, dummyPath, soPath)
+
+			registerRecorder := new(utils.CallbackRecorder)
+			unregisterRecorder := new(utils.CallbackRecorder)
+
+			watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+				Rule{
+					Re:           regexp.MustCompile(`foo-libssl.so`),
+					RegisterCB:   registerRecorder.Callback(),
+					UnregisterCB: unregisterRecorder.Callback(),
+				},
+			)
+			require.NoError(t, err)
+			watcher.Start()
+			t.Cleanup(watcher.Stop)
+			// Overriding PID, to allow the watcher to watch the test process
+			watcher.thisPID = 0
+
+			pathPtr := uintptr(unsafe.Pointer(&data[offset]))
+			dirfd := int(unix.AT_FDCWD)
+			fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, uintptr(dirfd), pathPtr, uintptr(os.O_RDONLY), 0644, 0, 0)
+			require.Zero(t, errno)
+			t.Cleanup(func() { _ = syscall.Close(int(fd)) })
+			// Since we want to verify that the write _hasn't_ been detected, we need to try it multiple times
+			// to avoid race conditions.
+			for i := 0; i < 10; i++ {
+				time.Sleep(100 * time.Millisecond)
+				assert.Zero(t, watcher.libHits.Get())
+				assert.Zero(t, watcher.libMatches.Get())
+				assert.Zero(t, registerRecorder.CallsForPathID(dummyPathID))
+				assert.Zero(t, registerRecorder.CallsForPathID(soPathID))
+			}
+		})
+	}
 }
 
 func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier) {

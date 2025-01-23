@@ -124,14 +124,46 @@ func validateValueTypeForMapType[V any](t ebpf.MapType) error {
 	return nil
 }
 
+func validateKeyValueSizes[K, V any](m *ebpf.Map) error {
+	var k K
+	tk := reflect.TypeOf(k)
+	if tk.Size() != uintptr(m.KeySize()) {
+		return fmt.Errorf("map key size (%d) does not match key type (%T) size (%d)", m.KeySize(), k, tk.Size())
+	}
+	var v V
+	tv := reflect.TypeOf(v)
+	tvSize := tv.Size()
+	if isPerCPU(m.Type()) {
+		tvSize = tv.Elem().Size()
+	}
+	if tvSize != uintptr(m.ValueSize()) {
+		return fmt.Errorf("map value size (%d) does not match value type (%T) size (%d)", m.ValueSize(), v, tvSize)
+	}
+
+	return nil
+}
+
 // Map creates a new GenericMap from an existing ebpf.Map
 func Map[K any, V any](m *ebpf.Map) (*GenericMap[K, V], error) {
 	if err := validateValueTypeForMapType[V](m.Type()); err != nil {
 		return nil, err
 	}
 
+	if err := validateKeyValueSizes[K, V](m); err != nil {
+		return nil, err
+	}
+
+	// See if we can perform binary.Read on the key type. If we can't we can't use the batch API
+	// for this map
+	var kval K
+	keySupportsBatchAPI := canBinaryReadKey[K]()
+	if !keySupportsBatchAPI {
+		log.Warnf("Key type %T does not support binary.Read, batch API will not be used for this map", kval)
+	}
+
 	return &GenericMap[K, V]{
-		m: m,
+		m:                   m,
+		keySupportsBatchAPI: keySupportsBatchAPI,
 	}, nil
 }
 

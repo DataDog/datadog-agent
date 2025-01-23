@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
@@ -71,7 +71,7 @@ func (s *baseAgentMSISuite) AfterTest(suiteName, testName string) {
 		for _, logName := range []string{"System", "Application"} {
 			// collect the full event log as an evtx file
 			s.T().Logf("Exporting %s event log", logName)
-			outputPath := filepath.Join(s.OutputDir, fmt.Sprintf("%s.evtx", logName))
+			outputPath := filepath.Join(s.SessionOutputDir(), fmt.Sprintf("%s.evtx", logName))
 			err := windowsCommon.ExportEventLog(vm, logName, outputPath)
 			s.Assert().NoError(err, "should export %s event log", logName)
 			// Log errors and warnings to the screen for easy access
@@ -101,7 +101,7 @@ func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agent
 	installOpts := []windowsAgent.InstallAgentOption{
 		windowsAgent.WithPackage(agentPackage),
 		// default log file, can be overridden
-		windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "install.log")),
+		windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
 		// trace-agent requires a valid API key
 		windowsAgent.WithValidAPIKey(),
 	}
@@ -120,7 +120,7 @@ func (s *baseAgentMSISuite) uninstallAgent() bool {
 	host := s.Env().RemoteHost
 	return s.T().Run("uninstall the agent", func(tt *testing.T) {
 		if !tt.Run("uninstall", func(tt *testing.T) {
-			err := windowsAgent.UninstallAgent(host, filepath.Join(s.OutputDir, "uninstall.log"))
+			err := windowsAgent.UninstallAgent(host, filepath.Join(s.SessionOutputDir(), "uninstall.log"))
 			require.NoError(tt, err, "should uninstall the agent")
 		}) {
 			tt.Fatal("uninstall failed")
@@ -227,7 +227,7 @@ func (s *baseAgentMSISuite) cleanupAgent() {
 	if err == nil {
 		defer func() {
 			t.Logf("Uninstalling Datadog Agent")
-			err = windowsAgent.UninstallAgent(host, filepath.Join(s.OutputDir, "uninstall.log"))
+			err = windowsAgent.UninstallAgent(host, filepath.Join(s.SessionOutputDir(), "uninstall.log"))
 			require.NoError(t, err)
 		}()
 	}
@@ -260,7 +260,8 @@ func isCI() bool {
 	return os.Getenv("CI") != ""
 }
 
-func run[Env any](t *testing.T, s e2e.Suite[Env]) {
+// Run sets some options and runs an install test.
+func Run[Env any](t *testing.T, s e2e.Suite[Env]) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake())}
 
 	agentPackage, err := windowsAgent.GetPackageFromEnv()

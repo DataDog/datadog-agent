@@ -1468,6 +1468,13 @@ func (m *ActivityDumpParams) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.CGroupID) > 0 {
+		i -= len(m.CGroupID)
+		copy(dAtA[i:], m.CGroupID)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.CGroupID)))
+		i--
+		dAtA[i] = 0x2a
+	}
 	if len(m.ContainerID) > 0 {
 		i -= len(m.ContainerID)
 		copy(dAtA[i:], m.ContainerID)
@@ -1534,6 +1541,13 @@ func (m *MetadataMessage) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.CGroupID) > 0 {
+		i -= len(m.CGroupID)
+		copy(dAtA[i:], m.CGroupID)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.CGroupID)))
+		i--
+		dAtA[i] = 0x7a
 	}
 	if len(m.Serialization) > 0 {
 		i -= len(m.Serialization)
@@ -1926,6 +1940,13 @@ func (m *ActivityDumpStopParams) MarshalToSizedBufferVT(dAtA []byte) (int, error
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.CGroupID) > 0 {
+		i -= len(m.CGroupID)
+		copy(dAtA[i:], m.CGroupID)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.CGroupID)))
+		i--
+		dAtA[i] = 0x1a
 	}
 	if len(m.ContainerID) > 0 {
 		i -= len(m.ContainerID)
@@ -2351,6 +2372,21 @@ func (m *ActivityTreeStatsMessage) MarshalToSizedBufferVT(dAtA []byte) (int, err
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.FlowNodesCount != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.FlowNodesCount))
+		i--
+		dAtA[i] = 0x40
+	}
+	if m.SyscallNodesCount != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.SyscallNodesCount))
+		i--
+		dAtA[i] = 0x38
+	}
+	if m.IMDSNodesCount != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.IMDSNodesCount))
+		i--
+		dAtA[i] = 0x30
 	}
 	if m.ApproximateSize != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.ApproximateSize))
@@ -3396,6 +3432,10 @@ func (m *ActivityDumpParams) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
+	l = len(m.CGroupID)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -3457,6 +3497,10 @@ func (m *MetadataMessage) SizeVT() (n int) {
 		n += 1 + protohelpers.SizeOfVarint(uint64(m.Size))
 	}
 	l = len(m.Serialization)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.CGroupID)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
@@ -3582,6 +3626,10 @@ func (m *ActivityDumpStopParams) SizeVT() (n int) {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	l = len(m.ContainerID)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.CGroupID)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
@@ -3748,6 +3796,15 @@ func (m *ActivityTreeStatsMessage) SizeVT() (n int) {
 	}
 	if m.ApproximateSize != 0 {
 		n += 1 + protohelpers.SizeOfVarint(uint64(m.ApproximateSize))
+	}
+	if m.IMDSNodesCount != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.IMDSNodesCount))
+	}
+	if m.SyscallNodesCount != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.SyscallNodesCount))
+	}
+	if m.FlowNodesCount != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.FlowNodesCount))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -7212,6 +7269,38 @@ func (m *ActivityDumpParams) UnmarshalVT(dAtA []byte) error {
 			}
 			m.ContainerID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CGroupID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CGroupID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -7685,6 +7774,38 @@ func (m *MetadataMessage) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Serialization = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 15:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CGroupID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CGroupID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -8484,6 +8605,38 @@ func (m *ActivityDumpStopParams) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.ContainerID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CGroupID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CGroupID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -9483,6 +9636,63 @@ func (m *ActivityTreeStatsMessage) UnmarshalVT(dAtA []byte) error {
 				b := dAtA[iNdEx]
 				iNdEx++
 				m.ApproximateSize |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IMDSNodesCount", wireType)
+			}
+			m.IMDSNodesCount = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.IMDSNodesCount |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 7:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SyscallNodesCount", wireType)
+			}
+			m.SyscallNodesCount = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.SyscallNodesCount |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 8:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FlowNodesCount", wireType)
+			}
+			m.FlowNodesCount = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.FlowNodesCount |= int64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}

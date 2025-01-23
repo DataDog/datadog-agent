@@ -112,6 +112,7 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 	for _, filter := range filters {
 		switch {
 		case strings.HasPrefix(filter, imageFilterPrefix):
+			filter = preprocessImageFilter(filter)
 			r, err := filterToRegex(filter, imageFilterPrefix)
 			if err != nil {
 				filterErrs = append(filterErrs, err.Error())
@@ -143,6 +144,19 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 		return nil, nil, nil, append(filterErrs, filterWarnings...), errors.New(filterErrs[0])
 	}
 	return imageFilters, nameFilters, namespaceFilters, filterWarnings, nil
+}
+
+// preprocessImageFilter modifies image filters having the format `name$`, where {name} doesn't include a colon (e.g. nginx$, ^nginx$), to
+// `name:.*`.
+// This is done so that image filters can still match even if the matched image contains the tag or digest.
+func preprocessImageFilter(imageFilter string) string {
+	regexVal := strings.TrimPrefix(imageFilter, imageFilterPrefix)
+	if strings.HasSuffix(regexVal, "$") && !strings.Contains(regexVal, ":") {
+		mutatedRegexVal := regexVal[:len(regexVal)-1] + "(@sha256)?:.*"
+		return imageFilterPrefix + mutatedRegexVal
+	}
+
+	return imageFilter
 }
 
 // filterToRegex checks a filter's regex
@@ -327,7 +341,16 @@ func NewAutodiscoveryFilter(ft FilterType) (*Filter, error) {
 // based on the filters in the containerFilter instance. Consider also using
 // Note: exclude filters are not applied to empty container names, empty
 // images and empty namespaces.
+//
+// containerImage may or may not contain the image tag or image digest. (e.g. nginx:latest and nginx are both valid)
 func (cf Filter) IsExcluded(annotations map[string]string, containerName, containerImage, podNamespace string) bool {
+
+	// If containerImage doesn't include the tag or digest, add a colon so that it
+	// can match image filters
+	if len(containerImage) > 0 && !strings.Contains(containerImage, ":") {
+		containerImage += ":"
+	}
+
 	if cf.isExcludedByAnnotation(annotations, containerName) {
 		return true
 	}

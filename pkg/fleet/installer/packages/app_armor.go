@@ -15,8 +15,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
@@ -33,8 +33,8 @@ func setupAppArmor(ctx context.Context) (err error) {
 		// no-op if apparmor is not installed
 		return nil
 	}
-	span, _ := tracer.StartSpanFromContext(ctx, "setup_app_armor")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "setup_app_armor")
+	defer func() { span.Finish(err) }()
 	if err = os.MkdirAll(appArmorConfigPath, 0755); err != nil {
 		return fmt.Errorf("failed to create %s: %w", appArmorConfigPath, err)
 	}
@@ -61,8 +61,8 @@ func removeAppArmor(ctx context.Context) (err error) {
 		}
 		return err
 	}
-	span, _ := tracer.StartSpanFromContext(ctx, "remove_app_armor")
-	defer span.Finish(tracer.WithError(err))
+	span, _ := telemetry.StartSpanFromContext(ctx, "remove_app_armor")
+	defer span.Finish(err)
 	if err = os.Remove(datadogProfilePath); err != nil {
 		return err
 	}

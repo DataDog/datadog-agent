@@ -15,12 +15,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-// GetProfiles returns profiles depending on various sources:
-//   - init config profiles
-//   - yaml profiles
-//   - downloaded json gzip profiles
-//   - remote config profiles
-func GetProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
+// GetProfileProvider returns a Provider that knows the on-disk profiles as well as any overrides from the initConfig.
+func GetProfileProvider(initConfigProfiles ProfileConfigMap) (Provider, error) {
+	profiles, err := loadProfiles(initConfigProfiles)
+	if err != nil {
+		return nil, err
+	}
+	return StaticProvider(profiles), nil
+}
+
+func loadProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	var profiles ProfileConfigMap
 	if len(initConfigProfiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
@@ -30,12 +34,6 @@ func GetProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) 
 			return nil, fmt.Errorf("failed to load profiles from initConfig: %w", err)
 		}
 		profiles = customProfiles
-	} else if bundlePath := findProfileBundleFilePath(); bundlePath != "" {
-		defaultProfiles, err := loadBundleJSONProfiles(bundlePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load profiles from json bundle %q: %w", bundlePath, err)
-		}
-		profiles = defaultProfiles
 	} else {
 		defaultProfiles, err := loadYamlProfiles()
 		if err != nil {
@@ -49,8 +47,8 @@ func GetProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) 
 	return profiles, nil
 }
 
-// GetProfileForSysObjectID return a profile for a sys object id
-func GetProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (string, error) {
+// getProfileForSysObjectID return a profile for a sys object id
+func getProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (string, error) {
 	tmpSysOidToProfile := map[string]string{}
 	var matchedOids []string
 
@@ -75,6 +73,9 @@ func GetProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (st
 			tmpSysOidToProfile[oidPattern] = profile
 			matchedOids = append(matchedOids, oidPattern)
 		}
+	}
+	if len(matchedOids) == 0 {
+		return "", fmt.Errorf("no profiles found for sysObjectID %q", sysObjectID)
 	}
 	oid, err := getMostSpecificOid(matchedOids)
 	if err != nil {

@@ -8,44 +8,62 @@
 package packages
 
 import (
-	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 )
+
+func dpkgInstalled() (bool, error) {
+	_, err := exec.LookPath("dpkg")
+	if err != nil && !errors.Is(err, exec.ErrNotFound) {
+		return false, err
+	}
+	return err == nil, nil
+}
+
+func rpmInstalled() (bool, error) {
+	_, err := exec.LookPath("rpm")
+	if err != nil && !errors.Is(err, exec.ErrNotFound) {
+		return false, err
+	}
+	return err == nil, nil
+}
 
 // removeDebRPMPackage removes a package installed via deb/rpm package manager
 // It doesn't remove dependencies or purge as we want to keep existing configuration files
 // and reinstall the package using the installer.
 // Note: we don't run the pre/post remove scripts as we want to avoid surprises for older agent versions (like removing config)
 func removeDebRPMPackage(ctx context.Context, pkg string) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "remove_deb_rpm_package")
-	defer func() { span.Finish(tracer.WithError(err)) }()
-	// Compute the right command depending on the package manager
-	var cmd *exec.Cmd
-	if _, pathErr := exec.LookPath("dpkg"); pathErr == nil {
-		// Doesn't fail if the package isn't installed
-		cmd = exec.Command("dpkg", "-r", "--no-triggers", agentPackage)
-	} else if _, pathErr := exec.LookPath("rpm"); pathErr == nil {
-		// Check if package exist, else the command will fail
-		pkgErr := exec.Command("rpm", "-q", agentPackage).Run()
-		if pkgErr == nil {
-			cmd = exec.Command("rpm", "-e", "--nodeps", "--noscripts", agentPackage)
-		}
-	}
+	span, _ := telemetry.StartSpanFromContext(ctx, "removeDebRPMPackage")
+	defer func() { span.Finish(err) }()
 
-	if cmd == nil {
-		// If we can't find a package manager or the package is not installed, ignore this step
+	dpkgInstalled, err := dpkgInstalled()
+	if err != nil {
+		return err
+	}
+	rpmInstalled, err := rpmInstalled()
+	if err != nil {
+		return err
+	}
+	var packageInstalled bool
+	var removeCmd *exec.Cmd
+	if dpkgInstalled {
+		removeCmd = exec.Command("dpkg", "-r", pkg)
+		packageInstalled = exec.Command("dpkg", "-s", pkg).Run() == nil
+	}
+	if rpmInstalled {
+		removeCmd = exec.Command("rpm", "-e", pkg)
+		packageInstalled = exec.Command("rpm", "-q", pkg).Run() == nil
+	}
+	if !packageInstalled {
 		return nil
 	}
-
-	// Run the command
-	var buf bytes.Buffer
-	cmd.Stderr = &buf
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to uninstall deb/rpm package %s (%w): %s", pkg, err, buf.String())
+	out, err := removeCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to uninstall deb/rpm package %s (%w): %s", pkg, err, out)
 	}
 	return nil
 }

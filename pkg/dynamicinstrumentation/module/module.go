@@ -32,7 +32,8 @@ func NewModule(config *Config) (*Module, error) { //nolint:revive // TODO
 			ProbesFilePath:   coreconfig.SystemProbe().GetString("dynamic_instrumentation.probes_file_path"),
 			SnapshotOutput:   coreconfig.SystemProbe().GetString("dynamic_instrumentation.snapshot_output_file_path"),
 			DiagnosticOutput: coreconfig.SystemProbe().GetString("dynamic_instrumentation.diagnostics_output_file_path"),
-		}})
+		},
+	})
 	if err != nil {
 		return nil, err
 	}

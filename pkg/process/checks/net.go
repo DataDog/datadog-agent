@@ -7,15 +7,16 @@ package checks
 
 import (
 	"context"
-	"errors"
+	"fmt"
+	"net/http"
 	"runtime"
 	"sort"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/benbjohnson/clock"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
@@ -39,9 +41,6 @@ const (
 )
 
 var (
-	// ErrTracerStillNotInitialized signals that the tracer is _still_ not ready, so we shouldn't log additional errors
-	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
-
 	// ProcessAgentClientID process-agent unique ID
 	ProcessAgentClientID = "process-agent-unique-id"
 )
@@ -65,7 +64,6 @@ type ConnectionsCheck struct {
 
 	hostInfo               *HostInfo
 	maxConnsPerMessage     int
-	tracerClientID         string
 	networkID              string
 	notInitializedLogLimit *log.Limit
 
@@ -79,6 +77,8 @@ type ConnectionsCheck struct {
 	wmeta         workloadmeta.Component
 
 	npCollector npcollector.Component
+
+	sysprobeClient *http.Client
 }
 
 // ProcessConnRates describes connection rates for processes
@@ -89,25 +89,16 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.hostInfo = hostInfo
 	c.maxConnsPerMessage = syscfg.MaxConnsPerMessage
 	c.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
+	c.sysprobeClient = sysprobeclient.Get(syscfg.SystemProbeAddress)
 
-	// We use the current process PID as the system-probe client ID
-	c.tracerClientID = ProcessAgentClientID
-
-	// Calling the remote tracer will cause it to initialize and check connectivity
-	tu, err := net.GetRemoteSystemProbeUtil(syscfg.SystemProbeAddress)
-
+	// Register process agent as a system probe's client
+	// This ensures we start recording data from now to the first call to `Run`
+	err := c.register()
 	if err != nil {
-		log.Warnf("could not initiate connection with system probe: %s", err)
-	} else {
-		// Register process agent as a system probe's client
-		// This ensures we start recording data from now to the first call to `Run`
-		err = tu.Register(c.tracerClientID)
-		if err != nil {
-			log.Warnf("could not register process-agent to system-probe: %s", err)
-		}
+		log.Warnf("could not register process-agent to system-probe: %s", err)
 	}
 
-	networkID, err := retryGetNetworkID(tu)
+	networkID, err := retryGetNetworkID(c.sysprobeClient)
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
@@ -172,10 +163,6 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	conns, err := c.getConnections()
 	if err != nil {
-		// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
-		if errors.Is(err, net.ErrNotImplemented) || errors.Is(err, ErrTracerStillNotInitialized) {
-			return nil, nil
-		}
 		return nil, err
 	}
 
@@ -205,15 +192,48 @@ func (c *ConnectionsCheck) Cleanup() {
 	c.localresolver.Stop()
 }
 
-func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
-	tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.SocketAddress)
+func (c *ConnectionsCheck) register() error {
+	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/register?client_id="+ProcessAgentClientID)
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		if c.notInitializedLogLimit.ShouldLog() {
-			log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
-		}
-		return nil, ErrTracerStillNotInitialized
+		return err
 	}
-	return tu.GetConnections(c.tracerClientID)
+
+	resp, err := c.sysprobeClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("conn request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
+	}
+	return nil
+}
+
+func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
+	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/connections?client_id="+ProcessAgentClientID)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Accept", "application/protobuf")
+	resp, err := c.sysprobeClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("conn request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
+	}
+
+	body, err := sysprobeclient.ReadAllResponseBody(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	contentType := resp.Header.Get("Content-type")
+	return netEncoding.GetUnmarshaler(contentType).Unmarshal(body)
 }
 
 func (c *ConnectionsCheck) notifyProcessConnRates(config pkgconfigmodel.Reader, conns *model.Connections) {
@@ -509,11 +529,11 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 }
 
 // fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
-func retryGetNetworkID(sysProbeUtil net.SysProbeUtil) (string, error) {
+func retryGetNetworkID(sysProbeClient *http.Client) (string, error) {
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
-	if err != nil && sysProbeUtil != nil {
+	if err != nil && sysProbeClient != nil {
 		log.Infof("no network ID detected. retrying via system-probe: %s", err)
-		networkID, err = sysProbeUtil.GetNetworkID()
+		networkID, err = net.GetNetworkID(sysProbeClient)
 		if err != nil {
 			log.Infof("failed to get network ID from system-probe: %s", err)
 			return "", err

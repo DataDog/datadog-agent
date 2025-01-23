@@ -26,14 +26,10 @@ func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditype
 	return loadFunctionDefinitions(dwarfData, targetFunctions)
 }
 
-var dwarfMap = make(map[string]*dwarf.Data)
-
 type seenTypeCounter struct {
 	parameter *ditypes.Parameter
 	count     uint8
 }
-
-var seenTypes = make(map[string]*seenTypeCounter)
 
 func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
 	entryReader := dwarfData.Reader()
@@ -42,17 +38,19 @@ func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]b
 	var funcName string
 
 	var result = ditypes.TypeMap{
-		Functions:        make(map[string][]ditypes.Parameter),
-		InlinedFunctions: make(map[uint64][]*dwarf.Entry),
+		Functions: make(map[string][]*ditypes.Parameter),
 	}
 
 	var (
 		name       string
+		isReturn   bool
 		typeFields *ditypes.Parameter
 	)
 
 entryLoop:
 	for {
+		seenTypes := make(map[string]*seenTypeCounter)
+
 		entry, err := entryReader.Next()
 		if err == io.EOF || entry == nil {
 			break
@@ -83,25 +81,6 @@ entryLoop:
 			}
 		}
 
-		if entry.Tag == dwarf.TagInlinedSubroutine {
-			// This is a inlined function
-			for i := range entry.Field {
-				// Find it's high program counter (where it exits in the parent routine)
-				if entry.Field[i].Attr == dwarf.AttrHighpc {
-
-					// The field for HighPC can be a constant or address, which are int64 and uint64 respectively
-					if entry.Field[i].Class == dwarf.ClassConstant {
-						result.InlinedFunctions[uint64(entry.Field[i].Val.(int64))] =
-							append([]*dwarf.Entry{entry}, result.InlinedFunctions[uint64(entry.Field[i].Val.(int64))]...)
-					} else if entry.Field[i].Class == dwarf.ClassAddress {
-						result.InlinedFunctions[entry.Field[i].Val.(uint64)] =
-							append([]*dwarf.Entry{entry}, result.InlinedFunctions[entry.Field[i].Val.(uint64)]...)
-					}
-				}
-			}
-			continue entryLoop
-		}
-
 		if entry.Tag == dwarf.TagSubprogram {
 
 			for _, field := range entry.Field {
@@ -117,7 +96,8 @@ entryLoop:
 					if !targetFunctions[funcName] {
 						continue entryLoop
 					}
-					result.Functions[funcName] = make([]ditypes.Parameter, 0)
+					params := make([]*ditypes.Parameter, 0)
+					result.Functions[funcName] = params
 					readingAFunction = true
 					continue entryLoop
 				}
@@ -144,6 +124,10 @@ entryLoop:
 				name = entry.Field[i].Val.(string)
 			}
 
+			if entry.Field[i].Attr == dwarf.AttrVarParam {
+				isReturn = entry.Field[i].Val.(bool)
+			}
+
 			// Collect information about the type of this ditypes.Parameter
 			if entry.Field[i].Attr == dwarf.AttrType {
 
@@ -153,7 +137,7 @@ entryLoop:
 					return nil, err
 				}
 
-				typeFields, err = expandTypeData(typeEntry.Offset, dwarfData)
+				typeFields, err = expandTypeData(typeEntry.Offset, dwarfData, seenTypes)
 				if err != nil {
 					return nil, fmt.Errorf("error while parsing debug information: %w", err)
 				}
@@ -161,12 +145,11 @@ entryLoop:
 			}
 		}
 
-		if typeFields != nil {
+		if typeFields != nil && !isReturn /* we ignore return values for now */ {
 			// We've collected information about this ditypes.Parameter, append it to the slice of ditypes.Parameters for this function
 			typeFields.Name = name
-			result.Functions[funcName] = append(result.Functions[funcName], *typeFields)
+			result.Functions[funcName] = append(result.Functions[funcName], typeFields)
 		}
-		seenTypes = make(map[string]*seenTypeCounter) // reset seen types map for next parameter
 	}
 
 	// Sort program counter slice for lookup when resolving pcs->functions
@@ -181,23 +164,19 @@ entryLoop:
 }
 
 func loadDWARF(binaryPath string) (*dwarf.Data, error) {
-	if dwarfData, ok := dwarfMap[binaryPath]; ok {
-		return dwarfData, nil
-	}
 	elfFile, err := safeelf.Open(binaryPath)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't open elf binary: %w", err)
 	}
-
+	defer elfFile.Close()
 	dwarfData, err := elfFile.DWARF()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't retrieve debug info from elf: %w", err)
 	}
-	dwarfMap[binaryPath] = dwarfData
 	return dwarfData, nil
 }
 
-func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data) (*ditypes.Parameter, error) {
+func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[string]*seenTypeCounter) (*ditypes.Parameter, error) {
 	typeReader := dwarfData.Reader()
 
 	typeReader.Seek(offset)
@@ -227,8 +206,8 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data) (*ditypes.Parame
 	v, typeParsedAlready := seenTypes[typeHeader.Type]
 	if typeParsedAlready {
 		v.count++
-		if v.count >= ditypes.MaxReferenceDepth {
-			return v.parameter, nil
+		if v.count > ditypes.MaxReferenceDepth {
+			return &ditypes.Parameter{}, nil
 		}
 	} else {
 		seenTypes[typeHeader.Type] = &seenTypeCounter{
@@ -237,26 +216,20 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data) (*ditypes.Parame
 		}
 	}
 
-	if typeKind == uint(reflect.Slice) {
-		sliceElements, err := getSliceField(typeEntry.Offset, dwarfData)
-		if err != nil {
-			return nil, fmt.Errorf("could not collect fields of slice type: %w", err)
-		}
-		typeHeader = sliceElements[0]
-	} else if typeEntry.Tag == dwarf.TagStructType {
-		structFields, err := getStructFields(typeEntry.Offset, dwarfData)
+	if typeEntry.Tag == dwarf.TagStructType || typeKind == uint(reflect.Slice) || typeKind == uint(reflect.String) {
+		structFields, err := getStructFields(typeEntry.Offset, dwarfData, seenTypes)
 		if err != nil {
 			return nil, fmt.Errorf("could not collect fields of struct type of ditypes.Parameter: %w", err)
 		}
 		typeHeader.ParameterPieces = structFields
 	} else if typeEntry.Tag == dwarf.TagArrayType {
-		arrayElements, err := getIndividualArrayElements(typeEntry.Offset, dwarfData)
+		arrayElements, err := getIndividualArrayElements(typeEntry.Offset, dwarfData, seenTypes)
 		if err != nil {
 			return nil, fmt.Errorf("could not get length of array: %w", err)
 		}
 		typeHeader.ParameterPieces = arrayElements
 	} else if typeEntry.Tag == dwarf.TagPointerType {
-		pointerElements, err := getPointerLayers(typeEntry.Offset, dwarfData)
+		pointerElements, err := getPointerLayers(typeEntry.Offset, dwarfData, seenTypes)
 		if err != nil {
 			return nil, fmt.Errorf("could not find pointer type: %w", err)
 		}
@@ -266,50 +239,7 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data) (*ditypes.Parame
 	return &typeHeader, nil
 }
 
-// getSliceField returns the representation of a slice as a []ditypes.Parameter. The returned
-// slice will have only one element.
-//
-// Slices are represented internally in go as a struct with 3 fields. The pointer to the
-// the underlying array, the array length, and the array capacity.
-func getSliceField(offset dwarf.Offset, dwarfData *dwarf.Data) ([]ditypes.Parameter, error) {
-	typeReader := dwarfData.Reader()
-
-	typeReader.Seek(offset)
-	typeEntry, err := typeReader.Next()
-	if err != nil {
-		return nil, fmt.Errorf("could not get slice type entry: %w", err)
-	}
-
-	elementTypeName, elementTypeSize, elementTypeKind := getTypeEntryBasicInfo(typeEntry)
-	sliceParameter := ditypes.Parameter{
-		Type:      elementTypeName,
-		TotalSize: elementTypeSize,
-		Kind:      elementTypeKind,
-	}
-
-	arrayEntry, err := typeReader.Next()
-	if err != nil {
-		return nil, fmt.Errorf("could not get slice type entry: %w", err)
-	}
-
-	for i := range arrayEntry.Field {
-		if arrayEntry.Field[i].Attr == dwarf.AttrType {
-			typeReader.Seek(arrayEntry.Field[i].Val.(dwarf.Offset))
-			typeEntry, err := typeReader.Next()
-			if err != nil {
-				return nil, err
-			}
-			underlyingType, err := expandTypeData(typeEntry.Offset, dwarfData)
-			if err != nil {
-				return nil, err
-			}
-			sliceParameter.ParameterPieces = append(sliceParameter.ParameterPieces, underlyingType.ParameterPieces[0])
-		}
-	}
-	return []ditypes.Parameter{sliceParameter}, nil
-}
-
-func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data) ([]ditypes.Parameter, error) {
+func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[string]*seenTypeCounter) ([]*ditypes.Parameter, error) {
 	savedArrayEntryOffset := offset
 	typeReader := dwarfData.Reader()
 
@@ -339,7 +269,7 @@ func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data) ([]d
 			return nil, err
 		}
 
-		elementFields, err = expandTypeData(arrayElementTypeEntry.Offset, dwarfData)
+		elementFields, err = expandTypeData(arrayElementTypeEntry.Offset, dwarfData, seenTypes)
 		if err != nil {
 			return nil, err
 		}
@@ -366,7 +296,7 @@ func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data) ([]d
 		}
 	}
 
-	arrayElements := []ditypes.Parameter{}
+	arrayElements := []*ditypes.Parameter{}
 	for h := 0; h < int(arrayLength); h++ {
 		newParam := ditypes.Parameter{}
 		copyTree(&newParam.ParameterPieces, &elementFields.ParameterPieces)
@@ -374,17 +304,17 @@ func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data) ([]d
 		newParam.Type = elementTypeName
 		newParam.Kind = elementTypeKind
 		newParam.TotalSize = elementTypeSize
-		arrayElements = append(arrayElements, newParam)
+		arrayElements = append(arrayElements, &newParam)
 	}
 
 	return arrayElements, nil
 }
 
-func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data) ([]ditypes.Parameter, error) {
+func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[string]*seenTypeCounter) ([]*ditypes.Parameter, error) {
 	inOrderReader := dwarfData.Reader()
 	typeReader := dwarfData.Reader()
 
-	structFields := []ditypes.Parameter{}
+	structFields := []*ditypes.Parameter{}
 	fieldEntry := &dwarf.Entry{}
 
 	// Start at the entry of the definition of the struct
@@ -399,14 +329,14 @@ func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data) ([]ditypes.Para
 	for {
 		fieldEntry, err = inOrderReader.Next()
 		if err != nil {
-			return []ditypes.Parameter{}, err
+			return []*ditypes.Parameter{}, err
 		}
 
 		if entryIsEmpty(fieldEntry) || fieldEntry.Tag != dwarf.TagMember {
 			break
 		}
 
-		newStructField := ditypes.Parameter{}
+		newStructField := &ditypes.Parameter{}
 
 		for i := range fieldEntry.Field {
 
@@ -420,30 +350,30 @@ func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data) ([]ditypes.Para
 				typeReader.Seek(fieldEntry.Field[i].Val.(dwarf.Offset))
 				typeEntry, err := typeReader.Next()
 				if err != nil {
-					return []ditypes.Parameter{}, err
+					return []*ditypes.Parameter{}, err
 				}
 
 				if !entryTypeIsSupported(typeEntry) {
 					unsupportedType := resolveUnsupportedEntry(typeEntry)
-					structFields = append(structFields, *unsupportedType)
+					structFields = append(structFields, unsupportedType)
 					continue
 				}
 
 				if typeEntry.Tag == dwarf.TagTypedef {
 					typeEntry, err = resolveTypedefToRealType(typeEntry, typeReader)
 					if err != nil {
-						return []ditypes.Parameter{}, err
+						return []*ditypes.Parameter{}, err
 					}
 				}
 
 				newStructField.Type, newStructField.TotalSize, newStructField.Kind = getTypeEntryBasicInfo(typeEntry)
 				if typeEntry.Tag != dwarf.TagBaseType {
-					field, err := expandTypeData(typeEntry.Offset, dwarfData)
-					if err != nil {
-						return []ditypes.Parameter{}, err
+					field, err := expandTypeData(typeEntry.Offset, dwarfData, seenTypes)
+					if err != nil || field == nil {
+						return []*ditypes.Parameter{}, err
 					}
 					field.Name = newStructField.Name
-					structFields = append(structFields, *field)
+					structFields = append(structFields, field)
 				} else {
 					structFields = append(structFields, newStructField)
 				}
@@ -453,7 +383,7 @@ func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data) ([]ditypes.Para
 	return structFields, nil
 }
 
-func getPointerLayers(offset dwarf.Offset, dwarfData *dwarf.Data) ([]ditypes.Parameter, error) {
+func getPointerLayers(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[string]*seenTypeCounter) ([]*ditypes.Parameter, error) {
 	typeReader := dwarfData.Reader()
 	typeReader.Seek(offset)
 	pointerEntry, err := typeReader.Next()
@@ -470,16 +400,16 @@ func getPointerLayers(offset dwarf.Offset, dwarfData *dwarf.Data) ([]ditypes.Par
 				return nil, err
 			}
 
-			underlyingType, err = expandTypeData(typeEntry.Offset, dwarfData)
+			underlyingType, err = expandTypeData(typeEntry.Offset, dwarfData, seenTypes)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
 	if underlyingType == nil {
-		return []ditypes.Parameter{}, nil
+		return []*ditypes.Parameter{}, nil
 	}
-	return []ditypes.Parameter{*underlyingType}, nil
+	return []*ditypes.Parameter{underlyingType}, nil
 }
 
 // Can use `Children` field, but there's also always a NULL/empty entry at the end of entry trees.
@@ -556,32 +486,37 @@ func resolveTypedefToRealType(outerType *dwarf.Entry, reader *dwarf.Reader) (*dw
 	return outerType, nil
 }
 
-func correctStructSizes(params []ditypes.Parameter) {
+func correctStructSizes(params []*ditypes.Parameter) {
 	for i := range params {
-		correctStructSize(&params[i])
+		correctStructSize(params[i])
 	}
 }
 
 // correctStructSize sets the size of structs to the number of fields in the struct
 func correctStructSize(param *ditypes.Parameter) {
-	if len(param.ParameterPieces) == 0 {
+	if param == nil || len(param.ParameterPieces) == 0 {
 		return
 	}
 	if param.Kind == uint(reflect.Struct) || param.Kind == uint(reflect.Array) {
 		param.TotalSize = int64(len(param.ParameterPieces))
 	}
 	for i := range param.ParameterPieces {
-		correctStructSize(&param.ParameterPieces[i])
+		correctStructSize(param.ParameterPieces[i])
 	}
 }
 
-func copyTree(dst, src *[]ditypes.Parameter) {
+func copyTree(dst, src *[]*ditypes.Parameter) {
 	if dst == nil || src == nil || len(*src) == 0 {
 		return
 	}
-	*dst = make([]ditypes.Parameter, len(*src))
+	*dst = make([]*ditypes.Parameter, len(*src))
 	copy(*dst, *src)
 	for i := range *src {
+		// elements can be nil if there was a nil element originally in src
+		// that was copied to dst
+		if (*dst)[i] == nil || (*src)[i] == nil {
+			continue
+		}
 		copyTree(&((*dst)[i].ParameterPieces), &((*src)[i].ParameterPieces))
 	}
 }

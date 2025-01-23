@@ -299,3 +299,7 @@ func (img *image) Name() string {
 func (img *image) ID() (string, error) {
 	return fimage.ID(img)
 }
+
+func (img *image) Layers() ([]v1.Layer, error) {
+	return nil, nil
+}

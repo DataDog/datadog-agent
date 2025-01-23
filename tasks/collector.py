@@ -14,13 +14,23 @@ from invoke.tasks import task
 from tasks.go import tidy
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.constants import (
+    GITHUB_REPO_NAME,
+)
+from tasks.libs.common.git import (
+    check_clean_branch_state,
+    check_uncommitted_changes,
+    get_git_config,
+    revert_git_config,
+    set_git_config,
+)
 
 LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.115.0"
+OCB_VERSION = "0.117.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -415,7 +425,7 @@ class CollectorRepo:
 
     def fetch_latest_release(self):
         gh = GithubAPI(self.repo)
-        self.version = gh.latest_release()
+        self.version = gh.latest_release_tag()
         return self.version
 
     def fetch_module_versions(self):
@@ -478,9 +488,10 @@ class CollectorVersionUpdater:
             "./comp/otelcol/collector/impl/collector.go",
             "./tasks/collector.py",
             "./.gitlab/integration_test/otel.yml",
+            "./test/otel/testdata/ocb_build_script.sh",
         ]
-        for root, _, files in os.walk("./tasks/unit_tests/testdata/collector"):
-            for file in files:
+        for root, _, testfiles in os.walk("./tasks/unit_tests/testdata/collector"):
+            for file in testfiles:
                 files.append(os.path.join(root, file))
         collector_version = self.core_collector.get_version()[1:]
         for file in files:
@@ -498,3 +509,42 @@ def update(ctx):
     updater = CollectorVersionUpdater()
     updater.update()
     print("Update complete.")
+
+
+@task()
+def pull_request(ctx):
+    # Save current Git configuration
+    original_config = {'user.name': get_git_config('user.name'), 'user.email': get_git_config('user.email')}
+
+    try:
+        # Set new Git configuration
+        set_git_config('user.name', 'github-actions[bot]')
+        set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
+
+        # Perform Git operations
+        ctx.run('git add .')
+        if check_uncommitted_changes(ctx):
+            branch_name = f"update-otel-collector-dependencies-{OCB_VERSION}"
+            gh = GithubAPI(repository=GITHUB_REPO_NAME)
+            ctx.run(f'git switch -c {branch_name}')
+            ctx.run(
+                f'git commit -m "Update OTel Collector dependencies to {OCB_VERSION} and generate OTel Agent" --no-verify'
+            )
+            try:
+                check_clean_branch_state(ctx, gh, branch_name)
+            except Exit as e:
+                print(e)
+                return
+            ctx.run(f'git push -u origin {branch_name} --no-verify')  # skip pre-commit hook if installed locally
+            gh.create_pr(
+                pr_title=f"Update OTel Collector dependencies to v{OCB_VERSION}",
+                pr_body=f"This PR updates the dependencies of the OTel Collector to v{OCB_VERSION} and generates the OTel Agent code.",
+                target_branch=branch_name,
+                base_branch="main",
+                draft=True,
+            )
+        else:
+            print("No changes detected, skipping PR creation.")
+    finally:
+        # Revert to original Git configuration
+        revert_git_config(original_config)

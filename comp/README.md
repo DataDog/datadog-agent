@@ -16,7 +16,7 @@ Package autoexit lets setup automatic shutdown mechanism if necessary
 
 ### [comp/agent/cloudfoundrycontainer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer)
 
-*Datadog Team*: platform-integrations
+*Datadog Team*: agent-integrations
 
 Package cloudfoundrycontainer provides the cloud foundry container component.
 
@@ -392,7 +392,7 @@ Package logsagentpipeline contains logs agent pipeline component
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 
-*Datadog Team*: processes
+*Datadog Team*: container-intake
 
 Package process implements the "process" bundle, providing components for the Process Agent
 
@@ -615,11 +615,17 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 Package rdnsquerier provides the reverse DNS querier component.
 
-### [comp/serializer/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/compression)
+### [comp/serializer/logscompression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/logscompression)
 
-*Datadog Team*: agent-metrics-logs
+*Datadog Team*: agent-processing-and-routing
 
-Package compression provides a compression implementation based on the configuration or available build tags.
+Package logscompression provides the component for logs compression
+
+### [comp/serializer/metricscompression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/metricscompression)
+
+*Datadog Team*: agent-processing-and-routing
+
+Package metricscompression provides the component for metrics compression
 
 ### [comp/snmpscan](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmpscan)
 

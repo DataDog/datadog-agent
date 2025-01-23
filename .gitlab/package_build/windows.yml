@@ -1,7 +1,7 @@
 ---
 .windows_msi_base:
   stage: package_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  extends: .windows_docker_default
   needs: ["go_mod_tidy_check", "go_deps"]
   script:
     - $ErrorActionPreference = 'Stop'
@@ -30,6 +30,7 @@
       -e DEBUG_CUSTOMACTION="$DEBUG_CUSTOMACTION"
       -e BUCKET_BRANCH="$BUCKET_BRANCH"
       -e S3_OMNIBUS_CACHE_BUCKET="$S3_OMNIBUS_CACHE_BUCKET"
+      -e S3_OMNIBUS_GIT_CACHE_BUCKET="$S3_OMNIBUS_GIT_CACHE_BUCKET"
       -e USE_S3_CACHING="$USE_S3_CACHING"
       -e INTEGRATION_WHEELS_CACHE_BUCKET="$INTEGRATION_WHEELS_CACHE_BUCKET"
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
@@ -37,8 +38,8 @@
       -e API_KEY_ORG2=${API_KEY_ORG2}
       -e OMNIBUS_GIT_CACHE_DIR=${Env:TEMP}/${CI_PIPELINE_ID}/omnibus-git-cache
       -e AGENT_FLAVOR=${AGENT_FLAVOR}
-      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
-      powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
+      ${WINBUILDIMAGE}
+      powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1 -BuildUpgrade 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - get-childitem omnibus\pkg
     - !reference [.upload_sbom_artifacts_windows]
@@ -84,7 +85,7 @@ windows_zip_agent_binaries_x64-a7:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  extends: .windows_docker_default
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     ARCH: "x64"
@@ -120,7 +121,7 @@ windows_zip_agent_binaries_x64-a7:
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       -e API_KEY_ORG2=${API_KEY_ORG2}
-      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-OmnibusTarget.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - get-childitem omnibus\pkg

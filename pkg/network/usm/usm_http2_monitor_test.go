@@ -35,7 +35,6 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -45,6 +44,7 @@ import (
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -95,12 +95,7 @@ func skipIfKernelNotSupported(t *testing.T) {
 
 func TestHTTP2Scenarios(t *testing.T) {
 	skipIfKernelNotSupported(t)
-	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !prebuilt.IsDeprecated() {
-		modes = append(modes, ebpftest.Prebuilt)
-	}
-
-	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		for _, tc := range []struct {
 			name  string
 			isTLS bool
@@ -132,7 +127,7 @@ func (s *usmHTTP2Suite) TestLoadHTTP2Binary() {
 	for _, debug := range map[string]bool{"enabled": true, "disabled": false} {
 		t.Run(fmt.Sprintf("debug %v", debug), func(t *testing.T) {
 			cfg.BPFDebug = debug
-			setupUSMTLSMonitor(t, cfg)
+			setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 		})
 	}
 }
@@ -150,7 +145,7 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
-	monitor := setupUSMTLSMonitor(t, cfg)
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	if s.isTLS {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
@@ -212,7 +207,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
-	monitor := setupUSMTLSMonitor(t, cfg)
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	if s.isTLS {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
@@ -400,7 +395,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			monitor := setupUSMTLSMonitor(t, cfg)
+			monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 			if s.isTLS {
 				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
@@ -455,7 +450,7 @@ func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
-	monitor := setupUSMTLSMonitor(t, cfg)
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	if s.isTLS {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
@@ -512,7 +507,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	t := s.T()
 	cfg := s.getCfg()
 
-	usmMonitor := setupUSMTLSMonitor(t, cfg)
+	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 
 	// Start local server and register its cleanup.
 	t.Cleanup(startH2CServer(t, authority, s.isTLS))
@@ -1319,7 +1314,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			usmMonitor := setupUSMTLSMonitor(t, cfg)
+			usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 			if s.isTLS {
 				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
@@ -1351,9 +1346,9 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 	}
 }
 
-// TestRemainderTable tests the remainder table map.
-// We would like to make sure that the remainder table map is being updated correctly.
-func (s *usmHTTP2Suite) TestRemainderTable() {
+// TestIncompleteFrameTable tests the http2_incomplete_frame table map.
+// We would like to make sure the incomplete_frame table map is being updated correctly.
+func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 	t := s.T()
 	cfg := s.getCfg()
 
@@ -1405,7 +1400,7 @@ func (s *usmHTTP2Suite) TestRemainderTable() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			usmMonitor := setupUSMTLSMonitor(t, cfg)
+			usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 			if s.isTLS {
 				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
@@ -1416,7 +1411,7 @@ func (s *usmHTTP2Suite) TestRemainderTable() {
 			require.NoError(t, writeInput(c, 500*time.Millisecond, tt.messageBuilder()...))
 
 			assert.Eventually(t, func() bool {
-				require.Len(t, getRemainderTableMapKeys(t, usmMonitor.ebpfProgram), tt.mapSize)
+				require.Len(t, getIncompleteFrameTableMapKeys(t, usmMonitor.ebpfProgram), tt.mapSize)
 				return true
 			}, time.Second*5, time.Millisecond*100, "")
 			if t.Failed() {
@@ -1475,7 +1470,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			usmMonitor := setupUSMTLSMonitor(t, cfg)
+			usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 			if s.isTLS {
 				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
@@ -1513,7 +1508,7 @@ func TestHTTP2InFlightMapCleaner(t *testing.T) {
 	cfg.EnableHTTP2Monitoring = true
 	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second
 	cfg.HTTPIdleConnectionTTL = time.Second
-	monitor := setupUSMTLSMonitor(t, cfg)
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	ebpfNow, err := ddebpf.NowNanoseconds()
 	require.NoError(t, err)
 	http2InFLightMap, _, err := monitor.ebpfProgram.GetMap(usmhttp2.InFlightMap)
@@ -1877,14 +1872,14 @@ func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDyn
 	require.EqualValues(t, expectedDynamicTablePathIndexes, resultIndexes)
 }
 
-// getRemainderTableMapKeys returns the keys of the remainder table map.
-func getRemainderTableMapKeys(t *testing.T, ebpfProgram *ebpfProgram) []usmhttp.ConnTuple {
-	remainderMap, _, err := ebpfProgram.GetMap("http2_remainder")
+// getIncompleteFrameTableMapKeys returns the keys of the incomplete frame table map.
+func getIncompleteFrameTableMapKeys(t *testing.T, ebpfProgram *ebpfProgram) []usmhttp.ConnTuple {
+	incompleteFrameMap, _, err := ebpfProgram.GetMap("http2_incomplete_frames")
 	require.NoError(t, err)
 	resultIndexes := make([]usmhttp.ConnTuple, 0)
 	var key usmhttp2.ConnTuple
-	var value usmhttp2.HTTP2RemainderEntry
-	iterator := remainderMap.Iterate()
+	var value usmhttp2.HTTP2IncompleteFrameEntry
+	iterator := incompleteFrameMap.Iterate()
 
 	for iterator.Next(&key, &value) {
 		resultIndexes = append(resultIndexes, key)

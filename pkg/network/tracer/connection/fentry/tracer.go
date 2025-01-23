@@ -17,10 +17,10 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
@@ -29,71 +29,65 @@ const probeUID = "net"
 var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate") //nolint:revive // TODO
 
 // LoadTracer loads a new tracer
-func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), error) {
 	if !fargate.IsFargateInstance() {
 		return nil, nil, ErrorNotSupported
 	}
 
-	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{})
+	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
 	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
-		o.RLimit = mgrOpts.RLimit
+		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
-
-		// Use the config to determine what kernel probes should be enabled
-		enabledProbes, err := enabledPrograms(config)
-		if err != nil {
-			return fmt.Errorf("invalid probe configuration: %v", err)
-		}
-
-		initManager(m, connCloseEventHandler, config)
-
-		file, err := os.Stat("/proc/self/ns/pid")
-
-		if err != nil {
-			return fmt.Errorf("could not load sysprobe pid: %w", err)
-		}
-
-		device := file.Sys().(*syscall.Stat_t).Dev
-		inode := file.Sys().(*syscall.Stat_t).Ino
-		ringbufferEnabled := config.RingBufferSupportedNPM()
-
-		o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
-			Name:  "systemprobe_device",
-			Value: device,
-		})
-		o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
-			Name:  "systemprobe_ino",
-			Value: inode,
-		})
-		util.AddBoolConst(&o, "ringbuffers_enabled", ringbufferEnabled)
-		if ringbufferEnabled {
-			util.EnableRingbuffersViaMapEditor(&mgrOpts)
-		}
-
-		// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
-		for _, p := range m.Probes {
-			if _, enabled := enabledProbes[p.EBPFFuncName]; !enabled {
-				o.ExcludedFunctions = append(o.ExcludedFunctions, p.EBPFFuncName)
-			}
-		}
-		for funcName := range enabledProbes {
-			o.ActivatedProbes = append(
-				o.ActivatedProbes,
-				&manager.ProbeSelector{
-					ProbeIdentificationPair: manager.ProbeIdentificationPair{
-						EBPFFuncName: funcName,
-						UID:          probeUID,
-					},
-				})
-		}
-
-		return m.InitWithOptions(ar, &o)
+		return initFentryTracer(ar, o, config, m)
 	})
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return m.Manager, nil, nil
+	return m, nil, nil
+}
+
+// Use a function so someone doesn't accidentally use mgrOpts from the outer scope in LoadTracer
+func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config.Config, m *ddebpf.Manager) error {
+	// Use the config to determine what kernel probes should be enabled
+	enabledProbes, err := enabledPrograms(config)
+	if err != nil {
+		return fmt.Errorf("invalid probe configuration: %v", err)
+	}
+
+	initManager(m)
+
+	file, err := os.Stat("/proc/self/ns/pid")
+	if err != nil {
+		return fmt.Errorf("could not load sysprobe pid: %w", err)
+	}
+	pidStat := file.Sys().(*syscall.Stat_t)
+	o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
+		Name:  "systemprobe_device",
+		Value: pidStat.Dev,
+	}, manager.ConstantEditor{
+		Name:  "systemprobe_ino",
+		Value: pidStat.Ino,
+	})
+
+	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
+	for _, p := range m.Probes {
+		if _, enabled := enabledProbes[p.EBPFFuncName]; !enabled {
+			o.ExcludedFunctions = append(o.ExcludedFunctions, p.EBPFFuncName)
+		}
+	}
+	for funcName := range enabledProbes {
+		o.ActivatedProbes = append(
+			o.ActivatedProbes,
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: funcName,
+					UID:          probeUID,
+				},
+			})
+	}
+
+	return m.InitWithOptions(ar, &o)
 }

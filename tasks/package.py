@@ -8,15 +8,13 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.package.size import (
     PACKAGE_SIZE_TEMPLATE,
-    _get_deb_uncompressed_size,
-    _get_rpm_uncompressed_size,
     compare,
     compute_package_size_metrics,
 )
 from tasks.libs.package.utils import (
+    PackageSize,
     display_message,
     get_ancestor,
-    get_package_path,
     list_packages,
     retrieve_package_sizes,
     upload_package_sizes,
@@ -33,69 +31,37 @@ def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False)
         if ancestor in package_sizes:
             # The test already ran on this commit
             return
-        package_sizes[ancestor] = PACKAGE_SIZE_TEMPLATE
+        package_sizes[ancestor] = PACKAGE_SIZE_TEMPLATE.copy()
         package_sizes[ancestor]['timestamp'] = int(datetime.now().timestamp())
     # Check size of packages
     print(
         color_message(f"Checking package sizes from {os.environ['CI_COMMIT_REF_NAME']} against {ancestor}", Color.BLUE)
     )
-    size_table = ""
+    size_table = []
     for package_info in list_packages(PACKAGE_SIZE_TEMPLATE):
-        size_table += f"{compare(ctx, package_sizes, ancestor, *package_info)}\n"
+        pkg_size = PackageSize(*package_info)
+        size_table.append(compare(ctx, package_sizes, ancestor, pkg_size))
 
     if on_main:
         upload_package_sizes(ctx, package_sizes, filename, distant=not dry_run)
     else:
-        if "❌" in size_table:
+        size_table.sort(key=lambda x: (-x.diff, x.flavor, x.arch_name()))
+        size_message = "".join(f"{pkg_size.markdown()}\n" for pkg_size in size_table)
+        if "❌" in size_message:
             decision = "❌ Failed"
-        elif "⚠️" in size_table:
+        elif "⚠️" in size_message:
             decision = "⚠️ Warning"
         else:
             decision = "✅ Passed"
-        display_message(ctx, ancestor, size_table, decision)
+        # Try to display the message on the PR when a PR exists
+        if os.environ.get("CI_COMMIT_BRANCH"):
+            try:
+                display_message(ctx, ancestor, size_message, decision)
+            # PR commenter asserts on the numbers of PR's, this will raise if there's no PR
+            except AssertionError as exc:
+                print(f"Got `{exc}` while trying to comment on PR, we'll assume that this is not a PR.")
         if "Failed" in decision:
             raise Exit(code=1)
-
-
-@task
-def compare_size(ctx, new_package, stable_package, package_type, last_stable, threshold):
-    mb = 1000000
-
-    if package_type.endswith('deb'):
-        new_package_size = _get_deb_uncompressed_size(ctx, get_package_path(new_package))
-        stable_package_size = _get_deb_uncompressed_size(ctx, get_package_path(stable_package))
-    else:
-        new_package_size = _get_rpm_uncompressed_size(ctx, get_package_path(new_package))
-        stable_package_size = _get_rpm_uncompressed_size(ctx, get_package_path(stable_package))
-
-    threshold = int(threshold)
-
-    diff = new_package_size - stable_package_size
-
-    # For printing purposes
-    new_package_size_mb = new_package_size / mb
-    stable_package_size_mb = stable_package_size / mb
-    threshold_mb = threshold / mb
-    diff_mb = diff / mb
-
-    if diff > threshold:
-        print(
-            color_message(
-                f"""{package_type} size increase is too large:
-  New package size is {new_package_size_mb:.2f}MB
-  Stable package ({last_stable}) size is {stable_package_size_mb:.2f}MB
-  Diff is {diff_mb:.2f}MB > {threshold_mb:.2f}MB (max allowed diff)""",
-                "red",
-            )
-        )
-        raise Exit(code=1)
-
-    print(
-        f"""{package_type} size increase is OK:
-  New package size is {new_package_size_mb:.2f}MB
-  Stable package ({last_stable}) size is {stable_package_size_mb:.2f}MB
-  Diff is {diff_mb:.2f}MB (max allowed diff: {threshold_mb:.2f}MB)"""
-    )
 
 
 @task

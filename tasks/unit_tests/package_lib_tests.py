@@ -6,13 +6,12 @@ from unittest.mock import MagicMock, patch
 from invoke import MockContext, Result
 
 from tasks.libs.package.size import (
-    PACKAGE_SIZE_TEMPLATE,
     SCANNED_BINARIES,
     _get_uncompressed_size,
     compare,
     compute_package_size_metrics,
 )
-from tasks.libs.package.utils import get_ancestor, list_packages
+from tasks.libs.package.utils import PackageSize, get_ancestor, list_packages
 
 
 class TestProduceSizeStats(unittest.TestCase):
@@ -142,7 +141,7 @@ class TestGetPreviousSize(unittest.TestCase):
     @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'puppet'})
     def test_not_found_on_dev(self):
         c = MockContext(run={'git merge-base HEAD origin/main': Result('grand_pa')})
-        self.assertEqual(get_ancestor(c, self.package_sizes, False), "grand_ma")
+        self.assertEqual(get_ancestor(c, self.package_sizes, False), "ma")
 
     @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'main'})
     def test_on_main(self):
@@ -167,6 +166,28 @@ class TestGetUncompressedSize(unittest.TestCase):
         self.assertEqual(_get_uncompressed_size(c, flavor, 'suse'), 69)
 
 
+class TestPackageSizeMethods(unittest.TestCase):
+    def test_markdown_row(self):
+        size = PackageSize("amd64", "datadog-agent", "deb", 70000000)
+        size.compare(67000000, 68000000)
+        self.assertEqual("|datadog-agent-amd64-deb|-1.00MB|✅|67.00MB|68.00MB|70.00MB|", size.markdown())
+
+    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': 'root'})
+    def test_path_deb(self):
+        size = PackageSize("amd64", "datadog-agent", "deb", 70000000)
+        self.assertEqual("root/datadog-agent_7*amd64.deb", size.path())
+
+    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': 'root'})
+    def test_path_rpm(self):
+        size = PackageSize("x86_64", "datadog-agent", "rpm", 70000000)
+        self.assertEqual("root/datadog-agent-7*x86_64.rpm", size.path())
+
+    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR_SUSE': 'rout'})
+    def test_path_suse(self):
+        size = PackageSize("x86_64", "datadog-agent", "suse", 70000000)
+        self.assertEqual("rout/datadog-agent-7*x86_64.rpm", size.path())
+
+
 class TestCompare(unittest.TestCase):
     package_sizes = {}
     pkg_root = 'tasks/unit_tests/testdata/packages'
@@ -181,6 +202,7 @@ class TestCompare(unittest.TestCase):
     @patch('builtins.print')
     def test_on_main(self, mock_print):
         flavor, arch, os_name = 'datadog-heroku-agent', 'amd64', 'deb'
+        s = PackageSize(arch, flavor, os_name, 2001)
         c = MockContext(
             run={
                 'git merge-base HEAD origin/main': Result('12345'),
@@ -189,9 +211,9 @@ class TestCompare(unittest.TestCase):
                 ),
             }
         )
-        self.package_sizes['12345'] = PACKAGE_SIZE_TEMPLATE
+        self.package_sizes['12345'] = {arch: {flavor: {os_name: 70000000}}}
         self.assertEqual(self.package_sizes['12345'][arch][flavor][os_name], 70000000)
-        res = compare(c, self.package_sizes, '12345', arch, flavor, os_name, 2001)
+        res = compare(c, self.package_sizes, '12345', s)
         self.assertIsNone(res)
         self.assertEqual(self.package_sizes['12345'][arch][flavor][os_name], 43008)
         mock_print.assert_not_called()
@@ -203,16 +225,37 @@ class TestCompare(unittest.TestCase):
     @patch('builtins.print')
     def test_on_branch_warning(self, mock_print):
         flavor, arch, os_name = 'datadog-agent', 'aarch64', 'suse'
+        s = PackageSize(arch, flavor, os_name, 70000000)
         c = MockContext(
             run={
                 'git merge-base HEAD origin/main': Result('25'),
                 f"rpm -qip {self.pkg_root}/{flavor}-7.{arch}.rpm | grep Size | cut -d : -f 2 | xargs": Result(69000000),
             }
         )
-        res = compare(c, self.package_sizes, '25', arch, flavor, os_name, 70000000)
-        self.assertEqual(res, "|datadog-agent-aarch64-suse|1.00MB|⚠️|69.00MB|68.00MB|70.00MB|")
+        res = compare(c, self.package_sizes, '25', s)
+        self.assertEqual(res.markdown(), "|datadog-agent-aarch64-suse|1.00MB|⚠️|69.00MB|68.00MB|70.00MB|")
         mock_print.assert_called_with(
-            f"{flavor}-{arch}-{os_name} size 69.00MB is OK: 1.00MB diff with previous 68.00MB (max: 70.00MB)"
+            f"⚠️ - {flavor}-{arch}-{os_name} size 69.00MB: 1.00MB diff[1000000] with previous 68.00MB (max: 70.00MB)"
+        )
+
+    @patch.dict(
+        'os.environ',
+        {'OMNIBUS_PACKAGE_DIR_SUSE': 'tasks/unit_tests/testdata/packages', 'CI_COMMIT_REF_NAME': 'pikachu'},
+    )
+    @patch('builtins.print')
+    def test_on_branch_ok_small_diff(self, mock_print):
+        flavor, arch, os_name = 'datadog-agent', 'aarch64', 'suse'
+        s = PackageSize(arch, flavor, os_name, 70000000)
+        c = MockContext(
+            run={
+                'git merge-base HEAD origin/main': Result('25'),
+                f"rpm -qip {self.pkg_root}/{flavor}-7.{arch}.rpm | grep Size | cut -d : -f 2 | xargs": Result(68004999),
+            }
+        )
+        res = compare(c, self.package_sizes, '25', s)
+        self.assertEqual(res.markdown(), "|datadog-agent-aarch64-suse|0.00MB|✅|68.00MB|68.00MB|70.00MB|")
+        mock_print.assert_called_with(
+            f"✅ - {flavor}-{arch}-{os_name} size 68.00MB: 0.00MB diff[4999] with previous 68.00MB (max: 70.00MB)"
         )
 
     @patch.dict(
@@ -221,6 +264,7 @@ class TestCompare(unittest.TestCase):
     @patch('builtins.print')
     def test_on_branch_ok_rpm(self, mock_print):
         flavor, arch, os_name = 'datadog-iot-agent', 'x86_64', 'rpm'
+        s = PackageSize(arch, flavor, os_name, 70000000)
         c = MockContext(
             run={
                 'git merge-base HEAD origin/main': Result('25'),
@@ -229,10 +273,10 @@ class TestCompare(unittest.TestCase):
                 ),
             }
         )
-        res = compare(c, self.package_sizes, '25', arch, flavor, os_name, 70000000)
-        self.assertEqual(res, "|datadog-iot-agent-x86_64-rpm|-9.00MB|✅|69.00MB|78.00MB|70.00MB|")
+        res = compare(c, self.package_sizes, '25', s)
+        self.assertEqual(res.markdown(), "|datadog-iot-agent-x86_64-rpm|-9.00MB|✅|69.00MB|78.00MB|70.00MB|")
         mock_print.assert_called_with(
-            f"{flavor}-{arch}-{os_name} size 69.00MB is OK: -9.00MB diff with previous 78.00MB (max: 70.00MB)"
+            f"✅ - {flavor}-{arch}-{os_name} size 69.00MB: -9.00MB diff[-9000000] with previous 78.00MB (max: 70.00MB)"
         )
 
     @patch.dict(
@@ -242,6 +286,7 @@ class TestCompare(unittest.TestCase):
     @patch('builtins.print')
     def test_on_branch_ko(self, mock_print):
         flavor, arch, os_name = 'datadog-agent', 'aarch64', 'suse'
+        s = PackageSize(arch, flavor, os_name, 70000000)
         c = MockContext(
             run={
                 'git merge-base HEAD origin/main': Result('25'),
@@ -250,9 +295,9 @@ class TestCompare(unittest.TestCase):
                 ),
             }
         )
-        res = compare(c, self.package_sizes, '25', arch, flavor, os_name, 70000000)
-        self.assertEqual(res, "|datadog-agent-aarch64-suse|71.00MB|❌|139.00MB|68.00MB|70.00MB|")
+        res = compare(c, self.package_sizes, '25', s)
+        self.assertEqual(res.markdown(), "|datadog-agent-aarch64-suse|71.00MB|❌|139.00MB|68.00MB|70.00MB|")
         mock_print.assert_called_with(
-            "\x1b[91mdatadog-agent-aarch64-suse size 139.00MB is too large: 71.00MB diff with previous 68.00MB (max: 70.00MB)\x1b[0m",
+            "\x1b[91m❌ - datadog-agent-aarch64-suse size 139.00MB: 71.00MB diff[71000000] with previous 68.00MB (max: 70.00MB)\x1b[0m",
             file=sys.stderr,
         )

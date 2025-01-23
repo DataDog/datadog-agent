@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,7 +54,7 @@ func TestMain(m *testing.M) {
 	if logLevel == "" {
 		logLevel = "warn"
 	}
-	log.SetupLogger(seelog.Default, logLevel)
+	log.SetupLogger(log.Default(), logLevel)
 	platformInit()
 	os.Exit(m.Run())
 }
@@ -393,28 +392,35 @@ func (s *TracerSuite) TestTCPConnsReported() {
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
 	require.NoError(t, err)
-	defer c.Close()
 	<-processedChan
+	c.Close()
 
 	var forward *network.ConnectionStats
 	var reverse *network.ConnectionStats
-	var okForward, okReverse bool
 	// for ebpfless, it takes time for the packet capture to arrive, so poll
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		// Test
 		connections := getConnections(collect, tr)
-		// Server-side
-		forward, okForward = findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-		require.True(collect, okForward)
-		// Client-side
-		reverse, okReverse = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		require.True(collect, okReverse)
-	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 
-	assert.Equal(t, network.INCOMING, forward.Direction)
-	assert.Equal(t, network.OUTGOING, reverse.Direction)
-	assert.Equal(t, network.StatCounters{TCPEstablished: 1, TCPClosed: 1}, forward.Monotonic)
-	assert.Equal(t, network.StatCounters{TCPEstablished: 1, TCPClosed: 0}, reverse.Monotonic)
+		if forward == nil {
+			// Server-side
+			forward, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		}
+		if reverse == nil {
+			// Client-side
+			reverse, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		}
+
+		require.NotNil(collect, forward)
+		require.NotNil(collect, reverse)
+
+		require.Equal(collect, network.INCOMING, forward.Direction)
+		require.Equal(collect, network.OUTGOING, reverse.Direction)
+		require.Equal(collect, uint16(1), forward.Monotonic.TCPEstablished)
+		require.Equal(collect, uint16(1), forward.Monotonic.TCPClosed)
+		require.Equal(collect, uint16(1), reverse.Monotonic.TCPEstablished)
+		require.Equal(collect, uint16(1), reverse.Monotonic.TCPClosed)
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 
 }
 
@@ -617,22 +623,25 @@ func (s *TracerSuite) TestShouldSkipExcludedConnection() {
 	_, err = cn.Write([]byte("test"))
 	assert.NoError(t, err)
 
-	// Make sure we're not picking up 127.0.0.1:80
-	cxs := getConnections(t, tr)
-	for _, c := range cxs.Conns {
-		assert.False(t, c.Source.String() == "127.0.0.1" && c.SPort == 80, "connection %s should be excluded", c)
-		assert.False(t, c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.TCP, "connection %s should be excluded", c)
-	}
-
-	// ensure one of the connections is UDP to 127.0.0.1:80
-	assert.Condition(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		// Make sure we're not picking up 127.0.0.1:80
+		cxs := getConnections(collect, tr)
 		for _, c := range cxs.Conns {
-			if c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.UDP {
-				return true
-			}
+			assert.False(collect, c.Source.String() == "127.0.0.1" && c.SPort == 80, "connection %s should be excluded", c)
+			assert.False(collect, c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.TCP, "connection %s should be excluded", c)
 		}
-		return false
-	}, "Unable to find UDP connection to 127.0.0.1:80")
+
+		// ensure one of the connections is UDP to 127.0.0.1:80
+		assert.Condition(collect, func() bool {
+			for _, c := range cxs.Conns {
+				if c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.UDP {
+					return true
+				}
+			}
+			return false
+		}, "Unable to find UDP connection to 127.0.0.1:80")
+
+	}, 2*time.Second, 100*time.Millisecond)
 }
 
 func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {
@@ -1074,7 +1083,6 @@ func (s *TracerSuite) TestDNSStats() {
 
 func (s *TracerSuite) TestTCPEstablished() {
 	t := s.T()
-	// Ensure closed connections are flushed as soon as possible
 	cfg := testConfig()
 
 	tr := setupTracer(t, cfg)
@@ -1131,6 +1139,7 @@ func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
 	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
 	require.NoError(t, err)
 	laddr, raddr := c.LocalAddr(), c.RemoteAddr()
+	t.Logf("laddr=%s raddr=%s", laddr, raddr)
 
 	// Ensure closed connections are flushed as soon as possible
 	cfg := testConfig()

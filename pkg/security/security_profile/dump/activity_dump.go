@@ -222,11 +222,14 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		Name:              metadata.GetName(),
 		ProtobufVersion:   metadata.GetProtobufVersion(),
 		DifferentiateArgs: metadata.GetDifferentiateArgs(),
-		ContainerID:       metadata.GetContainerID(),
-		Start:             startTime,
-		End:               startTime.Add(timeout),
-		Size:              metadata.GetSize(),
-		Arch:              metadata.GetArch(),
+		ContainerID:       containerutils.ContainerID(metadata.GetContainerID()),
+		CGroupContext: model.CGroupContext{
+			CGroupID: containerutils.CGroupID(metadata.GetCGroupID()),
+		},
+		Start: startTime,
+		End:   startTime.Add(timeout),
+		Size:  metadata.GetSize(),
+		Arch:  metadata.GetArch(),
 	}
 	ad.LoadConfig = NewActivityDumpLoadConfig(
 		[]model.EventType{},
@@ -265,14 +268,26 @@ func (ad *ActivityDump) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
 	if ad.selector != nil && ad.selector.IsReady() {
 		return ad.selector
 	}
-	imageTag := utils.GetTagValue("image_tag", ad.Tags)
-	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), imageTag)
-	if err != nil {
-		return nil
+
+	var selector cgroupModel.WorkloadSelector
+	var err error
+	if ad.ContainerID != "" {
+		imageTag := utils.GetTagValue("image_tag", ad.Tags)
+		selector, err = cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), imageTag)
+		if err != nil {
+			return nil
+		}
+	} else if ad.CGroupContext.CGroupID != "" {
+		selector, err = cgroupModel.NewWorkloadSelector(utils.GetTagValue("service", ad.Tags), utils.GetTagValue("version", ad.Tags))
+		if err != nil {
+			return nil
+		}
+
 	}
+
 	ad.selector = &selector
-	// Once per workload, when tags are resolved and the firs time we successfully get the selector, tag all the existing nodes
-	ad.ActivityTree.TagAllNodes(imageTag)
+	// Once per workload, when tags are resolved and the first time we successfully get the selector, tag all the existing nodes
+	ad.ActivityTree.TagAllNodes(selector.Image)
 	return ad.selector
 }
 
@@ -354,7 +369,7 @@ func (ad *ActivityDump) nameMatches(name string) bool {
 }
 
 // containerIDMatches returns true if the ActivityDump container ID matches the provided container ID
-func (ad *ActivityDump) containerIDMatches(containerID string) bool {
+func (ad *ActivityDump) containerIDMatches(containerID containerutils.ContainerID) bool {
 	return ad.Metadata.ContainerID == containerID
 }
 
@@ -365,7 +380,13 @@ func (ad *ActivityDump) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 	}
 
 	if len(ad.Metadata.ContainerID) > 0 {
-		if !ad.containerIDMatches(string(entry.ContainerID)) {
+		if !ad.containerIDMatches(entry.ContainerID) {
+			return false
+		}
+	}
+
+	if len(ad.Metadata.CGroupContext.CGroupID) > 0 {
+		if entry.CGroup.CGroupID != ad.Metadata.CGroupContext.CGroupID {
 			return false
 		}
 	}
@@ -395,13 +416,13 @@ func (ad *ActivityDump) enable() error {
 		}
 	}
 
-	if len(ad.Metadata.ContainerID) > 0 {
+	if !ad.Metadata.CGroupContext.CGroupFile.IsNull() {
 		// insert container ID in traced_cgroups map (it might already exist, do not update in that case)
-		if err := ad.adm.tracedCgroupsMap.Update(ad.Metadata.ContainerID, ad.LoadConfigCookie, ebpf.UpdateNoExist); err != nil {
+		if err := ad.adm.tracedCgroupsMap.Update(ad.Metadata.CGroupContext.CGroupFile, ad.LoadConfigCookie, ebpf.UpdateNoExist); err != nil {
 			if !errors.Is(err, ebpf.ErrKeyExist) {
 				// delete activity dump load config
 				_ = ad.adm.activityDumpsConfigMap.Delete(ad.LoadConfigCookie)
-				return fmt.Errorf("couldn't push activity dump container ID %s: %w", ad.Metadata.ContainerID, err)
+				return fmt.Errorf("couldn't push activity dump cgroup ID %s: %w", ad.Metadata.CGroupContext.CGroupID, err)
 			}
 		}
 	}
@@ -448,12 +469,10 @@ func (ad *ActivityDump) disable() error {
 	}
 
 	// remove container ID from kernel space
-	if len(ad.Metadata.ContainerID) > 0 {
-		containerIDB := make([]byte, model.ContainerIDLen)
-		copy(containerIDB, ad.Metadata.ContainerID)
-		err := ad.adm.tracedCgroupsMap.Delete(containerIDB)
+	if !ad.Metadata.CGroupContext.CGroupFile.IsNull() {
+		err := ad.adm.tracedCgroupsMap.Delete(ad.Metadata.CGroupContext.CGroupFile)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
-			return fmt.Errorf("couldn't delete activity dump filter containerID(%s): %v", ad.Metadata.ContainerID, err)
+			return fmt.Errorf("couldn't delete activity dump filter cgroup %s: %v", ad.Metadata.CGroupContext.CGroupID, err)
 		}
 	}
 	return nil
@@ -575,6 +594,9 @@ func (ad *ActivityDump) getSelectorStr() string {
 	if len(ad.Metadata.ContainerID) > 0 {
 		tags = append(tags, fmt.Sprintf("container_id:%s", ad.Metadata.ContainerID))
 	}
+	if len(ad.Metadata.CGroupContext.CGroupID) > 0 {
+		tags = append(tags, fmt.Sprintf("cgroup_id:%s", ad.Metadata.CGroupContext.CGroupID))
+	}
 	if len(ad.Tags) > 0 {
 		for _, tag := range ad.Tags {
 			if !strings.HasPrefix(tag, "container_id") {
@@ -614,6 +636,8 @@ func (ad *ActivityDump) ResolveTags() error {
 	return ad.resolveTags()
 }
 
+const systemdSystemDir = "/usr/lib/systemd/system"
+
 // resolveTags thread unsafe version ot ResolveTags
 func (ad *ActivityDump) resolveTags() error {
 	selector := ad.GetWorkloadSelector()
@@ -621,10 +645,26 @@ func (ad *ActivityDump) resolveTags() error {
 		return nil
 	}
 
-	var err error
-	ad.Tags, err = ad.adm.resolvers.TagsResolver.ResolveWithErr(containerutils.ContainerID(ad.Metadata.ContainerID))
-	if err != nil {
-		return fmt.Errorf("failed to resolve %s: %w", ad.Metadata.ContainerID, err)
+	if len(ad.Metadata.ContainerID) > 0 {
+		var err error
+		if ad.Tags, err = ad.adm.resolvers.TagsResolver.ResolveWithErr(containerutils.ContainerID(ad.Metadata.ContainerID)); err != nil {
+			return fmt.Errorf("failed to resolve %s: %w", ad.Metadata.ContainerID, err)
+		}
+	} else if len(ad.Metadata.CGroupContext.CGroupID) > 0 {
+		systemdService := filepath.Base(string(ad.Metadata.CGroupContext.CGroupID))
+		serviceVersion := ""
+		servicePath := filepath.Join(systemdSystemDir, systemdService)
+
+		if ad.adm.resolvers.SBOMResolver != nil {
+			if pkg := ad.adm.resolvers.SBOMResolver.ResolvePackage("", &model.FileEvent{PathnameStr: servicePath}); pkg != nil {
+				serviceVersion = pkg.Version
+			}
+		}
+
+		ad.Tags = []string{
+			"service:" + systemdService,
+			"version:" + serviceVersion,
+		}
 	}
 
 	return nil
@@ -655,7 +695,8 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 			Name:              ad.Metadata.Name,
 			ProtobufVersion:   ad.Metadata.ProtobufVersion,
 			DifferentiateArgs: ad.Metadata.DifferentiateArgs,
-			ContainerID:       ad.Metadata.ContainerID,
+			ContainerID:       string(ad.Metadata.ContainerID),
+			CGroupID:          string(ad.Metadata.CGroupContext.CGroupID),
 			Start:             ad.Metadata.Start.Format(time.RFC822),
 			Timeout:           ad.LoadConfig.Timeout.String(),
 			Size:              ad.Metadata.Size,
@@ -669,6 +710,9 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 			FileNodesCount:    ad.ActivityTree.Stats.FileNodes,
 			DNSNodesCount:     ad.ActivityTree.Stats.DNSNodes,
 			SocketNodesCount:  ad.ActivityTree.Stats.SocketNodes,
+			IMDSNodesCount:    ad.ActivityTree.Stats.IMDSNodes,
+			SyscallNodesCount: ad.ActivityTree.Stats.SyscallNodes,
+			FlowNodesCount:    ad.ActivityTree.Stats.FlowNodes,
 			ApproximateSize:   ad.ActivityTree.Stats.ApproximateSize(),
 		}
 	}

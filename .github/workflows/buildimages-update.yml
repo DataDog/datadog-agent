@@ -35,7 +35,7 @@ jobs:
 
     steps:
       - name: Checkout branch
-        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           # credentials are needed to create the PR at the end of the workflow
           persist-credentials: true
@@ -53,7 +53,7 @@ jobs:
           fi
 
       - name: Checkout branch
-        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: ${{ steps.branch_fetch.outputs.RESULT == 'true' }}
         with:
           ref: ${{ inputs.branch }}
@@ -62,11 +62,10 @@ jobs:
       - name: Setup Python and pip
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          # use Python < 3.12 so that distutil is still available by default
-          python-version: 3.11
+          python-version-file: .python-version
           cache: "pip"
 
-      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
         with:
           # use the go version from the input, not from the .go-version file
           # in case it's a Go update PR

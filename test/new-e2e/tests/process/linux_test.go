@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
 type linuxTestSuite struct {
@@ -117,7 +117,7 @@ func (s *linuxTestSuite) TestProcessChecksInCoreAgent() {
 
 	// Verify that the process agent is not running
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		status := s.Env().RemoteHost.MustExecute("/opt/datadog-agent/embedded/bin/process-agent status")
+		status := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent status")
 		assert.Contains(c, status, "The Process Agent is not running")
 	}, 1*time.Minute, 5*time.Second)
 

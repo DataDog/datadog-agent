@@ -78,11 +78,16 @@ def run_golangci_lint(
             concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
             tags_arg = " ".join(sorted(set(tags)))
             timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
-            return ctx.run(
+            res = ctx.run(
                 f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
                 env=env,
                 warn=True,
             )
+            # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
+            # for some reason this becomes -2 here
+            if res is not None and (res.exited == -2 or res.exited == 130):
+                raise KeyboardInterrupt()
+            return res
 
         target_path = Path(module_path) / target
         result, time_result = TimedOperationResult.run(
@@ -217,6 +222,7 @@ def generate_protobuf(ctx):
         'workloadmeta': (False, False),
         'languagedetection': (False, False),
         'remoteagent': (False, False),
+        'autodiscovery': (False, False),
     }
 
     # maybe put this in a separate function
@@ -340,6 +346,14 @@ def generate_protobuf(ctx):
             patch_file = os.path.join(proto_root, "patches", patch[0])
             switches = patch[1] if patch[1] else ''
             ctx.run(f"git apply {switches} --unsafe-paths --directory='{pbgo_dir}/{pkg}' {patch_file}")
+
+    # Check the generated files were properly committed
+    updates = ctx.run("git status -suno").stdout.strip()
+    if updates:
+        raise Exit(
+            "Generated files were not properly committed. Please run `inv generate-protobuf` and commit the changes.",
+            code=1,
+        )
 
 
 @task

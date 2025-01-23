@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	sortutil "github.com/DataDog/datadog-agent/pkg/util/sort"
 
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
@@ -53,7 +53,7 @@ var supportedDeviceTypes = map[string]bool{
 // ReportNetworkDeviceMetadata reports device metadata
 func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata) {
 	tags := utils.CopyStrings(origTags)
-	tags = util.SortUniqInPlace(tags)
+	tags = sortutil.UniqInPlace(tags)
 
 	metadataStore := buildMetadataStore(config.Metadata, store)
 
@@ -210,8 +210,9 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 	}
 
 	// fallback to Device.Vendor for backward compatibility
-	if config.ProfileDef != nil && vendor == "" {
-		vendor = config.ProfileDef.Device.Vendor
+	profileDef := config.GetProfileDef()
+	if profileDef != nil && vendor == "" {
+		vendor = profileDef.Device.Vendor
 	}
 
 	return devicemetadata.DeviceMetadata{
@@ -222,7 +223,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		IPAddress:      config.IPAddress,
 		SysObjectID:    sysObjectID,
 		Location:       location,
-		Profile:        config.Profile,
+		Profile:        config.ProfileName,
 		ProfileVersion: getProfileVersion(config),
 		Vendor:         vendor,
 		Tags:           tags,
@@ -243,8 +244,9 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 
 func getProfileVersion(config *checkconfig.CheckConfig) uint64 {
 	var profileVersion uint64
-	if config.ProfileDef != nil {
-		profileVersion = config.ProfileDef.Version
+	profileDef := config.GetProfileDef()
+	if profileDef != nil {
+		profileVersion = profileDef.Version
 	}
 	return profileVersion
 }
@@ -383,8 +385,9 @@ func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store
 		remEntryUniqueID := localPortNum + "." + lldpRemIndex
 
 		newLink := devicemetadata.TopologyLinkMetadata{
-			ID:         deviceID + ":" + remEntryUniqueID,
-			SourceType: topologyLinkSourceTypeLLDP,
+			ID:          deviceID + ":" + remEntryUniqueID,
+			SourceType:  topologyLinkSourceTypeLLDP,
+			Integration: common.SnmpIntegrationName,
 			Remote: &devicemetadata.TopologyLinkSide{
 				Device: &devicemetadata.TopologyLinkDevice{
 					Name:        store.GetColumnAsString("lldp_remote.device_name", strIndex),
@@ -444,8 +447,9 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 		remEntryUniqueID := cdpCacheIfIndex + "." + cdpCacheDeviceIndex
 
 		newLink := devicemetadata.TopologyLinkMetadata{
-			ID:         deviceID + ":" + remEntryUniqueID,
-			SourceType: topologyLinkSourceTypeCDP,
+			ID:          deviceID + ":" + remEntryUniqueID,
+			SourceType:  topologyLinkSourceTypeCDP,
+			Integration: common.SnmpIntegrationName,
 			Remote: &devicemetadata.TopologyLinkSide{
 				Device: &devicemetadata.TopologyLinkDevice{
 					Name:        store.GetColumnAsString("cdp_remote.device_name", strIndex),

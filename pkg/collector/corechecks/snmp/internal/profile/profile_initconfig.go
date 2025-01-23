@@ -17,6 +17,9 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 				log.Warnf("unable to load profile %q: %s", name, err)
 				continue
 			}
+			if profDefinition.Name == "" {
+				profDefinition.Name = name
+			}
 			profConfig.Definition = *profDefinition
 		}
 		initConfigProfiles[name] = profConfig

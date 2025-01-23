@@ -26,6 +26,7 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
     GITHUB_REPO_NAME,
 )
+from tasks.libs.common.datadog_api import get_ci_pipeline_events
 from tasks.libs.common.git import (
     check_base_branch,
     check_clean_branch_state,
@@ -34,6 +35,7 @@ from tasks.libs.common.git import (
     get_last_commit,
     get_last_release_tag,
     is_agent6,
+    set_git_config,
     try_git_command,
 )
 from tasks.libs.common.gomodules import get_default_modules
@@ -62,17 +64,17 @@ from tasks.libs.releasing.json import (
     set_new_release_branch,
     update_release_json,
 )
-from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude
 from tasks.libs.releasing.version import (
     MINOR_RC_VERSION_RE,
     RC_VERSION_RE,
     VERSION_RE,
     _create_version_from_match,
     current_version,
+    deduce_version,
+    get_version_major,
     next_final_version,
     next_rc_version,
 )
-from tasks.libs.types.version import Version
 from tasks.pipeline import edit_schedule, run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
@@ -82,63 +84,7 @@ GITLAB_FILES_TO_UPDATE = [
 ]
 
 BACKPORT_LABEL_COLOR = "5319e7"
-
-
-def deduce_and_ask_version(ctx, branch, as_str=True, trust=False) -> str | Version:
-    release_version = get_next_version_from_branch(ctx, branch, as_str=as_str)
-
-    if trust:
-        return release_version
-
-    if yes_no_question(
-        f'Version {release_version} deduced from branch {branch}. Is this the version you want to use?',
-        color="orange",
-        default=False,
-    ):
-        return release_version
-
-    raise Exit(color_message("Aborting.", "red"), code=1)
-
-
-def get_version_major(branch: str) -> int:
-    """Get the major version from a branch name."""
-
-    return 7 if branch == 'main' else int(branch.split('.')[0])
-
-
-def get_all_version_tags(ctx) -> list[str]:
-    """Returns the tags for all the versions of the Agent in git."""
-
-    cmd = "bash -c 'git tag | grep -E \"^[0-9]\\.[0-9]+\\.[0-9]+$\"'"
-
-    return ctx.run(cmd, hide=True).stdout.strip().split('\n')
-
-
-def get_next_version_from_branch(ctx, branch: str, as_str=True) -> str | Version:
-    """Returns the latest version + 1 belonging to a branch.
-
-    Example:
-        get_latest_version_from_branch("7.55.x") -> Version(7, 55, 4) if there are 7.55.0, 7.55.1, 7.55.2, 7.55.3 tags.
-        get_latest_version_from_branch("6.99.x") -> Version(6, 99, 0) if there are no 6.99.* tags.
-    """
-
-    re_branch = re.compile(r"^([0-9]\.[0-9]+\.)x$")
-
-    try:
-        matched = re_branch.match(branch).group(1)
-    except Exception as e:
-        raise Exit(
-            f'{color_message("Error:", "red")}: Branch {branch} is not a release branch (should be X.Y.x)', code=1
-        ) from e
-
-    tags = [tuple(map(int, tag.split('.'))) for tag in get_all_version_tags(ctx) if tag.startswith(matched)]
-    versions = sorted(Version(*tag) for tag in tags)
-
-    minor, major = tuple(map(int, branch.split('.')[:2]))
-
-    latest = versions[-1].next_version(bump_patch=True) if versions else Version(minor, major, 0)
-
-    return str(latest) if as_str else latest
+TAG_BATCH_SIZE = 3
 
 
 @task
@@ -170,13 +116,20 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
 
     assert release_branch or version
 
-    agent_version = version or deduce_and_ask_version(ctx, release_branch, trust=trust)
+    agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         modules = get_default_modules()
         for module in modules.values():
             for dependency in module.dependencies:
                 dependency_mod = modules[dependency]
+                if (
+                    agent_version.startswith('6')
+                    and 'pkg/util/optional' in dependency_mod.dependency_path(agent_version)
+                    and 'test/new-e2e' in module.go_mod_path()
+                ):
+                    # Skip this dependency update in new-e2e for Agent 6, as it's incompatible.
+                    continue
                 ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
 
 
@@ -235,7 +188,7 @@ def tag_modules(
 
     assert release_branch or version
 
-    agent_version = version or deduce_and_ask_version(ctx, release_branch, trust=trust)
+    agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
     tags = []
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
@@ -248,7 +201,9 @@ def tag_modules(
 
         if push:
             tags_list = ' '.join(tags)
-            ctx.run(f"git push origin {tags_list}{force_option}")
+            for idx in range(0, len(tags), TAG_BATCH_SIZE):
+                batch_tags = tags[idx : idx + TAG_BATCH_SIZE]
+                ctx.run(f"git push origin {' '.join(batch_tags)}{force_option}")
             print(f"Pushed tag {tags_list}")
         print(f"Created module tags for version {agent_version}")
 
@@ -274,7 +229,7 @@ def tag_version(
 
     assert release_branch or version
 
-    agent_version = version or deduce_and_ask_version(ctx, release_branch, trust=trust)
+    agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
     # Always tag the main module
     force_option = __get_force_option(force)
@@ -353,24 +308,7 @@ def finish(ctx, release_branch, upstream="origin"):
                 code=1,
             )
 
-        # Step 4: Add release changelog preludes
-        print(color_message("Adding Agent release changelog prelude", "bold"))
-        _add_prelude(ctx, str(new_version))
-
-        print(color_message("Adding DCA release changelog prelude", "bold"))
-        _add_dca_prelude(ctx, str(new_version))
-
-        ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually, push the {final_branch} branch and then open a PR against {final_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        # Step 5: Push branch and create PR
+        # Step 4: Push branch and create PR
         print(color_message("Pushing new branch to the upstream repository", "bold"))
         res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
         if res.exited is None or res.exited > 0:
@@ -383,7 +321,7 @@ def finish(ctx, release_branch, upstream="origin"):
             )
 
         create_release_pr(
-            f"Final updates for release.json and Go modules for {new_version} release + preludes",
+            f"Final updates for release.json and Go modules for {new_version} release",
             release_branch,
             final_branch,
             new_version,
@@ -427,11 +365,16 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
         release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
-
     major_version = get_version_major(release_branch)
 
     with agent_context(ctx, release_branch):
         github = GithubAPI(repository=GITHUB_REPO_NAME)
+        github_action = os.environ.get("GITHUB_ACTIONS")
+
+        if github_action:
+            set_git_config('user.name', 'github-actions[bot]')
+            set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
+            upstream = f"https://x-access-token:{os.environ.get('GITHUB_TOKEN')}@github.com/{GITHUB_REPO_NAME}.git"
 
         # Get the version of the highest major: useful for some logging & to get
         # the version to use for Go submodules updates
@@ -451,10 +394,11 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         update_branch = f"release/{new_highest_version}-{int(time.time())}"
 
         check_clean_branch_state(ctx, github, update_branch)
-        if not check_base_branch(release_branch, new_highest_version):
+        active_releases = [branch.name for branch in github.latest_unreleased_release_branches()]
+        if not any(check_base_branch(release_branch, unreleased_branch) for unreleased_branch in active_releases):
             raise Exit(
                 color_message(
-                    f"The branch you are on is neither {get_default_branch()} or the correct release branch ({new_highest_version.branch()}). Aborting.",
+                    f"The branch you are on is neither {get_default_branch()} or amongst the active release branches ({active_releases}). Aborting.",
                     "red",
                 ),
                 code=1,
@@ -463,12 +407,6 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         # Step 1: Update release entries
         print(color_message("Updating release entries", "bold"))
         new_version = next_rc_version(ctx, major_version, patch_version)
-        if not yes_no_question(
-            f'Do you want to create release candidate with:\n- new version: {new_version}\n- new highest version: {new_highest_version}\n- new final version: {new_final_version}?',
-            color="bold",
-            default=False,
-        ):
-            raise Exit(color_message("Aborting.", "red"), code=1)
 
         update_release_json(new_version, new_final_version)
 
@@ -492,7 +430,9 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
         ok = try_git_command(
-            ctx, f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'"
+            ctx,
+            f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'",
+            github_action,
         )
         if not ok:
             raise Exit(
@@ -528,8 +468,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
                 "pr_url": pr_url,
                 "version": str(new_highest_version),
             }
-
-            ctx.run(f"curl -X POST -H 'Content-Type: application/json' --data '{json.dumps(payload)}' {slack_webhook}")
+            send_slack_msg(ctx, payload, slack_webhook)
 
 
 @task
@@ -561,7 +500,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
         print(color_message("Checking repository state", "bold"))
 
         # Check that the base branch is valid
-        if not check_base_branch(release_branch, new_version):
+        if not check_base_branch(release_branch, new_version.branch()):
             raise Exit(
                 color_message(
                     f"The branch you are on is neither {get_default_branch()} or the correct release branch ({new_version.branch()}). Aborting.",
@@ -620,7 +559,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
-def set_release_json(ctx, key, value, release_branch=None, skip_checkout=False, worktree=True):
+def set_release_json(ctx, key, value, release_branch=None, skip_checkout=False, worktree=False):
     def _main():
         nonlocal key
 
@@ -724,10 +663,8 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
 
     current = current_version(ctx, major_version)
-    next = current.next_version(bump_minor=True)
     current.rc = False
     current.devel = False
-    next.devel = False
 
     # Strings with proper branch/tag names
     release_branch = current.branch()
@@ -762,46 +699,11 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
             f'backport/{release_branch}',
             BACKPORT_LABEL_COLOR,
             f'Automatically create a backport PR to {release_branch}',
+            exist_ok=True,
         )
 
         # Step 2 - Create PRs with new settings in datadog-agent repository
-        # Step 2.0 - Create milestone update
-        milestone_branch = f"release_milestone-{int(time.time())}"
-        ctx.run(f"git switch -c {milestone_branch}")
-        rj = load_release_json()
-        rj["current_milestone"] = f"{next}"
-        _save_release_json(rj)
-        # Commit release.json
-        ctx.run("git add release.json")
-        ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
-
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually and push the commit to the {milestone_branch} branch.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        res = ctx.run(f"git push --set-upstream {upstream} {milestone_branch}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push branch {milestone_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        create_release_pr(
-            f"[release] Update current milestone to {next}",
-            get_default_branch(),
-            milestone_branch,
-            next,
-        )
-
-        # Step 2.1 - Update release.json
+        # Step 2.0 - Update release.json
         update_branch = f"{release_branch}-updates"
 
         ctx.run(f"git checkout {release_branch}")
@@ -868,10 +770,6 @@ def _update_last_stable(_, version, major_version: int = 7):
     return release_json["current_milestone"]
 
 
-def _get_agent6_latest_release(gh):
-    return max((r for r in gh.get_releases() if r.title.startswith('6.53')), key=lambda r: r.created_at).title
-
-
 @task
 def cleanup(ctx, release_branch):
     """Perform the post release cleanup steps
@@ -881,13 +779,13 @@ def cleanup(ctx, release_branch):
       - Updates the release.json last_stable fields
     """
 
-    with agent_context(ctx, release_branch):
+    # This task will create a PR to update the last_stable field in release.json
+    # It must create the PR against the default branch (6 or 7), so setting the context on it
+    main_branch = get_default_branch()
+    with agent_context(ctx, main_branch):
         gh = GithubAPI()
         major_version = get_version_major(release_branch)
-        if major_version == 6:
-            latest_release = _get_agent6_latest_release(gh)
-        else:
-            latest_release = gh.latest_release()
+        latest_release = gh.latest_release(major_version)
         match = VERSION_RE.search(latest_release)
         if not match:
             raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
@@ -896,7 +794,6 @@ def cleanup(ctx, release_branch):
         current_milestone = _update_last_stable(ctx, version, major_version=major_version)
 
         # create pull request to update last stable version
-        main_branch = get_default_branch()
         cleanup_branch = f"release/{version}-cleanup"
         ctx.run(f"git checkout -b {cleanup_branch}")
         ctx.run("git add release.json")
@@ -1065,7 +962,7 @@ def get_active_release_branch(ctx, release_branch):
 
     with agent_context(ctx, branch=release_branch):
         gh = GithubAPI()
-        next_version = get_next_version(gh, latest_release=_get_agent6_latest_release(gh) if is_agent6(ctx) else None)
+        next_version = get_next_version(gh, latest_release=gh.latest_release(6) if is_agent6(ctx) else None)
         release_branch = gh.get_branch(next_version.branch())
         if release_branch:
             print(f"{release_branch.name}")
@@ -1127,17 +1024,17 @@ def generate_release_metrics(ctx, milestone, freeze_date, release_date):
 
 
 @task
-def create_schedule(_, version, freeze_date):
+def create_schedule(_, version, cutoff_date):
     """Create confluence pages for the release schedule.
 
     Args:
-        freeze_date: Date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+        cutoff_date: Date when the code cut-off happened. Expected format YYYY-MM-DD, like '2022-02-01'
     """
 
     required_environment_variables = ["ATLASSIAN_USERNAME", "ATLASSIAN_PASSWORD"]
     if not all(key in os.environ for key in required_environment_variables):
         raise Exit(f"You must set {required_environment_variables} environment variables to use this task.", code=1)
-    release_page = create_release_page(version, date.fromisoformat(freeze_date))
+    release_page = create_release_page(version, date.fromisoformat(cutoff_date))
     print(f"Release schedule pages {release_page['url']} {color_message('successfully created', 'green')}")
 
 
@@ -1257,7 +1154,7 @@ def create_github_release(ctx, release_branch, draft=True):
     )
 
     notes = []
-    version = deduce_and_ask_version(ctx, release_branch)
+    version = deduce_version(ctx, release_branch, next_version=False)
 
     with agent_context(ctx, release_branch):
         for section, filename in sections:
@@ -1296,3 +1193,89 @@ def create_github_release(ctx, release_branch, draft=True):
         )
 
         print(f"Link to the release note: {release.html_url}")
+
+
+@task
+def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
+    """
+    Create a PR to bump the current_milestone in the release.json file
+    """
+
+    gh = GithubAPI()
+
+    current = current_version(ctx, major_version)
+    next = current.next_version(bump_minor=True)
+    next.devel = False
+
+    print(f"Creating the {next} milestone...")
+    gh.create_milestone(str(next), exist_ok=True)
+
+    with agent_context(ctx, get_default_branch(major=major_version)):
+        milestone_branch = f"release_milestone-{int(time.time())}"
+        ctx.run(f"git switch -c {milestone_branch}")
+        rj = load_release_json()
+        rj["current_milestone"] = f"{next}"
+        _save_release_json(rj)
+        # Commit release.json
+        ctx.run("git add release.json")
+        ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
+
+        if not ok:
+            raise Exit(
+                color_message(
+                    f"Could not create commit. Please commit manually and push the commit to the {milestone_branch} branch.",
+                    Color.RED,
+                ),
+                code=1,
+            )
+
+        res = ctx.run(f"git push --set-upstream {upstream} {milestone_branch}", warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    f"Could not push branch {milestone_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against main.",
+                    Color.RED,
+                ),
+                code=1,
+            )
+
+        create_release_pr(
+            f"[release] Update current milestone to {next}",
+            get_default_branch(),
+            milestone_branch,
+            next,
+        )
+
+
+def send_slack_msg(ctx, payload, webhook):
+    ctx.run(f'curl -X POST -H "Content-Type: application/json" --data "{payload}" {webhook}')
+
+
+@task
+def check_previous_agent6_rc(ctx):
+    """
+    Validates that there are no existing Agent 6 release candidate pull requests
+    and checks if an Agent 6 build pipeline has been run in the past week
+    """
+    err_msg = ""
+    agent6_prs = ""
+    github = GithubAPI()
+    prs = github.get_pr_for_branch(None, "6.53.x")
+    for pr in prs:
+        if "Update release.json and Go modules for 6.53" in pr.title and not pr.draft:
+            agent6_prs += f"\n- {pr.title}: https://github.com/DataDog/datadog-agent/pull/{pr.number}"
+    if agent6_prs:
+        err_msg += "AGENT 6 ERROR: The following Agent 6 release candidate PRs already exist. Please address these PRs before creating a new release candidate"
+        err_msg += agent6_prs
+
+    response = get_ci_pipeline_events(
+        'ci_level:pipeline @ci.pipeline.name:"DataDog/datadog-agent" @git.tag:6.53.* -@ci.pipeline.downstream:true',
+        7,
+    )
+    if not response.data:
+        err_msg += "\nAGENT 6 ERROR: No Agent 6 build pipelines have run in the past week. Please trigger a build pipeline for the next agent 6 release candidate."
+
+    if err_msg:
+        payload = {'message': err_msg}
+        send_slack_msg(ctx, payload, os.environ.get("SLACK_DATADOG_AGENT_CI_WEBHOOK"))
+        raise Exit(message=err_msg, code=1)

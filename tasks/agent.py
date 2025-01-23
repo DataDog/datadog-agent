@@ -17,10 +17,17 @@ from invoke.exceptions import Exit
 from tasks.build_tags import add_fips_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
+from tasks.gointegrationtest import (
+    CORE_AGENT_LINUX_IT_CONF,
+    CORE_AGENT_WINDOWS_IT_CONF,
+    containerized_integration_tests,
+)
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
+    get_embedded_path,
+    get_goenv,
     get_version,
     gitlab_section,
 )
@@ -75,7 +82,6 @@ AGENT_CORECHECKS = [
     "systemd",
     "tcp_queue_length",
     "uptime",
-    "winproc",
     "jetson",
     "telemetry",
     "orchestrator_pod",
@@ -83,6 +89,7 @@ AGENT_CORECHECKS = [
     "cisco_sdwan",
     "network_path",
     "service_discovery",
+    "gpu",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -91,6 +98,7 @@ WINDOWS_CORECHECKS = [
     "windows_registry",
     "winkmem",
     "wincrashdetect",
+    "winproc",
     "win32_event_log",
 ]
 
@@ -113,7 +121,7 @@ CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_F
 LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"
 
 
-@task
+@task(iterable=['bundle'])
 @run_on_devcontainer
 def build(
     ctx,
@@ -134,6 +142,8 @@ def build(
     go_mod="readonly",
     windows_sysprobe=False,
     cmake_options='',
+    bundle=None,
+    bundle_ebpf=False,
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
@@ -167,12 +177,12 @@ def build(
         major_version=major_version,
     )
 
+    bundled_agents = ["agent"]
     if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 
         build_messagetable(ctx)
-
         # Do not call build_rc when cross-compiling on Linux as the intend is more
         # to streamline the development process that producing a working executable / installer
         if sys.platform == 'win32':
@@ -183,20 +193,31 @@ def build(
                 vars=vars,
                 out="cmd/agent/rsrc.syso",
             )
+    else:
+        bundled_agents += bundle or []
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
         build_tags = get_default_build_tags(build="agent", flavor=flavor)
     else:
-        include_tags = (
-            get_default_build_tags(build="agent", flavor=flavor)
-            if build_include is None
-            else filter_incompatible_tags(build_include.split(","))
-        )
+        all_tags = set()
+        if bundle_ebpf and "system-probe" in bundled_agents:
+            all_tags.add("ebpf_bindata")
 
-        exclude_tags = [] if build_exclude is None else build_exclude.split(",")
-        build_tags = get_build_tags(include_tags, exclude_tags)
-        build_tags = add_fips_tags(build_tags, fips_mode)
+        for build in bundled_agents:
+            all_tags.add("bundle_" + build.replace("-", "_"))
+            include_tags = (
+                get_default_build_tags(build=build, flavor=flavor)
+                if build_include is None
+                else filter_incompatible_tags(build_include.split(","))
+            )
+
+            exclude_tags = [] if build_exclude is None else build_exclude.split(",")
+            build_tags = get_build_tags(include_tags, exclude_tags)
+            build_tags = add_fips_tags(build_tags, fips_mode)
+
+            all_tags |= set(build_tags)
+        build_tags = list(all_tags)
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
@@ -221,6 +242,23 @@ def build(
     with gitlab_section("Build agent", collapsed=True):
         ctx.run(cmd.format(**args), env=env)
 
+    if embedded_path is None:
+        embedded_path = get_embedded_path(ctx)
+        assert embedded_path, "Failed to find embedded path"
+
+    for build in bundled_agents:
+        if build == "agent":
+            continue
+
+        bundled_agent_dir = os.path.join(BIN_DIR, build)
+        bundled_agent_bin = os.path.join(bundled_agent_dir, bin_name(build))
+        agent_fullpath = os.path.normpath(os.path.join(embedded_path, "..", "bin", "agent", bin_name("agent")))
+
+        if not os.path.exists(os.path.dirname(bundled_agent_bin)):
+            os.mkdir(os.path.dirname(bundled_agent_bin))
+
+        create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
+
     with gitlab_section("Generate configuration files", collapsed=True):
         render_config(
             ctx,
@@ -231,6 +269,22 @@ def build(
             development=development,
             windows_sysprobe=windows_sysprobe,
         )
+
+
+def create_launcher(ctx, agent, src, dst):
+    cc = get_goenv(ctx, "CC")
+    if not cc:
+        print("Failed to find C compiler")
+        raise Exit(code=1)
+
+    cmd = "{cc} -DDD_AGENT_PATH='\"{agent_bin}\"' -DDD_AGENT='\"{agent}\"' -o {launcher_bin} ./cmd/agent/launcher/launcher.c"
+    args = {
+        "cc": cc,
+        "agent": agent,
+        "agent_bin": src,
+        "launcher_bin": dst,
+    }
+    ctx.run(cmd.format(**args))
 
 
 def render_config(ctx, env, flavor, skip_assets, build_tags, development, windows_sysprobe):
@@ -299,9 +353,8 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
             shutil.copytree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir, dirs_exist_ok=True)
 
-    if "apm" in build_tags:
+    if sys.platform == 'darwin':
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
-    if "process" in build_tags:
         shutil.copy(
             "./cmd/agent/dist/conf.d/process_agent.yaml.default",
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
@@ -530,79 +583,18 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", t
     """
     Run integration tests for the Agent
     """
-
     if sys.platform == 'win32':
-        return _windows_integration_tests(ctx, race=race, go_mod=go_mod, timeout=timeout)
-    else:
-        # TODO: See if these will function on Windows
-        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, timeout=timeout)
-
-
-def _windows_integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
-    test_args = {
-        "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test")),
-        "race_opt": "-race" if race else "",
-        "exec_opts": "",
-        "timeout_opt": f"-timeout {timeout}" if timeout else "",
-    }
-
-    go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
-
-    tests = [
-        {
-            # Run eventlog tests with the Windows API, which depend on the EventLog service
-            "dir": "./pkg/util/winutil/",
-            'prefix': './eventlog/...',
-            'extra_args': '-evtapi Windows',
-        },
-        {
-            # Run eventlog tailer tests with the Windows API, which depend on the EventLog service
-            "dir": ".",
-            'prefix': './pkg/logs/tailers/windowsevent/...',
-            'extra_args': '-evtapi Windows',
-        },
-        {
-            # Run eventlog check tests with the Windows API, which depend on the EventLog service
-            "dir": ".",
-            # Don't include submodules, since the `-evtapi` flag is not defined in them
-            'prefix': './comp/checks/windowseventlog/windowseventlogimpl/check',
-            'extra_args': '-evtapi Windows',
-        },
-    ]
-
-    for test in tests:
-        with ctx.cd(f"{test['dir']}"):
-            ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
-
-
-def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
-    test_args = {
-        "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test")),
-        "race_opt": "-race" if race else "",
-        "exec_opts": "",
-        "timeout_opt": f"-timeout {timeout}" if timeout else "",
-    }
-
-    # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
-    # to the call, we don't want them because while calling invoke below, invoke
-    # thinks that the parameters are for it to interpret.
-    # we're calling an intermediate script which only pass the binary name to the invoke task.
-    if remote_docker:
-        test_args["exec_opts"] = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
-
-    go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
-
-    prefixes = [
-        "./test/integration/config_providers/...",
-        "./test/integration/corechecks/...",
-        "./test/integration/listeners/...",
-        "./test/integration/util/kubelet/...",
-    ]
-
-    for prefix in prefixes:
-        ctx.run(f"{go_cmd} {prefix}")
+        return containerized_integration_tests(
+            ctx, CORE_AGENT_WINDOWS_IT_CONF, race=race, go_mod=go_mod, timeout=timeout
+        )
+    return containerized_integration_tests(
+        ctx,
+        CORE_AGENT_LINUX_IT_CONF,
+        race=race,
+        remote_docker=remote_docker,
+        go_mod=go_mod,
+        timeout=timeout,
+    )
 
 
 def check_supports_python_version(check_dir, python):

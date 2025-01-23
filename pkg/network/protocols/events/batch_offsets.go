@@ -40,7 +40,7 @@ func newOffsetManager(numCPUS int) *offsetManager {
 }
 
 // Get returns the data offset that hasn't been consumed yet for a given batch
-func (o *offsetManager) Get(cpu int, batch *batch, syncing bool) (begin, end int) {
+func (o *offsetManager) Get(cpu int, batch *Batch, syncing bool) (begin, end int) {
 	o.mux.Lock()
 	defer o.mux.Unlock()
 	state := o.stateByCPU[cpu]
@@ -85,6 +85,6 @@ func (o *offsetManager) NextBatchID(cpu int) int {
 	return o.stateByCPU[cpu].nextBatchID
 }
 
-func batchComplete(b *batch) bool {
+func batchComplete(b *Batch) bool {
 	return b.Cap > 0 && b.Len == b.Cap
 }

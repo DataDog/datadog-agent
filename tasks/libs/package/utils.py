@@ -1,5 +1,6 @@
 import glob
 import json
+import os
 
 from invoke import Exit, UnexpectedExit
 
@@ -11,7 +12,69 @@ from tasks.libs.notify.utils import AWS_S3_CP_CMD
 PACKAGE_SIZE_S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/package_size"
 
 
-def get_package_path(glob_pattern):
+class PackageSize:
+    def __init__(self, arch, flavor, os_name, threshold):
+        self.arch = arch
+        self.flavor = flavor
+        self.os = os_name
+        self.size = 0
+        self.ancestor_size = 0
+        self.diff = 0
+        self.mb_diff = 0
+        self.threshold = threshold
+        self.emoji = "✅"
+
+    @property
+    def name(self):
+        return f"{self.flavor}-{self.arch}-{self.os}"
+
+    def arch_name(self):
+        if self.arch in ["x86_64", "amd64"]:
+            return "amd"
+        return "arm"
+
+    def ko(self):
+        return self.diff > self.threshold
+
+    def path(self):
+        if self.os == 'suse':
+            dir = os.environ['OMNIBUS_PACKAGE_DIR_SUSE']
+            return f'{dir}/{self.flavor}-7*{self.arch}.rpm'
+        else:
+            dir = os.environ['OMNIBUS_PACKAGE_DIR']
+            separator = '_' if self.os == 'deb' else '-'
+            return f'{dir}/{self.flavor}{separator}7*{self.arch}.{self.os}'
+
+    def compare(self, size, ancestor_size):
+        self.size = size
+        self.ancestor_size = ancestor_size
+        self.diff = self.size - self.ancestor_size
+        self.mb_diff = float(f"{self.diff / pow(10, 6):.2f}")
+        if self.ko():
+            self.emoji = "❌"
+        elif self.mb_diff > 0:
+            self.emoji = "⚠️"
+
+    @staticmethod
+    def mb(value):
+        return f"{value / 1e6:.2f}MB"
+
+    def log(self):
+        return f"{self.emoji} - {self.name} size {self.mb(self.size)}: {self.mb(self.diff)} diff[{self.diff}] with previous {self.mb(self.ancestor_size)} (max: {self.mb(self.threshold)})"
+
+    def markdown(self):
+        elements = (
+            self.name,
+            self.mb(self.diff),
+            self.emoji,
+            self.mb(self.size),
+            self.mb(self.ancestor_size),
+            self.mb(self.threshold),
+        )
+        return f'|{"|".join(map(str, elements))}|'
+
+
+def find_package(glob_pattern):
     package_paths = glob.glob(glob_pattern)
     if len(package_paths) > 1:
         raise Exit(code=1, message=color_message(f"Too many files matching {glob_pattern}: {package_paths}", "red"))
@@ -85,7 +148,7 @@ def get_ancestor(ctx, package_sizes, on_main):
     """
     ancestor = get_common_ancestor(ctx, "HEAD")
     if not on_main and ancestor not in package_sizes:
-        return min(package_sizes, key=lambda x: package_sizes[x]['timestamp'])
+        return max(package_sizes, key=lambda x: package_sizes[x]['timestamp'])
     return ancestor
 
 
@@ -102,5 +165,7 @@ def display_message(ctx, ancestor, rows, decision):
 
 ## Decision
 {decision}
+
+{"Currently this PR is blocked, you can reach out to #agent-delivery-help to get support/ask for an exception." if "❌" in decision else ""}
 """
-    pr_commenter(ctx, title="Package size comparison", body=message)
+    pr_commenter(ctx, title="Uncompressed package size comparison", body=message)

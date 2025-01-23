@@ -48,7 +48,7 @@ jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-delivery"
 github_labels = ["team/agent-delivery"]
-exclude_members = ["hithwen"]
+exclude_members = ["KSerrania"]
 
 [teams."Universal Service Monitoring"]
 jira_project = "USMON"
@@ -102,14 +102,6 @@ jira_statuses = ["Backlog", "In Progress", "Done"]
 github_team = "agent-integrations"
 github_labels = ["team/integrations"]
 exclude_members = ["ofek", "alopezz"]
-
-[teams."Platform Integrations"]
-jira_project = "PLINT"
-jira_issue_type = "Task"
-jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "platform-integrations"
-github_labels = ["team/platform-integrations"]
-exclude_members = ["hithwen"]
 
 [teams."APM"]
 jira_project = "APMSP"
@@ -176,12 +168,12 @@ jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-cspm"
 github_labels = ["team/agent-cspm"]
 
-[teams."Processes"]
-jira_project = "PROCS"
+[teams."Container Intake"]
+jira_project = "CTK"
 jira_issue_type = "Task"
 jira_statuses = ["TRIAGE", "In Progress", "Done"]
-github_team = "processes"
-github_labels = ["team/processes"]
+github_team = "container-intake"
+github_labels = ["team/container-intake"]
 
 [teams."Windows Agent"]
 jira_project = "WINA"

@@ -22,7 +22,6 @@ import (
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
@@ -41,13 +40,13 @@ func NewInstallerExec(env *env.Env, installerBinPath string) *InstallerExec {
 
 type installerCmd struct {
 	*exec.Cmd
-	span tracer.Span
+	span *telemetry.Span
 	ctx  context.Context
 }
 
 func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, args ...string) *installerCmd {
 	env := i.env.ToEnv()
-	span, ctx := tracer.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
+	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
 	span.SetTag("args", args)
 	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
 	env = append(os.Environ(), env...)
@@ -58,7 +57,7 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 			return cmd.Process.Signal(os.Interrupt)
 		}
 	}
-	env = append(env, telemetry.EnvFromSpanContext(span.Context())...)
+	env = append(env, telemetry.EnvFromContext(ctx)...)
 	cmd.Env = env
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -72,14 +71,14 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 // Install installs a package.
 func (i *InstallerExec) Install(ctx context.Context, url string, _ []string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "install", url)
-	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
 // Remove removes a package.
 func (i *InstallerExec) Remove(ctx context.Context, pkg string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "remove", pkg)
-	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
@@ -91,70 +90,70 @@ func (i *InstallerExec) Purge(_ context.Context) {
 // InstallExperiment installs an experiment.
 func (i *InstallerExec) InstallExperiment(ctx context.Context, url string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "install-experiment", url)
-	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
 // RemoveExperiment removes an experiment.
 func (i *InstallerExec) RemoveExperiment(ctx context.Context, pkg string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "remove-experiment", pkg)
-	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
 // PromoteExperiment promotes an experiment to stable.
 func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "promote-experiment", pkg)
-	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
 // InstallConfigExperiment installs an experiment.
-func (i *InstallerExec) InstallConfigExperiment(ctx context.Context, url string, version string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "install-config-experiment", url, version)
-	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+func (i *InstallerExec) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) (err error) {
+	cmd := i.newInstallerCmd(ctx, "install-config-experiment", pkg, version, string(rawConfig))
+	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
 // RemoveConfigExperiment removes an experiment.
 func (i *InstallerExec) RemoveConfigExperiment(ctx context.Context, pkg string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "remove-config-experiment", pkg)
-	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
 // PromoteConfigExperiment promotes an experiment to stable.
 func (i *InstallerExec) PromoteConfigExperiment(ctx context.Context, pkg string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "promote-config-experiment", pkg)
-	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
 // GarbageCollect runs the garbage collector.
 func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	cmd := i.newInstallerCmd(ctx, "garbage-collect")
-	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
 // InstrumentAPMInjector instruments the APM auto-injector.
 func (i *InstallerExec) InstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "apm instrument", method)
-	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
 // UninstrumentAPMInjector uninstruments the APM auto-injector.
 func (i *InstallerExec) UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "apm uninstrument", method)
-	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
 // IsInstalled checks if a package is installed.
 func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, err error) {
 	cmd := i.newInstallerCmd(ctx, "is-installed", pkg)
-	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	defer func() { cmd.span.Finish(err) }()
 	err = cmd.Run()
 	if err != nil && cmd.ProcessState.ExitCode() == 10 {
 		return false, nil
@@ -168,7 +167,7 @@ func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, er
 // DefaultPackages returns the default packages to install.
 func (i *InstallerExec) DefaultPackages(ctx context.Context) (_ []string, err error) {
 	cmd := i.newInstallerCmd(ctx, "default-packages")
-	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	defer func() { cmd.span.Finish(err) }()
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -190,7 +189,7 @@ func (i *InstallerExec) DefaultPackages(ctx context.Context) (_ []string, err er
 // Setup runs the setup command.
 func (i *InstallerExec) Setup(ctx context.Context) (err error) {
 	cmd := i.newInstallerCmd(ctx, "setup")
-	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	defer func() { cmd.span.Finish(err) }()
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	err = cmd.Run()
@@ -252,5 +251,5 @@ func (iCmd *installerCmd) Run() error {
 	}
 
 	installerError := installerErrors.FromJSON(strings.TrimSpace(errBuf.String()))
-	return fmt.Errorf("run failed: %v \n%s", installerError, err.Error())
+	return fmt.Errorf("run failed: %w \n%s", installerError, err.Error())
 }

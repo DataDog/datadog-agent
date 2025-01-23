@@ -43,7 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -92,7 +92,7 @@ type inventoryagent struct {
 
 	log          log.Component
 	conf         config.Component
-	sysprobeConf optional.Option[sysprobeconfig.Component]
+	sysprobeConf option.Option[sysprobeconfig.Component]
 	m            sync.Mutex
 	data         agentMetadata
 	hostname     string
@@ -104,7 +104,7 @@ type dependencies struct {
 
 	Log            log.Component
 	Config         config.Component
-	SysProbeConfig optional.Option[sysprobeconfig.Component]
+	SysProbeConfig option.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
 	AuthToken      authtoken.Component
 }

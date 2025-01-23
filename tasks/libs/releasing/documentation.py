@@ -6,6 +6,27 @@ from tasks.libs.owners.parsing import list_owners
 CONFLUENCE_DOMAIN = "https://datadoghq.atlassian.net/wiki"
 SPACE_KEY = "agent"
 
+NON_RELEASING_TEAMS = {
+    'telemetry-and-analytics',
+    'documentation',
+    'software-integrity-and-trust',
+    'single-machine-performance',
+    'agent-all',
+    'apm-core-reliability-and-performance',
+    'debugger',
+    'asm-go',
+    'agent-e2e-testing',
+    'serverless',
+    'agent-platform',
+    'agent-release-management',
+    'container-ecosystems',
+    'apm-trace-storage',
+    'iglendd',  # Not a team but he's in the codeowners file
+    'sdlc-security',
+    'data-jobs-monitoring',
+    'serverless-aws',
+}
+
 
 def _stringify_config(config_dict):
     """
@@ -31,7 +52,7 @@ def release_entry_for(agent_major_version):
     return f"release-a{agent_major_version}"
 
 
-def create_release_page(version, freeze_date):
+def create_release_page(version, cutoff_date):
     username = os.environ['ATLASSIAN_USERNAME']
     password = os.environ['ATLASSIAN_PASSWORD']
     parent_page_id = "2244936127"
@@ -44,7 +65,7 @@ def create_release_page(version, freeze_date):
     page = confluence.create_page(
         space=SPACE_KEY,
         title=page_title,
-        body=create_release_table(version, freeze_date, teams),
+        body=create_release_table(version, cutoff_date, teams),
         parent_id=parent_page_id,
         editor="v2",
     )
@@ -52,7 +73,7 @@ def create_release_page(version, freeze_date):
     confluence.create_page(
         space=SPACE_KEY,
         title=f"{page_title} Notes",
-        body=create_release_notes(freeze_date, teams),
+        body=create_release_notes(cutoff_date, teams),
         parent_id=release_page["id"],
     )
     return release_page
@@ -104,26 +125,11 @@ def release_manager(version, team):
 
 
 def get_releasing_teams():
-    non_releasing_teams = {
-        'telemetry-and-analytics',
-        'documentation',
-        'software-integrity-and-trust',
-        'single-machine-performance',
-        'agent-all',
-        'apm-core-reliability-and-performance',
-        'debugger',
-        'asm-go',
-        'agent-e2e-testing',
-        'serverless',
-        'agent-platform',
-        'agent-release-management',
-        'container-ecosystems',
-    }
     owners = set(list_owners())
-    return sorted(owners - non_releasing_teams)
+    return sorted(owners - NON_RELEASING_TEAMS)
 
 
-def create_release_table(version, freeze_date, teams):
+def create_release_table(version, cutoff_date, teams):
     from yattag import Doc
 
     doc, tag, text, line = Doc().ttl()
@@ -153,7 +159,7 @@ def create_release_table(version, freeze_date, teams):
                 with (
                     tag('td', colspan="2"),
                     tag('p', style="text-align: center;"),
-                    tag('time', datetime=f"{freeze_date + timedelta(days=26)}"),
+                    tag('time', datetime=f"{cutoff_date + timedelta(days=26)}"),
                 ):
                     pass
             with tag('tr'):
@@ -164,11 +170,11 @@ def create_release_table(version, freeze_date, teams):
                         text(f'https://github.com/DataDog/datadog-agent/releases/tag/{version}')
             with tag('tr'):
                 with tag('td'), tag('p'):
-                    text('Code freeze date')
+                    text('Cut-off date')
                 with (
                     tag('td', colspan="2"),
                     tag('p', style="text-align: center;"),
-                    tag('time', datetime=f"{freeze_date}"),
+                    tag('time', datetime=f"{cutoff_date}"),
                 ):
                     pass
             with tag('tr'):
@@ -201,17 +207,17 @@ def create_release_table(version, freeze_date, teams):
     return doc.getvalue()
 
 
-def create_release_notes(freeze_date, teams):
+def create_release_notes(cutoff_date, teams):
     from yattag import Doc
 
     doc, tag, text, line = Doc().ttl()
     milestones = {
-        '"Code freeze"': freeze_date,
-        '"RC.1 built"': freeze_date + timedelta(days=1),
-        '"Staging deployment"': freeze_date + timedelta(days=3),
-        '"Prod deployment start"': freeze_date + timedelta(days=11),
-        '"Full prod deployment"': freeze_date + timedelta(days=20),
-        '"Release"': freeze_date + timedelta(days=26),
+        '"Cut-off"': cutoff_date,
+        '"RC.1 built"': cutoff_date + timedelta(days=1),
+        '"Staging deployment"': cutoff_date + timedelta(days=3),
+        '"Prod deployment start"': cutoff_date + timedelta(days=11),
+        '"Full prod deployment"': cutoff_date + timedelta(days=20),
+        '"Release"': cutoff_date + timedelta(days=26),
     }
 
     line('h2', 'Schedule')

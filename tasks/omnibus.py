@@ -285,7 +285,7 @@ def build(
             if use_remote_cache:
                 cache_state = None
                 cache_key = omnibus_compute_cache_key(ctx)
-                git_cache_url = f"s3://{os.environ['S3_OMNIBUS_CACHE_BUCKET']}/builds/{cache_key}/{remote_cache_name}"
+                git_cache_url = f"s3://{os.environ['S3_OMNIBUS_GIT_CACHE_BUCKET']}/{cache_key}/{remote_cache_name}"
                 bundle_dir = tempfile.TemporaryDirectory()
                 bundle_path = os.path.join(bundle_dir.name, 'omnibus-git-cache-bundle')
                 with timed(quiet=True) as durations['Restoring omnibus cache']:

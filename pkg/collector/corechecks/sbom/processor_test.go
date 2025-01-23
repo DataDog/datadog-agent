@@ -37,7 +37,7 @@ import (
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -597,7 +597,7 @@ func TestProcessEvents(t *testing.T) {
 	cacheDir := t.TempDir()
 
 	cfg := configmock.New(t)
-	wmeta := fxutil.Test[optional.Option[workloadmeta.Component]](t, fx.Options(
+	wmeta := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		fx.Replace(configcomp.MockParams{

@@ -19,7 +19,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
@@ -355,7 +354,7 @@ func (p *goTLSProgram) AttachPID(pid uint32) error {
 
 	// Check if the process is datadog's internal process, if so, we don't want to hook the process.
 	if internalProcessRegex.MatchString(binPath) {
-		if log.ShouldLog(seelog.DebugLvl) {
+		if log.ShouldLog(log.DebugLvl) {
 			log.Debugf("ignoring pid %d, as it is an internal datadog component (%q)", pid, binPath)
 		}
 		return ErrInternalDDogProcessRejected
@@ -388,7 +387,7 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 			if errors.Is(err, safeelf.ErrNoSymbols) {
 				binNoSymbolsMetric.Add(1)
 			}
-			return fmt.Errorf("error extracting inspectoin data from %s: %w", filePath.HostPath, err)
+			return fmt.Errorf("error extracting inspection data from %s: %w", filePath.HostPath, err)
 		}
 
 		if err := addInspectionResultToMap(offsetsDataMap, filePath.ID, inspectionResult); err != nil {

@@ -4,7 +4,9 @@
 #include "shared-libraries/types.h"
 #include "map-defs.h"
 
-BPF_LRU_MAP(open_at_args, __u64, lib_path_t, 1024)
+// This map is used with 3 different probes, each can be called up to 1024 times each.
+// Thus we need to have a map that can store 1024*3 entries. I'm using a larger map to be safe.
+BPF_HASH_MAP(open_at_args, __u64, lib_path_t, 10240)
 
 /*
  * These maps are used for notifying userspace of a shared library being loaded

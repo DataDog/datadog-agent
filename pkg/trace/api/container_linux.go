@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -96,7 +97,7 @@ func (i *noCgroupsProvider) GetContainerID(_ context.Context, h http.Header) str
 }
 
 // NewIDProvider initializes an IDProvider instance using the provided procRoot to perform cgroups lookups in linux environments.
-func NewIDProvider(procRoot string) IDProvider {
+func NewIDProvider(procRoot string, containerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error)) IDProvider {
 	// taken from pkg/util/containers/metrics/system.collector_linux.go
 	var hostPrefix string
 	if strings.HasPrefix(procRoot, "/host") {
@@ -120,10 +121,11 @@ func NewIDProvider(procRoot string) IDProvider {
 	}
 	c := NewCache(1 * time.Minute)
 	return &cgroupIDProvider{
-		procRoot:   procRoot,
-		controller: cgroupController,
-		cache:      c,
-		reader:     reader,
+		procRoot:                  procRoot,
+		controller:                cgroupController,
+		cache:                     c,
+		reader:                    reader,
+		containerIDFromOriginInfo: containerIDFromOriginInfo,
 	}
 }
 
@@ -131,8 +133,9 @@ type cgroupIDProvider struct {
 	procRoot   string
 	controller string
 	// reader is used to retrieve the container ID from its cgroup v2 inode.
-	reader *cgroups.Reader
-	cache  *Cache
+	reader                    *cgroups.Reader
+	cache                     *Cache
+	containerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error)
 }
 
 // GetContainerID returns the container ID.
@@ -155,6 +158,11 @@ func (c *cgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) st
 	// Retrieve the container-id from the pid in its context
 	if containerID := c.resolveContainerIDFromContext(ctx); containerID != "" {
 		return containerID
+	}
+
+	// Retrieve container ID from External Data header
+	if externalData := h.Get(header.ExternalData); externalData != "" {
+		return c.resolveContainerIDFromExternalData(externalData)
 	}
 
 	return ""
@@ -294,6 +302,27 @@ func (c *cgroupIDProvider) getCachedContainerID(key string, retrievalFunc func()
 
 	c.cache.Store(currentTime, key, val, nil)
 	return val, nil
+}
+
+// resolveContainerIDFromExternalData returns the container ID for the given External Data.
+func (c *cgroupIDProvider) resolveContainerIDFromExternalData(rawExternalData string) string {
+	var generatedContainerID string
+
+	externalData, err := origindetection.ParseExternalData(rawExternalData)
+	if err != nil {
+		log.Errorf("Could not parse external data (%s): %v", rawExternalData, err)
+		return ""
+	}
+	generatedContainerID, err = c.containerIDFromOriginInfo(origindetection.OriginInfo{
+		ExternalData:  externalData,
+		ProductOrigin: origindetection.ProductOriginAPM,
+	})
+	if err != nil {
+		log.Errorf("Could not generate container ID from external data (%s): %v", rawExternalData, err)
+		return ""
+	}
+
+	return generatedContainerID
 }
 
 // The below cache is copied from /pkg/util/containers/v2/metrics/provider/cache.go. It is not

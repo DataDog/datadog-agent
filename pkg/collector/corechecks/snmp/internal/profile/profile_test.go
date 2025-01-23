@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-func Test_getProfiles(t *testing.T) {
+func Test_loadProfiles(t *testing.T) {
 	tests := []struct {
 		name                   string
 		mockConfd              string
@@ -74,22 +74,6 @@ func Test_getProfiles(t *testing.T) {
 			},
 			expectedProfileNames: []string(nil), // invalid profiles are skipped
 		},
-
-		// json profiles.json.gz profiles
-		{
-			name:      "OK Use json profiles.json.gz profiles",
-			mockConfd: "zipprofiles.d",
-			expectedProfileNames: []string{
-				"def-p1",
-				"my-profile-name",
-				"profile-from-ui",
-			},
-		},
-		{
-			name:        "ERROR Invalid profiles.json.gz profiles",
-			mockConfd:   "zipprofiles_err.d",
-			expectedErr: "failed to load profiles from json bundle",
-		},
 		// yaml profiles
 		{
 			name:      "OK Use yaml profiles",
@@ -111,7 +95,7 @@ func Test_getProfiles(t *testing.T) {
 			path, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
 			pkgconfigsetup.Datadog().SetWithoutSource("confd_path", path)
 
-			actualProfiles, err := GetProfiles(tt.profiles)
+			actualProfiles, err := loadProfiles(tt.profiles)
 			if tt.expectedErr != "" {
 				assert.ErrorContains(t, err, tt.expectedErr)
 			}
@@ -347,7 +331,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			profiles:        mockProfilesWithInvalidPatternError,
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.5.11",
 			expectedProfile: "",
-			expectedError:   "failed to get most specific profile for sysObjectID \"1.3.6.1.4.1.3375.2.1.3.4.5.11\", for matched oids []: cannot get most specific oid from empty list of oids",
+			expectedError:   "no profiles found for sysObjectID \"1.3.6.1.4.1.3375.2.1.3.4.5.11\"",
 		},
 		{
 			name:            "duplicate sysobjectid",
@@ -373,7 +357,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			profile, err := GetProfileForSysObjectID(tt.profiles, tt.sysObjectID)
+			profile, err := getProfileForSysObjectID(tt.profiles, tt.sysObjectID)
 			if tt.expectedError == "" {
 				assert.Nil(t, err)
 			} else {

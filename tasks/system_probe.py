@@ -348,7 +348,7 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     for prog in test_programs:
         infile = os.path.join(ebpf_c_dir, f"{prog}.c")
         outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-        ninja_ebpf_program(
+        ninja_ebpf_co_re_program(
             nw, infile, outfile, {"flags": test_flags}
         )  # All test ebpf programs are just for testing, so we always build them with debug symbols
 
@@ -525,7 +525,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/ebpf/types.go": [
                 "pkg/ebpf/c/lock_contention.h",
             ],
-            "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/types.h"],
+            "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/base_event.h"],
             "pkg/gpu/ebpf/kprobe_types.go": [
                 "pkg/gpu/ebpf/c/types.h",
             ],
@@ -604,7 +604,7 @@ def ninja_generate(
             )
             ninja_define_co_re_compiler(nw, arch=arch, compiler=ebpf_compiler)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
-            ninja_test_ebpf_programs(nw, build_dir)
+            ninja_test_ebpf_programs(nw, co_re_build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
@@ -1459,6 +1459,7 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
         print(f"All {total_metadata_files} object files have valid metadata")
 
 
+@task(aliases=["object-files"])
 def build_object_files(
     ctx,
     major_version='7',
@@ -1578,15 +1579,6 @@ def build_cws_object_files(
 
     if bundle_ebpf:
         copy_bundled_ebpf_files(ctx, arch=arch)
-
-
-@task
-def object_files(
-    ctx, kernel_release=None, with_unit_test=False, arch: str = CURRENT_ARCH, ebpf_compiler: str = 'clang'
-):
-    build_object_files(
-        ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, arch=arch, ebpf_compiler=ebpf_compiler
-    )
 
 
 def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
@@ -2024,3 +2016,40 @@ def copy_ebpf_and_related_files(ctx: Context, target: Path | str, arch: Arch | N
     ctx.run(f"chmod 0444 {target}/*.o {target}/*.c {target}/co-re/*.o")
     ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {target}")
     ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {target}")
+
+
+@task
+def build_usm_debugger(
+    ctx,
+    arch: str = CURRENT_ARCH,
+    strip_binary=False,
+):
+    build_object_files(ctx)
+
+    build_dir = os.path.join("pkg", "ebpf", "bytecode", "build", arch)
+
+    # copy compilation artifacts to the debugger root directory for the purposes of embedding
+    usm_programs = [
+        os.path.join(build_dir, "co-re", "usm-debug.o"),
+        os.path.join(build_dir, "co-re", "shared-libraries-debug.o"),
+    ]
+
+    embedded_dir = os.path.join(".", "pkg", "network", "usm", "debugger", "cmd")
+
+    for p in usm_programs:
+        print(p)
+        shutil.copy(p, embedded_dir)
+
+    arch_obj = Arch.from_str(arch)
+    ldflags, gcflags, env = get_build_flags(ctx, arch=arch_obj)
+
+    cmd = 'go build -tags="linux_bpf,usm_debugger" -o bin/usm-debugger -ldflags="{ldflags}" ./pkg/network/usm/debugger/cmd/'
+
+    if strip_binary:
+        ldflags += ' -s -w'
+
+    args = {
+        "ldflags": ldflags,
+    }
+
+    ctx.run(cmd.format(**args), env=env)

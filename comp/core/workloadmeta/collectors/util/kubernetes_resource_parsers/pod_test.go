@@ -8,9 +8,10 @@
 package kubernetesresourceparsers
 
 import (
-	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -125,6 +126,11 @@ func TestPodParser_Parse(t *testing.T) {
 		QOSClass:                   "Guaranteed",
 	}
 
-	assert.True(t, reflect.DeepEqual(expected, parsed),
-		"Expected: %v, Actual: %v", expected, parsed)
+	opt := cmpopts.SortSlices(func(a, b string) bool {
+		return a < b
+	})
+	assert.True(t,
+		cmp.Equal(expected, parsed, opt),
+		cmp.Diff(expected, parsed, opt),
+	)
 }

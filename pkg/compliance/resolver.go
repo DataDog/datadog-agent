@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
@@ -32,7 +33,7 @@ import (
 
 	docker "github.com/docker/docker/client"
 
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 
 	yamlv2 "gopkg.in/yaml.v2"
 	yamlv3 "gopkg.in/yaml.v3"
@@ -556,6 +557,14 @@ func (r *defaultResolver) resolveAudit(_ context.Context, spec InputSpecAudit) (
 	return resolved, nil
 }
 
+func parseImageRepo(name string) string {
+	ref, err := reference.ParseNormalizedNamed(name)
+	if err == nil {
+		return reference.Path(ref)
+	}
+	return ""
+}
+
 func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocker) (interface{}, error) {
 	cl := r.dockerCl
 	if cl == nil {
@@ -574,10 +583,12 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			if err != nil {
 				return nil, err
 			}
+			imageRepo := parseImageRepo(image.Config.Image)
 			resolved = append(resolved, map[string]interface{}{
-				"id":      image.ID,
-				"tags":    image.RepoTags,
-				"inspect": image,
+				"id":         image.ID,
+				"tags":       image.RepoTags,
+				"image_repo": imageRepo,
+				"inspect":    image,
 			})
 		}
 	case "container":
@@ -590,11 +601,13 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			if err != nil {
 				return nil, err
 			}
+			imageRepo := parseImageRepo(container.Config.Image)
 			resolved = append(resolved, map[string]interface{}{
-				"id":      container.ID,
-				"name":    container.Name,
-				"image":   container.Image,
-				"inspect": container,
+				"id":         container.ID,
+				"name":       container.Name,
+				"image":      container.Image,
+				"image_repo": imageRepo,
+				"inspect":    container,
 			})
 		}
 	case "network":

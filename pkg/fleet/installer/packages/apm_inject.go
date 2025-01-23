@@ -19,9 +19,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/multierr"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
@@ -32,8 +32,8 @@ const (
 
 // SetupAPMInjector sets up the injector at bootstrap
 func SetupAPMInjector(ctx context.Context) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "setup_injector")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "setup_injector")
+	defer func() { span.Finish(err) }()
 	installer := newAPMInjectorInstaller(injectorPath)
 	defer func() { installer.Finish(err) }()
 	return installer.Setup(ctx)
@@ -41,8 +41,8 @@ func SetupAPMInjector(ctx context.Context) (err error) {
 
 // RemoveAPMInjector removes the APM injector
 func RemoveAPMInjector(ctx context.Context) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "remove_injector")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "remove_injector")
+	defer func() { span.Finish(err) }()
 	installer := newAPMInjectorInstaller(injectorPath)
 	defer func() { installer.Finish(err) }()
 	return installer.Remove(ctx)
@@ -50,8 +50,8 @@ func RemoveAPMInjector(ctx context.Context) (err error) {
 
 // InstrumentAPMInjector instruments the APM injector
 func InstrumentAPMInjector(ctx context.Context, method string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "instrument_injector")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "instrument_injector")
+	defer func() { span.Finish(err) }()
 	installer := newAPMInjectorInstaller(injectorPath)
 	installer.envs.InstallScript.APMInstrumentationEnabled = method
 	defer func() { installer.Finish(err) }()
@@ -60,8 +60,8 @@ func InstrumentAPMInjector(ctx context.Context, method string) (err error) {
 
 // UninstrumentAPMInjector uninstruments the APM injector
 func UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "uninstrument_injector")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "uninstrument_injector")
+	defer func() { span.Finish(err) }()
 	installer := newAPMInjectorInstaller(injectorPath)
 	installer.envs.InstallScript.APMInstrumentationEnabled = method
 	defer func() { installer.Finish(err) }()
@@ -148,8 +148,8 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 }
 
 func (a *apmInjectorInstaller) Remove(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "remove_injector")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "remove_injector")
+	defer func() { span.Finish(err) }()
 
 	err = a.removeInstrumentScripts(ctx)
 	if err != nil {
@@ -277,8 +277,8 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(_ context.Context, l
 }
 
 func (a *apmInjectorInstaller) verifySharedLib(ctx context.Context, libPath string) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "verify_shared_lib")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "verify_shared_lib")
+	defer func() { span.Finish(err) }()
 	echoPath, err := exec.LookPath("echo")
 	if err != nil {
 		// If echo is not found, to not block install,
@@ -302,8 +302,8 @@ func (a *apmInjectorInstaller) verifySharedLib(ctx context.Context, libPath stri
 // - Referenced in our public documentation, so we override them to use installer commands for consistency
 // - Used on deb/rpm removal and may break the OCI in the process
 func (a *apmInjectorInstaller) addInstrumentScripts(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "add_instrument_scripts")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "add_instrument_scripts")
+	defer func() { span.Finish(err) }()
 
 	hostMutator := newFileMutator(
 		"/usr/bin/dd-host-install",
@@ -370,8 +370,8 @@ func (a *apmInjectorInstaller) addInstrumentScripts(ctx context.Context) (err er
 // removeInstrumentScripts removes the install scripts that come with the APM injector
 // if and only if they've been installed by the installer and not modified
 func (a *apmInjectorInstaller) removeInstrumentScripts(ctx context.Context) (retErr error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "remove_instrument_scripts")
-	defer func() { span.Finish(tracer.WithError(retErr)) }()
+	span, _ := telemetry.StartSpanFromContext(ctx, "remove_instrument_scripts")
+	defer func() { span.Finish(retErr) }()
 
 	for _, script := range []string{"dd-host-install", "dd-container-install", "dd-cleanup"} {
 		path := filepath.Join("/usr/bin", script)

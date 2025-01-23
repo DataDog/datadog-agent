@@ -57,7 +57,7 @@ func (h *CronJobV1Handlers) BuildMessageBody(ctx processors.ProcessorContext, re
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *CronJobV1Handlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*batchv1.CronJob)
-	return k8sTransformers.ExtractCronJobV1(r)
+	return k8sTransformers.ExtractCronJobV1(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

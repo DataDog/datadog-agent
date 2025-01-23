@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func parseMemoryInfo(reader io.Reader) (totalBytes utils.Value[uint64], swapTotalKb utils.Value[uint64], err error) {

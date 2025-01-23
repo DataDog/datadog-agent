@@ -6,11 +6,11 @@
 package setup
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -25,7 +25,7 @@ import (
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -45,7 +45,7 @@ func unsetEnvForTest(t *testing.T, env string) {
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.Config {
 	conf := newTestConf()
 	conf.SetConfigType("yaml")
-	err := conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
+	err := conf.ReadConfig(strings.NewReader(yamlConfig))
 	require.NoError(t, err)
 	return conf
 }
@@ -133,15 +133,39 @@ func TestUnexpectedWhitespace(t *testing.T) {
 }
 
 func TestUnknownKeysWarning(t *testing.T) {
-	conf := newTestConf()
-	conf.SetWithoutSource("site", "datadoghq.eu")
-	assert.Len(t, findUnknownKeys(conf), 0)
+	yaml := `
+a: 21
+aa: 21
+b:
+  c:
+    d: "test"
+`
+	conf := confFromYAML(t, yaml)
+
+	res := findUnknownKeys(conf)
+	slices.Sort(res)
+	assert.Equal(t, []string{"a", "aa", "b.c.d"}, res)
+
+	conf.SetDefault("a", 0)
+	res = findUnknownKeys(conf)
+	slices.Sort(res)
+	assert.Equal(t, []string{"aa", "b.c.d"}, res)
+
+	conf.SetWithoutSource("a", 12)
+	res = findUnknownKeys(conf)
+	slices.Sort(res)
+	assert.Equal(t, []string{"aa", "b.c.d"}, res)
+
+	// testing that nested value are correctly detected
+	conf.SetDefault("b.c", map[string]string{})
+	res = findUnknownKeys(conf)
+	slices.Sort(res)
+	assert.Equal(t, []string{"aa"}, res)
 
 	conf.SetWithoutSource("unknown_key.unknown_subkey", "true")
-	assert.Len(t, findUnknownKeys(conf), 1)
-
-	conf.SetKnown("unknown_key.*")
-	assert.Len(t, findUnknownKeys(conf), 0)
+	res = findUnknownKeys(conf)
+	slices.Sort(res)
+	assert.Equal(t, []string{"aa", "unknown_key.unknown_subkey"}, res)
 }
 
 func TestUnknownVarsWarning(t *testing.T) {
@@ -445,7 +469,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadDatadogCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -553,7 +577,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadDatadogCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -1447,6 +1471,39 @@ func TestDisableCoreAgent(t *testing.T) {
 	assert.False(t, conf.GetBool("enable_payloads.sketches"))
 }
 
+func TestAPMObfuscationDefaultValue(t *testing.T) {
+	pkgconfigmodel.CleanOverride(t)
+	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+
+	InitConfig(conf)
+	assert.True(t, conf.GetBool("apm_config.obfuscation.elasticsearch.enabled"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values"), 0)
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values"), 0)
+	assert.True(t, conf.GetBool("apm_config.obfuscation.opensearch.enabled"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.opensearch.keep_values"), 0)
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.opensearch.obfuscate_sql_values"), 0)
+	assert.True(t, conf.GetBool("apm_config.obfuscation.mongodb.enabled"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.mongodb.keep_values"), 0)
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values"), 0)
+	assert.False(t, conf.GetBool("apm_config.obfuscation.sql_exec_plan.enabled"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values"), 0)
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values"), 0)
+	assert.False(t, conf.GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values"), 0)
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values"), 0)
+	assert.False(t, conf.GetBool("apm_config.obfuscation.http.remove_query_string"))
+	assert.False(t, conf.GetBool("apm_config.obfuscation.http.remove_paths_with_digits"))
+	assert.True(t, conf.GetBool("apm_config.obfuscation.redis.enabled"))
+	assert.False(t, conf.GetBool("apm_config.obfuscation.redis.remove_all_args"))
+	assert.True(t, conf.GetBool("apm_config.obfuscation.memcached.enabled"))
+	assert.False(t, conf.GetBool("apm_config.obfuscation.memcached.keep_command"))
+	assert.True(t, conf.GetBool("apm_config.obfuscation.credit_cards.enabled"))
+	assert.False(t, conf.GetBool("apm_config.obfuscation.credit_cards.luhn"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.credit_cards.keep_values"), 0)
+	assert.True(t, conf.GetBool("apm_config.obfuscation.cache.enabled"))
+	assert.Equal(t, int64(5000000), conf.GetInt64("apm_config.obfuscation.cache.max_size"))
+}
+
 func TestAgentConfigInit(t *testing.T) {
 	conf := newTestConf()
 
@@ -1472,7 +1529,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	_, err = LoadDatadogCustom(cfg, "test", optional.NewNoneOption[secrets.Component](), []string{})
+	_, err = LoadDatadogCustom(cfg, "test", option.None[secrets.Component](), []string{})
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'

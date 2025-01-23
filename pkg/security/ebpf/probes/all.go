@@ -35,6 +35,20 @@ var (
 	EventsPerfRingBufferSize = 256 * os.Getpagesize()
 )
 
+func appendSyscallProbes(probes []*manager.Probe, fentry bool, flag int, compat bool, syscalls ...string) []*manager.Probe {
+	for _, syscall := range syscalls {
+		probes = append(probes,
+			ExpandSyscallProbes(&manager.Probe{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					UID: SecurityAgentUID,
+				},
+				SyscallFuncName: syscall,
+			}, fentry, flag, compat)...)
+	}
+
+	return probes
+}
+
 // computeDefaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
 // Must be a power of 2 and a multiple of the page size
 func computeDefaultEventsRingBufferSize() uint32 {
@@ -78,10 +92,12 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, getNetDeviceProbes()...)
 	allProbes = append(allProbes, GetTCProbes(true, true)...)
 	allProbes = append(allProbes, getBindProbes(fentry)...)
+	allProbes = append(allProbes, getAcceptProbes()...)
 	allProbes = append(allProbes, getConnectProbes(fentry)...)
 	allProbes = append(allProbes, getSyscallMonitorProbes()...)
 	allProbes = append(allProbes, getChdirProbes(fentry)...)
 	allProbes = append(allProbes, GetOnDemandProbes()...)
+	allProbes = append(allProbes, GetPerfEventProbes()...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{
@@ -135,6 +151,28 @@ func AllMaps() []*manager.Map {
 	}
 }
 
+// AllSKStorageMaps returns the list of SKStorage map section names
+func AllSKStorageMaps() []string {
+	return []string{
+		"sock_active_pid_route",
+	}
+}
+
+// AllNoPreallocMapsInPerfEventPrograms returns the list of maps with the BPF_F_NO_PREALLOC flag that are used in
+// perf_event programs
+func AllNoPreallocMapsInPerfEventPrograms() []string {
+	return []string{
+		"active_flows",
+	}
+}
+
+// AllBPFForEachMapElemProgramFunctions returns the list of programs that leverage the bpf_for_each_map_elem helper
+func AllBPFForEachMapElemProgramFunctions() []string {
+	return []string{
+		"network_stats_worker",
+	}
+}
+
 func getMaxEntries(numCPU int, min int, max int) uint32 {
 	maxEntries := int(math.Min(float64(max), float64(min*numCPU)/4))
 	if maxEntries < min {
@@ -146,13 +184,14 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 
 // MapSpecEditorOpts defines some options of the map spec editor
 type MapSpecEditorOpts struct {
-	TracedCgroupSize        int
-	UseMmapableMaps         bool
-	UseRingBuffers          bool
-	RingBufferSize          uint32
-	PathResolutionEnabled   bool
-	SecurityProfileMaxCount int
-	ReducedProcPidCacheSize bool
+	TracedCgroupSize          int
+	UseMmapableMaps           bool
+	UseRingBuffers            bool
+	RingBufferSize            uint32
+	PathResolutionEnabled     bool
+	SecurityProfileMaxCount   int
+	ReducedProcPidCacheSize   bool
+	NetworkFlowMonitorEnabled bool
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -162,6 +201,15 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.Ma
 		procPidCacheMaxEntries = getMaxEntries(numCPU, minProcEntries, maxProcEntries/2)
 	} else {
 		procPidCacheMaxEntries = getMaxEntries(numCPU, minProcEntries, maxProcEntries)
+	}
+
+	var activeFlowsMaxEntries, nsFlowToNetworkStats uint32
+	if opts.NetworkFlowMonitorEnabled {
+		activeFlowsMaxEntries = procPidCacheMaxEntries
+		nsFlowToNetworkStats = 4096
+	} else {
+		activeFlowsMaxEntries = 1
+		nsFlowToNetworkStats = 1
 	}
 
 	editors := map[string]manager.MapSpecEditor{
@@ -177,7 +225,27 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.Ma
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
+		"rate_limiters": {
+			MaxEntries: procPidCacheMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
 
+		"active_flows": {
+			MaxEntries: activeFlowsMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"active_flows_spin_locks": {
+			MaxEntries: activeFlowsMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"ns_flow_to_network_stats": {
+			MaxEntries: nsFlowToNetworkStats,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"inet_bind_args": {
+			MaxEntries: procPidCacheMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
 		"activity_dumps_config": {
 			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
@@ -252,7 +320,7 @@ func AllRingBuffers() []*manager.RingBuffer {
 }
 
 // AllTailRoutes returns the list of all the tail call routes
-func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, rawPacketEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
+func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, networkFlowMonitorEnabled, rawPacketEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
 	routes = append(routes, getExecTailCallRoutes()...)
@@ -260,6 +328,9 @@ func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, rawPacketEnabled
 	routes = append(routes, getSysExitTailCallRoutes()...)
 	if networkEnabled {
 		routes = append(routes, getTCTailCallRoutes(rawPacketEnabled)...)
+	}
+	if networkFlowMonitorEnabled {
+		routes = append(routes, getFlushNetworkStatsTailCallRoutes()...)
 	}
 
 	return routes

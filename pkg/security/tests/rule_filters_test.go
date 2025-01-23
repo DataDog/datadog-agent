@@ -29,7 +29,7 @@ func TestSECLRuleFilter(t *testing.T) {
 		Code:         kernel.Kernel5_9,
 	}
 
-	m, err := filtermodel.NewRuleFilterModel(nil, "")
+	m, err := filtermodel.NewRuleFilterModel(filtermodel.RuleFilterEventConfig{})
 	assert.NoError(t, err)
 	m.Version = kv
 	seclRuleFilter := rules.NewSECLRuleFilter(m)

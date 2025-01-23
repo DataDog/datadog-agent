@@ -9,11 +9,12 @@ package fipstest
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -91,6 +92,22 @@ func (s *fipsAgentSuite) TestWithSystemFIPSEnabled() {
 			require.NoError(s.T(), err)
 		})
 	})
+}
+
+func (s *fipsAgentSuite) TestFIPSProviderPresent() {
+	host := s.Env().RemoteHost
+	exists, _ := host.FileExists(path.Join(s.installPath, "embedded3/lib/ossl-modules/fips.dll"))
+	require.True(s.T(), exists, "Agent install path should contain the FIPS provider but doesn't")
+}
+
+func (s *fipsAgentSuite) TestFIPSInstall() {
+	host := s.Env().RemoteHost
+	openssl := path.Join(s.installPath, "embedded3/bin/openssl.exe")
+	fipsModule := path.Join(s.installPath, "embedded3/lib/ossl-modules/fips.dll")
+	fipsConf := path.Join(s.installPath, "embedded3/ssl/fipsmodule.cnf")
+	cmd := fmt.Sprintf(`& "%s" fipsinstall -module "%s" -in "%s" -verify`, openssl, fipsModule, fipsConf)
+	_, err := host.Execute(cmd)
+	require.NoError(s.T(), err, "MSI should create valid fipsmodule.cnf")
 }
 
 func (s *fipsAgentSuite) execAgentCommand(command string, options ...client.ExecuteOption) (string, error) {

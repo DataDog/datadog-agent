@@ -19,13 +19,14 @@ import (
 
 	"go.opentelemetry.io/collector/component/componenttest"
 
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -121,8 +122,14 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.Ag
 	cfg.ContainerTags = func(cid string) ([]string, error) {
 		return tagger.Tag(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
 	}
+	cfg.ContainerIDFromOriginInfo = func(originInfo origindetection.OriginInfo) (string, error) {
+		return tagger.GenerateContainerIDFromOriginInfo(originInfo)
+	}
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
 	cfg.GetAgentAuthToken = apiutil.GetAuthToken
+	cfg.HTTPTransportFunc = func() *http.Transport {
+		return httputils.CreateHTTPTransport(coreConfigObject)
+	}
 	return cfg, nil
 }
 
@@ -222,6 +229,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if core.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
+	}
+	if core.IsSet("apm_config.sql_obfuscation_mode") {
+		c.SQLObfuscationMode = core.GetString("apm_config.sql_obfuscation_mode")
 	}
 
 	/**
@@ -401,110 +411,41 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.TelemetryConfig.Endpoints = appendEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
 	}
 	c.Obfuscation = new(config.ObfuscationConfig)
-	if core.IsSet("apm_config.obfuscation") {
-		cfg := pkgconfigsetup.Datadog()
-		var o config.ObfuscationConfig
-		err := structure.UnmarshalKey(cfg, "apm_config.obfuscation", &o)
-		if err == nil {
-			c.Obfuscation = &o
-			if o.RemoveStackTraces {
-				if err = addReplaceRule(c, "error.stack", `(?s).*`, "?"); err != nil {
-					return err
-				}
-			}
+	c.Obfuscation.ES.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.elasticsearch.enabled")
+	c.Obfuscation.ES.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
+	c.Obfuscation.ES.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
+	c.Obfuscation.OpenSearch.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.opensearch.enabled")
+	c.Obfuscation.OpenSearch.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.opensearch.keep_values")
+	c.Obfuscation.OpenSearch.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.opensearch.obfuscate_sql_values")
+	c.Obfuscation.Mongo.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.mongodb.enabled")
+	c.Obfuscation.Mongo.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.mongodb.keep_values")
+	c.Obfuscation.Mongo.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values")
+	c.Obfuscation.SQLExecPlan.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.sql_exec_plan.enabled")
+	c.Obfuscation.SQLExecPlan.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values")
+	c.Obfuscation.SQLExecPlan.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
+	c.Obfuscation.SQLExecPlanNormalize.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled")
+	c.Obfuscation.SQLExecPlanNormalize.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
+	c.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
+	c.Obfuscation.HTTP.RemoveQueryString = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.http.remove_query_string")
+	c.Obfuscation.HTTP.RemovePathDigits = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.http.remove_paths_with_digits")
+	c.Obfuscation.RemoveStackTraces = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.remove_stack_traces")
+	if c.Obfuscation.RemoveStackTraces {
+		if err = addReplaceRule(c, "error.stack", `(?s).*`, "?"); err != nil {
+			return err
+		}
+		if err = addReplaceRule(c, "exception.stacktrace", `(?s).*`, "?"); err != nil {
+			return err
 		}
 	}
-	{
-		// Obfuscation of database statements will be ON by default. Any new obfuscators should likely be
-		// enabled by default as well. This can be explicitly disabled with the agent config. Any changes
-		// to obfuscation options or defaults must be reflected in the public docs.
-		c.Obfuscation.ES.Enabled = true
-		c.Obfuscation.OpenSearch.Enabled = true
-		c.Obfuscation.Mongo.Enabled = true
-		c.Obfuscation.Memcached.Enabled = true
-		c.Obfuscation.Redis.Enabled = true
-		c.Obfuscation.CreditCards.Enabled = true
-		c.Obfuscation.Cache.Enabled = true
-
-		// TODO(x): There is an issue with pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation"), probably coming from Viper,
-		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
-		// variable, so we need a temporary workaround by specifically setting env. var. accessible fields.
-		if core.IsSet("apm_config.obfuscation.credit_cards.enabled") {
-			c.Obfuscation.CreditCards.Enabled = core.GetBool("apm_config.obfuscation.credit_cards.enabled")
-		}
-		if core.IsSet("apm_config.obfuscation.credit_cards.luhn") {
-			c.Obfuscation.CreditCards.Luhn = core.GetBool("apm_config.obfuscation.credit_cards.luhn")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.elasticsearch.enabled") {
-			c.Obfuscation.ES.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.elasticsearch.enabled")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.elasticsearch.keep_values") {
-			c.Obfuscation.ES.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.elasticsearch.obfuscate_sql_values") {
-			c.Obfuscation.ES.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.opensearch.enabled") {
-			c.Obfuscation.OpenSearch.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.opensearch.enabled")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.opensearch.keep_values") {
-			c.Obfuscation.OpenSearch.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.opensearch.keep_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.opensearch.obfuscate_sql_values") {
-			c.Obfuscation.OpenSearch.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.opensearch.obfuscate_sql_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.http.remove_query_string") {
-			c.Obfuscation.HTTP.RemoveQueryString = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.http.remove_query_string")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.http.remove_paths_with_digits") {
-			c.Obfuscation.HTTP.RemovePathDigits = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.http.remove_paths_with_digits")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.memcached.enabled") {
-			c.Obfuscation.Memcached.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.enabled")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.memcached.keep_command") {
-			c.Obfuscation.Memcached.KeepCommand = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.keep_command")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.mongodb.enabled") {
-			c.Obfuscation.Mongo.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.mongodb.enabled")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.mongodb.keep_values") {
-			c.Obfuscation.Mongo.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.mongodb.keep_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.mongodb.obfuscate_sql_values") {
-			c.Obfuscation.Mongo.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.redis.enabled") {
-			c.Obfuscation.Redis.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.enabled")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.redis.remove_all_args") {
-			c.Obfuscation.Redis.RemoveAllArgs = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.remove_all_args")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.remove_stack_traces") {
-			c.Obfuscation.RemoveStackTraces = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.remove_stack_traces")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.sql_exec_plan.enabled") {
-			c.Obfuscation.SQLExecPlan.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.sql_exec_plan.enabled")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.sql_exec_plan.keep_values") {
-			c.Obfuscation.SQLExecPlan.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values") {
-			c.Obfuscation.SQLExecPlan.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.sql_exec_plan_normalize.enabled") {
-			c.Obfuscation.SQLExecPlanNormalize.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.sql_exec_plan_normalize.keep_values") {
-			c.Obfuscation.SQLExecPlanNormalize.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values") {
-			c.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.cache.enabled") {
-			c.Obfuscation.Cache.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled")
-		}
-	}
+	c.Obfuscation.Memcached.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.enabled")
+	c.Obfuscation.Memcached.KeepCommand = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.keep_command")
+	c.Obfuscation.Redis.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.enabled")
+	c.Obfuscation.Redis.RemoveAllArgs = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.remove_all_args")
+	c.Obfuscation.CreditCards.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.credit_cards.enabled")
+	c.Obfuscation.CreditCards.Luhn = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.credit_cards.luhn")
+	c.Obfuscation.CreditCards.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.credit_cards.keep_values")
+	c.Obfuscation.Cache.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled")
+	c.Obfuscation.Cache.MaxSize = pkgconfigsetup.Datadog().GetInt64("apm_config.obfuscation.cache.max_size")
 
 	if core.IsSet("apm_config.filter_tags.require") {
 		tags := core.GetStringSlice("apm_config.filter_tags.require")

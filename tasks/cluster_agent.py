@@ -12,10 +12,10 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import get_build_tags, get_default_build_tags
+from tasks.build_tags import get_default_build_tags
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
-from tasks.libs.common.utils import TestsNotSupportedError
+from tasks.gointegrationtest import CLUSTER_AGENT_IT_CONF, containerized_integration_tests
 from tasks.libs.releasing.version import load_release_versions
 
 # constants
@@ -92,33 +92,14 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", t
     """
     Run integration tests for cluster-agent
     """
-    if sys.platform == 'win32':
-        raise TestsNotSupportedError('Cluster Agent integration tests are not supported on Windows')
-
-    # We need docker for the kubeapiserver integration tests
-    tags = get_default_build_tags(build="cluster-agent") + ["docker", "test"]
-
-    go_build_tags = " ".join(get_build_tags(tags, []))
-    race_opt = "-race" if race else ""
-    exec_opts = ""
-    timeout_opt = f"-timeout {timeout}" if timeout else ""
-
-    # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
-    # to the call, we don't want them because while calling invoke below, invoke
-    # thinks that the parameters are for it to interpret.
-    # we're calling an intermediate script which only pass the binary name to the invoke task.
-    if remote_docker:
-        exec_opts = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
-
-    go_cmd = f'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
-
-    prefixes = [
-        "./test/integration/util/kube_apiserver",
-        "./test/integration/util/leaderelection",
-    ]
-
-    for prefix in prefixes:
-        ctx.run(f"{go_cmd} {prefix}")
+    containerized_integration_tests(
+        ctx,
+        CLUSTER_AGENT_IT_CONF,
+        race=race,
+        remote_docker=remote_docker,
+        go_mod=go_mod,
+        timeout=timeout,
+    )
 
 
 @task

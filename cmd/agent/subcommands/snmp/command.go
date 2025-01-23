@@ -9,10 +9,6 @@ package snmp
 import (
 	"errors"
 	"fmt"
-	"net"
-	"os"
-	"strconv"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/aggregator"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
@@ -27,14 +23,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"net"
+	"os"
+	"strconv"
+	"time"
 )
 
 const (
@@ -98,10 +99,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
-				compressionfx.Module(),
 				nooptagger.Module(),
 				eventplatformreceiverimpl.Module(),
 				haagentfx.Module(),
+				metricscompression.Module(),
+				logscompression.Module(),
 			)
 			if err != nil {
 				var ue configErr
@@ -162,10 +164,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
-				compressionfx.Module(),
 				nooptagger.Module(),
 				snmpscanfx.Module(),
 				haagentfx.Module(),
+				metricscompression.Module(),
+				logscompression.Module(),
 			)
 			if err != nil {
 				var ue configErr
@@ -302,15 +305,63 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 		// newSNMP only returns config errors, so any problem is a usage error
 		return configErr{err}
 	}
-	if err := snmp.Connect(); err != nil {
+	namespace := conf.GetString("network_devices.namespace")
+	deviceID := namespace + ":" + connParams.IPAddress
+	// Since the snmp connection can take a while, start by sending an in progress status for the start of the scan
+	// before connecting to the agent
+	inProgressStatusPayload := metadata.NetworkDevicesMetadata{
+		DeviceScanStatus: &metadata.ScanStatusMetadata{
+			DeviceID:   deviceID,
+			ScanStatus: metadata.ScanStatusInProgress,
+		},
+		CollectTimestamp: time.Now().Unix(),
+		Namespace:        namespace,
+	}
+	if err = snmpScanner.SendPayload(inProgressStatusPayload); err != nil {
+		return fmt.Errorf("unable to send in progress status: %v", err)
+	}
+	if err = snmp.Connect(); err != nil {
+		// Send an error status if we can't connect to the agent
+		errorStatusPayload := metadata.NetworkDevicesMetadata{
+			DeviceScanStatus: &metadata.ScanStatusMetadata{
+				DeviceID:   deviceID,
+				ScanStatus: metadata.ScanStatusError,
+			},
+			CollectTimestamp: time.Now().Unix(),
+			Namespace:        namespace,
+		}
+		if err = snmpScanner.SendPayload(errorStatusPayload); err != nil {
+			return fmt.Errorf("unable to send error status: %v", err)
+		}
 		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
 	}
-
-	namespace := conf.GetString("network_devices.namespace")
-
-	err = snmpScanner.RunDeviceScan(snmp, namespace, connParams.IPAddress)
+	err = snmpScanner.RunDeviceScan(snmp, namespace, deviceID)
 	if err != nil {
+		// Send an error status if we can't scan the device
+		errorStatusPayload := metadata.NetworkDevicesMetadata{
+			DeviceScanStatus: &metadata.ScanStatusMetadata{
+				DeviceID:   deviceID,
+				ScanStatus: metadata.ScanStatusError,
+			},
+			CollectTimestamp: time.Now().Unix(),
+			Namespace:        namespace,
+		}
+		if err = snmpScanner.SendPayload(errorStatusPayload); err != nil {
+			return fmt.Errorf("unable to send error status: %v", err)
+		}
 		return fmt.Errorf("unable to perform device scan: %v", err)
+	}
+	// Send a completed status if the scan was successful
+	completedStatusPayload := metadata.NetworkDevicesMetadata{
+		DeviceScanStatus: &metadata.ScanStatusMetadata{
+			DeviceID:   deviceID,
+			ScanStatus: metadata.ScanStatusCompleted,
+		},
+		CollectTimestamp: time.Now().Unix(),
+		Namespace:        namespace,
+	}
+	if err = snmpScanner.SendPayload(completedStatusPayload); err != nil {
+		return fmt.Errorf("unable to send completed status: %v", err)
 	}
 	return nil
 }

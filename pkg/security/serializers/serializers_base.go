@@ -8,24 +8,18 @@
 package serializers
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
-
-// CGroupContextSerializer serializes a cgroup context to JSON
-// easyjson:json
-type CGroupContextSerializer struct {
-	// CGroup ID
-	ID string `json:"id,omitempty"`
-	// CGroup manager
-	Manager string `json:"manager,omitempty"`
-}
 
 // ContainerContextSerializer serializes a container context to JSON
 // easyjson:json
@@ -124,6 +118,8 @@ type NetworkContextSerializer struct {
 	Destination IPPortSerializer `json:"destination"`
 	// size is the size in bytes of the network event
 	Size uint32 `json:"size"`
+	// network_direction indicates if the packet was captured on ingress or egress
+	NetworkDirection string `json:"network_direction"`
 }
 
 // AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request
@@ -213,7 +209,6 @@ type BaseEventSerializer struct {
 	*ExitEventSerializer        `json:"exit,omitempty"`
 	*ProcessContextSerializer   `json:"process,omitempty"`
 	*ContainerContextSerializer `json:"container,omitempty"`
-	*CGroupContextSerializer    `json:"cgroup,omitempty"`
 }
 
 // TLSContextSerializer defines a tls context serializer
@@ -228,6 +223,42 @@ type RawPacketSerializer struct {
 	*NetworkContextSerializer
 
 	TLSContext *TLSContextSerializer `json:"tls,omitempty"`
+}
+
+// NetworkStatsSerializer defines a new network stats serializer
+// easyjson:json
+type NetworkStatsSerializer struct {
+	// data_size is the total count of bytes sent or received
+	DataSize uint64 `json:"data_size,omitempty"`
+	// packet_count is the total count of packets sent or received
+	PacketCount uint64 `json:"packet_count,omitempty"`
+}
+
+// FlowSerializer defines a new flow serializer
+// easyjson:json
+type FlowSerializer struct {
+	// l3_protocol is the layer 3 protocol name
+	L3Protocol string `json:"l3_protocol"`
+	// l4_protocol is the layer 4 protocol name
+	L4Protocol string `json:"l4_protocol"`
+	// source is the emitter of the network event
+	Source IPPortSerializer `json:"source"`
+	// destination is the receiver of the network event
+	Destination IPPortSerializer `json:"destination"`
+
+	// ingress holds the network statistics for ingress traffic
+	Ingress *NetworkStatsSerializer `json:"ingress,omitempty"`
+	// egress holds the network statistics for egress traffic
+	Egress *NetworkStatsSerializer `json:"egress,omitempty"`
+}
+
+// NetworkFlowMonitorSerializer defines a network monitor event serializer
+// easyjson:json
+type NetworkFlowMonitorSerializer struct {
+	// device is the network device on which the event was captured
+	Device *NetworkDeviceSerializer `json:"device,omitempty"`
+	// flows is the list of flows with network statistics that were captured
+	Flows []*FlowSerializer `json:"flows,omitempty"`
 }
 
 func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
@@ -313,7 +344,7 @@ func newIPPortFamilySerializer(c *model.IPPortContext, family string) IPPortFami
 
 func newExitEventSerializer(e *model.Event) *ExitEventSerializer {
 	return &ExitEventSerializer{
-		Cause: model.ExitCause(e.Exit.Cause).String(),
+		Cause: sharedconsts.ExitCause(e.Exit.Cause).String(),
 		Code:  e.Exit.Code,
 	}
 }
@@ -403,4 +434,28 @@ func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variab
 		}
 	}
 	return variables
+}
+
+// EventStringerWrapper an event stringer wrapper
+type EventStringerWrapper struct {
+	Event interface{} // can be model.Event or events.CustomEvent
+}
+
+func (e EventStringerWrapper) String() string {
+	var (
+		data []byte
+		err  error
+	)
+	switch evt := e.Event.(type) {
+	case *model.Event:
+		data, err = MarshalEvent(evt)
+	case *events.CustomEvent:
+		data, err = MarshalCustomEvent(evt)
+	default:
+		return "event can't be wrapped, not supported"
+	}
+	if err != nil {
+		return fmt.Sprintf("unable to marshal event: %s", err)
+	}
+	return string(data)
 }

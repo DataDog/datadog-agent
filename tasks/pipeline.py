@@ -43,11 +43,9 @@ BOT_NAME = "github-actions[bot]"
 # Tasks to trigger pipelines
 
 
-def check_deploy_pipeline(repo: Project, git_ref: str, release_version_6, release_version_7, repo_branch):
+def check_deploy_pipeline(repo_branch):
     """
-    Run checks to verify a deploy pipeline is valid:
-    - it targets a valid repo branch
-    - it has matching Agent 6 and Agent 7 tags (depending on release_version_* values)
+    Run checks to verify a deploy pipeline is valid (it targets a valid repo branch)
     """
 
     # Check that the target repo branch is valid
@@ -56,41 +54,6 @@ def check_deploy_pipeline(repo: Project, git_ref: str, release_version_6, releas
             f"--repo-branch argument '{repo_branch}' is not in the list of allowed repository branches: {get_all_allowed_repo_branches()}"
         )
         raise Exit(code=1)
-
-    #
-    # If git_ref matches v7 pattern and release_version_6 is not empty, make sure Gitlab has v6 tag.
-    # If git_ref matches v6 pattern and release_version_7 is not empty, make sure Gitlab has v7 tag.
-    # v7 version pattern should be able to match 7.12.24-rc2 and 7.12.34
-    #
-    v7_pattern = r'^7\.(\d+\.\d+)(-.+|)$'
-    v6_pattern = r'^6\.(\d+\.\d+)(-.+|)$'
-
-    match = re.match(v7_pattern, git_ref)
-
-    # TODO(@spencergilbert): remove cross reference check when all references to a6 are removed
-    if release_version_6 and match:
-        # release_version_6 is not empty and git_ref matches v7 pattern, construct v6 tag and check.
-        tag_name = "6." + "".join(match.groups())
-        try:
-            repo.tags.get(tag_name)
-        except GitlabError:
-            print(f"Cannot find GitLab v6 tag {tag_name} while trying to build git ref {git_ref}")
-            print("v6 tags are no longer created, this check will be removed in a later commit")
-
-        print(f"Successfully cross checked v6 tag {tag_name} and git ref {git_ref}")
-    else:
-        match = re.match(v6_pattern, git_ref)
-
-        if release_version_7 and match:
-            # release_version_7 is not empty and git_ref matches v6 pattern, construct v7 tag and check.
-            tag_name = "7." + "".join(match.groups())
-            try:
-                repo.tags.get(tag_name)
-            except GitlabError as e:
-                print(f"Cannot find GitLab v7 tag {tag_name} while trying to build git ref {git_ref}")
-                raise Exit(code=1) from e
-
-            print(f"Successfully cross checked v7 tag {tag_name} and git ref {git_ref}")
 
 
 @task
@@ -168,6 +131,9 @@ def auto_cancel_previous_pipelines(ctx):
         raise Exit("GITLAB_TOKEN variable needed to cancel pipelines on the same ref.", 1)
 
     git_ref = os.environ["CI_COMMIT_REF_NAME"]
+    if git_ref == "":
+        raise Exit("CI_COMMIT_REF_NAME is empty, skipping pipeline cancellation", 0)
+
     git_sha = os.getenv("CI_COMMIT_SHA")
 
     repo = get_gitlab_repo()
@@ -292,7 +258,7 @@ def run(
 
     if deploy or deploy_installer:
         # Check the validity of the deploy pipeline
-        check_deploy_pipeline(repo, git_ref, release_version_6, release_version_7, repo_branch)
+        check_deploy_pipeline(repo_branch)
         # Force all builds and e2e tests to be run
         if not all_builds:
             print(
@@ -791,7 +757,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
         [
             # Fetch
             f"git remote add {owner} git@github.com:{owner}/datadog-agent.git",
-            f"git fetch '{owner}'",
+            f"git fetch '{owner}' '{branch}'",
             # Create branch
             f"git checkout '{owner}/{branch}'",  # This first checkout puts us in a detached head state, thus the second checkout below
             f"git checkout -b '{owner}/{branch}'",
