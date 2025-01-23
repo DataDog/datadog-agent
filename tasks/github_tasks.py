@@ -669,3 +669,25 @@ query {
     res = gh.graphql(query)
 
     print(json.dumps(res, indent=2))
+
+
+@task
+def print_overall_pipeline_stats(ctx):
+    """Prints stats about how many PRs are supposed to be blocked by the overall pipeline check."""
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI()
+    # prs = gh.list_merged_prs()
+    prs = gh._repository.get_pulls(state="closed", sort="updated", direction="desc", base="main")
+    # for p in prs:
+    #     print(p)
+    # TODO: Iterate through a bunch of prs
+    prs = prs.get_page(0)
+    merged_prs = [pr for pr in prs if pr.merged]
+    # TODO: Date
+    pr = merged_prs[0]
+    print(pr)
+    print()
+    # for pr in prs:
+    #     print(pr)
