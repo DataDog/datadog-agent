@@ -29,8 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -38,6 +36,9 @@ import (
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 )
 
 // keyStatsComputed specifies the resource attribute key which indicates if stats have been
@@ -227,7 +228,7 @@ func (o *OTLPReceiver) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
 	if o.conf.HasFeature("enable_receive_resource_spans_v2") {
-		return o.receiveResourceSpansV2(ctx, rspans, httpHeader.Get(header.ComputedStats) != "")
+		return o.receiveResourceSpansV2(ctx, rspans, isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)))
 	}
 	return o.receiveResourceSpansV1(ctx, rspans, httpHeader)
 }
@@ -418,8 +419,8 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	_ = o.statsd.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	p := Payload{
 		Source:                 tagstats,
-		ClientComputedStats:    rattr[keyStatsComputed] != "" || httpHeader.Get(header.ComputedStats) != "",
-		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") || httpHeader.Get(header.ComputedTopLevel) != "",
+		ClientComputedStats:    rattr[keyStatsComputed] != "" || isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)),
+		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") || isHeaderTrue(header.ComputedTopLevel, httpHeader.Get(header.ComputedTopLevel)),
 	}
 	if env == "" {
 		env = o.conf.DefaultEnv
