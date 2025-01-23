@@ -43,12 +43,12 @@ func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, 
 		}
 	}
 
-	getLogFiles(fb, logFilePath)
-	getConfigFiles(fb, searchPaths{})
+	GetLogFiles(fb, logFilePath)
+	GetConfigFiles(fb, searchPaths{})
 	getComplianceFiles(fb)                        //nolint:errcheck
 	getRuntimeFiles(fb)                           //nolint:errcheck
-	getExpVar(fb)                                 //nolint:errcheck
-	fb.AddFileFromFunc("envvars.log", getEnvVars) //nolint:errcheck
+	GetExpVar(fb)                                 //nolint:errcheck
+	fb.AddFileFromFunc("envvars.log", GetEnvVars) //nolint:errcheck
 
 	addSecurityAgentPlatformSpecificEntries(fb)
 }

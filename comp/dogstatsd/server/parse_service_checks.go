@@ -30,8 +30,8 @@ type dogstatsdServiceCheck struct {
 	hostname  string
 	message   string
 	tags      []string
-	// containerID represents the container ID of the sender (optional).
-	containerID []byte
+	// localData is used for Origin Detection
+	localData origindetection.LocalData
 	// externalData is used for Origin Detection
 	externalData origindetection.ExternalData
 }
@@ -101,9 +101,9 @@ func (p *parser) applyServiceCheckOptionalField(serviceCheck dogstatsdServiceChe
 	case bytes.HasPrefix(optionalField, serviceCheckMessagePrefix):
 		newServiceCheck.message = string(optionalField[len(serviceCheckMessagePrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, localDataPrefix):
-		newServiceCheck.containerID = p.resolveContainerIDFromLocalData(optionalField)
+		newServiceCheck.localData = p.parseLocalData(optionalField[len(localDataPrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, externalDataPrefix):
-		newServiceCheck.externalData, err = origindetection.ParseExternalData(string(optionalField[len(externalDataPrefix):]))
+		newServiceCheck.externalData = p.parseExternalData(optionalField[len(externalDataPrefix):])
 	}
 	if err != nil {
 		return serviceCheck, err

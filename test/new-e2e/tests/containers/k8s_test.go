@@ -806,6 +806,23 @@ func (suite *k8sSuite) TestKSM() {
 			},
 		},
 	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kubernetes_state_customresource.ddm_value",
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^customresource_group:datadoghq.com$`,
+				`^customresource_version:v1alpha1$`,
+				`^customresource_kind:DatadogMetric`,
+				`^cr_type:ddm$`,
+				`^ddm_namespace:workload-(?:nginx|redis)$`,
+				`^ddm_name:(?:nginx|redis)$`,
+			},
+		},
+	})
 }
 
 func (suite *k8sSuite) TestDogstatsdInAgent() {
@@ -922,7 +939,12 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
 			deployment, err := suite.Env().KubernetesCluster.Client().AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 			if !assert.NoError(c, err) {
+				c.Errorf("deployment with name %s in namespace %s not found", name, namespace)
 				return
+			}
+
+			if deployment.Status.AvailableReplicas == 0 {
+				c.Errorf("deployment with name %s in namespace %s has 0 available replicas", name, namespace)
 			}
 
 			detectedLangsLabelIsSet := false

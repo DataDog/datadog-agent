@@ -29,5 +29,17 @@ func New() *Resolver {
 // GetContainerContext returns the container id, cgroup context, and cgroup sysfs path of the given pid
 func (cr *Resolver) GetContainerContext(pid uint32) (containerutils.ContainerID, model.CGroupContext, string, error) {
 	// Parse /proc/[pid]/task/[pid]/cgroup and /sys/fs/cgroup/[cgroup]
-	return cr.fs.FindCGroupContext(pid, pid)
+	id, ctx, path, err := cr.fs.FindCGroupContext(pid, pid)
+	if err != nil {
+		return "", model.CGroupContext{}, "", err
+	}
+
+	return id, model.CGroupContext{
+		CGroupID:    ctx.CGroupID,
+		CGroupFlags: ctx.CGroupFlags,
+		CGroupFile: model.PathKey{
+			Inode:   ctx.CGroupFileInode,
+			MountID: ctx.CGroupFileMountID,
+		},
+	}, path, nil
 }

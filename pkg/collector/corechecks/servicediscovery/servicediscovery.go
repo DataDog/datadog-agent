@@ -12,8 +12,6 @@ import (
 	"runtime"
 	"time"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -47,7 +45,6 @@ type serviceEvents struct {
 }
 
 type discoveredServices struct {
-	ignoreProcs     map[int]bool
 	potentials      map[int]*serviceInfo
 	runningServices map[int]*serviceInfo
 
@@ -58,24 +55,11 @@ type osImpl interface {
 	DiscoverServices() (*discoveredServices, error)
 }
 
-var newOSImpl func(ignoreCfg map[string]bool) (osImpl, error)
-
-type config struct {
-	IgnoreProcesses []string `yaml:"ignore_processes"`
-}
-
-// Parse parses the configuration
-func (c *config) Parse(data []byte) error {
-	if err := yaml.Unmarshal(data, c); err != nil {
-		return err
-	}
-	return nil
-}
+var newOSImpl func() (osImpl, error)
 
 // Check reports discovered services.
 type Check struct {
 	corechecks.CheckBase
-	cfg                   *config
 	os                    osImpl
 	sender                *telemetrySender
 	sentRepeatedEventPIDs map[int]bool
@@ -98,7 +82,6 @@ func Factory() option.Option[func() check.Check] {
 func newCheck() *Check {
 	return &Check{
 		CheckBase:             corechecks.NewCheckBase(CheckName),
-		cfg:                   &config{},
 		sentRepeatedEventPIDs: make(map[int]bool),
 	}
 }
@@ -111,14 +94,6 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 	if err := c.CommonConfigure(senderManager, initConfig, instanceConfig, source); err != nil {
 		return err
 	}
-	if err := c.cfg.Parse(instanceConfig); err != nil {
-		return fmt.Errorf("failed to parse config: %w", err)
-	}
-
-	ignoreCfg := map[string]bool{}
-	for _, pName := range c.cfg.IgnoreProcesses {
-		ignoreCfg[pName] = true
-	}
 
 	s, err := c.GetSender()
 	if err != nil {
@@ -126,7 +101,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 	}
 	c.sender = newTelemetrySender(s)
 
-	c.os, err = newOSImpl(ignoreCfg)
+	c.os, err = newOSImpl()
 	if err != nil {
 		return err
 	}
@@ -152,8 +127,7 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	log.Debugf("ignoreProcs: %d | runningServices: %d | potentials: %d",
-		len(disc.ignoreProcs),
+	log.Debugf("runningServices: %d | potentials: %d",
 		len(disc.runningServices),
 		len(disc.potentials),
 	)

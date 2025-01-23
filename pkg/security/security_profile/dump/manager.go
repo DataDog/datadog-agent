@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 )
 
 // ActivityDumpHandler represents an handler for the activity dumps sent by the probe
@@ -333,7 +334,7 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 
 func (adm *ActivityDumpManager) prepareContextTags() {
 	// add hostname tag
-	hostname, err := utils.GetHostname()
+	hostname, err := hostnameutils.GetHostname()
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}
@@ -854,7 +855,7 @@ func (adm *ActivityDumpManager) SnapshotTracedCgroups() {
 
 		if err = adm.activityDumpsConfigMap.Lookup(&event.ConfigCookie, &event.Config); err != nil {
 			// this config doesn't exist anymore, remove expired entries
-			seclog.Errorf("config not found for (%v): %v", cgroupFile, err)
+			seclog.Warnf("config not found for (%v): %v", cgroupFile, err)
 			_ = adm.tracedCgroupsMap.Delete(cgroupFile)
 			continue
 		}
@@ -863,7 +864,7 @@ func (adm *ActivityDumpManager) SnapshotTracedCgroups() {
 	}
 
 	if err = iterator.Err(); err != nil {
-		seclog.Errorf("couldn't iterate over the map traced_cgroups: %v", err)
+		seclog.Warnf("couldn't iterate over the map traced_cgroups: %v", err)
 	}
 }
 

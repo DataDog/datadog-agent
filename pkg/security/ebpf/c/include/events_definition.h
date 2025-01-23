@@ -134,6 +134,7 @@ struct cgroup_tracing_event_t {
     struct container_context_t container;
     struct activity_dump_config config;
     u64 cookie;
+    u32 pid;
 };
 
 struct cgroup_write_event_t {
@@ -453,6 +454,28 @@ struct on_demand_event_t {
 
     u32 synth_id;
     char data[256];
+};
+
+struct raw_packet_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct network_device_context_t device;
+
+    int len;
+    char data[256];
+};
+
+struct network_flow_monitor_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct network_device_context_t device;
+
+    u64 flows_count; // keep as u64 to prevent inconsistent verifier output on bounds checks
+    struct flow_stats_t flows[ACTIVE_FLOWS_MAX_SIZE];
 };
 
 #endif

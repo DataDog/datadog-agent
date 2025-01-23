@@ -24,12 +24,12 @@
         },
         {
           "name": "cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -144,12 +144,12 @@
         },
         {
           "name": "process.ancestors.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "process.ancestors.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -559,12 +559,12 @@
         },
         {
           "name": "process.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "process.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -924,12 +924,12 @@
         },
         {
           "name": "process.parent.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "process.parent.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -1979,6 +1979,11 @@
           "property_doc_link": "common-networkcontext-l4_protocol-doc"
         },
         {
+          "name": "network.network_direction",
+          "definition": "Network direction of the network packet",
+          "property_doc_link": "common-networkcontext-network_direction-doc"
+        },
+        {
           "name": "network.size",
           "definition": "Size in bytes of the network packet",
           "property_doc_link": "common-networkcontext-size-doc"
@@ -2069,12 +2074,12 @@
         },
         {
           "name": "exec.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "exec.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -2498,12 +2503,12 @@
         },
         {
           "name": "exit.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "exit.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -2929,6 +2934,11 @@
           "name": "network.l4_protocol",
           "definition": "L4 protocol of the network packet",
           "property_doc_link": "common-networkcontext-l4_protocol-doc"
+        },
+        {
+          "name": "network.network_direction",
+          "definition": "Network direction of the network packet",
+          "property_doc_link": "common-networkcontext-network_direction-doc"
         },
         {
           "name": "network.size",
@@ -3647,6 +3657,85 @@
       ]
     },
     {
+      "name": "network_flow_monitor",
+      "definition": "A network monitor event was sent",
+      "type": "Network",
+      "from_agent_version": "7.63",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "network_flow_monitor.device.ifname",
+          "definition": "Interface ifname",
+          "property_doc_link": "common-networkdevicecontext-ifname-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.destination.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.destination.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.egress.data_size",
+          "definition": "Amount of data transmitted or received",
+          "property_doc_link": "common-networkstats-data_size-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.egress.packet_count",
+          "definition": "Count of network packets transmitted or received",
+          "property_doc_link": "common-networkstats-packet_count-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.ingress.data_size",
+          "definition": "Amount of data transmitted or received",
+          "property_doc_link": "common-networkstats-data_size-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.ingress.packet_count",
+          "definition": "Count of network packets transmitted or received",
+          "property_doc_link": "common-networkstats-packet_count-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.l3_protocol",
+          "definition": "L3 protocol of the network packet",
+          "property_doc_link": "network_flow_monitor-flows-l3_protocol-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.l4_protocol",
+          "definition": "L4 protocol of the network packet",
+          "property_doc_link": "network_flow_monitor-flows-l4_protocol-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.source.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.source.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        }
+      ]
+    },
+    {
       "name": "open",
       "definition": "A file was opened",
       "type": "File",
@@ -3787,7 +3876,7 @@
     },
     {
       "name": "packet",
-      "definition": "A raw network packet captured",
+      "definition": "A raw network packet was captured",
       "type": "Network",
       "from_agent_version": "7.60",
       "experimental": false,
@@ -3826,6 +3915,11 @@
           "name": "packet.l4_protocol",
           "definition": "L4 protocol of the network packet",
           "property_doc_link": "common-networkcontext-l4_protocol-doc"
+        },
+        {
+          "name": "packet.network_direction",
+          "definition": "Network direction of the network packet",
+          "property_doc_link": "common-networkcontext-network_direction-doc"
         },
         {
           "name": "packet.size",
@@ -3933,12 +4027,12 @@
         },
         {
           "name": "ptrace.tracee.ancestors.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -4348,12 +4442,12 @@
         },
         {
           "name": "ptrace.tracee.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "ptrace.tracee.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -4713,12 +4807,12 @@
         },
         {
           "name": "ptrace.tracee.parent.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "ptrace.tracee.parent.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -5885,12 +5979,12 @@
         },
         {
           "name": "signal.target.ancestors.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "signal.target.ancestors.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -6300,12 +6394,12 @@
         },
         {
           "name": "signal.target.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "signal.target.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -6665,12 +6759,12 @@
         },
         {
           "name": "signal.target.parent.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "signal.target.parent.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -7802,6 +7896,19 @@
       "examples": []
     },
     {
+      "name": "*.data_size",
+      "link": "common-networkstats-data_size-doc",
+      "type": "int",
+      "definition": "Amount of data transmitted or received",
+      "prefixes": [
+        "network_flow_monitor.flows.egress",
+        "network_flow_monitor.flows.ingress"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.egid",
       "link": "common-credentials-egid-doc",
       "type": "int",
@@ -8343,6 +8450,7 @@
       "definition": "Interface ifname",
       "prefixes": [
         "network.device",
+        "network_flow_monitor.device",
         "packet.device"
       ],
       "constants": "",
@@ -8472,6 +8580,8 @@
         "connect.addr",
         "network.destination",
         "network.source",
+        "network_flow_monitor.flows.destination",
+        "network_flow_monitor.flows.source",
         "packet.destination",
         "packet.source"
       ],
@@ -8534,6 +8644,8 @@
         "connect.addr",
         "network.destination",
         "network.source",
+        "network_flow_monitor.flows.destination",
+        "network_flow_monitor.flows.source",
         "packet.destination",
         "packet.source"
       ],
@@ -8686,6 +8798,7 @@
         "mkdir.file.path",
         "mmap.file.name",
         "mmap.file.path",
+        "network_flow_monitor.flows",
         "open.file.name",
         "open.file.path",
         "process.ancestors",
@@ -8752,7 +8865,7 @@
       "name": "*.manager",
       "link": "common-cgroupcontext-manager-doc",
       "type": "string",
-      "definition": "Lifecycle manager of the cgroup",
+      "definition": "[Experimental] Lifecycle manager of the cgroup",
       "prefixes": [
         "cgroup",
         "exec.cgroup",
@@ -8989,6 +9102,19 @@
       ]
     },
     {
+      "name": "*.network_direction",
+      "link": "common-networkcontext-network_direction-doc",
+      "type": "int",
+      "definition": "Network direction of the network packet",
+      "prefixes": [
+        "network",
+        "packet"
+      ],
+      "constants": "Network directions",
+      "constants_link": "network-directions",
+      "examples": []
+    },
+    {
       "name": "*.package.name",
       "link": "common-fileevent-package-name-doc",
       "type": "string",
@@ -9139,6 +9265,19 @@
       "examples": []
     },
     {
+      "name": "*.packet_count",
+      "link": "common-networkstats-packet_count-doc",
+      "type": "int",
+      "definition": "Count of network packets transmitted or received",
+      "prefixes": [
+        "network_flow_monitor.flows.egress",
+        "network_flow_monitor.flows.ingress"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.path",
       "link": "common-fileevent-path-doc",
       "type": "string",
@@ -9230,6 +9369,8 @@
         "connect.addr",
         "network.destination",
         "network.source",
+        "network_flow_monitor.flows.destination",
+        "network_flow_monitor.flows.source",
         "packet.destination",
         "packet.source"
       ],
@@ -9554,7 +9695,7 @@
       "name": "*.version",
       "link": "common-cgroupcontext-version-doc",
       "type": "int",
-      "definition": "Version of the cgroup API",
+      "definition": "[Experimental] Version of the cgroup API",
       "prefixes": [
         "cgroup",
         "exec.cgroup",
@@ -10483,6 +10624,30 @@
       ],
       "constants": "Virtual Memory flags",
       "constants_link": "virtual-memory-flags",
+      "examples": []
+    },
+    {
+      "name": "network_flow_monitor.flows.l3_protocol",
+      "link": "network_flow_monitor-flows-l3_protocol-doc",
+      "type": "int",
+      "definition": "L3 protocol of the network packet",
+      "prefixes": [
+        "network_flow_monitor.flows"
+      ],
+      "constants": "L3 protocols",
+      "constants_link": "l3-protocols",
+      "examples": []
+    },
+    {
+      "name": "network_flow_monitor.flows.l4_protocol",
+      "link": "network_flow_monitor-flows-l4_protocol-doc",
+      "type": "int",
+      "definition": "L4 protocol of the network packet",
+      "prefixes": [
+        "network_flow_monitor.flows"
+      ],
+      "constants": "L4 protocols",
+      "constants_link": "l4-protocols",
       "examples": []
     },
     {
@@ -14259,6 +14424,21 @@
         },
         {
           "name": "AF_MAX",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Network directions",
+      "link": "network-directions",
+      "description": "Network directions are the supported directions of network packets.",
+      "all": [
+        {
+          "name": "INGRESS",
+          "architecture": "all"
+        },
+        {
+          "name": "EGRESS",
           "architecture": "all"
         }
       ]

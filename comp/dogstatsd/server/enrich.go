@@ -37,15 +37,18 @@ type enrichConfig struct {
 }
 
 // extractTagsMetadata returns tags (client tags + host tag) and information needed to query tagger (origins, cardinality).
-func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []byte, externalData origindetection.ExternalData, conf enrichConfig) ([]string, string, taggertypes.OriginInfo, metrics.MetricSource) {
+func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, localData origindetection.LocalData, externalData origindetection.ExternalData, conf enrichConfig) ([]string, string, taggertypes.OriginInfo, metrics.MetricSource) {
 	host := conf.defaultHostname
 	metricSource := metrics.MetricSourceDogstatsd
+
+	// Add Origin Detection metadata
 	origin := taggertypes.OriginInfo{
 		ContainerIDFromSocket: originFromUDS,
-		ContainerID:           string(originFromMsg),
+		LocalData:             localData,
 		ExternalData:          externalData,
 		ProductOrigin:         origindetection.ProductOriginDogStatsD,
 	}
+	origin.LocalData.ProcessID = processID
 
 	n := 0
 	for _, tag := range tags {
@@ -53,7 +56,7 @@ func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []by
 			host = tag[len(hostTagPrefix):]
 			continue
 		} else if strings.HasPrefix(tag, entityIDTagPrefix) {
-			origin.PodUID = tag[len(entityIDTagPrefix):]
+			origin.LocalData.PodUID = tag[len(entityIDTagPrefix):]
 			continue
 		} else if strings.HasPrefix(tag, CardinalityTagPrefix) {
 			origin.Cardinality = tag[len(CardinalityTagPrefix):]
@@ -110,9 +113,9 @@ func tsToFloatForSamples(ts time.Time) float64 {
 	return float64(ts.Unix())
 }
 
-func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, listenerID string, conf enrichConfig) []metrics.MetricSample {
+func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig) []metrics.MetricSample {
 	metricName := ddSample.name
-	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(ddSample.tags, origin, ddSample.containerID, ddSample.externalData, conf)
+	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, conf)
 
 	if !isExcluded(metricName, conf.metricPrefix, conf.metricPrefixBlacklist) {
 		metricName = conf.metricPrefix + metricName
@@ -191,8 +194,8 @@ func enrichEventAlertType(dogstatsdAlertType alertType) metricsevent.AlertType {
 	return metricsevent.AlertTypeSuccess
 }
 
-func enrichEvent(event dogstatsdEvent, origin string, conf enrichConfig) *metricsevent.Event {
-	tags, hostnameFromTags, extractedOrigin, _ := extractTagsMetadata(event.tags, origin, event.containerID, event.externalData, conf)
+func enrichEvent(event dogstatsdEvent, origin string, processID uint32, conf enrichConfig) *metricsevent.Event {
+	tags, hostnameFromTags, extractedOrigin, _ := extractTagsMetadata(event.tags, origin, processID, event.localData, event.externalData, conf)
 
 	enrichedEvent := &metricsevent.Event{
 		Title:          event.title,
@@ -228,8 +231,8 @@ func enrichServiceCheckStatus(status serviceCheckStatus) servicecheck.ServiceChe
 	return servicecheck.ServiceCheckUnknown
 }
 
-func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, origin string, conf enrichConfig) *servicecheck.ServiceCheck {
-	tags, hostnameFromTags, extractedOrigin, _ := extractTagsMetadata(serviceCheck.tags, origin, serviceCheck.containerID, serviceCheck.externalData, conf)
+func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, origin string, processID uint32, conf enrichConfig) *servicecheck.ServiceCheck {
+	tags, hostnameFromTags, extractedOrigin, _ := extractTagsMetadata(serviceCheck.tags, origin, processID, serviceCheck.localData, serviceCheck.externalData, conf)
 
 	enrichedServiceCheck := &servicecheck.ServiceCheck{
 		CheckName:  serviceCheck.name,
