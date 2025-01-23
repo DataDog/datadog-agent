@@ -211,6 +211,8 @@ var executeCommandWithTimeout = func(s *common.Setup, command string, args ...st
 
 	cmd := exec.CommandContext(ctx, command, args...)
 	output, err = cmd.Output()
+	span.SetTag("command_error", err.Error())
+	span.SetTag("command_output", string(output))
 
 	if err != nil {
 		span.Finish(err)
