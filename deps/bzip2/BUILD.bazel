@@ -1,0 +1,18 @@
+load("//:bazel/rules/pkgconfig.bzl", "create_pkg_config")
+
+# create_pkg_config(
+#     name = "bzip2.pc",
+#     template = ":bzip2.pc.in",
+#     prefix = "/dummy/prefix/which/should/not/matter",
+#     version="1.0.8", # Should be fetched from the module instead
+#     visibility = ["//visibility:public"],
+# )
+
+# cc_library(
+#     name = "bz",
+#     deps = [
+#         "@bzip2//:bz2",
+#     ],
+#     data = [":bzip2.pc"],
+#     visibility = ["//visibility:public"],
+# )

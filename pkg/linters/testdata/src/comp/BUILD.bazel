@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "comp",
+    srcs = ["a.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/linters/testdata/src/comp",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/config"],
+)

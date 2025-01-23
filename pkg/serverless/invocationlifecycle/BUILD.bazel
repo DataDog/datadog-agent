@@ -14,7 +14,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/aggregator",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/proto/pbgo/trace",
         "//pkg/serverless/logs",
         "//pkg/serverless/metrics",
@@ -42,8 +42,10 @@ go_test(
         "//comp/aggregator/demultiplexer",
         "//comp/aggregator/demultiplexer/demultiplexerimpl",
         "//comp/core/hostname/hostnameimpl",
-        "//comp/core/log/logimpl",
-        "//comp/serializer/compression/compressionimpl",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/serializer/logscompression/fx-mock",
+        "//comp/serializer/metricscompression/fx-mock",
         "//pkg/metrics",
         "//pkg/proto/pbgo/trace",
         "//pkg/serverless/logs",
@@ -53,5 +55,6 @@ go_test(
         "//pkg/trace/sampler",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
     ],
 )

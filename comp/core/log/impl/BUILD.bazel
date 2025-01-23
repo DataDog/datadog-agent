@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["logger.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/log/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//pkg/util/log",
+        "//pkg/util/log/setup",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["logger_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/def",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

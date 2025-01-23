@@ -9,7 +9,7 @@ go_library(
         "//comp/aggregator/demultiplexer",
         "//comp/core/config",
         "//comp/core/hostname",
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//comp/core/status",
         "//comp/snmptraps/config",
         "//comp/snmptraps/config/configimpl",
@@ -23,6 +23,7 @@ go_library(
         "//comp/snmptraps/status",
         "//comp/snmptraps/status/statusimpl",
         "//pkg/util/fxutil",
+        "//pkg/util/fxutil/logging",
         "@org_uber_go_fx//:fx",
     ],
 )

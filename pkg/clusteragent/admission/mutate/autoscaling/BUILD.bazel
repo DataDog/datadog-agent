@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "autoscaling",
+    srcs = ["autoscaling.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/cluster-agent/admission",
+        "//comp/core/config",
+        "//pkg/clusteragent/admission/common",
+        "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/clusteragent/autoscaling/workload",
+        "@io_k8s_api//admission/v1:admission",
+        "@io_k8s_api//admissionregistration/v1:admissionregistration",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//dynamic",
+    ],
+)

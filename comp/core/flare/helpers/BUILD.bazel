@@ -47,8 +47,8 @@ go_test(
     embed = [":helpers"],
     deps = [
         "//comp/core/config",
+        "//comp/core/flare/builder",
         "//pkg/util/archive",
-        "//pkg/util/fxutil",
         "//pkg/util/hostname",
         "//pkg/util/hostname/validate",
         "//pkg/util/scrubber",

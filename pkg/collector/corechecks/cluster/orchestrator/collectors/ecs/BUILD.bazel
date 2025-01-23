@@ -6,7 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/ecs",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/workloadmeta",
+        "//comp/core/tagger/def",
+        "//comp/core/workloadmeta/def",
         "//pkg/collector/corechecks/cluster/orchestrator/collectors",
         "//pkg/collector/corechecks/cluster/orchestrator/processors",
         "//pkg/collector/corechecks/cluster/orchestrator/processors/ecs",

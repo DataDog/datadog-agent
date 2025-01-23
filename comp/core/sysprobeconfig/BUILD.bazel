@@ -10,9 +10,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/system-probe/config/types",
-        "//pkg/config",
+        "//pkg/config/model",
         "//pkg/util/fxutil",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "@org_uber_go_fx//:fx",
     ],
 )

@@ -9,7 +9,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/tencent",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/diagnose/diagnosis",
         "//pkg/util/cachedfetch",
         "//pkg/util/http",
@@ -21,7 +21,7 @@ go_test(
     srcs = ["tencent_test.go"],
     embed = [":tencent"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/setup",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

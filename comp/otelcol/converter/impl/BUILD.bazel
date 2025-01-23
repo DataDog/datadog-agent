@@ -40,3 +40,42 @@ go_test(
         "@io_opentelemetry_go_collector_receiver//receivertest",
     ],
 )
+
+go_library(
+    name = "impl",
+    srcs = [
+        "autoconfigure.go",
+        "converter.go",
+        "datadogconnector.go",
+        "extensions.go",
+        "infraattributes.go",
+        "prometheus.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/otelcol/converter/def",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@org_uber_go_zap//:zap",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["converter_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@io_opentelemetry_go_collector_confmap_provider_envprovider//:envprovider",
+        "@io_opentelemetry_go_collector_confmap_provider_fileprovider//:fileprovider",
+        "@io_opentelemetry_go_collector_confmap_provider_httpprovider//:httpprovider",
+        "@io_opentelemetry_go_collector_confmap_provider_httpsprovider//:httpsprovider",
+        "@io_opentelemetry_go_collector_confmap_provider_yamlprovider//:yamlprovider",
+        "@org_uber_go_zap//:zap",
+    ],
+)

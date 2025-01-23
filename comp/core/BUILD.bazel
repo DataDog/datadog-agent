@@ -12,14 +12,16 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
-        "//comp/core/log/logimpl",
+        "//comp/core/log/def",
+        "//comp/core/log/fx",
+        "//comp/core/log/mock",
         "//comp/core/pid/pidimpl",
         "//comp/core/secrets",
         "//comp/core/secrets/secretsimpl",
         "//comp/core/sysprobeconfig/sysprobeconfigimpl",
         "//comp/core/telemetry/telemetryimpl",
         "//pkg/util/fxutil",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "@org_uber_go_fx//:fx",
     ],
 )

@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/healthprobe/def",
         "//comp/core/healthprobe/impl",
         "//pkg/util/fxutil",
     ],

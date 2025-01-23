@@ -8,12 +8,12 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/security/probe/config",
-            "//pkg/security/secl/model",
+            "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/utils",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/probe/config",
-            "//pkg/security/secl/model",
+            "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/utils",
         ],
         "//conditions:default": [],

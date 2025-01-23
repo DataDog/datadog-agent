@@ -11,6 +11,6 @@ go_library(
     deps = [
         "//pkg/security/proto/api",
         "@com_github_stretchr_testify//mock",
-        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//:grpc",
     ],
 )

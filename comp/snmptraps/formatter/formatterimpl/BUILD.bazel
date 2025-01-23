@@ -10,7 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/aggregator/demultiplexer",
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//comp/snmptraps/formatter",
         "//comp/snmptraps/oidresolver",
         "//comp/snmptraps/packet",
@@ -29,8 +29,7 @@ go_test(
     ],
     embed = [":formatterimpl"],
     deps = [
-        "//comp/core/log",
-        "//comp/core/log/logimpl",
+        "//comp/core/log/mock",
         "//comp/snmptraps/formatter",
         "//comp/snmptraps/oidresolver",
         "//comp/snmptraps/oidresolver/oidresolverimpl",

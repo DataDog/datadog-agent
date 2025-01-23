@@ -32,7 +32,6 @@ go_test(
     embed = [":gosnmplib"],
     deps = [
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:seelog",
         "@com_github_gosnmp_gosnmp//:gosnmp",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

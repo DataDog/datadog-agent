@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "stream",
+    srcs = ["stream.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stream",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/proto",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/grpc",
+        "//pkg/util/log",
+        "@com_github_google_uuid//:uuid",
+    ],
+)
+
+go_test(
+    name = "stream_test",
+    srcs = ["stream_test.go"],
+    embed = [":stream"],
+    deps = [
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/noopimpl",
+        "//comp/core/autodiscovery/scheduler",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//metadata",
+    ],
+)

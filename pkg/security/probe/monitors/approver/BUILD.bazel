@@ -9,6 +9,7 @@ go_library(
         "@rules_go//go/platform:android": [
             "//pkg/security/ebpf",
             "//pkg/security/metrics",
+            "//pkg/security/probe/kfilters",
             "//pkg/security/probe/managerhelper",
             "//pkg/security/secl/model",
             "//pkg/security/utils",
@@ -19,6 +20,7 @@ go_library(
         "@rules_go//go/platform:linux": [
             "//pkg/security/ebpf",
             "//pkg/security/metrics",
+            "//pkg/security/probe/kfilters",
             "//pkg/security/probe/managerhelper",
             "//pkg/security/secl/model",
             "//pkg/security/utils",

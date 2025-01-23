@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "winregistry",
+    srcs = ["winregistry.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry",
+    visibility = ["//pkg/fleet:__subpackages__"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/log",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)

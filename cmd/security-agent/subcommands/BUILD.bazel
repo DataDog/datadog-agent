@@ -15,5 +15,6 @@ go_library(
         "//cmd/security-agent/subcommands/start",
         "//cmd/security-agent/subcommands/status",
         "//cmd/security-agent/subcommands/version",
+        "//cmd/security-agent/subcommands/workloadlist",
     ],
 )

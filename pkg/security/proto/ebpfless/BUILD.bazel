@@ -5,5 +5,9 @@ go_library(
     srcs = ["msg.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/security/secl/model"],
+    deps = [
+        "//pkg/security/secl/containerutils",
+        "//pkg/security/secl/model/sharedconsts",
+        "@org_modernc_mathutil//:mathutil",
+    ],
 )

@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "model",
+    srcs = [
+        "const.go",
+        "doc.go",
+        "pod_autoscaler.go",
+        "pod_autoscaler_test_utils.go",
+        "rc_schema.go",
+        "recommendations.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/pointer",
+        "@com_github_datadog_agent_payload_v5//autoscaling/kubernetes",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+    ],
+)
+
+go_test(
+    name = "model_test",
+    srcs = ["pod_autoscaler_test.go"],
+    embed = [":model"],
+    deps = [
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)

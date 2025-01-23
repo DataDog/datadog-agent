@@ -6,9 +6,14 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/cmd/serverless",
     visibility = ["//visibility:private"],
     deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/fx-noop",
         "//comp/logs/agent/config",
-        "//pkg/config",
+        "//comp/serializer/logscompression/def",
+        "//comp/serializer/logscompression/fx",
         "//pkg/config/model",
+        "//pkg/config/remote/service",
+        "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/proto/pbgo/trace",
         "//pkg/serverless",
@@ -26,11 +31,13 @@ go_library(
         "//pkg/serverless/proxy",
         "//pkg/serverless/random",
         "//pkg/serverless/registration",
+        "//pkg/serverless/remoteconfig",
         "//pkg/serverless/trace",
         "//pkg/serverless/trace/inferredspan",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/util/log",
+        "//pkg/util/log/setup",
     ],
 )
 
@@ -100,7 +107,17 @@ go_test(
             "//pkg/util/fxutil",
             "@com_github_stretchr_testify//assert",
         ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/serverless/daemon",
+            "//pkg/util/fxutil",
+            "@com_github_stretchr_testify//assert",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//pkg/serverless/daemon",
+            "//pkg/util/fxutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//pkg/serverless/daemon",
             "//pkg/util/fxutil",
             "@com_github_stretchr_testify//assert",

@@ -6,12 +6,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/telemetry/telemetryimpl",
+        "//comp/core/telemetry",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/corechecks",
         "//pkg/util/log",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "@com_github_prometheus_client_model//go",
     ],
 )

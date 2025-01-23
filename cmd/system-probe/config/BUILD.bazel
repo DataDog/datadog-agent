@@ -20,17 +20,19 @@ go_library(
     deps = [
         "//cmd/system-probe/config/types",
         "//comp/core/secrets",
-        "//pkg/config",
         "//pkg/config/model",
+        "//pkg/config/setup",
         "//pkg/util/kernel",
         "//pkg/util/log",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "@com_github_datadog_viper//:viper",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//pkg/ebpf/prebuilt",
             "//pkg/security/ebpf/kernel",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/prebuilt",
             "//pkg/security/ebpf/kernel",
         ],
         "@rules_go//go/platform:windows": [
@@ -49,14 +51,18 @@ go_test(
     ],
     embed = [":config"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/mock",
         "//pkg/config/model",
         "@com_github_stretchr_testify//assert",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//pkg/ebpf/prebuilt",
+            "//pkg/util/kernel",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/prebuilt",
+            "//pkg/util/kernel",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:windows": [

@@ -9,7 +9,7 @@ go_library(
         "//pkg/config/remote/data",
         "//pkg/remoteconfig/state",
         "//pkg/util/fxutil",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "@org_uber_go_fx//:fx",
     ],
 )

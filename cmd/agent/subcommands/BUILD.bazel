@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/agent/command",
+        "//cmd/agent/subcommands/analyzelogs",
         "//cmd/agent/subcommands/check",
         "//cmd/agent/subcommands/config",
         "//cmd/agent/subcommands/configcheck",

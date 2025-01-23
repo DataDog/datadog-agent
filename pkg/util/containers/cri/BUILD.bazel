@@ -4,7 +4,6 @@ go_library(
     name = "cri",
     srcs = [
         "common.go",
-        "conversion.go",
         "diagnosis.go",
         "metadata.go",
         "util.go",
@@ -13,16 +12,13 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//internal/third_party/kubernetes/pkg/kubelet/cri/remote/util",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/diagnose/diagnosis",
         "//pkg/util/log",
         "//pkg/util/retry",
         "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
-        "@io_k8s_cri_api//pkg/apis/runtime/v1alpha2",
-        "@org_golang_google_grpc//:go_default_library",
-        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//credentials/insecure",
-        "@org_golang_google_grpc//status",
     ],
 )
 
@@ -86,7 +82,17 @@ go_test(
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
+        "@rules_go//go/platform:osx": [
+            "//internal/third_party/kubernetes/pkg/kubelet/cri/remote/fake",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//internal/third_party/kubernetes/pkg/kubelet/cri/remote/fake",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//internal/third_party/kubernetes/pkg/kubelet/cri/remote/fake",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",

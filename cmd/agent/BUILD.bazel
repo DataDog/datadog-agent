@@ -123,7 +123,19 @@ go_library(
             "//cmd/internal/runcmd",
             "@com_github_spf13_cobra//:cobra",
         ],
+        "@rules_go//go/platform:osx": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//cmd/agent/command",
             "//cmd/agent/subcommands",
             "//cmd/internal/runcmd",
@@ -137,7 +149,6 @@ go_library(
         ],
         "@rules_go//go/platform:windows": [
             "//cmd/agent/command",
-            "//cmd/agent/common",
             "//cmd/agent/subcommands",
             "//cmd/agent/windows/service",
             "//cmd/internal/runcmd",

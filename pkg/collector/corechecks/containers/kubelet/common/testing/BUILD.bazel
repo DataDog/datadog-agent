@@ -6,10 +6,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/mock",
         "//pkg/aggregator/mocksender",
         "//pkg/collector/corechecks/containers/kubelet/common",
         "//pkg/util/containers",
+        "//pkg/util/containers/image",
         "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/kubernetes/kubelet/mock",

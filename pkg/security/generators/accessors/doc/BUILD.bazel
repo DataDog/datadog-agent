@@ -3,10 +3,10 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "doc",
     srcs = ["doc.go"],
-    importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/doc",
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/generators/accessors/doc",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/security/secl/compiler/generators/accessors/common",
+        "//pkg/security/generators/accessors/common",
         "@org_golang_x_tools//go/packages",
     ],
 )

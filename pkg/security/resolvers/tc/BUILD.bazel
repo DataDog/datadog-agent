@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "//pkg/collector/corechecks/ebpf/probe/ebpfcheck",
+            "//pkg/ebpf",
             "//pkg/security/ebpf/probes",
             "//pkg/security/metrics",
             "//pkg/security/probe/config",
@@ -18,7 +18,7 @@ go_library(
             "@com_github_vishvananda_netlink//:netlink",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/collector/corechecks/ebpf/probe/ebpfcheck",
+            "//pkg/ebpf",
             "//pkg/security/ebpf/probes",
             "//pkg/security/metrics",
             "//pkg/security/probe/config",

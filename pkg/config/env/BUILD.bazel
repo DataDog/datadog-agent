@@ -19,12 +19,15 @@ go_library(
         "//pkg/util/log",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//pkg/util/system",
             "//pkg/util/system/socket",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/util/system",
             "//pkg/util/system/socket",
         ],
         "@rules_go//go/platform:windows": [
+            "//pkg/util/system",
             "//pkg/util/system/socket",
         ],
         "//conditions:default": [],

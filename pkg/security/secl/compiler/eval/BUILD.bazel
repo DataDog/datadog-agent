@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "cidr.go",
         "context.go",
+        "context_regular.go",
         "errors.go",
         "eval.go",
         "eval_operators.go",
@@ -12,7 +13,6 @@ go_library(
         "event.go",
         "field.go",
         "glob.go",
-        "iterator.go",
         "macro.go",
         "model.go",
         "oo_case_insensitive.go",
@@ -33,6 +33,7 @@ go_library(
         "//pkg/security/secl/compiler/ast",
         "//pkg/security/secl/utils",
         "@com_github_alecthomas_participle//lexer",
+        "@com_github_jellydator_ttlcache_v3//:ttlcache",
     ],
 )
 

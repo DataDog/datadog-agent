@@ -10,18 +10,20 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/telemetry",
         "//comp/forwarder/eventplatform",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/corechecks",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/networkdevice/utils",
         "//pkg/networkpath/metricsender",
         "//pkg/networkpath/payload",
         "//pkg/networkpath/telemetry",
         "//pkg/networkpath/traceroute",
+        "//pkg/networkpath/traceroute/config",
         "//pkg/util/log",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )
@@ -32,7 +34,8 @@ go_test(
     embed = [":networkpath"],
     deps = [
         "//comp/core/autodiscovery/integration",
-        "//pkg/config",
+        "//pkg/config/setup",
+        "//pkg/networkpath/payload",
         "@com_github_stretchr_testify//assert",
     ],
 )

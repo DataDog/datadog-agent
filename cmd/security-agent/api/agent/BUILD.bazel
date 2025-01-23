@@ -8,9 +8,12 @@ go_library(
     deps = [
         "//cmd/agent/common",
         "//cmd/agent/common/signals",
+        "//comp/core/secrets",
         "//comp/core/settings",
         "//comp/core/status",
-        "//pkg/config",
+        "//comp/core/workloadmeta/def",
+        "//pkg/api/util",
+        "//pkg/config/setup",
         "//pkg/flare",
         "//pkg/status/health",
         "//pkg/util/hostname",

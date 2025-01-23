@@ -5,31 +5,19 @@ go_library(
     srcs = [
         "consts.go",
         "policies.go",
-        "profiles.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/rconfig",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/api/security",
-        "//pkg/config",
         "//pkg/config/remote/client",
+        "//pkg/config/setup",
         "//pkg/remoteconfig/state",
         "//pkg/security/secl/rules",
         "//pkg/security/utils",
         "//pkg/util/log",
         "@com_github_hashicorp_go_multierror//:go-multierror",
         "@com_github_skydive_project_go_debouncer//:go-debouncer",
-    ] + select({
-        "@rules_go//go/platform:android": [
-            "//pkg/security/resolvers/cgroup/model",
-            "@com_github_datadog_agent_payload_v5//cws/dumpsv1",
-            "@com_github_datadog_datadog_go_v5//statsd",
-        ],
-        "@rules_go//go/platform:linux": [
-            "//pkg/security/resolvers/cgroup/model",
-            "@com_github_datadog_agent_payload_v5//cws/dumpsv1",
-            "@com_github_datadog_datadog_go_v5//statsd",
-        ],
-        "//conditions:default": [],
-    }),
+        "@org_uber_go_atomic//:atomic",
+    ],
 )

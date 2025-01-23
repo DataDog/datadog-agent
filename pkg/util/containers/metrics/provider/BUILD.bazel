@@ -17,9 +17,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//pkg/util/log",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "//pkg/util/retry",
     ],
 )
@@ -34,8 +34,8 @@ go_test(
     ],
     embed = [":provider"],
     deps = [
-        "//comp/core/workloadmeta",
-        "//pkg/util/optional",
+        "//comp/core/workloadmeta/def",
+        "//pkg/util/option",
         "//pkg/util/pointer",
         "@com_github_stretchr_testify//assert",
     ],

@@ -13,7 +13,7 @@ go_library(
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/log",
         "//pkg/util/tmplvar",
-        "@com_github_datadog_datadog_operator//apis/datadoghq/v1alpha1",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/resource",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
@@ -29,7 +29,7 @@ go_test(
     ],
     embed = [":model"],
     deps = [
-        "@com_github_datadog_datadog_operator//apis/datadoghq/v1alpha1",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
         "@com_github_stretchr_testify//assert",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],

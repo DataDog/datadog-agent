@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "analyzelogs",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/analyzelogs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/config",
+        "//comp/logs/agent/agentimpl",
+        "//pkg/logs/launchers",
+        "//pkg/logs/message",
+        "//pkg/logs/pipeline",
+        "//pkg/logs/processor",
+        "//pkg/logs/schedulers/ad",
+        "//pkg/logs/sources",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "analyzelogs_test",
+    srcs = ["command_test.go"],
+    embed = [":analyzelogs"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//pkg/logs/processor",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "remoteconfig",
+    srcs = ["remoteconfig.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/remoteconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl",
+        "//pkg/config/model",
+        "//pkg/config/remote/service",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/telemetry",
+        "//pkg/util/log",
+        "//pkg/version",
+    ],
+)
+
+go_test(
+    name = "remoteconfig_test",
+    srcs = ["remoteconfig_test.go"],
+    embed = [":remoteconfig"],
+    deps = [
+        "//pkg/config/setup",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

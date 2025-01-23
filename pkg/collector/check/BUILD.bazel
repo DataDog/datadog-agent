@@ -19,7 +19,7 @@ go_library(
         "//pkg/aggregator/sender",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/diagnose/diagnosis",
         "//pkg/util/log",
         "//pkg/util/scrubber",

@@ -7,13 +7,12 @@ go_library(
         "entity.go",
         "env_vars_filter.go",
         "filter.go",
-        "image.go",
         "pause.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/containers",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/util/log",
     ],
 )
@@ -24,12 +23,11 @@ go_test(
         "entity_test.go",
         "env_vars_filter_test.go",
         "filter_test.go",
-        "image_test.go",
         "pause_test.go",
     ],
     embed = [":containers"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/setup",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

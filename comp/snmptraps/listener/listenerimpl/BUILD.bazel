@@ -11,7 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/aggregator/demultiplexer",
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//comp/snmptraps/config",
         "//comp/snmptraps/listener",
         "//comp/snmptraps/packet",
@@ -30,7 +30,7 @@ go_test(
     srcs = ["listener_test.go"],
     embed = [":listenerimpl"],
     deps = [
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//comp/snmptraps/config",
         "//comp/snmptraps/config/configimpl",
         "//comp/snmptraps/listener",

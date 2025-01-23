@@ -35,7 +35,7 @@ go_test(
         "//pkg/logs/message",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@io_opentelemetry_go_collector_exporter//exportertest",
+        "@io_opentelemetry_go_collector_exporter_exportertest//:exportertest",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//plog",
     ],

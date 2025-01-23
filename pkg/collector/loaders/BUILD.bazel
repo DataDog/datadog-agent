@@ -6,9 +6,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/loaders",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/tagger/def",
+        "//comp/logs/integrations/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/util/log",
+        "//pkg/util/option",
     ],
 )
 
@@ -18,9 +21,13 @@ go_test(
     embed = [":loaders"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/impl-noop",
+        "//comp/logs/integrations/def",
         "//pkg/aggregator/mocksender",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
+        "//pkg/util/option",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

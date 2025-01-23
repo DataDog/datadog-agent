@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cert",
+    srcs = [
+        "cert_generator.go",
+        "cert_getter.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/api/security/cert",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/util/filesystem",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "cert_test",
+    srcs = [
+        "cert_generator_test.go",
+        "cert_getter_test.go",
+    ],
+    embed = [":cert"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "kubelet",
@@ -9,15 +9,31 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubelet",
     visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
     deps = [
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//internal/third_party/golang/expansion",
-        "//pkg/config",
+        "//pkg/config/env",
         "//pkg/errors",
         "//pkg/util/containers",
+        "//pkg/util/containers/image",
+        "//pkg/util/gpu",
         "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "//pkg/util/pointer",
         "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "kubelet_test",
+    srcs = ["kubelet_test.go"],
+    embed = [":kubelet"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/util/kubernetes",
+        "//pkg/util/kubernetes/kubelet",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
     ],
 )

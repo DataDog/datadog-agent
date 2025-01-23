@@ -10,9 +10,12 @@ go_library(
         "//comp/metadata/inventoryagent/inventoryagentimpl",
         "//comp/metadata/inventorychecks/inventorychecksimpl",
         "//comp/metadata/inventoryhost/inventoryhostimpl",
+        "//comp/metadata/inventoryotel/inventoryotelimpl",
         "//comp/metadata/packagesigning/packagesigningimpl",
         "//comp/metadata/resources/resourcesimpl",
         "//comp/metadata/runner/runnerimpl",
+        "//comp/metadata/securityagent/fx",
+        "//comp/metadata/systemprobe/fx",
         "//pkg/util/fxutil",
     ],
 )
@@ -29,7 +32,7 @@ go_test(
         "//comp/metadata/runner/runnerimpl",
         "//pkg/serializer",
         "//pkg/util/fxutil",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "@org_uber_go_fx//:fx",
     ],
 )

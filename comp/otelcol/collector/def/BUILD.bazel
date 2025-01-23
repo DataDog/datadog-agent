@@ -5,5 +5,5 @@ go_library(
     srcs = ["component.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/collector/def",
     visibility = ["//visibility:public"],
-    deps = ["//comp/otelcol/otlp"],
+    deps = ["//comp/otelcol/otlp/datatype"],
 )

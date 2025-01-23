@@ -6,8 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/container",
     visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
     deps = [
-        "//comp/core/workloadmeta",
-        "//pkg/config",
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/env",
+        "//pkg/config/setup",
         "//pkg/errors",
         "//pkg/util/cloudproviders/cloudfoundry",
         "//pkg/util/common",
@@ -22,9 +23,12 @@ go_test(
     embed = [":container"],
     deps = [
         "//comp/core",
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
     ],
 )

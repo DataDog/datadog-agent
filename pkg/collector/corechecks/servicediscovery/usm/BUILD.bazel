@@ -1,0 +1,135 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "usm",
+    srcs = [
+        "java.go",
+        "jboss.go",
+        "jee.go",
+        "laravel.go",
+        "nodejs.go",
+        "php.go",
+        "python.go",
+        "ruby.go",
+        "service.go",
+        "spring.go",
+        "tomcat.go",
+        "weblogic.go",
+        "websphere.go",
+        "yaml.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/servicediscovery/envs",
+        "//pkg/collector/corechecks/servicediscovery/language",
+        "//pkg/util/log",
+        "@com_github_rickar_props//:props",
+        "@com_github_shirou_gopsutil_v4//process",
+        "@com_github_valyala_fastjson//:fastjson",
+        "@com_github_vibrantbyte_go_antpath//antpath",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)
+
+go_test(
+    name = "usm_test",
+    srcs = [
+        "jboss_test.go",
+        "jee_test.go",
+        "laravel_test.go",
+        "nodejs_test.go",
+        "php_test.go",
+        "python_test.go",
+        "ruby_test.go",
+        "service_test.go",
+        "spring_test.go",
+        "tomcat_test.go",
+        "weblogic_nix_test.go",
+        "websphere_test.go",
+        "yaml_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":usm"],
+    deps = [
+        "//pkg/collector/corechecks/servicediscovery/envs",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/collector/corechecks/servicediscovery/language",
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/collector/corechecks/servicediscovery/language",
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/collector/corechecks/servicediscovery/language",
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/collector/corechecks/servicediscovery/language",
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/collector/corechecks/servicediscovery/language",
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/collector/corechecks/servicediscovery/language",
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/collector/corechecks/servicediscovery/language",
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/collector/corechecks/servicediscovery/language",
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/collector/corechecks/servicediscovery/language",
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/collector/corechecks/servicediscovery/language",
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/collector/corechecks/servicediscovery/language",
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/collector/corechecks/servicediscovery/language",
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/collector/corechecks/servicediscovery/language",
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/collector/corechecks/servicediscovery/language",
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/collector/corechecks/servicediscovery/language",
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

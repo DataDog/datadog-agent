@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/otelcol/collector",
+        "//comp/otelcol/collector/fx-pipeline",
         "//pkg/util/fxutil",
     ],
 )

@@ -1,0 +1,82 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "servicediscovery",
+    srcs = [
+        "errors.go",
+        "events.go",
+        "impl_linux.go",
+        "service_detector.go",
+        "servicediscovery.go",
+        "servicediscovery_mock.go",
+        "telemetry.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/hostname",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/forwarder/eventplatform",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/collector/corechecks/servicediscovery/language",
+        "//pkg/collector/corechecks/servicediscovery/model",
+        "//pkg/collector/corechecks/servicediscovery/usm",
+        "//pkg/config/setup",
+        "//pkg/telemetry",
+        "//pkg/trace/traceutil",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@com_github_golang_mock//gomock",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//cmd/system-probe/api/client",
+            "//cmd/system-probe/config",
+            "//pkg/collector/corechecks/servicediscovery/servicetype",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//cmd/system-probe/api/client",
+            "//cmd/system-probe/config",
+            "//pkg/collector/corechecks/servicediscovery/servicetype",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "servicediscovery_test",
+    srcs = [
+        "events_test.go",
+        "impl_linux_test.go",
+        "service_detector_test.go",
+        "servicediscovery_test.go",
+    ],
+    embed = [":servicediscovery"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/corechecks/servicediscovery/language",
+        "//pkg/collector/corechecks/servicediscovery/model",
+        "//pkg/collector/corechecks/servicediscovery/usm",
+        "@com_github_golang_mock//gomock",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/autodiscovery/integration",
+            "//pkg/collector/corechecks/servicediscovery/apm",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/autodiscovery/integration",
+            "//pkg/collector/corechecks/servicediscovery/apm",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "//conditions:default": [],
+    }),
+)

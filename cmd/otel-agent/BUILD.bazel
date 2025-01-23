@@ -9,6 +9,7 @@ go_library(
         "//cmd/internal/runcmd",
         "//cmd/otel-agent/command",
         "//pkg/util/flavor",
+        "//pkg/version",
     ],
 )
 

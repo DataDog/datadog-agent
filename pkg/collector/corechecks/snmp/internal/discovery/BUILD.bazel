@@ -5,17 +5,18 @@ go_library(
     srcs = [
         "discovery.go",
         "ip_utils.go",
-        "testing.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery",
     visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
     deps = [
+        "//comp/core/autodiscovery/listeners",
+        "//comp/core/config",
         "//pkg/collector/corechecks/snmp/internal/checkconfig",
         "//pkg/collector/corechecks/snmp/internal/devicecheck",
         "//pkg/collector/corechecks/snmp/internal/session",
-        "//pkg/config",
         "//pkg/persistentcache",
         "//pkg/util/log",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -27,9 +28,9 @@ go_test(
     ],
     embed = [":discovery"],
     deps = [
+        "//comp/core/config",
         "//pkg/collector/corechecks/snmp/internal/checkconfig",
         "//pkg/collector/corechecks/snmp/internal/session",
-        "//pkg/config",
         "@com_github_gosnmp_gosnmp//:gosnmp",
         "@com_github_stretchr_testify//assert",
     ],

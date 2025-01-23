@@ -10,7 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/dogstatsd/pidmap/pidmapimpl",
-        "//comp/dogstatsd/replay",
+        "//comp/dogstatsd/replay/fx",
         "//comp/dogstatsd/server",
         "//comp/dogstatsd/serverDebug/serverdebugimpl",
         "//comp/dogstatsd/statsd",

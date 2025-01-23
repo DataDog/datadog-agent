@@ -19,8 +19,10 @@ go_test(
         "//comp/aggregator/demultiplexer/demultiplexerimpl",
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
-        "//comp/core/log/logimpl",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
         "//comp/forwarder/defaultforwarder",
         "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
     ],
 )

@@ -5,8 +5,10 @@ go_library(
     srcs = [
         "lifecycle.go",
         "lifecycle_mock.go",
+        "shutdowner.go",
         "type.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/def",
     visibility = ["//visibility:public"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

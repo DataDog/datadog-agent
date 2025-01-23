@@ -6,9 +6,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
+        "//comp/haagent/helpers",
+        "//pkg/config/env",
+        "//pkg/config/model",
         "//pkg/config/utils",
-        "//pkg/util",
         "//pkg/util/cache",
         "//pkg/util/cloudproviders/gce",
         "//pkg/util/docker",
@@ -17,6 +18,7 @@ go_library(
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/kubernetes/hostinfo",
         "//pkg/util/log",
+        "//pkg/util/sort",
     ],
 )
 
@@ -25,7 +27,8 @@ go_test(
     srcs = ["tags_test.go"],
     embed = [":hosttags"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/mock",
+        "//pkg/config/model",
         "@com_github_stretchr_testify//assert",
     ],
 )

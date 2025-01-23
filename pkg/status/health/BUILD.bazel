@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "global.go",
         "health.go",
+        "options.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/status/health",
     visibility = ["//visibility:public"],

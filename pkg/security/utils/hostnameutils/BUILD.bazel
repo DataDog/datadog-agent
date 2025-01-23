@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "hostnameutils",
+    srcs = [
+        "hostname.go",
+        "hostname_testutil.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/grpc",
+        "//pkg/util/hostname",
+        "//pkg/util/log",
+        "@com_github_avast_retry_go_v4//:retry-go",
+    ],
+)

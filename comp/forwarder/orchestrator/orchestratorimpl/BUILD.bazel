@@ -11,14 +11,14 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//comp/forwarder/defaultforwarder",
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/forwarder/orchestrator",
         "//pkg/orchestrator/config",
         "//pkg/process/util/api/config",
         "//pkg/util/fxutil",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "@org_uber_go_fx//:fx",
     ],
 )

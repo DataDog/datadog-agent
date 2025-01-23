@@ -10,7 +10,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods",
     visibility = ["//pkg/logs:__subpackages__"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/env",
+        "//pkg/config/setup",
         "//pkg/util/docker",
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
@@ -22,7 +23,8 @@ go_test(
     srcs = ["containers_or_pods_test.go"],
     embed = [":containersorpods"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/env",
+        "//pkg/config/mock",
         "@com_github_stretchr_testify//require",
     ],
 )

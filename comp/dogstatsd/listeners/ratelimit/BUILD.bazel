@@ -13,15 +13,17 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/listeners/ratelimit",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
-        "//pkg/telemetry",
+        "//comp/core/telemetry",
+        "//pkg/config/model",
         "//pkg/util/log",
-        "@com_github_shirou_gopsutil_v3//mem",
+        "@com_github_shirou_gopsutil_v4//mem",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//pkg/config/env",
             "//pkg/util/cgroups",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/config/env",
             "//pkg/util/cgroups",
         ],
         "//conditions:default": [],

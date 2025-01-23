@@ -3,7 +3,9 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "testutil",
     srcs = [
+        "error.go",
         "fuzz.go",
+        "patternscanner.go",
         "tempfolder.go",
         "timeout.go",
     ],

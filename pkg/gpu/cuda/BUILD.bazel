@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cuda",
+    srcs = [
+        "cubin.go",
+        "cubin_string.go",
+        "fatbin.go",
+        "fatbin_string.go",
+        "symbols.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gpu/cuda",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/safeelf",
+        "@com_github_pierrec_lz4_v4//:lz4",
+    ],
+)

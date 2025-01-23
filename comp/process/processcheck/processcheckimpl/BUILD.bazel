@@ -11,7 +11,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/sysprobeconfig",
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//comp/process/processcheck",
         "//comp/process/types",
         "//pkg/process/checks",

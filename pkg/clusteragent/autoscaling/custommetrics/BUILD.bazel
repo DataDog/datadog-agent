@@ -13,7 +13,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/telemetry",
         "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/kubernetes/apiserver/leaderelection/metrics",

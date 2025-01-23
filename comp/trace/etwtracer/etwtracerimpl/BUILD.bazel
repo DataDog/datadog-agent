@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//comp/core/log",
+            "//comp/core/log/def",
             "//comp/etw",
             "//comp/trace/etwtracer",
             "//pkg/util/fxutil",

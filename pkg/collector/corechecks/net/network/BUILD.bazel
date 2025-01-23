@@ -11,7 +11,7 @@ go_library(
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:android": [
             "//comp/core/autodiscovery/integration",
@@ -19,33 +19,33 @@ go_library(
             "//pkg/collector/check",
             "//pkg/collector/corechecks",
             "//pkg/util/log",
-            "//pkg/util/optional",
-            "@com_github_shirou_gopsutil_v3//net",
+            "//pkg/util/option",
+            "@com_github_shirou_gopsutil_v4//net",
             "@in_gopkg_yaml_v2//:yaml_v2",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:freebsd": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:illumos": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:js": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/autodiscovery/integration",
@@ -53,29 +53,37 @@ go_library(
             "//pkg/collector/check",
             "//pkg/collector/corechecks",
             "//pkg/util/log",
-            "//pkg/util/optional",
-            "@com_github_shirou_gopsutil_v3//net",
+            "//pkg/util/option",
+            "@com_github_shirou_gopsutil_v4//net",
             "@in_gopkg_yaml_v2//:yaml_v2",
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:openbsd": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:plan9": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:solaris": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "//conditions:default": [],
     }),
@@ -90,7 +98,7 @@ go_test(
             "//comp/core/autodiscovery/integration",
             "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
-            "@com_github_shirou_gopsutil_v3//net",
+            "@com_github_shirou_gopsutil_v4//net",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
         ],
@@ -98,7 +106,7 @@ go_test(
             "//comp/core/autodiscovery/integration",
             "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
-            "@com_github_shirou_gopsutil_v3//net",
+            "@com_github_shirou_gopsutil_v4//net",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
         ],

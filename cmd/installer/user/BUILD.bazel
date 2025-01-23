@@ -3,7 +3,8 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "user",
     srcs = [
-        "user.go",
+        "user_darwin.go",
+        "user_nix.go",
         "user_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/installer/user",

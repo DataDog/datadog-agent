@@ -10,9 +10,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/common/types",
-        "//comp/core/tagger",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/tags",
         "//comp/core/tagger/types",
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//pkg/util/containers",
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",

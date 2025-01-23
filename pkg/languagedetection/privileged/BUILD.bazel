@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "privileged",
-    srcs = ["privileged_detector.go"],
+    srcs = [
+        "privileged_detector.go",
+        "privileged_detector_testutil.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/languagedetection/privileged",
     visibility = ["//visibility:public"],
     deps = select({

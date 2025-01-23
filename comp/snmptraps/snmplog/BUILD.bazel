@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/snmplog",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/log",
+        "//comp/core/log/def",
         "@com_github_gosnmp_gosnmp//:gosnmp",
     ],
 )

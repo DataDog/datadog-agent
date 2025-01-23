@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl-noop",
+    srcs = ["noop.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/impl-noop",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/dogstatsd/packets",
+        "//comp/dogstatsd/replay/def",
+    ],
+)

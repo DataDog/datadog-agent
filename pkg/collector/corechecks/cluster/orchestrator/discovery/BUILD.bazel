@@ -25,9 +25,17 @@ go_test(
     srcs = ["collector_discovery_test.go"],
     embed = [":discovery"],
     deps = [
+        "//comp/core",
+        "//comp/core/tagger/mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
         "//pkg/collector/corechecks/cluster/orchestrator/collectors/inventory",
+        "//pkg/config/mock",
+        "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@org_uber_go_fx//:fx",
     ],
 )

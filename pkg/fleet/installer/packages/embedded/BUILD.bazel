@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "embedded",
+    srcs = ["embed.go"],
+    embedsrcs = [
+        "datadog-agent-exp.service",
+        "datadog-agent-process-exp.service",
+        "datadog-agent-process.service",
+        "datadog-agent-security-exp.service",
+        "datadog-agent-security.service",
+        "datadog-agent-sysprobe-exp.service",
+        "datadog-agent-sysprobe.service",
+        "datadog-agent-trace-exp.service",
+        "datadog-agent-trace.service",
+        "datadog-agent.service",
+        "datadog-installer-exp.service",
+        "datadog-installer.service",
+        "dd-cleanup",
+        "dd-container-install",
+        "dd-host-install",
+        "embed.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded",
+    visibility = ["//visibility:public"],
+)

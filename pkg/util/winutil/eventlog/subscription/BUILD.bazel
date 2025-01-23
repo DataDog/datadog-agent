@@ -30,7 +30,6 @@ go_test(
             "//pkg/util/winutil/eventlog/api",
             "//pkg/util/winutil/eventlog/bookmark",
             "//pkg/util/winutil/eventlog/test",
-            "@com_github_cihub_seelog//:seelog",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",

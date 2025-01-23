@@ -12,12 +12,14 @@ go_library(
         "//pkg/util/log",
     ] + select({
         "@rules_go//go/platform:android": [
-            "//pkg/config",
+            "//pkg/config/env",
+            "//pkg/config/setup",
             "@com_github_pkg_errors//:errors",
             "@com_github_syndtr_gocapability//capability",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/config",
+            "//pkg/config/env",
+            "//pkg/config/setup",
             "@com_github_pkg_errors//:errors",
             "@com_github_syndtr_gocapability//capability",
         ],

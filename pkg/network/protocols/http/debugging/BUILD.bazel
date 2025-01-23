@@ -7,8 +7,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/network/dns",
+        "//pkg/network/protocols",
         "//pkg/network/protocols/http",
         "//pkg/process/util",
-        "@com_github_datadog_sketches_go//ddsketch",
     ],
 )

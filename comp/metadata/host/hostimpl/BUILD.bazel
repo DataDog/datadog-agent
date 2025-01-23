@@ -16,28 +16,29 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/api/api/def",
         "//comp/core/config",
         "//comp/core/flare/types",
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//comp/core/status",
         "//comp/metadata/host",
         "//comp/metadata/host/hostimpl/utils",
         "//comp/metadata/resources",
         "//comp/metadata/runner/runnerimpl",
+        "//pkg/config/env",
         "//pkg/config/utils",
+        "//pkg/gohai",
         "//pkg/serializer",
         "//pkg/util/fxutil",
         "//pkg/util/hostname",
+        "//pkg/util/http",
+        "//pkg/util/scrubber",
         "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:android": [
-            "//pkg/config",
-            "//pkg/gohai",
             "//pkg/serializer/marshaler",
         ],
         "@rules_go//go/platform:darwin": [
-            "//pkg/config",
-            "//pkg/gohai",
             "//pkg/serializer/marshaler",
         ],
         "@rules_go//go/platform:dragonfly": [
@@ -47,13 +48,9 @@ go_library(
             "//pkg/serializer/marshaler",
         ],
         "@rules_go//go/platform:ios": [
-            "//pkg/config",
-            "//pkg/gohai",
             "//pkg/serializer/marshaler",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/config",
-            "//pkg/gohai",
             "//pkg/serializer/marshaler",
         ],
         "@rules_go//go/platform:netbsd": [
@@ -66,8 +63,6 @@ go_library(
             "//pkg/serializer/marshaler",
         ],
         "@rules_go//go/platform:windows": [
-            "//pkg/config",
-            "//pkg/gohai",
             "//pkg/serializer/marshaler",
         ],
         "//conditions:default": [],
@@ -81,7 +76,8 @@ go_test(
     deps = [
         "//comp/core/config",
         "//comp/core/flare/helpers",
-        "//comp/core/log/logimpl",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
         "//comp/metadata/resources",
         "//comp/metadata/resources/resourcesimpl",
         "//pkg/config/utils",

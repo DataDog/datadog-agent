@@ -2,8 +2,14 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "payload",
-    srcs = ["payload.go"],
+    srcs = [
+        "pathevent.go",
+        "utils.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/payload",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/network"],
+    deps = [
+        "//pkg/network",
+        "@com_github_google_uuid//:uuid",
+    ],
 )

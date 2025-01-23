@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl-zstd",
+    srcs = ["zstd_strategy.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zstd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/compression",
+        "@com_github_datadog_zstd//:zstd",
+    ],
+)

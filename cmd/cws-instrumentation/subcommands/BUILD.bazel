@@ -8,12 +8,14 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//cmd/cws-instrumentation/command",
+            "//cmd/cws-instrumentation/subcommands/healthcmd",
             "//cmd/cws-instrumentation/subcommands/injectcmd",
             "//cmd/cws-instrumentation/subcommands/setupcmd",
             "//cmd/cws-instrumentation/subcommands/tracecmd",
         ],
         "@rules_go//go/platform:linux": [
             "//cmd/cws-instrumentation/command",
+            "//cmd/cws-instrumentation/subcommands/healthcmd",
             "//cmd/cws-instrumentation/subcommands/injectcmd",
             "//cmd/cws-instrumentation/subcommands/setupcmd",
             "//cmd/cws-instrumentation/subcommands/tracecmd",

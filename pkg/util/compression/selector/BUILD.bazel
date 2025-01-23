@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "selector",
+    srcs = [
+        "fromconfig.go",
+        "zlib-and-zstd.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/compression/selector",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/util/compression",
+        "//pkg/util/compression/impl-gzip",
+        "//pkg/util/compression/impl-noop",
+        "//pkg/util/compression/impl-zlib",
+        "//pkg/util/compression/impl-zstd",
+        "//pkg/util/log",
+    ],
+)

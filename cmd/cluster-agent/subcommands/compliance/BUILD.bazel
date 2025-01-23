@@ -11,7 +11,7 @@ go_library(
             "//cmd/security-agent/subcommands/check",
             "//comp/core",
             "//comp/core/config",
-            "//comp/core/log/logimpl",
+            "//comp/core/log/def",
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:android": [
@@ -19,7 +19,7 @@ go_library(
             "//cmd/security-agent/subcommands/check",
             "//comp/core",
             "//comp/core/config",
-            "//comp/core/log/logimpl",
+            "//comp/core/log/def",
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:darwin": [
@@ -27,7 +27,7 @@ go_library(
             "//cmd/security-agent/subcommands/check",
             "//comp/core",
             "//comp/core/config",
-            "//comp/core/log/logimpl",
+            "//comp/core/log/def",
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:dragonfly": [
@@ -35,7 +35,7 @@ go_library(
             "//cmd/security-agent/subcommands/check",
             "//comp/core",
             "//comp/core/config",
-            "//comp/core/log/logimpl",
+            "//comp/core/log/def",
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:freebsd": [
@@ -43,7 +43,7 @@ go_library(
             "//cmd/security-agent/subcommands/check",
             "//comp/core",
             "//comp/core/config",
-            "//comp/core/log/logimpl",
+            "//comp/core/log/def",
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:illumos": [
@@ -51,7 +51,7 @@ go_library(
             "//cmd/security-agent/subcommands/check",
             "//comp/core",
             "//comp/core/config",
-            "//comp/core/log/logimpl",
+            "//comp/core/log/def",
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:ios": [
@@ -59,7 +59,7 @@ go_library(
             "//cmd/security-agent/subcommands/check",
             "//comp/core",
             "//comp/core/config",
-            "//comp/core/log/logimpl",
+            "//comp/core/log/def",
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:js": [
@@ -67,7 +67,7 @@ go_library(
             "//cmd/security-agent/subcommands/check",
             "//comp/core",
             "//comp/core/config",
-            "//comp/core/log/logimpl",
+            "//comp/core/log/def",
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:linux": [
@@ -75,7 +75,7 @@ go_library(
             "//cmd/security-agent/subcommands/check",
             "//comp/core",
             "//comp/core/config",
-            "//comp/core/log/logimpl",
+            "//comp/core/log/def",
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:netbsd": [
@@ -83,7 +83,7 @@ go_library(
             "//cmd/security-agent/subcommands/check",
             "//comp/core",
             "//comp/core/config",
-            "//comp/core/log/logimpl",
+            "//comp/core/log/def",
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:openbsd": [
@@ -91,7 +91,15 @@ go_library(
             "//cmd/security-agent/subcommands/check",
             "//comp/core",
             "//comp/core/config",
-            "//comp/core/log/logimpl",
+            "//comp/core/log/def",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//cmd/cluster-agent/command",
+            "//cmd/security-agent/subcommands/check",
+            "//comp/core",
+            "//comp/core/config",
+            "//comp/core/log/def",
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:plan9": [
@@ -99,7 +107,15 @@ go_library(
             "//cmd/security-agent/subcommands/check",
             "//comp/core",
             "//comp/core/config",
-            "//comp/core/log/logimpl",
+            "//comp/core/log/def",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//cmd/cluster-agent/command",
+            "//cmd/security-agent/subcommands/check",
+            "//comp/core",
+            "//comp/core/config",
+            "//comp/core/log/def",
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:solaris": [
@@ -107,7 +123,7 @@ go_library(
             "//cmd/security-agent/subcommands/check",
             "//comp/core",
             "//comp/core/config",
-            "//comp/core/log/logimpl",
+            "//comp/core/log/def",
             "@com_github_spf13_cobra//:cobra",
         ],
         "//conditions:default": [],

@@ -8,9 +8,10 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/updater/telemetry",
-        "//pkg/fleet/env",
+        "//pkg/config/utils",
         "//pkg/fleet/telemetry",
         "//pkg/util/fxutil",
+        "//pkg/util/http",
         "@org_uber_go_fx//:fx",
     ],
 )

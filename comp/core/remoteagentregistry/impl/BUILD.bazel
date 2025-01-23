@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["remoteagentregistry.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/builder",
+        "//comp/core/flare/types",
+        "//comp/core/remoteagentregistry/def",
+        "//comp/core/remoteagentregistry/proto",
+        "//comp/core/remoteagentregistry/status",
+        "//comp/core/remoteagentregistry/util",
+        "//comp/core/status",
+        "//comp/def",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/grpc",
+        "//pkg/util/log",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["remoteagentregistry_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/helpers",
+        "//comp/core/remoteagentregistry/def",
+        "//comp/def",
+        "//pkg/api/security",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/grpc",
+        "@com_github_grpc_ecosystem_go_grpc_middleware//auth",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+    ],
+)

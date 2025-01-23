@@ -5,14 +5,16 @@ go_library(
     srcs = [
         "client_builder.go",
         "server.go",
+        "server_builder.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/network/protocols/http/testutil",
-        "//pkg/network/protocols/testutil",
         "//pkg/network/testutil",
         "//pkg/network/usm/testutil",
+        "//pkg/util/testutil",
+        "//pkg/util/testutil/docker",
         "@com_github_stretchr_testify//require",
     ],
 )

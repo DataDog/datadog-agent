@@ -10,7 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils",
     visibility = ["//visibility:public"],
     deps = [
+        "@com_github_go_delve_delve//pkg/dwarf",
         "@com_github_go_delve_delve//pkg/dwarf/godwarf",
-        "@com_github_go_delve_delve//pkg/dwarf/util",
     ],
 )

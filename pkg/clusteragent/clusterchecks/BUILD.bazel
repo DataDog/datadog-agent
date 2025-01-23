@@ -12,7 +12,8 @@ go_library(
     deps = [
         "//comp/core/autodiscovery",
         "//comp/core/status",
+        "//comp/core/tagger/def",
         "//pkg/clusteragent/clusterchecks/types",
-        "//pkg/config",
+        "//pkg/config/setup",
     ],
 )

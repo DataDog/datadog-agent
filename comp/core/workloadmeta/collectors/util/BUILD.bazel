@@ -3,16 +3,20 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "util",
     srcs = [
+        "doc.go",
         "ecs_util.go",
         "image_metadata_util.go",
         "image_util.go",
         "image_util_stub.go",  # keep
+        "kube_metadata_util.go",
+        "process_util_fallback.go",
+        "process_util_linux.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//pkg/util/ecs/metadata/v3or4",
         "//pkg/util/flavor",
         "//pkg/util/log",
@@ -20,7 +24,15 @@ go_library(
         "@com_github_aquasecurity_trivy//pkg/sbom/cyclonedx",
         "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
         "@com_github_mohae_deepcopy//:deepcopy",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/config/setup",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/setup",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_test(
@@ -29,10 +41,11 @@ go_test(
         "ecs_util_test.go",
         "image_metadata_util_test.go",
         "image_util_test.go",
+        "kube_metadata_util_test.go",
     ],
     embed = [":util"],
     deps = [
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "@com_github_aquasecurity_trivy//pkg/sbom/core",
         "@com_github_aquasecurity_trivy//pkg/sbom/cyclonedx",
         "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",

@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/config",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/corechecks",
@@ -18,7 +19,7 @@ go_library(
         "//pkg/collector/corechecks/snmp/internal/session",
         "//pkg/diagnose/diagnosis",
         "//pkg/util/log",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "@org_uber_go_atomic//:atomic",
     ],
 )
@@ -26,7 +27,6 @@ go_library(
 go_test(
     name = "snmp_test",
     srcs = [
-        "integration_profile_bundle_test.go",
         "integration_profile_metadata_test.go",
         "integration_topology_test.go",
         "snmp_test.go",
@@ -37,8 +37,9 @@ go_test(
         "//comp/aggregator/demultiplexer/demultiplexerimpl",
         "//comp/core",
         "//comp/core/autodiscovery/integration",
+        "//comp/core/config",
+        "//comp/core/tagger/impl-noop",
         "//comp/forwarder/defaultforwarder",
-        "//comp/serializer/compression/compressionimpl",
         "//pkg/aggregator",
         "//pkg/aggregator/mocksender",
         "//pkg/collector/check/id",
@@ -50,7 +51,7 @@ go_test(
         "//pkg/collector/corechecks/snmp/internal/report",
         "//pkg/collector/corechecks/snmp/internal/session",
         "//pkg/collector/externalhost",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/metrics/servicecheck",
         "//pkg/networkdevice/utils",
         "//pkg/snmp/gosnmplib",

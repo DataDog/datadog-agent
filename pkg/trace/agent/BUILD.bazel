@@ -11,6 +11,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/agent",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/trace/compression/def",
         "//pkg/obfuscate",
         "//pkg/proto/pbgo/trace",
         "//pkg/trace/api",
@@ -25,6 +26,7 @@ go_library(
         "//pkg/trace/telemetry",
         "//pkg/trace/timing",
         "//pkg/trace/traceutil",
+        "//pkg/trace/transform",
         "//pkg/trace/version",
         "//pkg/trace/writer",
         "@com_github_datadog_datadog_go_v5//statsd",
@@ -43,6 +45,7 @@ go_test(
     data = glob(["testdata/**"]),
     embed = [":agent"],
     deps = [
+        "//comp/trace/compression/impl-gzip",
         "//pkg/obfuscate",
         "//pkg/proto/pbgo/trace",
         "//pkg/trace/api",
@@ -108,7 +111,15 @@ go_test(
             "@com_github_google_go_cmp//cmp",
             "@com_github_google_go_cmp//cmp/cmpopts",
         ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
         "@rules_go//go/platform:plan9": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "@rules_go//go/platform:qnx": [
             "@com_github_google_go_cmp//cmp",
             "@com_github_google_go_cmp//cmp/cmpopts",
         ],

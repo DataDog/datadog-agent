@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "clusteragent",
+    srcs = [
+        "archive_dca.go",
+        "cluster_checks.go",
+        "diagnose.go",
+        "manifests.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/flare/clusteragent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/flare/helpers",
+        "//comp/core/flare/types",
+        "//comp/core/status",
+        "//pkg/api/util",
+        "//pkg/clusteragent/api/v1:api",
+        "//pkg/clusteragent/autoscaling/custommetrics",
+        "//pkg/clusteragent/clusterchecks/types",
+        "//pkg/config/setup",
+        "//pkg/diagnose",
+        "//pkg/diagnose/diagnosis",
+        "//pkg/flare",
+        "//pkg/status/render",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/log",
+        "@com_github_fatih_color//:color",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/labels",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_sigs_yaml//:yaml",
+    ],
+)

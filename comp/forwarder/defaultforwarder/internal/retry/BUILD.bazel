@@ -1,6 +1,6 @@
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("@rules_go//proto:def.bzl", "go_proto_library")
-load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 
 proto_library(
     name = "retry_proto",
@@ -34,16 +34,14 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry",
     visibility = ["//comp/forwarder/defaultforwarder:__subpackages__"],
     deps = [
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/telemetry",
         "//pkg/util/common",
         "//pkg/util/filesystem",
-        "@com_github_golang_protobuf//proto:go_default_library",
+        "@com_github_golang_protobuf//proto",
         "@com_github_hashicorp_go_multierror//:go-multierror",
-        "@org_golang_x_text//cases",
-        "@org_golang_x_text//language",
     ],
 )
 
@@ -60,12 +58,10 @@ go_test(
     ],
     embed = [":retry"],
     deps = [
-        "//comp/core/log",
-        "//comp/core/log/logimpl",
+        "//comp/core/log/mock",
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/util/filesystem",
-        "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

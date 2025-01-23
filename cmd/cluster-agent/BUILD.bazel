@@ -97,7 +97,23 @@ go_library(
             "@io_k8s_klog//:klog",
             "@io_k8s_klog_v2//:klog",
         ],
+        "@rules_go//go/platform:osx": [
+            "//cmd/cluster-agent/command",
+            "//cmd/cluster-agent/subcommands",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+            "@io_k8s_klog//:klog",
+            "@io_k8s_klog_v2//:klog",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//cmd/cluster-agent/command",
+            "//cmd/cluster-agent/subcommands",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+            "@io_k8s_klog//:klog",
+            "@io_k8s_klog_v2//:klog",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//cmd/cluster-agent/command",
             "//cmd/cluster-agent/subcommands",
             "//pkg/util/flavor",

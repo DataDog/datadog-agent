@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "devicescan.go",
+        "sendpayload.go",
+        "snmpscan.go",
+        "walkdevice.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmpscan/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/forwarder/eventplatform",
+        "//comp/remote-config/rcclient/types",
+        "//comp/snmpscan/def",
+        "//pkg/logs/message",
+        "//pkg/networkdevice/metadata",
+        "//pkg/snmp/gosnmplib",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["snmpscan_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//comp/core",
+        "//comp/core/log/mock",
+        "//comp/forwarder/defaultforwarder",
+        "//pkg/util/fxutil",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -13,6 +13,7 @@ go_library(
         "//pkg/trace/timing",
         "//pkg/trace/traceutil",
         "//pkg/util/log",
+        "//pkg/util/sync",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",

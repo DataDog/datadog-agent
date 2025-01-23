@@ -6,7 +6,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/fetcher",
     visibility = ["//visibility:public"],
     deps = [
-        "//cmd/system-probe/api/client",
         "//comp/core/config",
         "//pkg/api/util",
         "//pkg/config/settings/http",

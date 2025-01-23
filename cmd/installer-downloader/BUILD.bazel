@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "installer-downloader_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/installer-downloader",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//cmd/installer/user",
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/oci",
+        "//pkg/fleet/telemetry",
+    ],
+)
+
+go_binary(
+    name = "installer-downloader",
+    embed = [":installer-downloader_lib"],
+    visibility = ["//visibility:public"],
+)

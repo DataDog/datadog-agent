@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/util/http",
         "//pkg/util/log",
@@ -18,7 +18,7 @@ go_test(
     srcs = ["collector_test.go"],
     embed = [":telemetry"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/setup",
         "@com_github_stretchr_testify//assert",
     ],
 )

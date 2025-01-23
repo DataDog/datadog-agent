@@ -10,7 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//comp/snmptraps/oidresolver",
         "//pkg/util/fxutil",
         "@in_gopkg_yaml_v2//:yaml_v2",
@@ -23,10 +23,8 @@ go_test(
     srcs = ["oid_resolver_test.go"],
     embed = [":oidresolverimpl"],
     deps = [
-        "//comp/core/log",
-        "//comp/core/log/logimpl",
+        "//comp/core/log/mock",
         "//comp/snmptraps/oidresolver",
-        "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
         "@in_gopkg_yaml_v2//:yaml_v2",
     ],

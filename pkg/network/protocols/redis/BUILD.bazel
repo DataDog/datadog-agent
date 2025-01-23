@@ -5,12 +5,19 @@ go_library(
     srcs = [
         "client.go",
         "server.go",
+        "stats.go",
+        "types_linux.go",
     ],
+    cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/redis",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/network/protocols/http/testutil",
-        "//pkg/network/protocols/testutil",
-        "@com_github_go_redis_redis_v9//:redis",
+        "//pkg/network/types",
+        "//pkg/process/util",
+        "//pkg/util/testutil",
+        "//pkg/util/testutil/docker",
+        "@com_github_redis_go_redis_v9//:go-redis",
+        "@com_github_stretchr_testify//require",
     ],
 )

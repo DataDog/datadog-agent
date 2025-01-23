@@ -5,5 +5,5 @@ go_library(
     srcs = ["config.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/databasemonitoring/config",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/config"],
+    deps = ["//pkg/config/setup"],
 )

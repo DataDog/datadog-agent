@@ -11,9 +11,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/log",
-        "//pkg/config",
-        "//pkg/util",
+        "//comp/core/log/def",
+        "//pkg/config/setup",
         "//pkg/util/cache",
         "//pkg/util/cloudproviders/alibaba",
         "//pkg/util/cloudproviders/azure",
@@ -26,6 +25,7 @@ go_library(
         "//pkg/util/ec2",
         "//pkg/util/kubelet",
         "//pkg/util/log",
+        "//pkg/util/sort",
     ],
 )
 

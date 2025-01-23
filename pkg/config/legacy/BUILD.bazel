@@ -14,7 +14,8 @@ go_library(
     deps = [
         "//comp/core/autodiscovery/providers",
         "//pkg/collector/corechecks/containers/docker",
-        "//pkg/config",
+        "//pkg/config/model",
+        "//pkg/config/setup",
         "//pkg/config/utils",
         "@com_github_go_ini_ini//:ini",
         "@in_gopkg_yaml_v2//:yaml_v2",
@@ -31,7 +32,7 @@ go_test(
     ],
     embed = [":legacy"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/setup",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

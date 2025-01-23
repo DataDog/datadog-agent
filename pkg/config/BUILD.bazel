@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
     name = "config",
@@ -24,13 +24,6 @@ go_library(
         "//pkg/util/optional",
         "@com_github_cihub_seelog//:seelog",
     ],
-)
-
-go_test(
-    name = "config_test",
-    srcs = ["config_change_checker_test.go"],
-    embed = [":config"],
-    deps = ["@com_github_stretchr_testify//require"],
 )
 
 # keep: Config generator

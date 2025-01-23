@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//comp/agent/expvarserver",
         "//comp/core/config",
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",
     ],

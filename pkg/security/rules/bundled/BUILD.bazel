@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "bundled",
+    srcs = [
+        "bundled_policy_provider.go",
+        "bundled_policy_provider_linux.go",
+        "bundled_policy_provider_other.go",
+        "rules.go",
+        "variables.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/rules/bundled",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/security/config",
+        "//pkg/security/secl/rules",
+        "//pkg/version",
+        "@com_github_hashicorp_go_multierror//:go-multierror",
+    ],
+)

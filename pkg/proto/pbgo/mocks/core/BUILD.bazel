@@ -9,7 +9,7 @@ go_library(
         "//pkg/proto/pbgo/core",
         "@com_github_golang_mock//gomock",
         "@com_github_golang_protobuf//ptypes/empty",
-        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//metadata",
     ],
 )

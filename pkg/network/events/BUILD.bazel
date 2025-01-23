@@ -4,7 +4,9 @@ go_library(
     name = "events",
     srcs = [
         "monitor.go",
+        "monitor_linux.go",
         "monitor_others.go",
+        "monitor_windows.go",
         "network_consumer.go",
         "network_consumer_others.go",
     ],
@@ -54,7 +56,13 @@ go_library(
         "@rules_go//go/platform:openbsd": [
             "//pkg/eventmonitor",
         ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/eventmonitor",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//pkg/eventmonitor",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//pkg/eventmonitor",
         ],
         "@rules_go//go/platform:solaris": [
@@ -62,6 +70,12 @@ go_library(
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/eventmonitor",
+            "//pkg/security/probe",
+            "//pkg/security/secl/model",
+            "//pkg/util/log",
+            "//pkg/util/winutil/iisconfig",
+            "@org_go4_intern//:intern",
+            "@org_uber_go_atomic//:atomic",
         ],
         "//conditions:default": [],
     }),

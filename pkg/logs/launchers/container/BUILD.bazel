@@ -6,7 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/container",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/workloadmeta",
+        "//comp/core/tagger/def",
+        "//comp/core/workloadmeta/def",
         "//pkg/logs/auditor",
         "//pkg/logs/launchers",
         "//pkg/logs/launchers/container/tailerfactory",
@@ -14,7 +15,7 @@ go_library(
         "//pkg/logs/sources",
         "//pkg/logs/tailers",
         "//pkg/util/log",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "//pkg/util/startstop",
     ],
 )
@@ -24,7 +25,8 @@ go_test(
     srcs = ["launcher_test.go"],
     embed = [":container"],
     deps = [
-        "//comp/core/workloadmeta",
+        "//comp/core/tagger/mock",
+        "//comp/core/workloadmeta/def",
         "//comp/logs/agent/config",
         "//pkg/logs/auditor",
         "//pkg/logs/launchers",
@@ -32,7 +34,7 @@ go_test(
         "//pkg/logs/pipeline",
         "//pkg/logs/sources",
         "//pkg/logs/tailers",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "@com_github_stretchr_testify//require",
     ],
 )

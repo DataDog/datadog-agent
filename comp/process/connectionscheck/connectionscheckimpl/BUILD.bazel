@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/sysprobeconfig",
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//comp/networkpath/npcollector",
         "//comp/process/connectionscheck",
         "//comp/process/types",

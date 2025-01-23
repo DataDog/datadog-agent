@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "dockerproxy.go",
         "scm_reader.go",
+        "scm_reader_mock_windows.go",
         "scm_reader_windows.go",
         "service.go",
     ],
@@ -16,7 +17,6 @@ go_library(
         "//pkg/process/metadata/parser/nodejs",
         "//pkg/process/procutil",
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:seelog",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_masterminds_semver//:semver",
     ] + select({
@@ -43,7 +43,8 @@ go_test(
         "@com_github_stretchr_testify//require",
     ] + select({
         "@rules_go//go/platform:windows": [
-            "//pkg/config",
+            "//pkg/config/mock",
+            "//pkg/config/model",
             "//pkg/util/winutil",
             "@com_github_stretchr_testify//mock",
         ],

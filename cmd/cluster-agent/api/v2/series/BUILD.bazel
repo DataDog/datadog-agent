@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "series",
+    srcs = [
+        "doc.go",
+        "job.go",
+        "series.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v2/series",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/clusteragent/api",
+        "//pkg/clusteragent/autoscaling/workload/loadstore",
+        "//pkg/telemetry",
+        "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//gogen",
+        "@com_github_gorilla_mux//:mux",
+        "@io_k8s_client_go//util/workqueue",
+        "@org_golang_x_time//rate",
+    ],
+)

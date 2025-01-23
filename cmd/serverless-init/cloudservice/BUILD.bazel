@@ -13,6 +13,7 @@ go_library(
     deps = [
         "//cmd/serverless-init/cloudservice/helper",
         "//pkg/trace/traceutil",
+        "//pkg/util/log",
     ],
 )
 

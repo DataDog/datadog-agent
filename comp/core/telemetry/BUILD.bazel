@@ -20,7 +20,5 @@ go_library(
     deps = [
         "@com_github_prometheus_client_golang//prometheus",
         "@com_github_prometheus_client_model//go",
-        "@io_opentelemetry_go_otel_metric//:metric",
-        "@io_opentelemetry_go_otel_sdk_metric//:metric",
     ],
 )

@@ -9,10 +9,13 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/log",
     visibility = ["//visibility:public"],
     deps = [
-        "//cmd/serverless-init/tag",
+        "//comp/core/tagger/def",
         "//comp/logs/agent",
         "//comp/logs/agent/config",
+        "//comp/serializer/logscompression/def",
+        "//pkg/logs/sources",
         "//pkg/serverless/logs",
+        "//pkg/serverless/tags",
         "//pkg/util/log",
     ],
 )

@@ -11,6 +11,7 @@ go_library(
     deps = [
         "//pkg/util/containers",
         "//pkg/util/log",
+        "//pkg/util/scrubber",
         "//pkg/util/tmplvar",
         "@com_github_twmb_murmur3//:murmur3",
         "@in_gopkg_yaml_v2//:yaml_v2",

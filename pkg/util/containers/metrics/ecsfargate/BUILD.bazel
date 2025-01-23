@@ -9,13 +9,13 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/ecsfargate",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/workloadmeta",
-        "//pkg/config",
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/env",
         "//pkg/util/containers/metrics/provider",
         "//pkg/util/ecs/metadata",
         "//pkg/util/ecs/metadata/v2:metadata",
         "//pkg/util/log",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "//pkg/util/pointer",
     ],
 )

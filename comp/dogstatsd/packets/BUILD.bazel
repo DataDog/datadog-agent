@@ -14,21 +14,34 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/packets",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
+        "//comp/core/telemetry",
+        "//pkg/config/setup",
         "//pkg/config/utils",
-        "//pkg/telemetry",
-        "//pkg/util",
-        "//pkg/util/log",
+        "//pkg/util/size",
+        "//pkg/util/sync",
         "@org_uber_go_atomic//:atomic",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/config/model",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_test(
     name = "packets_test",
     srcs = [
         "assembler_test.go",
+        "buffer_test.go",
         "pool_manager_test.go",
+        "pool_test.go",
     ],
     embed = [":packets"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "//comp/core/telemetry",
+        "//comp/core/telemetry/telemetryimpl",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

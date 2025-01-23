@@ -76,7 +76,19 @@ go_library(
             "//pkg/logs/pipeline",
             "//pkg/logs/tailers",
         ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/logs/auditor",
+            "//pkg/logs/launchers",
+            "//pkg/logs/pipeline",
+            "//pkg/logs/tailers",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//pkg/logs/auditor",
+            "//pkg/logs/launchers",
+            "//pkg/logs/pipeline",
+            "//pkg/logs/tailers",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//pkg/logs/auditor",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",

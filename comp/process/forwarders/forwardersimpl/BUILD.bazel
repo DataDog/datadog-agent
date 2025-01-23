@@ -10,11 +10,11 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//comp/forwarder/defaultforwarder",
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/process/forwarders",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/process/runner/endpoint",
         "//pkg/process/util/api/config",
         "//pkg/util/fxutil",

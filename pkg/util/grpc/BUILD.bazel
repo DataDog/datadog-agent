@@ -6,17 +6,19 @@ go_library(
         "agent_client.go",
         "auth.go",
         "logger.go",
+        "mock_server.go",
         "server.go",
         "timeout.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/grpc",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/api/security",
         "//pkg/proto/pbgo/core",
         "//pkg/util/grpc/context",
         "//pkg/util/log",
         "@com_github_grpc_ecosystem_go_grpc_middleware//auth",
-        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//backoff",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//credentials",
@@ -33,7 +35,6 @@ go_test(
     embed = [":grpc"],
     deps = [
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:seelog",
         "@com_github_stretchr_testify//assert",
     ],
 )

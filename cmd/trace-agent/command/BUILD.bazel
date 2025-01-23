@@ -53,7 +53,13 @@ go_library(
         "@rules_go//go/platform:openbsd": [
             "//pkg/config/setup",
         ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/config/setup",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//pkg/config/setup",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//pkg/config/setup",
         ],
         "@rules_go//go/platform:solaris": [

@@ -7,6 +7,7 @@ go_library(
         "crashdump.h",
         "crashparse.go",
         "win_crash_types.go",
+        "wincrash_testutil.go",
         "wincrashprobe.go",
     ],
     cgo = True,

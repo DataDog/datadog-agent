@@ -11,7 +11,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/diagnose/diagnosis",
         "//pkg/util/cache",
         "//pkg/util/cachedfetch",
@@ -29,7 +29,8 @@ go_test(
     ],
     embed = [":gce"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/mock",
+        "//pkg/config/setup",
         "//pkg/util/cache",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

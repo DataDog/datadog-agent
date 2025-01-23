@@ -18,6 +18,7 @@ go_library(
     deps = [
         "//pkg/config/model",
         "//pkg/config/setup",
+        "//pkg/config/structure",
         "//pkg/config/utils",
         "//pkg/util/log",
         "@com_github_datadog_viper//:viper",

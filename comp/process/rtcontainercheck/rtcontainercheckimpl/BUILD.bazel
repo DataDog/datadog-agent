@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//comp/process/rtcontainercheck",
         "//comp/process/types",
         "//pkg/process/checks",

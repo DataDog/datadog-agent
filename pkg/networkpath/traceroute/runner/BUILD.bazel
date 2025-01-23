@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "runner",
+    srcs = ["runner.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/runner",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry",
+        "//pkg/config/setup",
+        "//pkg/network",
+        "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/common",
+        "//pkg/networkpath/traceroute/config",
+        "//pkg/networkpath/traceroute/tcp",
+        "//pkg/process/util",
+        "//pkg/telemetry",
+        "//pkg/util/cloudproviders",
+        "//pkg/util/ec2",
+        "//pkg/util/hostname",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "//pkg/version",
+        "@com_github_datadog_dublin_traceroute//go/dublintraceroute/probes/probev4",
+        "@com_github_datadog_dublin_traceroute//go/dublintraceroute/results",
+        "@com_github_vishvananda_netns//:netns",
+    ],
+)
+
+go_test(
+    name = "runner_test",
+    srcs = ["runner_test.go"],
+    embed = [":runner"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

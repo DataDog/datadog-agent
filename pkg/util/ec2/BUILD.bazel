@@ -15,7 +15,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/ec2",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/env",
+        "//pkg/config/setup",
         "//pkg/diagnose/diagnosis",
         "//pkg/util/cache",
         "//pkg/util/cachedfetch",
@@ -42,7 +43,8 @@ go_test(
     ],
     embed = [":ec2"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/mock",
+        "//pkg/config/setup",
         "//pkg/util/cache",
         "//pkg/util/dmi",
         "//pkg/util/http",

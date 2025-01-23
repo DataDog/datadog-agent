@@ -13,7 +13,7 @@ go_test(
     srcs = ["tag_test.go"],
     embed = [":tag"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/serverless/tags",
         "@com_github_stretchr_testify//assert",

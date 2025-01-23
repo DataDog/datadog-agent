@@ -65,7 +65,17 @@ go_library(
             "//cmd/agent/subcommands",
             "//pkg/util/flavor",
         ],
+        "@rules_go//go/platform:osx": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//pkg/util/flavor",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//cmd/agent/command",
             "//cmd/agent/subcommands",
             "//pkg/util/flavor",
@@ -77,7 +87,6 @@ go_library(
         ],
         "@rules_go//go/platform:windows": [
             "//cmd/agent/command",
-            "//cmd/agent/common",
             "//cmd/agent/subcommands",
             "//cmd/agent/windows/service",
             "//pkg/util/flavor",

@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "oteltest",
+    srcs = ["doc.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "oteltest_test",
+    srcs = ["otel_apm_stats_comparison_test.go"],
+    embed = [":oteltest"],
+    deps = [
+        "//comp/otelcol/otlp/components/statsprocessor",
+        "//pkg/obfuscate",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/config",
+        "//pkg/trace/stats",
+        "//pkg/trace/timing",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:attributes",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_collector_semconv//v1.6.1:v1_6_1",
+        "@io_opentelemetry_go_otel_metric//noop",
+        "@org_golang_google_protobuf//testing/protocmp",
+    ],
+)

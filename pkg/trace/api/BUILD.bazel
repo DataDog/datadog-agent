@@ -37,9 +37,11 @@ go_library(
         "//pkg/trace/info",
         "//pkg/trace/log",
         "//pkg/trace/sampler",
+        "//pkg/trace/stats",
         "//pkg/trace/telemetry",
         "//pkg/trace/timing",
         "//pkg/trace/traceutil",
+        "//pkg/trace/transform",
         "//pkg/trace/watchdog",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:attributes",
@@ -51,19 +53,61 @@ go_library(
         "@io_opentelemetry_go_collector_pdata//ptrace/ptraceotlp",
         "@io_opentelemetry_go_collector_semconv//v1.17.0:v1_17_0",
         "@io_opentelemetry_go_collector_semconv//v1.6.1:v1_6_1",
-        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//metadata",
         "@org_uber_go_atomic//:atomic",
     ] + select({
+        "@rules_go//go/platform:aix": [
+            "//comp/core/tagger/origindetection",
+        ],
         "@rules_go//go/platform:android": [
+            "//comp/core/tagger/origindetection",
             "//pkg/util/cgroups",
             "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//comp/core/tagger/origindetection",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//comp/core/tagger/origindetection",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//comp/core/tagger/origindetection",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//comp/core/tagger/origindetection",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/core/tagger/origindetection",
+        ],
+        "@rules_go//go/platform:js": [
+            "//comp/core/tagger/origindetection",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/tagger/origindetection",
             "//pkg/util/cgroups",
             "//pkg/util/log",
         ],
+        "@rules_go//go/platform:netbsd": [
+            "//comp/core/tagger/origindetection",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//comp/core/tagger/origindetection",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//comp/core/tagger/origindetection",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//comp/core/tagger/origindetection",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//comp/core/tagger/origindetection",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//comp/core/tagger/origindetection",
+        ],
         "@rules_go//go/platform:windows": [
+            "//comp/core/tagger/origindetection",
             "@com_github_microsoft_go_winio//:go-winio",
         ],
         "//conditions:default": [],
@@ -94,18 +138,21 @@ go_test(
     ],
     embed = [":api"],
     deps = [
+        "//comp/core/tagger/origindetection",
         "//pkg/obfuscate",
         "//pkg/proto/pbgo/trace",
         "//pkg/trace/api/apiutil",
         "//pkg/trace/api/internal/header",
         "//pkg/trace/config",
         "//pkg/trace/info",
+        "//pkg/trace/log",
         "//pkg/trace/sampler",
         "//pkg/trace/telemetry",
         "//pkg/trace/teststatsd",
         "//pkg/trace/testutil",
         "//pkg/trace/timing",
         "//pkg/trace/traceutil",
+        "//pkg/trace/transform",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:attributes",
         "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//source",
@@ -113,52 +160,11 @@ go_test(
         "@com_github_stretchr_testify//require",
         "@com_github_tinylib_msgp//msgp",
         "@com_github_vmihailenco_msgpack_v4//:msgpack",
-        "@io_opentelemetry_go_collector_component//componenttest",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//ptrace",
         "@io_opentelemetry_go_collector_pdata//ptrace/ptraceotlp",
         "@io_opentelemetry_go_collector_semconv//v1.6.1:v1_6_1",
         "@org_uber_go_atomic//:atomic",
-    ] + select({
-        "@rules_go//go/platform:aix": [
-            "//pkg/trace/log",
-        ],
-        "@rules_go//go/platform:android": [
-            "//pkg/trace/log",
-        ],
-        "@rules_go//go/platform:darwin": [
-            "//pkg/trace/log",
-        ],
-        "@rules_go//go/platform:dragonfly": [
-            "//pkg/trace/log",
-        ],
-        "@rules_go//go/platform:freebsd": [
-            "//pkg/trace/log",
-        ],
-        "@rules_go//go/platform:illumos": [
-            "//pkg/trace/log",
-        ],
-        "@rules_go//go/platform:ios": [
-            "//pkg/trace/log",
-        ],
-        "@rules_go//go/platform:js": [
-            "//pkg/trace/log",
-        ],
-        "@rules_go//go/platform:linux": [
-            "//pkg/trace/log",
-        ],
-        "@rules_go//go/platform:netbsd": [
-            "//pkg/trace/log",
-        ],
-        "@rules_go//go/platform:openbsd": [
-            "//pkg/trace/log",
-        ],
-        "@rules_go//go/platform:plan9": [
-            "//pkg/trace/log",
-        ],
-        "@rules_go//go/platform:solaris": [
-            "//pkg/trace/log",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )

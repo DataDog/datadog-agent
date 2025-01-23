@@ -5,7 +5,7 @@ go_library(
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/tools/retry_file_dump",
     visibility = ["//visibility:private"],
-    deps = ["@com_github_golang_protobuf//proto:go_default_library"],
+    deps = ["@com_github_golang_protobuf//proto"],
 )
 
 go_binary(

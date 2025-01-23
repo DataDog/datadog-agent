@@ -2,11 +2,14 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "subscriber",
-    srcs = ["subscriber.go"],
-    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/subscriber",
+    srcs = [
+        "subscriber.go",
+        "subscription_manager.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/subscriber",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/tagger/taggerimpl/telemetry",
+        "//comp/core/tagger/telemetry",
         "//comp/core/tagger/types",
         "//pkg/util/log",
     ],
@@ -14,10 +17,15 @@ go_library(
 
 go_test(
     name = "subscriber_test",
-    srcs = ["subscriber_test.go"],
+    srcs = ["subscription_manager_test.go"],
     embed = [":subscriber"],
     deps = [
+        "//comp/core/tagger/telemetry",
         "//comp/core/tagger/types",
+        "//comp/core/telemetry",
+        "//comp/core/telemetry/telemetryimpl",
+        "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

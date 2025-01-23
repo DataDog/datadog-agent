@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "sample_service_lib",
+    srcs = ["sample_service.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample/sample_service",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/dynamicinstrumentation/testutil/sample",
+        "//pkg/util/log",
+        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer",
+    ],
+)
+
+go_binary(
+    name = "sample_service",
+    embed = [":sample_service_lib"],
+    visibility = ["//visibility:public"],
+)

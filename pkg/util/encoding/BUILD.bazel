@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "encoding",
+    srcs = ["binary.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/encoding",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "encoding_test",
+    srcs = ["binary_test.go"],
+    embed = [":encoding"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

@@ -11,7 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/compliance/utils",
-        "@com_github_shirou_gopsutil_v3//process",
+        "@com_github_shirou_gopsutil_v4//process",
         "@in_gopkg_yaml_v3//:yaml_v3",
     ],
 )

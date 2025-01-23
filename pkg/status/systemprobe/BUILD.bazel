@@ -7,8 +7,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/status/systemprobe",
     visibility = ["//visibility:public"],
     deps = [
+        "//cmd/system-probe/api/client",
         "//comp/core/status",
         "//comp/core/sysprobeconfig",
-        "//pkg/process/net",
     ],
 )

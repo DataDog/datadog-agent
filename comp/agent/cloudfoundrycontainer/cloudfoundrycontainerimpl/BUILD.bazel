@@ -8,9 +8,9 @@ go_library(
     deps = [
         "//comp/agent/cloudfoundrycontainer",
         "//comp/core/config",
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//pkg/cloudfoundry/containertagger",
-        "//pkg/config",
+        "//pkg/config/env",
         "//pkg/util/common",
         "//pkg/util/fxutil",
         "//pkg/util/log",

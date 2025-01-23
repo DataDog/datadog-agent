@@ -14,7 +14,7 @@ go_library(
         "//comp/core/status",
         "//comp/core/telemetry/telemetryimpl",
         "//internal/third_party/client-go/tools/leaderelection/resourcelock",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/telemetry",
         "//pkg/util/cache",
         "//pkg/util/kubernetes/apiserver",

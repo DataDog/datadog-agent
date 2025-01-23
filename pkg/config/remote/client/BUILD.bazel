@@ -13,7 +13,7 @@ go_library(
         "//pkg/util/grpc",
         "//pkg/util/log",
         "@com_github_pkg_errors//:errors",
-        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//metadata",
         "@org_golang_google_grpc//status",

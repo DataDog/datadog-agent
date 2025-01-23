@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/network/nettop",
     visibility = ["//visibility:private"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/network",
         "//pkg/network/config",
         "//pkg/network/tracer",

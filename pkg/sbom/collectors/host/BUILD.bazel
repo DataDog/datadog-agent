@@ -3,19 +3,22 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "host",
     srcs = [
+        "collector.go",
         "doc.go",
         "host.go",
+        "request.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/sbom/collectors/host",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/env",
         "//pkg/sbom",
         "//pkg/sbom/collectors",
-        "//pkg/util/flavor",
+        "//pkg/sbom/types",
         "//pkg/util/log",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "//pkg/util/trivy",
     ],
 )
