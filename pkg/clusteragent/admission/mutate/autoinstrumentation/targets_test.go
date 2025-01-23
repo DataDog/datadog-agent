@@ -53,32 +53,27 @@ func TestFilter(t *testing.T) {
 		"java": {
 			ctrName: "",
 			lang:    java,
-			image:   "gcr.io/datadoghq/dd-lib-java-init:default",
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 		},
 		"python": {
 			ctrName: "",
 			lang:    python,
-			image:   "gcr.io/datadoghq/dd-lib-python-init:default",
+			image:   "gcr.io/datadoghq/dd-lib-python-init:v2",
 		},
 		"ruby": {
 			ctrName: "",
 			lang:    ruby,
-			image:   "gcr.io/datadoghq/dd-lib-ruby-init:default",
-		},
-		"php": {
-			ctrName: "",
-			lang:    php,
-			image:   "gcr.io/datadoghq/dd-lib-php-init:default",
+			image:   "gcr.io/datadoghq/dd-lib-ruby-init:v2",
 		},
 		"js": {
 			ctrName: "",
 			lang:    js,
-			image:   "gcr.io/datadoghq/dd-lib-js-init:default",
+			image:   "gcr.io/datadoghq/dd-lib-js-init:v5",
 		},
 		"dotnet": {
 			ctrName: "",
 			lang:    dotnet,
-			image:   "gcr.io/datadoghq/dd-lib-dotnet-init:default",
+			image:   "gcr.io/datadoghq/dd-lib-dotnet-init:v3",
 		},
 	}
 
@@ -153,11 +148,10 @@ func TestFilter(t *testing.T) {
 			},
 			out: []libInfo{
 				libVersions["java"],
-				libVersions["python"],
-				libVersions["ruby"],
-				libVersions["php"],
 				libVersions["js"],
+				libVersions["python"],
 				libVersions["dotnet"],
+				libVersions["ruby"],
 			},
 		},
 	}
