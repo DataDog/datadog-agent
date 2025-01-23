@@ -69,6 +69,7 @@ func newSampler(extraRate float64, targetTPS float64, tags []string, statsd stat
 		metrics: metrics{
 			tags:   tags,
 			statsd: statsd,
+			value:  make(map[metricsKey]metricsValue),
 		},
 		exit:    make(chan struct{}),
 		stopped: make(chan struct{}),

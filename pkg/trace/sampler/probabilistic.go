@@ -67,6 +67,7 @@ func NewProbabilisticSampler(conf *config.AgentConfig, statsd statsd.ClientInter
 		metrics: metrics{
 			statsd: statsd,
 			tags:   []string{"sampler:probabilistic"},
+			value:  make(map[metricsKey]metricsValue),
 		},
 		stop:            make(chan struct{}),
 		stopped:         make(chan struct{}),

@@ -18,9 +18,10 @@ const (
 )
 
 type metrics struct {
-	statsd statsd.ClientInterface
-	tags   []string
-	value  sync.Map
+	statsd     statsd.ClientInterface
+	tags       []string
+	valueMutex sync.Mutex
+	value      map[metricsKey]metricsValue
 }
 
 type metricsKey [3]string
@@ -55,32 +56,35 @@ type metricsValue struct {
 }
 
 func (m *metrics) record(sampled bool, metricsKey metricsKey) {
-	initialValue := metricsValue{seen: 1}
-	if sampled {
-		initialValue.kept = 1
-	}
-	if v, load := m.value.LoadOrStore(metricsKey, initialValue); load {
-		loadedMetricsValue := v.(metricsValue)
-		loadedMetricsValue.seen++
+	m.valueMutex.Lock()
+	defer m.valueMutex.Unlock()
+	v, ok := m.value[metricsKey]
+	if !ok {
+		mv := metricsValue{seen: 1}
 		if sampled {
-			loadedMetricsValue.kept++
+			mv.kept = 1
 		}
-		m.value.Store(metricsKey, loadedMetricsValue)
+		m.value[metricsKey] = mv
+		return
 	}
+	v.seen++
+	if sampled {
+		v.kept++
+	}
+	m.value[metricsKey] = v
 }
 
 func (m *metrics) report() {
-	m.value.Range(func(key, value any) bool {
-		metricsKey := key.(metricsKey)
-		metricsValue := value.(metricsValue)
-		tags := append(m.tags, metricsKey.tags()...)
-		if metricsValue.seen > 0 {
-			_ = m.statsd.Count(metricSamplerSeen, metricsValue.seen, tags, 1)
+	m.valueMutex.Lock()
+	defer m.valueMutex.Unlock()
+	for key, value := range m.value {
+		tags := append(m.tags, key.tags()...)
+		if value.seen > 0 {
+			_ = m.statsd.Count(metricSamplerSeen, value.seen, tags, 1)
 		}
-		if metricsValue.kept > 0 {
-			_ = m.statsd.Count(metricSamplerKept, metricsValue.kept, tags, 1)
+		if value.kept > 0 {
+			_ = m.statsd.Count(metricSamplerKept, value.kept, tags, 1)
 		}
-		m.value.Delete(metricsKey) // reset counters
-		return true
-	})
+	}
+	m.value = make(map[metricsKey]metricsValue) // reset counters
 }
