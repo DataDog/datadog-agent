@@ -533,9 +533,20 @@ func retryGetNetworkID(sysProbeClient *http.Client) (string, error) {
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil && sysProbeClient != nil {
 		log.Infof("no network ID detected. retrying via system-probe: %s", err)
-		networkID, err = net.GetNetworkID(sysProbeClient)
+		const maxRetries = 3
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			networkID, err = net.GetNetworkID(sysProbeClient)
+			if err == nil {
+				break
+			}
+			log.Infof(
+				"failed to get network ID from system-probe (attempt %d/%d): %s",
+				attempt,
+				maxRetries,
+				err,
+			)
+		}
 		if err != nil {
-			log.Infof("failed to get network ID from system-probe: %s", err)
 			return "", err
 		}
 	}
