@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
@@ -44,9 +45,14 @@ func (m *MockDCAClient) PostLanguageMetadata(_ context.Context, request *pbgo.Pa
 	return nil
 }
 
-func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRequest) {
+func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRequest, *time.Time) {
 	respCh := make(chan *pbgo.ParentLanguageAnnotationRequest)
 	mockDCAClient := &MockDCAClient{respCh: respCh}
+	tmp := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	mockTime := &tmp
+	mockTimeProvider := func() time.Time {
+		return *mockTime
+	}
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
@@ -65,8 +71,9 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 	comp, _ := optComponent.Get()
 	client := comp.(*client)
 	client.langDetectionCl = mockDCAClient
+	client.timeProvider = mockTimeProvider
 
-	return client, respCh
+	return client, respCh, mockTime
 }
 
 func TestClientEnabled(t *testing.T) {
@@ -115,7 +122,7 @@ func TestClientEnabled(t *testing.T) {
 }
 
 func TestClientSend(t *testing.T) {
-	client, respCh := newTestClient(t)
+	client, respCh, _ := newTestClient(t)
 	containers := langUtil.ContainersLanguages{
 		langUtil.Container{
 			Name: "java-cont",
@@ -169,7 +176,7 @@ func TestClientSend(t *testing.T) {
 }
 
 func TestClientSendFreshPods(t *testing.T) {
-	client, _ := newTestClient(t)
+	client, _, _ := newTestClient(t)
 	containers := langUtil.ContainersLanguages{
 		langUtil.Container{
 			Name: "java-cont",
@@ -201,7 +208,7 @@ func TestClientSendFreshPods(t *testing.T) {
 	freshData := client.getFreshBatchProto()
 	assert.Nil(t, freshData)
 
-	client.freshlyUpdatedPods = map[string]struct{}{"nginx": {}}
+	client.freshlyUpdatedPods = map[string]time.Time{"nginx": time.Now()}
 
 	freshData = client.getFreshBatchProto()
 
@@ -228,7 +235,7 @@ func TestClientSendFreshPods(t *testing.T) {
 }
 
 func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
-	client, _ := newTestClient(t)
+	client, _, _ := newTestClient(t)
 
 	container := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -386,7 +393,7 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 		client.currentBatch,
 	)
 	assert.Empty(t, client.processesWithoutPod)
-	assert.Equal(t, client.freshlyUpdatedPods, map[string]struct{}{"nginx-pod-name": {}})
+	assert.Contains(t, client.freshlyUpdatedPods, "nginx-pod-name")
 
 	unsetPodEventBundle := workloadmeta.EventBundle{
 		Events: []workloadmeta.Event{
@@ -404,7 +411,7 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 }
 
 func TestClientProcessEvent_PodMissing(t *testing.T) {
-	client, _ := newTestClient(t)
+	client, _, _ := newTestClient(t)
 
 	container := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -575,7 +582,7 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 		client.currentBatch,
 	)
 	assert.Empty(t, client.processesWithoutPod)
-	assert.Equal(t, client.freshlyUpdatedPods, map[string]struct{}{"nginx-pod-name": {}})
+	assert.Contains(t, client.freshlyUpdatedPods, "nginx-pod-name")
 
 	unsetPodEventBundle := workloadmeta.EventBundle{
 		Events: []workloadmeta.Event{
@@ -771,7 +778,7 @@ func TestCleanUpProcesssesWithoutPod(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, _ := newTestClient(t)
+			client, _, _ := newTestClient(t)
 			client.processesWithoutPod = tt.processesWithoutPod
 			client.cleanUpProcesssesWithoutPod(tt.time)
 			assert.Equal(t, tt.expected, client.processesWithoutPod)
@@ -781,7 +788,7 @@ func TestCleanUpProcesssesWithoutPod(t *testing.T) {
 
 // TestRun checks that the client runs as expected and will help to identify potential data races
 func TestRun(t *testing.T) {
-	client, respCh := newTestClient(t)
+	client, respCh, _ := newTestClient(t)
 	client.freshDataPeriod = 50 * time.Millisecond
 	client.periodicalFlushPeriod = 1 * time.Second
 	client.processesWithoutPodCleanupPeriod = 100 * time.Millisecond
@@ -1118,6 +1125,119 @@ func TestRun(t *testing.T) {
 	)
 
 	client.stop(context.Background())
+}
+
+func TestSendWaitTime(t *testing.T) {
+	client, _, mockTime := newTestClient(t)
+	wmetaMock := client.store.(wmmock.Mock)
+	client.freshDataPeriod = 5 * time.Second
+	client.podCooldownPeriod = 10 * time.Second
+	client.periodicalFlushPeriod = 1 * time.Minute
+
+	// Set up the entities in wmeta
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   "nginx-cont-id",
+			Kind: workloadmeta.KindContainer,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "nginx-cont-name",
+		},
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   "random-pod-id",
+		},
+	}
+	wmetaMock.Set(container)
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			ID:   "random-pod-id",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "random-pod-name",
+			Namespace: "random-pod-namespace",
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   container.ID,
+				Name: container.Name,
+			},
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{
+			{
+				ID:   "random-replicaset-id",
+				Name: "random-replicaset-name",
+				Kind: "replicaset",
+			},
+		},
+	}
+	wmetaMock.Set(pod)
+
+	process1 := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   "random-process-id1",
+		},
+		ContainerID: "nginx-cont-id",
+		Language:    &languagemodels.Language{Name: "java"},
+	}
+	wmetaMock.Set(process1)
+
+	process2 := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   "random-process-id2",
+		},
+		ContainerID: "nginx-cont-id",
+		Language:    &languagemodels.Language{Name: "python"},
+	}
+	wmetaMock.Set(process2)
+
+	// Handle the events in lang detection client
+	client.handlePodEvent(workloadmeta.Event{
+		Entity: pod,
+		Type:   workloadmeta.EventTypeSet,
+	})
+	client.handleProcessEvent(workloadmeta.Event{
+		Entity: process1,
+		Type:   workloadmeta.EventTypeSet,
+	}, false)
+
+	// Not enough time has passed, should not contain the podInfo
+	freshBatch := client.getFreshBatchProto()
+	assert.Nil(t, freshBatch)
+
+	// Fast-forward just before the podCooldownPeriod ends
+	*mockTime = mockTime.Add(client.podCooldownPeriod * 9 / 10)
+
+	client.handleProcessEvent(workloadmeta.Event{
+		Entity: process2,
+		Type:   workloadmeta.EventTypeSet,
+	}, false)
+
+	freshBatch = client.getFreshBatchProto()
+	assert.Nil(t, freshBatch)
+
+	// Fast-forward time past the podCoolDown
+	*mockTime = mockTime.Add(client.podCooldownPeriod * 2 / 10)
+
+	freshBatch = client.getFreshBatchProto()
+	assert.NotNil(t, freshBatch)
+
+	podDetails := freshBatch.PodDetails[0]
+	assert.Equal(t, "random-pod-name", podDetails.Name)
+
+	// Verify that the container language details are correct
+	containerDetails := podDetails.ContainerDetails[0]
+	assert.Equal(t, "nginx-cont-name", containerDetails.ContainerName)
+
+	flatLanguages := make([]string, 0)
+	for _, lang := range containerDetails.Languages {
+		flatLanguages = append(flatLanguages, lang.Name)
+	}
+	assert.ElementsMatch(t, []string{"java", "python"}, flatLanguages)
 }
 
 func protoToBatch(protoMessage *pbgo.ParentLanguageAnnotationRequest) batch {

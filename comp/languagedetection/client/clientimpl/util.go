@@ -20,6 +20,8 @@ type eventsToRetry struct {
 	events         []workloadmeta.Event
 }
 
+type TimeProvider func() time.Time
+
 type batch map[string]*podInfo
 
 func (b batch) getOrAddPodInfo(podName, podnamespace string, ownerRef *workloadmeta.KubernetesPodOwner) *podInfo {

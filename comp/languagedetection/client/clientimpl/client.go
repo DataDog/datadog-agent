@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -22,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"go.uber.org/fx"
 )
 
 const (
@@ -51,9 +52,6 @@ type dependencies struct {
 	Log          log.Component
 	Telemetry    telemetry.Component
 	Workloadmeta workloadmeta.Component
-
-	// workloadmeta is still not a component but should be provided as one in the future
-	// TODO(components): Workloadmeta workloadmeta.Component
 }
 
 // languageDetectionClient defines the method to send a message to the Cluster-Agent
@@ -84,7 +82,11 @@ type client struct {
 	// streaming every update to the cluster-agent could be costly. Thus we wait for
 	// `freshDataPeriod` before sending fresh updates.
 	freshDataPeriod    time.Duration
-	freshlyUpdatedPods map[string]struct{}
+	freshlyUpdatedPods map[string]time.Time
+
+	// Additionally, we want to gaurantee the pod has been fully synced before sending
+	// the data to the cluster-agent. This is to avoid sending partial data.
+	podCooldownPeriod time.Duration
 
 	// There is a race between the process check and the kubelet. If the process check detects a language
 	// before the kubelet pulls pods, the client should retry after waiting that workloadmeta pulled metadata
@@ -95,6 +97,9 @@ type client struct {
 
 	// periodicalFlushPeriod sets the interval between two periodical flushes
 	periodicalFlushPeriod time.Duration
+
+	// time provider
+	timeProvider TimeProvider
 }
 
 // newClient creates a new Client
@@ -120,8 +125,9 @@ func newClient(
 		processesWithoutPod:              make(map[string]*eventsToRetry),
 		processesWithoutPodTTL:           defaultProcessWithoutPodTTL,
 		processesWithoutPodCleanupPeriod: defaultprocessesWithoutPodCleanupPeriod,
-		freshlyUpdatedPods:               make(map[string]struct{}),
+		freshlyUpdatedPods:               make(map[string]time.Time),
 		periodicalFlushPeriod:            deps.Config.GetDuration("language_detection.reporting.refresh_period"),
+		timeProvider:                     time.Now,
 	}
 	deps.Lc.Append(fx.Hook{
 		OnStart: cl.start,
@@ -272,7 +278,7 @@ func (c *client) send(ctx context.Context, data *pbgo.ParentLanguageAnnotationRe
 	c.telemetry.Latency.Observe(time.Since(t).Seconds())
 	c.telemetry.Requests.Inc(statusSuccess)
 	c.mutex.Lock()
-	c.freshlyUpdatedPods = make(map[string]struct{})
+	c.freshlyUpdatedPods = make(map[string]time.Time)
 	c.mutex.Unlock()
 	return nil
 }
@@ -342,7 +348,11 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 	containerInfo := podInfo.getOrAddContainerInfo(containerName, isInitcontainer)
 	added := containerInfo.Add(langUtil.Language(process.Language.Name))
 	if added {
-		c.freshlyUpdatedPods[pod.Name] = struct{}{}
+		// Don't want to infinitely wait if pod continues to create processes (eg. multiprocessing)
+		// So we only set the time in which flush should happen on the first detection
+		if _, ok := c.freshlyUpdatedPods[pod.Name]; !ok {
+			c.freshlyUpdatedPods[pod.Name] = c.timeProvider().Add(c.podCooldownPeriod)
+		}
 		delete(c.processesWithoutPod, process.ContainerID)
 	}
 	c.telemetry.ProcessedEvents.Inc(pod.Namespace, pod.Name, containerName, string(process.Language.Name))
@@ -383,7 +393,11 @@ func (c *client) getFreshBatchProto() *pbgo.ParentLanguageAnnotationRequest {
 	defer c.mutex.Unlock()
 	batch := make(batch)
 
-	for podName := range c.freshlyUpdatedPods {
+	for podName, popTime := range c.freshlyUpdatedPods {
+		// Skip pods that haven't had freshDataPeriod time to be fully synced
+		if popTime.After(c.timeProvider()) {
+			continue
+		}
 		if containerInfo, ok := c.currentBatch[podName]; ok {
 			batch[podName] = containerInfo
 		}
