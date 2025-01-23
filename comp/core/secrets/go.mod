@@ -2,20 +2,6 @@ module github.com/DataDog/datadog-agent/comp/core/secrets
 
 go 1.22.0
 
-replace (
-	github.com/DataDog/datadog-agent/comp/api/api/def => ../../api/api/def
-	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../flare/builder
-	github.com/DataDog/datadog-agent/comp/core/flare/types => ../flare/types
-	github.com/DataDog/datadog-agent/comp/core/telemetry => ../telemetry
-	github.com/DataDog/datadog-agent/comp/def => ../../def
-	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
-	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
-	github.com/DataDog/datadog-agent/pkg/util/option => ../../../pkg/util/option
-	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
-	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
-
-)
-
 require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.0-rc.3
@@ -59,4 +45,18 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/DataDog/datadog-agent/pkg/version => ../../../pkg/version
+// This section was automatically added by 'invoke modules.add-all-replace'/'invoke modules.clean-unused-replace' command, do not edit manually
+
+replace (
+	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/option => ../../../pkg/util/option
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
+	github.com/DataDog/datadog-agent/pkg/version => ../../../pkg/version
+)
