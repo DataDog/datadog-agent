@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/djm"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
@@ -119,6 +121,15 @@ func (s *Setup) Run() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to write install info: %w", err)
 	}
+	isEMRorDataproc := s.flavor == "emr" || s.flavor == "dataproc"
+	if isEMRorDataproc {
+		// Add dd-agent to the yarn group to give the Agent permission to read the Spark log files.
+		_, err = djm.ExecuteCommandWithTimeout(s, "usermod", "-aG", "yarn", "dd-agent")
+		if err != nil {
+			return fmt.Errorf("failed to add dd-agent to group yarn: %w", err)
+		}
+	}
+
 	for _, p := range packages {
 		url := oci.PackageURL(s.Env, p.name, p.version)
 		err = s.installPackage(p.name, url)
