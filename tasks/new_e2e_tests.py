@@ -209,7 +209,9 @@ def run(
             os.makedirs(logs_folder, exist_ok=True)
             write_result_to_log_files(post_processed_output, logs_folder)
 
-            pretty_print_logs(test_res[0].result_json_path, post_processed_output)
+            pretty_print_logs(
+                test_res[0].result_json_path, post_processed_output, flakes_files=["flakes.yaml", flaky_patterns_config]
+            )
         else:
             print(
                 color_message("WARNING", "yellow")
