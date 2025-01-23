@@ -331,7 +331,7 @@ func (r *EBPFResolvers) snapshotBoundSockets() error {
 	for _, proc := range processes {
 		bs, err := utils.GetBoundSockets(proc)
 		if err != nil {
-			log.Warnf("error while listing sockets (pid: %v): %s", proc.Pid, err)
+			log.Debugf("sockets snapshot failed for (pid: %v): %s", proc.Pid, err)
 			continue
 		}
 		r.ProcessResolver.SyncBoundSockets(uint32(proc.Pid), bs)

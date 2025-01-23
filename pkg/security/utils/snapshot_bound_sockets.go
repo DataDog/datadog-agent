@@ -9,7 +9,6 @@
 package utils
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -49,9 +48,6 @@ func GetBoundSockets(p *process.Process) ([]model.SnapshottedBoundSocket, error)
 			}
 			sockets = append(sockets, uint64(sock))
 		}
-	}
-	if len(sockets) <= 0 {
-		return nil, errors.New("no socket found")
 	}
 
 	// use /proc/[pid]/net/tcp,tcp6,udp,udp6 to extract the ports opened by the current process
