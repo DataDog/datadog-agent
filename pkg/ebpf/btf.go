@@ -86,11 +86,8 @@ func FlushBTF() {
 	}
 }
 
-type kernelModuleBTFLoadFunc func(string) (*btf.Spec, error)
-
 type returnBTF struct {
-	vmlinux        *btf.Spec
-	moduleLoadFunc kernelModuleBTFLoadFunc
+	vmlinux *btf.Spec
 }
 
 type BTFResultMetadata struct { //nolint:revive // TODO
@@ -195,8 +192,7 @@ func (b *orderedBTFLoader) loadKernel() (*returnBTF, error) {
 	}
 	b.resultMetadata.filepathUsed = "<unknown, internal to cilium ebpf>"
 	return &returnBTF{
-		vmlinux:        spec,
-		moduleLoadFunc: nil,
+		vmlinux: spec,
 	}, nil
 }
 
@@ -210,8 +206,7 @@ func (b *orderedBTFLoader) loadUser() (*returnBTF, error) {
 	}
 	b.resultMetadata.filepathUsed = b.userBTFPath
 	return &returnBTF{
-		vmlinux:        spec,
-		moduleLoadFunc: nil,
+		vmlinux: spec,
 	}, nil
 }
 
@@ -226,19 +221,13 @@ func (b *orderedBTFLoader) checkForMinimizedBTF(extractDir string) (*returnBTF, 
 		}
 		b.resultMetadata.filepathUsed = extractedBtfPath
 		return &returnBTF{
-			vmlinux:        spec,
-			moduleLoadFunc: nil,
+			vmlinux: spec,
 		}, nil
 	}
 	return nil, nil
 }
 
 func (b *orderedBTFLoader) checkForUnminimizedBTF(extractDir string) (*returnBTF, error) {
-	absExtractDir := filepath.Join(b.embeddedDir, extractDir)
-	modLoadFunc := func(mod string) (*btf.Spec, error) {
-		b.delayedFlusher.Reset(btfFlushDelay)
-		return loadBTFFrom(filepath.Join(absExtractDir, mod))
-	}
 	btfRelativePath := filepath.Join(extractDir, "vmlinux")
 	extractedBtfPath := filepath.Join(b.embeddedDir, btfRelativePath)
 	if _, err := os.Stat(extractedBtfPath); err == nil {
@@ -248,8 +237,7 @@ func (b *orderedBTFLoader) checkForUnminimizedBTF(extractDir string) (*returnBTF
 		}
 		b.resultMetadata.filepathUsed = extractedBtfPath
 		return &returnBTF{
-			vmlinux:        spec,
-			moduleLoadFunc: modLoadFunc,
+			vmlinux: spec,
 		}, nil
 	}
 	return nil, nil

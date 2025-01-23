@@ -236,6 +236,9 @@ func (e *Env) ToEnv() []string {
 	if e.RegistryPassword != "" {
 		env = append(env, envRegistryPassword+"="+e.RegistryPassword)
 	}
+	if e.InstallScript.APMInstrumentationEnabled != "" {
+		env = append(env, envApmInstrumentationEnabled+"="+e.InstallScript.APMInstrumentationEnabled)
+	}
 	if len(e.ApmLibraries) > 0 {
 		libraries := []string{}
 		for l, v := range e.ApmLibraries {
@@ -345,4 +348,12 @@ func getProxySetting(ddEnv string, env string) string {
 			os.Getenv(strings.ToLower(env)),
 		),
 	)
+}
+
+// ValidateAPMInstrumentationEnabled validates the value of the DD_APM_INSTRUMENTATION_ENABLED environment variable.
+func ValidateAPMInstrumentationEnabled(value string) error {
+	if value != APMInstrumentationEnabledAll && value != APMInstrumentationEnabledDocker && value != APMInstrumentationEnabledHost && value != APMInstrumentationNotSet {
+		return fmt.Errorf("invalid value for %s: %s", envApmInstrumentationEnabled, value)
+	}
+	return nil
 }

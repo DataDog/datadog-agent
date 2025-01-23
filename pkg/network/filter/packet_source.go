@@ -19,7 +19,7 @@ type PacketInfo interface{}
 // PacketSource reads raw packet data
 type PacketSource interface {
 	// VisitPackets reads all new raw packets that are available, invoking the given callback for each packet.
-	// If no packet is available, VisitPacket returns immediately.
+	// If no packet is available, VisitPacket blocks until OptPollTimeout and returns.
 	// The format of the packet is dependent on the implementation of PacketSource -- i.e. it may be an ethernet frame, or a IP frame.
 	// The data buffer is reused between invocations of VisitPacket and thus should not be pointed to.
 	// If the cancel channel is closed, VisitPackets will stop reading.

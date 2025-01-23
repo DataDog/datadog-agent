@@ -64,9 +64,11 @@ func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool 
 }
 
 func TestScripts(t *testing.T) {
-	if _, ok := os.LookupEnv("CI_COMMIT_SHA"); !ok {
-		t.Log("CI_COMMIT_SHA env var is not set, this test requires this variable to be set to work")
-		t.FailNow()
+	if _, ok := os.LookupEnv("E2E_PIPELINE_ID"); !ok {
+		if _, ok := os.LookupEnv("CI_COMMIT_SHA"); !ok {
+			t.Log("CI_COMMIT_SHA & E2E_PIPELINE_ID env var are not set, this test requires one of these two variables to be set to work")
+			t.FailNow()
+		}
 	}
 
 	var flavors []e2eos.Descriptor
@@ -111,12 +113,21 @@ type installerScriptSuite interface {
 }
 
 func newInstallerScriptSuite(pkg string, e2eos e2eos.Descriptor, arch e2eos.Architecture, opts ...awshost.ProvisionerOption) installerScriptBaseSuite {
+	var scriptURLPrefix string
+	if pipelineID, ok := os.LookupEnv("E2E_PIPELINE_ID"); ok {
+		scriptURLPrefix = fmt.Sprintf("https://installtesting.datad0g.com/pipeline-%s/scripts/", pipelineID)
+	} else if commitHash, ok := os.LookupEnv("CI_COMMIT_SHA"); ok {
+		scriptURLPrefix = fmt.Sprintf("https://installtesting.datad0g.com/%s/scripts/", commitHash)
+	} else {
+		require.FailNowf(nil, "missing script identifier", "CI_COMMIT_SHA or CI_PIPELINE_ID must be set")
+	}
+
 	return installerScriptBaseSuite{
-		commitHash: os.Getenv("CI_COMMIT_SHA"),
-		os:         e2eos,
-		arch:       arch,
-		pkg:        pkg,
-		opts:       opts,
+		scriptURLPrefix: scriptURLPrefix,
+		os:              e2eos,
+		arch:            arch,
+		pkg:             pkg,
+		opts:            opts,
 	}
 }
 
@@ -134,7 +145,7 @@ func (s *installerScriptBaseSuite) SetupSuite() {
 }
 
 type installerScriptBaseSuite struct {
-	commitHash string
+	scriptURLPrefix string
 	e2e.BaseSuite[environments.Host]
 
 	host *host.Host

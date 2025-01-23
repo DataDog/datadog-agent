@@ -18,6 +18,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -48,6 +50,20 @@ var DefaultGpuUUID = GPUUUIDs[0]
 // DefaultGPUName is the name for the default device returned by the mock
 var DefaultGPUName = "Tesla T4"
 
+// DefaultGPUComputeCapMajor is the major number for the compute capabilities for the default device returned by the mock
+var DefaultGPUComputeCapMajor = 7
+
+// DefaultGPUComputeCapMinor is the minor number for the compute capabilities for the default device returned by the mock
+var DefaultGPUComputeCapMinor = 5
+
+// DefaultGPUArch is the architecture for the default device returned by the mock
+var DefaultGPUArch = nvml.DeviceArchitecture(nvml.DEVICE_ARCH_HOPPER)
+
+// DefaultGPUAttributes is the attributes for the default device returned by the mock
+var DefaultGPUAttributes = nvml.DeviceAttributes{
+	MultiprocessorCount: 10,
+}
+
 // GetDeviceMock returns a mock of the nvml.Device with the given UUID.
 func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 	return &nvmlmock.Device{
@@ -62,6 +78,12 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 		},
 		GetNameFunc: func() (string, nvml.Return) {
 			return DefaultGPUName, nvml.SUCCESS
+		},
+		GetArchitectureFunc: func() (nvml.DeviceArchitecture, nvml.Return) {
+			return DefaultGPUArch, nvml.SUCCESS
+		},
+		GetAttributesFunc: func() (nvml.DeviceAttributes, nvml.Return) {
+			return DefaultGPUAttributes, nvml.SUCCESS
 		},
 	}
 }
@@ -93,6 +115,11 @@ func GetWorkloadMetaMock(t *testing.T) workloadmetamock.Mock {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
+}
+
+// GetTelemetryMock returns a mock of the telemetry.Component.
+func GetTelemetryMock(t *testing.T) telemetry.Component {
+	return fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 }
 
 // RequireDevicesEqual checks that the two devices are equal by comparing their UUIDs, which gives a better
