@@ -124,6 +124,7 @@ class GateMetricHandler:
                     self.metrics[gate]["current_on_wire_size"],
                     tags=common_tags,
                     metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
+                    unit="byte",
                 ),
             )
             series.append(
@@ -133,6 +134,7 @@ class GateMetricHandler:
                     self.metrics[gate]["current_on_disk_size"],
                     tags=common_tags,
                     metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
+                    unit="byte",
                 ),
             )
             series.append(
@@ -142,6 +144,7 @@ class GateMetricHandler:
                     self.metrics[gate]["max_on_wire_size"],
                     tags=common_tags,
                     metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
+                    unit="byte",
                 ),
             )
             series.append(
@@ -151,6 +154,7 @@ class GateMetricHandler:
                     self.metrics[gate]["max_on_disk_size"],
                     tags=common_tags,
                     metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
+                    unit="byte",
                 ),
             )
         return series
