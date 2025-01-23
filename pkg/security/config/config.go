@@ -510,7 +510,7 @@ func isRemoteConfigEnabled() bool {
 func IsEBPFLessModeEnabled() bool {
 	const cfgKey = "runtime_security_config.ebpfless.enabled"
 	// by default on fargate, we enable ebpfless mode
-	if !pkgconfigsetup.SystemProbe().IsSet(cfgKey) && fargate.IsFargateInstance() {
+	if !pkgconfigsetup.SystemProbe().IsConfigured(cfgKey) && fargate.IsFargateInstance() {
 		seclog.Infof("Fargate instance detected, enabling CWS ebpfless mode")
 		pkgconfigsetup.SystemProbe().Set(cfgKey, true, pkgconfigmodel.SourceAgentRuntime)
 	}
