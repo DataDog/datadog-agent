@@ -25,6 +25,8 @@ modules:
     used_by_otel: true
   comp/core/log/def:
     used_by_otel: true
+  comp/core/log/fx:
+    used_by_otel: true
   comp/core/log/impl:
     used_by_otel: true
   comp/core/log/impl-trace: default
