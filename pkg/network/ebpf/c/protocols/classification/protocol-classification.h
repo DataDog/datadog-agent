@@ -63,6 +63,10 @@
 // updates the the protocol stack and adds the current layer to the routing skip list
 static __always_inline void update_protocol_information(classification_context_t *classification_ctx, protocol_stack_t *stack, protocol_t proto) {
     set_protocol(stack, proto);
+    // don't skip other tail calls in the encryption layer (even if the layer is known) so we can evaluation potential TLS handshake tags
+    if (proto & LAYER_ENCRYPTION_BIT) {
+        return;
+    }
     classification_ctx->routing_skip_layers |= proto;
 }
 
@@ -149,7 +153,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
 
-    if (is_fully_classified(protocol_stack) || is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION)) {
+    if (is_fully_classified(protocol_stack)) {
         return;
     }
 
@@ -167,10 +171,11 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         if (!protocol_stack) {
             return;
         }
+        update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_TLS);
         // TLS classification
         if (tls_hdr.content_type != TLS_HANDSHAKE) {
             // We can't classify TLS encrypted traffic further, so return early
-            update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_TLS);
+            // update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_TLS);
             return;
         }
 
@@ -255,7 +260,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     if (!protocol_stack) {
         return;
     }
-    update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_TLS);
+    // update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_TLS);
     // We can't classify TLS encrypted traffic further, so return early
     return;
 

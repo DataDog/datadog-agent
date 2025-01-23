@@ -69,7 +69,8 @@ static __always_inline void init_routing_cache(classification_context_t *classif
     if (stack->layer_api || !has_available_program(__PROG_API)) {
         classification_ctx->routing_skip_layers |= LAYER_API_BIT;
     }
-    if (stack->layer_encryption || !has_available_program(__PROG_ENCRYPTION)) {
+    // don't skip other tail calls in the encryption layer (even if the layer is known) so we can evaluation potential TLS handshake tags
+    if (stack->flags&FLAG_FULLY_CLASSIFIED || !has_available_program(__PROG_ENCRYPTION)) {
         classification_ctx->routing_skip_layers |= LAYER_ENCRYPTION_BIT;
     }
 }
