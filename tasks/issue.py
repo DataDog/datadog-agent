@@ -86,16 +86,22 @@ def add_reviewers(ctx, pr_id):
         print("This is not a (dependabot) bump PR, this action should not be run on it.")
         return
 
+    folder = ""
     if pr.title.startswith("Bump the "):
-        match = re.match(r"^Bump the (\S+).*$", pr.title)
+        match = re.match(r"^Bump the (\S+) group (.*$)", pr.title)
+        if match.group(2).startswith("in"):
+            match_folder = re.match(r"^in (\S+).*$", match.group(2))
+            folder = match_folder.group(1).removeprefix("/")
     else:
         match = re.match(r"^Bump (\S+) from (\S+) to (\S+)$", pr.title)
     dependency = match.group(1)
 
     # Find the responsible person for each file
     owners = set()
-    git_files = ctx.run("git ls-files | grep \".go$\"", hide=True).stdout
+    git_files = ctx.run("git ls-files | grep -e \"^.*.go$\"", hide=True).stdout
     for file in git_files.splitlines():
+        if not file.startswith(folder):
+            continue
         in_import = False
         with open(file) as f:
             for line in f:
@@ -110,5 +116,6 @@ def add_reviewers(ctx, pr_id):
                         if re.search(dependency, line):
                             owners.update(set(search_owners(file, ".github/CODEOWNERS")))
                             break
-    pr.create_review_request(team_reviewers=[owner.replace("@DataDog/", "") for owner in owners])
+    # Teams are added by slug, so we need to remove the @DataDog/ prefix
+    pr.create_review_request(team_reviewers=[owner.casefold().removeprefix("@datadog/") for owner in owners])
     pr.add_to_labels("ask-review")
