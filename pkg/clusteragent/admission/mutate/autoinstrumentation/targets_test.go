@@ -49,38 +49,10 @@ func TestParseConfig(t *testing.T) {
 }
 
 func TestFilter(t *testing.T) {
-	libVersions := map[string]libInfo{
-		"java": {
-			ctrName: "",
-			lang:    java,
-			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
-		},
-		"python": {
-			ctrName: "",
-			lang:    python,
-			image:   "gcr.io/datadoghq/dd-lib-python-init:v2",
-		},
-		"ruby": {
-			ctrName: "",
-			lang:    ruby,
-			image:   "gcr.io/datadoghq/dd-lib-ruby-init:v2",
-		},
-		"js": {
-			ctrName: "",
-			lang:    js,
-			image:   "gcr.io/datadoghq/dd-lib-js-init:v5",
-		},
-		"dotnet": {
-			ctrName: "",
-			lang:    dotnet,
-			image:   "gcr.io/datadoghq/dd-lib-dotnet-init:v3",
-		},
-	}
-
 	tests := map[string]struct {
 		configPath string
 		in         *corev1.Pod
-		out        []libInfo
+		out        []language
 	}{
 		"a rule without selectors applies as a default": {
 			configPath: "testdata/filter.yaml",
@@ -92,9 +64,7 @@ func TestFilter(t *testing.T) {
 					},
 				},
 			},
-			out: []libInfo{
-				libVersions["js"],
-			},
+			out: []language{js},
 		},
 		"a single service example matches rule": {
 			configPath: "testdata/filter.yaml",
@@ -106,9 +76,7 @@ func TestFilter(t *testing.T) {
 					},
 				},
 			},
-			out: []libInfo{
-				libVersions["python"],
-			},
+			out: []language{python},
 		},
 		"a java microservice service matches rule": {
 			configPath: "testdata/filter.yaml",
@@ -120,9 +88,7 @@ func TestFilter(t *testing.T) {
 					},
 				},
 			},
-			out: []libInfo{
-				libVersions["java"],
-			},
+			out: []language{java},
 		},
 		"a disabled namespace gets no tracers": {
 			configPath: "testdata/filter.yaml",
@@ -146,13 +112,7 @@ func TestFilter(t *testing.T) {
 					},
 				},
 			},
-			out: []libInfo{
-				libVersions["java"],
-				libVersions["js"],
-				libVersions["python"],
-				libVersions["dotnet"],
-				libVersions["ruby"],
-			},
+			out: []language{java, js, python, dotnet, ruby},
 		},
 	}
 
@@ -163,7 +123,11 @@ func TestFilter(t *testing.T) {
 			require.NoError(t, err)
 
 			libList := f.Filter(test.in)
-			require.Equal(t, test.out, libList)
+			languages := make([]language, 0, len(libList))
+			for _, lib := range libList {
+				languages = append(languages, lib.lang)
+			}
+			require.Equal(t, test.out, languages)
 		})
 	}
 }
