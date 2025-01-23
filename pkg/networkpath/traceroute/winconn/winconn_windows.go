@@ -40,6 +40,8 @@ func (r *RawConn) Close() {
 	r.Socket = windows.InvalidHandle
 }
 
+// ReadFrom reads from the RawConn into the passed []byte and returns
+// the IPv4 header and payload separately
 func (r *RawConn) ReadFrom(b []byte) (*ipv4.Header, []byte, error) {
 	// the receive timeout is set to 100ms in the constructor, to match the
 	// linux side. This is a workaround for the lack of a deadline for sockets.
