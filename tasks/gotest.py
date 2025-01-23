@@ -276,7 +276,6 @@ def test(
     build_stdlib=False,
     test_washer=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
-    extra_flakes_config=None,
 ):
     """
     Run go tests on the given module and targets.
@@ -401,7 +400,7 @@ def test(
         # print("\n--- Top 15 packages sorted by run time:")
         test_profiler.print_sorted(15)
 
-    success = process_test_result(test_results, junit_tar, flavor, test_washer, extra_flakes_config=extra_flakes_config)
+    success = process_test_result(test_results, junit_tar, flavor, test_washer)
     if not success:
         raise Exit(code=1)
 

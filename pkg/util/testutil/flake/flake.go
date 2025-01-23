@@ -25,7 +25,7 @@ import (
 const flakyTestMessage = "flakytest: this is a known flaky test"
 
 var skipFlake = flag.Bool("skip-flake", false, "skip tests labeled as flakes")
-var flakyPatternsConfig = flag.String("flaky-patterns-config", "/tmp/e2e-flaky-patterns.yaml", "path to the flaky patterns configuration file that will be created when MarkOnLog is used")
+var flakyPatternsConfig = flag.String("flaky-patterns-config", "", "path to the flaky patterns configuration file that will be created when MarkOnLog is used")
 var flakyPatternsConfigMutex = sync.Mutex{}
 
 // Mark test as a known flaky.
