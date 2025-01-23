@@ -172,7 +172,7 @@ func (h *Host) WaitForUnitActivating(t *testing.T, units ...string) {
 			h.t.Logf("installer exp logs:\n%s", h.remote.MustExecute("sudo journalctl -xeu datadog-installer-exp"))
 			h.t.Logf("unit %s logs:\n%s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
 		}
-		require.NoError(t, err, "unit %s did not become activating")
+		require.NoError(t, err, "unit %s did not become activating", unit)
 	}
 }
 

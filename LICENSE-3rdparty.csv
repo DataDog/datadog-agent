@@ -670,7 +670,6 @@ core,github.com/aws/aws-sdk-go/private/protocol/rest,Apache-2.0,"Copyright 2014-
 core,github.com/aws/aws-sdk-go/private/protocol/restjson,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/ec2,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
-core,github.com/aws/aws-sdk-go/service/ec2/ec2iface,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/ecs,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/lightsail,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/sso,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
@@ -1381,36 +1380,16 @@ core,github.com/jackc/pgx/v5/pgtype,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/pgx/v5/pgxpool,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/puddle/v2,MIT,Copyright (c) 2018 Jack Christensen
 core,github.com/jackc/puddle/v2/internal/genstack,MIT,Copyright (c) 2018 Jack Christensen
-core,github.com/jaegertracing/jaeger/cmd/agent/app/configmanager,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/cmd/agent/app/customtransport,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/cmd/agent/app/httpserver,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/cmd/agent/app/processors,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/cmd/agent/app/servers,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/internal/metrics/otelmetrics,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/model,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/model/converter/json,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/model/converter/thrift/jaeger,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/model/converter/thrift/zipkin,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/model/json,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/pkg/distributedlock,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/pkg/healthcheck,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/pkg/metrics,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/pkg/telemetry,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/proto-gen/api_v2,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/storage,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/storage/dependencystore,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/storage/metricstore,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/storage/samplingstore,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/storage/spanstore,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/thrift-gen/agent,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/thrift-gen/baggage,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/thrift-gen/jaeger,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/thrift-gen/sampling,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/thrift-gen/zipkincore,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jbenet/go-context/io,MIT,Copyright (c) 2014 Juan Batiz-Benet
 core,github.com/jedisct1/go-minisign,MIT,Copyright (c) 2018-2023 Frank Denis
@@ -1724,12 +1703,14 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadata
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/docker,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/k8snode,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/kubeadm,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/openshift,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/system,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/splunk,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchperresourceattr,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/experimentalmetricmetadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1845,6 +1826,8 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourc
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/heroku/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/k8snode,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/k8snode/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/kubeadm,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/kubeadm/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/openshift,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/openshift/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2506,6 +2489,7 @@ core,go.opentelemetry.io/collector/exporter/exportertest,Apache-2.0,Copyright Th
 core,go.opentelemetry.io/collector/exporter/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/internal/experr,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/internal/queue,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/exporter/internal/requesttest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/nopexporter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/nopexporter/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/otlpexporter,Apache-2.0,Copyright The OpenTelemetry Authors
