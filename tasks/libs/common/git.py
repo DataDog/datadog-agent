@@ -210,7 +210,7 @@ def try_git_command(ctx, git_command, non_interactive_retries=2, non_interactive
     return False
 
 
-def check_clean_branch_state(ctx, github, branch, enable_local_branch_check=True):
+def check_clean_branch_state(ctx, github, branch):
     """
     Check we are in a clean situation to create a new branch:
     No uncommitted change, and branch doesn't exist locally or upstream
@@ -223,7 +223,7 @@ def check_clean_branch_state(ctx, github, branch, enable_local_branch_check=True
             ),
             code=1,
         )
-    if enable_local_branch_check and check_local_branch(ctx, branch):
+    if check_local_branch(ctx, branch):
         raise Exit(
             color_message(
                 f"The branch {branch} already exists locally. Please remove it before trying again.",

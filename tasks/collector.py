@@ -532,10 +532,12 @@ def pull_request(ctx):
             )
             try:
                 # don't check if local branch exists; we just created it
-                check_clean_branch_state(ctx, gh, branch_name, False)
+                check_clean_branch_state(ctx, gh, branch_name)
             except Exit as e:
-                print(e)
-                return
+                # local branch already exists, so skip error if this is thrown
+                if "already exists locally" not in str(e):
+                    print(e)
+                    return
             ctx.run(f'git push -u origin {branch_name} --no-verify')  # skip pre-commit hook if installed locally
             gh.create_pr(
                 pr_title=f"Update OTel Collector dependencies to v{OCB_VERSION}",
