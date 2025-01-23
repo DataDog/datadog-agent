@@ -6,12 +6,12 @@
 #include "structs/rate_limiter.h"
 
 __attribute__((always_inline)) u8 rate_limiter_reset_period(u64 now, struct rate_limiter_ctx *rate_ctx_p) {
-    u64 data = (now & ~((u64)0xff));
+    u64 data = (now & ~RATE_LIMITER_COUNTER_MASK);
     rate_ctx_p->data = data;
     return 1;
 }
 
-__attribute__((always_inline)) u8 rate_limiter_allow_basic(u8 rate, u64 now, struct rate_limiter_ctx *rate_ctx_p, u64 delta) {
+__attribute__((always_inline)) u8 rate_limiter_allow_basic(u16 rate, u64 now, struct rate_limiter_ctx *rate_ctx_p, u64 delta) {
     if (delta > SEC_TO_NS(1)) { // if more than 1 sec ellapsed we reset the period
         return rate_limiter_reset_period(now, rate_ctx_p);
     }
@@ -23,7 +23,7 @@ __attribute__((always_inline)) u8 rate_limiter_allow_basic(u8 rate, u64 now, str
     }
 }
 
-__attribute__((always_inline)) u8 rate_limiter_allow_gen(struct rate_limiter_ctx *rate_ctx_p, u8 rate, u64 now, u8 should_count) {
+__attribute__((always_inline)) u8 rate_limiter_allow_gen(struct rate_limiter_ctx *rate_ctx_p, u16 rate, u64 now, u8 should_count) {
     u64 delta = now - get_current_period(rate_ctx_p);
     u8 allow = rate_limiter_allow_basic(rate, now, rate_ctx_p, delta);
     if (allow && should_count) {
@@ -36,7 +36,7 @@ __attribute__((always_inline)) u8 rate_limiter_allow_gen(struct rate_limiter_ctx
 // TODO: put it configurable
 #define GENERIC_RATE_LIMITER_RATE 100
 
-__attribute__((always_inline)) u8 rate_limiter_allow(u32 pid, u64 now, u8 should_count) {
+__attribute__((always_inline)) u8 rate_limiter_allow(u32 pid, u64 now, u16 should_count) {
     if (now == 0) {
         now = bpf_ktime_get_ns();
     }
@@ -56,7 +56,7 @@ __attribute__((always_inline)) u8 rate_limiter_allow(u32 pid, u64 now, u8 should
 }
 #define rate_limiter_allow_simple() rate_limiter_allow(0, 0, 1)
 
-__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(u8 rate, u64 cookie, u64 now, u8 should_count) {
+__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(u16 rate, u64 cookie, u64 now, u16 should_count) {
     if (now == 0) {
         now = bpf_ktime_get_ns();
     }
