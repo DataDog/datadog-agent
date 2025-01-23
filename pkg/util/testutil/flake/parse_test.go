@@ -26,17 +26,24 @@ func TestIsFlaky(t *testing.T) {
 }
 
 const flake1 = `pkg/gohai:
-  - TestGetPayload`
+  - test: TestGetPayload`
 
 const flake2 = `pkg/toto:
-  - TestGetPayload
-  - TestOtherTest`
+  - test: TestGetPayload
+  - test: TestOtherTest`
 
 const flake3 = `pkg/gohai:
-  - TestGetPayload
+  - test: TestGetPayload
 pkg/toto:
-  - TestGetPayload
-  - TestOtherTest`
+  - test: TestGetPayload
+  - test: TestOtherTest`
+
+const flake4 = `pkg/gohai:
+  - test: TestGetPayload
+pkg/toto:
+  - test: TestGetPayload
+  - test: TestOtherTest
+    on-log: "hello"`
 
 func TestFlakesParse(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
@@ -65,6 +72,17 @@ func TestFlakesParse(t *testing.T) {
 		if assert.Contains(t, kf.packageTestList, "pkg/toto") {
 			assert.Contains(t, kf.packageTestList["pkg/toto"], "TestGetPayload")
 			assert.Contains(t, kf.packageTestList["pkg/toto"], "TestOtherTest")
+		}
+	})
+
+	t.Run("4", func(t *testing.T) {
+		kf, err := Parse(bytes.NewBuffer([]byte(flake4)))
+		require.NoError(t, err)
+		if assert.Contains(t, kf.packageTestList, "pkg/gohai") {
+			assert.Contains(t, kf.packageTestList["pkg/gohai"], "TestGetPayload")
+		}
+		if assert.Contains(t, kf.packageTestList, "pkg/toto") {
+			assert.Contains(t, kf.packageTestList["pkg/toto"], "TestGetPayload")
 		}
 	})
 }

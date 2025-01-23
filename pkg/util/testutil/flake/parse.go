@@ -56,14 +56,17 @@ func (k *KnownFlakyTests) IsFlaky(pkg string, testName string) bool {
 // Parse parses the reader in the flake.yaml format
 func Parse(r io.Reader) (*KnownFlakyTests, error) {
 	dec := yaml.NewDecoder(r)
-	pkgToTests := make(map[string][]string)
+	pkgToTests := make(map[string][]map[string]string)
 	if err := dec.Decode(&pkgToTests); err != nil {
 		return nil, fmt.Errorf("unmarshal: %w", err)
 	}
 	kf := &KnownFlakyTests{packageTestList: make(map[string]map[string]struct{})}
 	for pkg, tests := range pkgToTests {
 		for _, t := range tests {
-			kf.Add(pkg, t)
+			// Do not include tests that have an on-log field since they are not always flaky
+			if _, hasOnLog := t["on-log"]; !hasOnLog {
+				kf.Add(pkg, t["test"])
+			}
 		}
 	}
 	return kf, nil
