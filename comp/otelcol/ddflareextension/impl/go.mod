@@ -196,12 +196,11 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.140 // indirect
-	github.com/DataDog/datadog-agent/comp/core/config v0.60.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/config v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.60.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/log/def v0.60.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/log/mock v0.58.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.61.0 // indirect
@@ -219,15 +218,15 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.57.0-devel.0.20240718200853-81bf3b2e412d // indirect
-	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.59.0-rc.6 // indirect
+	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.59.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.59.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.60.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.60.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.60.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.60.1 // indirect
@@ -267,7 +266,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/json v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.58.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1 // indirect
