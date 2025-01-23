@@ -129,9 +129,16 @@ func TestNetworkCheck(t *testing.T) {
 			{
 				Protocol: "tcp",
 				Stats: map[string]int64{
-					"RetransSegs": 22,
-					"InSegs":      23,
-					"OutSegs":     24,
+					"RetransSegs":  22,
+					"InSegs":       23,
+					"OutSegs":      24,
+					"ActiveOpens":  39,
+					"PassiveOpens": 40,
+					"AttemptFails": 41,
+					"EstabResets":  42,
+					"InErrs":       36,
+					"OutRsts":      37,
+					"InCsumErrors": 38,
 				},
 			},
 			{
@@ -321,6 +328,13 @@ collect_connection_state: true
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.retrans_segs.count", float64(22), "", customTags)
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.in_segs.count", float64(23), "", customTags)
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.out_segs.count", float64(24), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.active_opens.count", float64(39), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.passive_opens.count", float64(40), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.attempt_fails.count", float64(41), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.established_resets.count", float64(42), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.in_errors.count", float64(36), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.out_resets.count", float64(37), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.in_csum_errors.count", float64(38), "", customTags)
 
 	mockSender.AssertCalled(t, "Rate", "system.net.udp.in_datagrams", float64(25), "", customTags)
 	mockSender.AssertCalled(t, "Rate", "system.net.udp.no_ports", float64(26), "", customTags)

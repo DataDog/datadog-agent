@@ -44,6 +44,13 @@ var (
 			"ListenDrops":     "system.net.tcp.listen_drops",
 			"TCPBacklogDrop":  "system.net.tcp.backlog_drops",
 			"TCPRetransFail":  "system.net.tcp.failed_retransmits",
+			"ActiveOpens":     "system.net.tcp.active_opens",
+			"PassiveOpens":    "system.net.tcp.passive_opens",
+			"AttemptFails":    "system.net.tcp.attempt_fails",
+			"EstabResets":     "system.net.tcp.established_resets",
+			"InErrs":          "system.net.tcp.in_errors",
+			"OutRsts":         "system.net.tcp.out_resets",
+			"InCsumErrors":    "system.net.tcp.in_csum_errors",
 		},
 		"udp": {
 			"InDatagrams":  "system.net.udp.in_datagrams",
