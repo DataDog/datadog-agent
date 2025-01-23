@@ -502,6 +502,8 @@ func (suite *k8sSuite) TestNginx() {
 				`^kube_namespace:workload-nginx$`,
 				`^org:agent-org$`,
 				`^team:contp$`,
+				`^mail:team-container-platform@datadoghq.com$`,
+				`^sub-team:contint$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
