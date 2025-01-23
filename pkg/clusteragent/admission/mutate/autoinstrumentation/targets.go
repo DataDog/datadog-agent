@@ -21,7 +21,6 @@ import (
 
 type TargetFilter struct {
 	targets               []Target
-	containerRegistry     string
 	disabledNamespaces    map[string]bool
 	defaultTracerVersions []libInfo
 }
@@ -45,7 +44,6 @@ func NewTargetFilter(datadogConfig config.Component) (*TargetFilter, error) {
 	return &TargetFilter{
 		targets:               targets,
 		disabledNamespaces:    disabledNamespaces,
-		containerRegistry:     containerRegistry,
 		defaultTracerVersions: defaultTracerVersions,
 	}, nil
 }

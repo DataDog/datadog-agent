@@ -56,6 +56,8 @@ type Webhook struct {
 	// use to store all the config option from the config component to avoid costly lookups in the admission webhook hot path.
 	config webhookConfig
 
+	targetFilter *TargetFilter
+
 	// precomputed mutators for the security and profiling products
 	securityClientLibraryPodMutators  []podMutator
 	profilingClientLibraryPodMutators []podMutator
@@ -77,6 +79,11 @@ func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, fi
 		return nil, fmt.Errorf("unable to retrieve autoinstrumentation config, err: %w", err)
 	}
 
+	targetFilter, err := NewTargetFilter(datadogConfig)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create target filter, err: %w", err)
+	}
+
 	webhook := &Webhook{
 		name: webhookName,
 
@@ -84,6 +91,8 @@ func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, fi
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		wmeta:           wmeta,
+
+		targetFilter: targetFilter,
 
 		config: config,
 	}
@@ -425,7 +434,12 @@ func (w *Webhook) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	extracted := w.initExtractedLibInfo(pod)
 
-	libs := w.extractLibrariesFromAnnotations(pod)
+	libs := w.targetFilter.Filter(pod)
+	if len(libs) > 0 {
+		return extracted.withLibs(libs)
+	}
+
+	libs = w.extractLibrariesFromAnnotations(pod)
 	if len(libs) > 0 {
 		return extracted.withLibs(libs)
 	}
