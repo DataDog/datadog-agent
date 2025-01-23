@@ -8,13 +8,14 @@
 package filter
 
 import (
+	"testing"
+	"time"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/afpacket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
-	"testing"
-	"time"
 )
 
 type mockPacketReader struct {
@@ -25,6 +26,9 @@ type mockPacketReader struct {
 
 func (m *mockPacketReader) ZeroCopyReadPacketData() (data []byte, ci gopacket.CaptureInfo, err error) {
 	return m.data, m.ci, m.err
+}
+func (m *mockPacketReader) GetPacketInfoBuffer() *AFPacketInfo {
+	return &AFPacketInfo{}
 }
 
 func mockCaptureInfo(ancillaryData []interface{}) gopacket.CaptureInfo {
