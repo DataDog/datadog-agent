@@ -190,6 +190,11 @@ func (p *EBPFProbe) UseRingBuffers() bool {
 	return p.config.Probe.EventStreamUseRingBuffer && p.kernelVersion.HaveRingBuffers()
 }
 
+// GetUseFentry returns true if fentry is used
+func (p *EBPFProbe) GetUseFentry() bool {
+	return p.useFentry
+}
+
 func (p *EBPFProbe) selectFentryMode() {
 	if !p.config.Probe.EventStreamUseFentry {
 		p.useFentry = false
@@ -2028,7 +2033,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		PathResolutionEnabled:     probe.Opts.PathResolutionEnabled,
 		SecurityProfileMaxCount:   config.RuntimeSecurity.SecurityProfileMaxCount,
 		NetworkFlowMonitorEnabled: config.Probe.NetworkFlowMonitorEnabled,
-	})
+	}, p.kernelVersion)
 
 	if config.RuntimeSecurity.ActivityDumpEnabled {
 		for _, e := range config.RuntimeSecurity.ActivityDumpTracedEventTypes {
@@ -2226,37 +2231,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	// prevent some helpers from loading
 	if !p.kernelVersion.HasBPFForEachMapElemHelper() {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.AllBPFForEachMapElemProgramFunctions()...)
-	}
-
-	if !p.kernelVersion.HasSKStorage() {
-		// Edit each SK_Storage map and transform them to a basic hash maps so they can be loaded by older kernels.
-		// We need this so that the eBPF manager can link the SK_Storage maps in our eBPF programs, even if deadcode
-		// elimination will clean up the piece of code that work with them prior to running the verifier.
-		if p.managerOptions.MapSpecEditors == nil {
-			p.managerOptions.MapSpecEditors = make(map[string]manager.MapSpecEditor, len(probes.AllSKStorageMaps()))
-		}
-		for _, skMapName := range probes.AllSKStorageMaps() {
-			p.managerOptions.MapSpecEditors[skMapName] = manager.MapSpecEditor{
-				Type:       lib.Hash,
-				KeySize:    1,
-				ValueSize:  1,
-				MaxEntries: 1,
-				EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries,
-			}
-		}
-	}
-
-	if !p.kernelVersion.HasNoPreallocMapsInPerfEvent() {
-		// Edit maps used in perf_event programs with BPF_F_NO_PREALLOC flag so that they are pre-allocated
-		if p.managerOptions.MapSpecEditors == nil {
-			p.managerOptions.MapSpecEditors = make(map[string]manager.MapSpecEditor, len(probes.AllSKStorageMaps()))
-		}
-		for _, noPreallocMapName := range probes.AllNoPreallocMapsInPerfEventPrograms() {
-			p.managerOptions.MapSpecEditors[noPreallocMapName] = manager.MapSpecEditor{
-				Flags:      unix.BPF_ANY,
-				EditorFlag: manager.EditFlags,
-			}
-		}
 	}
 
 	if p.useFentry {

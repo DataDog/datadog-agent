@@ -232,11 +232,11 @@ func (c *Config) sanitize() error {
 		return fmt.Errorf("runtime_security_config.event_stream.buffer_size must be a power of 2 and a multiple of %d", os.Getpagesize())
 	}
 
-	if !isSet("enable_approvers") && c.EnableKernelFilters {
+	if !isConfigured("enable_approvers") && c.EnableKernelFilters {
 		c.EnableApprovers = true
 	}
 
-	if !isSet("enable_discarders") && c.EnableKernelFilters {
+	if !isConfigured("enable_discarders") && c.EnableKernelFilters {
 		c.EnableDiscarders = true
 	}
 
@@ -274,14 +274,14 @@ func getAllKeys(key string) (string, string) {
 	return deprecatedKey, newKey
 }
 
-func isSet(key string) bool {
+func isConfigured(key string) bool {
 	deprecatedKey, newKey := getAllKeys(key)
-	return pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) || pkgconfigsetup.SystemProbe().IsSet(newKey)
+	return pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) || pkgconfigsetup.SystemProbe().IsConfigured(newKey)
 }
 
 func getBool(key string) bool {
 	deprecatedKey, newKey := getAllKeys(key)
-	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
 		return pkgconfigsetup.SystemProbe().GetBool(deprecatedKey)
 	}
@@ -290,7 +290,7 @@ func getBool(key string) bool {
 
 func getInt(key string) int {
 	deprecatedKey, newKey := getAllKeys(key)
-	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
 		return pkgconfigsetup.SystemProbe().GetInt(deprecatedKey)
 	}
@@ -308,7 +308,7 @@ func getDuration(key string) time.Duration {
 
 func getString(key string) string {
 	deprecatedKey, newKey := getAllKeys(key)
-	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
 		return pkgconfigsetup.SystemProbe().GetString(deprecatedKey)
 	}
@@ -317,7 +317,7 @@ func getString(key string) string {
 
 func getStringSlice(key string) []string {
 	deprecatedKey, newKey := getAllKeys(key)
-	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
 		return pkgconfigsetup.SystemProbe().GetStringSlice(deprecatedKey)
 	}
