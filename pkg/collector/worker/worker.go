@@ -41,6 +41,13 @@ var workerUtilization = telemetry.NewGauge(
 	[]string{"worker_name"},
 	"Worker utilization. It's a value between 0 and 1 that represents the share of time that the check runner worker is running checks",
 )
+var integrationRuns = telemetry.NewCounterWithOpts(
+	"ha_agent",
+	"integration_runs",
+	[]string{"integration", "group"},
+	"Tracks number of HA integrations runs.",
+	telemetry.Options{DefaultMetric: true},
+)
 
 // Worker is an object that encapsulates the logic to manage a loop of processing
 // checks over the provided `PendingCheckChan`
@@ -152,19 +159,8 @@ func (w *Worker) Run() {
 			continue
 		}
 
-		// Use the default sender for the service checks
-		sender, err := w.getDefaultSenderFunc()
-		if err != nil {
-			log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
-		}
-
-		senderShouldCommit := false
-		if sender != nil && w.haAgent.Enabled() && w.haAgent.IsHaIntegration(check.String()) {
-			sender.Count("datadog.agent.ha_agent.integration_runs", 1, "", []string{
-				"integration:" + check.String(),
-				//"group:" + w.haAgent.GetGroup(), // TODO: Replace with config_id
-			})
-			senderShouldCommit = true
+		if w.haAgent.Enabled() && w.haAgent.IsHaIntegration(check.String()) {
+			integrationRuns.Inc(check.String(), w.haAgent.GetGroup()) // TODO: Replace with config_id
 		}
 
 		checkStartTime := time.Now()
@@ -185,6 +181,11 @@ func (w *Worker) Run() {
 
 		checkWarnings := check.GetWarnings()
 
+		// Use the default sender for the service checks
+		sender, err := w.getDefaultSenderFunc()
+		if err != nil {
+			log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
+		}
 		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String()), "dd_enable_check_intake:true"}
 		serviceCheckStatus := servicecheck.ServiceCheckOK
 
@@ -208,9 +209,6 @@ func (w *Worker) Run() {
 			// FIXME(remy): this `Commit()` should be part of the `if` above, we keep
 			// it here for now to make sure it's not breaking any historical behavior
 			// with the shared default sender.
-			senderShouldCommit = true
-		}
-		if senderShouldCommit {
 			sender.Commit()
 		}
 
