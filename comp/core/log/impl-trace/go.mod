@@ -41,7 +41,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.59.0
-	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.59.0 // indirect
@@ -54,7 +54,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/def v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.59.0
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.61.0
 )
 
 require (

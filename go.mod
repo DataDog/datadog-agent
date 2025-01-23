@@ -562,13 +562,13 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/authtoken v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/api/authtoken v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.60.1
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.59.0
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.60.1
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
 	github.com/DataDog/dd-trace-go/v2 v2.0.0-beta.11
 	github.com/NVIDIA/go-nvml v0.12.4-0
@@ -636,7 +636,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/status v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.60.1
 	github.com/DataDog/datadog-agent/comp/def v0.60.1

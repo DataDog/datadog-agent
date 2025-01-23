@@ -5,7 +5,7 @@ go 1.22.0
 replace github.com/DataDog/datadog-agent/pkg/util/log => ../log
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/config v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/config v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1
 	github.com/DataDog/zstd v1.5.6
 	github.com/klauspost/compress v1.17.11

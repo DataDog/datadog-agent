@@ -54,8 +54,8 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.57.1
-	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/core/log/mock v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.61.0
+	github.com/DataDog/datadog-agent/comp/core/log/mock v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/status v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/api v0.57.1
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.59.0

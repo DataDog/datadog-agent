@@ -72,7 +72,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0 // indirect

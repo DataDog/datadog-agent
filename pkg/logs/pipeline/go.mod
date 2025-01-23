@@ -63,7 +63,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.56.0-rc.3

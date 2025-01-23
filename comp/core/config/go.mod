@@ -39,7 +39,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.60.1
