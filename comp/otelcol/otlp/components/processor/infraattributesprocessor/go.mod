@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor
 
-go 1.22.0
+go 1.23.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../../api/api/def
