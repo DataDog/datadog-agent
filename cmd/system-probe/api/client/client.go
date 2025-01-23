@@ -63,6 +63,7 @@ func GetCheck[T any](client *http.Client, module types.ModuleName) (T, error) {
 	var data T
 	req, err := http.NewRequest("GET", ModuleURL(module, "/check"), nil)
 	if err != nil {
+		//we don't have a counter for this case, because this function can't really fail, since ModuleURL function constructs a safe URL
 		return data, err
 	}
 
