@@ -28,7 +28,7 @@ const (
 
 type diskConfig struct {
 	useMount             bool
-	includedDevices      []string
+	includedDevices      []regexp.Regexp
 	excludedDevices      []regexp.Regexp
 	includedFilesystems  []string
 	excludedFilesystems  []string
@@ -42,7 +42,7 @@ type diskConfig struct {
 func NewDiskConfig() *diskConfig {
 	return &diskConfig{
 		useMount:             false,
-		includedDevices:      []string{},
+		includedDevices:      []regexp.Regexp{},
 		excludedDevices:      []regexp.Regexp{},
 		includedFilesystems:  []string{},
 		excludedFilesystems:  []string{},
@@ -203,7 +203,11 @@ func (c *Check) configureIncludeDevice(conf map[interface{}]interface{}) error {
 		if deviceInclude, ok := conf[key].([]interface{}); ok {
 			for _, val := range deviceInclude {
 				if strVal, ok := val.(string); ok {
-					c.cfg.includedDevices = append(c.cfg.includedDevices, strVal)
+					regexp, err := regexp.Compile(strVal)
+					if err != nil {
+						return err
+					}
+					c.cfg.includedDevices = append(c.cfg.includedDevices, *regexp)
 				}
 			}
 		}

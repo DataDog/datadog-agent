@@ -124,7 +124,7 @@ func (c *Check) includeDevice(device string) bool {
 	if device == "" || len(c.cfg.includedDevices) == 0 {
 		return true
 	}
-	return stringSliceContain(c.cfg.includedDevices, device)
+	return sliceMatchesExpression(c.cfg.includedDevices, device)
 }
 
 func (c *Check) excludeFileSystem(fileSystem string) bool {
