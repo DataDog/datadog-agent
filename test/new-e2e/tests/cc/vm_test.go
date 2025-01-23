@@ -19,14 +19,11 @@ type ccSuite struct {
 
 // TestVMSuite runs tests for the VM interface to ensure its implementation is correct.
 func TestCc(t *testing.T) {
-	flake.MarkOnLog(t, "hel*o")
+	flake.MarkOnLog(t, "hel+o")
 
 	println("heo")
 
 	t.Fail()
-	// 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake())}
-
-	// e2e.Run(t, &ccSuite{}, suiteParams...)
 }
 
 func TestCcFlaky(t *testing.T) {
