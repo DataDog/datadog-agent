@@ -104,8 +104,7 @@ func (c *CloudRun) GetTags() map[string]string {
 	if c.spanNamespace == cloudRunFunction {
 		return c.getFunctionTags(tags)
 	}
-
-	tags[cloudRunService+resourceName] = "projects/" + tags["project_id"] + "/locations/" + tags["location"] + "/services/" + serviceNameVal
+	tags[cloudRunService+resourceName] = fmt.Sprintf("projects/%s/locations/%s/services/%s", tags["project_id"], tags["location"], tags["service_name"])
 	return tags
 }
 
@@ -121,7 +120,7 @@ func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 		tags[cloudRunFunction+functionSignature] = functionSignatureType
 	}
 
-	tags[cloudRunFunction+resourceName] = "projects/" + tags["project_id"] + "/locations/" + tags["location"] + "/services/" + tags["service_name"] + "/functions/" + functionTargetVal
+	tags[cloudRunFunction+resourceName] = fmt.Sprintf("projects/%s/locations/%s/services/%s/functions/%s", tags["project_id"], tags["location"], tags["service_name"], functionTargetVal)
 	return tags
 }
 
@@ -214,11 +213,16 @@ func GetMetaData(config *GCPConfig, isCloudRun bool) map[string]string {
 	go getMeta(getSingleMetadata, config.containerIDURL, containerID)
 	go getMeta(getRegion, config.regionURL, location)
 	go getMeta(getSingleMetadata, config.projectIDURL, projectID)
-
+	timeout := time.After(config.timeout * 6)
 	for {
-		tagSet := <-metaChan
-		metadata[tagSet.key] = tagSet.val
-		if len(metadata) == 6 {
+		select {
+		case tagSet := <-metaChan:
+			metadata[tagSet.key] = tagSet.val
+			if len(metadata) == 6 {
+				return metadata
+			}
+		case <-timeout:
+			log.Warn("timed out while fetching GCP compute metadata, defaulting to unknown")
 			return metadata
 		}
 	}
