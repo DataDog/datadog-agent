@@ -8,6 +8,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/collector/featuregate"
 	"io/fs"
 	"os"
 	"testing"
@@ -80,6 +81,30 @@ func (suite *ConfigTestSuite) TestAgentConfigDefaults() {
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
 	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
 	assert.Equal(t, []string{"enable_receive_resource_spans_v2", "enable_otlp_compute_top_level_by_span_kind"},
+		c.Get("apm_config.features"))
+}
+
+func (suite *ConfigTestSuite) TestOperationAndResourceNameV2FeatureGate() {
+	featuregate.GlobalRegistry().Set("datadog.EnableOperationAndResourceNameV2", true)
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	if err != nil {
+		t.Errorf("Failed to load agent config: %v", err)
+	}
+	assert.Equal(t, "DATADOG_API_KEY", c.Get("api_key"))
+	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+	assert.Equal(t, true, c.Get("logs_enabled"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, 5, c.Get("logs_config.batch_wait"))
+	assert.Equal(t, true, c.Get("logs_config.use_compression"))
+	assert.Equal(t, true, c.Get("logs_config.force_use_http"))
+	assert.Equal(t, 6, c.Get("logs_config.compression_level"))
+	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
+	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
+	assert.Equal(t, []string{"enable_receive_resource_spans_v2", "enable_operation_and_resource_name_logic_v2", "enable_otlp_compute_top_level_by_span_kind"},
 		c.Get("apm_config.features"))
 }
 
