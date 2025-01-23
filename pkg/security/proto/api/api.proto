@@ -123,6 +123,7 @@ message EnvironmentStatus {
     string KernelLockdown = 3;
     bool UseMmapableMaps = 4;
     bool UseRingBuffer = 5;
+    bool UseFentry = 6;
 }
 
 /*Discarders*/
