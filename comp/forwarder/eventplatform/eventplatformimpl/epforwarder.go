@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
@@ -415,10 +415,10 @@ func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver e
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 
 	var encoder compressioncommon.Compressor
-	encoder = compressor.NewCompressor("none", 0)
-	if endpoints.Main.UseCompression {
-		encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
-	}
+	encoder = compressor
+	// if endpoints.Main.UseCompression {
+	// 	encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
+	// }
 
 	var strategy sender.Strategy
 	if desc.contentType == logshttp.ProtobufContentType {

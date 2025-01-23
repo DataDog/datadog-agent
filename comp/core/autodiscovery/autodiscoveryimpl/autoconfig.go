@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/stats"
 	autodiscoveryStatus "github.com/DataDog/datadog-agent/comp/core/autodiscovery/status"
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -231,8 +232,8 @@ func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 
 	response.Configs = scrubbedConfigs
 
-	response.ResolveWarnings = GetResolveWarnings()
-	response.ConfigErrors = GetConfigErrors()
+	response.ResolveWarnings = stats.GetResolveWarnings()
+	response.ConfigErrors = stats.GetConfigErrors()
 
 	unresolved := ac.GetUnresolvedTemplates()
 	scrubbedUnresolved := make(map[string][]integration.Config, len(unresolved))
@@ -257,8 +258,8 @@ func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 
 	response.Configs = configSlice
 
-	response.ResolveWarnings = GetResolveWarnings()
-	response.ConfigErrors = GetConfigErrors()
+	response.ResolveWarnings = stats.GetResolveWarnings()
+	response.ConfigErrors = stats.GetConfigErrors()
 	response.Unresolved = ac.GetUnresolvedTemplates()
 
 	return response
@@ -340,7 +341,7 @@ func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
 func (ac *AutoConfig) Start() {
 	listeners.RegisterListeners(ac.serviceListenerFactories)
 	providers.RegisterProviders(ac.providerCatalog)
-	setupAcErrors()
+	stats.SetupAcErrors()
 	ac.started = true
 	// Start the service listener
 	go ac.serviceListening()
@@ -415,7 +416,7 @@ func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
 		if fileConfPd, ok := cp.provider.(*providers.FileConfigProvider); ok {
 			// Grab any errors that occurred when reading the YAML file
 			for name, e := range fileConfPd.Errors {
-				errorStats.setConfigError(name, e)
+				stats.SetConfigError(name, e)
 			}
 		}
 	}
