@@ -114,10 +114,10 @@ func (c *Check) excludePartition(partition disk.PartitionStat) bool {
 }
 
 func (c *Check) excludeDevice(device string) bool {
-	if device == "" || (len(c.cfg.excludedDevices) == 0 && c.cfg.excludedDeviceRe == nil) {
+	if device == "" || (len(c.cfg.excludedDevices) == 0) {
 		return false
 	}
-	return stringSliceContain(c.cfg.excludedDevices, device) || (c.cfg.excludedDeviceRe != nil && c.cfg.excludedDeviceRe.MatchString(device))
+	return sliceMatchesExpression(c.cfg.excludedDevices, device)
 }
 
 func (c *Check) includeDevice(device string) bool {

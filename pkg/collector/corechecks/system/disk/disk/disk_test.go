@@ -337,8 +337,7 @@ func TestDiskCheckPartitionsDeviceExclude(t *testing.T) {
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
 device_exclude:
-  - /dev/sda1
-  - /dev/sda2
+  - /dev/sda.*
 `))
 
 	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
@@ -358,8 +357,7 @@ func TestDiskCheckPartitionsDeviceBlackList(t *testing.T) {
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
 device_blacklist:
-  - /dev/sda1
-  - /dev/sda2
+  - /dev/sda.*
 `))
 
 	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
@@ -379,8 +377,7 @@ func TestDiskCheckPartitionsDeviceExcludedDisks(t *testing.T) {
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
 excluded_disks:
-  - /dev/sda1
-  - /dev/sda2
+  - /dev/sda.*
 `))
 
 	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
@@ -391,6 +388,21 @@ excluded_disks:
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestDiskCheckPartitionsDeviceExcludeError(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := new(Check)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+device_exclude:
+  - /dev/sda(.*
+`))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.NotNil(t, err)
 }
 
 func TestDiskCheckPartitionsDeviceExcludedDiskRe(t *testing.T) {
@@ -408,6 +420,18 @@ func TestDiskCheckPartitionsDeviceExcludedDiskRe(t *testing.T) {
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestDiskCheckPartitionsDeviceExcludedDiskReError(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := new(Check)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("excluded_disk_re: /dev/sda(.*"))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.NotNil(t, err)
 }
 
 func TestDiskCheckPartitionsDeviceInclude(t *testing.T) {

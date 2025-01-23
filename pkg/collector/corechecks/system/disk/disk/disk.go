@@ -29,8 +29,7 @@ const (
 type diskConfig struct {
 	useMount             bool
 	includedDevices      []string
-	excludedDevices      []string
-	excludedDeviceRe     *regexp.Regexp
+	excludedDevices      []regexp.Regexp
 	includedFilesystems  []string
 	excludedFilesystems  []string
 	tagByFilesystem      bool
@@ -44,8 +43,7 @@ func NewDiskConfig() *diskConfig {
 	return &diskConfig{
 		useMount:             false,
 		includedDevices:      []string{},
-		excludedDevices:      []string{},
-		excludedDeviceRe:     nil,
+		excludedDevices:      []regexp.Regexp{},
 		includedFilesystems:  []string{},
 		excludedFilesystems:  []string{},
 		tagByFilesystem:      false,
@@ -179,18 +177,23 @@ func (c *Check) configureExcludeDevice(conf map[interface{}]interface{}) error {
 		if deviceExclude, ok := conf[key].([]interface{}); ok {
 			for _, val := range deviceExclude {
 				if strVal, ok := val.(string); ok {
-					c.cfg.excludedDevices = append(c.cfg.excludedDevices, strVal)
+					regexp, err := regexp.Compile(strVal)
+					if err != nil {
+						return err
+					}
+					c.cfg.excludedDevices = append(c.cfg.excludedDevices, *regexp)
 				}
 			}
 		}
 	}
-	excludedDiskRe, found := conf["excluded_disk_re"]
+	excludedDiskRe, found := conf["excluded_disk_re"] //Maintained for backwards compatibility. It would now be easier to add regular expressions to the 'device_exclude' list key
 	if excludedDiskRe, ok := excludedDiskRe.(string); found && ok {
 		var err error
-		c.cfg.excludedDeviceRe, err = regexp.Compile(excludedDiskRe)
+		regexp, err := regexp.Compile(excludedDiskRe)
 		if err != nil {
 			return err
 		}
+		c.cfg.excludedDevices = append(c.cfg.excludedDevices, *regexp)
 	}
 	return nil
 }
@@ -251,6 +254,15 @@ func (c *Check) configureExcludeMountPoint(conf map[interface{}]interface{}) err
 func stringSliceContain(slice []string, x string) bool {
 	for _, e := range slice {
 		if e == x {
+			return true
+		}
+	}
+	return false
+}
+
+func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
+	for _, regexp := range slice {
+		if regexp.MatchString(expression) {
 			return true
 		}
 	}
