@@ -11,6 +11,7 @@ use (
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface
 	comp/core/log/def
+	comp/core/log/fx
 	comp/core/log/impl
 	comp/core/log/impl-trace
 	comp/core/log/mock
