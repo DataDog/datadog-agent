@@ -134,14 +134,6 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         u64 inode = get_dentry_ino(container_d);
         resolver->key.ino = inode;
 
-        struct file_t *entry = bpf_map_lookup_elem(&inode_file, &inode);
-        if (entry == NULL) {
-            return 0;
-        }
-        else {
-            resolver->key.mount_id = entry->path_key.mount_id;
-        }
-
         resolver->dentry = container_d;
 
         if (is_docker_cgroup(ctx, container_d)) {
