@@ -109,21 +109,22 @@ func (c *Check) excludePartition(partition disk.PartitionStat) bool {
 			return true
 		}
 	}
-	exclude := c.excludeDevice(device)
+	exclude := c.excludeDevice(device) || !c.includeDevice(device)
 	return exclude
 }
 
 func (c *Check) excludeDevice(device string) bool {
-	if device == "" {
+	if device == "" || (len(c.cfg.excludedDevices) == 0 && c.cfg.excludedDeviceRe == nil) {
 		return false
 	}
-	if stringSliceContain(c.cfg.excludedDevices, device) {
+	return stringSliceContain(c.cfg.excludedDevices, device) || (c.cfg.excludedDeviceRe != nil && c.cfg.excludedDeviceRe.MatchString(device))
+}
+
+func (c *Check) includeDevice(device string) bool {
+	if device == "" || len(c.cfg.includedDevices) == 0 {
 		return true
 	}
-	if c.cfg.excludedDeviceRe != nil && c.cfg.excludedDeviceRe.MatchString(device) {
-		return true
-	}
-	return false
+	return stringSliceContain(c.cfg.includedDevices, device)
 }
 
 func (c *Check) collectDiskMetrics(sender sender.Sender) error {

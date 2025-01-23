@@ -29,6 +29,7 @@ const (
 type diskConfig struct {
 	useMount             bool
 	excludedFilesystems  []string
+	includedDevices      []string
 	excludedDevices      []string
 	excludedDeviceRe     *regexp.Regexp
 	tagByFilesystem      bool
@@ -42,6 +43,7 @@ func NewDiskConfig() *diskConfig {
 	return &diskConfig{
 		useMount:             false,
 		excludedFilesystems:  []string{},
+		includedDevices:      []string{},
 		excludedDevices:      []string{},
 		excludedDeviceRe:     nil,
 		tagByFilesystem:      false,
@@ -119,6 +121,10 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 	if err != nil {
 		return err
 	}
+	err = c.configureIncludeDevice(conf)
+	if err != nil {
+		return err
+	}
 
 	tagByFilesystem, found := conf["tag_by_filesystem"]
 	if tagByFilesystem, ok := tagByFilesystem.(bool); found && ok {
@@ -173,6 +179,19 @@ func (c *Check) configureExcludeDevice(conf map[interface{}]interface{}) error {
 		c.cfg.excludedDeviceRe, err = regexp.Compile(excludedDiskRe)
 		if err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func (c *Check) configureIncludeDevice(conf map[interface{}]interface{}) error {
+	for _, key := range []string{"device_include", "device_whitelist"} {
+		if deviceInclude, ok := conf[key].([]interface{}); ok {
+			for _, val := range deviceInclude {
+				if strVal, ok := val.(string); ok {
+					c.cfg.includedDevices = append(c.cfg.includedDevices, strVal)
+				}
+			}
 		}
 	}
 	return nil
