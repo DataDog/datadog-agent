@@ -248,7 +248,9 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties(
-                    "PROJECTLOCATION=[PROJECTLOCATION], embedded2_SIZE=[embedded2_SIZE], embedded3_SIZE=[embedded3_SIZE]");
+                    "PROJECTLOCATION=[PROJECTLOCATION], " +
+                    "embedded3_SIZE=[embedded3_SIZE], " +
+                    "AgentFlavor=[AgentFlavor]");
 
             PrepareDecompressPythonDistributions = new CustomAction<CustomActions>(
                 new Id(nameof(PrepareDecompressPythonDistributions)),

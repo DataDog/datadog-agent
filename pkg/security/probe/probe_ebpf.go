@@ -190,6 +190,11 @@ func (p *EBPFProbe) UseRingBuffers() bool {
 	return p.config.Probe.EventStreamUseRingBuffer && p.kernelVersion.HaveRingBuffers()
 }
 
+// GetUseFentry returns true if fentry is used
+func (p *EBPFProbe) GetUseFentry() bool {
+	return p.useFentry
+}
+
 func (p *EBPFProbe) selectFentryMode() {
 	if !p.config.Probe.EventStreamUseFentry {
 		p.useFentry = false
@@ -747,24 +752,16 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 }
 
 func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, cgroupFlags containerutils.CGroupFlags, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
-	pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, newEntryCb)
-	if pce != nil {
-		cgroupContext, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey, cgroupFlags)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resorve cgroup for pid %d: %w", pid, err)
-		}
-
-		pce.Process.CGroup = *cgroupContext
-		pce.CGroup = *cgroupContext
-		if cgroupContext.CGroupFlags.IsContainer() {
-			containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
-			pce.ContainerID = containerID
-			pce.Process.ContainerID = containerID
-		}
-	} else {
-		return nil, fmt.Errorf("entry not found for pid %d", pid)
+	cgroupContext, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey, cgroupFlags)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resorve cgroup for pid %d: %w", pid, err)
 	}
-	return &pce.CGroup, nil
+	updated := p.Resolvers.ProcessResolver.UpdateProcessCGroupContext(pid, cgroupContext, newEntryCb)
+	if !updated {
+		return nil, fmt.Errorf("failed to update cgroup for pid %d", pid)
+	}
+
+	return cgroupContext, nil
 }
 
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
@@ -2250,6 +2247,19 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 				ValueSize:  1,
 				MaxEntries: 1,
 				EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries,
+			}
+		}
+	}
+
+	if !p.kernelVersion.HasNoPreallocMapsInPerfEvent() {
+		// Edit maps used in perf_event programs with BPF_F_NO_PREALLOC flag so that they are pre-allocated
+		if p.managerOptions.MapSpecEditors == nil {
+			p.managerOptions.MapSpecEditors = make(map[string]manager.MapSpecEditor, len(probes.AllSKStorageMaps()))
+		}
+		for _, noPreallocMapName := range probes.AllNoPreallocMapsInPerfEventPrograms() {
+			p.managerOptions.MapSpecEditors[noPreallocMapName] = manager.MapSpecEditor{
+				Flags:      unix.BPF_ANY,
+				EditorFlag: manager.EditFlags,
 			}
 		}
 	}

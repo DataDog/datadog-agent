@@ -104,9 +104,10 @@ func (s *fipsAgentSuite) TestFIPSInstall() {
 	host := s.Env().RemoteHost
 	openssl := path.Join(s.installPath, "embedded3/bin/openssl.exe")
 	fipsModule := path.Join(s.installPath, "embedded3/lib/ossl-modules/fips.dll")
-	cmd := fmt.Sprintf(`& "%s" fipsinstall -module "%s"`, openssl, fipsModule)
+	fipsConf := path.Join(s.installPath, "embedded3/ssl/fipsmodule.cnf")
+	cmd := fmt.Sprintf(`& "%s" fipsinstall -module "%s" -in "%s" -verify`, openssl, fipsModule, fipsConf)
 	_, err := host.Execute(cmd)
-	require.NoError(s.T(), err)
+	require.NoError(s.T(), err, "MSI should create valid fipsmodule.cnf")
 }
 
 func (s *fipsAgentSuite) execAgentCommand(command string, options ...client.ExecuteOption) (string, error) {
