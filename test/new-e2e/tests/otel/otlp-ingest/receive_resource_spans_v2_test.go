@@ -33,12 +33,6 @@ datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-agents:
-  containers:
-    traceAgent:
-      env:
-        - name: DD_APM_FEATURES
-          value: 'enable_receive_resource_spans_v2'
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestSpanReceiverV2TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)))))
