@@ -182,7 +182,7 @@ def get_omnibus_env(
 def build(
     ctx,
     flavor=AgentFlavor.base.name,
-    log_level="debug",
+    log_level="info",
     base_dir=None,
     gem_path=None,
     skip_deps=False,
