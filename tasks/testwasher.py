@@ -77,7 +77,7 @@ class TestWasher:
 
     def parse_flaky_files(self):
         """
-        Parse the flakes.yaml file and add the tests listed there to the kown flaky tests list
+        Parse the flakes.yaml like files and add the tests listed there to the known flaky tests list / the flaky log patterns to the flaky log patterns list
         """
         reserved_keywords = ("on-log",)
 

@@ -439,18 +439,6 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_f
 
 
 @task
-def cc(ctx):
-    path = 'module_test_output.json'
-    washer = TestWasher(test_output_json_file=path, flakes_file_paths=['flakes.yaml'])
-    washer.parse_test_results('/tmp')
-    failing_tests, marked_flaky_tests = washer.parse_test_results('/tmp')
-    # all_known_flakes = washer.merge_known_flakes(marked_flaky_tests)
-
-    print('marked', marked_flaky_tests)
-    # print('known', all_known_flakes)
-
-
-@task
 def deps(ctx, verbose=False):
     """
     Setup Go dependencies
