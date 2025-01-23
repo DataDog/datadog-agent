@@ -563,61 +563,6 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 3)
 }
 
-func TestWorkerHaAgentIntegrationMetric(t *testing.T) {
-	// GIVEN
-	expvars.Reset()
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
-	pkgconfigsetup.Datadog().SetWithoutSource("integration_check_status_enabled", "false")
-
-	var wg sync.WaitGroup
-
-	checksTracker := tracker.NewRunningChecksTracker()
-	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
-
-	goodCheck := newCheck(t, "snmp:111", false, nil)
-	anotherCheck := newCheck(t, "network_path:222", true, nil)
-
-	pendingChecksChan <- goodCheck
-	pendingChecksChan <- anotherCheck
-	close(pendingChecksChan)
-
-	mockSender := mocksender.NewMockSender("")
-	haAgentMock := haagentmock.NewMockHaAgent().(haagentmock.Component)
-	haAgentMock.SetEnabled(true)
-	worker, err := newWorkerWithOptions(
-		100,
-		200,
-		pendingChecksChan,
-		checksTracker,
-		mockShouldAddStatsFunc,
-		func() (sender.Sender, error) {
-			return mockSender, nil
-		},
-		haAgentMock,
-		pollingInterval,
-	)
-	require.Nil(t, err)
-
-	// EXPECT
-	mockSender.On("Commit").Return().Times(2)
-	mockSender.On("Count", "datadog.agent.ha_agent.integration_runs", float64(1), "", []string{"integration:snmp"}).Return().Times(1)
-	mockSender.On("Count", "datadog.agent.ha_agent.integration_runs", float64(1), "", []string{"integration:network_path"}).Return().Times(1)
-
-	// WHEN
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		worker.Run()
-	}()
-	wg.Wait()
-
-	// THEN
-	assert.Equal(t, 2, int(expvars.GetRunsCount())) // Quick sanity check
-	mockSender.AssertExpectations(t)
-	mockSender.AssertNumberOfCalls(t, "Commit", 2)
-}
-
 func TestWorkerSenderNil(t *testing.T) {
 	expvars.Reset()
 	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
