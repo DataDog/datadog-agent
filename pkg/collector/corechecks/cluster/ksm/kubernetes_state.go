@@ -16,12 +16,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -118,6 +120,25 @@ type KSMConfig struct {
 	//   - nodes
 	//   - pods
 	Collectors []string `yaml:"collectors"`
+
+	// CustomResourceStateMetrics defines the custom resource states metrics
+	// https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/extend/customresourcestate-metrics.md
+	// Example: Enable custom resource state metrics for CRD mycrd.
+	// custom_resource:
+	//    spec:
+	//      resources:
+	//      - groupVersionKind:
+	//          group: "datadoghq.com"
+	//          kind: "DatadogAgent"
+	//          version: "v2alpha1"
+	//        metrics:
+	//          - name: "custom_metric"
+	//            help: "custom_metric"
+	//            each:
+	//              type: Gauge
+	//              gauge:
+	//                path: [status, agent, available]
+	CustomResource customresourcestate.Metrics `yaml:"custom_resource"`
 
 	// LabelJoins allows adding the tags to join from other KSM metrics.
 	// Example: Joining for deployment metrics. Based on:
@@ -262,6 +283,8 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	if err != nil {
 		return err
 	}
+
+	maps.Copy(k.metricNamesMapper, customresources.GetCustomMetricNamesMapper(k.instance.CustomResource.Spec.Resources))
 
 	// Retrieve cluster name
 	k.getClusterName()
@@ -485,6 +508,13 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		clients[f.Name()] = client
 	}
 
+	customResourceFactories := customresources.GetCustomResourceFactories(k.instance.CustomResource, c)
+	customResourceClients, customResourceCollectors := customresources.GetCustomResourceClientsAndCollectors(k.instance.CustomResource.Spec.Resources, c)
+
+	collectors = lo.Uniq(append(collectors, customResourceCollectors...))
+	maps.Copy(clients, customResourceClients)
+	factories = append(factories, customResourceFactories...)
+
 	return customResources{
 		collectors: collectors,
 		clients:    clients,
@@ -628,11 +658,15 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 				}
 				continue
 			}
+			metricPrefix := ksmMetricPrefix
+			if strings.HasPrefix(metricFamily.Name, "kube_customresource_") {
+				metricPrefix = metricPrefix[:len(metricPrefix)-1] + "_"
+			}
 			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
 					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
-					sender.Gauge(ksmMetricPrefix+ddname, m.Val, hostname, tagList)
+					sender.Gauge(metricPrefix+ddname, m.Val, hostname, tagList)
 				}
 				continue
 			}
