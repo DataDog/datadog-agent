@@ -19,7 +19,7 @@ import (
 func Status() string {
 	enabled, err := Enabled()
 	if err != nil {
-		return err.Error()
+		return strconv.FormatBool(false)
 	}
 	return strconv.FormatBool(enabled)
 }
@@ -46,5 +46,5 @@ func Enabled() (bool, error) {
 		return nil, fmt.Errorf("unexpected FIPS algorithm policy Enabled key type: %v, expected: %v", enabledType, registry.DWORD)
 	}
 
-	return enabled == 1
+	return enabled == 1, nil
 }
