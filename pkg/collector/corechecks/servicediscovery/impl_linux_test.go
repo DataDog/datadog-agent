@@ -52,11 +52,6 @@ var (
 		env: []string{},
 		cwd: "",
 	}
-	procIgnoreService1 = testProc{
-		pid: 100,
-		env: nil,
-		cwd: "",
-	}
 	procTestService1Repeat = testProc{
 		pid: 101,
 		env: []string{},
@@ -122,14 +117,6 @@ var (
 		StartTimeMilli:             procLaunchedMilli,
 		ContainerID:                dummyContainerID,
 	}
-	portTCP8081 = model.Service{
-		PID:            procIgnoreService1.pid,
-		Name:           "ignore-1",
-		GeneratedName:  "ignore-1",
-		Ports:          []uint16{8081},
-		StartTimeMilli: procLaunchedMilli,
-		ContainerID:    dummyContainerID,
-	}
 	portTCP5000 = model.Service{
 		PID:                        procPythonService.pid,
 		Name:                       "python-service",
@@ -194,7 +181,6 @@ func cmpEvents(a, b *event) bool {
 
 func Test_linuxImpl(t *testing.T) {
 	host := "test-host"
-	cfgYaml := `ignore_processes: ["ignore-1", "ignore-2"]`
 	t.Setenv("DD_DISCOVERY_ENABLED", "true")
 
 	type checkRun struct {
@@ -214,7 +200,6 @@ func Test_linuxImpl(t *testing.T) {
 					servicesResp: &model.ServicesResponse{StartedServices: []model.Service{
 						portTCP5000,
 						portTCP8080,
-						portTCP8081,
 					}},
 					time: calcTime(0),
 				},
@@ -222,14 +207,12 @@ func Test_linuxImpl(t *testing.T) {
 					servicesResp: &model.ServicesResponse{HeartbeatServices: []model.Service{
 						portTCP5000,
 						portTCP8080UpdatedRSS,
-						portTCP8081,
 					}},
 					time: calcTime(20 * time.Minute),
 				},
 				{
 					servicesResp: &model.ServicesResponse{StoppedServices: []model.Service{
 						portTCP8080UpdatedRSS,
-						portTCP8081,
 					}},
 					time: calcTime(20 * time.Minute),
 				},
@@ -370,7 +353,6 @@ func Test_linuxImpl(t *testing.T) {
 				{
 					servicesResp: &model.ServicesResponse{StartedServices: []model.Service{
 						portTCP8080,
-						portTCP8081,
 						portTCP5432,
 					}},
 					time: calcTime(0),
@@ -378,14 +360,12 @@ func Test_linuxImpl(t *testing.T) {
 				{
 					servicesResp: &model.ServicesResponse{HeartbeatServices: []model.Service{
 						portTCP8080,
-						portTCP8081,
 						portTCP5432,
 					}},
 					time: calcTime(20 * time.Minute),
 				},
 				{
 					servicesResp: &model.ServicesResponse{StoppedServices: []model.Service{
-						portTCP8081,
 						portTCP5432,
 					}},
 					time: calcTime(20 * time.Minute),
@@ -522,7 +502,6 @@ func Test_linuxImpl(t *testing.T) {
 				{
 					servicesResp: &model.ServicesResponse{StartedServices: []model.Service{
 						portTCP8080,
-						portTCP8081,
 					}},
 					time: calcTime(0),
 				},
@@ -627,7 +606,7 @@ func Test_linuxImpl(t *testing.T) {
 			err := check.Configure(
 				mSender.GetSenderManager(),
 				integration.FakeConfigHash,
-				integration.Data(cfgYaml),
+				integration.Data{},
 				nil,
 				"test",
 			)

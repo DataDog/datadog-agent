@@ -123,6 +123,7 @@ jobs:
       - name: Combine constants
         run: |
           inv -e security-agent.combine-btfhub-constants --archive-path=./dev/dist/constants
+          inv -e security-agent.split-btfhub-constants
 
       - name: Compute branch name
         id: branch-name

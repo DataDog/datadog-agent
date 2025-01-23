@@ -16,7 +16,6 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=impl_linux_mock.go
@@ -29,21 +28,16 @@ type linuxImpl struct {
 	getDiscoveryServices func(client *http.Client) (*model.ServicesResponse, error)
 	time                 timer
 
-	ignoreCfg map[string]bool
-
-	ignoreProcs   map[int]bool
-	aliveServices map[int]*model.Service
+	runningServices map[int]*model.Service
 
 	sysProbeClient *http.Client
 }
 
-func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
+func newLinuxImpl() (osImpl, error) {
 	return &linuxImpl{
 		getDiscoveryServices: getDiscoveryServices,
 		time:                 realTime{},
-		ignoreCfg:            ignoreCfg,
-		ignoreProcs:          make(map[int]bool),
-		aliveServices:        make(map[int]*model.Service),
+		runningServices:      make(map[int]*model.Service),
 		sysProbeClient:       sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 	}, nil
 }
@@ -85,40 +79,19 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 
 	for _, service := range response.StartedServices {
 		pid := service.PID
-		if li.ignoreProcs[pid] {
-			continue
-		}
-
-		log.Debugf("[pid: %d] found new process with open ports", pid)
-		if li.ignoreCfg[service.Name] {
-			log.Debugf("[pid: %d] process ignored from config: %s", pid, service.Name)
-			li.ignoreProcs[pid] = true
-			continue
-		}
-
-		li.aliveServices[pid] = &service
+		li.runningServices[pid] = &service
 		events.start = append(events.start, service)
 	}
 
 	for _, service := range response.StoppedServices {
-		if li.ignoreCfg[service.Name] {
-			continue
-		}
-
 		pid := service.PID
-		if li.ignoreProcs[pid] {
-			delete(li.ignoreProcs, pid)
-		}
+		delete(li.runningServices, pid)
 		events.stop = append(events.stop, service)
 	}
 
 	for _, service := range response.HeartbeatServices {
 		pid := service.PID
-		if li.ignoreProcs[pid] || li.ignoreCfg[service.Name] {
-			continue
-		}
-
-		if _, ok := li.aliveServices[pid]; !ok {
+		if _, ok := li.runningServices[pid]; !ok {
 			continue
 		}
 
@@ -126,8 +99,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	}
 
 	return &discoveredServices{
-		ignoreProcs:     li.ignoreProcs,
-		runningServices: li.aliveServices,
+		runningServices: li.runningServices,
 		events:          events,
 	}, nil
 }
