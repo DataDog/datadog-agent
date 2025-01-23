@@ -253,6 +253,7 @@ type BufferedAggregator struct {
 	serializer             serializer.MetricSerializer
 	eventPlatformForwarder eventplatform.Component
 	haAgent                haagent.Component
+	configID               string
 	hostname               string
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
@@ -307,6 +308,12 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		})
 	}
 
+	configID := pkgconfigsetup.Datadog().GetString("config_id")
+	if configID == "" {
+		// Ensure we never report an empty config ID
+		configID = "default"
+	}
+
 	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
 
 	aggregator := &BufferedAggregator{
@@ -328,6 +335,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
 		haAgent:                     haAgent,
+		configID:                    configID,
 		hostname:                    hostname,
 		hostnameUpdate:              make(chan string),
 		hostnameUpdateDone:          make(chan struct{}),
@@ -610,8 +618,11 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 	})
 
 	if agg.haAgent.Enabled() {
-		haAgentTags := append(agg.tags(false), "agent_state:"+string(agg.haAgent.GetState()))
-		// Send along a metric to show if HA Agent is running with agent_state tag.
+		haAgentTags := append(agg.tags(false),
+			"config_id:"+agg.configID,
+			"ha_agent_state:"+string(agg.haAgent.GetState()),
+		)
+		// Send along a metric to show if HA Agent is running with ha_agent_state tag.
 		series.Append(&metrics.Serie{
 			Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
 			Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
@@ -874,6 +885,9 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		tags = append(tags, "version:"+version.AgentVersion)
 		if version.AgentPackageVersion != "" {
 			tags = append(tags, "package_version:"+version.AgentPackageVersion)
+		}
+		if agg.configID != "" {
+			tags = append(tags, "config_id:"+agg.configID)
 		}
 	}
 	if agg.haAgent.Enabled() {

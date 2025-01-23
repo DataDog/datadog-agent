@@ -1136,6 +1136,7 @@ func fleet(config pkgconfigmodel.Setup) {
 	// Directory to store fleet policies
 	config.BindEnv("fleet_policies_dir")
 	config.SetDefault("fleet_layers", []string{})
+	config.BindEnvAndSetDefault("config_id", "default")
 }
 
 func autoscaling(config pkgconfigmodel.Setup) {

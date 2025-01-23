@@ -52,6 +52,10 @@ func (m *mockHaAgent) ShouldRunIntegration(_ string) bool {
 	return true
 }
 
+func (m *mockHaAgent) IsHaIntegration(_ string) bool {
+	return true
+}
+
 // Component is the component type.
 type Component interface {
 	haagent.Component
