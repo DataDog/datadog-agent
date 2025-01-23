@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,9 +21,9 @@ import (
 )
 
 // NewRoleBindingCollectorVersions builds the group of collector versions.
-func NewRoleBindingCollectorVersions() collectors.CollectorVersions {
+func NewRoleBindingCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewRoleBindingCollector(),
+		NewRoleBindingCollector(metadataAsTags),
 	)
 }
 
@@ -36,7 +37,11 @@ type RoleBindingCollector struct {
 
 // NewRoleBindingCollector creates a new collector for the Kubernetes
 // RoleBinding resource.
-func NewRoleBindingCollector() *RoleBindingCollector {
+func NewRoleBindingCollector(metadataAsTags utils.MetadataAsTags) *RoleBindingCollector {
+	resourceType := getResourceType(roleBindingName, roleBindingVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &RoleBindingCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -44,9 +49,11 @@ func NewRoleBindingCollector() *RoleBindingCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "rolebindings",
+			Name:                      roleBindingName,
 			NodeType:                  orchestrator.K8sRoleBinding,
-			Version:                   "rbac.authorization.k8s.io/v1",
+			Version:                   roleBindingVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.RoleBindingHandlers)),
 	}

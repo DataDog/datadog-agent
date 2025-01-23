@@ -9,7 +9,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 
@@ -181,7 +180,7 @@ func NewConfig() (*Config, error) {
 		NetworkFlowMonitorSKStorageEnabled: getBool("network.flow_monitor.sk_storage.enabled"),
 		EventStreamUseRingBuffer:           getBool("event_stream.use_ring_buffer"),
 		EventStreamBufferSize:              getInt("event_stream.buffer_size"),
-		EventStreamUseFentry:               getEventStreamFentryValue(),
+		EventStreamUseFentry:               getBool("event_stream.use_fentry"),
 		EnvsWithValue:                      getStringSlice("envs_with_value"),
 		NetworkEnabled:                     getBool("network.enabled"),
 		NetworkIngressEnabled:              getBool("network.ingress.enabled"),
@@ -233,11 +232,11 @@ func (c *Config) sanitize() error {
 		return fmt.Errorf("runtime_security_config.event_stream.buffer_size must be a power of 2 and a multiple of %d", os.Getpagesize())
 	}
 
-	if !isSet("enable_approvers") && c.EnableKernelFilters {
+	if !isConfigured("enable_approvers") && c.EnableKernelFilters {
 		c.EnableApprovers = true
 	}
 
-	if !isSet("enable_discarders") && c.EnableKernelFilters {
+	if !isConfigured("enable_discarders") && c.EnableKernelFilters {
 		c.EnableDiscarders = true
 	}
 
@@ -265,21 +264,6 @@ func (c *Config) sanitizeConfigNetwork() {
 	}
 }
 
-func getEventStreamFentryValue() bool {
-	if getBool("event_stream.use_fentry") {
-		return true
-	}
-
-	switch runtime.GOARCH {
-	case "amd64":
-		return getBool("event_stream.use_fentry_amd64")
-	case "arm64":
-		return getBool("event_stream.use_fentry_arm64")
-	default:
-		return false
-	}
-}
-
 func join(pieces ...string) string {
 	return strings.Join(pieces, ".")
 }
@@ -290,14 +274,14 @@ func getAllKeys(key string) (string, string) {
 	return deprecatedKey, newKey
 }
 
-func isSet(key string) bool {
+func isConfigured(key string) bool {
 	deprecatedKey, newKey := getAllKeys(key)
-	return pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) || pkgconfigsetup.SystemProbe().IsSet(newKey)
+	return pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) || pkgconfigsetup.SystemProbe().IsConfigured(newKey)
 }
 
 func getBool(key string) bool {
 	deprecatedKey, newKey := getAllKeys(key)
-	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
 		return pkgconfigsetup.SystemProbe().GetBool(deprecatedKey)
 	}
@@ -306,7 +290,7 @@ func getBool(key string) bool {
 
 func getInt(key string) int {
 	deprecatedKey, newKey := getAllKeys(key)
-	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
 		return pkgconfigsetup.SystemProbe().GetInt(deprecatedKey)
 	}
@@ -324,7 +308,7 @@ func getDuration(key string) time.Duration {
 
 func getString(key string) string {
 	deprecatedKey, newKey := getAllKeys(key)
-	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
 		return pkgconfigsetup.SystemProbe().GetString(deprecatedKey)
 	}
@@ -333,7 +317,7 @@ func getString(key string) string {
 
 func getStringSlice(key string) []string {
 	deprecatedKey, newKey := getAllKeys(key)
-	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
 		return pkgconfigsetup.SystemProbe().GetStringSlice(deprecatedKey)
 	}

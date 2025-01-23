@@ -26,7 +26,7 @@ func testDefaultScript(os e2eos.Descriptor, arch e2eos.Architecture) installerSc
 	s := &installScriptDefaultSuite{
 		installerScriptBaseSuite: newInstallerScriptSuite("installer-default", os, arch, awshost.WithoutFakeIntake(), awshost.WithoutAgent()),
 	}
-	s.url = fmt.Sprintf("https://installtesting.datad0g.com/%s/scripts/install.sh", s.commitHash)
+	s.url = s.scriptURLPrefix + "install.sh"
 
 	return s
 }

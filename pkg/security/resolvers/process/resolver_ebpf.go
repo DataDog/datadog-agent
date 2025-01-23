@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -378,10 +379,9 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	// Retrieve the container ID of the process from /proc and /sys/fs/cgroup/[cgroup]
 	containerID, cgroup, cgroupSysFSPath, err := p.containerResolver.GetContainerContext(pid)
 	if err != nil {
-		return fmt.Errorf("snapshot failed for %d: couldn't parse container and cgroup context: %w", proc.Pid, err)
-	}
-
-	if cgroup.CGroupFile.Inode != 0 && cgroup.CGroupFile.MountID == 0 { // the mount id is unavailable through statx
+		// log error instead of returning it to allow the process to be added to the cache and eBPF maps
+		seclog.Errorf("snapshot failed for %d: couldn't parse container and cgroup context: %s", proc.Pid, err)
+	} else if cgroup.CGroupFile.Inode != 0 && cgroup.CGroupFile.MountID == 0 { // the mount id is unavailable through statx
 		// Get the file fields of the sysfs cgroup file
 		info, err := p.retrieveExecFileFields(cgroupSysFSPath)
 		if err != nil {
@@ -1463,6 +1463,26 @@ func (p *EBPFResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 	for _, entry := range p.entryCache {
 		callback(entry)
 	}
+}
+
+// UpdateProcessCGroupContext updates the cgroup context and container ID of the process matching the provided PID
+func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *model.CGroupContext, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+	p.Lock()
+	defer p.Unlock()
+
+	pce := p.resolve(pid, pid, 0, false, newEntryCb)
+	if pce == nil {
+		return false
+	}
+
+	pce.Process.CGroup = *cgroupContext
+	pce.CGroup = *cgroupContext
+	if cgroupContext.CGroupFlags.IsContainer() {
+		containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
+		pce.ContainerID = containerID
+		pce.Process.ContainerID = containerID
+	}
+	return true
 }
 
 // NewEBPFResolver returns a new process resolver
