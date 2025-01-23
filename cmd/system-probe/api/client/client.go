@@ -22,11 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 )
 
+const (
+	checkLabelName     = "check"
+	telemetrySubsystem = "system_probe__remote_client"
+)
+
 var (
 	// ErrNotImplemented is an error used when system-probe is attempted to be accessed on an unsupported OS
 	ErrNotImplemented = errors.New("system-probe unsupported")
-
-	telemetrySubsystem = "system_probe__remote_client"
 )
 
 var checkTelemetry = struct {
@@ -35,10 +38,10 @@ var checkTelemetry = struct {
 	responseErrors     telemetry.Counter
 	malformedResponses telemetry.Counter
 }{
-	telemetry.NewCounter(telemetrySubsystem, "requests__failed", []string{"check_name"}, "Counter measuring how many system-probe check requests failed to be sent"),
-	telemetry.NewCounter(telemetrySubsystem, "responses__not_received", []string{"check_name"}, "Counter measuring how many responses from system-probe check were not read from the socket"),
-	telemetry.NewCounter(telemetrySubsystem, "responses__errors", []string{"check_name"}, "Counter measuring how many non_ok status code received from system-probe checks"),
-	telemetry.NewCounter(telemetrySubsystem, "responses__malformed", []string{"check_name"}, "Counter measuring how many malformed responses were received from system-probe checks"),
+	telemetry.NewCounter(telemetrySubsystem, "requests__failed", []string{checkLabelName}, "Counter measuring how many system-probe check requests failed to be sent"),
+	telemetry.NewCounter(telemetrySubsystem, "responses__not_received", []string{checkLabelName}, "Counter measuring how many responses from system-probe check were not read from the socket"),
+	telemetry.NewCounter(telemetrySubsystem, "responses__errors", []string{checkLabelName}, "Counter measuring how many non_ok status code received from system-probe checks"),
+	telemetry.NewCounter(telemetrySubsystem, "responses__malformed", []string{checkLabelName}, "Counter measuring how many malformed responses were received from system-probe checks"),
 }
 
 // Get returns a http client configured to talk to the system-probe
@@ -69,24 +72,24 @@ func GetCheck[T any](client *http.Client, module types.ModuleName) (T, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		checkTelemetry.failedRequests.IncWithTags(map[string]string{"check_name": string(module)})
+		checkTelemetry.failedRequests.IncWithTags(map[string]string{checkLabelName: string(module)})
 		return data, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		checkTelemetry.failedResponses.IncWithTags(map[string]string{"check_name": string(module)})
+		checkTelemetry.failedResponses.IncWithTags(map[string]string{checkLabelName: string(module)})
 		return data, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		checkTelemetry.responseErrors.IncWithTags(map[string]string{"check_name": string(module)})
+		checkTelemetry.responseErrors.IncWithTags(map[string]string{checkLabelName: string(module)})
 		return data, fmt.Errorf("non-ok status code: url %s, status_code: %d, response: `%s`", req.URL, resp.StatusCode, string(body))
 	}
 
 	err = json.Unmarshal(body, &data)
 	if err != nil {
-		checkTelemetry.malformedResponses.IncWithTags(map[string]string{"check_name": string(module)})
+		checkTelemetry.malformedResponses.IncWithTags(map[string]string{checkLabelName: string(module)})
 	}
 	return data, err
 }
