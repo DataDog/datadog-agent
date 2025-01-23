@@ -539,7 +539,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 const maxNumberOfPorts = 50
 
 // getService gets information for a single service.
-func (s *discovery) getService(context parsingContext, pid int32, now time.Time) *model.Service {
+func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
 	if s.shouldIgnorePid(pid) {
 		return nil
 	}
@@ -633,9 +633,6 @@ func (s *discovery) getService(context parsingContext, pid int32, now time.Time)
 	s.mux.Lock()
 	info.ports = ports
 	info.rss = rss
-	if serviceHeartbeatTime := time.Unix(info.lastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= heartbeatTime {
-		info.lastHeartbeat = now.Unix()
-	}
 	s.mux.Unlock()
 
 	service := &model.Service{}
@@ -645,10 +642,9 @@ func (s *discovery) getService(context parsingContext, pid int32, now time.Time)
 
 // cleanCache deletes dead PIDs from the cache. Note that this does not actually
 // shrink the map but should free memory for the service name strings referenced
-// from it.
+// from it. This function is not thread-safe and it is up to the caller to ensure
+// s.mux is locked.
 func (s *discovery) cleanCache(alivePids pidSet) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
 	for pid := range s.cache {
 		if alivePids.has(pid) {
 			continue
@@ -658,11 +654,9 @@ func (s *discovery) cleanCache(alivePids pidSet) {
 	}
 }
 
-// cleanPidSets deletes dead PIDs from the provided pidSets.
+// cleanPidSets deletes dead PIDs from the provided pidSets. This function is not
+// thread-safe and it is up to the caller to ensure s.mux is locked.
 func (s *discovery) cleanPidSets(alivePids pidSet, sets ...pidSet) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
 	for _, set := range sets {
 		for pid := range set {
 			if alivePids.has(pid) {
@@ -675,11 +669,9 @@ func (s *discovery) cleanPidSets(alivePids pidSet, sets ...pidSet) {
 }
 
 // updateServicesCPUStats updates the CPU stats of cached services, as well as the
-// global CPU time cache for future updates.
+// global CPU time cache for future updates. This function is not thread-safe and
+// it is up to the caller to ensure s.mux is locked.
 func (s *discovery) updateServicesCPUStats(responseServices ...[]model.Service) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
 	if time.Since(s.lastCPUTimeUpdate) < s.config.cpuUsageUpdateDelay {
 		return nil
 	}
@@ -789,10 +781,46 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	s.mux.Unlock()
 }
 
-func (s *discovery) handleStoppedServices(response *model.ServicesResponse, alivePids pidSet) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
+func (s *discovery) updateStartedServicesHeartbeat(response *model.ServicesResponse, now time.Time) {
+	for i := range response.StartedServices {
+		service := &response.StartedServices[i]
 
+		info, ok := s.cache[int32(service.PID)]
+		if !ok {
+			log.Warnf("could not access service info from the cache when update last heartbeat for PID %v start event", service.PID)
+		}
+
+		info.lastHeartbeat = now.Unix()
+		service.LastHeartbeat = now.Unix()
+	}
+}
+
+// generateHeartbeatEvents checks running services to see if they require sending
+// a heartbeat events to prevent the backend to drop them. This function is not
+// thread safe and it is up to the caller to ensure s.mux is locked.
+func (s *discovery) generateHeartbeatEvents(response *model.ServicesResponse, now time.Time) {
+	for pid := range s.runningServices {
+		info, ok := s.cache[pid]
+		if !ok {
+			log.Warnf("could not access service info from the cache to maybe generate a heartbeat event for PID %v", pid)
+		}
+
+		if serviceHeartbeatTime := time.Unix(info.lastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= heartbeatTime {
+			info.lastHeartbeat = now.Unix()
+
+			log.Debugf("Updating last heartbeat (pid: %v): %v", pid, now)
+			// Build service struct in place in the slice
+			response.HeartbeatServices = append(response.HeartbeatServices, model.Service{})
+			info.toModelService(pid, &response.HeartbeatServices[len(response.HeartbeatServices)-1])
+		}
+	}
+}
+
+// handleStoppedServices verifies services previously seen and registered as
+// running are still alive. If not, it will use the latest cached information
+// about them to generate a stop event for the service. This function is not
+// thread-safe and it is up to the caller to ensure s.mux is locked.
+func (s *discovery) handleStoppedServices(response *model.ServicesResponse, alivePids pidSet) {
 outer:
 	for pid := range s.runningServices {
 		if alivePids.has(pid) {
@@ -862,16 +890,13 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 	for _, pid := range pids {
 		alivePids.add(pid)
 
-		service := s.getService(context, pid, now)
+		service := s.getService(context, pid)
 		if service == nil {
 			continue
 		}
 		s.enrichContainerData(service, containersMap, pidToCid)
 
 		if _, ok := s.runningServices[pid]; ok {
-			if service.LastHeartbeat == now.Unix() {
-				response.HeartbeatServices = append(response.HeartbeatServices, *service)
-			}
 			continue
 		}
 
@@ -889,7 +914,13 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 		log.Debugf("[pid: %d] adding process to potential: %s", pid, service.Name)
 	}
 
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	s.updateStartedServicesHeartbeat(response, now)
 	s.handleStoppedServices(response, alivePids)
+	s.generateHeartbeatEvents(response, now)
+
 	s.cleanCache(alivePids)
 	s.cleanPidSets(alivePids, s.ignorePids, s.potentialServices)
 
