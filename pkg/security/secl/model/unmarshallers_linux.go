@@ -518,8 +518,8 @@ func (s *SpanContext) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	s.SpanID = binary.NativeEndian.Uint64(data[0:8])
-	s.TraceID.Lo = int64(binary.NativeEndian.Uint64(data[8:16]))
-	s.TraceID.Hi = int64(binary.NativeEndian.Uint64(data[16:24]))
+	s.TraceID.Lo = binary.NativeEndian.Uint64(data[8:16])
+	s.TraceID.Hi = binary.NativeEndian.Uint64(data[16:24])
 	return 24, nil
 }
 
