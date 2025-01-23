@@ -1371,6 +1371,15 @@ type GPU struct {
 	// is not guaranteed to be stable across reboots, nor is necessarily the same inside
 	// of containers.
 	Index int
+
+	// Architecture contains the architecture of the GPU (e.g., Pascal, Volta, etc.). Optional, can be empty.
+	Architecture string
+
+	// ComputeCapability contains the compute capability version of the GPU. Optional, can be 0/0
+	ComputeCapability GPUComputeCapability
+
+	// SMCount is the number of streaming multiprocessors in the GPU. Optional, can be empty.
+	SMCount int
 }
 
 var _ Entity = &GPU{}
@@ -1415,6 +1424,22 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Device:", g.Device)
 	_, _ = fmt.Fprintln(&sb, "Active PIDs:", g.ActivePIDs)
 	_, _ = fmt.Fprintln(&sb, "Index:", g.Index)
+	_, _ = fmt.Fprintln(&sb, "Architecture:", g.Architecture)
+	_, _ = fmt.Fprintln(&sb, "Compute Capability:", g.ComputeCapability)
+	_, _ = fmt.Fprintln(&sb, "Streaming Multiprocessor Count:", g.SMCount)
 
 	return sb.String()
+}
+
+// GPUComputeCapability represents the compute capability version of a GPU.
+type GPUComputeCapability struct {
+	// Major represents the major version of the compute capability.
+	Major int
+
+	// Minor represents the minor version of the compute capability.
+	Minor int
+}
+
+func (gcc GPUComputeCapability) String() string {
+	return fmt.Sprintf("%d.%d", gcc.Major, gcc.Minor)
 }

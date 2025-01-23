@@ -1098,6 +1098,7 @@ core,github.com/go-sql-driver/mysql,MPL-2.0,"Aaron Hopkins <go-sql-driver at die
 core,github.com/go-viper/mapstructure/v2,MIT,Copyright (c) 2013 Mitchell Hashimoto
 core,github.com/go-viper/mapstructure/v2/internal/errors,MIT,Copyright (c) 2013 Mitchell Hashimoto
 core,github.com/go-zookeeper/zk,BSD-3-Clause,"Copyright (c) 2013, Samuel Stauffer <samuel@descolada.com>"
+core,github.com/gobuffalo/flect,MIT,Copyright (c) 2019 Mark Bates
 core,github.com/gobwas/glob,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/compiler,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/match,MIT,Copyright (c) 2016 Sergey Kamardin
@@ -4010,9 +4011,12 @@ core,k8s.io/kube-state-metrics/v2/pkg/builder,Apache-2.0,Copyright 2014 The Kube
 core,k8s.io/kube-state-metrics/v2/pkg/builder/types,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/constant,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/customresource,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-state-metrics/v2/pkg/customresourcestate,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-state-metrics/v2/pkg/discovery,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/metric,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/metric_generator,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/metrics_store,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-state-metrics/v2/pkg/metricshandler,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/options,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/sharding,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.

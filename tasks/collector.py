@@ -425,7 +425,7 @@ class CollectorRepo:
 
     def fetch_latest_release(self):
         gh = GithubAPI(self.repo)
-        self.version = gh.latest_release()
+        self.version = gh.latest_release_tag()
         return self.version
 
     def fetch_module_versions(self):
@@ -531,10 +531,13 @@ def pull_request(ctx):
                 f'git commit -m "Update OTel Collector dependencies to {OCB_VERSION} and generate OTel Agent" --no-verify'
             )
             try:
+                # don't check if local branch exists; we just created it
                 check_clean_branch_state(ctx, gh, branch_name)
             except Exit as e:
-                print(e)
-                return
+                # local branch already exists, so skip error if this is thrown
+                if "already exists locally" not in str(e):
+                    print(e)
+                    return
             ctx.run(f'git push -u origin {branch_name} --no-verify')  # skip pre-commit hook if installed locally
             gh.create_pr(
                 pr_title=f"Update OTel Collector dependencies to v{OCB_VERSION}",
