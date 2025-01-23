@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix potential panic in journald and windows event tailers during system shutdown
+    Fix potential panic in journald and Windows event tailers during system shutdown
