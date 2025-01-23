@@ -43,14 +43,15 @@ func validateTelemetry(t *testing.T, module string, expected expectedTelemetryVa
 
 func TestGetCheck(t *testing.T) {
 	type testData struct {
-		Str string `json:"Str"`
-		Num int    `json:"Num"`
+		Str string
+		Num int
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/test/check" {
 			_, _ = w.Write([]byte(`{"Str": "asdf", "Num": 42}`))
 		} else if r.URL.Path == "/malformed/check" {
+			//this should fail in json.Unmarshal
 			_, _ = w.Write([]byte("1"))
 		} else {
 			w.WriteHeader(http.StatusNotFound)
@@ -71,14 +72,17 @@ func TestGetCheck(t *testing.T) {
 
 	//test responseError counter
 	resp, err = GetCheck[testData](client, "foo")
+	require.Error(t, err)
 	validateTelemetry(t, "foo", expectedTelemetryValues{0, 0, 1, 0})
 
 	//test malformedResponses counter
 	resp, err = GetCheck[testData](client, "malformed")
+	require.Error(t, err)
 	validateTelemetry(t, "malformed", expectedTelemetryValues{0, 0, 0, 1})
 
 	//test failedRequests counter
 	server.Close()
 	resp, err = GetCheck[testData](client, "test")
+	require.Error(t, err)
 	validateTelemetry(t, "test", expectedTelemetryValues{1, 0, 0, 0})
 }
