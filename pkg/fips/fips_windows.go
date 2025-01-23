@@ -17,10 +17,7 @@ import (
 
 // Status returns a displayable string or error of FIPS compliance state of the agent build and runtime
 func Status() string {
-	enabled, err := Enabled()
-	if err != nil {
-		return strconv.FormatBool(false)
-	}
+	enabled, _ := Enabled()
 	return strconv.FormatBool(enabled)
 }
 
@@ -34,16 +31,16 @@ func Enabled() (bool, error) {
 		registry.QUERY_VALUE,
 	)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 
 	enabled, enabledType, err := key.GetIntegerValue("Enabled")
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 
 	if enabledType != registry.DWORD {
-		return nil, fmt.Errorf("unexpected FIPS algorithm policy Enabled key type: %v, expected: %v", enabledType, registry.DWORD)
+		return false, fmt.Errorf("unexpected FIPS algorithm policy Enabled key type: %v, expected: %v", enabledType, registry.DWORD)
 	}
 
 	return enabled == 1, nil

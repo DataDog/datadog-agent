@@ -15,10 +15,7 @@ import (
 
 // Status returns a displayable string or error of FIPS compliance state of the agent build and runtime
 func Status() string {
-	enabled, err := Enabled()
-	if err != nil {
-		return strconv.FormatBool(false)
-	}
+	enabled, _ := Enabled()
 	return strconv.FormatBool(enabled)
 }
 
