@@ -55,7 +55,6 @@ class TestState:
         'skip': 'Only run tests not matching the regular expression',
         'agent_image': 'Full image path for the agent image (e.g. "repository:tag") to run the e2e tests with',
         'cluster_agent_image': 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
-        'flaky_patterns_config': 'Path to a YAML file containing rules dynamically added by flake.MarkOnLog. Note that this file will be a temporary file by default',
     },
 )
 def run(
@@ -86,7 +85,6 @@ def run(
     logs_post_processing=False,
     logs_post_processing_test_depth=1,
     logs_folder="e2e_logs",
-    flaky_patterns_config=None,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -128,6 +126,12 @@ def run(
     test_run_arg = ""
     if test_run_name != "":
         test_run_arg = f"-run {test_run_name}"
+
+    # Create temporary file for flaky patterns config
+    tmp_flaky_patterns_config = tempfile.NamedTemporaryFile(suffix="flaky_patterns_config.yaml", delete_on_close=False)
+    tmp_flaky_patterns_config.write(b"{}")
+    tmp_flaky_patterns_config.close()
+    flaky_patterns_config = tmp_flaky_patterns_config.name
 
     cmd = f'gotestsum --format {gotestsum_format} '
     scrubber_raw_command = ""

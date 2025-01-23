@@ -72,7 +72,7 @@ func getPackageName() (string, error) {
 func MarkOnLog(t testing.TB, pattern string) {
 	t.Helper()
 	if *flakyPatternsConfig == "" {
-		t.Fatal("flaky-patterns-config flag is required when using MarkOnLog")
+		t.Log("Warning: flake.MarkOnLog will not mark tests as flaky as --flaky-patterns-config flag is not set")
 		return
 	}
 
