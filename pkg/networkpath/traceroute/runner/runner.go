@@ -166,15 +166,7 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 		destPort = 80 // TODO: is this the default we want?
 	}
 
-	tr := tcp.TCPv4{
-		Target:   target,
-		DestPort: destPort,
-		NumPaths: 1,
-		MinTTL:   uint8(DefaultMinTTL),
-		MaxTTL:   maxTTL,
-		Delay:    time.Duration(DefaultDelay) * time.Millisecond,
-		Timeout:  timeout,
-	}
+	tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout)
 
 	results, err := tr.TracerouteSequential()
 	if err != nil {

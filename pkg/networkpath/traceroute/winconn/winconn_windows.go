@@ -40,6 +40,27 @@ func (r *RawConn) Close() {
 	r.Socket = windows.InvalidHandle
 }
 
+func (r *RawConn) ReadFrom(b []byte) (*ipv4.Header, []byte, error) {
+	// the receive timeout is set to 100ms in the constructor, to match the
+	// linux side. This is a workaround for the lack of a deadline for sockets.
+	//err := conn.SetReadDeadline(now.Add(time.Millisecond * 100))
+	n, _, err := recvFrom(r.Socket, b, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	log.Tracef("Got packet %+v", b[:n])
+
+	if n < 20 { // min size of ipv4 header
+		return nil, nil, errors.New("packet too small to be an IPv4 packet")
+	}
+	header, err := ipv4.ParseHeader(b[:n])
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse IPv4 header: %w", err)
+	}
+
+	return header, b[header.Len:header.TotalLen], nil
+}
+
 // NewRawConn creates a Winrawsocket
 func NewRawConn() (*RawConn, error) {
 	s, err := windows.Socket(windows.AF_INET, windows.SOCK_RAW, windows.IPPROTO_IP)
@@ -114,10 +135,7 @@ func (r *RawConn) handlePackets(ctx context.Context, localIP net.IP, localPort u
 		default:
 		}
 
-		// the receive timeout is set to 100ms in the constructor, to match the
-		// linux side. This is a workaround for the lack of a deadline for sockets.
-		//err := conn.SetReadDeadline(now.Add(time.Millisecond * 100))
-		n, _, err := recvFrom(r.Socket, buf, 0)
+		header, packet, err := r.ReadFrom(buf)
 		if err != nil {
 			if err == windows.WSAETIMEDOUT {
 				continue
@@ -128,16 +146,7 @@ func (r *RawConn) handlePackets(ctx context.Context, localIP net.IP, localPort u
 			}
 			return nil, time.Time{}, err
 		}
-		log.Tracef("Got packet %+v", buf[:n])
-
-		if n < 20 { // min size of ipv4 header
-			continue
-		}
-		header, err := ipv4.ParseHeader(buf[:n])
-		if err != nil {
-			continue
-		}
-		packet := buf[header.Len:header.TotalLen]
+		log.Tracef("Got packet: header: %+v body: %+v", header, packet)
 
 		// once we have a packet, take a timestamp to know when
 		// the response was received, if it matches, we will
