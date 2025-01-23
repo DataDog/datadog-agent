@@ -757,7 +757,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
         [
             # Fetch
             f"git remote add {owner} git@github.com:{owner}/datadog-agent.git",
-            f"git fetch '{owner}'",
+            f"git fetch '{owner}' '{branch}'",
             # Create branch
             f"git checkout '{owner}/{branch}'",  # This first checkout puts us in a detached head state, thus the second checkout below
             f"git checkout -b '{owner}/{branch}'",

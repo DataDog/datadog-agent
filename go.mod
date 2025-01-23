@@ -323,7 +323,7 @@ require (
 	google.golang.org/genproto v0.0.0-20240903143218-8af14fe29dc1 // indirect
 	google.golang.org/grpc v1.69.2
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
-	google.golang.org/protobuf v1.36.2
+	google.golang.org/protobuf v1.36.3
 	gopkg.in/DataDog/dd-trace-go.v1 v1.69.1
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -857,6 +857,7 @@ require (
 	github.com/go-openapi/validate v0.24.0 // indirect
 	github.com/go-resty/resty/v2 v2.13.1 // indirect
 	github.com/go-zookeeper/zk v1.0.3 // indirect
+	github.com/gobuffalo/flect v1.0.2 // indirect
 	github.com/goccy/go-json v0.10.4 // indirect
 	github.com/goccy/go-yaml v1.11.0 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
@@ -1115,7 +1116,7 @@ exclude go.opentelemetry.io/proto/otlp v1.1.0
 replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20240626205202-4ac4cee31f14
 
 // Remove once https://github.com/kubernetes/kube-state-metrics/pull/2553 is merged
-replace k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f => github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20241108192007-8859a4289d92
+replace k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f => github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20241119155242-07761b9fe9a0
 
 // Remove once https://github.com/Iceber/iouring-go/pull/31 or equivalent is merged
 replace github.com/iceber/iouring-go => github.com/paulcacheux/iouring-go v0.0.0-20241115154236-2c7785c40a0f

@@ -16,6 +16,7 @@ import (
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -34,6 +35,20 @@ var (
 	// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
 	EventsPerfRingBufferSize = 256 * os.Getpagesize()
 )
+
+func appendSyscallProbes(probes []*manager.Probe, fentry bool, flag int, compat bool, syscalls ...string) []*manager.Probe {
+	for _, syscall := range syscalls {
+		probes = append(probes,
+			ExpandSyscallProbes(&manager.Probe{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					UID: SecurityAgentUID,
+				},
+				SyscallFuncName: syscall,
+			}, fentry, flag, compat)...)
+	}
+
+	return probes
+}
 
 // computeDefaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
 // Must be a power of 2 and a multiple of the page size
@@ -137,13 +152,6 @@ func AllMaps() []*manager.Map {
 	}
 }
 
-// AllSKStorageMaps returns the list of SKStorage map section names
-func AllSKStorageMaps() []string {
-	return []string{
-		"sock_active_pid_route",
-	}
-}
-
 // AllBPFForEachMapElemProgramFunctions returns the list of programs that leverage the bpf_for_each_map_elem helper
 func AllBPFForEachMapElemProgramFunctions() []string {
 	return []string{
@@ -173,7 +181,7 @@ type MapSpecEditorOpts struct {
 }
 
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.MapSpecEditor {
+func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) map[string]manager.MapSpecEditor {
 	var procPidCacheMaxEntries uint32
 	if opts.ReducedProcPidCacheSize {
 		procPidCacheMaxEntries = getMaxEntries(numCPU, minProcEntries, maxProcEntries/2)
@@ -276,6 +284,33 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.Ma
 			EditorFlag: manager.EditMaxEntries | manager.EditType | manager.EditKeyValue,
 		}
 	}
+
+	if !kv.HasSKStorage() {
+		// Edit each SK_Storage map and transform them to a basic hash maps so they can be loaded by older kernels.
+		// We need this so that the eBPF manager can link the SK_Storage maps in our eBPF programs, even if deadcode
+		// elimination will clean up the piece of code that work with them prior to running the verifier.
+		editors["sock_active_pid_route"] = manager.MapSpecEditor{
+			Type:       ebpf.Hash,
+			KeySize:    1,
+			ValueSize:  1,
+			MaxEntries: 1,
+			EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries,
+		}
+	}
+
+	if !kv.HasNoPreallocMapsInPerfEvent() {
+		editors["active_flows"] = manager.MapSpecEditor{
+			MaxEntries: activeFlowsMaxEntries,
+			Flags:      unix.BPF_ANY,
+			EditorFlag: manager.EditMaxEntries | manager.EditFlags,
+		}
+	} else {
+		editors["active_flows"] = manager.MapSpecEditor{
+			MaxEntries: activeFlowsMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
 	return editors
 }
 
