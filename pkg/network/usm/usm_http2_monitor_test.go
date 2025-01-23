@@ -392,6 +392,38 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 				Path_size_bucket:  [8]uint64{1, 1, 1, 1, 1, 1, 1, 1},
 			},
 		},
+		{
+			name: "CONTINUATION frame",
+			runClients: func(t *testing.T, clientsCount int) {
+				client := dialHTTP2Server(t)
+				messageBuilder := func() [][]byte {
+					const headersFrameEndHeaders = false
+					fullHeaders := generateTestHeaderFields(headersGenerationOptions{})
+					prefixHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+						Headers: fullHeaders[:2],
+					})
+					require.NoError(t, err, "could not create prefix headers frame")
+
+					suffixHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+						Headers: fullHeaders[2:],
+					})
+
+					require.NoError(t, err, "could not create suffix headers frame")
+
+					framer := newFramer()
+					framer.
+						writeRawHeaders(t, 1, headersFrameEndHeaders, prefixHeadersFrame).
+						writeRawContinuation(t, 1, endHeaders, suffixHeadersFrame)
+					return [][]byte{framer.bytes()}
+				}
+				require.NoError(t, writeInput(client, 500*time.Millisecond, messageBuilder()...))
+			},
+
+			expectedTelemetry: &usmhttp2.HTTP2Telemetry{
+				Request_seen:        1,
+				Continuation_frames: 1,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -429,10 +461,15 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 				if telemetry.End_of_stream+telemetry.End_of_stream_rst < expectedEOSOrRST {
 					return false
 				}
+				if telemetry.Continuation_frames != tt.expectedTelemetry.Continuation_frames {
+					return false
+				}
 				return reflect.DeepEqual(telemetry.Path_size_bucket, tt.expectedTelemetry.Path_size_bucket)
 			}, time.Second*5, time.Millisecond*100)
 			if t.Failed() {
 				t.Logf("expected telemetry: %+v;\ngot: %+v", tt.expectedTelemetry, telemetry)
+				ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, usmhttp2.InFlightMap, "http2_dynamic_table")
+				dumpTelemetry(t, monitor, s.isTLS)
 			}
 		})
 	}
@@ -1417,80 +1454,6 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 			if t.Failed() {
 				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap)
 				dumpTelemetry(t, usmMonitor, s.isTLS)
-			}
-		})
-	}
-}
-
-// TestContinuationFrame tests CONTINUATION frame is captured by kernel telemetry.
-func (s *usmHTTP2Suite) TestContinuationFrame() {
-	t := s.T()
-	cfg := s.getCfg()
-
-	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
-
-	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
-	t.Cleanup(cancel)
-	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
-
-	tests := []struct {
-		name              string
-		messageBuilder    func() [][]byte
-		expectedTelemetry *usmhttp2.HTTP2Telemetry
-	}{
-		{
-			name: "CONTINUATION frame",
-			messageBuilder: func() [][]byte {
-				const headersFrameEndHeaders = false
-				fullHeaders := generateTestHeaderFields(headersGenerationOptions{})
-				prefixHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
-					Headers: fullHeaders[:2],
-				})
-				require.NoError(t, err, "could not create prefix headers frame")
-
-				suffixHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
-					Headers: fullHeaders[2:],
-				})
-				require.NoError(t, err, "could not create suffix headers frame")
-
-				framer := newFramer()
-				framer.
-					writeRawHeaders(t, 1, headersFrameEndHeaders, prefixHeadersFrame).
-					writeRawContinuation(t, 1, endHeaders, suffixHeadersFrame)
-				return [][]byte{framer.bytes()}
-			},
-			expectedTelemetry: &usmhttp2.HTTP2Telemetry{
-				Continuation_frames: 1,
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
-			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
-			}
-
-			c := dialHTTP2Server(t)
-
-			// Composing CONTINUATION frame.
-			require.NoError(t, writeInput(c, 500*time.Millisecond, tt.messageBuilder()...))
-
-			var telemetry *usmhttp2.HTTP2Telemetry
-			var err error
-			assert.Eventually(t, func() bool {
-
-				telemetry, err = getHTTP2KernelTelemetry(monitor, s.isTLS)
-				require.NoError(t, err)
-
-				return telemetry.Continuation_frames == tt.expectedTelemetry.Continuation_frames
-			}, time.Second*5, time.Millisecond*100)
-			if t.Failed() {
-				t.Logf("CONTINUATION frames count: %d != %d", tt.expectedTelemetry.Continuation_frames, telemetry.Continuation_frames)
-				ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, usmhttp2.InFlightMap, "http2_dynamic_table")
-				dumpTelemetry(t, monitor, s.isTLS)
 			}
 		})
 	}
