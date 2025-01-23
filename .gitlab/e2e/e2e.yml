@@ -666,6 +666,7 @@ new-e2e-gpu:
     - !reference [.needs_new_e2e_template]
     - deploy_deb_testing-a7_x64                  # agent 7 debian package
 
+
 generate-flakes-finder-pipeline:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: e2e
