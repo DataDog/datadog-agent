@@ -35,6 +35,20 @@ var (
 	EventsPerfRingBufferSize = 256 * os.Getpagesize()
 )
 
+func appendSyscallProbes(probes []*manager.Probe, fentry bool, flag int, compat bool, syscalls ...string) []*manager.Probe {
+	for _, syscall := range syscalls {
+		probes = append(probes,
+			ExpandSyscallProbes(&manager.Probe{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					UID: SecurityAgentUID,
+				},
+				SyscallFuncName: syscall,
+			}, fentry, flag, compat)...)
+	}
+
+	return probes
+}
+
 // computeDefaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
 // Must be a power of 2 and a multiple of the page size
 func computeDefaultEventsRingBufferSize() uint32 {
@@ -141,6 +155,14 @@ func AllMaps() []*manager.Map {
 func AllSKStorageMaps() []string {
 	return []string{
 		"sock_active_pid_route",
+	}
+}
+
+// AllNoPreallocMapsInPerfEventPrograms returns the list of maps with the BPF_F_NO_PREALLOC flag that are used in
+// perf_event programs
+func AllNoPreallocMapsInPerfEventPrograms() []string {
+	return []string{
+		"active_flows",
 	}
 }
 

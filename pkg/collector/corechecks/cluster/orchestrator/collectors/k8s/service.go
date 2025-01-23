@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,9 +21,9 @@ import (
 )
 
 // NewServiceCollectorVersions builds the group of collector versions.
-func NewServiceCollectorVersions() collectors.CollectorVersions {
+func NewServiceCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewServiceCollector(),
+		NewServiceCollector(metadataAsTags),
 	)
 }
 
@@ -36,7 +37,11 @@ type ServiceCollector struct {
 
 // NewServiceCollector creates a new collector for the Kubernetes Service
 // resource.
-func NewServiceCollector() *ServiceCollector {
+func NewServiceCollector(metadataAsTags utils.MetadataAsTags) *ServiceCollector {
+	resourceType := getResourceType(serviceName, serviceVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &ServiceCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -44,9 +49,11 @@ func NewServiceCollector() *ServiceCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "services",
+			Name:                      serviceName,
 			NodeType:                  orchestrator.K8sService,
-			Version:                   "v1",
+			Version:                   serviceVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ServiceHandlers)),
 	}

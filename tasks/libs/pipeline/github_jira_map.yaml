@@ -6,7 +6,6 @@
 '@datadog/container-integrations': CONTINT
 '@datadog/container-platform': CONTP
 '@datadog/container-ecosystems': CECO
-'@datadog/platform-integrations': PLINT
 '@datadog/agent-security': CWS
 '@datadog/agent-apm': APMSP
 '@datadog/network-device-monitoring': NDMII
