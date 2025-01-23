@@ -18,6 +18,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -102,6 +103,28 @@ func (c *collector) Pull(_ context.Context) error {
 			Index:  i,
 		}
 
+		arch, ret := dev.GetArchitecture()
+		if ret != nvml.SUCCESS {
+			log.Warnf("failed to get architecture for device index %d: %v", i, nvml.ErrorString(ret))
+		} else {
+			gpu.Architecture = gpuArchToString(arch)
+		}
+
+		major, minor, ret := dev.GetCudaComputeCapability()
+		if ret != nvml.SUCCESS {
+			log.Warnf("failed to get CUDA compute capability for device index %d: %v", i, nvml.ErrorString(ret))
+		} else {
+			gpu.ComputeCapability.Major = major
+			gpu.ComputeCapability.Minor = minor
+		}
+
+		devAttr, ret := dev.GetAttributes()
+		if ret != nvml.SUCCESS {
+			log.Warnf("failed to get device attributes for device index %d: %v", i, nvml.ErrorString(ret))
+		} else {
+			gpu.SMCount = int(devAttr.MultiprocessorCount)
+		}
+
 		event := workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceRuntime,
 			Type:   workloadmeta.EventTypeSet,
@@ -121,4 +144,31 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
+}
+
+func gpuArchToString(nvmlArch nvml.DeviceArchitecture) string {
+	switch nvmlArch {
+	case nvml.DEVICE_ARCH_KEPLER:
+		return "kepler"
+	case nvml.DEVICE_ARCH_PASCAL:
+		return "pascal"
+	case nvml.DEVICE_ARCH_VOLTA:
+		return "volta"
+	case nvml.DEVICE_ARCH_TURING:
+		return "turing"
+	case nvml.DEVICE_ARCH_AMPERE:
+		return "ampere"
+	case nvml.DEVICE_ARCH_ADA:
+		return "ada"
+	case nvml.DEVICE_ARCH_HOPPER:
+		return "hopper"
+	case nvml.DEVICE_ARCH_UNKNOWN:
+		return "unknown"
+	default:
+		// Distinguish invalid and unknown, NVML can return unknown but we should always
+		// be able to process the return value of NVML. If we reach this part, we forgot
+		// to add a new case for a new architecture.
+		return "invalid"
+	}
+
 }

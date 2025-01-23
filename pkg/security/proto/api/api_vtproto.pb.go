@@ -1238,6 +1238,16 @@ func (m *EnvironmentStatus) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.UseFentry {
+		i--
+		if m.UseFentry {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x30
+	}
 	if m.UseRingBuffer {
 		i--
 		if m.UseRingBuffer {
@@ -3349,6 +3359,9 @@ func (m *EnvironmentStatus) SizeVT() (n int) {
 		n += 2
 	}
 	if m.UseRingBuffer {
+		n += 2
+	}
+	if m.UseFentry {
 		n += 2
 	}
 	n += len(m.unknownFields)
@@ -6777,6 +6790,26 @@ func (m *EnvironmentStatus) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.UseRingBuffer = bool(v != 0)
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UseFentry", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.UseFentry = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
