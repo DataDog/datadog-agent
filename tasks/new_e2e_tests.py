@@ -132,6 +132,7 @@ def run(
     tmp_flaky_patterns_config.write(b"{}")
     tmp_flaky_patterns_config.close()
     flaky_patterns_config = tmp_flaky_patterns_config.name
+    env_vars["E2E_FLAKY_PATTERNS_CONFIG"] = flaky_patterns_config
 
     cmd = f'gotestsum --format {gotestsum_format} '
     scrubber_raw_command = ""
@@ -141,7 +142,7 @@ def run(
             # Using custom go command piped with scrubber sed instructions https://github.com/gotestyourself/gotestsum#custom-go-test-command
             f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
         )
-    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {scrubber_raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{flaky_patterns_config}} {{extra_flags}}'
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {scrubber_raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
 
     args = {
         "go_mod": "readonly",

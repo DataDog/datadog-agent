@@ -26,7 +26,6 @@ import (
 const flakyTestMessage = "flakytest: this is a known flaky test"
 
 var skipFlake = flag.Bool("skip-flake", false, "skip tests labeled as flakes")
-var flakyPatternsConfig = flag.String("flaky-patterns-config", "", "path to the flaky patterns configuration file that will be created when MarkOnLog is used")
 var flakyPatternsConfigMutex = sync.Mutex{}
 
 // Mark test as a known flaky.
@@ -71,8 +70,9 @@ func getPackageName() (string, error) {
 // MarkOnLog marks the test as flaky when the `pattern` regular expression is found in its logs.
 func MarkOnLog(t testing.TB, pattern string) {
 	t.Helper()
-	if *flakyPatternsConfig == "" {
-		t.Log("Warning: flake.MarkOnLog will not mark tests as flaky as --flaky-patterns-config flag is not set")
+	flakyPatternsConfig := os.Getenv("E2E_FLAKY_PATTERNS_CONFIG")
+	if flakyPatternsConfig == "" {
+		t.Log("Warning: flake.MarkOnLog will not mark tests as flaky since E2E_FLAKY_PATTERNS_CONFIG is not set")
 		return
 	}
 
@@ -83,9 +83,9 @@ func MarkOnLog(t testing.TB, pattern string) {
 	flakyConfig := make(map[string]interface{})
 
 	// Read initial config
-	_, err := os.Stat(*flakyPatternsConfig)
+	_, err := os.Stat(flakyPatternsConfig)
 	if err == nil {
-		f, err := os.Open(*flakyPatternsConfig)
+		f, err := os.Open(flakyPatternsConfig)
 		if err != nil {
 			t.Fatalf("failed to open flaky patterns config file: %v", err)
 			return
@@ -117,7 +117,7 @@ func MarkOnLog(t testing.TB, pattern string) {
 	}
 
 	// Write config back
-	f, err := os.OpenFile(*flakyPatternsConfig, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(flakyPatternsConfig, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		t.Fatalf("failed to open flaky patterns config file: %v", err)
 		return
