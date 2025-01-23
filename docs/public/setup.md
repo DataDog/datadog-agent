@@ -1,5 +1,99 @@
 # Set up development environment
 
+## Tooling
+
+### Installers
+
+=== "macOS"
+    === "GUI installer"
+        1. In your browser, download the `.pkg` file: [deva-universal.pkg](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-universal.pkg)
+        2. Run your downloaded file and follow the on-screen instructions.
+        3. Restart your terminal.
+        4. To verify that the shell can find and run the `deva` command in your `PATH`, use the following command.
+
+            ```
+            $ deva --version
+            <DEVA_LATEST_VERSION>
+            ```
+    === "Command line installer"
+        1. Download the file using the `curl` command. The `-o` option specifies the file name that the downloaded package is written to. In this example, the file is written to `deva-universal.pkg` in the current directory.
+
+            ```
+            curl -Lo deva-universal.pkg https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-universal.pkg
+            ```
+        2. Run the standard macOS [`installer`](https://ss64.com/osx/installer.html) program, specifying the downloaded `.pkg` file as the source. Use the `-pkg` parameter to specify the name of the package to install, and the `-target /` parameter for the drive in which to install the package. The files are installed to `/usr/local/deva`, and an entry is created at `/etc/paths.d/deva` that instructs shells to add the `/usr/local/deva` directory to. You must include sudo on the command to grant write permissions to those folders.
+
+            ```
+            sudo installer -pkg ./deva-universal.pkg -target /
+            ```
+        3. Restart your terminal.
+        4. To verify that the shell can find and run the `deva` command in your `PATH`, use the following command.
+
+            ```
+            $ deva --version
+            <DEVA_LATEST_VERSION>
+            ```
+
+=== "Windows"
+    === "GUI installer"
+        1. In your browser, download one the `.msi` files:
+              - [deva-x64.msi](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-x64.msi)
+        2. Run your downloaded file and follow the on-screen instructions.
+        3. Restart your terminal.
+        4. To verify that the shell can find and run the `deva` command in your `PATH`, use the following command.
+
+            ```
+            $ deva --version
+            <DEVA_LATEST_VERSION>
+            ```
+    === "Command line installer"
+        1. Download and run the installer using the standard Windows [`msiexec`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/msiexec) program, specifying one of the `.msi` files as the source. Use the `/passive` and `/i` parameters to request an unattended, normal installation.
+
+            === "x64"
+                ```
+                msiexec /passive /i https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-x64.msi
+                ```
+            === "x86"
+                ```
+                msiexec /passive /i https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-x86.msi
+                ```
+        2. Restart your terminal.
+        3. To verify that the shell can find and run the `deva` command in your `PATH`, use the following command.
+
+            ```
+            $ deva --version
+            <DEVA_LATEST_VERSION>
+            ```
+
+### Standalone binaries
+
+After downloading the archive corresponding to your platform and architecture, extract the binary to a directory that is on your PATH and rename to `deva`.
+
+=== "macOS"
+    - [deva-aarch64-apple-darwin.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-aarch64-apple-darwin.tar.gz)
+    - [deva-x86_64-apple-darwin.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-x86_64-apple-darwin.tar.gz)
+
+=== "Windows"
+    - [deva-x86_64-pc-windows-msvc.zip](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-x86_64-pc-windows-msvc.zip)
+    - [deva-i686-pc-windows-msvc.zip](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-i686-pc-windows-msvc.zip)
+
+=== "Linux"
+    - [deva-aarch64-unknown-linux-gnu.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-aarch64-unknown-linux-gnu.tar.gz)
+    - [deva-x86_64-unknown-linux-gnu.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-x86_64-unknown-linux-gnu.tar.gz)
+    - [deva-x86_64-unknown-linux-musl.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-x86_64-unknown-linux-musl.tar.gz)
+    - [deva-powerpc64le-unknown-linux-gnu.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-powerpc64le-unknown-linux-gnu.tar.gz)
+
+### pip
+
+deva is available on PyPI and can be installed with [pip](https://github.com/pypa/pip).
+
+```
+pip install deva
+```
+
+!!! warning
+    This method modifies the Python environment in which you choose to install.
+
 ## Windows
 
 To build the agent on Windows, see [datadog-agent-buildimages](https://github.com/DataDog/datadog-agent-buildimages/tree/main/windows).
@@ -10,59 +104,26 @@ To build the agent on Windows, see [datadog-agent-buildimages](https://github.co
 
 The Agent embeds a full-fledged CPython interpreter so it requires the development files to be available in the dev env. The Agent can embed Python 2 and/or Python 3, you will need development files for all versions you want to support.
 
-If you're on OSX/macOS, installing Python 2.7 and/or 3.11 with [Homebrew](https://brew.sh):
+If you're on OSX/macOS, installing Python 2.7 and/or 3.12 with [Homebrew](https://brew.sh):
 
 ```
 brew install python@2
-brew install python@3.11
+brew install python@3.12
 ```
 
 On Linux, depending on the distribution, you might need to explicitly install the development files, for example on Ubuntu:
 
 ```
 sudo apt-get install python2.7-dev
-sudo apt-get install python3.11-dev
+sudo apt-get install python3.12-dev
 ```
 
-On Windows, install Python 2.7 and/or 3.11 via the [official installer](https://www.python.org/downloads/) brings along all the development files needed:
+On Windows, install Python 2.7 and/or 3.12 via the [official installer](https://www.python.org/downloads/) brings along all the development files needed:
 
 !!! warning
-    If you don't use one of the Python versions that are explicitly supported, you may have problems running the built Agent's Python checks, especially if using a virtualenv. At this time, only Python 3.11 is confirmed to work as expected in the development environment.
+    If you don't use one of the Python versions that are explicitly supported, you may have problems running the built Agent's Python checks, especially if using a virtualenv. At this time, only Python 3.12 is confirmed to work as expected in the development environment.
 
 #### Python Dependencies
-
-##### Preface
-
-[Invoke](http://www.pyinvoke.org) is a task runner written in Python that is extensively used in this project to orchestrate builds and test runs. To run the tasks, you need to have it installed on your machine. We offer two different ways to run our invoke tasks.
-
-##### `deva` (recommended)
-
-The `deva` CLI tool is a single binary that can be used to install and manage the development environment for the Agent, built by the Datadog team. It will install all the necessary Python dependencies for you. The development environment will be completely independent of your system Python installation. This tool leverages [PyApp](https://ofek.dev/pyapp/latest/), a wrapper for Python applications that bootstrap themselves at runtime. In our case, we wrap `invoke` itself and include the dependencies needed to work on the Agent.
-
-To install `deva`, you'll need to:
-
-1. Download the binary for your platform from the [releases page](https://github.com/DataDog/datadog-agent-devtools/releases/latest),
-2. Make it executable (and optionally add it to your PATH),
-3. Run the invoke command you need, using `deva` in place of `invoke` or `inv`.
-
-The Python environment will automatically be created on the first run. and will be reused for subsequent runs. For example:
-
-```shell
-cd datadog-agent
-curl -L -o deva https://github.com/DataDog/datadog-agent-devtools/releases/download/deva-v1.0.0/deva-aarch64-unknown-linux-gnu-1.0.0
-chmod +x deva
-./deva linter.go
-```
-
-Below a live demo of how the tool works:
-
-![deva_install](./assets/images/deva.gif)
-
-If you want to uninstall `deva`, you can simply run the `./deva self remove` command, which will remove the virtual environment from your system, and remove the binary. That's it.
-
-##### Manual Installation
-
-###### Virtual Environment
 
 To protect and isolate your system-wide python installation, a python virtual environment is _highly_ recommended (though optional). It will help keep a self-contained development environment and ensure a clean system Python.
 
@@ -82,33 +143,21 @@ To protect and isolate your system-wide python installation, a python virtual en
 If using virtual environments when running the built Agent, you may need to override the built Agent's search path for Python check packages using the `PYTHONPATH` variable (your target path must have the [pre-requisite core integration packages installed](https://datadoghq.dev/integrations-core/setup/) though).
 
 ```sh
-PYTHONPATH="./venv/lib/python3.11/site-packages:$PYTHONPATH" ./agent run ...
+PYTHONPATH="./venv/lib/python3.12/site-packages:$PYTHONPATH" ./agent run ...
 ```
 
 See also some notes in [./checks](https://github.com/DataDog/datadog-agent/tree/main/docs/dev/checks) about running custom python checks.
 
-###### Install Invoke and its dependencies
-
-Our invoke tasks are only compatible with Python 3, thus you will need to use Python 3 to run them.
-
-Though you may install invoke in a variety of way we suggest you use the provided [requirements](https://github.com/DataDog/datadog-agent/blob/main/requirements.txt) file and `pip`:
-
-```bash
-pip install -r tasks/requirements.txt
-```
-
-This procedure ensures you not only get the correct version of `invoke`, but also any additional python dependencies our development workflow may require, at their expected versions. It will also pull other handy development tools/deps (`reno`, or `docker`).
-
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.23.3` or later. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke` cannot use any additional tool it might need.
+You must [install Golang](https://golang.org/doc/install) version `1.23.3` or later. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise [tooling](#tooling) cannot use any additional tool it might need.
 
 !!! note
     Versions of Golang that aren't an exact match to the version specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent-buildimages/blob/c025473ee467ee6d884d532e4c12c7d982ce8fe1/circleci/Dockerfile#L43)) may not be able to build the agent and/or the [rtloader](https://github.com/DataDog/datadog-agent/tree/main/rtloader) binary properly.
 
-### Installing tooling
+#### Installing tools
 
-From the root of `datadog-agent`, run `invoke install-tools` to install go tooling. This uses `go` to install the necessary dependencies.
+From the root of `datadog-agent`, run `inv install-tools` to install go tooling. This uses `go` to install the necessary dependencies.
 
 ### System or Embedded?
 
@@ -152,7 +201,7 @@ If you want to build a Docker image containing the Agent, or if you wan to run [
 
 We use [Doxygen](http://www.doxygen.nl) to generate the documentation for the `rtloader` part of the Agent.
 
-To generate it (using the `invoke rtloader.generate-doc` command), you'll need to have Doxygen installed on your system and available in your `$PATH`. You can compile and install Doxygen from source with the instructions available [here](http://www.doxygen.nl/manual/install.html). Alternatively, you can use already-compiled Doxygen binaries from [here](http://www.doxygen.nl/download.html).
+To generate it (using the `inv rtloader.generate-doc` command), you'll need to have Doxygen installed on your system and available in your `$PATH`. You can compile and install Doxygen from source with the instructions available [here](http://www.doxygen.nl/manual/install.html). Alternatively, you can use already-compiled Doxygen binaries from [here](http://www.doxygen.nl/download.html).
 
 To get the dependency graphs, you may also need to install the `dot` executable from [graphviz](http://www.graphviz.org/) and add it to your `$PATH`.
 
@@ -200,7 +249,7 @@ See `pre-commit run --help` for further options.
 To configure the vscode editor to use a container as remote development environment you need to:
 
 - Install the [devcontainer plugin](https://code.visualstudio.com/docs/remote/containers) and the [golang language plugin](https://code.visualstudio.com/docs/languages/go).
-- Run the following invoke command `deva vscode.setup-devcontainer --image "<image name>"`. This command will create the devcontainer configuration file `./devcontainer/devcontainer.json`.
+- Run the following command `inv vscode.setup-devcontainer --image "<image name>"`. This command will create the devcontainer configuration file `./devcontainer/devcontainer.json`.
 - Start or restart your vscode editor.
 - A pop-up should show-up to propose to "reopen in container" your workspace.
 - The first start, it might propose you to install the golang plugin dependencies/tooling.
