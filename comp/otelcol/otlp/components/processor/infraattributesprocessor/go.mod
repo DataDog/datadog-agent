@@ -65,8 +65,8 @@ require (
 	go.opentelemetry.io/collector/processor v0.117.0
 	go.opentelemetry.io/collector/processor/processortest v0.117.0
 	go.opentelemetry.io/collector/semconv v0.117.0
-	go.opentelemetry.io/otel/metric v1.32.0
-	go.opentelemetry.io/otel/trace v1.32.0
+	go.opentelemetry.io/otel/metric v1.33.0
+	go.opentelemetry.io/otel/trace v1.33.0
 	go.uber.org/fx v1.23.0
 	go.uber.org/zap v1.27.0
 )
@@ -108,7 +108,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.60.0 // indirect
@@ -173,13 +172,14 @@ require (
 	github.com/tklauser/numcpus v0.8.0 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
+	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/collector/component/componentstatus v0.117.0 // indirect
 	go.opentelemetry.io/collector/config/configtelemetry v0.117.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.117.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.117.0 // indirect
 	go.opentelemetry.io/collector/pipeline v0.117.0 // indirect
-	go.opentelemetry.io/otel v1.32.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.32.0 // indirect
+	go.opentelemetry.io/otel v1.33.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.33.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.32.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.18.0 // indirect
