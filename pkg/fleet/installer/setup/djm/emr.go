@@ -132,7 +132,6 @@ func SetupEmr(s *common.Setup) error {
 		_, err := executeCommandWithTimeout(s, "sudo", "usermod", "-aG", "yarn", "dd-agent")
 		if err != nil {
 			log.Warnf("error changing permission group for log file, dd-agent won't have access to EMR logs: %v", err)
-			return nil
 		}
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = emrLogs
