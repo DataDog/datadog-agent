@@ -62,8 +62,8 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 	for _, partition := range partitions {
 		log.Debugf("Checking device %s", partition.Device)
 
-		if c.excludeDisk(partition.Mountpoint, partition.Device, partition.Fstype) {
-			log.Debugf("Excluding device %s", partition.Device)
+		if c.excludePartition(partition) {
+			log.Debugf("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
 			continue
 		}
 
@@ -99,6 +99,31 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 	}
 
 	return nil
+}
+
+func (c *Check) excludePartition(partition disk.PartitionStat) bool {
+	device := partition.Device
+	if device == "" || device == "none" {
+		device = ""
+		if !c.cfg.allPartitions {
+			return true
+		}
+	}
+	exclude := c.excludeDevice(device)
+	return exclude
+}
+
+func (c *Check) excludeDevice(device string) bool {
+	if device == "" {
+		return false
+	}
+	if stringSliceContain(c.cfg.excludedDevices, device) {
+		return true
+	}
+	if c.cfg.excludedDeviceRe != nil && c.cfg.excludedDeviceRe.MatchString(device) {
+		return true
+	}
+	return false
 }
 
 func (c *Check) collectDiskMetrics(sender sender.Sender) error {

@@ -29,8 +29,8 @@ const (
 type diskConfig struct {
 	useMount             bool
 	excludedFilesystems  []string
-	excludedDisks        []string
-	excludedDiskRe       *regexp.Regexp
+	excludedDevices      []string
+	excludedDeviceRe     *regexp.Regexp
 	tagByFilesystem      bool
 	excludedMountpointRe *regexp.Regexp
 	allPartitions        bool
@@ -42,8 +42,8 @@ func NewDiskConfig() *diskConfig {
 	return &diskConfig{
 		useMount:             false,
 		excludedFilesystems:  []string{},
-		excludedDisks:        []string{},
-		excludedDiskRe:       nil,
+		excludedDevices:      []string{},
+		excludedDeviceRe:     nil,
 		tagByFilesystem:      false,
 		excludedMountpointRe: nil,
 		allPartitions:        false,
@@ -52,47 +52,47 @@ func NewDiskConfig() *diskConfig {
 	}
 }
 
-func (c *Check) excludeDisk(mountpoint, device, fstype string) bool {
-	nameEmpty := device == "" || device == "none"
+// func (c *Check) excludeDisk(mountpoint, device, fstype string) bool {
+// 	nameEmpty := device == "" || device == "none"
 
-	// allow empty names if `all_partitions` is `yes` so we can evaluate mountpoints
-	if nameEmpty {
-		if !c.cfg.allPartitions {
-			return true
-		}
-	} else {
-		// I don't why I we do this only if the device name is not empty
-		// This is useful only when `all_partitions` is true and `exclude_disk_re` matches empty strings or `excluded_devices` contains the device
+// 	// allow empty names if `all_partitions` is `yes` so we can evaluate mountpoints
+// 	if nameEmpty {
+// 		if !c.cfg.allPartitions {
+// 			return true
+// 		}
+// 	} else {
+// 		// I don't why I we do this only if the device name is not empty
+// 		// This is useful only when `all_partitions` is true and `exclude_disk_re` matches empty strings or `excluded_devices` contains the device
 
-		// device is listed in `excluded_disks`
-		if stringSliceContain(c.cfg.excludedDisks, device) {
-			return true
-		}
+// 		// device is listed in `excluded_disks`
+// 		if stringSliceContain(c.cfg.excludedDevices, device) {
+// 			return true
+// 		}
 
-		// device name matches `excluded_disk_re`
-		if c.cfg.excludedDiskRe != nil && c.cfg.excludedDiskRe.MatchString(device) {
-			return true
-		}
-	}
+// 		// device name matches `excluded_disk_re`
+// 		if c.cfg.excludedDeviceRe != nil && c.cfg.excludedDeviceRe.MatchString(device) {
+// 			return true
+// 		}
+// 	}
 
-	// fs is listed in `excluded_filesystems`
-	if stringSliceContain(c.cfg.excludedFilesystems, fstype) {
-		return true
-	}
+// 	// fs is listed in `excluded_filesystems`
+// 	if stringSliceContain(c.cfg.excludedFilesystems, fstype) {
+// 		return true
+// 	}
 
-	// Hack for NFS secure mounts
-	// Secure mounts might look like this: '/mypath (deleted)', we should
-	// ignore all the bits not part of the mountpoint name. Take also into
-	// account a space might be in the mountpoint.
-	mountpoint = strings.Split(mountpoint, " ")[0]
-	// device mountpoint matches `excluded_mountpoint_re`
-	if c.cfg.excludedMountpointRe != nil && c.cfg.excludedMountpointRe.MatchString(mountpoint) {
-		return true
-	}
+// 	// Hack for NFS secure mounts
+// 	// Secure mounts might look like this: '/mypath (deleted)', we should
+// 	// ignore all the bits not part of the mountpoint name. Take also into
+// 	// account a space might be in the mountpoint.
+// 	mountpoint = strings.Split(mountpoint, " ")[0]
+// 	// device mountpoint matches `excluded_mountpoint_re`
+// 	if c.cfg.excludedMountpointRe != nil && c.cfg.excludedMountpointRe.MatchString(mountpoint) {
+// 		return true
+// 	}
 
-	// all good, don't exclude the disk
-	return false
-}
+// 	// all good, don't exclude the disk
+// 	return false
+// }
 
 func (c *Check) instanceConfigure(data integration.Data) error {
 	conf := make(map[interface{}]interface{})
@@ -115,22 +115,9 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 	// Force exclusion of CDROM (iso9660) from disk check
 	c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, "iso9660")
 
-	for _, key := range []string{"device_exclude", "device_blacklist", "excluded_disks"} {
-		if deviceExclude, ok := conf[key].([]interface{}); ok {
-			for _, val := range deviceExclude {
-				if strVal, ok := val.(string); ok {
-					c.cfg.excludedDisks = append(c.cfg.excludedDisks, strVal)
-				}
-			}
-		}
-	}
-
-	excludedDiskRe, found := conf["excluded_disk_re"]
-	if excludedDiskRe, ok := excludedDiskRe.(string); found && ok {
-		c.cfg.excludedDiskRe, err = regexp.Compile(excludedDiskRe)
-		if err != nil {
-			return err
-		}
+	err = c.configureExcludeDevice(conf)
+	if err != nil {
+		return err
 	}
 
 	tagByFilesystem, found := conf["tag_by_filesystem"]
@@ -167,6 +154,27 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 		}
 	}
 
+	return nil
+}
+
+func (c *Check) configureExcludeDevice(conf map[interface{}]interface{}) error {
+	for _, key := range []string{"device_exclude", "device_blacklist", "excluded_disks"} {
+		if deviceExclude, ok := conf[key].([]interface{}); ok {
+			for _, val := range deviceExclude {
+				if strVal, ok := val.(string); ok {
+					c.cfg.excludedDevices = append(c.cfg.excludedDevices, strVal)
+				}
+			}
+		}
+	}
+	excludedDiskRe, found := conf["excluded_disk_re"]
+	if excludedDiskRe, ok := excludedDiskRe.(string); found && ok {
+		var err error
+		c.cfg.excludedDeviceRe, err = regexp.Compile(excludedDiskRe)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
