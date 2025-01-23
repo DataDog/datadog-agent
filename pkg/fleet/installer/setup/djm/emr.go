@@ -7,11 +7,14 @@
 package djm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
@@ -19,10 +22,11 @@ import (
 )
 
 const (
-	emrInjectorVersion   = "0.26.0-1"
-	emrJavaTracerVersion = "1.42.2-1"
-	emrAgentVersion      = "7.58.2-1"
-	hadoopLogFolder      = "/var/log/hadoop-yarn/containers/"
+	emrInjectorVersion     = "0.26.0-1"
+	emrJavaTracerVersion   = "1.42.2-1"
+	emrAgentVersion        = "7.58.2-1"
+	commandTimeoutDuration = 10 * time.Second
+	hadoopLogFolder        = "/var/log/hadoop-yarn/containers/"
 )
 
 var (
@@ -52,7 +56,7 @@ var (
 	logProcessor = []common.IntegrationConfigLogProcessor{
 		{
 			Type:   "regex_parser",
-			Source: "dirname",
+			Source: "filename",
 			Regex:  "/var/log/hadoop-yarn/containers/(?P<application_id>application_[0-9]+_[0-9]+)/(?P<container_id>container_[0-9]+_[0-9]+_[0-9]+_[0-9]+)",
 			Target: "attributes",
 		},
@@ -124,6 +128,11 @@ func SetupEmr(s *common.Setup) error {
 	// Add logs config to both Resource Manager and Workers
 	var sparkIntegration common.IntegrationConfig
 	if os.Getenv("DD_EMR_LOGS_ENABLED") == "true" {
+		// Add dd-agent to yarn group to give the Agent permission to READ the Spark log files
+		_, err := executeCommandWithTimeout(s, "usermod", "-aG", "yarn", "dd-agent")
+		if err != nil {
+			log.Warnf("error changing permission group for log file, dd-agent won't have access to EMR logs: %v", err)
+		}
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = emrLogs
 	}
@@ -192,11 +201,29 @@ func setupResourceManager(s *common.Setup, clusterName string) {
 
 }
 
+var executeCommandWithTimeout = func(s *common.Setup, command string, args ...string) (output []byte, err error) {
+	span, _ := telemetry.StartSpanFromContext(s.Ctx, "setup.command")
+	span.SetResourceName(command)
+	defer func() { span.Finish(err) }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeoutDuration)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, command, args...)
+	output, err = cmd.Output()
+
+	if err != nil {
+		span.Finish(err)
+		return nil, err
+	}
+	return output, nil
+}
+
 func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 	var err error
 	span, _ := telemetry.StartSpanFromContext(s.Ctx, "resolve.cluster_name")
 	defer func() { span.Finish(err) }()
-	emrResponseRaw, err := common.ExecuteCommandWithTimeout(s, "aws", "emr", "describe-cluster", "--cluster-id", jobFlowID)
+	emrResponseRaw, err := executeCommandWithTimeout(s, "aws", "emr", "describe-cluster", "--cluster-id", jobFlowID)
 	if err != nil {
 		log.Warnf("error describing emr cluster, using cluster id as name: %v", err)
 		return jobFlowID
