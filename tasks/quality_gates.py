@@ -63,7 +63,10 @@ def display_pr_comment(
     for gate in sorted(gateStates, key=lambda x: x["error_type"] is None):
 
         def getMetric(metric_name, gate_name=gate['name']):
-            return metricHandler.get_formated_metric(gate_name, metric_name)
+            try:
+                return metricHandler.get_formated_metric(gate_name, metric_name)
+            except KeyError:
+                return "DataNotFound"
 
         if gate["error_type"] is None:
             body_info += f"|{SUCCESS_CHAR}|{gate['name']}|{getMetric('current_on_disk_size')}|{getMetric('max_on_disk_size')}|{getMetric('current_on_wire_size')}|{getMetric('max_on_wire_size')}|\n"
