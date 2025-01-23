@@ -28,10 +28,10 @@ const (
 
 type diskConfig struct {
 	useMount             bool
-	excludedFilesystems  []string
 	includedDevices      []string
 	excludedDevices      []string
 	excludedDeviceRe     *regexp.Regexp
+	excludedFilesystems  []string
 	tagByFilesystem      bool
 	excludedMountpointRe *regexp.Regexp
 	allPartitions        bool
@@ -42,10 +42,10 @@ type diskConfig struct {
 func NewDiskConfig() *diskConfig {
 	return &diskConfig{
 		useMount:             false,
-		excludedFilesystems:  []string{},
 		includedDevices:      []string{},
 		excludedDevices:      []string{},
 		excludedDeviceRe:     nil,
+		excludedFilesystems:  []string{},
 		tagByFilesystem:      false,
 		excludedMountpointRe: nil,
 		allPartitions:        false,
@@ -109,19 +109,15 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 		c.cfg.useMount = useMount
 	}
 
-	excludedFilesystems, found := conf["excluded_filesystems"]
-	if excludedFilesystems, ok := excludedFilesystems.([]string); found && ok {
-		c.cfg.excludedFilesystems = excludedFilesystems
-	}
-
-	// Force exclusion of CDROM (iso9660) from disk check
-	c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, "iso9660")
-
 	err = c.configureExcludeDevice(conf)
 	if err != nil {
 		return err
 	}
 	err = c.configureIncludeDevice(conf)
+	if err != nil {
+		return err
+	}
+	err = c.configureExcludeFileSystem(conf)
 	if err != nil {
 		return err
 	}
@@ -194,6 +190,21 @@ func (c *Check) configureIncludeDevice(conf map[interface{}]interface{}) error {
 			}
 		}
 	}
+	return nil
+}
+
+func (c *Check) configureExcludeFileSystem(conf map[interface{}]interface{}) error {
+	for _, key := range []string{"file_system_exclude", "file_system_blacklist", "excluded_filesystems"} {
+		if fileSystemExclude, ok := conf[key].([]interface{}); ok {
+			for _, val := range fileSystemExclude {
+				if strVal, ok := val.(string); ok {
+					c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, strVal)
+				}
+			}
+		}
+	}
+	// Force exclusion of CDROM (iso9660) from disk check
+	c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, "iso9660")
 	return nil
 }
 

@@ -109,7 +109,7 @@ func (c *Check) excludePartition(partition disk.PartitionStat) bool {
 			return true
 		}
 	}
-	exclude := c.excludeDevice(device) || !c.includeDevice(device)
+	exclude := (c.excludeDevice(device) || c.excludeFileSystem(partition.Fstype)) || !c.includeDevice(device)
 	return exclude
 }
 
@@ -125,6 +125,13 @@ func (c *Check) includeDevice(device string) bool {
 		return true
 	}
 	return stringSliceContain(c.cfg.includedDevices, device)
+}
+
+func (c *Check) excludeFileSystem(fileSystem string) bool {
+	if len(c.cfg.excludedFilesystems) == 0 {
+		return false
+	}
+	return stringSliceContain(c.cfg.excludedFilesystems, fileSystem)
 }
 
 func (c *Check) collectDiskMetrics(sender sender.Sender) error {
