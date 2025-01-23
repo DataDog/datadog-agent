@@ -40,7 +40,6 @@ go_library(
         "//comp/metadata/resources/resourcesimpl",
         "//comp/metadata/runner",
         "//comp/metadata/runner/runnerimpl",
-        "//comp/serializer/compression/compressionimpl",
         "//pkg/config",
         "//pkg/serializer",
         "//pkg/status/health",

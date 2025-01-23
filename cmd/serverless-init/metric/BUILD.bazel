@@ -20,7 +20,6 @@ go_test(
         "//comp/aggregator/demultiplexer/demultiplexerimpl",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/logimpl",
-        "//comp/serializer/compression/compressionimpl",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
     ],

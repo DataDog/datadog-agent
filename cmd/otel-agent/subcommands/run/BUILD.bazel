@@ -31,7 +31,6 @@ go_library(
         "//comp/otelcol/logsagentpipeline/logsagentpipelineimpl",
         "//comp/otelcol/otlp/components/pipeline/provider",
         "//comp/serializer/compression",
-        "//comp/serializer/compression/compressionimpl/strategy",
         "//pkg/config/env",
         "//pkg/serializer",
         "//pkg/util/fxutil",
