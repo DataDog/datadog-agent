@@ -119,7 +119,7 @@ Invoke-BuildScript `
     }
     
     # Run python-script unit tests
-    & inv -e invoke-unit-tests -v 3 --directory=".\omnibus\python-scripts\"
+    & inv -e invoke-unit-tests --directory=".\omnibus\python-scripts\"
     $err = $LASTEXITCODE
     Write-Host Python-script test result is $err
     if($err -ne 0){
