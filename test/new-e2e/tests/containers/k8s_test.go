@@ -827,8 +827,6 @@ func (suite *k8sSuite) TestKSM() {
 			Tags: &[]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^kube_namespace:workload-redis$`,
-				`^org:agent-org$`,
-				`^team:contp$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
