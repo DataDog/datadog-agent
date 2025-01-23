@@ -106,6 +106,9 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                // Set the flavor so CustomActions can adjust their behavior.
+                // For example, we only run openssl fipsinstall in the FIPS flavor.
+                new Property("AgentFlavor", _agentFlavor.FlavorName),
                 // set this property to anything to indicate to the merge module that on install rollback, it should
                 // execute the install custom action rollback; otherwise it won't.
                 new Property("DDDRIVERROLLBACK_NPM", "1"),
