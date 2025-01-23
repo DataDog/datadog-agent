@@ -74,6 +74,7 @@ func (h *headerProvider) HTML(_ bool, buffer io.Writer) error {
 func (h *headerProvider) data() map[string]interface{} {
 	data := maps.Clone(h.constdata)
 	data["time_nano"] = nowFunc().UnixNano()
+	data["fips_status"] = fips.Status()
 	data["config"] = populateConfig(h.config)
 	return data
 }
@@ -90,7 +91,6 @@ func newCommonHeaderProvider(params status.Params, config config.Component) stat
 	data["agent_start_nano"] = startTimeProvider.UnixNano()
 	pythonVersion := params.PythonVersionGetFunc()
 	data["python_version"] = strings.Split(pythonVersion, " ")[0]
-	data["fips_status"] = fips.Status()
 	data["build_arch"] = runtime.GOARCH
 
 	return &headerProvider{
