@@ -496,7 +496,7 @@ func TestDiskCheckPartitionsFileSystemExclude(t *testing.T) {
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
 file_system_exclude:
-  - tmpfs
+  - tmp.*
 `))
 
 	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
@@ -516,7 +516,7 @@ func TestDiskCheckPartitionsFileSystemBlackList(t *testing.T) {
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
 file_system_blacklist:
-  - tmpfs
+  - tmp.*
 `))
 
 	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
@@ -536,7 +536,7 @@ func TestDiskCheckPartitionsExcludedFileSystems(t *testing.T) {
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
 excluded_filesystems:
-  - tmpfs
+  - tmp.*
 `))
 
 	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
@@ -549,6 +549,21 @@ excluded_filesystems:
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
 }
 
+func TestDiskCheckPartitionsFileSystemExcludeError(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := new(Check)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+file_system_exclude:
+  - tmp(.*
+`))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.NotNil(t, err)
+}
+
 func TestDiskCheckPartitionsFileSystemInclude(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := new(Check)
@@ -556,7 +571,7 @@ func TestDiskCheckPartitionsFileSystemInclude(t *testing.T) {
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
 file_system_include:
-  - ext4
+  - ext.*
 `))
 
 	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
@@ -576,7 +591,7 @@ func TestDiskCheckPartitionsFileSystemWhiteList(t *testing.T) {
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
 file_system_whitelist:
-  - ext4
+  - ext.*
 `))
 
 	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
@@ -587,6 +602,21 @@ file_system_whitelist:
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestDiskCheckPartitionsFileSystemIncludeError(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := new(Check)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+file_system_include:
+  - ext(.*
+`))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.NotNil(t, err)
 }
 
 func TestDiskCheckPartitionsExcludedMountPointRe(t *testing.T) {

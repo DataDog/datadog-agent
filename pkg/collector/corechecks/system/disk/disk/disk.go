@@ -30,8 +30,8 @@ type diskConfig struct {
 	useMount             bool
 	includedDevices      []regexp.Regexp
 	excludedDevices      []regexp.Regexp
-	includedFilesystems  []string
-	excludedFilesystems  []string
+	includedFilesystems  []regexp.Regexp
+	excludedFilesystems  []regexp.Regexp
 	tagByFilesystem      bool
 	excludedMountpointRe *regexp.Regexp
 	allPartitions        bool
@@ -44,8 +44,8 @@ func NewDiskConfig() *diskConfig {
 		useMount:             false,
 		includedDevices:      []regexp.Regexp{},
 		excludedDevices:      []regexp.Regexp{},
-		includedFilesystems:  []string{},
-		excludedFilesystems:  []string{},
+		includedFilesystems:  []regexp.Regexp{},
+		excludedFilesystems:  []regexp.Regexp{},
 		tagByFilesystem:      false,
 		excludedMountpointRe: nil,
 		allPartitions:        false,
@@ -220,13 +220,21 @@ func (c *Check) configureExcludeFileSystem(conf map[interface{}]interface{}) err
 		if fileSystemExclude, ok := conf[key].([]interface{}); ok {
 			for _, val := range fileSystemExclude {
 				if strVal, ok := val.(string); ok {
-					c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, strVal)
+					regexp, err := regexp.Compile(strVal)
+					if err != nil {
+						return err
+					}
+					c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, *regexp)
 				}
 			}
 		}
 	}
 	// Force exclusion of CDROM (iso9660) from disk check
-	c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, "iso9660")
+	regexp, err := regexp.Compile("iso9660")
+	if err != nil {
+		return err
+	}
+	c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, *regexp)
 	return nil
 }
 
@@ -235,7 +243,11 @@ func (c *Check) configureIncludeFileSystem(conf map[interface{}]interface{}) err
 		if fileSystemInclude, ok := conf[key].([]interface{}); ok {
 			for _, val := range fileSystemInclude {
 				if strVal, ok := val.(string); ok {
-					c.cfg.includedFilesystems = append(c.cfg.includedFilesystems, strVal)
+					regexp, err := regexp.Compile(strVal)
+					if err != nil {
+						return err
+					}
+					c.cfg.includedFilesystems = append(c.cfg.includedFilesystems, *regexp)
 				}
 			}
 		}
@@ -255,14 +267,14 @@ func (c *Check) configureExcludeMountPoint(conf map[interface{}]interface{}) err
 	return nil
 }
 
-func stringSliceContain(slice []string, x string) bool {
-	for _, e := range slice {
-		if e == x {
-			return true
-		}
-	}
-	return false
-}
+// func stringSliceContain(slice []string, x string) bool {
+// 	for _, e := range slice {
+// 		if e == x {
+// 			return true
+// 		}
+// 	}
+// 	return false
+// }
 
 func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
 	for _, regexp := range slice {

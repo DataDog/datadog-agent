@@ -131,14 +131,14 @@ func (c *Check) excludeFileSystem(fileSystem string) bool {
 	if len(c.cfg.excludedFilesystems) == 0 {
 		return false
 	}
-	return stringSliceContain(c.cfg.excludedFilesystems, fileSystem)
+	return sliceMatchesExpression(c.cfg.excludedFilesystems, fileSystem)
 }
 
 func (c *Check) includeFileSystem(fileSystem string) bool {
 	if len(c.cfg.includedFilesystems) == 0 {
 		return true
 	}
-	return stringSliceContain(c.cfg.includedFilesystems, fileSystem)
+	return sliceMatchesExpression(c.cfg.includedFilesystems, fileSystem)
 }
 
 func (c *Check) excludeMountPoint(mountPoint string) bool {
