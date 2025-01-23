@@ -127,6 +127,10 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 	if err != nil {
 		return err
 	}
+	err = c.configureExcludeMountPoint(conf)
+	if err != nil {
+		return err
+	}
 
 	tagByFilesystem, found := conf["tag_by_filesystem"]
 	if tagByFilesystem, ok := tagByFilesystem.(bool); found && ok {
@@ -222,6 +226,18 @@ func (c *Check) configureIncludeFileSystem(conf map[interface{}]interface{}) err
 					c.cfg.includedFilesystems = append(c.cfg.includedFilesystems, strVal)
 				}
 			}
+		}
+	}
+	return nil
+}
+
+func (c *Check) configureExcludeMountPoint(conf map[interface{}]interface{}) error {
+	excludedMountPointRe, found := conf["excluded_mountpoint_re"]
+	if excludedMountPointRe, ok := excludedMountPointRe.(string); found && ok {
+		var err error
+		c.cfg.excludedMountpointRe, err = regexp.Compile(excludedMountPointRe)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
