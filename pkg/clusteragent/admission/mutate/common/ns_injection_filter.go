@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// TODO(mspicer) Mabybe implment this interface?
 // InjectionFilter is an interface to determine if a pod should be mutated.
 type InjectionFilter interface {
 	// ShouldMutatePod checks if a pod is mutable per explicit rules and

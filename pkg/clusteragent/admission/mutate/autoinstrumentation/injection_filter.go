@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// TODO(mspicer): Maybe take this over?
 // NewInjectionFilter constructs an injection filter using the autoinstrumentation
 // GetNamespaceInjectionFilter.
 func NewInjectionFilter(datadogConfig config.Component) (mutatecommon.InjectionFilter, error) {
