@@ -122,9 +122,8 @@ func (s *socketFilterSnooper) Start() error {
 func (s *socketFilterSnooper) Close() {
 	s.once.Do(func() {
 		close(s.exit)
-		// stop the packet capture loop
+		// close the packet capture loop and wait for it to finish
 		s.source.Close()
-		// wait for the packet capture loop to finish
 		s.wg.Wait()
 		s.cache.Close()
 		if s.statKeeper != nil {
