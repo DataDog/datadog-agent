@@ -235,7 +235,7 @@ struct syscall_cache_t {
         } login_uid;
 
         struct {
-            u8 in_progress;
+            u8 in_flight;
         } stat;
     };
 };

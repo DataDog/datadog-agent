@@ -365,6 +365,11 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("chmod-upper", func(t *testing.T) {
+		checkKernelCompatibility(t, "Oracle kernels", func(kv *kernel.Version) bool {
+			// skip Oracle for now
+			return kv.IsOracleUEKKernel()
+		})
+
 		testFile, _, err := test.Path("bind/new.txt")
 		if err != nil {
 			t.Fatal(err)
@@ -433,6 +438,11 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("chown-upper", func(t *testing.T) {
+		checkKernelCompatibility(t, "Oracle kernels", func(kv *kernel.Version) bool {
+			// skip Oracle for now
+			return kv.IsOracleUEKKernel()
+		})
+
 		testFile, _, err := test.Path("bind/new.txt")
 		if err != nil {
 			t.Fatal(err)
@@ -495,6 +505,11 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("truncate-upper", func(t *testing.T) {
+		checkKernelCompatibility(t, "Oracle kernels", func(kv *kernel.Version) bool {
+			// skip Oracle for now
+			return kv.IsOracleUEKKernel()
+		})
+
 		testFile, _, err := test.Path("bind/new.txt")
 		if err != nil {
 			t.Fatal(err)
@@ -547,6 +562,11 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("rename-upper", func(t *testing.T) {
+		checkKernelCompatibility(t, "Oracle kernels", func(kv *kernel.Version) bool {
+			// skip Oracle for now
+			return kv.IsOracleUEKKernel()
+		})
+
 		oldFile, _, err := test.Path("bind/new.txt")
 		if err != nil {
 			t.Fatal(err)

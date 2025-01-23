@@ -553,6 +553,9 @@ func (p *EBPFResolver) RetrieveFileFieldsFromProcfs(filename string) (*model.Fil
 		return nil, fmt.Errorf("unable to get filename for inode `%d`: %w", inode, err)
 	}
 
+	// free the slot
+	_ = p.inodeFileMap.Delete(inodeb)
+
 	var fileFields model.FileFields
 	if _, err := fileFields.UnmarshalBinary(data); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal entry for inode `%d`: %w", inode, err)

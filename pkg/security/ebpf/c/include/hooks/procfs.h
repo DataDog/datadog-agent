@@ -76,10 +76,10 @@ int hook_security_inode_getattr(ctx_t *ctx) {
         return 0;
     }
 
-    if (syscall->stat.in_progress) {
+    if (syscall->stat.in_flight) {
         return 0;
     }
-    syscall->stat.in_progress = 1;
+    syscall->stat.in_flight = 1;
 
     u32 mount_id = 0;
     struct dentry *dentry;
