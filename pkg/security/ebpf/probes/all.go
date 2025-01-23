@@ -117,14 +117,7 @@ func AllProbes(fentry bool) []*manager.Probe {
 			},
 		},
 	)
-
-	allProbes = append(allProbes,
-		ExpandSyscallProbes(&manager.Probe{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID: SecurityAgentUID,
-			},
-			SyscallFuncName: "newfstatat",
-		}, fentry, EntryAndExit)...)
+	allProbes = appendSyscallProbes(allProbes, fentry, EntryAndExit, false, "newfstatat")
 
 	return allProbes
 }
