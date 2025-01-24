@@ -45,7 +45,7 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	noopEventplatformreceiver "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/noop"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -112,7 +112,7 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
 		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
-		eventplatformreceiverimpl.Module(),
+		noopEventplatformreceiver.Module(),
 		defaultforwarder.Module(defaultforwarder.NewParams()),
 		// logscompressionimpl.Module(),
 		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other

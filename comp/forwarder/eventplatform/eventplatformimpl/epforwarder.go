@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -507,7 +506,7 @@ func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
 	var forwarder *defaultEventPlatformForwarder
 
 	if deps.Params.UseNoopEventPlatformForwarder {
-		forwarder = newNoopEventPlatformForwarder(deps.Hostname, deps.Compression)
+		forwarder = newNoopEventPlatformForwarder(deps.Hostname, deps.EventPlatformReceiver, deps.Compression)
 	} else if deps.Params.UseEventPlatformForwarder {
 		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver, deps.Compression)
 	}
@@ -529,12 +528,12 @@ func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
 
 // NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events
 // will build up in each pipeline channel without being forwarded to the intake
-func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) eventplatform.Forwarder {
-	return newNoopEventPlatformForwarder(hostname, compression)
+func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, receiver eventplatformreceiver.Component, compression logscompression.Component) eventplatform.Forwarder {
+	return newNoopEventPlatformForwarder(hostname, receiver, compression)
 }
 
-func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
-	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname).Comp, compression)
+func newNoopEventPlatformForwarder(_ hostnameinterface.Component, receiver eventplatformreceiver.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
+	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), receiver, compression)
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil
