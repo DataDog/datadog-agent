@@ -10,8 +10,8 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.138
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.62.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/proto v0.62.0-rc.9
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.62.0-rc.10
+	github.com/DataDog/datadog-agent/pkg/proto v0.62.0-rc.10
 	github.com/DataDog/zstd v1.5.6
 	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff/v4 v4.3.0
