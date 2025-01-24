@@ -325,3 +325,114 @@ def compute_gitlab_ci_config(
     print('Writing', diff_file)
     with open(diff_file, 'w') as f:
         f.write(yaml.safe_dump(diff.to_dict()))
+
+
+required_jobs = [
+    "go_mod_tidy_check",
+    "tests_deb-x64-py3",
+    "tests_deb-arm64-py3",
+    "tests_rpm-x64-py3",
+    "tests_rpm-arm64-py3",
+    "slack_teams_channels_check",
+    "lint_windows-x64",
+    "lint_linux-x64",
+    "lint_linux-arm64",
+    "lint_flavor_iot_linux-x64",
+    "lint_flavor_dogstatsd_linux-x64",
+    "tests_ebpf_arm64",
+    "tests_ebpf_x64",
+    "do-not-merge",
+    "agent_deb-x64-a7",
+    "agent_rpm-x64-a7",
+    "agent_suse-x64-a7",
+    "deploy_deb_testing-a7_x64",
+    "deploy_suse_rpm_testing_x64-a7",
+    "new-e2e-agent-platform-install-script-debian-a7-x86_64",
+    "new-e2e-agent-platform-install-script-suse-a7-x86_64",
+    "new-e2e-agent-platform-install-script-ubuntu-a7-x86_64",
+    "new-e2e-agent-platform-install-script-debian-iot-agent-a7-x86_64",
+    "agent_heroku_deb-x64-a7",
+    "iot_agent_deb-x64",
+    "dogstatsd_deb-x64",
+    "iot_agent_rpm-x64",
+    "dogstatsd_rpm-x64",
+    "security_go_generate_check",
+    "lint_python",
+    "new-e2e-agent-platform-install-script-centos-a7-x86_64",
+    "single-machine-performance-regression_detector",
+    "lint_licenses",
+    "lint_components",
+    "lint_filename",
+    "lint_codeowners",
+    "lint_copyrights",
+    "lint_shell",
+    "tests_macos_gitlab_amd64",
+    "check_pkg_size",
+]
+
+
+@task
+def regression_detector_stats(ctx, verbose=False):
+    """Prints stats to see if the regression detector is in the critical path."""
+
+    # Dev branches
+    pipelines = (
+        53904471,
+        53909215,
+        53905400,
+        53900991,
+        53899736,
+        53900570,
+        53901363,
+        53896138,
+        53895136,
+        53687308,
+        53892855,
+    )
+
+    print(len(pipelines), 'pipelines')
+    crit_pipelines = []
+    for p in pipelines:
+        print(p)
+        if is_regression_detector_in_critical_path(ctx, p, verbose):
+            crit_pipelines.append(p)
+            print('Regression detector is in the critical path')
+
+    print(
+        f'{len(crit_pipelines)} out of {len(pipelines)} pipelines ({len(crit_pipelines)/len(pipelines)*100:.2f}%) have the regression detector in the critical path: {" ".join(map(str, crit_pipelines))}'
+    )
+
+
+@task
+def is_regression_detector_in_critical_path(ctx, pipeline_id, verbose=True) -> bool:
+    from datetime import datetime
+
+    pipeline = get_gitlab_repo().pipelines.get(pipeline_id)
+    jobs = pipeline.jobs.list(all=True, per_page=100)
+
+    # Only required jobs
+    job_ends = {job.name: job.finished_at for job in jobs if any(job.name.startswith(rj) for rj in required_jobs)}
+    job_ends = sorted(
+        (datetime.fromisoformat(end) - datetime.fromisoformat(pipeline.created_at), job)
+        for (job, end) in job_ends.items()
+        if end
+    )
+
+    assert any(
+        'regression_detector' in job for _, job in job_ends
+    ), f'No regression detector job for pipeline {pipeline_id}'
+
+    if verbose:
+        for end, job in job_ends:
+            print(f'{end.seconds // 3600}:{end.seconds // 60 % 60:02d} -> {job}')
+
+    last_job = job_ends[-1][1]
+    is_regression_detector = 'regression_detector' in last_job
+
+    if verbose:
+        if is_regression_detector:
+            print('Regression detector is in the critical path')
+        else:
+            print('Regression detector is NOT in the critical path')
+
+    return is_regression_detector
