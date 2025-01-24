@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -65,6 +66,17 @@ func (c *Check) diskConfigure(data integration.Data, initConfig integration.Data
 	err = yaml.Unmarshal([]byte(initConfig), &unmarshalledInitConfig)
 	if err != nil {
 		return err
+	}
+
+	deprecationsInitConf := map[string]string{
+		"file_system_global_blacklist": "file_system_global_exclude",
+		"device_global_blacklist":      "device_global_exclude",
+		"mount_point_global_blacklist": "mount_point_global_exclude",
+	}
+	for oldKey, newKey := range deprecationsInitConf {
+		if _, exists := unmarshalledInitConfig[oldKey]; exists {
+			log.Warnf("`%s` is deprecated and will be removed in a future release. Please use `%s` instead.", oldKey, newKey)
+		}
 	}
 
 	c.cfg = NewDiskConfig()
