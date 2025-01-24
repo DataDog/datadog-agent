@@ -7,26 +7,21 @@
 package djm
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strconv"
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"os"
+	"path/filepath"
+	"strconv"
 )
 
 const (
-	emrInjectorVersion     = "0.26.0-1"
-	emrJavaTracerVersion   = "1.42.2-1"
-	emrAgentVersion        = "7.58.2-1"
-	commandTimeoutDuration = 10 * time.Second
-	hadoopLogFolder        = "/var/log/hadoop-yarn/containers/"
+	emrInjectorVersion   = "0.26.0-1"
+	emrJavaTracerVersion = "1.42.2-1"
+	emrAgentVersion      = "7.58.2-1"
+	hadoopLogFolder      = "/var/log/hadoop-yarn/containers/"
 )
 
 var (
@@ -196,33 +191,11 @@ func setupResourceManager(s *common.Setup, clusterName string) {
 
 }
 
-var ExecuteCommandWithTimeout = func(s *common.Setup, command string, args ...string) (output []byte, err error) {
-	span, _ := telemetry.StartSpanFromContext(s.Ctx, "setup.command")
-	span.SetResourceName(command)
-	defer func() { span.Finish(err) }()
-
-	ctx, cancel := context.WithTimeout(context.Background(), commandTimeoutDuration)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, command, args...)
-	output, err = cmd.Output()
-	span.SetTag("command_error", err.Error())
-	if output != nil {
-		span.SetTag("command_output", string(output))
-	}
-
-	if err != nil {
-		span.Finish(err)
-		return nil, err
-	}
-	return output, nil
-}
-
 func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 	var err error
 	span, _ := telemetry.StartSpanFromContext(s.Ctx, "resolve.cluster_name")
 	defer func() { span.Finish(err) }()
-	emrResponseRaw, err := ExecuteCommandWithTimeout(s, "aws", "emr", "describe-cluster", "--cluster-id", jobFlowID)
+	emrResponseRaw, err := common.ExecuteCommandWithTimeout(s, "aws", "emr", "describe-cluster", "--cluster-id", jobFlowID)
 	if err != nil {
 		log.Warnf("error describing emr cluster, using cluster id as name: %v", err)
 		return jobFlowID
