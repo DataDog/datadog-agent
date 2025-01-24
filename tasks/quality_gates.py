@@ -15,12 +15,12 @@ SUCCESS_CHAR = "✅"
 
 body_info_pattern = """### Info
 
-|Result|Quality gate|On disk size|Maximum on disk size|On wire size|Maximum on wire size|
+|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|
 |----|----|----|----|----|----|
 """
 body_error_pattern = """### Error
 
-|Result|Quality gate|On disk size|Maximum on disk size|On wire size|Maximum on wire size|
+|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|
 |----|----|----|----|----|----|
 """
 
