@@ -244,5 +244,5 @@ func (s statusProvider) Text(_ bool, buffer io.Writer) error {
 
 // HTML renders the html output
 func (s statusProvider) HTML(_ bool, buffer io.Writer) error {
-	return nil
+	return status.RenderHTML(templatesFS, "otelagentHTML.tmpl", buffer, s.getStatusInfo())
 }
