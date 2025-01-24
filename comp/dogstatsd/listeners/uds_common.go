@@ -197,7 +197,6 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 	l.telemetryStore.tlmUDSConnections.Inc(tlmListenerID, l.transport)
 	defer func() {
 		_ = closeFunc(conn)
-		packetsBuffer.Flush()
 		packetsBuffer.Close()
 		if telemetryWithFullListenerID {
 			l.clearTelemetry(tlmListenerID)
