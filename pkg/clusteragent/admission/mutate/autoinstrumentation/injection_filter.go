@@ -89,6 +89,8 @@ func (f *injectionFilter) Err() error {
 //     are not one of the ones disabled by default.
 //   - Enabled and disabled namespaces: return error.
 func makeAPMSSINamespaceFilter(apmEnabledNamespaces, apmDisabledNamespaces []string) (*containers.Filter, error) {
+	log.Infof("APM SSI enabled namespaces: %v", apmEnabledNamespaces)
+	log.Infof("APM SSI disabled namespaces: %v", apmDisabledNamespaces)
 	if len(apmEnabledNamespaces) > 0 && len(apmDisabledNamespaces) > 0 {
 		return nil, fmt.Errorf("apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces configuration cannot be set together")
 	}

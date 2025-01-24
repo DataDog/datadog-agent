@@ -181,6 +181,7 @@ func (w *Webhook) inject(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool,
 	}
 
 	extractedLibInfo := w.extractLibInfo(pod)
+	log.Info("Extracted libraries: ", extractedLibInfo.libs)
 	if len(extractedLibInfo.libs) == 0 {
 		return false, nil
 	}
@@ -439,44 +440,50 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 		return extracted.withLibs(libs)
 	}
 
-	libs = w.extractLibrariesFromAnnotations(pod)
-	if len(libs) > 0 {
-		return extracted.withLibs(libs)
-	}
-
-	// if the user has pinned libraries for their configuration,
-	// we prefer to use these and not override their behavior.
-	//
-	// N.B. this is empty if auto-instrumentation is disabled.
-	if len(w.config.pinnedLibraries) > 0 {
-		return extracted.withLibs(w.config.pinnedLibraries)
-	}
-
-	// if the language_detection injection is enabled
-	// (and we have things to filter to) we use that!
-	if e, usingLanguageDetection := extracted.useLanguageDetectionLibs(); usingLanguageDetection {
-		return e
-	}
-
-	if extracted.source.isSingleStep() {
-		return extracted.withLibs(getAllLatestDefaultLibraries(w.config.containerRegistry))
-	}
-
-	// Get libraries to inject for Remote Instrumentation
-	// Inject all if "admission.datadoghq.com/all-lib.version" exists
-	// without any other language-specific annotations.
-	// This annotation is typically expected to be set via remote-config
-	// for batch instrumentation without language detection.
-	injectAllAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, "all"))
-	if version, found := pod.Annotations[injectAllAnnotation]; found {
-		if version != "latest" {
-			log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
-		}
-
-		return extracted.withLibs(getAllLatestDefaultLibraries(w.config.containerRegistry))
-	}
-
 	return extractedPodLibInfo{}
+
+	// libs = w.extractLibrariesFromAnnotations(pod)
+	//
+	//	if len(libs) > 0 {
+	//		return extracted.withLibs(libs)
+	//	}
+	//
+	// // if the user has pinned libraries for their configuration,
+	// // we prefer to use these and not override their behavior.
+	// //
+	// // N.B. this is empty if auto-instrumentation is disabled.
+	//
+	//	if len(w.config.pinnedLibraries) > 0 {
+	//		return extracted.withLibs(w.config.pinnedLibraries)
+	//	}
+	//
+	// // if the language_detection injection is enabled
+	// // (and we have things to filter to) we use that!
+	//
+	//	if e, usingLanguageDetection := extracted.useLanguageDetectionLibs(); usingLanguageDetection {
+	//		return e
+	//	}
+	//
+	//	if extracted.source.isSingleStep() {
+	//		return extracted.withLibs(getAllLatestDefaultLibraries(w.config.containerRegistry))
+	//	}
+	//
+	// // Get libraries to inject for Remote Instrumentation
+	// // Inject all if "admission.datadoghq.com/all-lib.version" exists
+	// // without any other language-specific annotations.
+	// // This annotation is typically expected to be set via remote-config
+	// // for batch instrumentation without language detection.
+	// injectAllAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, "all"))
+	//
+	//	if version, found := pod.Annotations[injectAllAnnotation]; found {
+	//		if version != "latest" {
+	//			log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
+	//		}
+	//
+	//		return extracted.withLibs(getAllLatestDefaultLibraries(w.config.containerRegistry))
+	//	}
+	//
+	// return extractedPodLibInfo{}
 }
 
 // getAutoDetectedLibraries constructs the libraries to be injected if the languages

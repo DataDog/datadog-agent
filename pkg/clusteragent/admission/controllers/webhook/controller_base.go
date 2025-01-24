@@ -98,6 +98,7 @@ type Webhook interface {
 // doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
 // the agent sidecar webhook needs to remove it.
 func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component, demultiplexer demultiplexer.Component) []Webhook {
+	log.Info("ahhhhh its really my build")
 	// Note: the auto_instrumentation pod injection filter is used across
 	// multiple mutating webhooks, so we add it as a hard dependency to each
 	// of the components that use it via the injectionFilter parameter.

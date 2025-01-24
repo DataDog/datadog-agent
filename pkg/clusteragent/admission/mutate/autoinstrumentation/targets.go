@@ -6,6 +6,7 @@
 package autoinstrumentation
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/go-viper/mapstructure/v2"
@@ -30,6 +31,12 @@ func NewTargetFilter(datadogConfig config.Component) (*TargetFilter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error parsing targets from config: %w", err)
 	}
+
+	data, err := json.Marshal(targets)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling targets: %w", err)
+	}
+	log.Infof("Parsed targets: %s", data)
 
 	disabledNamespacesCfg := datadogConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
 	disabledNamespaces := make(map[string]bool, len(disabledNamespacesCfg))
