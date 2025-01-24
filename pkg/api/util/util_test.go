@@ -61,9 +61,6 @@ func TestStartingServerClientWithUninitializedTLS(t *testing.T) {
 	clientTLSConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	config, err := generateSelfSignedCert()
-	require.NoError(t, err)
-	serverTLSConfig = &config
 
 	// create a server with the provided tls server config
 	l, err := net.Listen("tcp", ":0")

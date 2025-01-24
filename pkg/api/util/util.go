@@ -165,7 +165,12 @@ func GetTLSServerConfig() *tls.Config {
 	tokenLock.RLock()
 	defer tokenLock.RUnlock()
 	if initSource == uninitialized {
-		log.Errorf("GetTLSServerConfig was called before being initialized (through SetAuthToken or CreateAndSetAuthToken function)")
+		log.Errorf("GetTLSServerConfig was called before being initialized (through SetAuthToken or CreateAndSetAuthToken function), generating a self-signed certificate")
+		config, err := generateSelfSignedCert()
+		if err != nil {
+			log.Error(err.Error())
+		}
+		serverTLSConfig = &config
 	}
 	return serverTLSConfig.Clone()
 }
@@ -300,15 +305,4 @@ func generateSelfSignedCert() (tls.Config, error) {
 	return tls.Config{
 		Certificates: []tls.Certificate{rootTLSCert},
 	}, nil
-}
-
-func init() {
-	tokenLock.Lock()
-	defer tokenLock.Unlock()
-
-	config, err := generateSelfSignedCert()
-	if err != nil {
-		log.Errorf("unable to initialize the tls server configuration: %v", err)
-	}
-	serverTLSConfig = &config
 }
