@@ -12,10 +12,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/djm"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
@@ -26,7 +25,8 @@ import (
 )
 
 const (
-	installerOCILayoutURL = "file://." // the installer OCI layout is written by the downloader in the current directory
+	installerOCILayoutURL  = "file://." // the installer OCI layout is written by the downloader in the current directory
+	commandTimeoutDuration = 10 * time.Second
 )
 
 var (
@@ -124,7 +124,7 @@ func (s *Setup) Run() (err error) {
 	isEMRorDataproc := s.flavor == "emr" || s.flavor == "dataproc"
 	if isEMRorDataproc {
 		// Add dd-agent to the yarn group to give the Agent permission to read the Spark log files.
-		_, err = djm.ExecuteCommandWithTimeout(s, "usermod", "-aG", "yarn", "dd-agent")
+		_, err = ExecuteCommandWithTimeout(s, "usermod", "-aG", "yarn", "dd-agent")
 		if err != nil {
 			return fmt.Errorf("failed to add dd-agent to group yarn: %w", err)
 		}
@@ -159,4 +159,27 @@ func (s *Setup) installPackage(name string, url string) (err error) {
 	}
 	s.Out.WriteString(fmt.Sprintf("Successfully installed %s\n", name))
 	return nil
+}
+
+// ExecuteCommandWithTimeout executes a bash command with args and times out if the command has not finished
+var ExecuteCommandWithTimeout = func(s *Setup, command string, args ...string) (output []byte, err error) {
+	span, _ := telemetry.StartSpanFromContext(s.Ctx, "setup.command")
+	span.SetResourceName(command)
+	defer func() { span.Finish(err) }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeoutDuration)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, command, args...)
+	output, err = cmd.Output()
+	if output != nil {
+		span.SetTag("command_output", string(output))
+	}
+
+	if err != nil {
+		span.SetTag("command_error", err.Error())
+		span.Finish(err)
+		return nil, err
+	}
+	return output, nil
 }

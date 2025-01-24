@@ -33,10 +33,10 @@ var emrDescribeClusterResponse string
 func TestSetupEmr(t *testing.T) {
 
 	// Mock AWS emr describe command
-	originalExecuteCommand := ExecuteCommandWithTimeout
-	defer func() { ExecuteCommandWithTimeout = originalExecuteCommand }() // Restore original after test
+	originalExecuteCommand := common.ExecuteCommandWithTimeout
+	defer func() { common.ExecuteCommandWithTimeout = originalExecuteCommand }() // Restore original after test
 
-	ExecuteCommandWithTimeout = func(s *common.Setup, command string, args ...string) (output []byte, err error) {
+	common.ExecuteCommandWithTimeout = func(s *common.Setup, command string, args ...string) (output []byte, err error) {
 		span, _ := telemetry.StartSpanFromContext(s.Ctx, "setup.command")
 		span.SetResourceName(command)
 		defer func() { span.Finish(err) }()
