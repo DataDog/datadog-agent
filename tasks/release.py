@@ -249,7 +249,7 @@ def tag_version(
         tags = __tag_single_module(ctx, get_default_modules()["."], agent_version, commit, force_option, devel)
 
         # create or update the qualification tag using the force option (points tag to next RC)
-        if is_agent6(ctx) and (start_qual or is_qualification(ctx)):
+        if is_agent6(ctx) and (start_qual or is_qualification(ctx, "6.53.x")):
             if FINAL_VERSION_RE.match(agent_version):
                 ctx.run(f"git push --delete origin {QUALIFICATION_TAG}")
             else:
@@ -494,16 +494,17 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
 
 
 @task
-def is_qualification(ctx, output=False):
-    try:
-        ctx.run(f"git tag | grep {QUALIFICATION_TAG}", hide=True)
-        if output:
-            print('true')
-        return True
-    except Failure:
-        if output:
-            print("false")
-        return False
+def is_qualification(ctx, release_branch, output=False):
+    with agent_context(ctx, release_branch):
+        try:
+            ctx.run(f"git tag | grep {QUALIFICATION_TAG}", hide=True)
+            if output:
+                print('true')
+            return True
+        except Failure:
+            if output:
+                print("false")
+            return False
 
 
 @task
@@ -585,34 +586,37 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
         run_rc_pipeline(release_branch, gitlab_tag.name, k8s_deployments)
 
 
+def get_qualification_rc_tag(ctx, release_branch):
+    with agent_context(ctx, release_branch):
+        err_msg = "Error: Expected exactly one release candidate tag associated with the qualification tag commit. Tags found:"
+        try:
+            res = ctx.run(f"git tag --points-at $(git rev-list -n 1 {QUALIFICATION_TAG}) | grep 6.53")
+        except Failure as err:
+            raise Exit(message=f"{err_msg} []", code=1) from err
+
+        tags = [tag for tag in res.stdout.split("\n") if tag.strip()]
+        if len(tags) > 1:
+            raise Exit(message=f"{err_msg} {tags}", code=1)
+        if not RC_VERSION_RE.match(tags[0]):
+            raise Exit(message=f"Error: The tag '{tags[0]}' does not match expected release candidate pattern", code=1)
+
+        return tags[0]
+
+
 @task
 def run_rc_pipeline(ctx, release_branch, gitlab_tag=None, k8s_deployments=False):
-    with agent_context(ctx, release_branch):
-        if not gitlab_tag:
-            err_msg = "Error: Expected exactly one release candidate tag associated with the qualification tag commit. Tags found:"
-            try:
-                res = ctx.run(f"git tag --points-at $(git rev-list -n 1 {QUALIFICATION_TAG}) | grep 6.53")
-            except Failure as err:
-                raise Exit(message=f"{err_msg} []", code=1) from err
+    if not gitlab_tag:
+        gitlab_tag = get_qualification_rc_tag(ctx, release_branch)
 
-            tags = [tag for tag in res.stdout.split("\n") if tag.strip()]
-            if len(tags) > 1:
-                raise Exit(message=f"{err_msg} {tags}", code=1)
-            if not RC_VERSION_RE.match(tags[0]):
-                raise Exit(
-                    message=f"Error: The tag '{tags[0]}' does not match expected release candidate pattern", code=1
-                )
-            gitlab_tag = tags[0]
-
-        run(
-            ctx,
-            git_ref=gitlab_tag,
-            use_release_entries=True,
-            repo_branch="beta",
-            deploy=True,
-            rc_build=True,
-            rc_k8s_deployments=k8s_deployments,
-        )
+    run(
+        ctx,
+        git_ref=gitlab_tag,
+        use_release_entries=True,
+        repo_branch="beta",
+        deploy=True,
+        rc_build=True,
+        rc_k8s_deployments=k8s_deployments,
+    )
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})

@@ -33,7 +33,7 @@ RC_VERSION_RE = re.compile(r'^\d+[.]\d+[.]\d+-rc\.\d+$')
 FINAL_VERSION_RE = re.compile(r'^\d+[.]\d+[.]\d+$')
 
 # Regex matching minor release rc version tag like x.y.0-rc.1 (semver PATCH == 0), but not x.y.1-rc.1 (semver PATCH > 0)
-MINOR_RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]0-rc\.\d+')
+MINOR_RC_VERSION_RE = re.compile(r'^\d+[.]\d+[.]0-rc\.\d+$')
 
 # Regex matching the git describe output
 DESCRIBE_PATTERN = re.compile(r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$")
