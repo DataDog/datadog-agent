@@ -586,6 +586,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/serializer/compression v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e

@@ -209,9 +209,7 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 # serverless tag is to ensure we do not include telemetry in the checks agent
 CHECKS_AGENT_TAGS = {"zlib", "zstd", "python", "serverless"}
 
-
 CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
-
 
 # AGENT_TEST_TAGS lists the tags that have to be added to run tests
 AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
