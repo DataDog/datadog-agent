@@ -28,6 +28,7 @@ func TestConstructURL(t *testing.T) {
 }
 
 type expectedTelemetryValues struct {
+	totalRequests      float64
 	failedRequests     float64
 	failedResponses    float64
 	responseErrors     float64
@@ -35,10 +36,11 @@ type expectedTelemetryValues struct {
 }
 
 func validateTelemetry(t *testing.T, module string, expected expectedTelemetryValues) {
-	assert.Equal(t, expected.failedRequests, checkTelemetry.failedRequests.WithValues(module).Get(), "wrong failedRequest counter value")
-	assert.Equal(t, expected.failedResponses, checkTelemetry.failedResponses.WithValues(module).Get(), "wrong failedResponses counter value")
-	assert.Equal(t, expected.responseErrors, checkTelemetry.responseErrors.WithValues(module).Get(), "wrong responseErrors counter value")
-	assert.Equal(t, expected.malformedResponses, checkTelemetry.malformedResponses.WithValues(module).Get(), "wrong malformedResponses counter value")
+	assert.Equal(t, expected.totalRequests, checkTelemetry.totalRequests.WithValues(module).Get(), "mismatched totalRequests counter value")
+	assert.Equal(t, expected.failedRequests, checkTelemetry.failedRequests.WithValues(module).Get(), "mismatched failedRequest counter value")
+	assert.Equal(t, expected.failedResponses, checkTelemetry.failedResponses.WithValues(module).Get(), "mismatched failedResponses counter value")
+	assert.Equal(t, expected.responseErrors, checkTelemetry.responseErrors.WithValues(module).Get(), "mismatched responseErrors counter value")
+	assert.Equal(t, expected.malformedResponses, checkTelemetry.malformedResponses.WithValues(module).Get(), "mismatched malformedResponses counter value")
 }
 
 func TestGetCheck(t *testing.T) {
@@ -68,21 +70,21 @@ func TestGetCheck(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "asdf", resp.Str)
 	assert.Equal(t, 42, resp.Num)
-	validateTelemetry(t, "test", expectedTelemetryValues{0, 0, 0, 0})
+	validateTelemetry(t, "test", expectedTelemetryValues{1, 0, 0, 0, 0})
 
 	//test responseError counter
 	resp, err = GetCheck[testData](client, "foo")
 	require.Error(t, err)
-	validateTelemetry(t, "foo", expectedTelemetryValues{0, 0, 1, 0})
+	validateTelemetry(t, "foo", expectedTelemetryValues{1, 0, 0, 1, 0})
 
 	//test malformedResponses counter
 	resp, err = GetCheck[testData](client, "malformed")
 	require.Error(t, err)
-	validateTelemetry(t, "malformed", expectedTelemetryValues{0, 0, 0, 1})
+	validateTelemetry(t, "malformed", expectedTelemetryValues{1, 0, 0, 0, 1})
 
 	//test failedRequests counter
 	server.Close()
 	resp, err = GetCheck[testData](client, "test")
 	require.Error(t, err)
-	validateTelemetry(t, "test", expectedTelemetryValues{1, 0, 0, 0})
+	validateTelemetry(t, "test", expectedTelemetryValues{2, 1, 0, 0, 0})
 }

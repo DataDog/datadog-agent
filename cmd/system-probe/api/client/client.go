@@ -33,11 +33,13 @@ var (
 )
 
 var checkTelemetry = struct {
+	totalRequests      telemetry.Counter
 	failedRequests     telemetry.Counter
 	failedResponses    telemetry.Counter
 	responseErrors     telemetry.Counter
 	malformedResponses telemetry.Counter
 }{
+	telemetry.NewCounter(telemetrySubsystem, "requests__total", []string{checkLabelName}, "Counter measuring how many system-probe check requests were made"),
 	telemetry.NewCounter(telemetrySubsystem, "requests__failed", []string{checkLabelName}, "Counter measuring how many system-probe check requests failed to be sent"),
 	telemetry.NewCounter(telemetrySubsystem, "responses__not_received", []string{checkLabelName}, "Counter measuring how many responses from system-probe check were not read from the socket"),
 	telemetry.NewCounter(telemetrySubsystem, "responses__errors", []string{checkLabelName}, "Counter measuring how many non_ok status code received from system-probe checks"),
@@ -63,6 +65,7 @@ func get(socketPath string) *http.Client {
 
 // GetCheck returns data unmarshalled from JSON to T, from the specified module at the /<module>/check endpoint.
 func GetCheck[T any](client *http.Client, module types.ModuleName) (T, error) {
+	checkTelemetry.totalRequests.IncWithTags(map[string]string{checkLabelName: string(module)})
 	var data T
 	req, err := http.NewRequest("GET", ModuleURL(module, "/check"), nil)
 	if err != nil {
