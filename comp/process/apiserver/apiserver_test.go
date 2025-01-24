@@ -28,6 +28,7 @@ import (
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestLifecycle(t *testing.T) {
@@ -97,16 +98,20 @@ func TestPostAuthentication(t *testing.T) {
 		url := fmt.Sprintf("https://localhost:%d/config/log_level?value=debug", port)
 		req, err := http.NewRequest("POST", url, nil)
 		require.NoError(c, err)
+		log.Info("Issuing unauthenticated test request to url: %s", url)
 		res, err := util.GetClient(false).Do(req)
 		require.NoError(c, err)
 		defer res.Body.Close()
+		log.Info("Received unauthenticated test response")
 		assert.Equal(c, http.StatusUnauthorized, res.StatusCode)
 
 		// With authentication
 		req.Header.Set("Authorization", "Bearer "+util.GetAuthToken())
+		log.Info("Issuing authenticated test request to url: %s", url)
 		res, err = util.GetClient(false).Do(req)
 		require.NoError(c, err)
 		defer res.Body.Close()
+		log.Info("Received authenticated test response")
 		assert.Equal(c, http.StatusOK, res.StatusCode)
 	}, 5*time.Second, time.Second)
 }
