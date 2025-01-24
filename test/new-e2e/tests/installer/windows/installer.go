@@ -148,15 +148,25 @@ func (d *DatadogInstaller) Purge() (string, error) {
 	return d.executeFromCopy("purge")
 }
 
+func (d *DatadogInstaller) createInstallerFolders() {
+	for _, p := range consts.InstallerConfigPaths {
+		d.env.RemoteHost.MustExecute(fmt.Sprintf("New-Item -Path \"%s\" -ItemType Directory -Force", p))
+	}
+}
+
 // Install will attempt to install the Datadog Installer on the remote host.
 // By default, it will use the installer from the current pipeline.
 func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 	params := MsiParams{
-		msiLogFilename: "install.log",
+		msiLogFilename:         "install.log",
+		createInstallerFolders: true,
 	}
 	err := optional.ApplyOptions(&params, opts)
 	if err != nil {
 		return err
+	}
+	if params.createInstallerFolders {
+		d.createInstallerFolders()
 	}
 	// MSI can install from a URL or a local file
 	msiPath := params.installerURL

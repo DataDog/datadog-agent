@@ -56,8 +56,9 @@ func WithInstallerURLFromInstallersJSON(jsonURL, version string) Option {
 // MsiParams contains the optional parameters for the Datadog Installer Install command
 type MsiParams struct {
 	Params
-	msiArgs        []string
-	msiLogFilename string
+	msiArgs                []string
+	msiLogFilename         string
+	createInstallerFolders bool
 }
 
 // MsiOption is an optional function parameter type for the Datadog Installer Install command
@@ -83,6 +84,16 @@ func WithMSIArg(arg string) MsiOption {
 func WithMSILogFile(filename string) MsiOption {
 	return func(params *MsiParams) error {
 		params.msiLogFilename = filename
+		return nil
+	}
+}
+
+// CreateInstallerFolders Specifies whether to create some folders that are necessary for the Datadog Installer.
+// Those folders are normally created when using the install script / bootstrapper, but are not when installing
+// the Datadog Installer MSI directly.
+func CreateInstallerFolders(create bool) MsiOption {
+	return func(params *MsiParams) error {
+		params.createInstallerFolders = create
 		return nil
 	}
 }

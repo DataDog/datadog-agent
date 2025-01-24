@@ -9,6 +9,7 @@ package installer
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 	"github.com/DataDog/test-infra-definitions/common"
 	"github.com/DataDog/test-infra-definitions/common/config"
@@ -17,7 +18,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/command"
 	remoteComp "github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	"path"
 	"strings"
 )
 
@@ -107,19 +107,12 @@ func NewInstaller(e config.Env, host *remoteComp.Host, options ...Option) (*Comp
 	}
 
 	hostInstaller, err := components.NewComponent(e, e.CommonNamer().ResourceName("datadog-installer"), func(comp *Component) error {
-		comp.namer = e.CommonNamer().WithPrefix("datadog-installer")
+		comp.namer = e.CommonNamer().WithPrefix(consts.InstallerPackage)
 		comp.Host = host
 
 		createCmd := fmt.Sprintf("Exit (Start-Process -Wait msiexec -PassThru -ArgumentList '/qn /i %s %s').ExitCode", params.URL, agentUserArg)
 		if params.CreateInstallerPaths {
-			basePath := "C:/ProgramData/Datadog Installer"
-			paths := []string{
-				path.Join(basePath, "packages"),
-				path.Join(basePath, "configs"),
-				path.Join(basePath, "locks"),
-				path.Join(basePath, "tmp"),
-			}
-			for _, p := range paths {
+			for _, p := range consts.InstallerConfigPaths {
 				createCmd = fmt.Sprintf("New-Item -Path \"%s\" -ItemType Directory -Force; %s", p, createCmd)
 			}
 		}

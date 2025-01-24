@@ -17,6 +17,8 @@ const (
 	// the Agent package can be referred to as "agent-package" (like in the OCI registry) or "datadog-agent" (in the
 	// local database once the Agent is installed).
 	AgentPackage string = "datadog-agent"
+	// InstallerPackage is the name of the Datadog Installer package
+	InstallerPackage string = "datadog-installer"
 	// Path is the path where the Datadog Installer is installed on disk
 	Path string = "C:\\Program Files\\Datadog\\Datadog Installer"
 	// BinaryName is the name of the Datadog Installer binary on disk
@@ -29,11 +31,23 @@ const (
 	RegistryKeyPath string = `HKLM:\SOFTWARE\Datadog\Datadog Installer`
 	// NamedPipe is the name of the named pipe used by the Datadog Installer
 	NamedPipe string = `\\.\pipe\dd_installer`
+
+	// baseConfigPath is the base path for the Installer configuration
+	baseConfigPath = "C:/ProgramData/Datadog Installer"
 )
 
 var (
 	// BinaryPath is the path of the Datadog Installer binary on disk
 	BinaryPath = path.Join(Path, BinaryName)
+
+	// InstallerConfigPaths are the paths that the Datadog Installer uses to store its working files.
+	// They are normally created by the install script / bootstrap.
+	InstallerConfigPaths = []string{
+		path.Join(baseConfigPath, "packages"),
+		path.Join(baseConfigPath, "configs"),
+		path.Join(baseConfigPath, "locks"),
+		path.Join(baseConfigPath, "tmp"),
+	}
 )
 
 // GetExperimentDirFor is the path to the experiment symbolic link on disk
