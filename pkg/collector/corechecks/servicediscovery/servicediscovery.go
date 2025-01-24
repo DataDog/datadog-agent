@@ -8,7 +8,6 @@ package servicediscovery
 
 import (
 	"errors"
-	"fmt"
 	"runtime"
 	"time"
 
@@ -60,9 +59,8 @@ var newOSImpl func() (osImpl, error)
 // Check reports discovered services.
 type Check struct {
 	corechecks.CheckBase
-	os                    osImpl
-	sender                *telemetrySender
-	sentRepeatedEventPIDs map[int]bool
+	os     osImpl
+	sender *telemetrySender
 }
 
 // Factory creates a new check factory
@@ -81,8 +79,7 @@ func Factory() option.Option[func() check.Check] {
 // TODO: add metastore param
 func newCheck() *Check {
 	return &Check{
-		CheckBase:             corechecks.NewCheckBase(CheckName),
-		sentRepeatedEventPIDs: make(map[int]bool),
+		CheckBase: corechecks.NewCheckBase(CheckName),
 	}
 }
 
@@ -133,29 +130,6 @@ func (c *Check) Run() error {
 	)
 	metricDiscoveredServices.Set(float64(len(disc.runningServices)))
 
-	runningServicesByName := map[string][]*serviceInfo{}
-	for _, svc := range disc.runningServices {
-		runningServicesByName[svc.meta.Name] = append(runningServicesByName[svc.meta.Name], svc)
-	}
-	for _, svcs := range runningServicesByName {
-		if len(svcs) <= 1 {
-			continue
-		}
-		for _, svc := range svcs {
-			if c.sentRepeatedEventPIDs[svc.service.PID] {
-				continue
-			}
-			err := fmt.Errorf("found repeated service name: %s", svc.meta.Name)
-			telemetryFromError(errWithCode{
-				err:  err,
-				code: errorCodeRepeatedServiceName,
-				svc:  &svc.meta,
-			})
-			// track the PID, so we don't increase this counter in every run of the check.
-			c.sentRepeatedEventPIDs[svc.service.PID] = true
-		}
-	}
-
 	for _, p := range disc.events.start {
 		c.sender.sendStartServiceEvent(p)
 	}
@@ -164,11 +138,6 @@ func (c *Check) Run() error {
 	}
 	for _, p := range disc.events.stop {
 		c.sender.sendEndServiceEvent(p)
-
-		if c.sentRepeatedEventPIDs[p.service.PID] {
-			// delete this process from the map, so we track it if the PID gets reused
-			delete(c.sentRepeatedEventPIDs, p.service.PID)
-		}
 	}
 
 	return nil

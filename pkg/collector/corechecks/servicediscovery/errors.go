@@ -12,10 +12,7 @@ import (
 type errCode string
 
 const (
-	errorCodePortPoller          errCode = "port_poller"
-	errorCodeRepeatedServiceName errCode = "repeated_service_name"
-	errorCodeSystemProbeConn     errCode = "system_probe_conn"
-	errorCodeSystemProbeServices errCode = "system_probe_services"
+	errorCodeSystemProbeServices errCode = "system_probe_services" //nolint:unused
 )
 
 type errWithCode struct {
