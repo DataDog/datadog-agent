@@ -1894,10 +1894,13 @@ func (s *TracerSuite) TestShortWrite() {
 	c, err := net.FileConn(f)
 	require.NoError(t, err)
 
+	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		conns := getConnections(collect, tr)
-		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		require.True(collect, ok)
+		if conn == nil {
+			conn, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		}
+		require.NotNil(collect, conn)
 		require.Equal(collect, sent, conn.Monotonic.SentBytes)
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection used by short write")
 }
