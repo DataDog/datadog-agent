@@ -20,6 +20,7 @@ type eventsToRetry struct {
 	events         []workloadmeta.Event
 }
 
+// TimeProvider is a function that returns the current time
 type TimeProvider func() time.Time
 
 type batch map[string]*podInfo

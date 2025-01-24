@@ -38,7 +38,7 @@ const (
 	defaultprocessesWithoutPodCleanupPeriod = time.Hour
 
 	// podCooldownPeriod defines the period to wait before sending fresh updates
-	podCooldownPeriod = 20 * time.Second
+	podCooldownPeriod = 10 * 20 * time.Second
 )
 
 // Module defines the fx options for this component.
@@ -87,8 +87,9 @@ type client struct {
 	freshDataPeriod    time.Duration
 	freshlyUpdatedPods map[string]time.Time
 
-	// Additionally, we want to gaurantee the pod has been fully synced before sending
-	// the data to the cluster-agent. This is to avoid sending partial data.
+	// Additionally, we want to guarantee the pod has been fully synced with proccess info
+	// before sending the data to the cluster-agent. Thus we wait for 'podCooldownPeriod'
+	// before allowing a fresh update to be sent.
 	podCooldownPeriod time.Duration
 
 	// There is a race between the process check and the kubelet. If the process check detects a language
