@@ -15,23 +15,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type noop struct{}
+type Noop struct{}
 
-func (*noop) SetEnabled(e bool) bool {
+func (Noop) SetEnabled(e bool) bool {
 	return false
 }
-func (*noop) IsEnabled() bool {
+func (Noop) IsEnabled() bool {
 	return false
 }
-func (*noop) HandleMessage(_ *message.Message, _ []byte, _ string) {
+func (Noop) HandleMessage(_ *message.Message, _ []byte, _ string) {
 
 }
-func (*noop) Filter(_ *diagnostic.Filters, _ <-chan struct{}) <-chan string {
+func (Noop) Filter(_ *diagnostic.Filters, _ <-chan struct{}) <-chan string {
 	return nil
 }
 
 func new() eventplatformreceiver.Component {
-	return &noop{}
+	return Noop{}
 }
 
 func Module() fxutil.Module {

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	nooplatformreceiver "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/noop"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
@@ -76,7 +77,7 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 	haAgent := sender.deps.HaAgent
 	forwarder := defaultforwarder.NewDefaultForwarder(config, log, defaultforwarder.NewOptions(config, log, nil))
 	orchestratorForwarder := option.NewPtr[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(sender.deps.Hostname, sender.deps.LogsCompressor))
+	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(sender.deps.Hostname, nooplatformreceiver.Noop{}, sender.deps.MetricsCompressor))
 	senderManager = aggregator.InitAndStartAgentDemultiplexer(
 		log,
 		forwarder,
