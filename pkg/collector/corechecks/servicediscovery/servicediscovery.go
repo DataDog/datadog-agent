@@ -120,7 +120,6 @@ func (c *Check) Run() error {
 
 	disc, err := c.os.DiscoverServices()
 	if err != nil {
-		telemetryFromError(err)
 		return err
 	}
 
