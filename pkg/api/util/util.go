@@ -282,7 +282,7 @@ func init() {
 	hosts := []string{"127.0.0.1", "localhost"}
 	_, rootCertPEM, rootKey, err := pkgtoken.GenerateRootCert(hosts, 2048)
 	if err != nil {
-		log.Errorf("unable to start TLS server")
+		log.Errorf("unable to generate a self-signed certificate: %v", err)
 		return
 	}
 
@@ -294,12 +294,11 @@ func init() {
 	// Create a TLS cert using the private key and certificate
 	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
 	if err != nil {
-		log.Errorf("invalid key pair: %v", err)
+		log.Errorf("unable to generate a self-signed certificate: %v", err)
 		return
 	}
 
 	serverTLSConfig = &tls.Config{
 		Certificates: []tls.Certificate{rootTLSCert},
-		MinVersion:   tls.VersionTLS13,
 	}
 }
