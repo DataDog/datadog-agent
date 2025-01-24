@@ -1,0 +1,13 @@
+overall-pipeline-stats:
+  stage: .pre
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: []
+  dependencies: []
+  script:
+    - !reference [.setup_agent_github_app]
+    # Python 3.12 changes default behavior how packages are installed.
+    # In particular, --break-system-packages command line option is
+    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
+    - python3 -m pip install -r tasks/libs/requirements-github.txt --break-system-packages
+    - inv -e github.print-overall-pipeline-stats -n 90
