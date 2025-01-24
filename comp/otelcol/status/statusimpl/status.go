@@ -179,7 +179,7 @@ func (s statusProvider) populatePrometheusStatus(c *http.Client, prometheusUrl s
 		case "otelcol_exporter_sent_log_records":
 			s.exporterStatus["logs"] = value
 		case "otelcol_exporter_send_failed_spans":
-			s.exporterStatus["failed_spans"] = 1.0
+			s.exporterStatus["failed_spans"] = value
 		case "otelcol_exporter_send_failed_metric_points":
 			s.exporterStatus["failed_metrics"] = value
 		case "otelcol_exporter_send_failed_log_records":

@@ -78,7 +78,6 @@ func sortByName(providers []status.Provider) []status.Provider {
 }
 
 func newStatus(deps dependencies) provides {
-	fmt.Println("---- newStatus ----")
 	// Sections are sorted by name
 	// The exception is the collector section. We want that to be the first section to be displayed
 	// We manually insert the collector section in the first place after sorting them alphabetically
@@ -88,7 +87,6 @@ func newStatus(deps dependencies) provides {
 	providers := fxutil.GetAndFilterGroup(deps.Providers)
 
 	for _, provider := range providers {
-		fmt.Printf("---- provider.Name(): %v ----\n", provider.Name())
 		if provider.Section() == status.CollectorSection && !collectorSectionPresent {
 			collectorSectionPresent = true
 		}
@@ -127,7 +125,6 @@ func newStatus(deps dependencies) provides {
 
 	sortedHeaderProviders = append([]status.HeaderProvider{newCommonHeaderProvider(deps.Params, deps.Config)}, sortedHeaderProviders...)
 
-	fmt.Printf("---- sortedSectionNames: %v ----\n", sortedSectionNames)
 	c := &statusImplementation{
 		sortedSectionNames:       sortedSectionNames,
 		sortedProvidersBySection: sortedProvidersBySection,
@@ -157,7 +154,6 @@ func newStatus(deps dependencies) provides {
 }
 
 func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSections ...string) ([]byte, error) {
-	fmt.Println("---- GetStatus ----")
 	var errs []error
 
 	switch format {
@@ -285,7 +281,6 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 }
 
 func (s *statusImplementation) GetStatusBySections(sections []string, format string, verbose bool) ([]byte, error) {
-	fmt.Println("---- GetStatusBySections ----")
 	var errs []error
 
 	if len(sections) == 1 && sections[0] == "header" {
@@ -420,7 +415,6 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 }
 
 func (s *statusImplementation) GetSections() []string {
-	fmt.Println("---- GetSections ----")
 	return append([]string{"header"}, s.sortedSectionNames...)
 }
 
