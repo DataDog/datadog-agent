@@ -51,13 +51,13 @@ var supportedDeviceTypes = map[string]bool{
 }
 
 // ReportNetworkDeviceMetadata reports device metadata
-func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, profile profiledefinition.ProfileDefinition, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata) {
+func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata) {
 	tags := utils.CopyStrings(origTags)
 	tags = sortutil.UniqInPlace(tags)
 
-	metadataStore := buildMetadataStore(profile.Metadata, store)
+	metadataStore := buildMetadataStore(config.Metadata, store)
 
-	devices := []devicemetadata.DeviceMetadata{buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, profile, metadataStore, tags, deviceStatus, pingStatus)}
+	devices := []devicemetadata.DeviceMetadata{buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, metadataStore, tags, deviceStatus, pingStatus)}
 
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
@@ -191,9 +191,8 @@ func buildMetadataStore(metadataConfigs profiledefinition.MetadataConfig, values
 	return metadataStore
 }
 
-func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkconfig.CheckConfig, profile profiledefinition.ProfileDefinition, store *metadata.Store, tags []string, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus) devicemetadata.DeviceMetadata {
-	var vendor, sysName, sysDescr, sysObjectID, location, serialNumber, version, productName, model, osName, osVersion, osHostname, deviceType, profileName string
-	var profileVersion uint64
+func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkconfig.CheckConfig, store *metadata.Store, tags []string, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus) devicemetadata.DeviceMetadata {
+	var vendor, sysName, sysDescr, sysObjectID, location, serialNumber, version, productName, model, osName, osVersion, osHostname, deviceType string
 	if store != nil {
 		sysName = store.GetScalarAsString("device.name")
 		sysDescr = store.GetScalarAsString("device.description")
@@ -210,12 +209,10 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		deviceType = getDeviceType(store)
 	}
 
-	profileName = profile.Name
-	profileVersion = profile.Version
-	// TODO(ndm-core) I don't think this can ever happen.
-	//  If the profile provides a static vendor then it should have been populated in the store no matter what.
-	if vendor == "" {
-		vendor = profile.GetVendor()
+	// fallback to Device.Vendor for backward compatibility
+	profileDef := config.GetProfileDef()
+	if profileDef != nil && vendor == "" {
+		vendor = profileDef.Device.Vendor
 	}
 
 	return devicemetadata.DeviceMetadata{
@@ -226,8 +223,8 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		IPAddress:      config.IPAddress,
 		SysObjectID:    sysObjectID,
 		Location:       location,
-		Profile:        profileName,
-		ProfileVersion: profileVersion,
+		Profile:        config.ProfileName,
+		ProfileVersion: getProfileVersion(config),
 		Vendor:         vendor,
 		Tags:           tags,
 		Subnet:         config.ResolvedSubnetName,
@@ -243,6 +240,15 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		DeviceType:     deviceType,
 		Integration:    common.SnmpIntegrationName,
 	}
+}
+
+func getProfileVersion(config *checkconfig.CheckConfig) uint64 {
+	var profileVersion uint64
+	profileDef := config.GetProfileDef()
+	if profileDef != nil {
+		profileVersion = profileDef.Version
+	}
+	return profileVersion
 }
 
 func getDeviceType(store *metadata.Store) string {
