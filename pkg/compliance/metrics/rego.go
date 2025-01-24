@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	opametrics "github.com/open-policy-agent/opa/metrics"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cast"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var (
@@ -43,9 +43,9 @@ func registerHistogram(name string) telemetry.Histogram {
 	if histogram, found := registeredHistograms[name]; found {
 		return histogram
 	}
-
-	buckets := make([]float64, len(prometheus.DefBuckets))
-	for i, v := range prometheus.DefBuckets {
+	defaultBuckets := []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+	buckets := make([]float64, len(defaultBuckets))
+	for i, v := range defaultBuckets {
 		buckets[i] = v * float64(time.Millisecond)
 	}
 

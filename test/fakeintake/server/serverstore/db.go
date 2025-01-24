@@ -81,12 +81,12 @@ func newSQLStore() *sqlStore {
 			insertLatency: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 				Name:    "insert_latency",
 				Help:    "Latency of inserting payloads",
-				Buckets: prometheus.DefBuckets,
+				Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 			}, []string{"route"}),
 			readLatency: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 				Name:    "read_latency",
 				Help:    "Latency of reading payloads",
-				Buckets: prometheus.DefBuckets,
+				Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 			}, []string{"route"}),
 			diskUsage: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 				Name: "disk_usage",

@@ -1,0 +1,220 @@
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│ agent                                                                                   │
+├─────────┬──────────────────────────────────────────────────────────┬────────┬───────────┤
+│ PERCENT │ NAME                                                     │ SIZE   │ TYPE      │
+├─────────┼──────────────────────────────────────────────────────────┼────────┼───────────┤
+│ 7.65%   │ __rodata __DATA_CONST                                    │ 2.8 MB │ section   │
+│ 7.23%   │ github.com/DataDog/datadog-agent                         │ 2.6 MB │ vendor    │
+│ 6.55%   │ __zdebug_info __DWARF                                    │ 2.4 MB │ section   │
+│ 5.60%   │ __text __TEXT                                            │ 2.0 MB │ section   │
+│ 5.12%   │ __zdebug_loc __DWARF                                     │ 1.9 MB │ section   │
+│ 4.64%   │ __rodata __TEXT                                          │ 1.7 MB │ section   │
+│ 4.24%   │ google.golang.org/protobuf                               │ 1.5 MB │ vendor    │
+│ 3.95%   │ net                                                      │ 1.4 MB │ std       │
+│ 3.37%   │ __zdebug_line __DWARF                                    │ 1.2 MB │ section   │
+│ 3.34%   │ crypto                                                   │ 1.2 MB │ std       │
+│ 2.59%   │ runtime                                                  │ 944 kB │ std       │
+│ 2.52%   │ __zapple_names __DWARF                                   │ 921 kB │ section   │
+│ 1.80%   │ github.com/gogo/protobuf                                 │ 658 kB │ vendor    │
+│ 1.77%   │ github.com/modern-go/reflect2                            │ 646 kB │ vendor    │
+│ 1.66%   │                                                          │ 605 kB │ generated │
+│ 1.24%   │ __zdebug_str __DWARF                                     │ 453 kB │ section   │
+│ 1.23%   │ __zdebug_ranges __DWARF                                  │ 449 kB │ section   │
+│ 1.11%   │ github.com/DataDog/agent-payload/v5                      │ 405 kB │ vendor    │
+│ 1.10%   │ github.com/json-iterator/go                              │ 402 kB │ vendor    │
+│ 1.06%   │ golang.org/x/net                                         │ 386 kB │ vendor    │
+│ 0.90%   │ golang.org/x/text                                        │ 330 kB │ vendor    │
+│ 0.90%   │ github.com/itchyny/gojq                                  │ 327 kB │ vendor    │
+│ 0.88%   │ __zapple_types __DWARF                                   │ 322 kB │ section   │
+│ 0.87%   │ github.com/prometheus/client_golang                      │ 316 kB │ vendor    │
+│ 0.86%   │ __zdebug_frame __DWARF                                   │ 315 kB │ section   │
+│ 0.84%   │ reflect                                                  │ 305 kB │ std       │
+│ 0.77%   │ math                                                     │ 280 kB │ std       │
+│ 0.70%   │ gopkg.in/yaml.v3                                         │ 254 kB │ vendor    │
+│ 0.67%   │ github.com/klauspost/compress                            │ 243 kB │ vendor    │
+│ 0.66%   │ github.com/cihub/seelog                                  │ 239 kB │ vendor    │
+│ 0.61%   │ gopkg.in/yaml.v2                                         │ 224 kB │ vendor    │
+│ 0.61%   │ go.uber.org/dig                                          │ 223 kB │ vendor    │
+│ 0.59%   │ text/template                                            │ 214 kB │ std       │
+│ 0.55%   │ go.uber.org/zap                                          │ 200 kB │ vendor    │
+│ 0.54%   │ github.com/pelletier/go-toml                             │ 196 kB │ vendor    │
+│ 0.53%   │ gopkg.in/DataDog/dd-trace-go.v1                          │ 194 kB │ vendor    │
+│ 0.53%   │ encoding/gob                                             │ 193 kB │ std       │
+│ 0.49%   │ github.com/spf13/pflag                                   │ 177 kB │ vendor    │
+│ 0.48%   │ regexp                                                   │ 174 kB │ std       │
+│ 0.47%   │ slices                                                   │ 172 kB │ std       │
+│ 0.45%   │ os                                                       │ 164 kB │ std       │
+│ 0.42%   │ github.com/hashicorp/hcl                                 │ 152 kB │ vendor    │
+│ 0.42%   │ go.uber.org/fx                                           │ 152 kB │ vendor    │
+│ 0.41%   │ time                                                     │ 150 kB │ std       │
+│ 0.39%   │ encoding/json                                            │ 141 kB │ std       │
+│ 0.36%   │ __data __DATA                                            │ 132 kB │ section   │
+│ 0.36%   │ github.com/spf13/cobra                                   │ 132 kB │ vendor    │
+│ 0.35%   │ github.com/google/pprof                                  │ 126 kB │ vendor    │
+│ 0.31%   │ k8s.io/klog/v2                                           │ 111 kB │ vendor    │
+│ 0.30%   │ html                                                     │ 110 kB │ std       │
+│ 0.29%   │ encoding/xml                                             │ 105 kB │ std       │
+│ 0.27%   │ log                                                      │ 97 kB  │ std       │
+│ 0.26%   │ __noptrdata __DATA                                       │ 96 kB  │ section   │
+│ 0.26%   │ github.com/DataDog/viper                                 │ 95 kB  │ vendor    │
+│ 0.26%   │ github.com/patrickmn/go-cache                            │ 94 kB  │ vendor    │
+│ 0.24%   │ fmt                                                      │ 89 kB  │ std       │
+│ 0.24%   │ vendor/golang.org/x/text/unicode/norm                    │ 88 kB  │ std       │
+│ 0.24%   │ internal/profile                                         │ 87 kB  │ std       │
+│ 0.23%   │ syscall                                                  │ 85 kB  │ std       │
+│ 0.22%   │ archive/zip                                              │ 81 kB  │ std       │
+│ 0.21%   │ internal/poll                                            │ 76 kB  │ std       │
+│ 0.19%   │ internal/abi                                             │ 68 kB  │ std       │
+│ 0.18%   │ github.com/outcaste-io/ristretto                         │ 67 kB  │ vendor    │
+│ 0.18%   │ sync                                                     │ 66 kB  │ std       │
+│ 0.18%   │ strconv                                                  │ 66 kB  │ std       │
+│ 0.18%   │ encoding/asn1                                            │ 66 kB  │ std       │
+│ 0.17%   │ compress/flate                                           │ 64 kB  │ std       │
+│ 0.17%   │ vendor/golang.org/x/net/idna                             │ 62 kB  │ std       │
+│ 0.16%   │ github.com/mitchellh/mapstructure                        │ 60 kB  │ vendor    │
+│ 0.15%   │ mime                                                     │ 55 kB  │ std       │
+│ 0.14%   │ github.com/prometheus/common                             │ 52 kB  │ vendor    │
+│ 0.14%   │ github.com/magiconair/properties                         │ 50 kB  │ vendor    │
+│ 0.14%   │ github.com/DataDog/go-tuf                                │ 49 kB  │ vendor    │
+│ 0.13%   │ internal/reflectlite                                     │ 48 kB  │ std       │
+│ 0.13%   │ strings                                                  │ 48 kB  │ std       │
+│ 0.12%   │ context                                                  │ 43 kB  │ std       │
+│ 0.12%   │ bufio                                                    │ 43 kB  │ std       │
+│ 0.12%   │ github.com/DataDog/sketches-go                           │ 43 kB  │ vendor    │
+│ 0.10%   │ github.com/DataDog/opentelemetry-mapping-go/pkg/quantile │ 38 kB  │ vendor    │
+│ 0.10%   │ flag                                                     │ 38 kB  │ std       │
+│ 0.10%   │ github.com/prometheus/client_model                       │ 36 kB  │ vendor    │
+│ 0.10%   │ __typelink __DATA_CONST                                  │ 35 kB  │ section   │
+│ 0.09%   │ vendor/golang.org/x/net/route                            │ 35 kB  │ std       │
+│ 0.09%   │ github.com/fsnotify/fsnotify                             │ 35 kB  │ vendor    │
+│ 0.09%   │ github.com/itchyny/timefmt-go                            │ 34 kB  │ vendor    │
+│ 0.09%   │ github.com/golang/protobuf                               │ 33 kB  │ vendor    │
+│ 0.09%   │ github.com/DataDog/go-sqllexer                           │ 33 kB  │ vendor    │
+│ 0.09%   │ bytes                                                    │ 32 kB  │ std       │
+│ 0.09%   │ unicode                                                  │ 32 kB  │ std       │
+│ 0.08%   │ github.com/prometheus/procfs                             │ 31 kB  │ vendor    │
+│ 0.08%   │ vendor/golang.org/x/net/http2/hpack                      │ 30 kB  │ std       │
+│ 0.08%   │ github.com/richardartoul/molecule                        │ 30 kB  │ vendor    │
+│ 0.08%   │ github.com/benbjohnson/clock                             │ 29 kB  │ vendor    │
+│ 0.08%   │ k8s.io/apimachinery                                      │ 28 kB  │ vendor    │
+│ 0.08%   │ github.com/CycloneDX/cyclonedx-go                        │ 28 kB  │ vendor    │
+│ 0.08%   │ github.com/spf13/cast                                    │ 28 kB  │ vendor    │
+│ 0.07%   │ sort                                                     │ 27 kB  │ std       │
+│ 0.07%   │ github.com/ebitengine/purego                             │ 27 kB  │ vendor    │
+│ 0.07%   │ github.com/DataDog/zstd                                  │ 26 kB  │ vendor    │
+│ 0.07%   │ vendor/golang.org/x/net/dns/dnsmessage                   │ 25 kB  │ std       │
+│ 0.07%   │ io                                                       │ 25 kB  │ std       │
+│ 0.07%   │ vendor/golang.org/x/crypto/cryptobyte                    │ 24 kB  │ std       │
+│ 0.06%   │ vendor/golang.org/x/text/unicode/bidi                    │ 23 kB  │ std       │
+│ 0.06%   │ internal/concurrent                                      │ 22 kB  │ std       │
+│ 0.05%   │ __const __TEXT                                           │ 19 kB  │ section   │
+│ 0.05%   │ expvar                                                   │ 17 kB  │ std       │
+│ 0.05%   │ github.com/spf13/afero                                   │ 17 kB  │ vendor    │
+│ 0.04%   │ github.com/shirou/gopsutil/v4                            │ 16 kB  │ vendor    │
+│ 0.04%   │ __go_buildinfo __DATA                                    │ 15 kB  │ section   │
+│ 0.04%   │ go.uber.org/atomic                                       │ 14 kB  │ vendor    │
+│ 0.04%   │ encoding/base64                                          │ 13 kB  │ std       │
+│ 0.04%   │ golang.org/x/sys                                         │ 13 kB  │ vendor    │
+│ 0.04%   │ internal/bisect                                          │ 13 kB  │ std       │
+│ 0.03%   │ unique                                                   │ 12 kB  │ std       │
+│ 0.03%   │ vendor/golang.org/x/net/http/httpproxy                   │ 12 kB  │ std       │
+│ 0.03%   │ github.com/go-logr/logr                                  │ 12 kB  │ vendor    │
+│ 0.03%   │ __itablink __DATA_CONST                                  │ 12 kB  │ section   │
+│ 0.03%   │ compress/gzip                                            │ 12 kB  │ std       │
+│ 0.03%   │ text/tabwriter                                           │ 11 kB  │ std       │
+│ 0.03%   │ github.com/pkg/errors                                    │ 11 kB  │ vendor    │
+│ 0.03%   │ github.com/twmb/murmur3                                  │ 11 kB  │ vendor    │
+│ 0.03%   │ encoding/csv                                             │ 10 kB  │ std       │
+│ 0.03%   │ github.com/hashicorp/go-multierror                       │ 10 kB  │ vendor    │
+│ 0.03%   │ path                                                     │ 10 kB  │ std       │
+│ 0.03%   │ vendor/golang.org/x/crypto/sha3                          │ 10 kB  │ std       │
+│ 0.02%   │ github.com/spaolacci/murmur3                             │ 9.0 kB │ vendor    │
+│ 0.02%   │ embed                                                    │ 8.6 kB │ std       │
+│ 0.02%   │ internal/runtime/atomic                                  │ 8.6 kB │ std       │
+│ 0.02%   │ vendor/golang.org/x/crypto/chacha20                      │ 8.4 kB │ std       │
+│ 0.02%   │ internal/godebug                                         │ 8.2 kB │ std       │
+│ 0.02%   │ compress/zlib                                            │ 8.1 kB │ std       │
+│ 0.02%   │ hash/crc32                                               │ 7.8 kB │ std       │
+│ 0.02%   │ encoding/pem                                             │ 7.6 kB │ std       │
+│ 0.02%   │ github.com/dustin/go-humanize                            │ 7.4 kB │ vendor    │
+│ 0.02%   │ internal/fmtsort                                         │ 7.2 kB │ std       │
+│ 0.02%   │ container/list                                           │ 7.1 kB │ std       │
+│ 0.02%   │ github.com/modern-go/concurrent                          │ 6.9 kB │ vendor    │
+│ 0.02%   │ __zdebug_aranges __DWARF                                 │ 6.5 kB │ section   │
+│ 0.02%   │ github.com/secure-systems-lab/go-securesystemslib        │ 6.4 kB │ vendor    │
+│ 0.02%   │ github.com/mattn/go-runewidth                            │ 6.2 kB │ vendor    │
+│ 0.02%   │ internal/bytealg                                         │ 5.9 kB │ std       │
+│ 0.02%   │ github.com/munnerz/goautoneg                             │ 5.9 kB │ vendor    │
+│ 0.02%   │ github.com/DataDog/gostackparse                          │ 5.9 kB │ vendor    │
+│ 0.02%   │ github.com/fatih/color                                   │ 5.9 kB │ vendor    │
+│ 0.02%   │ github.com/google/uuid                                   │ 5.8 kB │ vendor    │
+│ 0.02%   │ __unwind_info __TEXT                                     │ 5.8 kB │ section   │
+│ 0.02%   │ github.com/tklauser/go-sysconf                           │ 5.8 kB │ vendor    │
+│ 0.02%   │ go.uber.org/multierr                                     │ 5.8 kB │ vendor    │
+│ 0.02%   │ github.com/spf13/jwalterweatherman                       │ 5.6 kB │ vendor    │
+│ 0.01%   │ vendor/golang.org/x/crypto/chacha20poly1305              │ 5.4 kB │ std       │
+│ 0.01%   │ errors                                                   │ 5.4 kB │ std       │
+│ 0.01%   │ __cstring __TEXT                                         │ 4.7 kB │ section   │
+│ 0.01%   │ internal/syscall/unix                                    │ 4.6 kB │ std       │
+│ 0.01%   │ internal/filepathlite                                    │ 4.5 kB │ std       │
+│ 0.01%   │ vendor/golang.org/x/net/http/httpguts                    │ 4.3 kB │ std       │
+│ 0.01%   │ internal/singleflight                                    │ 3.9 kB │ std       │
+│ 0.01%   │ github.com/mohae/deepcopy                                │ 3.5 kB │ vendor    │
+│ 0.01%   │ github.com/DataDog/datadog-go/v5                         │ 3.5 kB │ vendor    │
+│ 0.01%   │ vendor/golang.org/x/sys/cpu                              │ 3.2 kB │ std       │
+│ 0.01%   │ github.com/cespare/xxhash/v2                             │ 3.1 kB │ vendor    │
+│ 0.01%   │ internal/cpu                                             │ 3.0 kB │ std       │
+│ 0.01%   │ vendor/golang.org/x/crypto/internal/poly1305             │ 2.9 kB │ std       │
+│ 0.01%   │ testing                                                  │ 2.3 kB │ std       │
+│ 0.01%   │ internal/chacha8rand                                     │ 2.3 kB │ std       │
+│ 0.01%   │ internal/testlog                                         │ 2.3 kB │ std       │
+│ 0.01%   │ archive/tar                                              │ 2.2 kB │ std       │
+│ 0.01%   │ internal/stringslite                                     │ 2.2 kB │ std       │
+│ 0.01%   │ hash/adler32                                             │ 2.1 kB │ std       │
+│ 0.01%   │ internal/weak                                            │ 2.1 kB │ std       │
+│ 0.01%   │ vendor/golang.org/x/text/secure/bidirule                 │ 2.0 kB │ std       │
+│ 0.01%   │ vendor/golang.org/x/crypto/hkdf                          │ 2.0 kB │ std       │
+│ 0.01%   │ encoding/hex                                             │ 1.9 kB │ std       │
+│ 0.01%   │ internal/sysinfo                                         │ 1.8 kB │ std       │
+│ 0.00%   │ go/token                                                 │ 1.7 kB │ std       │
+│ 0.00%   │ internal/runtime/exithook                                │ 1.6 kB │ std       │
+│ 0.00%   │ github.com/go-ini/ini                                    │ 1.5 kB │ vendor    │
+│ 0.00%   │ hash/crc64                                               │ 1.4 kB │ std       │
+│ 0.00%   │ github.com/opencontainers/go-digest                      │ 1.2 kB │ vendor    │
+│ 0.00%   │ k8s.io/utils                                             │ 1.1 kB │ vendor    │
+│ 0.00%   │ internal/saferio                                         │ 984 B  │ std       │
+│ 0.00%   │ github.com/kardianos/osext                               │ 979 B  │ vendor    │
+│ 0.00%   │ internal/itoa                                            │ 726 B  │ std       │
+│ 0.00%   │ __const __DATA_CONST                                     │ 680 B  │ section   │
+│ 0.00%   │ main                                                     │ 568 B  │ main      │
+│ 0.00%   │ database/sql                                             │ 509 B  │ std       │
+│ 0.00%   │ github.com/olekukonko/tablewriter                        │ 369 B  │ vendor    │
+│ 0.00%   │ github.com/opencontainers/image-spec                     │ 351 B  │ vendor    │
+│ 0.00%   │ __zdebug_abbrev __DWARF                                  │ 343 B  │ section   │
+│ 0.00%   │ internal/profilerecord                                   │ 274 B  │ std       │
+│ 0.00%   │ github.com/mattn/go-isatty                               │ 258 B  │ vendor    │
+│ 0.00%   │ iter                                                     │ 228 B  │ std       │
+│ 0.00%   │ github.com/xi2/xz                                        │ 225 B  │ vendor    │
+│ 0.00%   │ github.com/gosnmp/gosnmp                                 │ 216 B  │ vendor    │
+│ 0.00%   │ maps                                                     │ 189 B  │ std       │
+│ 0.00%   │ __apple_namespac __DWARF                                 │ 36 B   │ section   │
+│ 0.00%   │ __apple_objc __DWARF                                     │ 36 B   │ section   │
+│ 0.00%   │ github.com/tedsuo/rata                                   │ 0 B    │ vendor    │
+│ 0.00%   │ github.com/mattn/go-colorable                            │ 0 B    │ vendor    │
+│ 0.00%   │ github.com/imdario/mergo                                 │ 0 B    │ vendor    │
+│ 0.00%   │ github.com/hashicorp/errwrap                             │ 0 B    │ vendor    │
+│ 0.00%   │ golang.org/x/exp                                         │ 0 B    │ vendor    │
+│ 0.00%   │ github.com/golang/mock                                   │ 0 B    │ vendor    │
+│ 0.00%   │ code.cloudfoundry.org/garden                             │ 0 B    │ vendor    │
+│ 0.00%   │ github.com/bmizerany/pat                                 │ 0 B    │ vendor    │
+│ 0.00%   │ go.uber.org/automaxprocs                                 │ 0 B    │ vendor    │
+│ 0.00%   │ k8s.io/client-go                                         │ 0 B    │ vendor    │
+│ 0.00%   │ github.com/cyphar/filepath-securejoin                    │ 0 B    │ vendor    │
+│ 0.00%   │ code.cloudfoundry.org/lager                              │ 0 B    │ vendor    │
+│ 0.00%   │ github.com/rivo/uniseg                                   │ 0 B    │ vendor    │
+│ 0.00%   │ golang.org/x/time                                        │ 0 B    │ vendor    │
+│ 0.00%   │ github.com/beorn7/perks                                  │ 0 B    │ vendor    │
+├─────────┼──────────────────────────────────────────────────────────┼────────┼───────────┤
+│ 93.89%  │ Known                                                    │ 34 MB  │           │
+│ 100%    │ Total                                                    │ 36 MB  │           │
+└─────────┴──────────────────────────────────────────────────────────┴────────┴───────────┘

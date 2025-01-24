@@ -293,7 +293,7 @@ func run(
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
-	pkgcollector.InitPython(common.GetPythonPaths()...)
+	pkgcollector.InitPython(pkgcollector.GetPythonPaths()...)
 	commonchecks.RegisterChecks(wmeta, tagger, config, telemetry)
 
 	common.LoadComponents(secretResolver, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))

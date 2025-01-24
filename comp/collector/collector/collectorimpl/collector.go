@@ -8,7 +8,6 @@ package collectorimpl
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -16,7 +15,6 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
@@ -33,8 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
-	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -132,7 +128,7 @@ func newCollector(deps dependencies) *collectorImpl {
 		createdAt:          time.Now(),
 	}
 
-	pkgCollector.InitPython(common.GetPythonPaths()...)
+	pkgCollector.InitPython(pkgCollector.GetPythonPaths()...)
 
 	deps.Lc.Append(fx.Hook{
 		OnStart: c.start,
@@ -144,31 +140,31 @@ func newCollector(deps dependencies) *collectorImpl {
 
 // fillFlare collects all the information related to integrations that need to be added to each flare
 func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
-	scanner := scanner.GetGlobalScanner()
-	if scanner == nil {
-		return nil
-	}
+	// scanner := scanner.GetGlobalScanner()
+	// if scanner == nil {
+	// 	return nil
+	// }
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
+	// ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	// defer cancel()
 
-	scanRequest := host.NewHostScanRequest()
-	scanResult := scanner.PerformScan(ctx, scanRequest, scanner.GetCollector(scanRequest.Collector()))
-	if scanResult.Error != nil {
-		return scanResult.Error
-	}
+	// scanRequest := host.NewHostScanRequest()
+	// scanResult := scanner.PerformScan(ctx, scanRequest, scanner.GetCollector(scanRequest.Collector()))
+	// if scanResult.Error != nil {
+	// 	return scanResult.Error
+	// }
 
-	cycloneDX, err := scanResult.Report.ToCycloneDX()
-	if err != nil {
-		return err
-	}
+	// cycloneDX, err := scanResult.Report.ToCycloneDX()
+	// if err != nil {
+	// 	return err
+	// }
 
-	jsonContent, err := json.MarshalIndent(cycloneDX, "", "  ")
-	if err != nil {
-		return err
-	}
+	// jsonContent, err := json.MarshalIndent(cycloneDX, "", "  ")
+	// if err != nil {
+	// 	return err
+	// }
 
-	return fb.AddFile("host-sbom.json", jsonContent)
+	return nil
 }
 
 // AddEventReceiver adds a callback to the collector to be called each time a check is added or removed.

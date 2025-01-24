@@ -201,7 +201,7 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 )
 
 # CHECKS_AGENT_TAGS lists the tags needed when building the Logs agent
-CHECKS_AGENT_TAGS = {"zlib", "zstd", "python"}
+CHECKS_AGENT_TAGS = {"zlib", "zstd", "python", "serverless"}
 
 # AGENT_TEST_TAGS lists the tags that have to be added to run tests
 AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
