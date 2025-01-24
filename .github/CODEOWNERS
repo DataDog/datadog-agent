@@ -343,6 +343,7 @@
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-platform
 /pkg/discovery/                         @DataDog/universal-service-monitoring
 /pkg/errors/                            @DataDog/agent-shared-components
+/pkg/fips                               @DataDog/agent-shared-components
 /pkg/gohai                              @DataDog/agent-shared-components
 /pkg/gpu/                               @DataDog/ebpf-platform
 /pkg/jmxfetch/                          @DataDog/agent-metrics-logs

@@ -65,7 +65,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.140
+	github.com/DataDog/agent-payload/v5 v5.0.141
 	github.com/DataDog/datadog-agent/comp/core/config v0.57.1
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.56.0-rc.3

@@ -669,7 +669,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
     # Strings with proper branch/tag names
     release_branch = current.branch()
 
-    with agent_context(ctx, get_default_branch(major=major_version)):
+    with agent_context(ctx, get_default_branch()):
         # Step 0: checks
         ctx.run("git fetch")
 

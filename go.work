@@ -74,6 +74,7 @@ use (
 	pkg/config/teeconfig
 	pkg/config/utils
 	pkg/errors
+	pkg/fips
 	pkg/gohai
 	pkg/linters/components/pkgconfigusage
 	pkg/logs/auditor

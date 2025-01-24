@@ -228,9 +228,10 @@ func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags 
 	}
 
 	cgroupContext := &model.CGroupContext{
-		CGroupID:    containerutils.CGroupID(cgroup),
-		CGroupFlags: containerutils.CGroupFlags(cgroupFlags),
-		CGroupFile:  pathKey,
+		CGroupID:      containerutils.CGroupID(cgroup),
+		CGroupFlags:   containerutils.CGroupFlags(cgroupFlags),
+		CGroupFile:    pathKey,
+		CGroupManager: containerutils.CGroupManager(cgroupFlags & containerutils.CGroupManagerMask).String(),
 	}
 
 	return cgroupContext, nil
