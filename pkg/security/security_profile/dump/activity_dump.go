@@ -128,11 +128,11 @@ type SyscallPolicy struct {
 }
 
 // NewActivityDumpLoadConfig returns a new instance of ActivityDumpLoadConfig
-func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, waitListTimeout time.Duration, rate int, start time.Time, resolver *stime.Resolver) *model.ActivityDumpLoadConfig {
+func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, waitListTimeout time.Duration, rate uint16, start time.Time, resolver *stime.Resolver) *model.ActivityDumpLoadConfig {
 	adlc := &model.ActivityDumpLoadConfig{
 		TracedEventTypes: evt,
 		Timeout:          timeout,
-		Rate:             uint32(rate),
+		Rate:             uint16(rate),
 	}
 	if resolver != nil {
 		adlc.StartTimestampRaw = uint64(resolver.ComputeMonotonicTimestamp(start))
@@ -224,7 +224,8 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		DifferentiateArgs: metadata.GetDifferentiateArgs(),
 		ContainerID:       containerutils.ContainerID(metadata.GetContainerID()),
 		CGroupContext: model.CGroupContext{
-			CGroupID: containerutils.CGroupID(metadata.GetCGroupID()),
+			CGroupID:      containerutils.CGroupID(metadata.GetCGroupID()),
+			CGroupManager: metadata.GetCGroupManager(),
 		},
 		Start: startTime,
 		End:   startTime.Add(timeout),
@@ -667,6 +668,8 @@ func (ad *ActivityDump) resolveTags() error {
 		}
 	}
 
+	ad.Tags = append(ad.Tags, "cgroup_manager:"+containerutils.CGroupManager(ad.Metadata.CGroupContext.CGroupFlags&containerutils.CGroupManagerMask).String())
+
 	return nil
 }
 
@@ -697,6 +700,7 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 			DifferentiateArgs: ad.Metadata.DifferentiateArgs,
 			ContainerID:       string(ad.Metadata.ContainerID),
 			CGroupID:          string(ad.Metadata.CGroupContext.CGroupID),
+			CGroupManager:     containerutils.CGroupManager(ad.Metadata.CGroupContext.CGroupFlags & containerutils.CGroupManagerMask).String(),
 			Start:             ad.Metadata.Start.Format(time.RFC822),
 			Timeout:           ad.LoadConfig.Timeout.String(),
 			Size:              ad.Metadata.Size,

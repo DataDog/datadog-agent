@@ -687,8 +687,8 @@ func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer
 }
 
 func getInUpperLayer(f *model.FileFields) *bool {
-	lowerLayer := f.GetInLowerLayer()
-	upperLayer := f.GetInUpperLayer()
+	lowerLayer := f.IsInLowerLayer()
+	upperLayer := f.IsInUpperLayer()
 	if !lowerLayer && !upperLayer {
 		return nil
 	}

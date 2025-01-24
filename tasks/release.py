@@ -64,7 +64,6 @@ from tasks.libs.releasing.json import (
     set_new_release_branch,
     update_release_json,
 )
-from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude
 from tasks.libs.releasing.version import (
     MINOR_RC_VERSION_RE,
     RC_VERSION_RE,
@@ -309,24 +308,7 @@ def finish(ctx, release_branch, upstream="origin"):
                 code=1,
             )
 
-        # Step 4: Add release changelog preludes
-        print(color_message("Adding Agent release changelog prelude", "bold"))
-        _add_prelude(ctx, str(new_version))
-
-        print(color_message("Adding DCA release changelog prelude", "bold"))
-        _add_dca_prelude(ctx, str(new_version))
-
-        ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually, push the {final_branch} branch and then open a PR against {final_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        # Step 5: Push branch and create PR
+        # Step 4: Push branch and create PR
         print(color_message("Pushing new branch to the upstream repository", "bold"))
         res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
         if res.exited is None or res.exited > 0:
@@ -339,7 +321,7 @@ def finish(ctx, release_branch, upstream="origin"):
             )
 
         create_release_pr(
-            f"Final updates for release.json and Go modules for {new_version} release + preludes",
+            f"Final updates for release.json and Go modules for {new_version} release",
             release_branch,
             final_branch,
             new_version,
@@ -687,7 +669,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
     # Strings with proper branch/tag names
     release_branch = current.branch()
 
-    with agent_context(ctx, get_default_branch(major=major_version)):
+    with agent_context(ctx, get_default_branch()):
         # Step 0: checks
         ctx.run("git fetch")
 

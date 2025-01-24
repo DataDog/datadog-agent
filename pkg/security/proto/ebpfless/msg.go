@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
-	"modernc.org/mathutil"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 // Mode defines ptrace mode
@@ -282,7 +282,7 @@ type UnloadModuleSyscallMsg struct {
 // SpanContext stores a span context (if any)
 type SpanContext struct {
 	SpanID  uint64
-	TraceID mathutil.Int128
+	TraceID utils.TraceID
 }
 
 // MountSyscallMsg defines a mount message

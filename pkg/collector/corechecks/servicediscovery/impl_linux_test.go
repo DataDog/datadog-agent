@@ -52,18 +52,8 @@ var (
 		env: []string{},
 		cwd: "",
 	}
-	procIgnoreService1 = testProc{
-		pid: 100,
-		env: nil,
-		cwd: "",
-	}
 	procTestService1Repeat = testProc{
 		pid: 101,
-		env: []string{},
-		cwd: "",
-	}
-	procTestService1DifferentPID = testProc{
-		pid: 102,
 		env: []string{},
 		cwd: "",
 	}
@@ -103,29 +93,6 @@ var (
 		CommandLine:                []string{"test-service-1"},
 		StartTimeMilli:             procLaunchedMilli,
 		ContainerID:                dummyContainerID,
-	}
-	portTCP8080DifferentPID = model.Service{
-		PID:                        procTestService1DifferentPID.pid,
-		Name:                       "test-service-1",
-		GeneratedName:              "test-service-1-generated",
-		GeneratedNameSource:        "test-service-1-generated-source",
-		ContainerServiceName:       "test-service-1-container",
-		ContainerServiceNameSource: "service",
-		DDService:                  "test-service-1",
-		DDServiceInjected:          true,
-		Ports:                      []uint16{8080},
-		APMInstrumentation:         string(apm.Injected),
-		CommandLine:                []string{"test-service-1"},
-		StartTimeMilli:             procLaunchedMilli,
-		ContainerID:                dummyContainerID,
-	}
-	portTCP8081 = model.Service{
-		PID:            procIgnoreService1.pid,
-		Name:           "ignore-1",
-		GeneratedName:  "ignore-1",
-		Ports:          []uint16{8081},
-		StartTimeMilli: procLaunchedMilli,
-		ContainerID:    dummyContainerID,
 	}
 	portTCP5000 = model.Service{
 		PID:                        procPythonService.pid,
@@ -189,7 +156,6 @@ func cmpEvents(a, b *event) bool {
 
 func Test_linuxImpl(t *testing.T) {
 	host := "test-host"
-	cfgYaml := `ignore_processes: ["ignore-1", "ignore-2"]`
 	t.Setenv("DD_DISCOVERY_ENABLED", "true")
 
 	type checkRun struct {
@@ -209,7 +175,6 @@ func Test_linuxImpl(t *testing.T) {
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP5000,
 						portTCP8080,
-						portTCP8081,
 					}},
 					time: calcTime(0),
 				},
@@ -217,7 +182,6 @@ func Test_linuxImpl(t *testing.T) {
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP5000,
 						portTCP8080,
-						portTCP8081,
 					}},
 					time: calcTime(1 * time.Minute),
 				},
@@ -225,7 +189,6 @@ func Test_linuxImpl(t *testing.T) {
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP5000,
 						portTCP8080UpdatedRSS,
-						portTCP8081,
 					}},
 					time: calcTime(20 * time.Minute),
 				},
@@ -372,7 +335,6 @@ func Test_linuxImpl(t *testing.T) {
 				{
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP8080,
-						portTCP8081,
 						portTCP5432,
 					}},
 					time: calcTime(0),
@@ -380,7 +342,6 @@ func Test_linuxImpl(t *testing.T) {
 				{
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP8080,
-						portTCP8081,
 						portTCP5432,
 					}},
 					time: calcTime(1 * time.Minute),
@@ -388,7 +349,6 @@ func Test_linuxImpl(t *testing.T) {
 				{
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP8080,
-						portTCP8081,
 						portTCP5432,
 					}},
 					time: calcTime(20 * time.Minute),
@@ -523,93 +483,6 @@ func Test_linuxImpl(t *testing.T) {
 				},
 			},
 		},
-		{
-			// in case we detect a service is restarted, we skip the stop event and send
-			// another start event instead.
-			name: "restart_service",
-			checkRun: []*checkRun{
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080,
-						portTCP8081,
-					}},
-					time: calcTime(0),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080,
-						portTCP8081,
-					}},
-					time: calcTime(1 * time.Minute),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080DifferentPID,
-					}},
-					time: calcTime(21 * time.Minute),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080DifferentPID,
-					}},
-					time: calcTime(22 * time.Minute),
-				},
-			},
-			wantEvents: []*event{
-				{
-					RequestType: "start-service",
-					APIVersion:  "v2",
-					Payload: &eventPayload{
-						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
-						GeneratedServiceName:       "test-service-1-generated",
-						GeneratedServiceNameSource: "test-service-1-generated-source",
-						ContainerServiceName:       "test-service-1-container",
-						ContainerServiceNameSource: "service",
-						DDService:                  "test-service-1",
-						ServiceNameSource:          "injected",
-						ServiceType:                "web_service",
-						HostName:                   host,
-						Env:                        "",
-						StartTime:                  calcTime(0).Unix(),
-						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(1 * time.Minute).Unix(),
-						Ports:                      []uint16{8080},
-						PID:                        99,
-						CommandLine:                []string{"test-service-1"},
-						APMInstrumentation:         "none",
-						RSSMemory:                  100 * 1024 * 1024,
-						CPUCores:                   1.5,
-						ContainerID:                dummyContainerID,
-					},
-				},
-				{
-					RequestType: "start-service",
-					APIVersion:  "v2",
-					Payload: &eventPayload{
-						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
-						GeneratedServiceName:       "test-service-1-generated",
-						GeneratedServiceNameSource: "test-service-1-generated-source",
-						ContainerServiceName:       "test-service-1-container",
-						ContainerServiceNameSource: "service",
-						DDService:                  "test-service-1",
-						ServiceNameSource:          "injected",
-						ServiceType:                "web_service",
-						HostName:                   host,
-						Env:                        "",
-						StartTime:                  calcTime(0).Unix(),
-						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(22 * time.Minute).Unix(),
-						Ports:                      []uint16{8080},
-						PID:                        102,
-						CommandLine:                []string{"test-service-1"},
-						APMInstrumentation:         "injected",
-						ContainerID:                dummyContainerID,
-					},
-				},
-			},
-		},
 	}
 
 	for _, tc := range tests {
@@ -626,7 +499,7 @@ func Test_linuxImpl(t *testing.T) {
 			err := check.Configure(
 				mSender.GetSenderManager(),
 				integration.FakeConfigHash,
-				integration.Data(cfgYaml),
+				integration.Data{},
 				nil,
 				"test",
 			)
