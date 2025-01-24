@@ -1030,7 +1030,8 @@ func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, erro
 	adlc.WaitListTimestampRaw = binary.NativeEndian.Uint64(data[16:24])
 	adlc.StartTimestampRaw = binary.NativeEndian.Uint64(data[24:32])
 	adlc.EndTimestampRaw = binary.NativeEndian.Uint64(data[32:40])
-	adlc.Rate = binary.NativeEndian.Uint32(data[40:44])
+	adlc.Rate = binary.NativeEndian.Uint16(data[40:42])
+	// 2 bytes of padding
 	adlc.Paused = binary.NativeEndian.Uint32(data[44:48])
 	return 48, nil
 }
