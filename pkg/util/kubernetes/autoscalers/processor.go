@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -190,17 +191,26 @@ func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Durati
 	}
 
 	chunks := makeChunks(queries)
+	log.Warnf("VBDEBUG number of chunks: %d, timeWindow: %v minutes", len(chunks), timeWindow.Minutes())
+
 	log.Tracef("List of batches %v", chunks)
 
 	group := errgroup.Group{}
 	group.SetLimit(p.parallelQueries)
+	log.Warnf("VBDEBUG number of parallel queries: %d", p.parallelQueries)
+
+	var counter atomic.Uint64
 
 	// we have a number of chunks with `chunkSize` metrics.
 	responses := make(chan queryResponse, len(queries))
 	for _, c := range chunks {
 		// Go will wait until a slot is available in the semaphore
 		group.Go(func() error {
+			id := counter.Add(1)
+			start := time.Now()
+			log.Warnf("VBDEBUG processing id: %d at: %v", id, start)
 			resp, err := p.queryDatadogExternal(c, timeWindow)
+			log.Warnf("VBDEBUG processed id: %d in: %v", id, time.Since(start))
 			responses <- queryResponse{resp, err}
 			return nil
 		})
