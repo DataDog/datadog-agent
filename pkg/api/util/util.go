@@ -10,6 +10,7 @@ import (
 	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"net/http"
@@ -41,7 +42,7 @@ var (
 	clientTLSConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	serverTLSConfig *tls.Config
+	serverTLSConfig = &tls.Config{}
 	initSource      source
 )
 
@@ -274,4 +275,31 @@ func IsForbidden(ip string) bool {
 func IsIPv6(ip string) bool {
 	parsed := net.ParseIP(ip)
 	return parsed != nil && parsed.To4() == nil
+}
+
+func init() {
+	// create cert
+	hosts := []string{"127.0.0.1", "localhost"}
+	_, rootCertPEM, rootKey, err := pkgtoken.GenerateRootCert(hosts, 2048)
+	if err != nil {
+		log.Errorf("unable to start TLS server")
+		return
+	}
+
+	// PEM encode the private key
+	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
+	})
+
+	// Create a TLS cert using the private key and certificate
+	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
+	if err != nil {
+		log.Errorf("invalid key pair: %v", err)
+		return
+	}
+
+	serverTLSConfig = &tls.Config{
+		Certificates: []tls.Certificate{rootTLSCert},
+		MinVersion:   tls.VersionTLS13,
+	}
 }
