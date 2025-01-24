@@ -1292,13 +1292,14 @@ func testUDPPeekCount(t *testing.T, udpnet, ip string) {
 	var outgoing *network.ConnectionStats
 	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 		conns := getConnections(collect, tr)
-		if outgoing == nil {
-			outgoing, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		newOutgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if ok {
+			outgoing = newOutgoing
 		}
-		if incoming == nil {
-			incoming, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		newIncoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		if ok {
+			incoming = newIncoming
 		}
-
 		require.NotNil(collect, outgoing)
 		require.NotNil(collect, incoming)
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections matching")
@@ -1359,11 +1360,13 @@ func testUDPPacketSumming(t *testing.T, udpnet, ip string) {
 	var outgoing *network.ConnectionStats
 	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 		conns := getConnections(collect, tr)
-		if outgoing == nil {
-			outgoing, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		newOutgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if ok {
+			outgoing = newOutgoing
 		}
-		if incoming == nil {
-			incoming, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		newIncoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		if ok {
+			incoming = newIncoming
 		}
 
 		require.NotNil(collect, outgoing)
@@ -1676,11 +1679,13 @@ func (s *TracerSuite) TestSendfileRegression() {
 		assert.EventuallyWithT(t, func(ct *assert.CollectT) {
 			conns := getConnections(ct, tr)
 			t.Log(conns)
-			if outConn == nil {
-				outConn = network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.LocalAddr(), c.RemoteAddr()))
+			newOutConn := network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.LocalAddr(), c.RemoteAddr()))
+			if newOutConn != nil {
+				outConn = newOutConn
 			}
-			if inConn == nil {
-				inConn = network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.RemoteAddr(), c.LocalAddr()))
+			newInConn := network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.RemoteAddr(), c.LocalAddr()))
+			if newInConn != nil {
+				inConn = newInConn
 			}
 			require.NotNil(ct, outConn)
 			require.NotNil(ct, inConn)
@@ -1825,17 +1830,28 @@ func (s *TracerSuite) TestShortWrite() {
 	tr := setupTracer(t, testConfig())
 
 	read := make(chan struct{})
+	var closeReadOnce sync.Once
+	closeRead := func() {
+		closeReadOnce.Do(func() {
+			close(read)
+		})
+	}
+
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		// set recv buffer to 0 and don't read
 		// to fill up tcp window
 		err := c.(*net.TCPConn).SetReadBuffer(0)
 		require.NoError(t, err)
 		<-read
+
+		_, err = io.Copy(io.Discard, c)
+		require.NoError(t, err)
+
 		c.Close()
 	})
 	require.NoError(t, server.Run())
 	t.Cleanup(func() {
-		close(read)
+		closeRead()
 		server.Shutdown()
 	})
 
@@ -1890,14 +1906,19 @@ func (s *TracerSuite) TestShortWrite() {
 	require.True(t, done)
 
 	f := os.NewFile(uintptr(sk), "")
-	defer f.Close()
 	c, err := net.FileConn(f)
 	require.NoError(t, err)
+	defer c.Close()
+
+	unix.Shutdown(sk, unix.SHUT_WR)
+	closeRead()
+	unix.Close(sk)
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		conns := getConnections(collect, tr)
 		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 		require.True(collect, ok)
+
 		require.Equal(collect, sent, conn.Monotonic.SentBytes)
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection used by short write")
 }
@@ -2029,12 +2050,15 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	var incoming, outgoing *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		connections := getConnections(collect, tr)
-		if outgoing == nil {
-			outgoing, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		newOutgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if ok {
+			outgoing = newOutgoing
 		}
-		if incoming == nil {
-			incoming, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		newIncoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		if ok {
+			incoming = newIncoming
 		}
+
 		require.NotNil(collect, outgoing)
 		require.NotNil(collect, incoming)
 		if !assert.True(collect, incoming != nil && outgoing != nil) {
