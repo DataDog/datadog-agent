@@ -67,7 +67,8 @@ func standardTagsDigest(labels map[string]string) string {
 }
 
 // newContainerFilters instantiates the required container filters for AD listeners
-func newContainerFilters() (*containerFilters, error) {
+// The returned filter will never be nil
+func newContainerFilters() *containerFilters {
 	global := containers.NewAutodiscoveryFilter(containers.GlobalFilter)
 	metrics := containers.NewAutodiscoveryFilter(containers.MetricsFilter)
 	logs := containers.NewAutodiscoveryFilter(containers.LogsFilter)
@@ -75,7 +76,7 @@ func newContainerFilters() (*containerFilters, error) {
 		global:  global,
 		metrics: metrics,
 		logs:    logs,
-	}, nil
+	}
 }
 
 func (f *containerFilters) IsExcluded(filter containers.FilterType, annotations map[string]string, name, image, ns string) bool {
