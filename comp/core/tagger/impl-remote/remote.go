@@ -256,7 +256,6 @@ func (t *remoteTagger) LegacyTag(entity string, cardinality types.TagCardinality
 }
 
 // GenerateContainerIDFromOriginInfo returns a container ID for the given Origin Info.
-// This function currently only uses the External Data from the Origin Info to generate the container ID.
 func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
 	fail := true
 	defer func() {
@@ -267,15 +266,10 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 		}
 	}()
 
-	// Generate cache key
-	initPrefix := ""
-	if originInfo.ExternalData.Init {
-		initPrefix = "i/"
-	}
 	key := cache.BuildAgentKey(
 		"remoteTagger",
-		"cid",
-		initPrefix+originInfo.ExternalData.PodUID+"/"+originInfo.ExternalData.ContainerName,
+		"originInfo",
+		origindetection.OriginInfoString(originInfo),
 	)
 
 	cachedContainerID, err := cache.GetWithExpiration(key, func() (containerID string, err error) {
