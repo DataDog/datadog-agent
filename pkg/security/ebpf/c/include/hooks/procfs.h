@@ -4,28 +4,62 @@
 #include "constants/custom.h"
 #include "constants/offsets/filesystem.h"
 #include "constants/offsets/netns.h"
+#include "constants/offsets/network.h"
 #include "helpers/filesystem.h"
 #include "helpers/utils.h"
 
 static __attribute__((always_inline)) void cache_file(struct dentry *dentry, u32 mount_id) {
-    u32 flags = 0;
     u64 inode = get_dentry_ino(dentry);
-    if (is_overlayfs(dentry)) {
-        set_overlayfs_ino(dentry, &inode, &flags);
-    }
-
     struct file_t entry = {
         .path_key = {
             .ino = inode,
             .mount_id = mount_id,
         },
-        .flags = flags,
     };
+
+    if (is_overlayfs(dentry)) {
+        set_overlayfs_inode(dentry, &entry);
+    }
 
     fill_file(dentry, &entry);
 
-    // why not inode + mount id ?
-    bpf_map_update_elem(&exec_file_cache, &inode, &entry, BPF_ANY);
+    // cache with the inode as key only as this map is used to capture the mount_id
+    // the userspace as to first push an entry so that it limits to eviction caused by other stats from system-probe.
+    bpf_map_update_elem(&inode_file, &entry.path_key.ino, &entry, BPF_EXIST);
+}
+
+static __attribute__((always_inline)) int handle_stat() {
+    if (!is_runtime_request()) {
+        return 0;
+    }
+
+    struct syscall_cache_t syscall = {
+        .type = EVENT_STAT,
+    };
+    cache_syscall(&syscall);
+    return 0;
+}
+
+HOOK_SYSCALL_ENTRY0(newfstatat) {
+    return handle_stat();
+}
+
+static __attribute__((always_inline)) int handle_ret_stat() {
+    if (!is_runtime_request()) {
+        return 0;
+    }
+
+    pop_syscall(EVENT_STAT);
+    return 0;
+}
+
+HOOK_SYSCALL_EXIT(newfstatat) {
+    return handle_ret_stat();
+}
+
+SEC("tracepoint/handle_sys_newfstatat_exit")
+int tracepoint_handle_sys_newfstatat_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return handle_ret_stat();
 }
 
 // used by both snapshot and process resolver fallback
@@ -34,6 +68,16 @@ int hook_security_inode_getattr(ctx_t *ctx) {
     if (!is_runtime_request()) {
         return 0;
     }
+
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_STAT);
+    if (!syscall) {
+        return 0;
+    }
+
+    if (syscall->stat.in_flight) {
+        return 0;
+    }
+    syscall->stat.in_flight = 1;
 
     u32 mount_id = 0;
     struct dentry *dentry;
@@ -78,15 +122,17 @@ int hook_path_get(ctx_t *ctx) {
     struct path *p = (struct path *)CTX_PARM1(ctx);
     struct file *sock_file = (void *)p - f_path_offset;
     struct pid_route_t route = {};
+    struct pid_route_entry_t value = {};
+    value.pid = *procfs_pid;
+    value.type = PROCFS_ENTRY;
 
-    struct socket *sock;
-    bpf_probe_read(&sock, sizeof(sock), &sock_file->private_data);
-    if (sock == NULL) {
+    struct socket *socket;
+    bpf_probe_read(&socket, sizeof(socket), &sock_file->private_data);
+    if (socket == NULL) {
         return 0;
     }
 
-    struct sock *sk;
-    bpf_probe_read(&sk, sizeof(sk), &sock->sk);
+    struct sock *sk = get_sock_from_socket(socket);
     if (sk == NULL) {
         return 0;
     }
@@ -96,23 +142,27 @@ int hook_path_get(ctx_t *ctx) {
         return 0;
     }
 
-    u16 family = 0;
-    bpf_probe_read(&family, sizeof(family), &sk->__sk_common.skc_family);
-    if (family == AF_INET) {
-        bpf_probe_read(&route.addr, sizeof(sk->__sk_common.skc_rcv_saddr), &sk->__sk_common.skc_rcv_saddr);
-    } else if (family == AF_INET6) {
-        bpf_probe_read(&route.addr, sizeof(u64) * 2, &sk->__sk_common.skc_v6_rcv_saddr);
-    } else {
+    route.port = get_skc_num_from_sock_common((void *)sk);
+    if (route.port == 0) {
+        // without a port we can't do much, leave early
         return 0;
     }
-    bpf_probe_read(&route.port, sizeof(route.port), &sk->__sk_common.skc_num);
-    // Calling htons is necessary to support snapshotted bound port. Without it, we're can't properly route incoming
-    // traffic to the relevant process.
-    route.port = htons(route.port);
 
-    // save pid route
-    u32 pid = *procfs_pid;
-    bpf_map_update_elem(&flow_pid, &route, &pid, BPF_ANY);
+    u16 family = get_family_from_sock_common((void *)sk);
+    if (family == AF_INET6) {
+        bpf_probe_read(&route.addr, sizeof(u64) * 2, &sk->__sk_common.skc_v6_rcv_saddr);
+        bpf_map_update_elem(&flow_pid, &route, &value, BPF_ANY);
+
+        // This AF_INET6 socket might also handle AF_INET traffic, store a mapping to AF_INET too
+        family = AF_INET;
+    }
+    if (family == AF_INET) {
+        bpf_probe_read(&route.addr, sizeof(sk->__sk_common.skc_rcv_saddr), &sk->__sk_common.skc_rcv_saddr);
+        bpf_map_update_elem(&flow_pid, &route, &value, BPF_ANY);
+    } else {
+        // ignore unsupported traffic for now
+        return 0;
+    }
 
 #if defined(DEBUG_NETNS)
     bpf_printk("path_get netns: %u", route.netns);

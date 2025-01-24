@@ -1,6 +1,6 @@
 go 1.23.1
 
-toolchain go1.23.3
+toolchain go1.23.5
 
 use (
 	.
@@ -42,7 +42,8 @@ use (
 	comp/otelcol/otlp/components/processor/infraattributesprocessor
 	comp/otelcol/otlp/components/statsprocessor
 	comp/otelcol/otlp/testutil
-	comp/serializer/compression
+	comp/serializer/logscompression
+	comp/serializer/metricscompression
 	comp/trace/agent/def
 	comp/trace/compression/def
 	comp/trace/compression/impl-gzip
@@ -66,6 +67,7 @@ use (
 	pkg/config/teeconfig
 	pkg/config/utils
 	pkg/errors
+	pkg/fips
 	pkg/gohai
 	pkg/linters/components/pkgconfigusage
 	pkg/logs/auditor
@@ -102,6 +104,7 @@ use (
 	pkg/util/cache
 	pkg/util/cgroups
 	pkg/util/common
+	pkg/util/compression
 	pkg/util/containers/image
 	pkg/util/defaultpaths
 	pkg/util/executable

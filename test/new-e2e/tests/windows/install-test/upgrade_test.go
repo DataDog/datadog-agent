@@ -29,7 +29,7 @@ func TestUpgrade(t *testing.T) {
 	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
 	require.NoError(t, err, "should get last stable agent package from env")
 	s.previousAgentPackge = previousAgentPackage
-	run(t, s)
+	Run(t, s)
 }
 
 type testUpgradeSuite struct {
@@ -79,7 +79,7 @@ func TestUpgradeFromLatest(t *testing.T) {
 	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
 	require.NoError(t, err, "should get last stable agent package from env")
 	s.upgradeAgentPackge = upgradeAgentPackge
-	run(t, s)
+	Run(t, s)
 }
 
 type testUpgradeFromLatestSuite struct {
@@ -140,7 +140,7 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 
 func TestUpgradeRollback(t *testing.T) {
 	s := &testUpgradeRollbackSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testUpgradeRollbackSuite struct {
@@ -186,7 +186,7 @@ func (s *testUpgradeRollbackSuite) TestUpgradeRollback() {
 // rolls back, that the ddprocmon service is not installed.
 func TestUpgradeRollbackWithoutCWS(t *testing.T) {
 	s := &testUpgradeRollbackWithoutCWSSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testUpgradeRollbackWithoutCWSSuite struct {
@@ -259,7 +259,7 @@ func (s *testUpgradeRollbackWithoutCWSSuite) TestUpgradeRollbackWithoutCWS() {
 
 func TestUpgradeChangeUser(t *testing.T) {
 	s := &testUpgradeChangeUserSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testUpgradeChangeUserSuite struct {
@@ -349,7 +349,7 @@ func TestUpgradeFromV5(t *testing.T) {
 	}
 	s.agent5Package.URL, err = windowsAgent.GetStableMSIURL(s.agent5Package.Version, "x86_64", "")
 	require.NoError(t, err)
-	run(t, s)
+	Run(t, s)
 }
 
 type testUpgradeFromV5Suite struct {
@@ -442,5 +442,5 @@ func TestUpgradeFromV6(t *testing.T) {
 	}
 	s.previousAgentPackge.URL, err = windowsAgent.GetStableMSIURL(s.previousAgentPackge.Version, s.previousAgentPackge.Arch, "")
 	require.NoError(t, err)
-	run(t, s)
+	Run(t, s)
 }

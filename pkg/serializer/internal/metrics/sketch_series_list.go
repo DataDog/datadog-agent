@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -251,10 +251,6 @@ func (pb *payloadsBuilder) marshal(ss *metrics.SketchSeries) error {
 	const sketchMetadataOriginOriginService = 6
 	//                 |----|  'Origin' message
 	//                       |-----------| 'origin_service' field index
-	const serieMetadataOriginOriginProductAgentType = 10
-	//                 |----|  'Origin' message
-	//                       |-----------| 'OriginProduct' enum
-	//                                    |-------| 'Agent' enum value
 
 	pb.buf.Reset()
 	err := pb.ps.Embedded(payloadSketches, func(ps *molecule.ProtoStream) error {
@@ -336,7 +332,7 @@ func (pb *payloadsBuilder) marshal(ss *metrics.SketchSeries) error {
 						return err
 					}
 				}
-				err = ps.Int32(sketchMetadataOriginOriginProduct, serieMetadataOriginOriginProductAgentType)
+				err = ps.Int32(sketchMetadataOriginOriginProduct, metricSourceToOriginProduct(ss.Source))
 				if err != nil {
 					return err
 				}

@@ -31,21 +31,16 @@ type linuxImpl struct {
 	getDiscoveryServices func(client *http.Client) (*model.ServicesResponse, error)
 	time                 timer
 
-	ignoreCfg map[string]bool
-
-	ignoreProcs       map[int]bool
 	aliveServices     map[int]*serviceInfo
 	potentialServices map[int]*serviceInfo
 
 	sysProbeClient *http.Client
 }
 
-func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
+func newLinuxImpl() (osImpl, error) {
 	return &linuxImpl{
 		getDiscoveryServices: getDiscoveryServices,
 		time:                 realTime{},
-		ignoreCfg:            ignoreCfg,
-		ignoreProcs:          make(map[int]bool),
 		aliveServices:        make(map[int]*serviceInfo),
 		potentialServices:    make(map[int]*serviceInfo),
 		sysProbeClient:       sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
@@ -99,19 +94,10 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	// check open ports - these will be potential new services if they are still alive in the next iteration.
 	for _, service := range response.Services {
 		pid := service.PID
-		if li.ignoreProcs[pid] {
-			continue
-		}
 		if _, ok := li.aliveServices[pid]; !ok {
 			log.Debugf("[pid: %d] found new process with open ports", pid)
 
 			svc := li.getServiceInfo(service)
-			if li.ignoreCfg[svc.meta.Name] {
-				log.Debugf("[pid: %d] process ignored from config: %s", pid, svc.meta.Name)
-				li.ignoreProcs[pid] = true
-				continue
-			}
-
 			log.Debugf("[pid: %d] adding process to potential: %s", pid, svc.meta.Name)
 			li.potentialServices[pid] = &svc
 		}
@@ -136,15 +122,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		}
 	}
 
-	// check if services previously marked as ignore are still alive.
-	for pid := range li.ignoreProcs {
-		if _, ok := serviceMap[pid]; !ok {
-			delete(li.ignoreProcs, pid)
-		}
-	}
-
 	return &discoveredServices{
-		ignoreProcs:     li.ignoreProcs,
 		potentials:      li.potentialServices,
 		runningServices: li.aliveServices,
 		events:          events,

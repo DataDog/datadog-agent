@@ -143,11 +143,11 @@ remove_remote_config_db()
 remove_persist_integration_files()
 {
     # Remove any file related to reinstalling non-core integrations (see python-scripts/packages.py for the names)
-    if [ -f "$INSTALL_DIR/.prerm_python_installed_packages.txt" ]; then
-        rm "$INSTALL_DIR/.prerm_python_installed_packages.txt" || true
+    if [ -f "$INSTALL_DIR/.pre_python_installed_packages.txt" ]; then
+        rm "$INSTALL_DIR/.pre_python_installed_packages.txt" || true
     fi
-    if [ -f "$INSTALL_DIR/.postinst_python_installed_packages.txt" ]; then
-        rm "$INSTALL_DIR/.postinst_python_installed_packages.txt" || true
+    if [ -f "$INSTALL_DIR/.post_python_installed_packages.txt" ]; then
+        rm "$INSTALL_DIR/.post_python_installed_packages.txt" || true
     fi
     if [ -f "$INSTALL_DIR/.diff_python_installed_packages.txt" ]; then
         rm "$INSTALL_DIR/.diff_python_installed_packages.txt" || true
@@ -161,16 +161,6 @@ remove_fips_module()
     rm -rf "${INSTALL_DIR}/embedded/ssl/fipsmodule.cnf" || true
 }
 
-case "$*" in
-    1)
-        # We're upgrading.
-        if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
-            ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/prerm.py" "${INSTALL_DIR}" || true
-        fi
-    ;;
-    *)
-    ;;
-esac
 stop_agent
 deregister_agent
 remove_sysprobe_core_files
