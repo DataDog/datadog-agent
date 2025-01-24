@@ -68,6 +68,23 @@ const (
 	samplerHasher = uint64(1111111111111111111)
 )
 
+func (s SamplingPriority) tag() string {
+	var v string
+	switch s {
+	case PriorityUserDrop:
+		v = "manual_drop"
+	case PriorityAutoDrop:
+		v = "auto_drop"
+	case PriorityAutoKeep:
+		v = "auto_keep"
+	case PriorityUserKeep:
+		v = "manual_keep"
+	default:
+		v = "none"
+	}
+	return "sampling_priority:" + v
+}
+
 // SampleByRate returns whether to keep a trace, based on its ID and a sampling rate.
 // This assumes that trace IDs are nearly uniformly distributed.
 func SampleByRate(traceID uint64, rate float64) bool {
