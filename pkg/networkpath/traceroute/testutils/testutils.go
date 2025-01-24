@@ -28,8 +28,8 @@ func CreateMockIPv4Header(srcIP, dstIP net.IP, protocol int) *ipv4.Header {
 	}
 }
 
-// CreateMockICMPPacket creates a mock ICMP packet for testing
-func CreateMockICMPPacket(ipLayer *layers.IPv4, icmpLayer *layers.ICMPv4, innerIP *layers.IPv4, innerTCP *layers.TCP, partialTCPHeader bool) []byte {
+// CreateMockICMPWithTCPPacket creates a mock ICMP packet for testing
+func CreateMockICMPWithTCPPacket(ipLayer *layers.IPv4, icmpLayer *layers.ICMPv4, innerIP *layers.IPv4, innerTCP *layers.TCP, partialTCPHeader bool) []byte {
 	innerBuf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 
@@ -55,6 +55,47 @@ func CreateMockICMPPacket(ipLayer *layers.IPv4, icmpLayer *layers.ICMPv4, innerI
 	if partialTCPHeader {
 		payload = payload[:32]
 	}
+
+	buf := gopacket.NewSerializeBuffer()
+	gopacket.SerializeLayers(buf, opts, // nolint: errcheck
+		icmpLayer,
+		gopacket.Payload(payload),
+	)
+
+	icmpBytes := buf.Bytes()
+	if ipLayer == nil {
+		return icmpBytes
+	}
+
+	buf = gopacket.NewSerializeBuffer()
+	gopacket.SerializeLayers(buf, opts, // nolint: errcheck
+		ipLayer,
+		gopacket.Payload(icmpBytes),
+	)
+
+	return buf.Bytes()
+}
+
+// CreateMockICMPWithUDPPacket creates a mock ICMP packet for testing
+func CreateMockICMPWithUDPPacket(ipLayer *layers.IPv4, icmpLayer *layers.ICMPv4, innerIP *layers.IPv4, innerUDP *layers.UDP) []byte {
+	innerBuf := gopacket.NewSerializeBuffer()
+	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
+
+	innerLayers := make([]gopacket.SerializableLayer, 0, 2)
+	if innerIP != nil {
+		innerLayers = append(innerLayers, innerIP)
+	}
+	if innerUDP != nil {
+		innerLayers = append(innerLayers, innerUDP)
+		if innerIP != nil {
+			innerUDP.SetNetworkLayerForChecksum(innerIP) // nolint: errcheck
+		}
+	}
+
+	gopacket.SerializeLayers(innerBuf, opts, // nolint: errcheck
+		innerLayers...,
+	)
+	payload := innerBuf.Bytes()
 
 	buf := gopacket.NewSerializeBuffer()
 	gopacket.SerializeLayers(buf, opts, // nolint: errcheck
@@ -133,6 +174,15 @@ func CreateMockTCPLayer(srcPort uint16, dstPort uint16, seqNum uint32, ackNum ui
 		SYN:     syn,
 		ACK:     ack,
 		RST:     rst,
+	}
+}
+
+// CreateMockUDPLayer creates a mock UDP layer for testing
+func CreateMockUDPLayer(srcPort uint16, dstPort uint16, checksum uint16) *layers.UDP {
+	return &layers.UDP{
+		SrcPort:  layers.UDPPort(srcPort),
+		DstPort:  layers.UDPPort(dstPort),
+		Checksum: checksum,
 	}
 }
 
