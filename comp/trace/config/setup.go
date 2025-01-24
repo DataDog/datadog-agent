@@ -446,6 +446,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.Obfuscation.CreditCards.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.credit_cards.keep_values")
 	c.Obfuscation.Cache.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled")
 	c.Obfuscation.Cache.MaxSize = pkgconfigsetup.Datadog().GetInt64("apm_config.obfuscation.cache.max_size")
+	c.Obfuscation.Cache.Metrics = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.metrics")
 
 	if core.IsSet("apm_config.filter_tags.require") {
 		tags := core.GetStringSlice("apm_config.filter_tags.require")

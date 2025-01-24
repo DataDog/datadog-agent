@@ -280,6 +280,9 @@ type CacheConfig struct {
 
 	// MaxSize is the maximum size of the cache in bytes.
 	MaxSize int64 `mapstructure:"max_size"`
+
+	// Metrics specifies whether to emit hit/miss metrics for the cache.
+	Metrics bool `mapstructure:"metrics"`
 }
 
 // NewObfuscator creates a new obfuscator
@@ -289,7 +292,7 @@ func NewObfuscator(cfg Config) *Obfuscator {
 	}
 	o := Obfuscator{
 		opts:              &cfg,
-		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd, MaxSize: cfg.Cache.MaxSize}),
+		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd, MaxSize: cfg.Cache.MaxSize, Metrics: cfg.Cache.Metrics}),
 		sqlLiteralEscapes: atomic.NewBool(false),
 		log:               cfg.Logger,
 	}
