@@ -272,10 +272,24 @@ func TestNetworkCheck(t *testing.T) {
 			},
 		},
 		netstatTCPExtCountersValues: map[string]int64{
-			"ListenOverflows": 32,
-			"ListenDrops":     33,
-			"TCPBacklogDrop":  34,
-			"TCPRetransFail":  35,
+			"ListenOverflows":      32,
+			"ListenDrops":          33,
+			"TCPBacklogDrop":       34,
+			"TCPRetransFail":       35,
+			"IPReversePathFilter":  43,
+			"PruneCalled":          44,
+			"RcvPruned":            45,
+			"OfoPruned":            46,
+			"PAWSActive":           47,
+			"PAWSEstab":            48,
+			"SyncookiesSent":       49,
+			"SyncookiesRecv":       50,
+			"SyncookiesFailed":     51,
+			"TCPAbortOnTimeout":    52,
+			"TCPSynRetrans":        53,
+			"TCPFromZeroWindowAdv": 54,
+			"TCPToZeroWindowAdv":   55,
+			"TWRecycled":           56,
 		},
 	}
 
@@ -363,6 +377,20 @@ collect_connection_state: true
 	mockSender.AssertCalled(t, "Rate", "system.net.tcp.listen_drops", float64(33), "", customTags)
 	mockSender.AssertCalled(t, "Rate", "system.net.tcp.backlog_drops", float64(34), "", customTags)
 	mockSender.AssertCalled(t, "Rate", "system.net.tcp.failed_retransmits", float64(35), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.ip.reverse_path_filter", float64(43), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.prune_called", float64(44), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.prune_rcv_drops", float64(45), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.prune_ofo_called", float64(46), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.paws_connection_drops", float64(47), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.paws_established_drops", float64(48), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.syn_cookies_sent", float64(49), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.syn_cookies_recv", float64(50), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.syn_cookies_failed", float64(51), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.abort_on_timeout", float64(52), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.syn_retrans", float64(53), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.from_zero_window", float64(54), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.to_zero_window", float64(55), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.tw_reused", float64(56), "", customTags)
 
 	mockSender.AssertCalled(t, "Gauge", "system.net.udp4.connections", float64(1), "", customTags)
 
