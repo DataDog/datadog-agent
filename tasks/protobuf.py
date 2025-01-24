@@ -4,68 +4,46 @@ from pathlib import Path
 
 from invoke import Exit, task
 
+PROTO_PKGS = {
+    'model/v1': (False, False),
+    'remoteconfig': (False, False),
+    'api/v1': (True, False),
+    'trace': (False, True),
+    'process': (False, False),
+    'workloadmeta': (False, False),
+    'languagedetection': (False, False),
+    'remoteagent': (False, False),
+    'autodiscovery': (False, False),
+}
+
+# maybe put this in a separate function
+PKG_PLUGINS = {
+    'trace': '--go-vtproto_out=',
+}
+
+PKG_CLI_EXTRAS = {
+    'trace': '--go-vtproto_opt=features=marshal+unmarshal+size',
+}
+
+# protoc-go-inject-tag targets
+INJECT_TAG_TARGETS = {
+    'trace': ['span.pb.go', 'stats.pb.go', 'tracer_payload.pb.go', 'agent_payload.pb.go'],
+}
+
 
 @task
-def generate(ctx):
+def generate(ctx, do_mockgen=True):
     """
     Generates protobuf definitions in pkg/proto
 
     We must build the packages one at a time due to protoc-gen-go limitations
     """
-
     # Key: path, Value: grpc_gateway, inject_tags
-    PROTO_PKGS = {
-        'model/v1': (False, False),
-        'remoteconfig': (False, False),
-        'api/v1': (True, False),
-        'trace': (False, True),
-        'process': (False, False),
-        'workloadmeta': (False, False),
-        'languagedetection': (False, False),
-        'remoteagent': (False, False),
-        'autodiscovery': (False, False),
-    }
-
-    # maybe put this in a separate function
-    PKG_PLUGINS = {
-        'trace': '--go-vtproto_out=',
-    }
-
-    PKG_CLI_EXTRAS = {
-        'trace': '--go-vtproto_opt=features=marshal+unmarshal+size',
-    }
-
-    # protoc-go-inject-tag targets
-    inject_tag_targets = {
-        'trace': ['span.pb.go', 'stats.pb.go', 'tracer_payload.pb.go', 'agent_payload.pb.go'],
-    }
-
-    # msgp targets (file, io)
-    msgp_targets = {
-        'trace': [
-            ('trace.go', False),
-            ('span.pb.go', False),
-            ('stats.pb.go', True),
-            ('tracer_payload.pb.go', False),
-            ('agent_payload.pb.go', False),
-        ],
-        'core': [('remoteconfig.pb.go', False)],
-    }
-
-    # msgp patches key is `pkg` : (patch, destination)
-    #     if `destination` is `None` diff will target inherent patch files
-    msgp_patches = {
-        'trace': [
-            ('0001-Customize-msgpack-parsing.patch', '-p4'),
-            ('0002-Make-nil-map-deserialization-retrocompatible.patch', '-p4'),
-        ],
-    }
-
     base = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(base, ".."))
     proto_root = os.path.join(repo_root, "pkg", "proto")
     protodep_root = os.path.join(proto_root, "protodep")
-
+    pbgo_dir = os.path.join(proto_root, "pbgo")
     print(f"nuking old definitions at: {proto_root}")
     file_list = glob.glob(os.path.join(proto_root, "pbgo", "*.pb.go"))
     for file_path in file_list:
@@ -113,7 +91,7 @@ def generate(ctx):
             if inject_tags:
                 inject_path = os.path.join(proto_root, "pbgo", pkg)
                 # inject_tags logic
-                for target in inject_tag_targets[pkg]:
+                for target in INJECT_TAG_TARGETS[pkg]:
                     ctx.run(f"protoc-go-inject-tag -input={os.path.join(inject_path, target)}")
 
             if grpc_gateway:
@@ -122,26 +100,44 @@ def generate(ctx):
                     f"protoc -I{proto_root} -I{protodep_root} --grpc-gateway_out=logtostderr=true:{repo_root} {targets}"
                 )
 
-        # mockgen
-        pbgo_dir = os.path.join(proto_root, "pbgo")
-        mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
-        pbgo_rel = os.path.relpath(pbgo_dir, repo_root)
-        try:
-            os.mkdir(mockgen_out)
-        except FileExistsError:
-            print(f"{mockgen_out} folder already exists")
+        # Mockgen
+        if do_mockgen:
+            mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
+            pbgo_rel = os.path.relpath(pbgo_dir, repo_root)
+            try:
+                os.mkdir(mockgen_out)
+            except FileExistsError:
+                print(f"{mockgen_out} folder already exists")
 
-        # TODO: this should be parametrized
-        ctx.run(f"mockgen -source={pbgo_rel}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
+            ctx.run(f"mockgen -source={pbgo_rel}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
 
-    # generate messagepack marshallers
+    # Generate messagepack marshallers
+    # msgp targets (file, io)
+    msgp_targets = {
+        'trace': [
+            ('trace.go', False),
+            ('span.pb.go', False),
+            ('stats.pb.go', True),
+            ('tracer_payload.pb.go', False),
+            ('agent_payload.pb.go', False),
+        ],
+        'core': [('remoteconfig.pb.go', False)],
+    }
     for pkg, files in msgp_targets.items():
         for src, io_gen in files:
             dst = os.path.splitext(os.path.basename(src))[0]  # .go
             dst = os.path.splitext(dst)[0]  # .pb
             ctx.run(f"msgp -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io={io_gen}")
 
-    # apply msgp patches
+    # Apply msgp patches
+    # msgp patches key is `pkg` : (patch, destination)
+    #     if `destination` is `None` diff will target inherent patch files
+    msgp_patches = {
+        'trace': [
+            ('0001-Customize-msgpack-parsing.patch', '-p4'),
+            ('0002-Make-nil-map-deserialization-retrocompatible.patch', '-p4'),
+        ],
+    }
     for pkg, patches in msgp_patches.items():
         for patch in patches:
             patch_file = os.path.join(proto_root, "patches", patch[0])
