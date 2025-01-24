@@ -394,7 +394,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 		},
 		{
 			name: "CONTINUATION frame",
-			runClients: func(t *testing.T, clientsCount int) {
+			runClients: func(t *testing.T, _ int) {
 				client := dialHTTP2Server(t)
 				messageBuilder := func() [][]byte {
 					const headersFrameEndHeaders = false
