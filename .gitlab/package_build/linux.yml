@@ -36,7 +36,7 @@
 
 .agent_build_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   needs: ["build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
     PACKAGE_ARCH: amd64
@@ -46,7 +46,7 @@
 
 .agent_build_arm64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   needs:
     ["build_system-probe-arm64", "go_deps", "generate_minimized_btfs_arm64"]
   variables:
@@ -114,7 +114,7 @@ datadog-agent-7-arm64-fips:
 
 iot-agent-x64:
   extends: .iot-agent-common
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   variables:
     DD_CC: "x86_64-unknown-linux-gnu-gcc"
@@ -122,7 +122,7 @@ iot-agent-x64:
 
 iot-agent-arm64:
   extends: .iot-agent-common
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   variables:
     DD_CC: "aarch64-unknown-linux-gnu-gcc"
@@ -131,7 +131,7 @@ iot-agent-arm64:
 iot-agent-armhf:
   extends: .iot-agent-common
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_armhf$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   variables:
     # On armv7, dpkg is built as a 32bits application, which means
@@ -168,7 +168,7 @@ dogstatsd-x64:
   extends: .dogstatsd_build_common
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   variables:
     DD_CC: "x86_64-unknown-linux-gnu-gcc"
     DD_CXX: "x86_64-unknown-linux-gnu-g++"
@@ -176,7 +176,7 @@ dogstatsd-x64:
 dogstatsd-arm64:
   extends: .dogstatsd_build_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_arm64", "go_deps"]
   variables:
     DD_CC: "aarch64-unknown-linux-gnu-gcc"

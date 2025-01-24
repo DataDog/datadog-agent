@@ -86,7 +86,7 @@ upload_secagent_tests_x64:
     - .upload_secagent_tests
   needs: ["go_deps", "prepare_secagent_ebpf_functional_tests_x64"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: m5d.metal
@@ -96,7 +96,7 @@ upload_secagent_tests_arm64:
     - .upload_secagent_tests
   needs: ["go_deps", "prepare_secagent_ebpf_functional_tests_arm64"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   variables:
     ARCH: arm64
     INSTANCE_TYPE: m6gd.metal
@@ -118,7 +118,7 @@ kmt_run_secagent_tests_x64:
   extends:
     - .kmt_run_secagent_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
     - upload_dependencies_secagent_x64
@@ -160,7 +160,7 @@ kmt_run_secagent_tests_x64_required:
   extends:
     - .kmt_run_secagent_tests_base
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
     - upload_dependencies_secagent_x64
@@ -180,7 +180,7 @@ kmt_run_secagent_tests_x64_ad:
   extends:
     - .kmt_run_secagent_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
     - upload_dependencies_secagent_x64
@@ -200,7 +200,7 @@ kmt_run_secagent_tests_x64_ebpfless:
   extends:
     - .kmt_run_secagent_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
     - upload_dependencies_secagent_x64
@@ -220,7 +220,7 @@ kmt_run_secagent_tests_x64_docker:
   extends:
     - .kmt_run_secagent_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
     - upload_dependencies_secagent_x64
@@ -259,7 +259,7 @@ kmt_run_secagent_tests_arm64:
   extends:
     - .kmt_run_secagent_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   needs:
     - kmt_setup_env_secagent_arm64
     - upload_dependencies_secagent_arm64
@@ -294,7 +294,7 @@ kmt_run_secagent_tests_arm64_ad:
   extends:
     - .kmt_run_secagent_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   needs:
     - kmt_setup_env_secagent_arm64
     - upload_dependencies_secagent_arm64
@@ -314,7 +314,7 @@ kmt_run_secagent_tests_arm64_ebpfless:
   extends:
     - .kmt_run_secagent_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   needs:
     - kmt_setup_env_secagent_arm64
     - upload_dependencies_secagent_arm64
@@ -334,7 +334,7 @@ kmt_run_secagent_tests_arm64_docker:
   extends:
     - .kmt_run_secagent_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   needs:
     - kmt_setup_env_secagent_arm64
     - upload_dependencies_secagent_arm64
@@ -375,7 +375,7 @@ kmt_run_secagent_tests_arm64_docker:
   stage: kernel_matrix_testing_cleanup
   rules: !reference [.on_security_agent_changes_or_manual]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   script:
     - echo "nothing to do here"
 

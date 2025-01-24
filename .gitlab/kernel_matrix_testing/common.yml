@@ -110,7 +110,7 @@
   before_script:
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   script:
     # upload dependencies
     - !reference [.wait_for_instance]
@@ -134,7 +134,7 @@
   stage: kernel_matrix_testing_prepare
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps"]
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   variables:
     AWS_REGION: us-east-1
     STACK_DIR: $CI_PROJECT_DIR/stack.dir
@@ -206,7 +206,7 @@
 .kmt_cleanup:
   stage: kernel_matrix_testing_cleanup
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   before_script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
     - !reference [.kmt_new_profile]
@@ -296,7 +296,7 @@
 notify_ebpf_complexity_changes:
   stage: notify
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   rules:
     - !reference [.except_mergequeue]
     - !reference [.except_main_or_release_branch]

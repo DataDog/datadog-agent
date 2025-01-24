@@ -18,7 +18,7 @@
 .cache:
   stage: deps_fetch
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   needs: ["setup_agent_version"]
   variables:
     KUBERNETES_CPU_REQUEST: 16
@@ -109,7 +109,7 @@ go_e2e_deps:
 
 fetch_openjdk:
   needs: []
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   rules:
     - !reference [.manual]
   stage: deps_fetch

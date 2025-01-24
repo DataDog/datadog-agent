@@ -8,7 +8,7 @@
     - !reference [.except_mergequeue]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   script:
     - cd $CI_PROJECT_DIR
     - export BTFS_ETAG=$(aws s3api head-object --region us-east-1 --bucket dd-agent-omnibus --key btfs/$BTFHUB_ARCHIVE_BRANCH/btfs-$ARCH.tar --query ETag --output text | tr -d \")

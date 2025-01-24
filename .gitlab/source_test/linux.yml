@@ -47,7 +47,7 @@
 
 .linux_x64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
 
 tests_deb-x64-py3:
   extends:
@@ -101,7 +101,7 @@ tests_rpm-x64-py3:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   variables:
     CONDA_ENV: ddpy3
     EXTRA_OPTS: '--build-exclude=systemd'
@@ -114,7 +114,7 @@ tests_deb-arm64-py3:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   variables:
     CONDA_ENV: ddpy3
 
@@ -126,7 +126,7 @@ tests_rpm-arm64-py3:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   variables:
     CONDA_ENV: ddpy3
 
@@ -148,7 +148,7 @@ go_mod_tidy_check:
 new-e2e-unit-tests:
   extends: .linux_tests
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   needs:
     - !reference [ .needs_new_e2e_template ]
     - go_deps

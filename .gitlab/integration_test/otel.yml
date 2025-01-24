@@ -5,7 +5,7 @@
 integration_tests_otel:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   needs: ["go_deps"]
   script:
     - !reference [.retrieve_linux_go_deps]
@@ -60,7 +60,7 @@ docker_image_build_otel:
 datadog_otel_components_ocb_build:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   needs: ["go_deps"]
   artifacts:
     paths:

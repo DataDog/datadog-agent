@@ -27,7 +27,7 @@ agent_dmg-x64-a7:
     - !reference [.manual]
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   needs: ["go_mod_tidy_check"]
   timeout: 6h
   before_script:
