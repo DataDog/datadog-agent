@@ -725,7 +725,7 @@ def print_overall_pipeline_stats(ctx, n_days=90):
     # PRs that should not be merged
     broken_prs = []
     for i, pr in enumerate(merged_prs):
-        print(f'PR {i+1}/{len(merged_prs)}: {pr.url}')
+        print(f'PR {i+1}/{len(merged_prs)}: {pr.url} ({len(broken_prs)/len(merged_prs)*100:.2f}% broken PRs so far)')
         # import pdb; pdb.set_trace()
         # print(pr.state)
 
