@@ -57,7 +57,7 @@ func (h *NetworkPolicyHandlers) BuildMessageBody(ctx processors.ProcessorContext
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NetworkPolicyHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*netv1.NetworkPolicy)
-	return k8sTransformers.ExtractNetworkPolicy(r)
+	return k8sTransformers.ExtractNetworkPolicy(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

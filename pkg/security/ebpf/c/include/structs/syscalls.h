@@ -233,6 +233,10 @@ struct syscall_cache_t {
         struct {
             u32 auid;
         } login_uid;
+
+        struct {
+            u8 in_flight;
+        } stat;
     };
 };
 
