@@ -646,26 +646,44 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 		OSVersion:    imgInspect.OsVersion,
 		Architecture: imgInspect.Architecture,
 		Variant:      imgInspect.Variant,
-		Layers:       layersFromDockerHistory(imageHistory),
+		Layers:       layersFromDockerHistoryAndInspect(imageHistory, imgInspect),
 		SBOM:         sbom,
 	}, nil
 }
 
-func layersFromDockerHistory(history []image.HistoryResponseItem) []workloadmeta.ContainerImageLayer {
+func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, inspect types.ImageInspect) []workloadmeta.ContainerImageLayer {
 	var layers []workloadmeta.ContainerImageLayer
 
-	// Docker returns the layers in reverse-chronological order
-	for i := len(history) - 1; i >= 0; i-- {
-		created := time.Unix(history[i].Created, 0)
+	// Sanity check our current assumption that there cannot be more RootFS layer IDs than history layers
+	if len(inspect.RootFS.Layers) > len(history) {
+		log.Warn("The number of RootFS layers exceeded the number of history layers")
+		return layers
+	}
+
+	// i tracks the current RootFS layer IDs (in Docker, this corresponds to the Diff ID of a layer)
+	// Docker returns the RootFS layers in chronological order
+	i := 0
+
+	// Docker returns the history layers in reverse-chronological order
+	for j := len(history) - 1; j >= 0; j-- {
+		created := time.Unix(history[j].Created, 0)
+		emptyLayer := history[j].Size == 0
+
+		// if the layer is empty, we can assume there is no associated digest
+		digest := ""
+		if !emptyLayer {
+			digest = inspect.RootFS.Layers[i]
+			i++
+		}
 
 		layer := workloadmeta.ContainerImageLayer{
-			Digest:    history[i].ID,
-			SizeBytes: history[i].Size,
+			Digest:    digest,
+			SizeBytes: history[j].Size,
 			History: &v1.History{
 				Created:    &created,
-				CreatedBy:  history[i].CreatedBy,
-				Comment:    history[i].Comment,
-				EmptyLayer: history[i].Size == 0,
+				CreatedBy:  history[j].CreatedBy,
+				Comment:    history[j].Comment,
+				EmptyLayer: emptyLayer,
 			},
 		}
 
