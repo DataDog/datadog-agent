@@ -386,6 +386,8 @@ func (s *upgradeScenarioSuite) TestInstallerAgentFailure() {
 	s.stopExperiment(datadogInstaller) // Can't check error
 	s.assertSuccessfulInstallerStopExperiment(timestamp)
 
+	s.host.WaitForUnitActive(installerUnit)
+
 	// Retry the golden path to check if everything fine
 	s.setCatalog(testCatalog)
 	s.executeInstallerGoldenPath()

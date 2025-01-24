@@ -55,8 +55,6 @@ int hook_set_fs_pwd(ctx_t *ctx) {
     syscall->chdir.dentry = dentry;
     syscall->chdir.file.path_key = get_dentry_key_path(syscall->chdir.dentry, path);
 
-    set_file_inode(dentry, &syscall->chdir.file, 0);
-
     if (approve_syscall(syscall, chdir_approvers) == DISCARDED) {
         pop_syscall(EVENT_CHDIR);
         return 0;
