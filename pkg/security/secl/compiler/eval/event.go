@@ -32,8 +32,9 @@ type Event interface {
 func eventTypeFromFields(model Model, state *State) (EventType, error) {
 	var eventType EventType
 
+	ev := model.NewEvent()
 	for field := range state.fieldValues {
-		evt, _, err := model.NewEvent().GetFieldMetadata(field)
+		evt, _, err := ev.GetFieldMetadata(field)
 		if err != nil {
 			return "", err
 		}
