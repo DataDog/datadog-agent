@@ -10,6 +10,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"io"
 	"net/http"
 	"sync"
@@ -18,9 +19,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
+	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
 // httpClients should be reused instead of created as needed. They keep cached TCP connections
@@ -30,13 +32,8 @@ var (
 	clientInitOnce sync.Once
 )
 
-func client() *http.Client {
-	clientInitOnce.Do(func() {
-		httpClient = apiutil.GetClient(false)
-	})
-
-	return httpClient
-}
+//go:embed status_templates
+var templatesFS embed.FS
 
 type dependencies struct {
 	fx.In
@@ -50,26 +47,68 @@ type provides struct {
 	StatusProvider status.InformationProvider
 }
 
+type statusProvider struct {
+	Config         config.Component
+	receiverStatus map[string]interface{}
+	exporterStatus map[string]interface{}
+}
+
+type prometheusRuntimeConfig struct {
+	Service struct {
+		Telemetry struct {
+			Metrics struct {
+				Readers []struct {
+					Pull struct {
+						Exporter struct {
+							Prometheus struct {
+								Host string
+								Port int
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func client() *http.Client {
+	clientInitOnce.Do(func() {
+		httpClient = apiutil.GetClient(false)
+	})
+
+	return httpClient
+}
+
 // Module defines the fx options for the status component.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newStatus))
 }
 
-type statusProvider struct {
-	Config config.Component
-}
-
 func newStatus(deps dependencies) provides {
 	return provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
 			Config: deps.Config,
+			receiverStatus: map[string]interface{}{
+				"spans":           0.0,
+				"metrics":         0.0,
+				"logs":            0.0,
+				"refused_spans":   0.0,
+				"refused_metrics": 0.0,
+				"refused_logs":    0.0,
+			},
+			exporterStatus: map[string]interface{}{
+				"spans":          0.0,
+				"metrics":        0.0,
+				"logs":           0.0,
+				"failed_spans":   0.0,
+				"failed_metrics": 0.0,
+				"failed_logs":    0.0,
+			},
 		}),
 	}
 }
-
-//go:embed status_templates
-var templatesFS embed.FS
 
 // Name returns the name
 func (s statusProvider) Name() string {
@@ -82,42 +121,125 @@ func (s statusProvider) Section() string {
 }
 
 func (s statusProvider) getStatusInfo() map[string]interface{} {
-	fmt.Println("---- getStatusInfo OTel Agent ----")
+	statusInfo := make(map[string]interface{})
 
 	values := s.populateStatus()
-	fmt.Println(values)
 
-	return values
+	statusInfo["otelAgent"] = values
+
+	return statusInfo
+}
+
+func getPrometheusUrl(extensionResp ddflareextension.Response) (string, error) {
+	var runtimeConfig prometheusRuntimeConfig
+	if err := yaml.Unmarshal([]byte(extensionResp.RuntimeConfig), &runtimeConfig); err != nil {
+		return "", err
+	}
+	prometheusHost := "localhost"
+	prometheusPort := 8888
+	for _, reader := range runtimeConfig.Service.Telemetry.Metrics.Readers {
+		prometheusEndpoint := reader.Pull.Exporter.Prometheus
+		if prometheusEndpoint.Host != "" && prometheusEndpoint.Port != 0 {
+			prometheusHost = prometheusEndpoint.Host
+			prometheusPort = prometheusEndpoint.Port
+		}
+	}
+	return fmt.Sprintf("http://%v:%d/metrics", prometheusHost, prometheusPort), nil
+}
+
+func (s statusProvider) populatePrometheusStatus(c *http.Client, prometheusUrl string) error {
+	resp, err := apiutil.DoGet(c, prometheusUrl, apiutil.CloseConnection)
+	if err != nil {
+		return err
+	}
+	metrics, err := prometheus.ParseMetrics(resp)
+	if err != nil {
+		return err
+	}
+
+	for _, m := range metrics {
+		value := m.Samples[0].Value
+		switch m.Name {
+		case "otelcol_receiver_accepted_spans":
+			s.receiverStatus["spans"] = value
+		case "otelcol_receiver_accepted_metric_points":
+			s.receiverStatus["metrics"] = value
+		case "otelcol_receiver_accepted_log_records":
+			s.receiverStatus["logs"] = value
+		case "otelcol_receiver_refused_spans":
+			s.receiverStatus["refused_spans"] = value
+		case "otelcol_receiver_refused_metric_points":
+			s.receiverStatus["refused_metrics"] = value
+		case "otelcol_receiver_refused_log_records":
+			s.receiverStatus["refused_logs"] = value
+		case "otelcol_exporter_sent_spans":
+			s.exporterStatus["spans"] = value
+		case "otelcol_exporter_sent_metric_points":
+			s.exporterStatus["metrics"] = value
+		case "otelcol_exporter_sent_log_records":
+			s.exporterStatus["logs"] = value
+		case "otelcol_exporter_send_failed_spans":
+			s.exporterStatus["failed_spans"] = 1.0
+		case "otelcol_exporter_send_failed_metric_points":
+			s.exporterStatus["failed_metrics"] = value
+		case "otelcol_exporter_send_failed_log_records":
+			s.exporterStatus["failed_logs"] = value
+		}
+	}
+	return nil
 }
 
 func (s statusProvider) populateStatus() map[string]interface{} {
 	extensionUrl := s.Config.GetString("otelcollector.extension_url")
-
 	c := client()
 	resp, err := apiutil.DoGet(c, extensionUrl, apiutil.CloseConnection)
 	if err != nil {
 		return map[string]interface{}{
+			"url":   extensionUrl,
 			"error": err.Error(),
 		}
 	}
-
-	status := make(map[string]interface{})
-	if err := json.Unmarshal(resp, &status); err != nil {
+	var extensionResp ddflareextension.Response
+	if err = json.Unmarshal(resp, &extensionResp); err != nil {
 		return map[string]interface{}{
+			"url":   extensionUrl,
 			"error": err.Error(),
 		}
 	}
-	return status
+	prometheusUrl, err := getPrometheusUrl(extensionResp)
+	if err != nil {
+		return map[string]interface{}{
+			"url":   extensionUrl,
+			"error": err.Error(),
+		}
+	}
+	err = s.populatePrometheusStatus(c, prometheusUrl)
+	if err != nil {
+		return map[string]interface{}{
+			"url":   prometheusUrl,
+			"error": err.Error(),
+		}
+	}
+	return map[string]interface{}{
+		"agentVersion":     extensionResp.AgentVersion,
+		"collectorVersion": extensionResp.ExtensionVersion,
+		"receiver":         s.receiverStatus,
+		"exporter":         s.exporterStatus,
+	}
 }
 
 // JSON populates the status map
 func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
+	values := s.populateStatus()
+
+	stats["otelAgent"] = values
+
 	return nil
 }
 
 // Text renders the text output
 func (s statusProvider) Text(_ bool, buffer io.Writer) error {
-	return nil
+	return status.RenderText(templatesFS, "otelagent.tmpl", buffer, s.getStatusInfo())
 }
 
 // HTML renders the html output
