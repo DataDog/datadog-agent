@@ -17,7 +17,6 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
@@ -25,8 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
+	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -78,10 +77,10 @@ func GetHostTags(hostTags **C.char) {
 //
 //export GetClusterName
 func GetClusterName(clusterName **C.char) {
-	goHostname, _ := hostnameUtil.Get(context.TODO())
-	goClusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), goHostname)
+	// goHostname, _ := hostnameUtil.Get(context.TODO())
+	// goClusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), goHostname)
 	// clusterName will be free by rtloader when it's done with it
-	*clusterName = TrackedCString(goClusterName)
+	*clusterName = TrackedCString("")
 }
 
 // TracemallocEnabled exposes the tracemalloc configuration of the agent to Python checks.
@@ -634,7 +633,7 @@ func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.H
 
 	histogram, ok := telemetryMap[key]
 	if !ok {
-		histogram = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
+		histogram = pkgTelemetry.GetCompatComponent().NewHistogramWithOpts(
 			checkName,
 			metricName,
 			nil,
@@ -661,7 +660,7 @@ func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Cou
 
 	counter, ok := telemetryMap[key]
 	if !ok {
-		counter = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		counter = pkgTelemetry.GetCompatComponent().NewCounterWithOpts(
 			checkName,
 			metricName,
 			nil,
@@ -687,7 +686,7 @@ func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge
 
 	gauge, ok := telemetryMap[key]
 	if !ok {
-		gauge = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
+		gauge = pkgTelemetry.GetCompatComponent().NewGaugeWithOpts(
 			checkName,
 			metricName,
 			nil,

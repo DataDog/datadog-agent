@@ -10,7 +10,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -40,7 +39,7 @@ var (
 		"time_to_scan",
 		[]string{},
 		"Time it took to scan services",
-		prometheus.DefBuckets,
+		[]float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 )

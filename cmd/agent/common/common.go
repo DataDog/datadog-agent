@@ -11,27 +11,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
-
-// GetPythonPaths returns the paths (in order of precedence) from where the agent
-// should load python modules and checks
-func GetPythonPaths() []string {
-	// wheels install in default site - already in sys.path; takes precedence over any additional location
-	return []string{
-		defaultpaths.GetDistPath(),                               // common modules are shipped in the dist path directly or under the "checks/" sub-dir
-		defaultpaths.PyChecksPath,                                // integrations-core legacy checks
-		filepath.Join(defaultpaths.GetDistPath(), "checks.d"),    // custom checks in the "checks.d/" sub-dir of the dist path
-		pkgconfigsetup.Datadog().GetString("additional_checksd"), // custom checks, least precedent check location
-	}
-}
 
 // GetVersion returns the version of the agent in a http response json
 func GetVersion(w http.ResponseWriter, _ *http.Request) {

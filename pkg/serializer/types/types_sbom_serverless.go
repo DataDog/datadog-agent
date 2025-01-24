@@ -7,18 +7,18 @@
 
 package types
 
-import "google.golang.org/protobuf/reflect/protoreflect"
+// import "google.golang.org/protobuf/reflect/protoreflect"
 
-// SBOMMessage is a type alias for SBOM proto payload and is not needed in
-// serverless mode
-type SBOMMessage struct {
-	Version  int
-	Host     string
-	Source   *string
-	Entities []interface{}
-}
+// // SBOMMessage is a type alias for SBOM proto payload and is not needed in
+// // serverless mode
+// type SBOMMessage struct {
+// 	Version  int
+// 	Host     string
+// 	Source   *string
+// 	Entities []interface{}
+// }
 
-var _ protoreflect.ProtoMessage = (*SBOMMessage)(nil)
+// var _ protoreflect.ProtoMessage = (*SBOMMessage)(nil)
 
-// ProtoReflect allows SBOMMessage to implement protoreflect.ProtoMessage
-func (s *SBOMMessage) ProtoReflect() protoreflect.Message { return nil }
+// // ProtoReflect allows SBOMMessage to implement protoreflect.ProtoMessage
+// func (s *SBOMMessage) ProtoReflect() protoreflect.Message { return nil }

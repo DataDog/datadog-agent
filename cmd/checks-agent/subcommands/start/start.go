@@ -13,12 +13,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	_ "net/http/pprof"
+
+	// _ "net/http/pprof"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -29,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/onlycollectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -43,14 +42,13 @@ import (
 	remoteTagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	noopEventplatformreceiver "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/noop"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	haagentfxnoop "github.com/DataDog/datadog-agent/comp/haagent/fx-noop"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	logscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -58,7 +56,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
 type CLIParams struct {
@@ -109,15 +106,15 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		fx.Supply(secrets.NewEnabledParams()),
 		secretsimpl.Module(),
 		telemetryimpl.Module(),
-		collectorimpl.Module(),
+		onlycollectorimpl.Module(),
 		// Sending metrics to the backend
 		metricscompressionimpl.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
 		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
-		eventplatformreceiverimpl.Module(),
+		noopEventplatformreceiver.Module(),
 		defaultforwarder.Module(defaultforwarder.NewParams()),
-		logscompressionimpl.Module(),
+		// logscompressionimpl.Module(),
 		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
@@ -141,7 +138,7 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		}),
 
 		fetchonlyimpl.Module(),
-		haagentfx.Module(),
+		haagentfxnoop.Module(),
 
 		pidimpl.Module(),
 		fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
@@ -176,15 +173,15 @@ func start(
 
 	defer StopAgent(cancel, log)
 
-	go func() {
-		port := config.GetString("checks_agent_debug_port")
-		addr := net.JoinHostPort("localhost", port)
-		http.Handle("/telemetry", telemetry.Handler())
-		err := http.ListenAndServe(addr, nil)
-		if err != nil {
-			log.Warnf("pprof server: %s", err)
-		}
-	}()
+	// go func() {
+	// 	port := config.GetString("checks_agent_debug_port")
+	// 	addr := net.JoinHostPort("localhost", port)
+	// 	http.Handle("/telemetry", telemetry.Handler())
+	// 	err := http.ListenAndServe(addr, nil)
+	// 	if err != nil {
+	// 		log.Warnf("pprof server: %s", err)
+	// 	}
+	// }()
 
 	token := authToken.Get()
 
@@ -219,9 +216,9 @@ func start(
 		return err
 	}
 
-	if err := setupInternalProfiling(config); err != nil {
-		return log.Errorf("Error while setuping internal profiling, exiting: %v", err)
-	}
+	// if err := setupInternalProfiling(config); err != nil {
+	// 	return log.Errorf("Error while setuping internal profiling, exiting: %v", err)
+	// }
 
 	// Block here until we receive a stop signal
 	<-stopCh
@@ -380,26 +377,26 @@ func startScheduler(ctx context.Context, client *customClient, scheduler *pkgcol
 	}
 }
 
-func setupInternalProfiling(config config.Component) error {
-	runtime.MemProfileRate = 1
-	site := fmt.Sprintf(profiling.ProfilingURLTemplate, config.GetString("site"))
+// func setupInternalProfiling(config config.Component) error {
+// 	runtime.MemProfileRate = 1
+// 	site := fmt.Sprintf(profiling.ProfilingURLTemplate, config.GetString("site"))
 
-	// We need the trace agent runnning to send profiles
-	profSettings := profiling.Settings{
-		ProfilingURL:         site,
-		Socket:               "/var/run/datadog/apm.socket",
-		Env:                  "local",
-		Service:              "checks-agent",
-		Period:               config.GetDuration("internal_profiling.period"),
-		CPUDuration:          config.GetDuration("internal_profiling.cpu_duration"),
-		MutexProfileFraction: config.GetInt("internal_profiling.mutex_profile_fraction"),
-		BlockProfileRate:     config.GetInt("internal_profiling.block_profile_rate"),
-		WithGoroutineProfile: config.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-		WithBlockProfile:     config.GetBool("internal_profiling.enable_block_profiling"),
-		WithMutexProfile:     config.GetBool("internal_profiling.enable_mutex_profiling"),
-		WithDeltaProfiles:    config.GetBool("internal_profiling.delta_profiles"),
-		CustomAttributes:     config.GetStringSlice("internal_profiling.custom_attributes"),
-	}
+// 	// We need the trace agent runnning to send profiles
+// 	profSettings := profiling.Settings{
+// 		ProfilingURL:         site,
+// 		Socket:               "/var/run/datadog/apm.socket",
+// 		Env:                  "local",
+// 		Service:              "checks-agent",
+// 		Period:               config.GetDuration("internal_profiling.period"),
+// 		CPUDuration:          config.GetDuration("internal_profiling.cpu_duration"),
+// 		MutexProfileFraction: config.GetInt("internal_profiling.mutex_profile_fraction"),
+// 		BlockProfileRate:     config.GetInt("internal_profiling.block_profile_rate"),
+// 		WithGoroutineProfile: config.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+// 		WithBlockProfile:     config.GetBool("internal_profiling.enable_block_profiling"),
+// 		WithMutexProfile:     config.GetBool("internal_profiling.enable_mutex_profiling"),
+// 		WithDeltaProfiles:    config.GetBool("internal_profiling.delta_profiles"),
+// 		CustomAttributes:     config.GetStringSlice("internal_profiling.custom_attributes"),
+// 	}
 
-	return profiling.Start(profSettings)
-}
+// 	return profiling.Start(profSettings)
+// }
