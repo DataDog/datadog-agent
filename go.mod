@@ -79,6 +79,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ./pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ./pkg/config/utils/
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors
+	github.com/DataDog/datadog-agent/pkg/fips => ./pkg/fips
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/logs/auditor => ./pkg/logs/auditor
 	github.com/DataDog/datadog-agent/pkg/logs/client => ./pkg/logs/client
@@ -568,6 +569,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.61.0
+	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
 	github.com/DataDog/dd-trace-go/v2 v2.0.0-beta.11
@@ -623,7 +625,7 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.140
+	github.com/DataDog/agent-payload/v5 v5.0.141
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0
@@ -1113,7 +1115,7 @@ replace github.com/ProtonMail/go-crypto => github.com/ProtonMail/go-crypto v1.0.
 // Prevent a false-positive detection by the Google and Ikarus security vendors on VirusTotal
 exclude go.opentelemetry.io/proto/otlp v1.1.0
 
-replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20240626205202-4ac4cee31f14
+replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20250121143817-e1e3480abefb
 
 // Remove once https://github.com/kubernetes/kube-state-metrics/pull/2553 is merged
 replace k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f => github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20241119155242-07761b9fe9a0
