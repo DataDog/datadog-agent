@@ -98,7 +98,7 @@ func TestPostAuthentication(t *testing.T) {
 		url := fmt.Sprintf("https://localhost:%d/config/log_level?value=debug", port)
 		req, err := http.NewRequest("POST", url, nil)
 		require.NoError(c, err)
-		log.Info("Issuing unauthenticated test request to url: %s", url)
+		log.Infof("Issuing unauthenticated test request to url: %s", url)
 		res, err := util.GetClient(false).Do(req)
 		require.NoError(c, err)
 		defer res.Body.Close()
@@ -107,7 +107,7 @@ func TestPostAuthentication(t *testing.T) {
 
 		// With authentication
 		req.Header.Set("Authorization", "Bearer "+util.GetAuthToken())
-		log.Info("Issuing authenticated test request to url: %s", url)
+		log.Infof("Issuing authenticated test request to url: %s", url)
 		res, err = util.GetClient(false).Do(req)
 		require.NoError(c, err)
 		defer res.Body.Close()
