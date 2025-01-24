@@ -707,7 +707,7 @@ def print_overall_pipeline_stats(ctx, n_days=90):
     # TODO: Iterate through a bunch of prs
 
     # Fetch all PRs that are above the min_date
-    all_prs = []
+    all_prs: list[github.PullRequest.PullRequest] = []
     for page in range(1000):
         print('Fetching page', page)
         prs_page = prs.get_page(page)
@@ -719,13 +719,15 @@ def print_overall_pipeline_stats(ctx, n_days=90):
         if len(recent_prs) != len(prs_page):
             break
 
-    merged_prs: list[github.PullRequest.PullRequest] = [pr for pr in all_prs if pr.merged]
+    merged_prs: list[github.PullRequest.PullRequest] = [pr for pr in all_prs if pr.merged and pr.merged_at >= min_date]
     print(f'Found {len(merged_prs)} merged PRs for the last {n_days} days')
 
     # PRs that should not be merged
     broken_prs = []
     for i, pr in enumerate(merged_prs):
-        print(f'PR {i+1}/{len(merged_prs)}: {pr.url} ({len(broken_prs)/len(merged_prs)*100:.2f}% broken PRs so far)')
+        print(
+            f'PR {i+1}/{len(merged_prs)}: {pr.html_url} ({len(broken_prs)/len(merged_prs)*100:.2f}% broken PRs so far)'
+        )
         # import pdb; pdb.set_trace()
         # print(pr.state)
 
