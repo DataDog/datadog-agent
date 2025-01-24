@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import re
@@ -7,6 +8,8 @@ import time
 from collections import Counter
 from functools import lru_cache
 
+import github.Commit
+import github.PullRequest
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
@@ -672,22 +675,75 @@ query {
 
 
 @task
-def print_overall_pipeline_stats(ctx):
+def print_overall_pipeline_stats(ctx, n_days=90):
     """Prints stats about how many PRs are supposed to be blocked by the overall pipeline check."""
 
     from tasks.libs.ciproviders.github_api import GithubAPI
 
+    min_date = datetime.datetime.now() - datetime.timedelta(days=n_days)
+
     gh = GithubAPI()
+
+    # pr = gh.repo.get_pull(33109)
+    # last_commit = gh.repo.get_commit(pr.head.sha)
+    # statuses = list(last_commit.get_statuses())
+
+    # final_statuses = {}
+    # for status in statuses:
+    #     final_statuses[status.context] = status.state
+
+    # # Pending statuses are ignored
+    # failing_status = [name for (name, state) in final_statuses.items() if state == 'failure']
+    # if failing_status:
+    #     print(f'PR {pr.number} is broken with failing status: {", ".join(failing_status)}')
+
+    # import pdb; pdb.set_trace()
+    # exit()
+
     # prs = gh.list_merged_prs()
-    prs = gh._repository.get_pulls(state="closed", sort="updated", direction="desc", base="main")
+    prs = gh.repo.get_pulls(state="closed", sort="updated", direction="desc", base="main")
     # for p in prs:
     #     print(p)
     # TODO: Iterate through a bunch of prs
-    prs = prs.get_page(0)
-    merged_prs = [pr for pr in prs if pr.merged]
-    # TODO: Date
-    pr = merged_prs[0]
-    print(pr)
-    print()
-    # for pr in prs:
-    #     print(pr)
+
+    # Fetch all PRs that are above the min_date
+    all_prs = []
+    for page in range(1000):
+        print('Fetching page', page)
+        prs_page = prs.get_page(page)
+
+        recent_prs = [pr for pr in prs_page if pr.updated_at >= min_date]
+        all_prs.extend(recent_prs)
+
+        # At least one pr is outdated, other PRs will be outdated as well
+        if len(recent_prs) != len(prs_page):
+            break
+
+    merged_prs: list[github.PullRequest.PullRequest] = [pr for pr in all_prs if pr.merged]
+    print(f'Found {len(merged_prs)} merged PRs for the last {n_days} days')
+
+    # PRs that should not be merged
+    broken_prs = []
+    for i, pr in enumerate(merged_prs):
+        print(f'PR {i+1}/{len(merged_prs)}: {pr.url}')
+        # import pdb; pdb.set_trace()
+        # print(pr.state)
+
+        last_commit: github.Commit.Commit = gh.repo.get_commit(pr.head.sha)
+        statuses = last_commit.get_statuses()
+
+        # All statuses are retrieved (reverse chronological order), not only the last state
+        final_statuses = {}
+        for status in statuses:
+            final_statuses[status.context] = status.state
+
+        # Pending statuses are ignored
+        failing_status = [name for (name, state) in final_statuses.items() if state == 'failure']
+
+        if failing_status:
+            broken_prs.append(pr)
+            print(f'PR {pr.number} is broken with failing status: {", ".join(failing_status)}')
+
+    print(
+        f'Found {len(broken_prs)}/{len(merged_prs)} PRs that are broken: {len(broken_prs) / len(merged_prs) * 100:.2f}% of broken PRs'
+    )
