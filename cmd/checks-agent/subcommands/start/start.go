@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/onlycollectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -47,7 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	noopEventplatformreceiver "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/noop"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	haagentfxnoop "github.com/DataDog/datadog-agent/comp/haagent/fx-noop"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -106,7 +106,7 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		fx.Supply(secrets.NewEnabledParams()),
 		secretsimpl.Module(),
 		telemetryimpl.Module(),
-		collectorimpl.Module(),
+		onlycollectorimpl.Module(),
 		// Sending metrics to the backend
 		metricscompressionimpl.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
@@ -138,7 +138,7 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		}),
 
 		fetchonlyimpl.Module(),
-		haagentfx.Module(),
+		haagentfxnoop.Module(),
 
 		pidimpl.Module(),
 		fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
