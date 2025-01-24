@@ -295,7 +295,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemCallRe
 	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 }
 
-func TestDiskCheckPartitionsEmptyDeviceIsNotReportedByDefault(t *testing.T) {
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturnsEmptyDevice_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
 	setupDefaultMocks()
 	diskPartitions = func(_ bool) ([]disk.PartitionStat, error) {
 		return []disk.PartitionStat{
@@ -304,9 +304,15 @@ func TestDiskCheckPartitionsEmptyDeviceIsNotReportedByDefault(t *testing.T) {
 				Mountpoint: "/",
 				Fstype:     "ext4",
 				Opts:       []string{"rw", "relatime"},
+			},
+			{
+				Device:     "/dev/sda2",
+				Mountpoint: "/home",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
 			}}, nil
 	}
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
@@ -314,10 +320,15 @@ func TestDiskCheckPartitionsEmptyDeviceIsNotReportedByDefault(t *testing.T) {
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:", "device_name:."})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:", "device_name:."})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:", "device_name:."})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
 }
 
-func TestDiskCheckPartitionsEmptyDeviceIsNotReportedWhenAllPartitionsIsFalse(t *testing.T) {
+func TestGivenADiskCheckWithAllPartitionsFalseConfigured_WhenCheckRunsAndPartitionsSystemReturnsEmptyDevice_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
 	setupDefaultMocks()
 	diskPartitions = func(_ bool) ([]disk.PartitionStat, error) {
 		return []disk.PartitionStat{
@@ -326,9 +337,15 @@ func TestDiskCheckPartitionsEmptyDeviceIsNotReportedWhenAllPartitionsIsFalse(t *
 				Mountpoint: "/",
 				Fstype:     "ext4",
 				Opts:       []string{"rw", "relatime"},
+			},
+			{
+				Device:     "/dev/sda2",
+				Mountpoint: "/home",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
 			}}, nil
 	}
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("all_partitions: false"))
@@ -337,10 +354,15 @@ func TestDiskCheckPartitionsEmptyDeviceIsNotReportedWhenAllPartitionsIsFalse(t *
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:", "device_name:."})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:", "device_name:."})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:", "device_name:."})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
 }
 
-func TestDiskCheckPartitionsEmptyDeviceIsNotReportedWhenAllPartitionsIsTrue(t *testing.T) {
+func TestGivenADiskCheckWithAllPartitionsTrueConfigured_WhenCheckRunsAndPartitionsSystemReturnsEmptyDevice_ThenUsageMetricsAreReportedForThatPartition(t *testing.T) {
 	setupDefaultMocks()
 	diskPartitions = func(_ bool) ([]disk.PartitionStat, error) {
 		return []disk.PartitionStat{
@@ -349,9 +371,15 @@ func TestDiskCheckPartitionsEmptyDeviceIsNotReportedWhenAllPartitionsIsTrue(t *t
 				Mountpoint: "/",
 				Fstype:     "ext4",
 				Opts:       []string{"rw", "relatime"},
+			},
+			{
+				Device:     "/dev/sda2",
+				Mountpoint: "/home",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
 			}}, nil
 	}
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("all_partitions: true"))
@@ -361,11 +389,16 @@ func TestDiskCheckPartitionsEmptyDeviceIsNotReportedWhenAllPartitionsIsTrue(t *t
 
 	assert.Nil(t, err)
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:", "device_name:."})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:", "device_name:."})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:", "device_name:."})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
 }
 
-func TestDiskCheckPartitionsDeviceExclude(t *testing.T) {
+func TestGivenADiskCheckWithDeviceExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseDevices(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -378,14 +411,22 @@ device_exclude:
 
 	assert.Nil(t, err)
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
 }
 
-func TestDiskCheckPartitionsDeviceBlackList(t *testing.T) {
+func TestGivenADiskCheckWithDeviceBlackListConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseDevices(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -398,14 +439,22 @@ device_blacklist:
 
 	assert.Nil(t, err)
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
 }
 
-func TestDiskCheckPartitionsDeviceExcludedDisks(t *testing.T) {
+func TestGivenADiskCheckWithExcludedDisksConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseDevices(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -418,14 +467,22 @@ excluded_disks:
 
 	assert.Nil(t, err)
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
 }
 
-func TestDiskCheckPartitionsDeviceExcludeError(t *testing.T) {
+func TestGivenADiskCheckWithDeviceExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -438,9 +495,9 @@ device_exclude:
 	assert.NotNil(t, err)
 }
 
-func TestDiskCheckPartitionsDeviceExcludedDiskRe(t *testing.T) {
+func TestGivenADiskCheckWithExcludedDiskReConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseDevices(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("excluded_disk_re: /dev/sda.*"))
@@ -450,14 +507,22 @@ func TestDiskCheckPartitionsDeviceExcludedDiskRe(t *testing.T) {
 
 	assert.Nil(t, err)
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
 }
 
-func TestDiskCheckPartitionsDeviceExcludedDiskReError(t *testing.T) {
+func TestGivenADiskCheckWithExcludedDiskReIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("excluded_disk_re: /dev/sda(.*"))
