@@ -70,9 +70,15 @@ def run(
         host = RemoteHost(result.stdout)
     rsync_command = _build_rsync_command(f"Administrator@{host.address}")
     print("Syncing changes to the remote Windows development environment...")
-    ctx.run(rsync_command)    
+    ctx.run(rsync_command)
 
-    exit(_run_on_windows_dev_env(ctx, name, f". ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -Command {{{command}}}"))
+    exit(
+        _run_on_windows_dev_env(
+            ctx,
+            name,
+            f". ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -Command {{{command}}}",
+        )
+    )
 
 
 def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
@@ -120,15 +126,24 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     if should_start_container:
         print("🐳 Starting Windows dev container")
         ctx.run(
-            f"ssh {host} 'docker run -m 16384 -v C:\\mnt:c:\\mnt:rw -w C:\\mnt\\datadog-agent -t -d --name {WIN_CONTAINER_NAME} datadog/agent-buildimages-windows_x64:ltsc2022 tail -f /dev/null'",
+            f"ssh {host} 'docker run -m 16384 -v C:\\mnt:c:\\mnt:rw -w C:\\mnt\\datadog-agent -t -d --name {WIN_CONTAINER_NAME} datadog/agent-buildimages-windows_x64:ltsc2022 tail -f /dev/null'"
         )
+
+    # Pull the latest version of datadog-agent to make initial sync faster
+    print("Pulling the latest version of datadog-agent to make initial sync faster...")
+    _run_on_windows_dev_env(ctx, name, "git pull")
+    print("Pulling the latest version of datadog-agent done")
     # sync local changes to the remote Windows development environment
     rsync_command = _build_rsync_command(host)
     print("Syncing changes to the remote Windows development environment...")
     ctx.run(rsync_command)
     print("Syncing changes to the remote Windows development done")
-    print("Installing all dependencies in the Windows dev container...")
-    _run_on_windows_dev_env(ctx, name, ". ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallTestingDeps \\$true -InstallDeps \\$true -Command {inv -e tidy}")
+    print("Installing all dependencies in the Windows dev container... this may take a long time")
+    _run_on_windows_dev_env(
+        ctx,
+        name,
+        ". ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallTestingDeps \\$true -InstallDeps \\$true -Command {inv -e tidy}",
+    )
     # print the time taken to start the dev env
     elapsed_time = time.time() - start_time
     print("♻️ Windows dev env started in", timedelta(seconds=elapsed_time))
@@ -140,15 +155,17 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
 
 def _disable_WD_and_reboot(ctx, host):
     ctx.run(f"ssh {host} 'Remove-WindowsFeature Windows-Defender'")
-    ctx.run(f"ssh {host} 'Restart-Computer'")
+    ctx.run(f"ssh {host} 'Restart-Computer -Force'")
 
 
 def _wait_for_windows_dev_env(ctx, host):
-    res = ctx.run(f"ssh {host} 'echo Connected'", hide=True, warn=True)
-    while res is None or res.exited != 0:
+    while True:
+        r = ctx.run(f"ssh {host} 'Get-MpComputerStatus | select Antivirus'", hide=True, warn=True)
+        print(r)
+        if "Invalid class" in r.stderr:
+            break
+
         time.sleep(5)
-        res = ctx.run(f"ssh {host} 'echo Connected'", hide=True, warn=True)
-        print("RES",res)
 
 
 def _build_rsync_command(host: str) -> str:
@@ -241,7 +258,7 @@ def _run_on_windows_dev_env(ctx: Context, name: str = "windows-dev-env", command
             '-p',
             f'{host.port}',
             '-t',
-            f'"{' '.join(docker_command_parts)}"',
+            f"{' '.join(docker_command_parts)}",
         ]
         result = ctx.run(
             ' '.join(command_parts),
