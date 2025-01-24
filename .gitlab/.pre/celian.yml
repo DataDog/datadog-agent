@@ -4,6 +4,7 @@ overall-pipeline-stats:
   tags: ["arch:arm64"]
   needs: []
   dependencies: []
+  timeout: twelve hours
   script:
     - !reference [.setup_agent_github_app]
     # Python 3.12 changes default behavior how packages are installed.

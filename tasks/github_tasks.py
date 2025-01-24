@@ -742,7 +742,7 @@ def print_overall_pipeline_stats(ctx, n_days=90):
 
         if failing_status:
             broken_prs.append(pr)
-            print(f'PR {pr.number} is broken with failing status: {", ".join([n for (n, _) in failing_status])}')
+            print(f'PR {pr.number} is broken with failing status: {", ".join(failing_status)}')
 
     print()
     print(
