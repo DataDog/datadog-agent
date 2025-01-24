@@ -86,7 +86,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/status/health v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/common v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.57.1 // indirect
@@ -111,7 +110,6 @@ require (
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
