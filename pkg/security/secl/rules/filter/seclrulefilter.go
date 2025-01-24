@@ -7,6 +7,8 @@
 package filter
 
 import (
+	"runtime"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -45,6 +47,16 @@ func (r *SECLRuleFilter) newEvalContext() eval.Context {
 func (r *SECLRuleFilter) IsAccepted(filters []string) (bool, error) {
 	if len(filters) == 0 {
 		return true, nil
+	}
+
+	// early check for obvious and most used cases
+	if len(filters) == 1 {
+		switch filters[0] {
+		case `os == "linux"`:
+			return runtime.GOOS == "linux", nil
+		case `os == "windows"`:
+			return runtime.GOOS == "windows", nil
+		}
 	}
 
 	expression := mergeFilterExpressions(filters)
