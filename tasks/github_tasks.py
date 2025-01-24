@@ -732,7 +732,15 @@ def print_overall_pipeline_stats(ctx, n_days=90):
         # print(pr.state)
 
         last_commit: github.Commit.Commit = gh.repo.get_commit(pr.head.sha)
-        statuses = last_commit.get_statuses()
+        for _ in range(100):
+            try:
+                statuses = list(last_commit.get_statuses())
+                break
+            except Exception:
+                print('Rate limit, sleeping')
+                time.sleep(10)
+                print('Finished sleeping')
+                continue
 
         # All statuses are retrieved (reverse chronological order), not only the last state
         final_statuses = {}
