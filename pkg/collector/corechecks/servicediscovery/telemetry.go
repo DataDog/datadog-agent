@@ -6,8 +6,6 @@
 package servicediscovery
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -17,14 +15,6 @@ var (
 		"discovered_services",
 		[]string{},
 		"Number of discovered alive services.",
-		telemetry.Options{NoDoubleUnderscoreSep: true},
-	)
-	metricTimeToScan = telemetry.NewHistogramWithOpts(
-		CheckName,
-		"time_to_scan",
-		[]string{},
-		"Time it took to scan services",
-		prometheus.DefBuckets,
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 )
