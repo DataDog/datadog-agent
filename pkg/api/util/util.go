@@ -277,13 +277,12 @@ func IsIPv6(ip string) bool {
 	return parsed != nil && parsed.To4() == nil
 }
 
-func init() {
+func generateSelfSignedCert() (tls.Config, error) {
 	// create cert
 	hosts := []string{"127.0.0.1", "localhost"}
 	_, rootCertPEM, rootKey, err := pkgtoken.GenerateRootCert(hosts, 2048)
 	if err != nil {
-		log.Errorf("unable to generate a self-signed certificate: %v", err)
-		return
+		return tls.Config{}, fmt.Errorf("unable to generate a self-signed certificate: %v", err)
 	}
 
 	// PEM encode the private key
@@ -294,11 +293,22 @@ func init() {
 	// Create a TLS cert using the private key and certificate
 	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
 	if err != nil {
-		log.Errorf("unable to generate a self-signed certificate: %v", err)
-		return
+		return tls.Config{}, fmt.Errorf("unable to generate a self-signed certificate: %v", err)
+
 	}
 
-	serverTLSConfig = &tls.Config{
+	return tls.Config{
 		Certificates: []tls.Certificate{rootTLSCert},
+	}, nil
+}
+
+func init() {
+	tokenLock.Lock()
+	defer tokenLock.Unlock()
+
+	config, err := generateSelfSignedCert()
+	if err != nil {
+		log.Errorf("unable to initialize the tls server configuration: %v", err)
 	}
+	serverTLSConfig = &config
 }

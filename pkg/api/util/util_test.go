@@ -56,6 +56,16 @@ func TestIsIPv6(t *testing.T) {
 }
 
 func TestStartingServerClientWithUninitializedTLS(t *testing.T) {
+	// re initialize the client and server tls config
+	initSource = uninitialized
+	clientTLSConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	config, err := generateSelfSignedCert()
+	require.NoError(t, err)
+	serverTLSConfig = &config
+
+	// create a server with the provided tls server config
 	l, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 
