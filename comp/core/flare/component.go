@@ -34,11 +34,9 @@ type Component interface {
 
 // Module defines the fx options for this component.
 func Module(params Params) fxutil.Module {
-	var fbf types.FlareBuilderFactory = helpers.NewFlareBuilder
 
 	return fxutil.Component(
 		fx.Provide(newFlare),
 		fx.Supply(params),
-		fx.Supply(fbf),
 		flareprofiler.Module())
 }

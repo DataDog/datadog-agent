@@ -38,6 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+var flareBuilderFactory types.FlareBuilderFactory = helpers.NewFlareBuilder
+
 type dependencies struct {
 	fx.In
 
@@ -51,7 +53,6 @@ type dependencies struct {
 	Secrets               secrets.Component
 	AC                    autodiscovery.Component
 	Tagger                tagger.Component
-	FBFactory             types.FlareBuilderFactory
 }
 
 type provides struct {
@@ -68,7 +69,6 @@ type flare struct {
 	params       Params
 	providers    []*types.FlareFiller
 	diagnoseDeps diagnose.SuitesDeps
-	fbFactory    types.FlareBuilderFactory
 }
 
 func newFlare(deps dependencies) provides {
@@ -79,7 +79,6 @@ func newFlare(deps dependencies) provides {
 		params:       deps.Params,
 		providers:    fxutil.GetAndFilterGroup(deps.Providers),
 		diagnoseDeps: diagnoseDeps,
-		fbFactory:    deps.FBFactory,
 	}
 
 	// Adding legacy and internal providers. Registering then as Provider through FX create cycle dependencies.
@@ -214,7 +213,7 @@ func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration,
 		providerTimeout = f.config.GetDuration("flare_provider_timeout")
 	}
 
-	fb, err := f.fbFactory(f.params.local, flareArgs)
+	fb, err := flareBuilderFactory(f.params.local, flareArgs)
 	if err != nil {
 		return "", err
 	}

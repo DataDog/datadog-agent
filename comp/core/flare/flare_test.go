@@ -62,10 +62,17 @@ func getFlare(t *testing.T, overrides map[string]interface{}, fillers ...fx.Opti
 			fx.Provide(func(ac autodiscovery.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
 			fx.Provide(func() mockTagger.Mock { return fakeTagger }),
 			fx.Provide(func() tagger.Component { return fakeTagger }),
-			fx.Supply(helpers.CreateFlareBuilderMockFactory(t)),
 			fillerModule,
 		),
 	).Comp.(*flare)
+}
+
+func setupMockBuilder(t *testing.T) func() {
+	flareBuilderFactory = helpers.CreateFlareBuilderMockFactory(t)
+
+	return func() {
+		flareBuilderFactory = helpers.NewFlareBuilder
+	}
 }
 func TestFlareCreation(t *testing.T) {
 	realProvider := types.NewFiller(func(_ types.FlareBuilder) error { return nil })
@@ -139,6 +146,8 @@ func TestRunProviders(t *testing.T) {
 }
 
 func TestAgentTaskFlareArgs(t *testing.T) {
+	defer setupMockBuilder(t)()
+
 	type rcSettings struct {
 		duration  time.Duration
 		blockRate int
