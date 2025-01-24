@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"testing"
 
-	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/stretchr/testify/assert"
 
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"

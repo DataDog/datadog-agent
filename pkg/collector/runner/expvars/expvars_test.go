@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"

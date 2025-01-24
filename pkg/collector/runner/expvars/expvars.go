@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/mohae/deepcopy"
 
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
