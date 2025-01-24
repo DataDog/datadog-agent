@@ -660,29 +660,29 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 		return layers
 	}
 
-	// i tracks the current RootFS layer IDs (in Docker, this corresponds to the Diff ID of a layer)
+	// inspectIdx tracks the current RootFS layer ID (in Docker, this corresponds to the Diff ID of a layer) index
 	// Docker returns the RootFS layers in chronological order
-	i := 0
+	inspectIdx := 0
 
 	// Docker returns the history layers in reverse-chronological order
-	for j := len(history) - 1; j >= 0; j-- {
-		created := time.Unix(history[j].Created, 0)
-		emptyLayer := history[j].Size == 0
+	for i := len(history) - 1; i >= 0; i-- {
+		created := time.Unix(history[i].Created, 0)
+		emptyLayer := history[i].Size == 0
 
 		// if the layer is empty, we can assume there is no associated digest
 		digest := ""
 		if !emptyLayer {
-			digest = inspect.RootFS.Layers[i]
-			i++
+			digest = inspect.RootFS.Layers[inspectIdx]
+			inspectIdx++
 		}
 
 		layer := workloadmeta.ContainerImageLayer{
 			Digest:    digest,
-			SizeBytes: history[j].Size,
+			SizeBytes: history[i].Size,
 			History: &v1.History{
 				Created:    &created,
-				CreatedBy:  history[j].CreatedBy,
-				Comment:    history[j].Comment,
+				CreatedBy:  history[i].CreatedBy,
+				Comment:    history[i].Comment,
 				EmptyLayer: emptyLayer,
 			},
 		}
