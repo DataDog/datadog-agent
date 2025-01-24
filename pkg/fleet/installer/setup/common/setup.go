@@ -123,7 +123,7 @@ func (s *Setup) Run() (err error) {
 		return fmt.Errorf("failed to write install info: %w", err)
 	}
 	for _, group := range s.DdAgentAdditionalGroups {
-		// Add dd-agent user to additional group for permission reason
+		// Add dd-agent user to additional group for permission reason, in particular to enable reading log files not world readable
 		_, err = ExecuteCommandWithTimeout(s, "usermod", "-aG", group, "dd-agent")
 		if err != nil {
 			return fmt.Errorf("failed to add dd-agent to group yarn: %w", err)
