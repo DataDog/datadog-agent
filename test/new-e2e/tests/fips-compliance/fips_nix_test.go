@@ -50,16 +50,16 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSDefaultConfig() {
 
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		status = v.Env().RemoteHost.MustExecute("sudo GOFIPS=1 datadog-agent status")
-		assert.NotContains(v.T(), status, "can't enable FIPS mode for OpenSSL")
-		assert.Contains(v.T(), status, "Status date")
-		assert.Contains(v.T(), status, "FIPS compliant: true")
+		assert.NotContains(t, status, "can't enable FIPS mode for OpenSSL")
+		assert.Contains(t, status, "Status date")
+		assert.Contains(t, status, "FIPS compliant: true")
 	}, 60*time.Second, 5*time.Second)
 
 	v.Env().RemoteHost.MustExecute("sudo systemctl unset-environment GOFIPS")
 	v.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent")
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		service := v.Env().RemoteHost.MustExecute("sudo systemctl status datadog-agent")
-		assert.Contains(v.T(), service, "Active: active (running)")
+		assert.Contains(t, service, "Active: active (running)")
 	}, 60*time.Second, 5*time.Second)
 }
 
