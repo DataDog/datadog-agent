@@ -70,7 +70,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.60.1
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.57.1
 	github.com/DataDog/datadog-agent/pkg/util/http v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1
 	github.com/DataDog/datadog-agent/pkg/version v0.59.1
 	github.com/golang/protobuf v1.5.4

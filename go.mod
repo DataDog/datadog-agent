@@ -708,7 +708,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/json v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v1.0.0
-	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/system v0.61.0

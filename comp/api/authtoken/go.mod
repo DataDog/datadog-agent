@@ -46,7 +46,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.58.0-devel
 	github.com/DataDog/datadog-agent/pkg/api v0.56.0
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0
-	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.23.0
 )

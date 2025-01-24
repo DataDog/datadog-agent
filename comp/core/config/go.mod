@@ -41,7 +41,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.60.1
 	github.com/DataDog/viper v1.14.0
 	github.com/stretchr/testify v1.10.0
