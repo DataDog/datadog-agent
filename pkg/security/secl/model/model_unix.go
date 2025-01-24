@@ -659,7 +659,7 @@ type ActivityDumpLoadConfig struct {
 	WaitListTimestampRaw uint64
 	StartTimestampRaw    uint64
 	EndTimestampRaw      uint64
-	Rate                 uint32 // max number of events per sec
+	Rate                 uint16 // max number of events per sec
 	Paused               uint32
 }
 

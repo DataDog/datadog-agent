@@ -7,6 +7,8 @@ exporters:
       site: datadoghq.com
     auth: null
     compression: ""
+    compression_params:
+      level: 0
     cookies: null
     disable_keep_alives: false
     endpoint: ""
@@ -58,6 +60,7 @@ exporters:
       multiplier: 1.5
       randomization_factor: 0.5
     sending_queue:
+      blocking: false
       enabled: true
       num_consumers: 10
       queue_size: 1000
