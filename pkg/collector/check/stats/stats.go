@@ -257,7 +257,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 		cs.TotalEventPlatformEvents[k] = cs.TotalEventPlatformEvents[k] + v
 		cs.EventPlatformEvents[k] = v
 	}
-	if haagent.Enabled() && haagent.IsHaIntegration(cs.CheckName) {
+	if haagent != nil && haagent.Enabled() && haagent.IsHaIntegration(cs.CheckName) {
 		tlmHaAgentIntegrationRuns.Inc(cs.CheckName, haagent.GetGroup()) // TODO: Replace with config_id
 	}
 }
