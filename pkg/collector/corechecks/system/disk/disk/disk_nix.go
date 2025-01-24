@@ -211,5 +211,5 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data int
 	if err != nil {
 		return err
 	}
-	return c.instanceConfigure(data)
+	return c.diskConfigure(data, initConfig)
 }

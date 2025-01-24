@@ -9,7 +9,6 @@ package disk
 
 import (
 	"regexp"
-	"strings"
 
 	yaml "gopkg.in/yaml.v2"
 
@@ -56,81 +55,83 @@ func NewDiskConfig() *diskConfig {
 	}
 }
 
-func (c *Check) instanceConfigure(data integration.Data) error {
-	conf := make(map[interface{}]interface{})
-	c.cfg = NewDiskConfig()
-	err := yaml.Unmarshal([]byte(data), &conf)
+func (c *Check) diskConfigure(data integration.Data, initConfig integration.Data) error {
+	unmarshalledInstanceConfig := make(map[interface{}]interface{})
+	err := yaml.Unmarshal([]byte(data), &unmarshalledInstanceConfig)
+	if err != nil {
+		return err
+	}
+	unmarshalledInitConfig := make(map[interface{}]interface{})
+	err = yaml.Unmarshal([]byte(initConfig), &unmarshalledInitConfig)
 	if err != nil {
 		return err
 	}
 
-	useMount, found := conf["use_mount"]
+	c.cfg = NewDiskConfig()
+	useMount, found := unmarshalledInstanceConfig["use_mount"]
 	if useMount, ok := useMount.(bool); found && ok {
 		c.cfg.useMount = useMount
 	}
-
-	includeAllDevices, found := conf["include_all_devices"]
+	includeAllDevices, found := unmarshalledInstanceConfig["include_all_devices"]
 	if includeAllDevices, ok := includeAllDevices.(bool); found && ok {
 		c.cfg.allDevices = includeAllDevices
 	}
-
-	err = c.configureExcludeDevice(conf)
-	if err != nil {
-		return err
-	}
-	err = c.configureIncludeDevice(conf)
-	if err != nil {
-		return err
-	}
-	err = c.configureExcludeFileSystem(conf)
-	if err != nil {
-		return err
-	}
-	err = c.configureIncludeFileSystem(conf)
-	if err != nil {
-		return err
-	}
-	err = c.configureExcludeMountPoint(conf)
-	if err != nil {
-		return err
-	}
-	err = c.configureIncludeMountPoint(conf)
-	if err != nil {
-		return err
-	}
-
-	tagByFilesystem, found := conf["tag_by_filesystem"]
-	if tagByFilesystem, ok := tagByFilesystem.(bool); found && ok {
-		c.cfg.tagByFilesystem = tagByFilesystem
-	}
-
-	allPartitions, found := conf["all_partitions"]
+	allPartitions, found := unmarshalledInstanceConfig["all_partitions"]
 	if allPartitions, ok := allPartitions.(bool); found && ok {
 		c.cfg.allPartitions = allPartitions
 	}
-
-	deviceTagRe, found := conf["device_tag_re"]
-	if deviceTagRe, ok := deviceTagRe.(map[interface{}]interface{}); found && ok {
-		c.cfg.deviceTagRe = make(map[*regexp.Regexp][]string)
-		for reString, tags := range deviceTagRe {
-			if reString, ok := reString.(string); ok {
-				if tags, ok := tags.(string); ok {
-					re, err := regexp.Compile(reString)
-					if err != nil {
-						return err
-					}
-					c.cfg.deviceTagRe[re] = strings.Split(tags, ",")
-				}
-			}
-		}
+	err = c.configureExcludeDevice(unmarshalledInstanceConfig, unmarshalledInitConfig)
+	if err != nil {
+		return err
 	}
+	err = c.configureIncludeDevice(unmarshalledInstanceConfig)
+	if err != nil {
+		return err
+	}
+	err = c.configureExcludeFileSystem(unmarshalledInstanceConfig)
+	if err != nil {
+		return err
+	}
+	err = c.configureIncludeFileSystem(unmarshalledInstanceConfig)
+	if err != nil {
+		return err
+	}
+	err = c.configureExcludeMountPoint(unmarshalledInstanceConfig)
+	if err != nil {
+		return err
+	}
+	err = c.configureIncludeMountPoint(unmarshalledInstanceConfig)
+	if err != nil {
+		return err
+	}
+
+	// tagByFilesystem, found := unmarshalledInstanceConfig["tag_by_filesystem"]
+	// if tagByFilesystem, ok := tagByFilesystem.(bool); found && ok {
+	// 	c.cfg.tagByFilesystem = tagByFilesystem
+	// }
+
+	// deviceTagRe, found := unmarshalledInstanceConfig["device_tag_re"]
+	// if deviceTagRe, ok := deviceTagRe.(map[interface{}]interface{}); found && ok {
+	// 	c.cfg.deviceTagRe = make(map[*regexp.Regexp][]string)
+	// 	for reString, tags := range deviceTagRe {
+	// 		if reString, ok := reString.(string); ok {
+	// 			if tags, ok := tags.(string); ok {
+	// 				re, err := regexp.Compile(reString)
+	// 				if err != nil {
+	// 					return err
+	// 				}
+	// 				c.cfg.deviceTagRe[re] = strings.Split(tags, ",")
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	return nil
 }
 
-func (c *Check) configureExcludeDevice(conf map[interface{}]interface{}) error {
-	for _, key := range []string{"device_exclude", "device_blacklist", "excluded_disks"} {
-		if deviceExclude, ok := conf[key].([]interface{}); ok {
+func (c *Check) configureExcludeDevice(instanceConfig map[interface{}]interface{}, initConfig map[interface{}]interface{}) error {
+	for _, key := range []string{"device_global_exclude", "device_global_blacklist"} {
+		if deviceExclude, ok := initConfig[key].([]interface{}); ok {
 			for _, val := range deviceExclude {
 				if strVal, ok := val.(string); ok {
 					regexp, err := regexp.Compile(strVal)
@@ -142,7 +143,20 @@ func (c *Check) configureExcludeDevice(conf map[interface{}]interface{}) error {
 			}
 		}
 	}
-	excludedDiskRe, found := conf["excluded_disk_re"] //Maintained for backwards compatibility. It would now be easier to add regular expressions to the 'device_exclude' list key
+	for _, key := range []string{"device_exclude", "device_blacklist", "excluded_disks"} {
+		if deviceExclude, ok := instanceConfig[key].([]interface{}); ok {
+			for _, val := range deviceExclude {
+				if strVal, ok := val.(string); ok {
+					regexp, err := regexp.Compile(strVal)
+					if err != nil {
+						return err
+					}
+					c.cfg.excludedDevices = append(c.cfg.excludedDevices, *regexp)
+				}
+			}
+		}
+	}
+	excludedDiskRe, found := instanceConfig["excluded_disk_re"] //Maintained for backwards compatibility. It would now be easier to add regular expressions to the 'device_exclude' list key
 	if excludedDiskRe, ok := excludedDiskRe.(string); found && ok {
 		var err error
 		regexp, err := regexp.Compile(excludedDiskRe)
@@ -154,9 +168,9 @@ func (c *Check) configureExcludeDevice(conf map[interface{}]interface{}) error {
 	return nil
 }
 
-func (c *Check) configureIncludeDevice(conf map[interface{}]interface{}) error {
+func (c *Check) configureIncludeDevice(instanceConfig map[interface{}]interface{}) error {
 	for _, key := range []string{"device_include", "device_whitelist"} {
-		if deviceInclude, ok := conf[key].([]interface{}); ok {
+		if deviceInclude, ok := instanceConfig[key].([]interface{}); ok {
 			for _, val := range deviceInclude {
 				if strVal, ok := val.(string); ok {
 					regexp, err := regexp.Compile(strVal)
