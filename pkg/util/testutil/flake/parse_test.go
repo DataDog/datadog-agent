@@ -45,7 +45,7 @@ pkg/toto:
   - test: TestOtherTest
     on-log: "hello"`
 
-const flake_error = `pkg/gohai:
+const flakeError = `pkg/gohai:
   - test: TestGetPayload
 pkg/toto:
   - test: TestGetPayload
@@ -93,7 +93,7 @@ func TestFlakesParse(t *testing.T) {
 	})
 
 	t.Run("5", func(t *testing.T) {
-		_, err := Parse(bytes.NewBuffer([]byte(flake_error)))
+		_, err := Parse(bytes.NewBuffer([]byte(flakeError)))
 		require.Error(t, err)
 	})
 }
