@@ -79,6 +79,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ./pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ./pkg/config/utils/
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors
+	github.com/DataDog/datadog-agent/pkg/fips => ./pkg/fips
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/logs/auditor => ./pkg/logs/auditor
 	github.com/DataDog/datadog-agent/pkg/logs/client => ./pkg/logs/client
@@ -568,6 +569,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.61.0
+	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
 	github.com/DataDog/dd-trace-go/v2 v2.0.0-beta.11
