@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -24,6 +25,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
+	ossconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -118,7 +120,7 @@ func TestAgentExtension(t *testing.T) {
 
 	err = ext.Start(context.Background(), host)
 	assert.NoError(t, err)
-	
+
 	timeout := time.After(15 * time.Second)
 	select {
 	case out := <-got:
@@ -127,5 +129,53 @@ func TestAgentExtension(t *testing.T) {
 		t.Fatal("Timed out")
 	}
 	err = ext.Shutdown(ctx)
+	assert.NoError(t, err)
+}
+
+func TestOSSExtension(t *testing.T) {
+	// fake intake
+	got := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		b, err := io.ReadAll(req.Body)
+		assert.NoError(t, err)
+
+		fmt.Println(string(b))
+		fmt.Println(reflect.TypeOf(b))
+
+		assert.Equal(t, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", req.Header.Get("DD-Api-Key"))
+		got <- req.Header.Get("User-Agent")
+		rw.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	// create extension
+	os.Setenv("DD_PROFILING_URL", server.URL)
+	ext, err := NewExtension(&Config{
+		API: ossconfig.APIConfig{
+			Key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
+	}, component.BuildInfo{}, nil, &logger{})
+	assert.NoError(t, err)
+
+	ext, ok := ext.(*ddExtension)
+	assert.True(t, ok)
+
+	host := newHostWithExtensions(
+		map[component.ID]component.Component{
+			component.MustNewIDWithName("ddprofiling", "custom"): nil,
+		},
+	)
+
+	err = ext.Start(context.Background(), host)
+	assert.NoError(t, err)
+
+	timeout := time.After(15 * time.Second)
+	select {
+	case out := <-got:
+		assert.Equal(t, "Go-http-client/1.1", out)
+	case <-timeout:
+		t.Fatal("Timed out")
+	}
+	err = ext.Shutdown(context.Background())
 	assert.NoError(t, err)
 }

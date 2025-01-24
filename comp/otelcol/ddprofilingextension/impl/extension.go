@@ -136,5 +136,9 @@ func (e *ddExtension) Shutdown(ctx context.Context) error {
 	// stop profiler
 	profiler.Stop()
 	// stop server
-	return e.server.Shutdown(ctx)
+
+	if e.traceAgent != nil {
+		return e.server.Shutdown(ctx)
+	}
+	return nil
 }
