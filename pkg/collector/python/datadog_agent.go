@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -78,10 +77,10 @@ func GetHostTags(hostTags **C.char) {
 //
 //export GetClusterName
 func GetClusterName(clusterName **C.char) {
-	goHostname, _ := hostnameUtil.Get(context.TODO())
-	goClusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), goHostname)
+	// goHostname, _ := hostnameUtil.Get(context.TODO())
+	// goClusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), goHostname)
 	// clusterName will be free by rtloader when it's done with it
-	*clusterName = TrackedCString(goClusterName)
+	*clusterName = TrackedCString("")
 }
 
 // TracemallocEnabled exposes the tracemalloc configuration of the agent to Python checks.
