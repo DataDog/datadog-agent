@@ -122,7 +122,7 @@ func SetupEmr(s *common.Setup) error {
 		setupResourceManager(s, clusterName)
 	}
 	// Add logs config to both Resource Manager and Workers
-	var sparkIntegration common.IntegrationConfig
+	sparkIntegration := s.Config.IntegrationConfigs["spark.d/conf.yaml"]
 	if os.Getenv("DD_EMR_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = emrLogs
