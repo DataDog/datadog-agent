@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Log agent now officially support http2 transport to proxy.
+    Log Agent now officially supports http2 transport to proxy.
