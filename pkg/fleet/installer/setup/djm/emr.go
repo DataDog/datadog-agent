@@ -9,12 +9,13 @@ package djm
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
