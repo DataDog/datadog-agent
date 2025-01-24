@@ -41,13 +41,6 @@ var workerUtilization = telemetry.NewGauge(
 	[]string{"worker_name"},
 	"Worker utilization. It's a value between 0 and 1 that represents the share of time that the check runner worker is running checks",
 )
-var integrationRuns = telemetry.NewCounterWithOpts(
-	"ha_agent",
-	"integration_runs",
-	[]string{"integration", "group"},
-	"Tracks number of HA integrations runs.",
-	telemetry.Options{DefaultMetric: true},
-)
 
 // Worker is an object that encapsulates the logic to manage a loop of processing
 // checks over the provided `PendingCheckChan`
@@ -159,10 +152,6 @@ func (w *Worker) Run() {
 			continue
 		}
 
-		if w.haAgent.Enabled() && w.haAgent.IsHaIntegration(check.String()) {
-			integrationRuns.Inc(check.String(), w.haAgent.GetGroup()) // TODO: Replace with config_id
-		}
-
 		checkStartTime := time.Now()
 
 		checkLogger.CheckStarted()
@@ -224,7 +213,7 @@ func (w *Worker) Run() {
 			// otherwise only do so if the check is in the scheduler
 			if w.shouldAddCheckStatsFunc(check.ID()) {
 				sStats, _ := check.GetSenderStats()
-				expvars.AddCheckStats(check, time.Since(checkStartTime), checkErr, checkWarnings, sStats)
+				expvars.AddCheckStats(check, time.Since(checkStartTime), checkErr, checkWarnings, sStats, w.haAgent)
 			}
 		}
 

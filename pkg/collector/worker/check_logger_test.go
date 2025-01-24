@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"testing"
 
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -32,7 +33,7 @@ func newTestCheck(id string) *stubCheck {
 }
 
 func addExpvarsCheckStats(c check.Check) {
-	expvars.AddCheckStats(c, 0, nil, nil, stats.SenderStats{})
+	expvars.AddCheckStats(c, 0, nil, nil, stats.SenderStats{}, haagentmock.NewMockHaAgent())
 }
 
 func setUp() {

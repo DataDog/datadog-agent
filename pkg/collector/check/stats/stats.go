@@ -12,6 +12,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -55,6 +56,13 @@ var (
 		"delay",
 		[]string{"check_name"},
 		"Check start time delay relative to the previous check run")
+	tlmHaAgentIntegrationRuns = telemetry.NewCounterWithOpts(
+		"ha_agent",
+		"integration_runs",
+		[]string{"integration", "config_id"},
+		"Tracks number of HA integrations runs.",
+		telemetry.Options{DefaultMetric: true},
+	)
 )
 
 // SenderStats contains statistics showing the count of various types of telemetry sent by a check sender
@@ -161,7 +169,7 @@ func NewStats(c StatsCheck) *Stats {
 }
 
 // Add tracks a new execution time
-func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats SenderStats) {
+func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats SenderStats, haagent haagent.Component) {
 	cs.m.Lock()
 	defer cs.m.Unlock()
 
@@ -248,6 +256,9 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 		}
 		cs.TotalEventPlatformEvents[k] = cs.TotalEventPlatformEvents[k] + v
 		cs.EventPlatformEvents[k] = v
+	}
+	if haagent.Enabled() && haagent.IsHaIntegration(cs.CheckName) {
+		tlmHaAgentIntegrationRuns.Inc(cs.CheckName, haagent.GetGroup()) // TODO: Replace with config_id
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -105,12 +106,12 @@ func GetCheckStats() map[string]map[checkid.ID]*checkstats.Stats {
 }
 
 // AddCheckStats adds runtime stats to the check's expvars
-func AddCheckStats(
-	c check.Check,
+func AddCheckStats(c check.Check,
 	execTime time.Duration,
 	err error,
 	warnings []error,
 	mStats checkstats.SenderStats,
+	haagent haagent.Component,
 ) {
 
 	var s *checkstats.Stats
@@ -133,7 +134,7 @@ func AddCheckStats(
 		stats[c.ID()] = s
 	}
 
-	s.Add(execTime, err, warnings, mStats)
+	s.Add(execTime, err, warnings, mStats, haagent)
 }
 
 // RemoveCheckStats removes a check from the check stats map
