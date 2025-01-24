@@ -245,11 +245,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.34.0 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.24.1-0.20250124131402-bcd6fd1617a6 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.24.1-0.20250124131402-bcd6fd1617a6 // indirect
 	github.com/ebitengine/purego v0.8.1 // indirect
-	github.com/goccy/go-json v0.10.4 // indirect
 	github.com/knadh/koanf/maps v0.1.1 // indirect
 	github.com/knadh/koanf/providers/confmap v0.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
@@ -267,5 +263,4 @@ require (
 	go.opentelemetry.io/collector/extension/auth v0.118.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.118.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.56.0 // indirect
-	golang.org/x/oauth2 v0.25.0 // indirect
 )

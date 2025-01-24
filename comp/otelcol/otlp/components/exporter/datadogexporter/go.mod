@@ -215,7 +215,6 @@ require (
 	github.com/DataDog/go-sqllexer v0.0.20 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.24.1-0.20250124131402-bcd6fd1617a6 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.24.1-0.20250124131402-bcd6fd1617a6 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.24.0 // indirect
 	github.com/DataDog/sketches-go v1.4.6 // indirect
