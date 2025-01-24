@@ -9,8 +9,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 
@@ -25,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -68,74 +67,72 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 				Definition: profiledefinition.ProfileDefinition{
 					Name:    "my-profile",
 					Version: 10,
-					Metadata: profiledefinition.MetadataConfig{
-						"device": {
-							Fields: map[string]profiledefinition.MetadataField{
-								"name": {
-									// Should use value from Symbol `1.3.6.1.2.1.1.5.0`
-									Symbol: profiledefinition.SymbolConfig{
-										OID:  "1.3.6.1.2.1.1.5.0",
-										Name: "sysName",
-									},
-									Symbols: []profiledefinition.SymbolConfig{
-										{
-											OID:  "1.2.99",
-											Name: "doesNotExist",
-										},
-									},
-								},
-								"description": {
-									// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
-									Symbol: profiledefinition.SymbolConfig{
-										OID:  "1.9999",
-										Name: "doesNotExist",
-									},
-									Symbols: []profiledefinition.SymbolConfig{
-										{
-											OID:  "1.3.6.1.2.1.1.1.0",
-											Name: "sysDescr",
-										},
-									},
-								},
-								"location": {
-									// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
-									Symbol: profiledefinition.SymbolConfig{
-										OID:  "1.9999",
-										Name: "doesNotExist",
-									},
-									Symbols: []profiledefinition.SymbolConfig{
-										{
-											OID:  "1.888",
-											Name: "doesNotExist2",
-										},
-										{
-											OID:  "1.3.6.1.2.1.1.6.0",
-											Name: "sysLocation",
-										},
-										{
-											OID:  "1.7777",
-											Name: "doesNotExist2",
-										},
-									},
-								},
-								"type": {
-									Value: "router",
-								},
-							},
-						},
-					},
 				},
 			},
 		}),
+		Metadata: profiledefinition.MetadataConfig{
+			"device": {
+				Fields: map[string]profiledefinition.MetadataField{
+					"name": {
+						// Should use value from Symbol `1.3.6.1.2.1.1.5.0`
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.1.5.0",
+							Name: "sysName",
+						},
+						Symbols: []profiledefinition.SymbolConfig{
+							{
+								OID:  "1.2.99",
+								Name: "doesNotExist",
+							},
+						},
+					},
+					"description": {
+						// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.9999",
+							Name: "doesNotExist",
+						},
+						Symbols: []profiledefinition.SymbolConfig{
+							{
+								OID:  "1.3.6.1.2.1.1.1.0",
+								Name: "sysDescr",
+							},
+						},
+					},
+					"location": {
+						// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.9999",
+							Name: "doesNotExist",
+						},
+						Symbols: []profiledefinition.SymbolConfig{
+							{
+								OID:  "1.888",
+								Name: "doesNotExist2",
+							},
+							{
+								OID:  "1.3.6.1.2.1.1.6.0",
+								Name: "sysLocation",
+							},
+							{
+								OID:  "1.7777",
+								Name: "doesNotExist2",
+							},
+						},
+					},
+					"type": {
+						Value: "router",
+					},
+				},
+			},
+		},
 	}
 	layout := "2006-01-02 15:04:05"
 	str := "2014-11-12 11:45:26"
 	collectTime, err := time.Parse(layout, str)
-	require.NoError(t, err)
-	profile, err := config.BuildProfile("")
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, profile, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusReachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusReachable, nil)
 
 	// language=json
 	event := []byte(`
@@ -210,17 +207,14 @@ profiles:
 `)
 
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
-	require.Nil(t, err)
+	assert.Nil(t, err)
 
 	layout := "2006-01-02 15:04:05"
 	str := "2014-11-12 11:45:26"
 	collectTime, err := time.Parse(layout, str)
-	require.NoError(t, err)
-	profile, err := config.BuildProfile("")
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, profile, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime,
-		metadata.DeviceStatusReachable, metadata.DeviceStatusReachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusReachable, nil)
 
 	// language=json
 	event := []byte(`
@@ -302,8 +296,6 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-	}
-	profile := profiledefinition.ProfileDefinition{
 		Metadata: profiledefinition.MetadataConfig{
 			"device": {
 				Fields: map[string]profiledefinition.MetadataField{
@@ -362,7 +354,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 	str := "2014-11-12 11:45:26"
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
-	ms.ReportNetworkDeviceMetadata(config, profile, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, diagnosis)
+	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, diagnosis)
 
 	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1", "interface_index:1", "oper_status:up", "admin_status:down"}
 	ifTags2 := []string{"tag1", "tag2", "status:off", "interface:22", "interface_index:2", "oper_status:down", "admin_status:down", "muted", "someKey:someValue"}
@@ -455,8 +447,6 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-	}
-	profile := profiledefinition.ProfileDefinition{
 		Metadata: profiledefinition.MetadataConfig{
 			"device": {
 				Fields: map[string]profiledefinition.MetadataField{
@@ -479,7 +469,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, profile, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil)
 
 	// language=json
 	event := []byte(`
@@ -532,8 +522,6 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-	}
-	profile := profiledefinition.ProfileDefinition{
 		Metadata: profiledefinition.MetadataConfig{
 			"device": {
 				Fields: map[string]profiledefinition.MetadataField{
@@ -553,7 +541,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, profile, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, 0, nil)
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, 0, nil)
 
 	// language=json
 	event := []byte(`
@@ -605,8 +593,6 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-	}
-	profile := profiledefinition.ProfileDefinition{
 		Metadata: profiledefinition.MetadataConfig{
 			"device": {
 				Fields: map[string]profiledefinition.MetadataField{
@@ -626,7 +612,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, profile, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil)
 
 	// language=json
 	event := []byte(`
@@ -679,8 +665,6 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-	}
-	profile := profiledefinition.ProfileDefinition{
 		Metadata: profiledefinition.MetadataConfig{
 			"device": {
 				Fields: map[string]profiledefinition.MetadataField{
@@ -700,7 +684,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, profile, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil)
 
 	// language=json
 	event := []byte(`
@@ -979,4 +963,38 @@ func Test_buildInterfaceIndexByIDType(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expectedInterfaceIndexByIDType, interfaceIndexByIDType)
+}
+
+func Test_getProfileVersion(t *testing.T) {
+	tests := []struct {
+		name                   string
+		config                 checkconfig.CheckConfig
+		expectedProfileVersion uint64
+	}{
+		{
+			name: "profile definition is present",
+			config: checkconfig.CheckConfig{
+				ProfileName: "my-profile",
+				ProfileProvider: profile.StaticProvider(profile.ProfileConfigMap{
+					"my-profile": profile.ProfileConfig{
+						Definition: profiledefinition.ProfileDefinition{
+							Name:    "my-profile",
+							Version: 42,
+						},
+					},
+				}),
+			},
+			expectedProfileVersion: 42,
+		},
+		{
+			name:                   "profile definition not present",
+			config:                 checkconfig.CheckConfig{},
+			expectedProfileVersion: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedProfileVersion, getProfileVersion(&tt.config))
+		})
+	}
 }
