@@ -76,7 +76,7 @@ def run(
         _run_on_windows_dev_env(
             ctx,
             name,
-            f". ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -Command {{{command}}}",
+            f'. ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -Command {{{command}}}',
         )
     )
 
@@ -252,13 +252,14 @@ def _run_on_windows_dev_env(ctx: Context, name: str = "windows-dev-env", command
             'powershell',
             f"'{command}'",
         ]
+        joined_docker_command_parts = ' '.join(docker_command_parts)
         command_parts = [
-            'ssh',
+            "ssh",
             f'{host.user}@{host.address}',
-            '-p',
+            "-p",
             f'{host.port}',
-            '-t',
-            f"{' '.join(docker_command_parts)}",
+            "-t",
+            f'"{joined_docker_command_parts}"',
         ]
         result = ctx.run(
             ' '.join(command_parts),
