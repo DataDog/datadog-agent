@@ -6,7 +6,7 @@ from tasks.static_quality_gates.lib.gates_lib import argument_extractor, read_by
 
 def calculate_image_on_disk_size(ctx, url):
     # Pull image locally to get on disk size
-    ctx.run(f"crane pull {url} output.tar")
+    ctx.run(f"crane pull --platform amd64 {url} output.tar")
     ctx.run("tar -xf output.tar")
     image_content = ctx.run("tar -tvf output.tar | awk -F' ' '{print $3; print $6}'").stdout.splitlines()
     total_size = 0
@@ -32,13 +32,14 @@ def entrypoint(**kwargs):
     metricHandler = arguments.metricHandler
     max_on_wire_size = arguments.max_on_wire_size
     max_on_disk_size = arguments.max_on_disk_size
+    gate_name = "static_quality_gate_docker_agent_amd64"
 
     metricHandler.register_gate_tags(
-        "static_quality_gate_docker_agent", gate_name="static_quality_gate_docker_agent", arch="x64"
+        "static_quality_gate_docker_agent", gate_name="static_quality_gate_docker_agent", arch="x64", os="docker"
     )
 
-    metricHandler.register_metric("static_quality_gate_docker_agent", "max_on_wire_size", max_on_wire_size)
-    metricHandler.register_metric("static_quality_gate_docker_agent", "max_on_disk_size", max_on_disk_size)
+    metricHandler.register_metric(gate_name, "max_on_wire_size", max_on_wire_size)
+    metricHandler.register_metric(gate_name, "max_on_disk_size", max_on_disk_size)
 
     pipeline_id = os.environ["CI_PIPELINE_ID"]
     commit_sha = os.environ["CI_COMMIT_SHORT_SHA"]
@@ -60,8 +61,8 @@ def entrypoint(**kwargs):
     # Calculate image on disk size
     image_on_disk_size = calculate_image_on_disk_size(ctx, url)
 
-    metricHandler.register_metric("static_quality_gate_docker_agent", "current_on_wire_size", image_on_wire_size)
-    metricHandler.register_metric("static_quality_gate_docker_agent", "current_on_disk_size", image_on_disk_size)
+    metricHandler.register_metric(gate_name, "current_on_wire_size", image_on_wire_size)
+    metricHandler.register_metric(gate_name, "current_on_disk_size", image_on_disk_size)
 
     error_message = ""
     if image_on_wire_size > max_on_wire_size:

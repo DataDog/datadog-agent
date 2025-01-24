@@ -49,6 +49,7 @@ def string_to_byte(string):
         if unit in string:
             value = float(string.replace(unit, ""))
             power = k + 1  # We start with KiB = 1024^1
+            break
     if value:
         return int(value * math.pow(1024, power))
     else:
