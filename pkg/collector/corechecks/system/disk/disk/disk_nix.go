@@ -10,6 +10,7 @@ package disk
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/shirou/gopsutil/v4/disk"
 
@@ -109,7 +110,12 @@ func (c *Check) excludePartition(partition disk.PartitionStat) bool {
 			return true
 		}
 	}
-	exclude := c.excludeDevice(device) || c.excludeFileSystem(partition.Fstype) || c.excludeMountPoint(partition.Mountpoint) || !c.includeDevice(device) || !c.includeFileSystem(partition.Fstype)
+	// Hack for NFS secure mounts
+	// Secure mounts might look like this: '/mypath (deleted)', we should
+	// ignore all the bits not part of the mountpoint name. Take also into
+	// account a space might be in the mountpoint.
+	mountpoint := strings.Split(partition.Mountpoint, " ")[0]
+	exclude := c.excludeDevice(device) || c.excludeFileSystem(partition.Fstype) || c.excludeMountPoint(mountpoint) || !c.includeDevice(device) || !c.includeFileSystem(partition.Fstype) || !c.includeMountPoint(mountpoint)
 	return exclude
 }
 
@@ -146,6 +152,13 @@ func (c *Check) excludeMountPoint(mountPoint string) bool {
 		return false
 	}
 	return sliceMatchesExpression(c.cfg.excludedMountpoints, mountPoint)
+}
+
+func (c *Check) includeMountPoint(mountPoint string) bool {
+	if len(c.cfg.includedMountpoints) == 0 {
+		return true
+	}
+	return sliceMatchesExpression(c.cfg.includedMountpoints, mountPoint)
 }
 
 func (c *Check) collectDiskMetrics(sender sender.Sender) error {

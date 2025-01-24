@@ -32,6 +32,7 @@ type diskConfig struct {
 	excludedDevices     []regexp.Regexp
 	includedFilesystems []regexp.Regexp
 	excludedFilesystems []regexp.Regexp
+	includedMountpoints []regexp.Regexp
 	excludedMountpoints []regexp.Regexp
 	tagByFilesystem     bool
 	allPartitions       bool
@@ -46,6 +47,7 @@ func NewDiskConfig() *diskConfig {
 		excludedDevices:     []regexp.Regexp{},
 		includedFilesystems: []regexp.Regexp{},
 		excludedFilesystems: []regexp.Regexp{},
+		includedMountpoints: []regexp.Regexp{},
 		excludedMountpoints: []regexp.Regexp{},
 		tagByFilesystem:     false,
 		allPartitions:       false,
@@ -53,48 +55,6 @@ func NewDiskConfig() *diskConfig {
 		allDevices:          true,
 	}
 }
-
-// func (c *Check) excludeDisk(mountpoint, device, fstype string) bool {
-// 	nameEmpty := device == "" || device == "none"
-
-// 	// allow empty names if `all_partitions` is `yes` so we can evaluate mountpoints
-// 	if nameEmpty {
-// 		if !c.cfg.allPartitions {
-// 			return true
-// 		}
-// 	} else {
-// 		// I don't why I we do this only if the device name is not empty
-// 		// This is useful only when `all_partitions` is true and `exclude_disk_re` matches empty strings or `excluded_devices` contains the device
-
-// 		// device is listed in `excluded_disks`
-// 		if stringSliceContain(c.cfg.excludedDevices, device) {
-// 			return true
-// 		}
-
-// 		// device name matches `excluded_disk_re`
-// 		if c.cfg.excludedDeviceRe != nil && c.cfg.excludedDeviceRe.MatchString(device) {
-// 			return true
-// 		}
-// 	}
-
-// 	// fs is listed in `excluded_filesystems`
-// 	if stringSliceContain(c.cfg.excludedFilesystems, fstype) {
-// 		return true
-// 	}
-
-// 	// Hack for NFS secure mounts
-// 	// Secure mounts might look like this: '/mypath (deleted)', we should
-// 	// ignore all the bits not part of the mountpoint name. Take also into
-// 	// account a space might be in the mountpoint.
-// 	mountpoint = strings.Split(mountpoint, " ")[0]
-// 	// device mountpoint matches `excluded_mountpoint_re`
-// 	if c.cfg.excludedMountpointRe != nil && c.cfg.excludedMountpointRe.MatchString(mountpoint) {
-// 		return true
-// 	}
-
-// 	// all good, don't exclude the disk
-// 	return false
-// }
 
 func (c *Check) instanceConfigure(data integration.Data) error {
 	conf := make(map[interface{}]interface{})
@@ -131,6 +91,10 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 		return err
 	}
 	err = c.configureExcludeMountPoint(conf)
+	if err != nil {
+		return err
+	}
+	err = c.configureIncludeMountPoint(conf)
 	if err != nil {
 		return err
 	}
@@ -273,14 +237,22 @@ func (c *Check) configureExcludeMountPoint(conf map[interface{}]interface{}) err
 	return nil
 }
 
-// func stringSliceContain(slice []string, x string) bool {
-// 	for _, e := range slice {
-// 		if e == x {
-// 			return true
-// 		}
-// 	}
-// 	return false
-// }
+func (c *Check) configureIncludeMountPoint(conf map[interface{}]interface{}) error {
+	for _, key := range []string{"mount_point_include", "mount_point_whitelist"} {
+		if mountPointInclude, ok := conf[key].([]interface{}); ok {
+			for _, val := range mountPointInclude {
+				if strVal, ok := val.(string); ok {
+					regexp, err := regexp.Compile(strVal)
+					if err != nil {
+						return err
+					}
+					c.cfg.includedMountpoints = append(c.cfg.includedMountpoints, *regexp)
+				}
+			}
+		}
+	}
+	return nil
+}
 
 func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
 	for _, regexp := range slice {
