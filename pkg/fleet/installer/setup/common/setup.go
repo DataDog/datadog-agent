@@ -41,12 +41,13 @@ type Setup struct {
 	start     time.Time
 	flavor    string
 
-	Out      *Output
-	Env      *env.Env
-	Ctx      context.Context
-	Span     *telemetry.Span
-	Packages Packages
-	Config   Config
+	Out                     *Output
+	Env                     *env.Env
+	Ctx                     context.Context
+	Span                    *telemetry.Span
+	Packages                Packages
+	Config                  Config
+	DdAgentAdditionalGroups []string
 }
 
 // NewSetup creates a new Setup structure with some default values.
@@ -121,10 +122,9 @@ func (s *Setup) Run() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to write install info: %w", err)
 	}
-	isEMRorDataproc := s.flavor == "emr" || s.flavor == "dataproc"
-	if isEMRorDataproc {
-		// Add dd-agent to the yarn group to give the Agent permission to read the Spark log files.
-		_, err = ExecuteCommandWithTimeout(s, "usermod", "-aG", "yarn", "dd-agent")
+	for _, group := range s.DdAgentAdditionalGroups {
+		// Add dd-agent user to additional group for permission reason
+		_, err = ExecuteCommandWithTimeout(s, "usermod", "-aG", group, "dd-agent")
 		if err != nil {
 			return fmt.Errorf("failed to add dd-agent to group yarn: %w", err)
 		}
