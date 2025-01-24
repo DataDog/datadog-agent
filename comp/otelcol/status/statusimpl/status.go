@@ -130,7 +130,7 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 	return statusInfo
 }
 
-func getPrometheusUrl(extensionResp ddflareextension.Response) (string, error) {
+func getPrometheusURL(extensionResp ddflareextension.Response) (string, error) {
 	var runtimeConfig prometheusRuntimeConfig
 	if err := yaml.Unmarshal([]byte(extensionResp.RuntimeConfig), &runtimeConfig); err != nil {
 		return "", err
@@ -147,8 +147,8 @@ func getPrometheusUrl(extensionResp ddflareextension.Response) (string, error) {
 	return fmt.Sprintf("http://%v:%d/metrics", prometheusHost, prometheusPort), nil
 }
 
-func (s statusProvider) populatePrometheusStatus(c *http.Client, prometheusUrl string) error {
-	resp, err := apiutil.DoGet(c, prometheusUrl, apiutil.CloseConnection)
+func (s statusProvider) populatePrometheusStatus(c *http.Client, prometheusURL string) error {
+	resp, err := apiutil.DoGet(c, prometheusURL, apiutil.CloseConnection)
 	if err != nil {
 		return err
 	}
@@ -190,33 +190,33 @@ func (s statusProvider) populatePrometheusStatus(c *http.Client, prometheusUrl s
 }
 
 func (s statusProvider) populateStatus() map[string]interface{} {
-	extensionUrl := s.Config.GetString("otelcollector.extension_url")
+	extensionURL := s.Config.GetString("otelcollector.extension_url")
 	c := client()
-	resp, err := apiutil.DoGet(c, extensionUrl, apiutil.CloseConnection)
+	resp, err := apiutil.DoGet(c, extensionURL, apiutil.CloseConnection)
 	if err != nil {
 		return map[string]interface{}{
-			"url":   extensionUrl,
+			"url":   extensionURL,
 			"error": err.Error(),
 		}
 	}
 	var extensionResp ddflareextension.Response
 	if err = json.Unmarshal(resp, &extensionResp); err != nil {
 		return map[string]interface{}{
-			"url":   extensionUrl,
+			"url":   extensionURL,
 			"error": err.Error(),
 		}
 	}
-	prometheusUrl, err := getPrometheusUrl(extensionResp)
+	prometheusURL, err := getPrometheusURL(extensionResp)
 	if err != nil {
 		return map[string]interface{}{
-			"url":   extensionUrl,
+			"url":   extensionURL,
 			"error": err.Error(),
 		}
 	}
-	err = s.populatePrometheusStatus(c, prometheusUrl)
+	err = s.populatePrometheusStatus(c, prometheusURL)
 	if err != nil {
 		return map[string]interface{}{
-			"url":   prometheusUrl,
+			"url":   prometheusURL,
 			"error": err.Error(),
 		}
 	}
