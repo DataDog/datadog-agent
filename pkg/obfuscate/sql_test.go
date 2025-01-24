@@ -381,7 +381,7 @@ TABLE T4 UNION CORRESPONDING TABLE T3`,
 			assert.Equal(tt.metadata.Commands, oq.Metadata.Commands)
 			assert.Equal(tt.metadata.Comments, oq.Metadata.Comments)
 			// Cost() includes the query text size, metadata size and struct overhead
-			assert.Equal(oq.Cost()-int64(len(oq.Query))-oq.Metadata.Size, 320)
+			assert.Equal(oq.Cost()-int64(len(oq.Query))-oq.Metadata.Size, int64(320))
 		})
 	}
 }
