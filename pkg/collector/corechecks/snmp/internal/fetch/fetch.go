@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
@@ -35,21 +36,19 @@ func (c columnFetchStrategy) String() string {
 }
 
 // Fetch oid values from device
-func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSize int,
-	bulkMaxRepetitions uint32) (*valuestore.ResultValueStore, error) {
+// TODO: pass only specific configs instead of the whole CheckConfig
+func Fetch(sess session.Session, config *checkconfig.CheckConfig) (*valuestore.ResultValueStore, error) {
 	// fetch scalar values
-	scalarResults, err := fetchScalarOidsWithBatching(sess, scalarOIDs, batchSize)
+	scalarResults, err := fetchScalarOidsWithBatching(sess, config.OidConfig.ScalarOids, config.OidBatchSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch scalar oids with batching: %v", err)
 	}
 
-	columnResults, err := fetchColumnOidsWithBatching(sess, columnOIDs, batchSize,
-		bulkMaxRepetitions, useGetBulk)
+	columnResults, err := fetchColumnOidsWithBatching(sess, config.OidConfig.ColumnOids, config.OidBatchSize, config.BulkMaxRepetitions, useGetBulk)
 	if err != nil {
 		log.Debugf("failed to fetch oids with GetBulk batching: %v", err)
 
-		columnResults, err = fetchColumnOidsWithBatching(sess, columnOIDs, batchSize, bulkMaxRepetitions,
-			useGetNext)
+		columnResults, err = fetchColumnOidsWithBatching(sess, config.OidConfig.ColumnOids, config.OidBatchSize, config.BulkMaxRepetitions, useGetNext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
 		}
