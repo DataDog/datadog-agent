@@ -6,7 +6,7 @@ from tasks.static_quality_gates.lib.gates_lib import argument_extractor, read_by
 
 def calculate_image_on_disk_size(ctx, url):
     # Pull image locally to get on disk size
-    ctx.run(f"crane pull --platform amd64 {url} output.tar")
+    ctx.run(f"crane pull {url} output.tar")
     ctx.run("tar -xf output.tar")
     image_content = ctx.run("tar -tvf output.tar | awk -F' ' '{print $3; print $6}'").stdout.splitlines()
     total_size = 0
