@@ -258,7 +258,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 		cs.EventPlatformEvents[k] = v
 	}
 	if haagent != nil && haagent.Enabled() && haagent.IsHaIntegration(cs.CheckName) {
-		tlmHaAgentIntegrationRuns.Inc(cs.CheckName, haagent.GetGroup()) // TODO: Replace with config_id
+		tlmHaAgentIntegrationRuns.Inc(cs.CheckName, pkgconfigsetup.Datadog().GetString("config_id")) // TODO: Replace with haagent.GetConfigID()
 	}
 }
 
