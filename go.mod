@@ -165,7 +165,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250114151552-463ab54482b4
-	github.com/DataDog/ebpf-manager v0.7.7
+	github.com/DataDog/ebpf-manager v0.7.9-0.20250123210310-036eff24f2bf
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.9
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.24.0
@@ -194,7 +194,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.16.0
+	github.com/cilium/ebpf v0.17.2-0.20250115131724-fd1fe1b9ac25
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/containerd v1.7.25
 	github.com/containernetworking/cni v1.2.3
