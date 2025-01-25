@@ -330,6 +330,12 @@ func (k *Version) HaveRingBuffers() bool {
 	return features.HaveMapType(ebpf.RingBuf) == nil
 }
 
+// HasNoPreallocMapsInPerfEvent returns true if the kernel supports using non-preallocated maps in perf_event programs
+// See https://github.com/torvalds/linux/commit/274052a2b0ab9f380ce22b19ff80a99b99ecb198
+func (k *Version) HasNoPreallocMapsInPerfEvent() bool {
+	return k.Code >= Kernel6_1
+}
+
 // HasSKStorage returns true if the kernel supports SK_STORAGE maps
 // See https://github.com/torvalds/linux/commit/6ac99e8f23d4b10258406ca0dd7bffca5f31da9d
 func (k *Version) HasSKStorage() bool {

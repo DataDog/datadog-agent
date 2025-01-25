@@ -206,7 +206,8 @@ func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 	}
 }
 
-func getClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Config, error) {
+// GetClientConfig returns a REST client configuration
+func GetClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Config, error) {
 	var clientConfig *rest.Config
 	var err error
 	cfgPath := pkgconfigsetup.Datadog().GetString("kubernetes_kubeconfig_path")
@@ -253,7 +254,7 @@ func getClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Confi
 func GetKubeClient(timeout time.Duration, qps float32, burst int) (kubernetes.Interface, error) {
 	// TODO: Remove custom warning logger when we remove usage of ComponentStatus
 	rest.SetDefaultWarningHandler(CustomWarningLogger{})
-	clientConfig, err := getClientConfig(timeout, qps, burst)
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +263,7 @@ func GetKubeClient(timeout time.Duration, qps float32, burst int) (kubernetes.In
 }
 
 func getKubeDynamicClient(timeout time.Duration, qps float32, burst int) (dynamic.Interface, error) {
-	clientConfig, err := getClientConfig(timeout, qps, burst)
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +272,7 @@ func getKubeDynamicClient(timeout time.Duration, qps float32, burst int) (dynami
 }
 
 func getCRDClient(timeout time.Duration, qps float32, burst int) (*clientset.Clientset, error) {
-	clientConfig, err := getClientConfig(timeout, qps, burst)
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -280,7 +281,7 @@ func getCRDClient(timeout time.Duration, qps float32, burst int) (*clientset.Cli
 }
 
 func getAPISClient(timeout time.Duration, qps float32, burst int) (*apiregistrationclient.ApiregistrationV1Client, error) {
-	clientConfig, err := getClientConfig(timeout, qps, burst)
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +289,7 @@ func getAPISClient(timeout time.Duration, qps float32, burst int) (*apiregistrat
 }
 
 func getKubeVPAClient(timeout time.Duration, qps float32, burst int) (vpa.Interface, error) {
-	clientConfig, err := getClientConfig(timeout, qps, burst)
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +298,7 @@ func getKubeVPAClient(timeout time.Duration, qps float32, burst int) (vpa.Interf
 }
 
 func getScaleClient(discoveryCl discovery.ServerResourcesInterface, restMapper meta.RESTMapper, timeout time.Duration, qps float32, burst int) (scale.ScalesGetter, error) {
-	clientConfig, err := getClientConfig(timeout, qps, burst)
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -661,7 +662,7 @@ func (c *APIClient) GetARandomNodeName(ctx context.Context) (string, error) {
 
 // RESTClient returns a new REST client
 func (c *APIClient) RESTClient(apiPath string, groupVersion *schema.GroupVersion, negotiatedSerializer runtime.NegotiatedSerializer) (*rest.RESTClient, error) {
-	clientConfig, err := getClientConfig(c.defaultClientTimeout, standardClientQPSLimit, standardClientQPSBurst)
+	clientConfig, err := GetClientConfig(c.defaultClientTimeout, standardClientQPSLimit, standardClientQPSBurst)
 	if err != nil {
 		return nil, err
 	}
@@ -675,7 +676,7 @@ func (c *APIClient) RESTClient(apiPath string, groupVersion *schema.GroupVersion
 
 // MetadataClient returns a new kubernetes metadata client
 func (c *APIClient) MetadataClient() (metadata.Interface, error) {
-	clientConfig, err := getClientConfig(c.defaultInformerTimeout, standardClientQPSLimit, standardClientQPSBurst)
+	clientConfig, err := GetClientConfig(c.defaultInformerTimeout, standardClientQPSLimit, standardClientQPSBurst)
 	if err != nil {
 		return nil, err
 	}
@@ -686,7 +687,7 @@ func (c *APIClient) MetadataClient() (metadata.Interface, error) {
 
 // NewSPDYExecutor returns a new SPDY executor for the provided method and URL
 func (c *APIClient) NewSPDYExecutor(apiPath string, groupVersion *schema.GroupVersion, negotiatedSerializer runtime.NegotiatedSerializer, method string, url *url.URL) (remotecommand.Executor, error) {
-	clientConfig, err := getClientConfig(c.defaultClientTimeout, standardClientQPSLimit, standardClientQPSBurst)
+	clientConfig, err := GetClientConfig(c.defaultClientTimeout, standardClientQPSLimit, standardClientQPSBurst)
 	if err != nil {
 		return nil, err
 	}

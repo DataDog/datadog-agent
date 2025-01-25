@@ -347,6 +347,14 @@ def generate_protobuf(ctx):
             switches = patch[1] if patch[1] else ''
             ctx.run(f"git apply {switches} --unsafe-paths --directory='{pbgo_dir}/{pkg}' {patch_file}")
 
+    # Check the generated files were properly committed
+    updates = ctx.run("git status -suno").stdout.strip()
+    if updates:
+        raise Exit(
+            "Generated files were not properly committed. Please run `inv generate-protobuf` and commit the changes.",
+            code=1,
+        )
+
 
 @task
 def reset(ctx):
@@ -487,7 +495,7 @@ def tidy(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.23.3 linux/amd64"
+    # result is like "go version go1.23.5 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

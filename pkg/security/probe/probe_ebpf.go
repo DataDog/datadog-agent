@@ -190,6 +190,11 @@ func (p *EBPFProbe) UseRingBuffers() bool {
 	return p.config.Probe.EventStreamUseRingBuffer && p.kernelVersion.HaveRingBuffers()
 }
 
+// GetUseFentry returns true if fentry is used
+func (p *EBPFProbe) GetUseFentry() bool {
+	return p.useFentry
+}
+
 func (p *EBPFProbe) selectFentryMode() {
 	if !p.config.Probe.EventStreamUseFentry {
 		p.useFentry = false
@@ -363,7 +368,7 @@ func (p *EBPFProbe) Init() error {
 		})
 	}
 
-	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors()...)
+	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
 
 	if err := p.Manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -747,24 +752,16 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 }
 
 func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, cgroupFlags containerutils.CGroupFlags, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
-	pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, newEntryCb)
-	if pce != nil {
-		cgroupContext, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey, cgroupFlags)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resorve cgroup for pid %d: %w", pid, err)
-		}
-
-		pce.Process.CGroup = *cgroupContext
-		pce.CGroup = *cgroupContext
-		if cgroupContext.CGroupFlags.IsContainer() {
-			containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
-			pce.ContainerID = containerID
-			pce.Process.ContainerID = containerID
-		}
-	} else {
-		return nil, fmt.Errorf("entry not found for pid %d", pid)
+	cgroupContext, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey, cgroupFlags)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resorve cgroup for pid %d: %w", pid, err)
 	}
-	return &pce.CGroup, nil
+	updated := p.Resolvers.ProcessResolver.UpdateProcessCGroupContext(pid, cgroupContext, newEntryCb)
+	if !updated {
+		return nil, fmt.Errorf("failed to update cgroup for pid %d", pid)
+	}
+
+	return cgroupContext, nil
 }
 
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
@@ -1467,7 +1464,7 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		}
 	}
 
-	activatedProbes := probes.SnapshotSelectors()
+	activatedProbes := probes.SnapshotSelectors(p.useFentry)
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
@@ -1556,51 +1553,16 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		return fmt.Errorf("failed to set enabled events: %w", err)
 	}
 
-	previousProbes := p.computeProbesIDs()
 	if err = p.Manager.UpdateActivatedProbes(activatedProbes); err != nil {
 		return err
 	}
-	newProbes := p.computeProbesIDs()
 
-	p.computeProbesDiffAndRemoveMapping(previousProbes, newProbes)
+	p.updateEBPFCheckMapping()
 	return nil
 }
 
-func (p *EBPFProbe) computeProbesIDs() map[string]lib.ProgramID {
-	out := make(map[string]lib.ProgramID)
-	progList, err := p.Manager.GetPrograms()
-	if err != nil {
-		return out
-	}
-	for funcName, prog := range progList {
-		programInfo, err := prog.Info()
-		if err != nil {
-			continue
-		}
-
-		programID, isAvailable := programInfo.ID()
-		if isAvailable {
-			out[funcName] = programID
-		}
-	}
-
-	return out
-}
-
-func (p *EBPFProbe) computeProbesDiffAndRemoveMapping(previousProbes map[string]lib.ProgramID, newProbes map[string]lib.ProgramID) {
-	// Compute the list of programs that need to be deleted from the ddebpf mapping
-	var toDelete []lib.ProgramID
-	for previousProbeFuncName, programID := range previousProbes {
-		if _, ok := newProbes[previousProbeFuncName]; !ok {
-			toDelete = append(toDelete, programID)
-		}
-	}
-
-	for _, id := range toDelete {
-		ddebpf.RemoveProgramID(uint32(id), "cws")
-	}
-
-	// new programs could have been introduced during the update, add them now
+func (p *EBPFProbe) updateEBPFCheckMapping() {
+	ddebpf.ClearNameMappings("cws")
 	ddebpf.AddNameMappings(p.Manager, "cws")
 }
 
@@ -2036,7 +1998,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		PathResolutionEnabled:     probe.Opts.PathResolutionEnabled,
 		SecurityProfileMaxCount:   config.RuntimeSecurity.SecurityProfileMaxCount,
 		NetworkFlowMonitorEnabled: config.Probe.NetworkFlowMonitorEnabled,
-	})
+	}, p.kernelVersion)
 
 	if config.RuntimeSecurity.ActivityDumpEnabled {
 		for _, e := range config.RuntimeSecurity.ActivityDumpTracedEventTypes {
@@ -2234,24 +2196,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	// prevent some helpers from loading
 	if !p.kernelVersion.HasBPFForEachMapElemHelper() {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.AllBPFForEachMapElemProgramFunctions()...)
-	}
-
-	if !p.kernelVersion.HasSKStorage() {
-		// Edit each SK_Storage map and transform them to a basic hash maps so they can be loaded by older kernels.
-		// We need this so that the eBPF manager can link the SK_Storage maps in our eBPF programs, even if deadcode
-		// elimination will clean up the piece of code that work with them prior to running the verifier.
-		if p.managerOptions.MapSpecEditors == nil {
-			p.managerOptions.MapSpecEditors = make(map[string]manager.MapSpecEditor, len(probes.AllSKStorageMaps()))
-		}
-		for _, skMapName := range probes.AllSKStorageMaps() {
-			p.managerOptions.MapSpecEditors[skMapName] = manager.MapSpecEditor{
-				Type:       lib.Hash,
-				KeySize:    1,
-				ValueSize:  1,
-				MaxEntries: 1,
-				EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries,
-			}
-		}
 	}
 
 	if p.useFentry {

@@ -193,6 +193,11 @@ func (t *Tailer) setup() error {
 }
 
 func (t *Tailer) forwardMessages() {
+	defer func() {
+		// the decoder has successfully been flushed
+		close(t.done)
+	}()
+
 	for decodedMessage := range t.decoder.OutputChan {
 		if len(decodedMessage.GetContent()) > 0 {
 			t.outputChan <- decodedMessage
@@ -250,7 +255,6 @@ func (t *Tailer) tail() {
 	defer func() {
 		t.journal.Close()
 		t.decoder.Stop()
-		t.done <- struct{}{}
 	}()
 	for {
 		select {

@@ -354,7 +354,16 @@ type ObfuscatedQuery struct {
 // Cost returns the number of bytes needed to store all the fields
 // of this ObfuscatedQuery.
 func (oq *ObfuscatedQuery) Cost() int64 {
-	return int64(len(oq.Query)) + oq.Metadata.Size
+	// The cost of the ObfuscatedQuery struct is the sum of the length of the query string,
+	// the size of the metadata content, and the size of the struct itself and its fields headers.
+	// 320 bytes come from
+	// - 112 bytes for the ObfuscatedQuery struct itself, measured by unsafe.Sizeof(ObfuscatedQuery{})
+	// - 96 bytes for the Metadata struct itself, measured by unsafe.Sizeof(SQLMetadata{})
+	// - 16 bytes for the Query string header
+	// - 16 bytes for the TablesCSV string header
+	// - 24 * 3 bytes for the Comments, Commands, and Procedures slices headers
+	// - 8 bytes for the Size int64 field
+	return int64(len(oq.Query)) + oq.Metadata.Size + 320
 }
 
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the given set of filters.

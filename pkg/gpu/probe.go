@@ -33,8 +33,9 @@ import (
 )
 
 const (
-	gpuAttacherName = "gpu"
-	gpuModuleName   = gpuAttacherName
+	gpuAttacherName    = "gpu"
+	gpuModuleName      = gpuAttacherName
+	gpuTelemetryModule = gpuModuleName
 
 	// consumerChannelSize controls the size of the go channel that buffers ringbuffer
 	// events (*ddebpf.RingBufferHandler).
@@ -98,6 +99,19 @@ type Probe struct {
 	deps           ProbeDependencies
 	sysCtx         *systemContext
 	eventHandler   ddebpf.EventHandler
+	telemetry      *probeTelemetry
+}
+
+type probeTelemetry struct {
+	sentEntries telemetry.Counter
+}
+
+func newProbeTelemetry(tm telemetry.Component) *probeTelemetry {
+	subsystem := gpuTelemetryModule + "__probe"
+
+	return &probeTelemetry{
+		sentEntries: tm.NewCounter(subsystem, "sent_entries", nil, "Number of GPU events sent to the agent"),
+	}
 }
 
 // NewProbe creates and starts a GPU monitoring probe, containing relevant eBPF programs (uprobes), the
@@ -114,15 +128,16 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	}
 
 	attachCfg := getAttacherConfig(cfg)
-	sysCtx, err := getSystemContext(deps.NvmlLib, cfg.ProcRoot, deps.WorkloadMeta)
+	sysCtx, err := getSystemContext(deps.NvmlLib, cfg.ProcRoot, deps.WorkloadMeta, deps.Telemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
 
 	p := &Probe{
-		cfg:    cfg,
-		deps:   deps,
-		sysCtx: sysCtx,
+		cfg:       cfg,
+		deps:      deps,
+		sysCtx:    sysCtx,
+		telemetry: newProbeTelemetry(deps.Telemetry),
 	}
 
 	allowRC := cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback
@@ -154,9 +169,9 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
 
-	p.consumer = newCudaEventConsumer(sysCtx, p.eventHandler, p.cfg)
+	p.consumer = newCudaEventConsumer(sysCtx, p.eventHandler, p.cfg, deps.Telemetry)
 	//TODO: decouple this to avoid sharing streamHandlers between consumer and statsGenerator
-	p.statsGenerator = newStatsGenerator(sysCtx, p.consumer.streamHandlers)
+	p.statsGenerator = newStatsGenerator(sysCtx, p.consumer.streamHandlers, deps.Telemetry)
 
 	if err = p.start(); err != nil {
 		return nil, err
@@ -195,6 +210,7 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 		return nil, fmt.Errorf("error getting current time: %w", err)
 	}
 	stats := p.statsGenerator.getStats(now)
+	p.telemetry.sentEntries.Add(float64(len(stats.Metrics)))
 	p.cleanupFinished()
 
 	return stats, nil
@@ -217,8 +233,7 @@ func (p *Probe) initRCGPU(cfg *config.Config) error {
 
 func (p *Probe) initCOREGPU(cfg *config.Config) error {
 	asset := getAssetName("gpu", cfg.BPFDebug)
-	var err error //nolint:gosimple // TODO
-	err = ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
+	err := ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
 		return p.setupManager(ar, o)
 	})
 	return err
