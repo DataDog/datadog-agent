@@ -44,11 +44,11 @@ type TransactionRetryQueue struct {
 
 // BuildTransactionRetryQueue builds a new instance of TransactionRetryQueue
 func BuildTransactionRetryQueue(
-	log log.Component,
+	_ log.Component,
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
-	optionalDomainFolderPath string,
-	optionalDiskUsageLimit *DiskUsageLimit,
+	_ string,
+	_ *DiskUsageLimit,
 	dropPrioritySorter TransactionPrioritySorter,
 	resolver resolver.DomainResolver,
 	pointCountTelemetry *PointCountTelemetry) *TransactionRetryQueue {

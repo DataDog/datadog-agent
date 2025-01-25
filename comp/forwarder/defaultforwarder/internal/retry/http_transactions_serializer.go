@@ -38,9 +38,9 @@ const squareChar = "\xfe"
 const placeHolderPrefix = squareChar + "API_KEY" + squareChar
 const placeHolderFormat = placeHolderPrefix + "%v" + squareChar
 
-// // HTTPTransactionsSerializer serializes Transaction instances.
-// // To support a new Transaction implementation, add a new
-// // method `func (s *HTTPTransactionsSerializer) Add(transaction NEW_TYPE) error {`
+// HTTPTransactionsSerializer serializes Transaction instances.
+// To support a new Transaction implementation, add a new
+// method `func (s *HTTPTransactionsSerializer) Add(transaction NEW_TYPE) error {`
 type HTTPTransactionsSerializer struct {
 	log log.Component
 	// collection          HttpTransactionProtoCollection
@@ -67,7 +67,7 @@ func NewHTTPTransactionsSerializer(log log.Component, resolver resolver.DomainRe
 // Add adds a transaction to the serializer.
 // This function uses references on HTTPTransaction.Payload and HTTPTransaction.Headers
 // and so the transaction must not be updated until a call to `GetBytesAndReset`.
-func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransaction) error {
+func (s *HTTPTransactionsSerializer) Add(_ *transaction.HTTPTransaction) error {
 	// if d, _ := s.resolver.Resolve(transaction.Endpoint); transaction.Domain != d {
 	// 	// This error is not supposed to happen (Sanity check).
 	// 	return fmt.Errorf("the domain of the transaction %v does not match the domain %v", transaction.Domain, d)
@@ -120,7 +120,7 @@ func (s *HTTPTransactionsSerializer) GetBytesAndReset() ([]byte, error) {
 }
 
 // Deserialize deserializes from bytes.
-func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Transaction, int, error) {
+func (s *HTTPTransactionsSerializer) Deserialize(_ []byte) ([]transaction.Transaction, int, error) {
 	// collection := HttpTransactionProtoCollection{}
 
 	// if err := proto.Unmarshal(bytes, &collection); err != nil {

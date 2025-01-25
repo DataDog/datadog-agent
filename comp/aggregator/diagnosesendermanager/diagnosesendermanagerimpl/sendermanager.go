@@ -77,7 +77,7 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 	haAgent := sender.deps.HaAgent
 	forwarder := defaultforwarder.NewDefaultForwarder(config, log, defaultforwarder.NewOptions(config, log, nil))
 	orchestratorForwarder := option.NewPtr[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(sender.deps.Hostname, nooplatformreceiver.Noop{}, sender.deps.MetricsCompressor))
+	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(sender.deps.Hostname, nooplatformreceiver.Noop{}, sender.deps.LogsCompressor))
 	senderManager = aggregator.InitAndStartAgentDemultiplexer(
 		log,
 		forwarder,

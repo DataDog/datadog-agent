@@ -7,18 +7,15 @@
 package remoteconfig
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -58,17 +55,17 @@ func state(_ *cliParams, config config.Component) error {
 	fmt.Println("Fetching the configuration and director repos state..")
 	// Call GRPC endpoint returning state tree
 
-	token, err := security.FetchAuthToken(config)
-	if err != nil {
-		return fmt.Errorf("couldn't get auth token: %w", err)
-	}
+	// token, err := security.FetchAuthToken(config)
+	// if err != nil {
+	// 	return fmt.Errorf("couldn't get auth token: %w", err)
+	// }
 
-	ctx, closeFn := context.WithCancel(context.Background())
-	defer closeFn()
-	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
-	}
-	ctx = metadata.NewOutgoingContext(ctx, md)
+	// ctx, closeFn := context.WithCancel(context.Background())
+	// defer closeFn()
+	// md := metadata.MD{
+	// 	"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+	// }
+	// ctx = metadata.NewOutgoingContext(ctx, md)
 
 	// ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	// if err != nil {
