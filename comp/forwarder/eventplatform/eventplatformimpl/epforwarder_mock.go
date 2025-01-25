@@ -8,12 +8,14 @@
 package eventplatformimpl
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/noop"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"go.uber.org/fx"
 )
 
 // MockModule defines the fx options for the mock component.
@@ -24,5 +26,5 @@ func MockModule() fxutil.Module {
 }
 
 func newMockComponent(hostname hostname.Component, compression logscompression.Component) eventplatform.Component {
-	return option.NewPtr[eventplatform.Forwarder](NewNoopEventPlatformForwarder(hostname, compression))
+	return option.NewPtr[eventplatform.Forwarder](NewNoopEventPlatformForwarder(hostname, noop.Noop{}, compression))
 }

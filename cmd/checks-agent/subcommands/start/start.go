@@ -49,7 +49,8 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfxnoop "github.com/DataDog/datadog-agent/comp/haagent/fx-noop"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	logscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -114,7 +115,7 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
 		noopEventplatformreceiver.Module(),
 		defaultforwarder.Module(defaultforwarder.NewParams()),
-		// logscompressionimpl.Module(),
+		logscompressionimpl.Module(),
 		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
