@@ -1284,6 +1284,12 @@ def check_previous_agent6_rc(ctx):
 
 @task
 def pin_integrations_core(ctx, slack_webhook=None):
+    github_action = os.environ.get("GITHUB_ACTIONS")
+
+    if github_action:
+        set_git_config('user.name', 'github-actions[bot]')
+        set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
+
     commit_hash = ctx.run(
         rf'git ls-remote https://github.com/DataDog/integrations-core HEAD',
         hide=True,
