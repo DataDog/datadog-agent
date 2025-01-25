@@ -46,7 +46,3 @@ except FileNotFoundError:
 
 if is_runtime_security_config_enabled(core_config, sysprobe_config) or is_compliance_config_enabled(core_config):
     os.execlp("security-agent", "security-agent", "-c", args.cfgpath, "--sysprobe-config", args.sysprobe_config)
-
-# a sleep is necessary so that sysV doesn't think the agent has failed
-# to startup because of an error. Only applies on Debian 7.
-time.sleep(5)
