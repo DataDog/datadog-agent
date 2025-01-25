@@ -45,4 +45,4 @@ except FileNotFoundError:
     print(f"Could not find system-probe config at {args.sysprobe_config}")
 
 if is_runtime_security_config_enabled(core_config, sysprobe_config) or is_compliance_config_enabled(core_config):
-    os.execlp("security-agent", "security-agent", "-c", args.cfgpath, "--sysprobe-config", args.sysprobe_config)
+    os.execlp("security-agent", "security-agent", "start", "-c", args.cfgpath, "--sysprobe-config", args.sysprobe_config)
