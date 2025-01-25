@@ -29,10 +29,20 @@ parser.add_argument('--sysprobe-config', default='/etc/datadog-agent/system-prob
 
 args = parser.parse_args()
 
-with open(args.cfgpath) as f:
-    core_config = f.read()
-with open(args.sysprobe_config) as f:
-    sysprobe_config = f.read()
+core_config = ""
+sysprobe_config = ""
+
+try:
+    with open(args.cfgpath) as f:
+        core_config = f.read()
+except FileNotFoundError:
+    print(f"Could not find agent config at {args.cfgpath}")
+
+try:
+    with open(args.sysprobe_config) as f:
+        sysprobe_config = f.read()
+except FileNotFoundError:
+    print(f"Could not find system-probe config at {args.sysprobe_config}")
 
 if is_runtime_security_config_enabled(core_config, sysprobe_config) or is_compliance_config_enabled(core_config):
     os.execlp("security-agent", "security-agent", "-c", args.cfgpath, "--sysprobe-config", args.sysprobe_config)
