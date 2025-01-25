@@ -1123,3 +1123,5 @@ replace github.com/iceber/iouring-go => github.com/paulcacheux/iouring-go v0.0.0
 
 // github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
 replace github.com/golang/mock => github.com/golang/mock v1.6.0
+
+replace github.com/cilium/ebpf => github.com/paulcacheux/ebpf v0.11.1-0.20250125141450-71ae1004126f
