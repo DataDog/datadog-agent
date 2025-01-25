@@ -56,6 +56,7 @@ from tasks.libs.releasing.documentation import (
 from tasks.libs.releasing.json import (
     DEFAULT_BRANCHES,
     DEFAULT_BRANCHES_AGENT6,
+    RELEASE_JSON_FIELDS_TO_UPDATE,
     UNFREEZE_REPOS,
     _get_release_json_value,
     _save_release_json,
@@ -1279,3 +1280,49 @@ def check_previous_agent6_rc(ctx):
         payload = {'message': err_msg}
         send_slack_msg(ctx, payload, os.environ.get("SLACK_DATADOG_AGENT_CI_WEBHOOK"))
         raise Exit(message=err_msg, code=1)
+
+
+@task
+def pin_integrations_core(ctx):
+    commit_hash = ctx.run(
+        rf'git ls-remote https://github.com/DataDog/integrations-core HEAD',
+        hide=True,
+    ).stdout.strip().split()[0]
+
+    current = current_version(ctx, 7)
+    current.rc = False
+    current.devel = False
+
+    rj = load_release_json()
+
+    for nightly in ["nightly", "nightly-a7"]:
+        rj[nightly][RELEASE_JSON_FIELDS_TO_UPDATE[0]] = commit_hash
+
+    _save_release_json(rj)
+
+    main_branch = "main"
+    pin_integrations_core_branch = f"pin-integrations-core"
+    ctx.run(f"git checkout -b {pin_integrations_core_branch}")
+    ctx.run("git add release.json")
+
+    commit_message = f"Update integrations core to HEAD"
+    ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
+    if not ok:
+        raise Exit(
+            color_message(
+                f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {pin_integrations_core_branch} branch and then open a PR against {main_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    if not ctx.run(f"git push --set-upstream origin {pin_integrations_core_branch}", warn=True):
+        raise Exit(
+            color_message(
+                f"Could not push branch {pin_integrations_core_branch} to the upstream 'origin'. Please push it manually and then open a PR against {main_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    create_release_pr(commit_message, main_branch, pin_integrations_core_branch, current)
