@@ -45,37 +45,37 @@ func benchmarkOTelObfuscation(b *testing.B, enableObfuscation bool) {
 		semconv.AttributeDeploymentEnvironment: "tracer_env",
 		semconv.AttributeDBSystem:              "mysql",
 		semconv.AttributeDBStatement: `
-		SELECT 
-    	u.id, 
-			u.name, 
-			u.email, 
-			o.order_id, 
-			o.total_amount, 
-			p.product_name, 
-			p.price 
-		FROM 
-				users u 
-		JOIN 
-				orders o ON u.id = o.user_id 
-		JOIN 
-				order_items oi ON o.order_id = oi.order_id 
-		JOIN 
-				products p ON oi.product_id = p.product_id 
-		WHERE 
-				u.status = 'active' 
-				AND o.order_date BETWEEN '2023-01-01' AND '2023-12-31' 
-				AND p.category IN ('electronics', 'books') 
-		GROUP BY 
-				u.id, 
-				u.name, 
-				u.email, 
-				o.order_id, 
-				o.total_amount, 
-				p.product_name, 
-				p.price 
-		ORDER BY 
-				o.order_date DESC, 
-				p.price ASC 
+		SELECT
+    	u.id,
+			u.name,
+			u.email,
+			o.order_id,
+			o.total_amount,
+			p.product_name,
+			p.price
+		FROM
+				users u
+		JOIN
+				orders o ON u.id = o.user_id
+		JOIN
+				order_items oi ON o.order_id = oi.order_id
+		JOIN
+				products p ON oi.product_id = p.product_id
+		WHERE
+				u.status = 'active'
+				AND o.order_date BETWEEN '2023-01-01' AND '2023-12-31'
+				AND p.category IN ('electronics', 'books')
+		GROUP BY
+				u.id,
+				u.name,
+				u.email,
+				o.order_id,
+				o.total_amount,
+				p.product_name,
+				p.price
+		ORDER BY
+				o.order_date DESC,
+				p.price ASC
 		LIMIT 100;
 		`,
 	} {
@@ -94,7 +94,6 @@ func benchmarkOTelObfuscation(b *testing.B, enableObfuscation bool) {
 	conf.Hostname = "agent_host"
 	conf.DefaultEnv = "agent_env"
 	conf.Obfuscation.Redis.Enabled = true
-	conf.Features["enable_receive_resource_spans_v2"] = struct{}{}
 	conf.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 

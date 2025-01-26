@@ -8,11 +8,12 @@
 package k8s
 
 import (
+	"sort"
 	"testing"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
@@ -29,8 +30,10 @@ func TestExtractJob(t *testing.T) {
 	lastTransitionTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 35, 0, 0, time.UTC))
 
 	tests := map[string]struct {
-		input    batchv1.Job
-		expected model.Job
+		input             batchv1.Job
+		labelsAsTags      map[string]string
+		annotationsAsTags map[string]string
+		expected          model.Job
 	}{
 		"job started by cronjob (in progress)": {
 			input: batchv1.Job{
@@ -39,9 +42,12 @@ func TestExtractJob(t *testing.T) {
 						"annotation": "my-annotation",
 					},
 					CreationTimestamp: creationTime,
-					Labels:            map[string]string{"controller-uid": "43739057-c6d7-4a5e-ab63-d0c8844e5272"},
-					Name:              "job",
-					Namespace:         "project",
+					Labels: map[string]string{
+						"controller-uid": "43739057-c6d7-4a5e-ab63-d0c8844e5272",
+						"app":            "my-app",
+					},
+					Name:      "job",
+					Namespace: "project",
 					OwnerReferences: []metav1.OwnerReference{
 						{
 							APIVersion: "batch/v1beta1",
@@ -69,11 +75,17 @@ func TestExtractJob(t *testing.T) {
 					StartTime: &startTime,
 				},
 			},
+			labelsAsTags: map[string]string{
+				"app": "application",
+			},
+			annotationsAsTags: map[string]string{
+				"annotation": "annotation_key",
+			},
 			expected: model.Job{
 				Metadata: &model.Metadata{
 					Annotations:       []string{"annotation:my-annotation"},
 					CreationTimestamp: creationTime.Unix(),
-					Labels:            []string{"controller-uid:43739057-c6d7-4a5e-ab63-d0c8844e5272"},
+					Labels:            []string{"controller-uid:43739057-c6d7-4a5e-ab63-d0c8844e5272", "app:my-app"},
 					Name:              "job",
 					Namespace:         "project",
 					OwnerReferences: []*model.OwnerReference{
@@ -101,6 +113,10 @@ func TestExtractJob(t *testing.T) {
 				Status: &model.JobStatus{
 					Active:    1,
 					StartTime: startTime.Unix(),
+				},
+				Tags: []string{
+					"application:my-app",
+					"annotation_key:my-annotation",
 				},
 			},
 		},
@@ -308,7 +324,16 @@ func TestExtractJob(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, &tc.expected, ExtractJob(&tc.input))
+			pctx := &processors.K8sProcessorContext{
+				LabelsAsTags:      tc.labelsAsTags,
+				AnnotationsAsTags: tc.annotationsAsTags,
+			}
+			actual := ExtractJob(pctx, &tc.input)
+			sort.Strings(actual.Tags)
+			sort.Strings(tc.expected.Tags)
+			sort.Strings(actual.Metadata.Labels)
+			sort.Strings(tc.expected.Metadata.Labels)
+			assert.Equal(t, &tc.expected, actual)
 		})
 	}
 }

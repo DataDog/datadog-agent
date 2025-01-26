@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,9 +21,9 @@ import (
 )
 
 // NewJobCollectorVersions builds the group of collector versions.
-func NewJobCollectorVersions() collectors.CollectorVersions {
+func NewJobCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewJobCollector(),
+		NewJobCollector(metadataAsTags),
 	)
 }
 
@@ -35,7 +36,11 @@ type JobCollector struct {
 }
 
 // NewJobCollector creates a new collector for the Kubernetes Job resource.
-func NewJobCollector() *JobCollector {
+func NewJobCollector(metadataAsTags utils.MetadataAsTags) *JobCollector {
+	resourceType := getResourceType(jobName, jobVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &JobCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -43,9 +48,11 @@ func NewJobCollector() *JobCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "jobs",
+			Name:                      jobName,
 			NodeType:                  orchestrator.K8sJob,
-			Version:                   "batch/v1",
+			Version:                   jobVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.JobHandlers)),
 	}
