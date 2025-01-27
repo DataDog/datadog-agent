@@ -52,11 +52,11 @@ func createGenericConfig(t *testing.T) model.Config {
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
 
+	mockConfig.SetWithoutSource("process_config.run_in_core_agent.enabled", false)
 	mockConfig.SetWithoutSource("process_config.enabled", false)
 	mockConfig.SetWithoutSource("process_config.container_collection.enabled", false)
 	mockConfig.SetWithoutSource("process_config.process_collection.enabled", false)
 	mockConfig.SetWithoutSource("apm_config.enabled", false)
-	mockConfig.SetWithoutSource("system_probe_config.enabled", false)
 
 	return mockConfig
 }
@@ -213,13 +213,44 @@ func TestTimeout(t *testing.T) {
 			expTimeout:      baseTimeout + 6*(10*time.Second),
 		},
 		{
+			name: "Process Agent Checks in Core Agent",
+			extraCfgs: map[string]interface{}{
+				"process_config.run_in_core_agent.enabled": true,
+			},
+			extraSysCfgs:    map[string]interface{}{},
+			profileDuration: 10 * time.Second,
+			expTimeout:      baseTimeout + 4*(10*time.Second),
+		},
+		{
+			name: "Process Agent Enabled, via NPM",
+			extraCfgs: map[string]interface{}{
+				"process_config.run_in_core_agent.enabled": true,
+			},
+			extraSysCfgs: map[string]interface{}{
+				"network_config.enabled": true,
+			},
+			profileDuration: 10 * time.Second,
+			expTimeout:      baseTimeout + 8*(10*time.Second),
+		},
+		{
+			name: "Process Agent Enabled, via USM",
+			extraCfgs: map[string]interface{}{
+				"process_config.run_in_core_agent.enabled": true,
+			},
+			extraSysCfgs: map[string]interface{}{
+				"service_monitoring_config.enabled": true,
+			},
+			profileDuration: 10 * time.Second,
+			expTimeout:      baseTimeout + 8*(10*time.Second),
+		},
+		{
 			name:      "SysProbe Enabled",
 			extraCfgs: map[string]interface{}{},
 			extraSysCfgs: map[string]interface{}{
 				"system_probe_config.enabled": true,
 			},
 			profileDuration: 10 * time.Second,
-			expTimeout:      baseTimeout + 6*(10*time.Second),
+			expTimeout:      baseTimeout + 8*(10*time.Second), // config enables NPM, which enables process agent
 		},
 		{
 			name: "Everything Enabled",

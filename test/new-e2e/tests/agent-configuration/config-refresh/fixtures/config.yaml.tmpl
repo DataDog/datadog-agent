@@ -22,6 +22,8 @@ security_agent:
   cmd_port: {{.SecurityCmdPort}}
 
 process_config:
+  run_in_core_agent:
+    enabled: false
   process_collection:
     enabled: true
   cmd_port: {{.ProcessCmdPort}}

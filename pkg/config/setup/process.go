@@ -117,7 +117,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
 
 	// This allows for the process check to run in the core agent but is for linux only
-	procBindEnvAndSetDefault(config, "process_config.run_in_core_agent.enabled", false)
+	procBindEnvAndSetDefault(config, "process_config.run_in_core_agent.enabled", runtime.GOOS == "linux")
 
 	config.BindEnv("process_config.process_dd_url",
 		"DD_PROCESS_CONFIG_PROCESS_DD_URL",

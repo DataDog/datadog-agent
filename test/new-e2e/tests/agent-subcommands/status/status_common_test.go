@@ -9,6 +9,7 @@ import (
 	_ "embed"
 	"fmt"
 	"regexp"
+	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -98,6 +99,12 @@ func fetchAndCheckStatus(v *baseStatusSuite, expectedSections []expectedSection)
 }
 
 func (v *baseStatusSuite) TestDefaultInstallStatus() {
+	var processAgentContain []string
+	processAgentNotContain := []string{"Status: Not running or unreachable"}
+	if runtime.GOOS == "linux" {
+		processAgentContain, processAgentNotContain = processAgentNotContain, processAgentContain
+	}
+
 	expectedSections := []expectedSection{
 		{
 			name:             `Agent \(.*\)`, // TODO: verify that the right version is output
@@ -176,7 +183,8 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 		{
 			name:             "Process Agent",
 			shouldBePresent:  true,
-			shouldNotContain: []string{"Status: Not running or unreachable"},
+			shouldContain:    processAgentContain,
+			shouldNotContain: processAgentNotContain,
 		},
 		{
 			name:            "Remote Configuration",
