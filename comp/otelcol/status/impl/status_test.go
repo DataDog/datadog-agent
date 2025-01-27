@@ -7,6 +7,7 @@ package statusimpl
 
 import (
 	"bytes"
+	"go.uber.org/fx"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,9 +16,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestStatusOut(t *testing.T) {
-	deps := fxutil.Test[Dependencies](t, config.MockModule())
+type testDependencies struct {
+	fx.In
+	Config config.Component
+}
 
+func TestStatusOut(t *testing.T) {
+	testDeps := fxutil.Test[testDependencies](t, config.MockModule())
+	deps := Dependencies{
+		Config: testDeps.Config,
+	}
 	provides := NewComponent(deps)
 
 	headerProvider := provides.StatusProvider.Provider
