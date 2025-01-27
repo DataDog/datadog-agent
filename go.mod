@@ -638,20 +638,20 @@ require (
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/DataDog/agent-payload/v5 v5.0.141
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.60.0
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
-	github.com/DataDog/datadog-agent/comp/core/log/impl v0.59.0
+	github.com/DataDog/datadog-agent/comp/core/log/impl v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/status v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.64.0-devel
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.59.0
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.60.0
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.61.0
 	github.com/DataDog/datadog-agent/comp/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.56.0-rc.3
@@ -723,7 +723,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/json v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v1.0.0
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
-	github.com/DataDog/datadog-agent/pkg/util/sort v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/sort v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/system v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0

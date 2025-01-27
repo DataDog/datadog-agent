@@ -19,7 +19,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.60.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.55.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.59.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
