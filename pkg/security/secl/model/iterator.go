@@ -8,8 +8,8 @@ package model
 
 import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 
-// AncestorsIterator is a generic interface that iterators must implement
-type AncestorsIterator[T any] interface {
+// Iterator is a generic interface that iterators must implement
+type Iterator[T any] interface {
 	Front(ctx *eval.Context) T
 	Next(ctx *eval.Context) T
 	At(ctx *eval.Context, regID eval.RegisterID, pos int) T
@@ -22,7 +22,7 @@ func isNil[V comparable](v V) bool {
 	return v == zero
 }
 
-func newAncestorsIterator[T any, V comparable](iter AncestorsIterator[V], field eval.Field, ctx *eval.Context, ev *Event, perIter func(ev *Event, current V) T) []T {
+func newIterator[T any, V comparable](iter Iterator[V], field eval.Field, ctx *eval.Context, ev *Event, perIter func(ev *Event, current V) T) []T {
 	results := make([]T, 0, ctx.IteratorCountCache[field])
 	for entry := iter.Front(ctx); !isNil(entry); entry = iter.Next(ctx) {
 		results = append(results, perIter(ev, entry))
@@ -32,7 +32,7 @@ func newAncestorsIterator[T any, V comparable](iter AncestorsIterator[V], field 
 	return results
 }
 
-func newAncestorsIteratorArray[T any, V comparable](iter AncestorsIterator[V], field eval.Field, ctx *eval.Context, ev *Event, perIter func(ev *Event, current V) []T) []T {
+func newIteratorArray[T any, V comparable](iter Iterator[V], field eval.Field, ctx *eval.Context, ev *Event, perIter func(ev *Event, current V) []T) []T {
 	results := make([]T, 0, ctx.IteratorCountCache[field])
 	count := 0
 	for entry := iter.Front(ctx); !isNil(entry); entry = iter.Next(ctx) {
