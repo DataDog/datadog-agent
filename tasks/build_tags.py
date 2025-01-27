@@ -155,7 +155,6 @@ SECURITY_AGENT_TAGS = {
     "no_dynamic_plugins",
     "kubeapiserver",
     "kubelet",
-    "podman",
     "zlib",
     "zstd",
     "ec2",
