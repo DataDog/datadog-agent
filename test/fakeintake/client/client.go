@@ -890,6 +890,18 @@ func (c *Client) GetNDMFlows() ([]*aggregator.NDMFlow, error) {
 	return ndmflows, nil
 }
 
+func (c *Client) GetNetpathEvents() ([]*aggregator.Netpath, error) {
+	err := c.getNetpathEvents()
+	if err != nil {
+		return nil, err
+	}
+	var netpaths []*aggregator.Netpath
+	for _, name := range c.netpathAggregator.GetNames() {
+		netpaths = append(netpaths, c.netpathAggregator.GetPayloadsByName(name)...)
+	}
+	return netpaths, nil
+}
+
 // filterPayload returns payloads matching any [MatchOpt](#MatchOpt) options
 func filterPayload[T aggregator.PayloadItem](payloads []T, options ...MatchOpt[T]) ([]T, error) {
 	// apply filters one after the other

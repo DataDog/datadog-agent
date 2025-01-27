@@ -8,6 +8,7 @@ package aggregator
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -21,7 +22,7 @@ type Netpath struct {
 }
 
 func (p *Netpath) name() string {
-	return p.Destination.Hostname
+	return fmt.Sprintf("%s:%d %s", p.Destination.Hostname, p.Destination.Port, p.Protocol)
 }
 
 // GetTags return the tags from a payload
