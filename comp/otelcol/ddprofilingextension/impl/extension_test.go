@@ -106,7 +106,7 @@ func TestAgentExtension(t *testing.T) {
 
 	// create extension
 	ext, err := NewExtension(&Config{
-		ProfilerSettings: ProfilerSettings{
+		ProfilerOptions: ProfilerOptions{
 			Period: 5,
 		},
 	}, component.BuildInfo{}, testComponent{traceagent}, log.NewTemporaryLoggerWithoutInit())
@@ -148,7 +148,7 @@ func TestOSSExtension(t *testing.T) {
 		API: ossconfig.APIConfig{
 			Key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		},
-		ProfilerSettings: ProfilerSettings{
+		ProfilerOptions: ProfilerOptions{
 			Period: 5,
 		},
 	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit())
