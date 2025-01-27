@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
-	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -37,6 +36,5 @@ func Module(params Params) fxutil.Module {
 
 	return fxutil.Component(
 		fx.Provide(newFlare),
-		fx.Supply(params),
-		flareprofiler.Module())
+		fx.Supply(params))
 }

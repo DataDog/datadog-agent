@@ -38,7 +38,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-var flareBuilderFactory types.FlareBuilderFactory = helpers.NewFlareBuilder
+// FlareBuilderFactory creates an instance of FlareBuilder
+type flareBuilderFactory func(localFlare bool, flareArgs types.FlareArgs) (types.FlareBuilder, error)
+
+var fbFactory flareBuilderFactory = helpers.NewFlareBuilder
 
 type dependencies struct {
 	fx.In
@@ -213,7 +216,7 @@ func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration,
 		providerTimeout = f.config.GetDuration("flare_provider_timeout")
 	}
 
-	fb, err := flareBuilderFactory(f.params.local, flareArgs)
+	fb, err := fbFactory(f.params.local, flareArgs)
 	if err != nil {
 		return "", err
 	}

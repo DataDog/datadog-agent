@@ -23,7 +23,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	profiler "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	profilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
-	profilerimpl "github.com/DataDog/datadog-agent/comp/core/profiler/impl"
+	profilermock "github.com/DataDog/datadog-agent/comp/core/profiler/mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -76,7 +76,7 @@ func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, tcp
 	var err error
 	t := c.T()
 
-	handler := profilerimpl.NewMockHandler()
+	handler := profilermock.NewMockHandler()
 	tcpServer = httptest.NewServer(handler)
 	tcpTLSServer = httptest.NewTLSServer(handler)
 	if runtime.GOOS == "linux" {

@@ -59,13 +59,6 @@ func createMock(t *testing.T, local bool, args types.FlareArgs) *FlareBuilderMoc
 	return fb
 }
 
-// CreateFlareBuilderMockFactory generates a FlareBuilderFactory that will output mocked builders when called.
-func CreateFlareBuilderMockFactory(t *testing.T) types.FlareBuilderFactory {
-	return func(localFlare bool, flareArgs types.FlareArgs) (types.FlareBuilder, error) {
-		return NewFlareBuilderMockWithArgs(t, localFlare, flareArgs), nil
-	}
-}
-
 func (m *FlareBuilderMock) filePath(path ...string) string {
 	return filepath.Join(
 		append(

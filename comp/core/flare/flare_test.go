@@ -67,11 +67,14 @@ func getFlare(t *testing.T, overrides map[string]interface{}, fillers ...fx.Opti
 	).Comp.(*flare)
 }
 
+// CreateFlareBuilderMockFactory generates a FlareBuilderFactory that will output mocked builders when called.
 func setupMockBuilder(t *testing.T) func() {
-	flareBuilderFactory = helpers.CreateFlareBuilderMockFactory(t)
+	fbFactory = func(localFlare bool, flareArgs types.FlareArgs) (types.FlareBuilder, error) {
+		return helpers.NewFlareBuilderMockWithArgs(t, localFlare, flareArgs), nil
+	}
 
 	return func() {
-		flareBuilderFactory = helpers.NewFlareBuilder
+		fbFactory = helpers.NewFlareBuilder
 	}
 }
 func TestFlareCreation(t *testing.T) {

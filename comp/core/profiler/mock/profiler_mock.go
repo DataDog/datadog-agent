@@ -5,7 +5,8 @@
 
 //go:build test
 
-package profilerimpl
+// Package mock defines useful entities for mocking the flare profiler and its operations
+package mock
 
 import (
 	"net/http"

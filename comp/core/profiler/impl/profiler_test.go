@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	profilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
+	profilermock "github.com/DataDog/datadog-agent/comp/core/profiler/mock"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 
@@ -30,7 +31,7 @@ import (
 )
 
 func createGenericConfig(t *testing.T) model.Config {
-	handler := NewMockHandler()
+	handler := profilermock.NewMockHandler()
 
 	server := httptest.NewServer(handler)
 

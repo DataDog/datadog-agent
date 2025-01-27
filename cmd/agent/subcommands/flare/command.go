@@ -34,7 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/def"
+	flareprofilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
+	flareprofilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	coresettings "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -124,6 +125,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					defaultpaths.DogstatsDLogFile,
 					defaultpaths.StreamlogsLogFile,
 				)),
+				flareprofilerfx.Module(),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
@@ -188,7 +190,7 @@ func makeFlare(flareComp flare.Component,
 	cliParams *cliParams,
 	_ option.Option[workloadmeta.Component],
 	_ tagger.Component,
-	flareprofiler flareprofiler.Component) error {
+	flareprofiler flareprofilerdef.Component) error {
 	var (
 		profile flaretypes.ProfileData
 		err     error
