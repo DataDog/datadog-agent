@@ -28,6 +28,8 @@ func ConfigureDeviceCgroups(pid uint32, rootfs string) error {
 		return fmt.Errorf("no cgroups found for pid %d", pid)
 	}
 
+	// Each cgroup is for a different subsystem, we only want the cgroup ID
+	// and we can extract that from any cgroup
 	cgroup := cgroups[0]
 
 	// Configure systemd device allow first, so that in case of a reload we get the correct permissions
