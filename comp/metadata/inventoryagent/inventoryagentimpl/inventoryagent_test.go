@@ -730,7 +730,6 @@ func TestFetchFleet(t *testing.T) {
 	}, nil)
 	ia.fetchFleetMetadata()
 	assert.Equal(t, "my-config", ia.data["config_id"].(string))
-
 }
 
 func TestGetProvidedConfigurationDisable(t *testing.T) {
