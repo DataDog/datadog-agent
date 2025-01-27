@@ -247,6 +247,28 @@ single-machine-performance-regression_detector:
       EOF
     # If we make it here that means quality gates must not have failed.
     - datadog-ci tag --level job --tags smp_quality_gates:"passed"
+  after_script:
+    - if [ "$CI_JOB_STATUS" != "canceled" ]; then exit 0; fi
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+    - datadog-ci tag --level job --tags smp_failure_mode:"canceled"
+    - AWS_NAMED_PROFILE="single-machine-performance"
+    - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT account_id) || exit $?
+    - SMP_ECR_URL=${SMP_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
+    - SMP_AGENT_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT agent_team_id) || exit $?
+    - SMP_API=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT api_url) || exit $?
+    - SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_login) || exit $?
+    - SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_token) || exit $?
+    - aws configure set aws_access_key_id "$SMP_BOT_ID" --profile ${AWS_NAMED_PROFILE}
+    - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
+    - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
+    - RUST_LOG="info,aws_config::profile::credentials=error"
+    - |
+      if [ "$CI_JOB_STATUS" == "canceled" ]; then
+        RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
+        job cancel \
+        --submission-metadata submission_metadata \
+        --output-path outputs
+      fi
 
 # Shamelessly adapted from golang_deps_commenter job config in
 # golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.
