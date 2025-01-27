@@ -32,6 +32,8 @@ class TestPackages(unittest.TestCase):
         
         # Cleanup
         os.remove(test_filename)
+        
+        # running rmdir verifies that the directory is empty
         os.rmdir(test_directory)
 
     def test_create_diff_installed_packages_file(self):
@@ -62,4 +64,7 @@ class TestPackages(unittest.TestCase):
         os.remove(old_file)
         os.remove(new_file)
         os.remove(diff_file)
+        
+        # running rmdir verifies that the directory is empty
+        # asserts no extra files are created
         os.rmdir(test_directory)

@@ -29,6 +29,9 @@ class TestPre(unittest.TestCase):
 
         # Cleanup
         os.remove(diff_file)
+        
+        # running rmdir verifies that the directory is empty
+        # asserts no extra files are created
         os.rmdir(install_directory)
         os.rmdir(storage_location)
 
