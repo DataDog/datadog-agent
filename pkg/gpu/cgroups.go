@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ConfigureDeviceCgroupsForProcess configures the cgroups for a process to allow access to the NVIDIA character devices
-func ConfigureDeviceCgroupsForProcess(pid uint32, rootfs string) error {
+// ConfigureDeviceCgroups configures the cgroups for a process to allow access to the NVIDIA character devices
+func ConfigureDeviceCgroups(pid uint32, rootfs string) error {
 	cgroups, err := utils.GetProcControlGroups(pid, pid)
 	if err != nil {
 		return fmt.Errorf("failed to get cgroups for pid %d: %w", pid, err)
