@@ -24,10 +24,12 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
+// Dependencies defines the dependencies of the status component.
 type Dependencies struct {
 	Config config.Component
 }
 
+// Provider contains components provided by status constructor.
 type Provides struct {
 	StatusProvider status.InformationProvider
 }
@@ -58,6 +60,7 @@ type prometheusRuntimeConfig struct {
 	}
 }
 
+// NewComponent creates a new status component.
 func NewComponent(deps Dependencies) Provides {
 	return Provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
