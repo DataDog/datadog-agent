@@ -61,8 +61,8 @@ func TestClientState(t *testing.T) {
 	// Testing default state
 	clientState, err := client1.State()
 	assert.NoError(t, err)
-	assert.Equal(t, meta.RootsConfig("datadoghq.com", cfg.GetString("remote_configuration.config_root")).Version(), clientState.ConfigRootVersion())
-	assert.Equal(t, meta.RootsDirector("datadoghq.com", cfg.GetString("remote_configuration.director_root")).Version(), clientState.DirectorRootVersion())
+	assert.Equal(t, meta.RootsConfig("datadoghq.com", cfg.GetString("remote_configuration.config_root")).LastVersion(), clientState.ConfigRootVersion())
+	assert.Equal(t, meta.RootsDirector("datadoghq.com", cfg.GetString("remote_configuration.director_root")).LastVersion(), clientState.DirectorRootVersion())
 	_, err = client1.TargetsMeta()
 	assert.Error(t, err)
 

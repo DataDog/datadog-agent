@@ -1120,6 +1120,22 @@ type clientTTLTest struct {
 	expected time.Duration
 }
 
+func TestWithDirectorRootOverride(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("run_path", "/tmp")
+
+	baseRawURL := "https://localhost"
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	options := []Option{
+		WithDirectorRootOverride("datadoghq.com", "{\"a\": \"b\"}"),
+		WithAPIKey("abc"),
+	}
+	_, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
+	// Because we used an invalid root, we should get an error. All we're trying to capture
+	// with this test is that the builder method is propagating the value properly
+	assert.Errorf(t, err, "failed to set embedded root in roots bucket: invalid meta: version field is missing")
+}
+
 func TestWithClientTTL(t *testing.T) {
 	tests := []clientTTLTest{
 		{

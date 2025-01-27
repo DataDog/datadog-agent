@@ -33,7 +33,7 @@ type localStore struct {
 	store *transactionalStore
 }
 
-func newLocalStore(db *transactionalStore, repository string, initialRoots meta.EmbeddedRoot) (*localStore, error) {
+func newLocalStore(db *transactionalStore, repository string, initialRoots meta.EmbeddedRoots) (*localStore, error) {
 	s := &localStore{
 		store:       db,
 		metasBucket: fmt.Sprintf("%s_metas", repository),
@@ -43,12 +43,13 @@ func newLocalStore(db *transactionalStore, repository string, initialRoots meta.
 	return s, err
 }
 
-func (s *localStore) init(initialRoot meta.EmbeddedRoot) error {
+func (s *localStore) init(initialRoots meta.EmbeddedRoots) error {
 	err := s.store.update(func(tx *transaction) error {
-		root := initialRoot.Root()
-		err := s.writeRoot(tx, json.RawMessage(root))
-		if err != nil {
-			return fmt.Errorf("failed to set embedded root in roots bucket: %v", err)
+		for _, root := range initialRoots {
+			err := s.writeRoot(tx, json.RawMessage(root))
+			if err != nil {
+				return fmt.Errorf("failed to set embedded root in roots bucket: %v", err)
+			}
 		}
 
 		data, err := tx.get(s.metasBucket, metaRoot)
@@ -56,7 +57,7 @@ func (s *localStore) init(initialRoot meta.EmbeddedRoot) error {
 			return err
 		}
 		if data == nil {
-			tx.put(s.metasBucket, metaRoot, initialRoot.Root())
+			tx.put(s.metasBucket, metaRoot, initialRoots.Last())
 		}
 		return nil
 	})

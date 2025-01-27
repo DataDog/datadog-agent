@@ -254,7 +254,7 @@ func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 	var err error
 
 	if !options.skipTufVerification {
-		repository, err = state.NewRepository(meta.RootsDirector(options.site, options.directorRootOverride).Root())
+		repository, err = state.NewRepository(meta.RootsDirector(options.site, options.directorRootOverride).Last())
 	} else {
 		repository, err = state.NewUnverifiedRepository()
 	}

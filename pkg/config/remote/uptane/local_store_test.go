@@ -29,14 +29,16 @@ func getTestDB(t *testing.T) *bbolt.DB {
 
 func TestLocalStore(t *testing.T) {
 	db := getTestDB(t)
-	root := []byte(`{"signatures":[{"keyid":"b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8","sig":"ada4a7723d462eb4c1f087025f81f5eab5de48cb18b710de94ad2194ee9e0524fafe6eaddf95e894808f8254380a86f8f7219d69bf693d6e1c80db904a47830e"}],"signed":{"_type":"root","consistent_snapshot":true,"expires":"1970-01-01T00:00:00Z","keys":{"44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796":{"keyid_hash_algorithms":["sha256","sha512"],"keytype":"ed25519","keyval":{"public":"286d6ae328365afec0f92519ceab68cd627e34072cde90b2f5d167badea970f2"},"scheme":"ed25519"},"b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8":{"keyid_hash_algorithms":["sha256","sha512"],"keytype":"ed25519","keyval":{"public":"afdd68be53815d67f8fa99cf101aac4589a358c660adf7dd4e179fe96834d3c9"},"scheme":"ed25519"}},"roles":{"root":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2},"snapshot":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2},"targets":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2},"timestamp":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2}},"spec_version":"1.0","version":2}}`)
-	embeddedRoots := meta.NewEmbeddedRoot(root)
-
+	embededRoots := map[uint64]meta.EmbeddedRoot{
+		1: []byte(`{"signatures":[{"keyid":"44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","sig":"366534e35c3ac0749d5b60f12ab32da736863315bb4765eeb7b24417e8b8c40aace37649a12c63f8ad3634fbe2e68711655e72120934cc015414c75725861e08"},{"keyid":"b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8","sig":"ada4a7723d462eb4c1f087025f81f5eab5de48cb18b710de94ad2194ee9e0524fafe6eaddf95e894808f8254380a86f8f7219d69bf693d6e1c80db904a47830e"}],"signed":{"_type":"root","consistent_snapshot":true,"expires":"1970-01-01T00:00:00Z","keys":{"44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796":{"keyid_hash_algorithms":["sha256","sha512"],"keytype":"ed25519","keyval":{"public":"286d6ae328365afec0f92519ceab68cd627e34072cde90b2f5d167badea970f2"},"scheme":"ed25519"},"b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8":{"keyid_hash_algorithms":["sha256","sha512"],"keytype":"ed25519","keyval":{"public":"afdd68be53815d67f8fa99cf101aac4589a358c660adf7dd4e179fe96834d3c9"},"scheme":"ed25519"}},"roles":{"root":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2},"snapshot":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2},"targets":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2},"timestamp":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2}},"spec_version":"1.0","version":1}}`),
+		2: []byte(`{"signatures":[{"keyid":"key","sig":"sig2"},{"keyid":"b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8","sig":"ada4a7723d462eb4c1f087025f81f5eab5de48cb18b710de94ad2194ee9e0524fafe6eaddf95e894808f8254380a86f8f7219d69bf693d6e1c80db904a47830e"}],"signed":{"_type":"root","consistent_snapshot":true,"expires":"1970-01-01T00:00:00Z","keys":{"44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796":{"keyid_hash_algorithms":["sha256","sha512"],"keytype":"ed25519","keyval":{"public":"286d6ae328365afec0f92519ceab68cd627e34072cde90b2f5d167badea970f2"},"scheme":"ed25519"},"b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8":{"keyid_hash_algorithms":["sha256","sha512"],"keytype":"ed25519","keyval":{"public":"afdd68be53815d67f8fa99cf101aac4589a358c660adf7dd4e179fe96834d3c9"},"scheme":"ed25519"}},"roles":{"root":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2},"snapshot":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2},"targets":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2},"timestamp":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2}},"spec_version":"1.0","version":2}}`),
+	}
 	transactionalStore := newTransactionalStore(db)
 
-	store, err := newLocalStore(transactionalStore, "test", embeddedRoots)
+	store, err := newLocalStore(transactionalStore, "test", embededRoots)
 	assert.NoError(t, err)
-	storeRoot2 := json.RawMessage(root)
+	storeRoot1 := json.RawMessage(embededRoots[1])
+	storeRoot2 := json.RawMessage(embededRoots[2])
 
 	rootVersion, err := store.GetMetaVersion("root.json")
 	assert.NoError(t, err)
@@ -108,9 +110,10 @@ func TestLocalStore(t *testing.T) {
 		"targets.json":  storeTargets7,
 	}, metas)
 
-	_, found, err := store.GetRoot(1)
+	root1, found, err := store.GetRoot(1)
 	assert.NoError(t, err)
-	assert.False(t, found)
+	assert.True(t, found)
+	assert.Equal(t, []byte(storeRoot1), root1)
 
 	root2, found, err := store.GetRoot(2)
 	assert.NoError(t, err)
