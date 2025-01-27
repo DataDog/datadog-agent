@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2023-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
 // Package statusimpl implements the status component interface
 package statusimpl
@@ -13,42 +13,28 @@ import (
 	"gopkg.in/yaml.v3"
 	"io"
 	"net/http"
-	"sync"
-
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
-)
-
-// httpClients should be reused instead of created as needed. They keep cached TCP connections
-// that may leak otherwise
-var (
-	httpClient     *http.Client
-	clientInitOnce sync.Once
 )
 
 //go:embed status_templates
 var templatesFS embed.FS
 
-type dependencies struct {
-	fx.In
-
+type Dependencies struct {
 	Config config.Component
 }
 
-type provides struct {
-	fx.Out
-
+type Provides struct {
 	StatusProvider status.InformationProvider
 }
 
 type statusProvider struct {
 	Config         config.Component
+	client         *http.Client
 	receiverStatus map[string]interface{}
 	exporterStatus map[string]interface{}
 }
@@ -72,24 +58,11 @@ type prometheusRuntimeConfig struct {
 	}
 }
 
-func client() *http.Client {
-	clientInitOnce.Do(func() {
-		httpClient = apiutil.GetClient(false)
-	})
-
-	return httpClient
-}
-
-// Module defines the fx options for the status component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newStatus))
-}
-
-func newStatus(deps dependencies) provides {
-	return provides{
+func NewComponent(deps Dependencies) Provides {
+	return Provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
 			Config: deps.Config,
+			client: apiutil.GetClient(false),
 			receiverStatus: map[string]interface{}{
 				"spans":           0.0,
 				"metrics":         0.0,
@@ -147,8 +120,8 @@ func getPrometheusURL(extensionResp ddflareextension.Response) (string, error) {
 	return fmt.Sprintf("http://%v:%d/metrics", prometheusHost, prometheusPort), nil
 }
 
-func (s statusProvider) populatePrometheusStatus(c *http.Client, prometheusURL string) error {
-	resp, err := apiutil.DoGet(c, prometheusURL, apiutil.CloseConnection)
+func (s statusProvider) populatePrometheusStatus(prometheusURL string) error {
+	resp, err := apiutil.DoGet(s.client, prometheusURL, apiutil.CloseConnection)
 	if err != nil {
 		return err
 	}
@@ -191,8 +164,7 @@ func (s statusProvider) populatePrometheusStatus(c *http.Client, prometheusURL s
 
 func (s statusProvider) populateStatus() map[string]interface{} {
 	extensionURL := s.Config.GetString("otelcollector.extension_url")
-	c := client()
-	resp, err := apiutil.DoGet(c, extensionURL, apiutil.CloseConnection)
+	resp, err := apiutil.DoGet(s.client, extensionURL, apiutil.CloseConnection)
 	if err != nil {
 		return map[string]interface{}{
 			"url":   extensionURL,
@@ -213,7 +185,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 			"error": err.Error(),
 		}
 	}
-	err = s.populatePrometheusStatus(c, prometheusURL)
+	err = s.populatePrometheusStatus(prometheusURL)
 	if err != nil {
 		return map[string]interface{}{
 			"url":   prometheusURL,
