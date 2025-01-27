@@ -69,10 +69,7 @@ func getDiscoveryServices(client *http.Client) (*model.ServicesResponse, error) 
 func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	response, err := li.getDiscoveryServices(li.sysProbeClient)
 	if err != nil {
-		return nil, errWithCode{
-			err:  err,
-			code: errorCodeSystemProbeServices,
-		}
+		return nil, err
 	}
 
 	events := serviceEvents{}

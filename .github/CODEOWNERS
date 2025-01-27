@@ -27,8 +27,8 @@
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
 /CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery @DataDog/container-ecosystems
 
-/*.md                                   @DataDog/agent-devx-infra @DataDog/documentation
-/NOTICE                                 @DataDog/agent-delivery @DataDog/documentation
+/*.md                                   @DataDog/agent-devx-infra
+/NOTICE                                 @DataDog/agent-delivery
 
 /LICENSE*                               # do not notify anyone
 
@@ -252,14 +252,14 @@
 /Dockerfiles/agent-ot                    @DataDog/opentelemetry
 /Dockerfiles/agent/bouncycastle-fips     @DataDog/agent-metrics-logs
 
-/docs/                                  @DataDog/documentation @DataDog/agent-devx-loops
-/docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
+/docs/                                  @DataDog/agent-devx-loops
+/docs/dev/checks/                       @DataDog/agent-metrics-logs
 /docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
 
-/docs/public/components/                                     @DataDog/documentation @DataDog/agent-shared-components
-/docs/public/hostname/                                       @DataDog/documentation @DataDog/agent-shared-components
-/docs/public/architecture/dogstatsd/                         @DataDog/documentation @DataDog/agent-metrics-logs
-/docs/public/guidelines/deprecated-components-documentation/ @DataDog/documentation @DataDog/agent-shared-components
+/docs/public/components/                                     @DataDog/agent-shared-components
+/docs/public/hostname/                                       @DataDog/agent-shared-components
+/docs/public/architecture/dogstatsd/                         @DataDog/agent-metrics-logs
+/docs/public/guidelines/deprecated-components-documentation/ @DataDog/agent-shared-components
 
 /google-marketplace/                    @DataDog/container-ecosystems
 
@@ -343,6 +343,7 @@
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-platform
 /pkg/discovery/                         @DataDog/universal-service-monitoring
 /pkg/errors/                            @DataDog/agent-shared-components
+/pkg/fips                               @DataDog/agent-shared-components
 /pkg/gohai                              @DataDog/agent-shared-components
 /pkg/gpu/                               @DataDog/ebpf-platform
 /pkg/jmxfetch/                          @DataDog/agent-metrics-logs
