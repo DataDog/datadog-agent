@@ -29,7 +29,7 @@ type Dependencies struct {
 	Config config.Component
 }
 
-// Provider contains components provided by status constructor.
+// Provides contains components provided by status constructor.
 type Provides struct {
 	StatusProvider status.InformationProvider
 }
