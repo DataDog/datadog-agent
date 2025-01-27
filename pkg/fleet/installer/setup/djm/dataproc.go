@@ -41,32 +41,16 @@ var (
 			Value: "true",
 		},
 	}
-	dataprocLogs = []common.IntegrationConfigLogs{
-		{
-			Type:    "file",
-			Path:    "/var/log/hadoop-yarn/userlogs/*/*/stdout",
-			Source:  "worker_logs",
-			Service: "hadoop-yarn",
-			Tags:    "log_source:stdout",
-		},
-		{
-			Type:    "file",
-			Path:    "/var/log/hadoop-yarn/userlogs/*/*/stderr",
-			Source:  "worker_logs",
-			Service: "hadoop-yarn",
-			Tags:    "log_source:stderr",
-		},
-	}
 )
 
 // SetupDataproc sets up the DJM environment on Dataproc
 func SetupDataproc(s *common.Setup) error {
-	s.DdAgentAdditionalGroups = append(s.DdAgentAdditionalGroups, "yarn")
 	metadataClient := metadata.NewClient(nil)
 	s.Packages.Install(common.DatadogAgentPackage, dataprocAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, dataprocInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, dataprocJavaTracerVersion)
 
+	s.Out.WriteString("Applying specific Data Jobs Monitoring config")
 	os.Setenv("DD_APM_INSTRUMENTATION_ENABLED", "host")
 
 	hostname, err := os.Hostname()
@@ -84,15 +68,17 @@ func SetupDataproc(s *common.Setup) error {
 		return fmt.Errorf("failed to set tags: %w", err)
 	}
 	if isMaster == "true" {
+		s.Out.WriteString("Setting up Spark integration config on the Resource Manager")
 		setupResourceManager(s, clusterName)
 	}
 	// Add logs config to both Resource Manager and Workers
-	sparkIntegration := s.Config.IntegrationConfigs["spark.d/conf.yaml"]
 	if os.Getenv("DD_DATAPROC_LOGS_ENABLED") == "true" {
-		s.Config.DatadogYAML.LogsEnabled = true
-		sparkIntegration.Logs = dataprocLogs
+		s.Out.WriteString("Enabling Dataproc logs collection based on env variable DD_DATAPROC_LOGS_ENABLED=true")
+		enableDataprocLogs(s)
+
+	} else {
+		s.Out.WriteString("Dataproc logs collection not enabled. To enable it, set DD_DATAPROC_LOGS_ENABLED=true")
 	}
-	s.Config.IntegrationConfigs["spark.d/conf.yaml"] = sparkIntegration
 	return nil
 }
 
@@ -126,4 +112,30 @@ func setupCommonDataprocHostTags(s *common.Setup, metadataClient *metadata.Clien
 	setHostTag(s, "cluster_name", clusterName)
 
 	return isMaster, clusterName, nil
+}
+
+func enableDataprocLogs(s *common.Setup) {
+	s.Config.DatadogYAML.LogsEnabled = true
+	// Add dd-agent user to yarn group so that it gets read permission to the hadoop-yarn logs folder
+	s.DdAgentAdditionalGroups = append(s.DdAgentAdditionalGroups, "yarn")
+	// Load the existing integration config and add logs section to it
+	sparkIntegration := s.Config.IntegrationConfigs["spark.d/conf.yaml"]
+	dataprocLogs := []common.IntegrationConfigLogs{
+		{
+			Type:    "file",
+			Path:    "/var/log/hadoop-yarn/userlogs/*/*/stdout",
+			Source:  "worker_logs",
+			Service: "hadoop-yarn",
+			Tags:    "log_source:stdout",
+		},
+		{
+			Type:    "file",
+			Path:    "/var/log/hadoop-yarn/userlogs/*/*/stderr",
+			Source:  "worker_logs",
+			Service: "hadoop-yarn",
+			Tags:    "log_source:stderr",
+		},
+	}
+	sparkIntegration.Logs = dataprocLogs
+	s.Config.IntegrationConfigs["spark.d/conf.yaml"] = sparkIntegration
 }
