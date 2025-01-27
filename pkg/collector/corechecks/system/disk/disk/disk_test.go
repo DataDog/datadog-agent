@@ -1446,3 +1446,52 @@ func TestGivenADiskCheckWithMinDiskSizeConfiguredTo100Config_WhenCheckRunsAndUsa
 	w.Flush()
 	assert.Contains(t, b.String(), "Excluding partition: [device: shm] [mountpoint: /dev/shm] [fstype: tmpfs] with total disk size 10")
 }
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenUsageMetricsAreNotReportedWithFileSystemTags(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := new(Check)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"tmpfs", "filesystem:tmpfs"})
+}
+
+func TestGivenADiskCheckWithTagByFileSystemConfigured_WhenCheckRuns_ThenUsageMetricsAreReportedWithFileSystemTags(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := new(Check)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("tag_by_filesystem: true"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1", "ext4", "filesystem:ext4"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "device_name:sda1", "ext4", "filesystem:ext4"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "device_name:sda1", "ext4", "filesystem:ext4"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "device_name:sda2", "ext4", "filesystem:ext4"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda2", "device_name:sda2", "ext4", "filesystem:ext4"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda2", "device_name:sda2", "ext4", "filesystem:ext4"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs", "device_name:tmpfs", "tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:tmpfs", "device_name:tmpfs", "tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:tmpfs", "device_name:tmpfs", "tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm", "device_name:shm", "tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:shm", "device_name:shm", "tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:shm", "device_name:shm", "tmpfs", "filesystem:tmpfs"})
+}

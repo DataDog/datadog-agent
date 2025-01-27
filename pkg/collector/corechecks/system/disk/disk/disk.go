@@ -116,6 +116,10 @@ func (c *Check) diskConfigure(data integration.Data, initConfig integration.Data
 	if minDiskSize, ok := minDiskSize.(int); found && ok {
 		c.cfg.minDiskSize = uint64(minDiskSize)
 	}
+	tagByFilesystem, found := unmarshalledInstanceConfig["tag_by_filesystem"]
+	if tagByFilesystem, ok := tagByFilesystem.(bool); found && ok {
+		c.cfg.tagByFilesystem = tagByFilesystem
+	}
 	err = c.configureExcludeDevice(unmarshalledInstanceConfig, unmarshalledInitConfig)
 	if err != nil {
 		return err
@@ -140,11 +144,6 @@ func (c *Check) diskConfigure(data integration.Data, initConfig integration.Data
 	if err != nil {
 		return err
 	}
-
-	// tagByFilesystem, found := unmarshalledInstanceConfig["tag_by_filesystem"]
-	// if tagByFilesystem, ok := tagByFilesystem.(bool); found && ok {
-	// 	c.cfg.tagByFilesystem = tagByFilesystem
-	// }
 
 	// deviceTagRe, found := unmarshalledInstanceConfig["device_tag_re"]
 	// if deviceTagRe, ok := deviceTagRe.(map[interface{}]interface{}); found && ok {
