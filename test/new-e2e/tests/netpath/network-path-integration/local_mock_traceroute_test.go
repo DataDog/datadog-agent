@@ -53,21 +53,7 @@ func (s *localMockTracerouteTestSuite) TestLocalMockTraceroute() {
 	t.Cleanup(func() {
 		s.Env().RemoteHost.MustExecute("sudo sh /tmp/fake_router_teardown.sh")
 	})
-
-	ipr := s.Env().RemoteHost.MustExecute("ip route")
-	println(ipr)
 	s.Env().RemoteHost.MustExecute("sudo sh /tmp/fake_router_setup.sh")
-
-	s.Env().RemoteHost.MustExecute("sudo apt install -y traceroute")
-
-	ipr = s.Env().RemoteHost.MustExecute("ip route")
-	println(ipr)
-
-	tr := s.Env().RemoteHost.MustExecute("traceroute 198.51.100.2")
-	println(tr)
-
-	date := s.Env().RemoteHost.MustExecute("date +%s")
-	println("date: " + date)
 
 	routerIP := "192.0.2.2"
 	targetIP := "198.51.100.2"
