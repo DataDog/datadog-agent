@@ -361,6 +361,10 @@ func (ia *inventoryagent) fetchECSFargateAgentMetadata() {
 	ia.data["ecs_fargate_cluster_name"] = taskMeta.ClusterName
 }
 
+func (ia *inventoryagent) fetchFleetMetadata() {
+	ia.data["config_id"] = ia.conf.GetString("config_id")
+}
+
 func (ia *inventoryagent) fetchHaAgentMetadata() {
 	ia.data["ha_agent_enabled"] = ia.haAgent.Enabled()
 	ia.data["ha_agent_state"] = ia.haAgent.GetState()
@@ -377,6 +381,8 @@ func (ia *inventoryagent) refreshMetadata() {
 	ia.fetchTraceAgentMetadata()
 	// system-probe ecosystem
 	ia.fetchSystemProbeMetadata()
+	// Fleet
+	ia.fetchFleetMetadata()
 	// HA Agent
 	ia.fetchHaAgentMetadata()
 }
