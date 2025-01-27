@@ -38,7 +38,7 @@ import (
 // this is only used for config unmarshalling.
 func addFactories(factories otelcol.Factories) {
 	factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(nil, nil, nil, nil, nil)
-	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(nil, nil)
+	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(nil)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
 	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{})
 }
@@ -149,7 +149,6 @@ func TestGetConfDump(t *testing.T) {
 
 		assertEqual(t, expectedStringMap, actualStringMap)
 	})
-
 }
 
 func confmapFromResolverSettings(t *testing.T, resolverSettings confmap.ResolverSettings) *confmap.Conf {
@@ -165,7 +164,7 @@ func uriFromFile(filename string) []string {
 }
 
 func yamlBytesToMap(bytesConfig []byte) (map[string]any, error) {
-	var configMap = map[string]interface{}{}
+	configMap := map[string]interface{}{}
 	err := yaml.Unmarshal(bytesConfig, configMap)
 	if err != nil {
 		return nil, err
