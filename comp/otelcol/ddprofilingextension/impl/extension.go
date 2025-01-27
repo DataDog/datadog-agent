@@ -65,11 +65,7 @@ func (e *ddExtension) startForOTelAgent(host component.Host) error {
 	profilerOptions := e.buildProfilerOptions()
 
 	// agent
-	if e.cfg.Endpoint != "" {
-		profilerOptions = append(profilerOptions, profiler.WithAgentAddr("localhost:"+e.cfg.Endpoint))
-	} else {
-		profilerOptions = append(profilerOptions, profiler.WithAgentAddr("localhost:"+defaultEndpoint))
-	}
+	profilerOptions = append(profilerOptions, profiler.WithAgentAddr("localhost:"+e.endpoint()))
 
 	return profiler.Start(
 		profilerOptions...,
@@ -140,9 +136,9 @@ func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 func (e *ddExtension) Shutdown(ctx context.Context) error {
 	// stop profiler
 	profiler.Stop()
-	// stop server
 
 	if e.traceAgent != nil {
+		// stop server
 		return e.server.Shutdown(ctx)
 	}
 	return nil
