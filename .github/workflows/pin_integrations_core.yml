@@ -10,28 +10,30 @@ permissions: {}
 
 jobs:
     pin_integrations_core:
-      runs-on: ubuntu-latest
+        runs-on: ubuntu-latest
+        permissions:
+          contents: write
+          pull-requests: write
+        steps:
+            - name: Checkout the main branch
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+              with:
+                persist-credentials: true
 
-      steps:
-        - name: Checkout the main branch
-          uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-          with:
-            persist-credentials: true
+            - name: Install python
+              uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+              with:
+                python-version-file: .python-version
+                cache: "pip"
 
-        - name: Install python
-          uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
-          with:
-            python-version-file: .python-version
-            cache: "pip"
+            - name: Install Python dependencies
+              run: |
+                python -m pip install --upgrade pip
+                pip install -r requirements.txt
+                pip install -r tasks/libs/requirements-github.txt
+                pip install -r tasks/requirements_release_tasks.txt
 
-        - name: Install Python dependencies
-          run: |
-            python -m pip install --upgrade pip
-            pip install -r requirements.txt
-            pip install -r tasks/libs/requirements-github.txt
-            pip install -r tasks/requirements_release_tasks.txt
-
-        - name: Pin integrations Core
-          run: |
-            inv release.pin-integrations-core --slack-webhook ${{ secrets.PIN_INTEGRATIONS_CORE_SLACK_WEBHOOK }}
+            - name: Pin integrations Core
+              run: |
+                inv release.pin-integrations-core --slack-webhook ${{ secrets.PIN_INTEGRATIONS_CORE_SLACK_WEBHOOK }}
 
