@@ -21,9 +21,10 @@ import (
 )
 
 var (
-	_               extension.Extension = (*ddExtension)(nil)
-	_               component.Config    = (*Config)(nil)
-	defaultEndpoint                     = "7501"
+	_                extension.Extension = (*ddExtension)(nil)
+	_                component.Config    = (*Config)(nil)
+	defaultEndpoint                      = "7501"
+	errApiKeyMissing error               = errors.New("API key is required for ddprofiling extension")
 )
 
 // ddExtension is a basic OpenTelemetry Collector extension.
@@ -79,7 +80,7 @@ func (e *ddExtension) startForOCB() error {
 	profilerOptions := e.buildProfilerOptions()
 
 	if string(e.cfg.API.Key) == "" {
-		return errors.New("API key is required for ddprofiling extension")
+		return errApiKeyMissing
 	}
 	// agentless
 	profilerOptions = append(profilerOptions,
@@ -90,7 +91,6 @@ func (e *ddExtension) startForOCB() error {
 	// todo(mackjmr): add datadogexporter hostmetadata provider to retrieve hostname, and
 	// pass it to profiler via profiler.WithHostname(). This requires a refactor in contrib,
 	// as the logic lives within an internal package.
-
 	if string(e.cfg.API.Site) != "" {
 		profilerOptions = append(profilerOptions, profiler.WithSite(string(e.cfg.API.Site)))
 	}
@@ -102,9 +102,6 @@ func (e *ddExtension) startForOCB() error {
 
 func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 	profilerOptions := []profiler.Option{
-		profiler.WithPeriod(10 * time.Second),
-		profiler.WithService(e.info.Command),
-		profiler.WithVersion(e.info.Version),
 		profiler.WithProfileTypes(
 			profiler.CPUProfile,
 			profiler.HeapProfile,
@@ -117,16 +114,24 @@ func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 		),
 	}
 
-	if e.cfg.Service != "" {
-		profilerOptions = append(profilerOptions, profiler.WithService(e.cfg.Service))
+	if e.cfg.ProfilerOptions.Service != "" {
+		profilerOptions = append(profilerOptions, profiler.WithService(e.cfg.ProfilerOptions.Service))
+	} else {
+		profilerOptions = append(profilerOptions, profiler.WithService(e.info.Command))
 	}
 
-	if e.cfg.Env != "" {
-		profilerOptions = append(profilerOptions, profiler.WithEnv(e.cfg.Env))
+	if e.cfg.ProfilerOptions.Version != "" {
+		profilerOptions = append(profilerOptions, profiler.WithVersion(e.cfg.ProfilerOptions.Version))
+	} else {
+		profilerOptions = append(profilerOptions, profiler.WithVersion(e.info.Version))
 	}
 
-	if e.cfg.Version != "" {
-		profilerOptions = append(profilerOptions, profiler.WithVersion(e.cfg.Version))
+	if e.cfg.ProfilerOptions.Env != "" {
+		profilerOptions = append(profilerOptions, profiler.WithEnv(e.cfg.ProfilerOptions.Env))
+	}
+
+	if e.cfg.ProfilerOptions.Period > 0 {
+		profilerOptions = append(profilerOptions, profiler.WithPeriod(time.Duration(e.cfg.ProfilerOptions.Period)*time.Second))
 	}
 
 	return profilerOptions

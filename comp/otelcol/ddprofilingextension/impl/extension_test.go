@@ -8,15 +8,14 @@ package ddprofilingextensionimpl
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"reflect"
 	"testing"
 	"time"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -73,27 +72,27 @@ func (h *hostWithExtensions) GetExtensions() map[component.ID]component.Componen
 }
 
 func TestNewExtension(t *testing.T) {
-	ext, err := NewExtension(&Config{}, component.BuildInfo{}, testComponent{}, &logger{})
+	ext, err := NewExtension(&Config{}, component.BuildInfo{}, testComponent{}, log.NewTemporaryLoggerWithoutInit())
 	assert.NoError(t, err)
 
 	_, ok := ext.(*ddExtension)
 	assert.True(t, ok)
 }
 
-func TestAgentExtension(t *testing.T) {
-	// fake intake
-	got := make(chan string, 1)
-	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		b, err := io.ReadAll(req.Body)
+func testServer(t *testing.T, got chan string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		_, err := io.ReadAll(req.Body)
 		assert.NoError(t, err)
-
-		fmt.Println(string(b))
-		fmt.Println(reflect.TypeOf(b))
-
 		assert.Equal(t, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", req.Header.Get("DD-Api-Key"))
 		got <- req.Header.Get("User-Agent")
 		rw.WriteHeader(http.StatusAccepted)
 	}))
+}
+
+func TestAgentExtension(t *testing.T) {
+	// fake intake
+	got := make(chan string, 1)
+	server := testServer(t, got)
 	defer server.Close()
 
 	// create agent
@@ -106,7 +105,11 @@ func TestAgentExtension(t *testing.T) {
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	// create extension
-	ext, err := NewExtension(&Config{}, component.BuildInfo{}, testComponent{traceagent}, &logger{})
+	ext, err := NewExtension(&Config{
+		ProfilerSettings: ProfilerSettings{
+			Period: 5,
+		},
+	}, component.BuildInfo{}, testComponent{traceagent}, log.NewTemporaryLoggerWithoutInit())
 	assert.NoError(t, err)
 
 	ext, ok := ext.(*ddExtension)
@@ -135,30 +138,21 @@ func TestAgentExtension(t *testing.T) {
 func TestOSSExtension(t *testing.T) {
 	// fake intake
 	got := make(chan string, 1)
-	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		b, err := io.ReadAll(req.Body)
-		assert.NoError(t, err)
-
-		fmt.Println(string(b))
-		fmt.Println(reflect.TypeOf(b))
-
-		assert.Equal(t, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", req.Header.Get("DD-Api-Key"))
-		got <- req.Header.Get("User-Agent")
-		rw.WriteHeader(http.StatusAccepted)
-	}))
+	server := testServer(t, got)
 	defer server.Close()
 
 	// create extension
 	os.Setenv("DD_PROFILING_URL", server.URL)
+	defer os.Unsetenv("DD_PROFILING_URL")
 	ext, err := NewExtension(&Config{
 		API: ossconfig.APIConfig{
 			Key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		},
-	}, component.BuildInfo{}, nil, &logger{})
+		ProfilerSettings: ProfilerSettings{
+			Period: 5,
+		},
+	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit())
 	assert.NoError(t, err)
-
-	ext, ok := ext.(*ddExtension)
-	assert.True(t, ok)
 
 	host := newHostWithExtensions(
 		map[component.ID]component.Component{
@@ -169,6 +163,12 @@ func TestOSSExtension(t *testing.T) {
 	err = ext.Start(context.Background(), host)
 	assert.NoError(t, err)
 
+	extt, ok := ext.(*ddExtension)
+	assert.True(t, ok)
+	assert.Equal(t, nil, extt.traceAgent)
+	var unitializedHttpServer *http.Server
+	assert.Equal(t, unitializedHttpServer, extt.server)
+
 	timeout := time.After(15 * time.Second)
 	select {
 	case out := <-got:
@@ -178,4 +178,18 @@ func TestOSSExtension(t *testing.T) {
 	}
 	err = ext.Shutdown(context.Background())
 	assert.NoError(t, err)
+}
+
+func TestOSSExtensionNoAPIKey(t *testing.T) {
+	ext, err := NewExtension(&Config{}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit())
+	assert.NoError(t, err)
+
+	host := newHostWithExtensions(
+		map[component.ID]component.Component{
+			component.MustNewIDWithName("ddprofiling", "custom"): nil,
+		},
+	)
+
+	err = ext.Start(context.Background(), host)
+	assert.Error(t, errApiKeyMissing, err)
 }
