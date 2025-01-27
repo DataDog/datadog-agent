@@ -151,8 +151,6 @@ SECURITY_AGENT_TAGS = {
     "netcgo",
     "datadog.no_waf",
     "docker",
-    "kubeapiserver",
-    "kubelet",
     "zlib",
     "zstd",
     "ec2",
