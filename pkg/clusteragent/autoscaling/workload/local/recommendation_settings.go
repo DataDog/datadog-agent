@@ -18,6 +18,7 @@ import (
 
 const (
 	staleDataThresholdSeconds      = 180 // 3 minutes
+	watermarkTolerance             = 5
 	containerCPUUsageMetricName    = "container.cpu.usage"
 	containerMemoryUsageMetricName = "container.memory.usage"
 )
@@ -60,8 +61,8 @@ func getOptionsFromPodResource(target *datadoghq.DatadogPodAutoscalerResourceTar
 
 	recSettings := &resourceRecommenderSettings{
 		metricName:    metric,
-		lowWatermark:  float64((*target.Value.Utilization - 5)) / 100.0,
-		highWatermark: float64((*target.Value.Utilization + 5)) / 100.0,
+		lowWatermark:  float64((*target.Value.Utilization - watermarkTolerance)) / 100.0,
+		highWatermark: float64((*target.Value.Utilization + watermarkTolerance)) / 100.0,
 	}
 	return recSettings, nil
 }
@@ -81,8 +82,8 @@ func getOptionsFromContainerResource(target *datadoghq.DatadogPodAutoscalerConta
 
 	recSettings := &resourceRecommenderSettings{
 		metricName:    metric,
-		lowWatermark:  float64((*target.Value.Utilization - 5)) / 100.0,
-		highWatermark: float64((*target.Value.Utilization + 5)) / 100.0,
+		lowWatermark:  float64((*target.Value.Utilization - watermarkTolerance)) / 100.0,
+		highWatermark: float64((*target.Value.Utilization + watermarkTolerance)) / 100.0,
 		containerName: target.Container,
 	}
 	return recSettings, nil
