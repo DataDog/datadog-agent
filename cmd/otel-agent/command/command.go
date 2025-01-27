@@ -100,7 +100,7 @@ func newSettingsClient() (settings.Client, error) {
 	agentIPCHost := pkgconfigsetup.Datadog().GetString("agent_ipc.host")
 	agentIPCPort := pkgconfigsetup.Datadog().GetInt("agent_ipc.host")
 	// use the same url as configsync
-	apiConfigURL := fmt.Sprintf("https://%v:%v/config/v1",agentIPCHost, agentIPCPort)
+	apiConfigURL := fmt.Sprintf("https://%v:%v/config/v1", agentIPCHost, agentIPCPort)
 	return settingshttp.NewClient(c, apiConfigURL, "otel-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
 }
 
