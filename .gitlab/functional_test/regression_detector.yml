@@ -113,6 +113,7 @@ single-machine-performance-regression_detector:
       --comparison-sha ${CI_COMMIT_SHA} \
       --target-config-dir test/regression/ \
       --submission-metadata submission_metadata \
+      --replicas 2 \
       --tags ${SMP_TAGS} || {
         exit_code=$?
         echo "smp job submit command failed with code $exit_code"

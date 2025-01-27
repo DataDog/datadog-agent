@@ -17,7 +17,7 @@ target_metrics:
       uri: "http://127.0.0.1:6062/telemetry"
       tags:
         sub_agent: "process"
-   - prometheus: #check-agent telemetry
+  - prometheus: #check-agent telemetry
       uri: "http://127.0.0.1:6060/telemetry"
       tags:
         sub_agent: "checks-agent"
