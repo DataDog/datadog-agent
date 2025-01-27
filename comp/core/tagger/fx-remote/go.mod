@@ -37,7 +37,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.60.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/api v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/api v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.60.0 // indirect
