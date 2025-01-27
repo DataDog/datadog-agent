@@ -186,11 +186,10 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 }
 
 func enableEmrLogs(s *common.Setup) {
-	// Enable logs in datadog yaml  config
 	s.Config.DatadogYAML.LogsEnabled = true
 	// Add dd-agent user to yarn group so that it gets read permission to the hadoop-yarn logs folder
 	s.DdAgentAdditionalGroups = append(s.DdAgentAdditionalGroups, "yarn")
-	// Load the existing integration config and logs section to it
+	// Load the existing integration config and add logs section to it
 	sparkIntegration := s.Config.IntegrationConfigs["spark.d/conf.yaml"]
 	emrLogs := []common.IntegrationConfigLogs{
 		{
