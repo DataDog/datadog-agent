@@ -56,7 +56,7 @@ var GPUMonitoring = module.Factory{
 			log.Info("Configuring GPU device cgroup permissions for system-probe")
 			err := gpu.ConfigureDeviceCgroupsForProcess(uint32(os.Getpid()), hostRoot())
 			if err != nil {
-				log.Warnf("Failed to configure device cgroups for process: %v", err)
+				log.Warnf("Failed to configure device cgroups for process: %v, gpu-monitoring module might not work properly", err)
 			}
 		}
 
