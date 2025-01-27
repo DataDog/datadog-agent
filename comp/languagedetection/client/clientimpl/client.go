@@ -87,7 +87,7 @@ type client struct {
 	freshDataPeriod    time.Duration
 	freshlyUpdatedPods map[string]time.Time
 
-	// Additionally, we want to guarantee the pod has been fully synced with proccess info
+	// Additionally, we want to guarantee the pod has been fully synced with process info
 	// before sending the data to the cluster-agent. Thus we wait for 'podCooldownPeriod'
 	// before allowing a fresh update to be sent.
 	podCooldownPeriod time.Duration
