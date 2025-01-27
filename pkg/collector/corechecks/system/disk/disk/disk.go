@@ -82,6 +82,7 @@ func (c *Check) diskConfigure(data integration.Data, initConfig integration.Data
 	deprecationsInstanceConf := map[string]string{
 		"file_system_whitelist": "file_system_include",
 		"file_system_blacklist": "file_system_exclude",
+		"device_whitelist":      "device_include",
 	}
 	for oldKey, newKey := range deprecationsInstanceConf {
 		if _, exists := unmarshalledInstanceConfig[oldKey]; exists {
