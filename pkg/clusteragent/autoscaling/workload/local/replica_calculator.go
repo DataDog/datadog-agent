@@ -14,6 +14,7 @@ import (
 	"time"
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	"k8s.io/utils/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 
@@ -26,6 +27,7 @@ import (
 
 type replicaCalculator struct {
 	podWatcher common.PodWatcher
+	clock      clock.Clock
 }
 
 type utilizationResult struct {
@@ -38,12 +40,13 @@ type utilizationResult struct {
 func newReplicaCalculator(podWatcher common.PodWatcher) replicaCalculator {
 	return replicaCalculator{
 		podWatcher: podWatcher,
+		clock:      clock.RealClock{},
 	}
 }
 
 // calculateHorizontalRecommendations is the entrypoint to calculate the horizontal recommendation for a given DatadogPodAutoscaler
 func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAutoscalerInternal, lStore loadstore.Store) (*model.ScalingValues, error) {
-	currentTime := time.Now()
+	currentTime := r.clock.Now()
 
 	// Get current pods for the target
 	targetRef := dpai.Spec().TargetRef
