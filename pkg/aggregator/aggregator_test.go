@@ -313,7 +313,7 @@ func TestDefaultSeries(t *testing.T) {
 	}, &metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
 		Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{"agent_state:standby"}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"agent_state:active"}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
