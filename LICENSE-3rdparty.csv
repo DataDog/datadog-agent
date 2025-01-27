@@ -2034,9 +2034,10 @@ core,github.com/rs/zerolog/log,MIT,Copyright (c) 2017 Olivier Poitrey
 core,github.com/ryanuber/go-glob,MIT,Copyright (c) 2014 Ryan Uber
 core,github.com/sagikazarmark/locafero,MIT,Copyright (c) 2023 Márk Sági-Kazár <mark.sagikazar@gmail.com>
 core,github.com/sagikazarmark/slog-shim,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,github.com/samber/lo,MIT,Copyright (c) 2022 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
-core,github.com/samber/lo/internal/constraints,MIT,Copyright (c) 2022 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
-core,github.com/samber/lo/internal/rand,MIT,Copyright (c) 2022 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
+core,github.com/samber/lo,MIT,Copyright (c) 2022-2025 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
+core,github.com/samber/lo/internal/constraints,MIT,Copyright (c) 2022-2025 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
+core,github.com/samber/lo/internal/rand,MIT,Copyright (c) 2022-2025 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
+core,github.com/samber/lo/mutable,MIT,Copyright (c) 2022-2025 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
 core,github.com/samuel/go-zookeeper/zk,BSD-3-Clause,"Copyright (c) 2013, Samuel Stauffer <samuel@descolada.com>"
 core,github.com/santhosh-tekuri/jsonschema/v5,Apache-2.0,Copyright (c) 2017-2024 Santhosh Kumar Tekuri
 core,github.com/sassoftware/go-rpmutils,Apache-2.0,Copyright (c) SAS Institute Inc.
