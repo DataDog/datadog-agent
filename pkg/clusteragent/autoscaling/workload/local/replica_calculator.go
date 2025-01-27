@@ -25,7 +25,7 @@ import (
 )
 
 type replicaCalculator struct {
-	PodWatcher common.PodWatcher
+	podWatcher common.PodWatcher
 }
 
 type utilizationResult struct {
@@ -37,12 +37,12 @@ type utilizationResult struct {
 
 func newReplicaCalculator(podWatcher common.PodWatcher) replicaCalculator {
 	return replicaCalculator{
-		PodWatcher: podWatcher,
+		podWatcher: podWatcher,
 	}
 }
 
-// CalculateHorizontalRecommendations is the entrypoint to calculate the horizontal recommendation for a given DatadogPodAutoscaler
-func (r replicaCalculator) CalculateHorizontalRecommendations(dpai model.PodAutoscalerInternal, lStore loadstore.Store) (*model.ScalingValues, error) {
+// calculateHorizontalRecommendations is the entrypoint to calculate the horizontal recommendation for a given DatadogPodAutoscaler
+func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAutoscalerInternal, lStore loadstore.Store) (*model.ScalingValues, error) {
 	currentTime := time.Now()
 
 	// Get current pods for the target
@@ -61,7 +61,7 @@ func (r replicaCalculator) CalculateHorizontalRecommendations(dpai model.PodAuto
 		Name:      podOwnerName,
 		Kind:      targetGVK.Kind,
 	}
-	pods := r.PodWatcher.GetPodsForOwner(podOwner)
+	pods := r.podWatcher.GetPodsForOwner(podOwner)
 	if len(pods) == 0 {
 		// If we found nothing, we'll wait just until the next sync
 		return nil, fmt.Errorf("No pods found for autoscaler: %s, gvk: %s, name: %s", dpai.ID(), targetGVK.String(), targetRef.Name)

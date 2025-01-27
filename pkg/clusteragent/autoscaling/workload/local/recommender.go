@@ -79,7 +79,7 @@ func (r *Recommender) process(ctx context.Context) {
 		podAutoscalerInternal, _ := r.store.LockRead(podAutoscaler.ID(), true)
 
 		// Generate local recommendations
-		horizontalRecommendation, err := r.replicaCalculator.CalculateHorizontalRecommendations(podAutoscalerInternal, lStore)
+		horizontalRecommendation, err := r.replicaCalculator.calculateHorizontalRecommendations(podAutoscalerInternal, lStore)
 		if err != nil || horizontalRecommendation == nil {
 			log.Debugf("Error calculating horizontal recommendations for pod autoscaler %s: %s", podAutoscalerInternal.ID(), err)
 			r.store.Unlock(podAutoscalerInternal.ID())
