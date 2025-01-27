@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	etcd_client "go.etcd.io/etcd/client/v2"
+	etcd_client "go.etcd.io/etcd/client/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"

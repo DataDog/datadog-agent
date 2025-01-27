@@ -2348,13 +2348,10 @@ core,go.etcd.io/etcd/api/v3/version,Apache-2.0,Copyright 2016 The etcd Authors
 core,go.etcd.io/etcd/api/v3/versionpb,Apache-2.0,Copyright 2016 The etcd Authors
 core,go.etcd.io/etcd/client/pkg/v3/fileutil,Apache-2.0,Copyright 2016 The etcd Authors
 core,go.etcd.io/etcd/client/pkg/v3/logutil,Apache-2.0,Copyright 2016 The etcd Authors
-core,go.etcd.io/etcd/client/pkg/v3/pathutil,Apache-2.0,Copyright 2016 The etcd Authors
-core,go.etcd.io/etcd/client/pkg/v3/srv,Apache-2.0,Copyright 2016 The etcd Authors
 core,go.etcd.io/etcd/client/pkg/v3/systemd,Apache-2.0,Copyright 2016 The etcd Authors
 core,go.etcd.io/etcd/client/pkg/v3/tlsutil,Apache-2.0,Copyright 2016 The etcd Authors
 core,go.etcd.io/etcd/client/pkg/v3/transport,Apache-2.0,Copyright 2016 The etcd Authors
 core,go.etcd.io/etcd/client/pkg/v3/types,Apache-2.0,Copyright 2016 The etcd Authors
-core,go.etcd.io/etcd/client/v2,Apache-2.0,Copyright 2016 The etcd Authors
 core,go.etcd.io/etcd/client/v3,Apache-2.0,Copyright 2016 The etcd Authors
 core,go.etcd.io/etcd/client/v3/credentials,Apache-2.0,Copyright 2016 The etcd Authors
 core,go.etcd.io/etcd/client/v3/internal/endpoint,Apache-2.0,Copyright 2016 The etcd Authors

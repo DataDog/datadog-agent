@@ -297,7 +297,6 @@ require (
 	github.com/wI2L/jsondiff v0.6.1
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.etcd.io/bbolt v1.3.11
-	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.mongodb.org/mongo-driver v1.15.1
 	go.opentelemetry.io/collector v0.118.0 // indirect
 	go.opentelemetry.io/collector/component v0.118.0
@@ -526,7 +525,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4
 	go.etcd.io/etcd/api/v3 v3.6.0-alpha.0 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.6.0-alpha.0.0.20220522111935-c3bc4116dcd1 // indirect
-	go.etcd.io/etcd/client/v3 v3.6.0-alpha.0 // indirect
+	go.etcd.io/etcd/client/v3 v3.6.0-alpha.0
 	go.etcd.io/etcd/server/v3 v3.6.0-alpha.0.0.20220522111935-c3bc4116dcd1 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector/consumer v1.24.0 // indirect
