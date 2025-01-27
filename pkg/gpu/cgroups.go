@@ -52,7 +52,7 @@ func configureSystemdDeviceAllow(containerID string, rootfs string) error {
 		return fmt.Errorf("failed to build systemd/transient path: %w", err)
 	}
 
-	log.Warnf("Configuring systemd device allow for container %s: %s", containerID, systemdDeviceAllowPath)
+	log.Debugf("Configuring systemd device allow for container %s: %s", containerID, systemdDeviceAllowPath)
 
 	// Open the systemd device allow file
 	systemdDeviceAllow, err := os.OpenFile(systemdDeviceAllowPath, os.O_APPEND|os.O_WRONLY, 0)
@@ -77,7 +77,7 @@ func configureCgroupDeviceAllow(containerID, rootfs string) error {
 		return fmt.Errorf("failed to build cgroup/devices path: %w", err)
 	}
 
-	log.Warnf("Configuring systemd device allow for container %s: %s", containerID, cgroupDeviceAllowPath)
+	log.Debugf("Configuring systemd device allow for container %s: %s", containerID, cgroupDeviceAllowPath)
 
 	// Open the cgroup device allow file
 	cgroupDeviceAllow, err := os.OpenFile(cgroupDeviceAllowPath, os.O_APPEND|os.O_WRONLY, 0)
