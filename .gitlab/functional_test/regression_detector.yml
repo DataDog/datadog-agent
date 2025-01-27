@@ -266,8 +266,7 @@ single-machine-performance-regression_detector:
       if [ "$CI_JOB_STATUS" == "canceled" ]; then
         RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
         job cancel \
-        --submission-metadata submission_metadata \
-        --output-path outputs
+        --submission-metadata submission_metadata
       fi
 
 # Shamelessly adapted from golang_deps_commenter job config in
