@@ -138,7 +138,7 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 		return fmt.Errorf("could not generate bpf code for config probe: %w", err)
 	}
 
-	err = ebpf.CompileBPFProgram(procInfo, configProbe)
+	err = ebpf.CompileBPFProgram(configProbe)
 	if err != nil {
 		return fmt.Errorf("could not compile bpf code for config probe: %w", err)
 	}
@@ -262,7 +262,7 @@ generateCompileAttach:
 		return
 	}
 
-	err = ebpf.CompileBPFProgram(procInfo, probe)
+	err = ebpf.CompileBPFProgram(probe)
 	if err != nil {
 		// TODO: Emit diagnostic?
 		log.Info("Couldn't compile BPF object", err)

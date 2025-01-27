@@ -118,7 +118,7 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 		parser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &eth, &ip4, &ip6, &tcp, &udp)
 		parser.IgnoreUnsupported = true
 		for {
-			err := t.packetSrc.VisitPackets(t.exit, func(b []byte, info filter.PacketInfo, _ time.Time) error {
+			err := t.packetSrc.VisitPackets(func(b []byte, info filter.PacketInfo, _ time.Time) error {
 				if err := parser.DecodeLayers(b, &decoded); err != nil {
 					return fmt.Errorf("error decoding packet layers: %w", err)
 				}
@@ -357,10 +357,9 @@ func (t *ebpfLessTracer) Stop() {
 	}
 
 	close(t.exit)
-
-	// can't close packetSrc while it's still visiting, wait for it to finish
-	t.packetSrcBusy.Wait()
+	// close the packet capture loop and wait for it to finish
 	t.packetSrc.Close()
+	t.packetSrcBusy.Wait()
 
 	t.ns.Close()
 	t.boundPorts.Stop()
