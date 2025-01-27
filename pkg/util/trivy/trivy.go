@@ -284,21 +284,18 @@ func (d *driver) Scan(_ context.Context, target, artifactKey string, blobKeys []
 		return nil, ftypes.OS{}, xerrors.Errorf("failed to apply layers: %w", err)
 	}
 
-	scanTarget := types.ScanTarget{
-		Name:       target,
-		OS:         detail.OS,
-		Repository: detail.Repository,
-		Packages:   detail.Packages,
-	}
-
 	result := types.Result{
 		Target: fmt.Sprintf("%s (%s %s)", target, detail.OS.Family, detail.OS.Name),
 		Class:  types.ClassOSPkg,
-		Type:   scanTarget.OS.Family,
+		Type:   detail.OS.Family,
 	}
 
-	sort.Sort(scanTarget.Packages)
-	result.Packages = scanTarget.Packages
+	sort.Sort(detail.Packages)
+	result.Packages = detail.Packages
+	for _, app := range detail.Applications {
+		sort.Sort(app.Packages)
+		result.Packages = append(result.Packages, app.Packages...)
+	}
 
 	return []types.Result{result}, detail.OS, nil
 }
