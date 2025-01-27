@@ -8,7 +8,6 @@ package infraattributesprocessor
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -21,7 +20,6 @@ import (
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.opentelemetry.io/collector/component"
@@ -47,12 +45,7 @@ func (f *factory) initializeTaggerClient() error {
 	var client taggerClient
 	app := fx.New(
 		fx.Provide(func() config.Component {
-			pkgconfig := pkgconfigsetup.Datadog()
-			if pkgconfig == nil {
-				pkgconfig = pkgconfigmodel.NewConfig("DD", "DD", strings.NewReplacer("_", "."))
-				pkgconfigsetup.InitConfig(pkgconfig)
-			}
-			return pkgconfig
+			return pkgconfigsetup.Datadog()
 		}),
 		fx.Provide(func(_ config.Component) log.Params {
 			return log.ForDaemon("otelcol", "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
