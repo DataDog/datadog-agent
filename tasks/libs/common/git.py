@@ -17,6 +17,8 @@ from tasks.libs.common.user_interactions import yes_no_question
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+TAG_BATCH_SIZE = 3
+
 
 @contextmanager
 def clone(ctx, repo, branch, options=""):
@@ -310,3 +312,11 @@ def revert_git_config(original_config):
             subprocess.run(['git', 'config', '--unset', key])
         else:
             subprocess.run(['git', 'config', key, value])
+
+
+def push_tags_by_batch(ctx, tags, force_option, batch_size=TAG_BATCH_SIZE):
+    tags_list = ' '.join(tags)
+    for idx in range(0, len(tags), batch_size):
+        batch_tags = tags[idx : idx + batch_size]
+        ctx.run(f"git push origin {' '.join(batch_tags)}{force_option}")
+    print(f"Pushed tag {tags_list}")
