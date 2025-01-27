@@ -75,6 +75,7 @@ func SetupEmr(s *common.Setup) error {
 	s.Packages.Install(common.DatadogAPMInjectPackage, emrInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, emrJavaTracerVersion)
 
+	s.Out.WriteString("Applying specific Data Jobs Monitoring config")
 	os.Setenv("DD_APM_INSTRUMENTATION_ENABLED", "host")
 
 	hostname, err := os.Hostname()
@@ -92,12 +93,16 @@ func SetupEmr(s *common.Setup) error {
 		return fmt.Errorf("failed to set tags: %w", err)
 	}
 	if isMaster {
+		s.Out.WriteString("Setting up Spark integration config on the Resource Manager")
 		setupResourceManager(s, clusterName)
 	}
 	// Add logs config to both Resource Manager and Workers
 	if os.Getenv("DD_EMR_LOGS_ENABLED") == "true" {
+		s.Out.WriteString("Enabling EMR logs collection based on env variable DD_EMR_LOGS_ENABLED=true")
 		enableEmrLogs(s)
 
+	} else {
+		s.Out.WriteString("EMR logs collection not enabled. To enable it, set DD_EMR_LOGS_ENABLED=true")
 	}
 	return nil
 }
@@ -140,7 +145,6 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 }
 
 func setupResourceManager(s *common.Setup, clusterName string) {
-
 	var sparkIntegration common.IntegrationConfig
 	var yarnIntegration common.IntegrationConfig
 
