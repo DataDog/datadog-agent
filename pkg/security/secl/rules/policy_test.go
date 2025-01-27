@@ -26,10 +26,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
-	yamlk8s "sigs.k8s.io/yaml"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	yamlk8s "github.com/DataDog/datadog-agent/pkg/util/jsonyaml"
 )
 
 func savePolicy(filename string, testPolicy *PolicyDef) error {

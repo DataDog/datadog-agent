@@ -115,6 +115,7 @@ use (
 	pkg/util/hostname/validate
 	pkg/util/http
 	pkg/util/json
+	pkg/util/jsonyaml
 	pkg/util/log
 	pkg/util/log/setup
 	pkg/util/option

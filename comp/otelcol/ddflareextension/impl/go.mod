@@ -146,7 +146,6 @@ require (
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.118.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.118.0
 	go.uber.org/zap v1.27.0
-	gopkg.in/yaml.v2 v2.4.0
 
 )
 
@@ -181,6 +180,7 @@ require (
 	go.opentelemetry.io/collector/processor/processortest v0.118.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.118.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.6.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 require (
@@ -286,7 +286,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.24.0 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.24.0 // indirect
 	github.com/DataDog/sketches-go v1.4.6 // indirect
-	github.com/DataDog/viper v1.14.0 // indirect
+	github.com/DataDog/viper v1.14.1-0.20250128143513-2e392e9ceee3 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -527,7 +527,7 @@ require (
 	google.golang.org/protobuf v1.36.3 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools/v3 v3.5.1 // indirect
 	k8s.io/api v0.31.3 // indirect
 	k8s.io/apimachinery v0.31.3 // indirect

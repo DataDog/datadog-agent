@@ -43,7 +43,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.60.1
-	github.com/DataDog/viper v1.14.0
+	github.com/DataDog/viper v1.14.1-0.20250128143513-2e392e9ceee3
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.23.0
 )
@@ -107,7 +107,6 @@ require (
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	google.golang.org/protobuf v1.36.3 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

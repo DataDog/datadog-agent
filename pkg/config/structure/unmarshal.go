@@ -257,7 +257,7 @@ func copyLeaf(target reflect.Value, source nodetreemodel.LeafNode, _ *featureSet
 	case reflect.Bool:
 		v, err := cast.ToBoolE(source.Get())
 		if err != nil {
-			return fmt.Errorf("could not convert %#v to bool", source.Get())
+			return fmt.Errorf("could not convert %#v to bool: %w", source.Get(), err)
 		}
 		target.SetBool(v)
 		return nil
