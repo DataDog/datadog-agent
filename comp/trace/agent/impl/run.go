@@ -98,6 +98,9 @@ func runAgentSidekicks(ag component) error {
 		}))
 	}
 
+	// Configure the Trace Agent Debug server to use the IPC certificate
+	ag.Agent.DebugServer.SetTLSConfig(ag.at.GetTLSServerConfig())
+
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)
 	if pcfg := profilingConfig(tracecfg); pcfg != nil {
 		if err := profiling.Start(*pcfg); err != nil {
