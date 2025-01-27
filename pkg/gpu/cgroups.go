@@ -10,7 +10,7 @@ package gpu
 import (
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -110,7 +110,7 @@ func buildSafePath(rootfs string, basedir string, parts ...string) (string, erro
 	root := fmt.Sprintf("%s/%s", rootfs, basedir)
 
 	// Join the parts to the base directory and create a full path. Note that this will also remove any ".." from the path
-	fullPath := path.Join(append([]string{root}, parts...)...)
+	fullPath := filepath.Join(append([]string{root}, parts...)...)
 
 	// Check that the resulting path is a child of root and that we haven't escaped the rootfs/basedir
 	if !strings.HasPrefix(fullPath, root) {
