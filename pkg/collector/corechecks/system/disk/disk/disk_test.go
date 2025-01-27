@@ -324,6 +324,27 @@ mount_point_whitelist:
 	assert.Contains(t, b.String(), "`mount_point_whitelist` is deprecated and will be removed in a future release. Please use `mount_point_include` instead.")
 }
 
+func TestGivenADiskCheckWithMountPointBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := new(Check)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+mount_point_blacklist:
+  - ext4
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	w.Flush()
+	assert.Contains(t, b.String(), "`mount_point_blacklist` is deprecated and will be removed in a future release. Please use `mount_point_exclude` instead.")
+}
+
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemCallReturnsError_ThenErrorIsReturnedAndNoUsageMetricsAreReported(t *testing.T) {
 	setupDefaultMocks()
 	diskPartitions = func(_ bool) ([]disk.PartitionStat, error) {
