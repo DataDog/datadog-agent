@@ -808,7 +808,6 @@ func (s *discovery) updateCacheInfo(response *model.ServicesResponse, now time.T
 // about them to generate a stop event for the service. This function is not
 // thread-safe and it is up to the caller to ensure s.mux is locked.
 func (s *discovery) handleStoppedServices(response *model.ServicesResponse, alivePids pidSet) {
-outer:
 	for pid := range s.runningServices {
 		if alivePids.has(pid) {
 			continue
@@ -821,18 +820,6 @@ outer:
 			continue
 		}
 		delete(s.cache, pid)
-
-		for pid := range s.potentialServices {
-			potentialInfo, ok := s.cache[pid]
-			if !ok {
-				log.Warnf("could not get potential service with PID %v from the cache when handling stopped services", pid)
-				continue
-			}
-			if potentialInfo.name == info.name {
-				log.Debugf("found potential service with same name as stopped one, skipping end-service event (name: %q)", info.name)
-				continue outer
-			}
-		}
 
 		// Build service struct in place in the slice
 		response.StoppedServices = append(response.StoppedServices, model.Service{})
