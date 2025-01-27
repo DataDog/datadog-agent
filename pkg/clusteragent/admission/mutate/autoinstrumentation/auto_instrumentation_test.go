@@ -652,27 +652,35 @@ func assertLibReq(t *testing.T, pod *corev1.Pod, lang language, image, envKey, e
 }
 
 func TestExtractLibInfo(t *testing.T) {
+	defaultLibImageVersions := map[string]string{
+		"java":   "registry/dd-lib-java-init:v1",
+		"js":     "registry/dd-lib-js-init:v5",
+		"python": "registry/dd-lib-python-init:v2",
+		"dotnet": "registry/dd-lib-dotnet-init:v3",
+		"ruby":   "registry/dd-lib-ruby-init:v2",
+	}
+
 	// TODO: Add new entry when a new language is supported
 	allLatestDefaultLibs := []libInfo{
 		{
 			lang:  "java",
-			image: "registry/dd-lib-java-init:v1",
+			image: defaultLibImageVersions["java"],
 		},
 		{
 			lang:  "js",
-			image: "registry/dd-lib-js-init:v5",
+			image: defaultLibImageVersions["js"],
 		},
 		{
 			lang:  "python",
-			image: "registry/dd-lib-python-init:v2",
+			image: defaultLibImageVersions["python"],
 		},
 		{
 			lang:  "dotnet",
-			image: "registry/dd-lib-dotnet-init:v3",
+			image: defaultLibImageVersions["dotnet"],
 		},
 		{
 			lang:  "ruby",
-			image: "registry/dd-lib-ruby-init:v2",
+			image: defaultLibImageVersions["ruby"],
 		},
 	}
 
@@ -688,6 +696,17 @@ func TestExtractLibInfo(t *testing.T) {
 		{
 			name:              "java",
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:v1",
+				},
+			},
+		},
+		{
+			name:              "java with default version",
+			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "default"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
@@ -959,6 +978,21 @@ func TestExtractLibInfo(t *testing.T) {
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"java": "v1.20.0"})
+			},
+		},
+		{
+			name:              "single step instrumentation with default java version",
+			pod:               common.FakePodWithNamespaceAndLabel("ns", "", ""),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: defaultLibImageVersions["java"],
+				},
+			},
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"java": "default"})
 			},
 		},
 		{

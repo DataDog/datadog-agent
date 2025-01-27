@@ -1658,7 +1658,10 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
 
         nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
         nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $input_bpf_programs")
-        nw.rule(name="compress_minimized_btf", command="tar -cJf $out -C $tar_working_directory $rel_in && rm $in")
+        nw.rule(
+            name="compress_minimized_btf",
+            command="tar --mtime=@0 -cJf $out -C $tar_working_directory $rel_in && rm $in",
+        )
 
         for root, dirs, files in os.walk(source_dir):
             path_from_root = os.path.relpath(root, source_dir)
@@ -1771,7 +1774,8 @@ def process_btfhub_archive(ctx, branch="main"):
                                             dst_file = os.path.join(dst_dir, file)
                                             if os.path.exists(dst_file):
                                                 raise Exit(message=f"{dst_file} already exists")
-                                            shutil.move(src_file, os.path.join(dst_dir, file))
+
+                                            shutil.move(src_file, dst_file)
 
         # generate both tarballs
         for arch in ["x86_64", "arm64"]:
@@ -1781,7 +1785,8 @@ def process_btfhub_archive(ctx, branch="main"):
             if os.path.exists(btfs_dir):
                 with ctx.cd(temp_dir):
                     # include btfs-$ARCH as prefix for all paths
-                    ctx.run(f"tar -cf {output_path} btfs-{arch}")
+                    # set modification time to zero to ensure deterministic tarball
+                    ctx.run(f"tar --mtime=@0 -cf {output_path} btfs-{arch}")
 
 
 @task

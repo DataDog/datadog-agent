@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -181,7 +182,10 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	if pkgconfig.Get("apm_config.features") == nil {
-		apmConfigFeatures := []string{"enable_receive_resource_spans_v2", "enable_operation_and_resource_name_logic_v2"}
+		apmConfigFeatures := []string{}
+		if pkgdatadog.OperationAndResourceNameV2FeatureGate.IsEnabled() {
+			apmConfigFeatures = append(apmConfigFeatures, "enable_operation_and_resource_name_logic_v2")
+		}
 		if ddc.Traces.ComputeTopLevelBySpanKind {
 			apmConfigFeatures = append(apmConfigFeatures, "enable_otlp_compute_top_level_by_span_kind")
 		}

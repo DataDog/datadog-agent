@@ -114,6 +114,7 @@ type Check struct {
 	legacyIntegrationCompatibilityMode      bool
 	clock                                   clock.Clock
 	lastSampleID                            uint64
+	obfuscator                              *obfuscate.Obfuscator
 }
 
 type vDatabase struct {

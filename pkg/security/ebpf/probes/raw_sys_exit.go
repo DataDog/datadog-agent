@@ -198,5 +198,12 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 				EBPFFuncName: "tracepoint_handle_sys_chdir_exit",
 			},
 		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.StatEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tracepoint_handle_sys_newfstatat_exit",
+			},
+		},
 	}
 }

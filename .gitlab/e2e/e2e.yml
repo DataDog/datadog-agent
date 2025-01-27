@@ -196,6 +196,19 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)CheckSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
 
+new-e2e-fips-compliance-test:
+  extends: .new_e2e_template_needs_deb_x64
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_fips
+    - deploy_deb_testing-a7_x64
+  rules:
+    - !reference [.on_asc_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/fips-compliance
+    TEAM: agent-shared-components
+
 new-e2e-windows-service-test:
   extends: .new_e2e_template
   needs:
@@ -393,6 +406,12 @@ new-e2e-installer-script:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
     - deploy_installer_oci
     - qa_installer_script
   variables:
@@ -437,8 +456,8 @@ new-e2e-installer-windows:
     # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
     # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
     - CURRENT_AGENT_VERSION=$(invoke agent.version) || exit $?; export CURRENT_AGENT_VERSION
-    - export STABLE_AGENT_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
-    - export STABLE_INSTALLER_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/installer-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
+    - export STABLE_AGENT_VERSION_PACKAGE=$(curl --retry 10 --retry-all-errors -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
+    - export STABLE_INSTALLER_VERSION_PACKAGE=$(curl --retry 10 --retry-all-errors -sS https://hub.docker.com/v2/namespaces/datadog/repositories/installer-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
     - !reference [.new_e2e_template, before_script]
   variables:
     TARGETS: ./tests/installer/windows
