@@ -99,9 +99,9 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 		ignoreResNames[resName] = struct{}{}
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.compute_top_level_by_span_kind", computeTopLevelBySpanKindVal, nil, 1)
-	enableReceiveResourceSpansV2Val := 0.0
-	if cfg.HasFeature("enable_receive_resource_spans_v2") {
-		enableReceiveResourceSpansV2Val = 1.0
+	enableReceiveResourceSpansV2Val := 1.0
+	if cfg.HasFeature("disable_receive_resource_spans_v2") {
+		enableReceiveResourceSpansV2Val = 0.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.enable_receive_resource_spans_v2", enableReceiveResourceSpansV2Val, nil, 1)
 	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo), statsd: statsd, timing: timing, ignoreResNames: ignoreResNames}
@@ -227,10 +227,10 @@ func (o *OTLPReceiver) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
-	if o.conf.HasFeature("enable_receive_resource_spans_v2") {
-		return o.receiveResourceSpansV2(ctx, rspans, isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)))
+	if o.conf.HasFeature("disable_receive_resource_spans_v2") {
+		return o.receiveResourceSpansV1(ctx, rspans, httpHeader)
 	}
-	return o.receiveResourceSpansV1(ctx, rspans, httpHeader)
+	return o.receiveResourceSpansV2(ctx, rspans, isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)))
 }
 
 func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool) source.Source {
