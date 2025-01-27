@@ -458,8 +458,6 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 			}, time.Second*5, time.Millisecond*100)
 			if t.Failed() {
 				t.Logf("expected telemetry: %+v;\ngot: %+v", tt.expectedTelemetry, telemetry)
-				ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, usmhttp2.InFlightMap, "http2_dynamic_table")
-				dumpTelemetry(t, monitor, s.isTLS)
 			}
 		})
 	}
