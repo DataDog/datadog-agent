@@ -27,7 +27,6 @@ const (
 type Recommender struct {
 	replicaCalculator replicaCalculator
 	store             *autoscaling.Store[model.PodAutoscalerInternal]
-	context           context.Context
 }
 
 // NewRecommender creates a new Recommender to start generating local recommendations
@@ -42,12 +41,6 @@ func NewRecommender(podWatcher common.PodWatcher, store *autoscaling.Store[model
 
 // Run starts the Recommender interface to generate local recommendations
 func (r *Recommender) Run(ctx context.Context) {
-	if ctx == nil {
-		log.Errorf("Cannot run with a nil context")
-		return
-	}
-	r.context = ctx
-
 	log.Infof("Starting local autoscaling recommender")
 	ticker := time.NewTicker(pollingInterval)
 
