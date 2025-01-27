@@ -620,6 +620,10 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
+.not_on_release_branch:
+  - <<: *if_release_branch
+    when: never
+
 .only_main:
   - <<: *if_not_main_branch
     when: never
