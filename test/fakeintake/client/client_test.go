@@ -581,7 +581,7 @@ func TestClient(t *testing.T) {
 		client := NewClient(ts.URL)
 		err := client.getNetpathEvents()
 		require.NoError(t, err)
-		assert.True(t, client.netpathAggregator.ContainsPayloadName("api.datadoghq.eu"))
+		assert.True(t, client.netpathAggregator.ContainsPayloadName("api.datadoghq.eu:443 TCP"))
 	})
 
 	t.Run("getServiceDiscoveries", func(t *testing.T) {

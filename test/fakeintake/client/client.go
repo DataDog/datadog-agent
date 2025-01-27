@@ -890,6 +890,7 @@ func (c *Client) GetNDMFlows() ([]*aggregator.NDMFlow, error) {
 	return ndmflows, nil
 }
 
+// GetNetpathEvents returns the latest netpath events by destination
 func (c *Client) GetNetpathEvents() ([]*aggregator.Netpath, error) {
 	err := c.getNetpathEvents()
 	if err != nil {
