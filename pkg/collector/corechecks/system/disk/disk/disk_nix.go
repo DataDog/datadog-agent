@@ -61,27 +61,28 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 	}
 
 	for _, partition := range partitions {
-		log.Debugf("Checking device %s", partition.Device)
-
+		log.Debugf("Checking partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
 		if c.excludePartition(partition) {
 			log.Debugf("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
 			continue
 		}
-
 		// Get disk metrics here to be able to exclude on total usage
 		usage, err := diskUsage(partition.Mountpoint)
 		if err != nil {
 			log.Warnf("Unable to get disk metrics of %s mount point: %s", partition.Mountpoint, err)
 			continue
 		}
-
+		log.Debugf("usage %s", usage)
 		// Exclude disks with total disk size 0
-		if usage.Total == 0 {
+		if usage.Total <= c.cfg.minDiskSize {
+			log.Debugf("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s] with total disk size %d", partition.Device, partition.Mountpoint, partition.Fstype, usage.Total)
+			if usage.Total > 0 {
+				log.Infof("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s] with total disk size %d", partition.Device, partition.Mountpoint, partition.Fstype, usage.Total)
+			}
 			continue
 		}
 
 		tags := make([]string, 0, 2)
-
 		if c.cfg.tagByFilesystem {
 			tags = append(tags, partition.Fstype, fmt.Sprintf("filesystem:%s", partition.Fstype))
 		}
@@ -93,9 +94,7 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		}
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 		tags = append(tags, fmt.Sprintf("device_name:%s", filepath.Base(partition.Device)))
-
 		tags = c.applyDeviceTags(partition.Device, partition.Mountpoint, tags)
-
 		c.sendPartitionMetrics(sender, usage, tags)
 	}
 

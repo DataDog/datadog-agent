@@ -38,6 +38,7 @@ type diskConfig struct {
 	allPartitions       bool
 	deviceTagRe         map[*regexp.Regexp][]string
 	allDevices          bool
+	minDiskSize         uint64
 }
 
 func NewDiskConfig() *diskConfig {
@@ -53,6 +54,7 @@ func NewDiskConfig() *diskConfig {
 		allPartitions:       false,
 		deviceTagRe:         make(map[*regexp.Regexp][]string),
 		allDevices:          true,
+		minDiskSize:         0,
 	}
 }
 
@@ -109,6 +111,10 @@ func (c *Check) diskConfigure(data integration.Data, initConfig integration.Data
 	allPartitions, found := unmarshalledInstanceConfig["all_partitions"]
 	if allPartitions, ok := allPartitions.(bool); found && ok {
 		c.cfg.allPartitions = allPartitions
+	}
+	minDiskSize, found := unmarshalledInstanceConfig["min_disk_size"]
+	if minDiskSize, ok := minDiskSize.(int); found && ok {
+		c.cfg.minDiskSize = uint64(minDiskSize)
 	}
 	err = c.configureExcludeDevice(unmarshalledInstanceConfig, unmarshalledInitConfig)
 	if err != nil {
