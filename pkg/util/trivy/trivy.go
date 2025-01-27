@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
@@ -33,10 +32,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/walker"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/aquasecurity/trivy/pkg/scanner"
-	"github.com/aquasecurity/trivy/pkg/scanner/langpkg"
-	"github.com/aquasecurity/trivy/pkg/scanner/ospkg"
 	"github.com/aquasecurity/trivy/pkg/types"
-	"github.com/aquasecurity/trivy/pkg/vulnerability"
 
 	// This is required to load sqlite based RPM databases
 	_ "modernc.org/sqlite"
@@ -64,9 +60,6 @@ type Collector struct {
 	config           collectorConfig
 	cacheInitialized sync.Once
 	persistentCache  CacheWithCleaner
-	osScanner        ospkg.Scanner
-	langScanner      langpkg.Scanner
-	vulnClient       vulnerability.Client
 	marshaler        cyclonedx.Marshaler
 	wmeta            option.Option[workloadmeta.Component]
 }
@@ -158,11 +151,8 @@ func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Compone
 			maxCacheSize:      cfg.GetInt("sbom.cache.max_disk_size"),
 			overlayFSSupport:  cfg.GetBool("sbom.container_image.overlayfs_direct_scan"),
 		},
-		osScanner:   ospkg.NewScanner(),
-		langScanner: langpkg.NewScanner(),
-		vulnClient:  vulnerability.NewClient(db.Config{}),
-		marshaler:   cyclonedx.NewMarshaler(""),
-		wmeta:       wmeta,
+		marshaler: cyclonedx.NewMarshaler(""),
+		wmeta:     wmeta,
 	}, nil
 }
 
