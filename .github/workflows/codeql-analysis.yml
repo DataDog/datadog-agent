@@ -45,7 +45,7 @@ jobs:
           go-version-file: ".go-version"
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@df409f7d9260372bd5f19e5b04e83cb3c43714ae # v3.27.9
+        uses: github/codeql-action/init@4e83f6b818d7c9f52143570963b2c7f7f055decb # v3.28.6
         with:
           languages: ${{ matrix.language }}
           config: |
@@ -67,4 +67,4 @@ jobs:
           invoke agent.build --build-exclude=systemd
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@df409f7d9260372bd5f19e5b04e83cb3c43714ae # v3.27.9
+        uses: github/codeql-action/analyze@4e83f6b818d7c9f52143570963b2c7f7f055decb # v3.28.6
