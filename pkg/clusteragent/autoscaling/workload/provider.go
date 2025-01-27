@@ -53,9 +53,6 @@ func StartWorkloadAutoscaling(
 	podPatcher := newPODPatcher(store, le.IsLeader, apiCl.DynamicCl, eventRecorder)
 	podWatcher := newPodWatcher(wlm, podPatcher)
 	localRecommender := local.NewRecommender(podWatcher, store)
-	if err != nil {
-		return nil, fmt.Errorf("Unable to start workload autoscaling interface: %w", err)
-	}
 
 	_, err = newConfigRetriever(store, le.IsLeader, rcClient)
 	if err != nil {
