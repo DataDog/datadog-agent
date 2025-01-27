@@ -40,54 +40,6 @@ var basicCaptures = fixtures{
 	// "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_float64": {"x": capturedValue("float", "-1.646464")},
 }
 
-var multiParamCaptures = fixtures{ //nolint:unused // TODO
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_multiple_simple_params": {
-		"a": capturedValue("bool", "false"),
-		"b": capturedValue("uint8", "42"),
-		"c": capturedValue("int32", "122"),
-		"d": capturedValue("uint", "1337"),
-		"e": capturedValue("string", "xyz"),
-	},
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_multiple_composite_params": {
-		"a": {Type: "array", Fields: fieldMap{
-			"a_0": capturedValue("string", "one"),
-			"a_1": capturedValue("string", "two"),
-			"a_2": capturedValue("string", "three"),
-		}},
-		"b": {Type: "struct", Fields: fieldMap{
-			"aBool":   capturedValue("bool", "false"),
-			"aString": capturedValue("string", ""),
-			"aNumber": capturedValue("int", "0"),
-			"nested": {Type: "struct", Fields: fieldMap{
-				"anotherInt":    capturedValue("int", "0"),
-				"anotherString": capturedValue("string", ""),
-			}},
-		}},
-		"c": {Type: "slice", Fields: fieldMap{
-			"c_0": capturedValue("uint", "24"),
-			"c_1": capturedValue("uint", "42"),
-		}},
-		"d": {Type: "map", Fields: fieldMap{
-			"foo": capturedValue("string", "bar"),
-		}},
-		"e": {Type: "slice", Fields: fieldMap{
-			"e_0": {Type: "struct", Fields: fieldMap{
-				"anotherInt":    capturedValue("int", "42"),
-				"anotherString": capturedValue("string", "ftwo"),
-			}},
-			"e_1": {Type: "struct", Fields: fieldMap{
-				"anotherInt":    capturedValue("int", "24"),
-				"anotherString": capturedValue("string", "tfour"),
-			}},
-		}},
-	},
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_combined_byte": {
-		"w": capturedValue("uint8", "2"),
-		"x": capturedValue("uint8", "3"),
-		"y": capturedValue("uint8", "3.0"),
-	},
-}
-
 var stringCaptures = fixtures{
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_string": {"x": capturedValue("string", "abc")},
 }
@@ -235,32 +187,6 @@ var structCaptures = fixtures{
 				"anotherInt":    capturedValue("int", "3"),
 				"anotherString": capturedValue("string", "four"),
 			}},
-		}},
-	}}},
-}
-
-// TODO: this doesn't work yet:
-// could not determine locations of variables from debug information could not inspect param "x" on function: no location field in parameter entry
-var genericCaptures = fixtures{ //nolint:unused // TODO
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.typeWithGenerics[go.shape.string].Guess": {"value": capturedValue("string", "generics work")},
-}
-
-// TODO: check how map entries should be represented, likely that entries have key / value pair fields
-// instead of having the keys hardcoded as string field names
-// maps are no supported at the moment so this fails anyway
-var mapCaptures = fixtures{ //nolint:unused // TODO
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_map_string_to_int": {"m": {Type: "map", Fields: fieldMap{
-		"foo": capturedValue("int", "1"),
-		"bar": capturedValue("int", "2"),
-	}}},
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_map_string_to_struct": {"m": {Type: "map", Fields: fieldMap{
-		"foo": {Type: "struct", Fields: fieldMap{
-			"anotherInt":    capturedValue("int", "3"),
-			"anotherString": capturedValue("string", "four"),
-		}},
-		"bar": {Type: "struct", Fields: fieldMap{
-			"anotherInt":    capturedValue("int", "3"),
-			"anotherString": capturedValue("string", "four"),
 		}},
 	}}},
 }

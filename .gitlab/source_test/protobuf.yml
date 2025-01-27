@@ -5,4 +5,4 @@ protobuf_test:
   needs: []
   script:
     - inv install-tools
-    - inv -e generate-protobuf
+    - inv -e protobuf.generate

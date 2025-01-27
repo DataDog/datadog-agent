@@ -57,11 +57,6 @@ var (
 		env: []string{},
 		cwd: "",
 	}
-	procTestService1DifferentPID = testProc{
-		pid: 102,
-		env: []string{},
-		cwd: "",
-	}
 )
 
 var (
@@ -95,21 +90,6 @@ var (
 		APMInstrumentation:         string(apm.None),
 		RSS:                        200 * 1024 * 1024,
 		CPUCores:                   1.5,
-		CommandLine:                []string{"test-service-1"},
-		StartTimeMilli:             procLaunchedMilli,
-		ContainerID:                dummyContainerID,
-	}
-	portTCP8080DifferentPID = model.Service{
-		PID:                        procTestService1DifferentPID.pid,
-		Name:                       "test-service-1",
-		GeneratedName:              "test-service-1-generated",
-		GeneratedNameSource:        "test-service-1-generated-source",
-		ContainerServiceName:       "test-service-1-container",
-		ContainerServiceNameSource: "service",
-		DDService:                  "test-service-1",
-		DDServiceInjected:          true,
-		Ports:                      []uint16{8080},
-		APMInstrumentation:         string(apm.Injected),
 		CommandLine:                []string{"test-service-1"},
 		StartTimeMilli:             procLaunchedMilli,
 		ContainerID:                dummyContainerID,
@@ -498,91 +478,6 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:         "none",
 						RSSMemory:                  100 * 1024 * 1024,
 						CPUCores:                   1.5,
-						ContainerID:                dummyContainerID,
-					},
-				},
-			},
-		},
-		{
-			// in case we detect a service is restarted, we skip the stop event and send
-			// another start event instead.
-			name: "restart_service",
-			checkRun: []*checkRun{
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080,
-					}},
-					time: calcTime(0),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080,
-					}},
-					time: calcTime(1 * time.Minute),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080DifferentPID,
-					}},
-					time: calcTime(21 * time.Minute),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080DifferentPID,
-					}},
-					time: calcTime(22 * time.Minute),
-				},
-			},
-			wantEvents: []*event{
-				{
-					RequestType: "start-service",
-					APIVersion:  "v2",
-					Payload: &eventPayload{
-						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
-						GeneratedServiceName:       "test-service-1-generated",
-						GeneratedServiceNameSource: "test-service-1-generated-source",
-						ContainerServiceName:       "test-service-1-container",
-						ContainerServiceNameSource: "service",
-						DDService:                  "test-service-1",
-						ServiceNameSource:          "injected",
-						ServiceType:                "web_service",
-						HostName:                   host,
-						Env:                        "",
-						StartTime:                  calcTime(0).Unix(),
-						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(1 * time.Minute).Unix(),
-						Ports:                      []uint16{8080},
-						PID:                        99,
-						CommandLine:                []string{"test-service-1"},
-						APMInstrumentation:         "none",
-						RSSMemory:                  100 * 1024 * 1024,
-						CPUCores:                   1.5,
-						ContainerID:                dummyContainerID,
-					},
-				},
-				{
-					RequestType: "start-service",
-					APIVersion:  "v2",
-					Payload: &eventPayload{
-						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
-						GeneratedServiceName:       "test-service-1-generated",
-						GeneratedServiceNameSource: "test-service-1-generated-source",
-						ContainerServiceName:       "test-service-1-container",
-						ContainerServiceNameSource: "service",
-						DDService:                  "test-service-1",
-						ServiceNameSource:          "injected",
-						ServiceType:                "web_service",
-						HostName:                   host,
-						Env:                        "",
-						StartTime:                  calcTime(0).Unix(),
-						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(22 * time.Minute).Unix(),
-						Ports:                      []uint16{8080},
-						PID:                        102,
-						CommandLine:                []string{"test-service-1"},
-						APMInstrumentation:         "injected",
 						ContainerID:                dummyContainerID,
 					},
 				},

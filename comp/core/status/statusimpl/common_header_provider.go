@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -73,6 +74,7 @@ func (h *headerProvider) HTML(_ bool, buffer io.Writer) error {
 func (h *headerProvider) data() map[string]interface{} {
 	data := maps.Clone(h.constdata)
 	data["time_nano"] = nowFunc().UnixNano()
+	data["fips_status"] = fips.Status()
 	data["config"] = populateConfig(h.config)
 	return data
 }

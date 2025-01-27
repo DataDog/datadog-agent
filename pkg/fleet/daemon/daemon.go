@@ -552,6 +552,10 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 
 	case methodUninstallPackage:
 		log.Infof("Installer: Received remote request %s to uninstall package %s", request.ID, request.Package)
+		if request.Package == "datadog-installer" || request.Package == "datadog-agent" {
+			log.Infof("Installer: Can't uninstall the package %s", request.Package)
+			return nil
+		}
 		return d.remove(ctx, request.Package)
 
 	case methodStartExperiment:
