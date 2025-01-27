@@ -100,7 +100,7 @@ func (c *Check) diskConfigure(data integration.Data, initConfig integration.Data
 	if err != nil {
 		return err
 	}
-	err = c.configureExcludeFileSystem(unmarshalledInstanceConfig)
+	err = c.configureExcludeFileSystem(unmarshalledInstanceConfig, unmarshalledInitConfig)
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func (c *Check) diskConfigure(data integration.Data, initConfig integration.Data
 	if err != nil {
 		return err
 	}
-	err = c.configureExcludeMountPoint(unmarshalledInstanceConfig)
+	err = c.configureExcludeMountPoint(unmarshalledInstanceConfig, unmarshalledInitConfig)
 	if err != nil {
 		return err
 	}
@@ -197,9 +197,22 @@ func (c *Check) configureIncludeDevice(instanceConfig map[interface{}]interface{
 	return nil
 }
 
-func (c *Check) configureExcludeFileSystem(conf map[interface{}]interface{}) error {
+func (c *Check) configureExcludeFileSystem(instanceConfig map[interface{}]interface{}, initConfig map[interface{}]interface{}) error {
+	for _, key := range []string{"file_system_global_exclude", "file_system_global_blacklist"} {
+		if fileSystemExclude, ok := initConfig[key].([]interface{}); ok {
+			for _, val := range fileSystemExclude {
+				if strVal, ok := val.(string); ok {
+					regexp, err := regexp.Compile(strVal)
+					if err != nil {
+						return err
+					}
+					c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, *regexp)
+				}
+			}
+		}
+	}
 	for _, key := range []string{"file_system_exclude", "file_system_blacklist", "excluded_filesystems"} {
-		if fileSystemExclude, ok := conf[key].([]interface{}); ok {
+		if fileSystemExclude, ok := instanceConfig[key].([]interface{}); ok {
 			for _, val := range fileSystemExclude {
 				if strVal, ok := val.(string); ok {
 					regexp, err := regexp.Compile(strVal)
@@ -237,9 +250,9 @@ func (c *Check) configureIncludeFileSystem(conf map[interface{}]interface{}) err
 	return nil
 }
 
-func (c *Check) configureExcludeMountPoint(conf map[interface{}]interface{}) error {
-	for _, key := range []string{"mount_point_exclude", "mount_point_blacklist"} {
-		if mountPointExclude, ok := conf[key].([]interface{}); ok {
+func (c *Check) configureExcludeMountPoint(instanceConfig map[interface{}]interface{}, initConfig map[interface{}]interface{}) error {
+	for _, key := range []string{"mount_point_global_exclude", "mount_point_global_blacklist"} {
+		if mountPointExclude, ok := initConfig[key].([]interface{}); ok {
 			for _, val := range mountPointExclude {
 				if strVal, ok := val.(string); ok {
 					regexp, err := regexp.Compile(strVal)
@@ -251,7 +264,20 @@ func (c *Check) configureExcludeMountPoint(conf map[interface{}]interface{}) err
 			}
 		}
 	}
-	excludedMountPointRe, found := conf["excluded_mountpoint_re"] //Maintained for backwards compatibility. It would now be easier to add regular expressions to the 'device_exclude' list key
+	for _, key := range []string{"mount_point_exclude", "mount_point_blacklist"} {
+		if mountPointExclude, ok := instanceConfig[key].([]interface{}); ok {
+			for _, val := range mountPointExclude {
+				if strVal, ok := val.(string); ok {
+					regexp, err := regexp.Compile(strVal)
+					if err != nil {
+						return err
+					}
+					c.cfg.excludedMountpoints = append(c.cfg.excludedMountpoints, *regexp)
+				}
+			}
+		}
+	}
+	excludedMountPointRe, found := instanceConfig["excluded_mountpoint_re"] //Maintained for backwards compatibility. It would now be easier to add regular expressions to the 'device_exclude' list key
 	if excludedMountPointRe, ok := excludedMountPointRe.(string); found && ok {
 		var err error
 		regexp, err := regexp.Compile(excludedMountPointRe)
