@@ -227,6 +227,15 @@ type LinuxBinprm struct {
 	FileEvent FileEvent `field:"file"`
 }
 
+// SetInterpreterFields set the proper field so that this will be seen as a valid interpreter, see HasInterpreter
+func SetInterpreterFields(bprm *LinuxBinprm, subField string, value interface{}) (bool, error) {
+	// set a fake inode so that the interpreter becomes valid
+	if bprm.FileEvent.Inode == 0 && subField != "file.inode" {
+		bprm.FileEvent.Inode = fakeInodeMSW
+	}
+	return true, nil
+}
+
 // Process represents a process
 type Process struct {
 	PIDContext
@@ -239,9 +248,9 @@ type Process struct {
 	SpanID  uint64        `field:"-"`
 	TraceID utils.TraceID `field:"-"`
 
-	TTYName     string      `field:"tty_name"`                         // SECLDoc[tty_name] Definition:`Name of the TTY associated with the process`
-	Comm        string      `field:"comm"`                             // SECLDoc[comm] Definition:`Comm attribute of the process`
-	LinuxBinprm LinuxBinprm `field:"interpreter,check:HasInterpreter"` // Script interpreter as identified by the shebang
+	TTYName     string      `field:"tty_name"`                                                          // SECLDoc[tty_name] Definition:`Name of the TTY associated with the process`
+	Comm        string      `field:"comm"`                                                              // SECLDoc[comm] Definition:`Comm attribute of the process`
+	LinuxBinprm LinuxBinprm `field:"interpreter,check:HasInterpreter,set_handler:SetInterpreterFields"` // Script interpreter as identified by the shebang
 
 	// pid_cache_t
 	ForkTime time.Time `field:"fork_time,opts:getters_only|gen_getters"`
@@ -269,7 +278,7 @@ type Process struct {
 
 	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
 	Argv0         string   `field:"argv0,handler:ResolveProcessArgv0,weight:100"`                                                                                                                                                                                        // SECLDoc[argv0] Definition:`First argument of the process`
-	Args          string   `field:"args,handler:ResolveProcessArgs,weight:500,opts:skip_ad"`                                                                                                                                                                             // SECLDoc[args] Definition:`Arguments of the process (as a string, excluding argv0)` Example:`exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.args =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
+	Args          string   `field:"args,handler:ResolveProcessArgs,weight:500,opts:skip_ad|readonly"`                                                                                                                                                                    // SECLDoc[args] Definition:`Arguments of the process (as a string, excluding argv0)` Example:`exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.args =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
 	Argv          []string `field:"argv,handler:ResolveProcessArgv,weight:500; cmdargv,handler:ResolveProcessCmdArgv,opts:getters_only|gen_getters; args_flags,handler:ResolveProcessArgsFlags,opts:helper; args_options,handler:ResolveProcessArgsOptions,opts:helper"` // SECLDoc[argv] Definition:`Arguments of the process (as an array, excluding argv0)` Example:`exec.argv in ["127.0.0.1"]` Description:`Matches any process that has this IP address as one of its arguments.` SECLDoc[args_flags] Definition:`Flags in the process arguments` Example:`exec.args_flags in ["s"] && exec.args_flags in ["V"]` Description:`Matches any process with both "-s" and "-V" flags in its arguments. Also matches "-sV".` SECLDoc[args_options] Definition:`Argument of the process as options` Example:`exec.args_options in ["p=0-1024"]` Description:`Matches any process that has either "-p 0-1024" or "--p=0-1024" in its arguments.`
 	ArgsTruncated bool     `field:"args_truncated,handler:ResolveProcessArgsTruncated"`                                                                                                                                                                                  // SECLDoc[args_truncated] Definition:`Indicator of arguments truncation`
 	Envs          []string `field:"envs,handler:ResolveProcessEnvs,weight:100"`                                                                                                                                                                                          // SECLDoc[envs] Definition:`Environment variable names of the process`
@@ -809,7 +818,8 @@ type NetworkFlowMonitorEvent struct {
 
 // FlowsIterator defines an iterator of flows
 type FlowsIterator struct {
-	prev int
+	Element interface{} // not used, direct access from the event
+	prev    int
 }
 
 // Front returns the first element

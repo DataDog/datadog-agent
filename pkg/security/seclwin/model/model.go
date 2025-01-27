@@ -504,17 +504,14 @@ func NewProcessCacheEntry(coreRelease func(_ *ProcessCacheEntry)) *ProcessCacheE
 
 // ProcessAncestorsIterator defines an iterator of ancestors
 type ProcessAncestorsIterator struct {
-	prev *ProcessCacheEntry
+	Element *ProcessCacheEntry
+	prev    *ProcessCacheEntry
 }
 
 // Front returns the first element
 func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) *ProcessCacheEntry {
-	if front := ctx.Event.(*Event).ProcessContext.Ancestor; front != nil {
-		it.prev = front
-		return front
-	}
-
-	return nil
+	it.prev = it.Element
+	return it.prev
 }
 
 // Next returns the next element
@@ -575,6 +572,14 @@ type ProcessContext struct {
 
 	Parent   *Process           `field:"parent,opts:exposed_at_event_root_only,check:HasParent"`
 	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`
+}
+
+// SetAncestorFields force the process cache entry to be valid
+func SetAncestorFields(pce *ProcessCacheEntry, subField string, value interface{}) (bool, error) {
+	if subField != "is_kworker" {
+		pce.IsKworker = false
+	}
+	return true, nil
 }
 
 // ExitEvent represents a process exit event
