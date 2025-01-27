@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	pollingInterval           = 180 * time.Second
+	pollingInterval           = 30 * time.Second
 	localRecommenderID string = "lr"
 )
 
