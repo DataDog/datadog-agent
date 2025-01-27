@@ -362,6 +362,7 @@ func (ia *inventoryagent) fetchECSFargateAgentMetadata() {
 }
 
 func (ia *inventoryagent) fetchHaAgentMetadata() {
+	ia.data["ha_agent_enabled"] = ia.haAgent.Enabled()
 	ia.data["ha_agent_state"] = ia.haAgent.GetState()
 }
 

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -668,26 +669,59 @@ dynamic_instrumentation:
 }
 
 func TestFetchHaAgentAgent(t *testing.T) {
-	haAgentMock := haagentmock.Module()
+	tests := []struct {
+		name           string
+		haAgentEnabled bool
+		haAgentState   haagent.State
+	}{
+		{
+			name:           "enabled - active",
+			haAgentEnabled: true,
+			haAgentState:   haagent.Active,
+		},
+		{
+			name:           "enabled - standby",
+			haAgentEnabled: true,
+			haAgentState:   haagent.Standby,
+		},
+		{
+			name:           "enabled - unknown",
+			haAgentEnabled: true,
+			haAgentState:   haagent.Unknown,
+		},
+		{
+			name:           "disabled - Unknown",
+			haAgentEnabled: true,
+			haAgentState:   haagent.Unknown,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// GIVEN
+			haAgentMock := haagentmock.NewMockHaAgent().(haagentmock.Component)
+			p := newInventoryAgentProvider(
+				fxutil.Test[dependencies](
+					t,
+					fx.Provide(func() log.Component { return logmock.New(t) }),
+					config.MockModule(),
+					sysprobeconfig.NoneModule(),
+					fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
+					authtokenimpl.Module(),
+					fx.Provide(func() haagent.Component { return haAgentMock }),
+				),
+			)
+			ia := p.Comp.(*inventoryagent)
 
-	// Testing an inventoryagent without system-probe object
-	p := newInventoryAgentProvider(
-		fxutil.Test[dependencies](
-			t,
-			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
-			sysprobeconfig.NoneModule(),
-			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			authtokenimpl.Module(),
-			haagentmock.Module(),
-			haAgentMock,
-		),
-	)
-	ia := p.Comp.(*inventoryagent)
-	ia.fetchHaAgentMetadata()
+			// WHEN
+			haAgentMock.SetEnabled(tt.haAgentEnabled)
+			haAgentMock.SetState(tt.haAgentState)
+			ia.fetchHaAgentMetadata()
 
-	assert.True(t, ia.data["feature_cws_enabled"].(bool))
-
+			// THEN
+			assert.Equal(t, tt.haAgentEnabled, ia.data["ha_agent_enabled"].(bool))
+			assert.Equal(t, tt.haAgentState, ia.data["ha_agent_state"].(haagent.State))
+		})
+	}
 }
 
 func TestGetProvidedConfigurationDisable(t *testing.T) {
