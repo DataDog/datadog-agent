@@ -71,6 +71,15 @@ func adjustUSM(cfg model.Config) {
 	applyDefault(cfg, smNS("max_postgres_stats_buffered"), 100000)
 	applyDefault(cfg, smNS("max_redis_stats_buffered"), 100000)
 
+	// kernel_buffer_pages determines the number of pages allocated *per CPU*
+	// for buffering kernel data, whether using a perf buffer or a ring buffer.
+	applyDefault(cfg, smNS("kernel_buffer_pages"), 16)
+
+	// data_channel_size defines the size of the Go channel that buffers events.
+	// Each event has a fixed size of approximately 4KB (sizeof(batch_data_t)).
+	// By setting this value to 100, the channel will buffer up to ~400KB of data in the Go heap memory.
+	applyDefault(cfg, smNS("data_channel_size"), 100)
+
 	validateInt(cfg, smNS("http_notification_threshold"), cfg.GetInt(smNS("max_tracked_http_connections"))/2, func(v int) error {
 		limit := cfg.GetInt(smNS("max_tracked_http_connections"))
 		if v >= limit {

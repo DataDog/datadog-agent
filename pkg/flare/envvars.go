@@ -108,6 +108,7 @@ var allowedEnvvarNames = []string{
 	"DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES",
 	"DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES",
 	"DD_APM_OBFUSCATION_CACHE_ENABLED",
+	"DD_APM_SQL_OBFUSCATION_MODE",
 	"DD_APM_OBFUSCATION_CACHE_MAX_SIZE",
 	"DD_APM_DEBUG_PORT",
 	"DD_APM_INSTRUMENTATION_ENABLED",
@@ -160,9 +161,9 @@ func getAllowedEnvvars() []string {
 	return found
 }
 
-// getEnvVars collects allowed envvars that can affect the agent's
+// GetEnvVars collects allowed envvars that can affect the agent's
 // behaviour while not being handled by viper, in addition to the envvars handled by viper
-func getEnvVars() ([]byte, error) {
+func GetEnvVars() ([]byte, error) {
 	envvars := getAllowedEnvvars()
 
 	var b bytes.Buffer

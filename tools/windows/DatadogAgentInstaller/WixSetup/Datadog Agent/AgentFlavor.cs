@@ -1,3 +1,4 @@
+using Datadog.CustomActions;
 using System;
 
 namespace WixSetup.Datadog_Agent
@@ -35,6 +36,7 @@ namespace WixSetup.Datadog_Agent
 
     internal interface IAgentFlavor
     {
+        string FlavorName { get; }
         string ProductFullName { get; }
         Guid UpgradeCode { get; }
         string ProductDescription { get; }
@@ -52,6 +54,7 @@ namespace WixSetup.Datadog_Agent
             _agentNameSuffix = Environment.GetEnvironmentVariable("AGENT_PRODUCT_NAME_SUFFIX");
         }
 
+        public string FlavorName => Constants.FipsFlavor;
         public string ProductFullName => "Datadog FIPS Agent";
         public Guid UpgradeCode => new("de421174-9615-4fe9-b8a8-2b3f123bdc4f");
         public string ProductDescription => $"Datadog FIPS Agent {_agentVersion.PackageVersion}";
@@ -69,6 +72,7 @@ namespace WixSetup.Datadog_Agent
             _agentNameSuffix = Environment.GetEnvironmentVariable("AGENT_PRODUCT_NAME_SUFFIX");
         }
 
+        public string FlavorName => Constants.BaseFlavor;
         public string ProductFullName => "Datadog Agent";
         public Guid UpgradeCode => new("0c50421b-aefb-4f15-a809-7af256d608a5");
         public string ProductDescription => $"Datadog Agent {_agentVersion.PackageVersion}";

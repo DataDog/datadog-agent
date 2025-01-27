@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // AddColdStartMetric adds the coldstart metric to the demultiplexer
@@ -29,6 +30,10 @@ func AddShutdownMetric(metricPrefix string, tags []string, _ time.Time, demux ag
 }
 
 func add(name string, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
+	if demux == nil {
+		log.Debugf("Cannot add metric %s, the metric agent is not running", name)
+		return
+	}
 	metricTimestamp := float64(timestamp.UnixNano()) / float64(time.Second)
 	demux.AggregateSample(metrics.MetricSample{
 		Name:       name,

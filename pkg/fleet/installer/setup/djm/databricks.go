@@ -121,6 +121,7 @@ func setupCommonHostTags(s *common.Setup) {
 		return clusterNameRegex.ReplaceAllString(v, "_")
 	})
 	setIfExists(s, "DB_CLUSTER_ID", "databricks_cluster_id", nil)
+	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
 
 	// dupes for backward compatibility
 	setIfExists(s, "DB_CLUSTER_ID", "cluster_id", nil)
@@ -133,6 +134,7 @@ func setupCommonHostTags(s *common.Setup) {
 		setHostTag(s, "jobid", jobID)
 		setHostTag(s, "runid", runID)
 	}
+	setHostTag(s, "data_workload_monitoring_trial", "true")
 }
 
 func getJobAndRunIDs() (jobID, runID string, ok bool) {

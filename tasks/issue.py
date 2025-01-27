@@ -43,40 +43,6 @@ def generate_model(_):
     fetch_data_and_train_model()
 
 
-WAVES = [
-    "wave",
-    "waveboi",
-    "wastelands-wave",
-    "wave_hello",
-    "wave-hokusai",
-    "wave_moomin",
-    "wave2",
-    "wave3",
-    "wallee-wave",
-    "vaporeon_wave",
-    "turtle-wave",
-    "softwave",
-    "shiba-wave",
-    "minion-wave",
-    "meow_wave_comfy",
-    "mario-wave",
-    "link-wave",
-    "kirby_wave",
-    "frog-wave",
-    "fox_wave",
-    "duckwave",
-    "cyr-wave",
-    "cozy-wave",
-    "cat-wave",
-    "capy-wave",
-    "bufo-wave",
-    "bongo-wave",
-    "blobwave",
-    "birb-wave",
-    "arnaud-wave",
-]
-
-
 @task
 def ask_reviews(_, pr_id):
     gh = GithubAPI()
@@ -88,14 +54,16 @@ def ask_reviews(_, pr_id):
         from slack_sdk import WebClient
 
         client = WebClient(os.environ['SLACK_API_TOKEN'])
+        emojis = client.emoji_list()
+        waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
         for reviewer in reviewers:
             channel = next(
                 (chan for team, chan in GITHUB_SLACK_REVIEW_MAP.items() if team.casefold() == reviewer.casefold()),
                 HELP_SLACK_CHANNEL,
             )
-            message = f'Hello :{random.choice(WAVES)}:!\n*{actor}* would like you to review <{pr.html_url}/s|{pr.title}>?\nThanks in advance!'
+            message = f'Hello :{random.choice(waves)}:!\n*{actor}* is asking review for PR <{pr.html_url}/s|{pr.title}>.\nCould you please have a look?\nThanks in advance!'
             if channel == HELP_SLACK_CHANNEL:
-                message = f'Hello :{random.choice(WAVES)}:!\nA review channel is missing for {reviewer}, can you please ask them to update `github_slack_review_map.yaml` and transfer them this review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
+                message = f'Hello :{random.choice(waves)}:!\nA review channel is missing for {reviewer}, can you please ask them to update `github_slack_review_map.yaml` and transfer them this review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
             try:
                 client.chat_postMessage(channel=channel, text=message)
             except Exception as e:

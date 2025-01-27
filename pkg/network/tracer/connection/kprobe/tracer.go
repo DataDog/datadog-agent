@@ -31,12 +31,16 @@ import (
 
 const probeUID = "net"
 
-type TracerType int //nolint:revive // TODO
+// TracerType is the type of tracer
+type TracerType int
 
 const (
-	TracerTypePrebuilt        TracerType = iota //nolint:revive // TODO
-	TracerTypeRuntimeCompiled                   //nolint:revive // TODO
-	TracerTypeCORE                              //nolint:revive // TODO
+	// TracerTypePrebuilt is the prebuilt tracer type
+	TracerTypePrebuilt TracerType = iota
+	// TracerTypeRuntimeCompiled is the runtime compiled tracer type
+	TracerTypeRuntimeCompiled
+	// TracerTypeCORE is the CORE tracer type
+	TracerTypeCORE
 )
 
 var (
@@ -53,6 +57,8 @@ var (
 	tracerOffsetGuesserRunner = offsetguess.TracerOffsets.Offsets
 
 	errCORETracerNotSupported = errors.New("CO-RE tracer not supported on this platform")
+
+	rhel9KernelVersion = kernel.VersionCode(5, 14, 0)
 )
 
 // ClassificationSupported returns true if the current kernel version supports the classification feature.
@@ -71,7 +77,23 @@ func ClassificationSupported(config *config.Config) bool {
 		return false
 	}
 
-	return currentKernelVersion >= classificationMinimumKernel
+	if currentKernelVersion < classificationMinimumKernel {
+		return false
+	}
+
+	// TODO: fix protocol classification is not supported on RHEL 9+
+	family, err := kernel.Family()
+	if err != nil {
+		log.Warnf("could not determine OS family: %s", err)
+		return false
+	}
+
+	if family == "rhel" && currentKernelVersion >= rhel9KernelVersion {
+		log.Warn("protocol classification is currently not supported on RHEL 9+")
+		return false
+	}
+
+	return true
 }
 
 // LoadTracer loads the co-re/prebuilt/runtime compiled network tracer, depending on config

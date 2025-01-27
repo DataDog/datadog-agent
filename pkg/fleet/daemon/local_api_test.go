@@ -41,6 +41,11 @@ func (m *testDaemon) Install(ctx context.Context, url string, installArgs []stri
 	return args.Error(0)
 }
 
+func (m *testDaemon) Remove(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
 func (m *testDaemon) StartExperiment(ctx context.Context, url string) error {
 	args := m.Called(ctx, url)
 	return args.Error(0)
@@ -76,9 +81,9 @@ func (m *testDaemon) GetPackage(pkg string, version string) (Package, error) {
 	return args.Get(0).(Package), args.Error(1)
 }
 
-func (m *testDaemon) GetState() (map[string]repository.State, error) {
+func (m *testDaemon) GetState() (map[string]PackageState, error) {
 	args := m.Called()
-	return args.Get(0).(map[string]repository.State), args.Error(1)
+	return args.Get(0).(map[string]PackageState), args.Error(1)
 }
 
 func (m *testDaemon) GetRemoteConfigState() *pbgo.ClientUpdater {
@@ -126,10 +131,12 @@ func TestAPIStatus(t *testing.T) {
 	api := newTestLocalAPI(t)
 	defer api.Stop()
 
-	installerState := map[string]repository.State{
+	installerState := map[string]PackageState{
 		"pkg1": {
-			Stable:     "1.0.0",
-			Experiment: "2.0.0",
+			Version: repository.State{
+				Stable:     "1.0.0",
+				Experiment: "2.0.0",
+			},
 		},
 	}
 	api.i.On("GetState").Return(installerState, nil)

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 )
 
@@ -106,25 +107,41 @@ func Test_RCListener(t *testing.T) {
 }
 
 func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
-
 	tests := []struct {
 		name                string
+		initialState        haagent.State
 		updates             map[string]state.RawConfig
 		expectedApplyID     string
 		expectedApplyStatus state.ApplyStatus
+		expectedAgentState  haagent.State
 	}{
 		{
-			name: "successful update",
+			name:         "successful update with leader matching current agent",
+			initialState: haagent.Unknown,
 			updates: map[string]state.RawConfig{
-				testConfigID: {Config: []byte(`{"group":"testGroup01","leader":"ha-agent1"}`)},
+				testConfigID: {Config: []byte(`{"group":"testGroup01","leader":"my-agent-hostname"}`)},
 			},
 			expectedApplyID: testConfigID,
 			expectedApplyStatus: state.ApplyStatus{
 				State: state.ApplyStateAcknowledged,
 			},
+			expectedAgentState: haagent.Active,
 		},
 		{
-			name: "invalid payload",
+			name:         "successful update with leader NOT matching current agent",
+			initialState: haagent.Unknown,
+			updates: map[string]state.RawConfig{
+				testConfigID: {Config: []byte(`{"group":"testGroup01","leader":"another-agent-hostname"}`)},
+			},
+			expectedApplyID: testConfigID,
+			expectedApplyStatus: state.ApplyStatus{
+				State: state.ApplyStateAcknowledged,
+			},
+			expectedAgentState: haagent.Standby,
+		},
+		{
+			name:         "invalid payload",
+			initialState: haagent.Unknown,
 			updates: map[string]state.RawConfig{
 				testConfigID: {Config: []byte(`invalid-json`)},
 			},
@@ -133,17 +150,28 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 				State: state.ApplyStateError,
 				Error: "error unmarshalling payload",
 			},
+			expectedAgentState: haagent.Unknown,
 		},
 		{
-			name: "invalid group",
+			name:         "invalid group",
+			initialState: haagent.Unknown,
 			updates: map[string]state.RawConfig{
-				testConfigID: {Config: []byte(`{"group":"invalidGroup","leader":"ha-agent1"}`)},
+				testConfigID: {Config: []byte(`{"group":"invalidGroup","leader":"another-agent-hostname"}`)},
 			},
 			expectedApplyID: testConfigID,
 			expectedApplyStatus: state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: "group does not match",
 			},
+			expectedAgentState: haagent.Unknown,
+		},
+		{
+			name:                "empty update",
+			initialState:        haagent.Active,
+			updates:             map[string]state.RawConfig{},
+			expectedApplyID:     "",
+			expectedApplyStatus: state.ApplyStatus{},
+			expectedAgentState:  haagent.Unknown,
 		},
 	}
 	for _, tt := range tests {
@@ -160,6 +188,10 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 
 			h := newHaAgentImpl(logmock.New(t), newHaAgentConfigs(agentConfigComponent))
 
+			if tt.initialState != "" {
+				h.state.Store(string(tt.initialState))
+			}
+
 			var applyID string
 			var applyStatus state.ApplyStatus
 			applyFunc := func(id string, status state.ApplyStatus) {
@@ -169,6 +201,7 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 			h.onHaAgentUpdate(tt.updates, applyFunc)
 			assert.Equal(t, tt.expectedApplyID, applyID)
 			assert.Equal(t, tt.expectedApplyStatus, applyStatus)
+			assert.Equal(t, tt.expectedAgentState, h.GetState())
 		})
 	}
 }
@@ -248,4 +281,18 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_haAgentImpl_resetAgentState(t *testing.T) {
+	// GIVEN
+	haAgent := newTestHaAgentComponent(t, nil)
+	haAgentComp := haAgent.Comp.(*haAgentImpl)
+	haAgentComp.state.Store(string(haagent.Active))
+	require.Equal(t, haagent.Active, haAgentComp.GetState())
+
+	// WHEN
+	haAgentComp.resetAgentState()
+
+	// THEN
+	assert.Equal(t, haagent.Unknown, haAgentComp.GetState())
 }

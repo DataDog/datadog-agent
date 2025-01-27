@@ -14,6 +14,8 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
+
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 )
 
 func getBasicNvmlDeviceMock() nvml.Device {
@@ -54,22 +56,10 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 		return nil, errors.New("failure")
 	}
 
-	collectors, err := buildCollectors(getBasicNvmlMock(), map[string]subsystemBuilder{"ok": factory, "fail": factory})
+	nvmlMock := getBasicNvmlMock()
+	fakeTagger := taggerMock.SetupFakeTagger(t)
+	deps := &CollectorDependencies{NVML: nvmlMock, Tagger: fakeTagger}
+	collectors, err := buildCollectors(deps, map[string]subsystemBuilder{"ok": factory, "fail": factory})
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
-}
-
-func TestGetTagsFromDeviceGetsTagsEvenIfOneFails(t *testing.T) {
-	device := &nvmlmock.Device{
-		GetUUIDFunc: func() (string, nvml.Return) {
-			return "GPU-123", nvml.SUCCESS
-		},
-		GetNameFunc: func() (string, nvml.Return) {
-			return "", nvml.ERROR_GPU_IS_LOST
-		},
-	}
-
-	result := getTagsFromDevice(device)
-	expected := []string{tagVendor, tagNameUUID + ":GPU-123"}
-	require.ElementsMatch(t, expected, result)
 }
