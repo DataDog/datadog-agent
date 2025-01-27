@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -130,6 +131,39 @@ func (s *fipsAgentSuite) TestFIPSInstall() {
 	cmd := fmt.Sprintf(`& "%s" fipsinstall -module "%s" -in "%s" -verify`, openssl, fipsModule, fipsConf)
 	_, err := host.Execute(cmd)
 	require.NoError(s.T(), err, "MSI should create valid fipsmodule.cnf")
+
+	// assert openssl winctx registry keys exist
+	// https://github.com/openssl/openssl/blob/master/NOTES-WINDOWS.md#installation-directories
+	expectedOpenSSLPaths := map[string]string{
+		"OPENSSLDIR": fmt.Sprintf(`%sembedded3\ssl`, s.installPath),
+		"ENGINESDIR": fmt.Sprintf(`%sembedded3\lib\engines-3`, s.installPath),
+		"MODULESDIR": fmt.Sprintf(`%sembedded3\lib\ossl-modules`, s.installPath),
+	}
+	opensslVersion := "3.4"
+	keyPath := fmt.Sprintf(`HKLM:\SOFTWARE\Wow6432Node\OpenSSL-%s-datadog-fips-agent`, opensslVersion)
+	exists, err := windowsCommon.RegistryKeyExists(host, keyPath)
+	require.NoError(s.T(), err)
+	if assert.True(s.T(), exists, "%s should exist", keyPath) {
+		for name, expected := range expectedOpenSSLPaths {
+			value, err := windowsCommon.GetRegistryValue(host, keyPath, name)
+			if assert.NoError(s.T(), err, "Failed to get %s", name) {
+				assert.Equal(s.T(), expected, value, "Unexpected value for %s", name)
+			}
+			fileInfo, err := host.Lstat(value)
+			if assert.NoError(s.T(), err, "Path %s for %s does not exist", value, name) {
+				assert.True(s.T(), fileInfo.IsDir(), "Path %s for %s is not a directory", value, name)
+			}
+		}
+	}
+
+	// assert that openssl uses the paths from the registry
+	cmd = fmt.Sprintf(`& "%s" version -a`, openssl)
+	out, err := host.Execute(cmd)
+	require.NoError(s.T(), err)
+	for name, expected := range expectedOpenSSLPaths {
+		expected = strings.ReplaceAll(expected, "\\", "/")
+		assert.Contains(s.T(), out, fmt.Sprintf(`%s: "%s"`, name, expected), "Expected %s to be %s", name, expected)
+	}
 }
 
 func (s *fipsAgentSuite) execAgentCommand(command string, options ...client.ExecuteOption) (string, error) {
