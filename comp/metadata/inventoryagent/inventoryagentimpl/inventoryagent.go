@@ -366,7 +366,11 @@ func (ia *inventoryagent) fetchFleetMetadata() {
 }
 
 func (ia *inventoryagent) fetchHaAgentMetadata() {
-	ia.data["ha_agent_enabled"] = ia.haAgent.Enabled()
+	haAgentEnabled := ia.haAgent.Enabled()
+	ia.data["ha_agent_enabled"] = haAgentEnabled
+	if !haAgentEnabled {
+		return
+	}
 	ia.data["ha_agent_state"] = ia.haAgent.GetState()
 }
 

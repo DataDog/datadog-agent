@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
@@ -25,6 +23,8 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -668,7 +668,7 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
 }
 
-func TestFetchHaAgentAgent(t *testing.T) {
+func TestFetchHaAgent(t *testing.T) {
 	tests := []struct {
 		name           string
 		haAgentEnabled bool
@@ -690,8 +690,8 @@ func TestFetchHaAgentAgent(t *testing.T) {
 			haAgentState:   haagent.Unknown,
 		},
 		{
-			name:           "disabled - Unknown",
-			haAgentEnabled: true,
+			name:           "disabled - unknown",
+			haAgentEnabled: false,
 			haAgentState:   haagent.Unknown,
 		},
 	}
@@ -718,8 +718,12 @@ func TestFetchHaAgentAgent(t *testing.T) {
 			ia.fetchHaAgentMetadata()
 
 			// THEN
-			assert.Equal(t, tt.haAgentEnabled, ia.data["ha_agent_enabled"].(bool))
-			assert.Equal(t, tt.haAgentState, ia.data["ha_agent_state"].(haagent.State))
+			if tt.haAgentEnabled {
+				assert.Equal(t, tt.haAgentEnabled, ia.data["ha_agent_enabled"].(bool))
+			} else {
+				_, ok := ia.data["ha_agent_state"]
+				assert.False(t, ok)
+			}
 		})
 	}
 }

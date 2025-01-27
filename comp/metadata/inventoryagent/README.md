@@ -124,6 +124,9 @@ The payload is a JSON dict with the following fields
   - `ecs_fargate_task_arn` - **string**: if the Agent runs in ECS Fargate, contains the Agent's Task ARN. Else, is empty.
   - `ecs_fargate_cluster_name` - **string**: if the Agent runs in ECS Fargate, contains the Agent's cluster name. Else, is empty.
   - `fleet_policies_applied` -- **array of string**: The Fleet Policies that have been applied to the agent, if any. Is empty if no policy is applied.
+  - `config_id` -- **string**: the Fleet Config ID, the configuration value `config_id`.
+  - `ha_agent_enabled` -- **bool**: true if HA Agent is enabled (see: `ha_agent.enabled` config option).
+  - `ha_agent_state` -- **string**: if HA Agent is enabled, contains the HA Agent state.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
