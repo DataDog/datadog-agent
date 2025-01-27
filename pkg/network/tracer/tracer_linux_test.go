@@ -1829,20 +1829,18 @@ func (s *TracerSuite) TestShortWrite() {
 	t := s.T()
 	tr := setupTracer(t, testConfig())
 
+	exit := make(chan struct{})
 	read := make(chan struct{})
-	var closeReadOnce sync.Once
-	closeRead := func() {
-		closeReadOnce.Do(func() {
-			close(read)
-		})
-	}
 
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		// set recv buffer to 0 and don't read
 		// to fill up tcp window
 		err := c.(*net.TCPConn).SetReadBuffer(0)
 		require.NoError(t, err)
-		<-read
+		select {
+		case <-read:
+		case <-exit:
+		}
 
 		_, err = io.Copy(io.Discard, c)
 		require.NoError(t, err)
@@ -1851,7 +1849,7 @@ func (s *TracerSuite) TestShortWrite() {
 	})
 	require.NoError(t, server.Run())
 	t.Cleanup(func() {
-		closeRead()
+		close(exit)
 		server.Shutdown()
 	})
 
@@ -1911,7 +1909,7 @@ func (s *TracerSuite) TestShortWrite() {
 	defer c.Close()
 
 	unix.Shutdown(sk, unix.SHUT_WR)
-	closeRead()
+	close(read)
 	unix.Close(sk)
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
