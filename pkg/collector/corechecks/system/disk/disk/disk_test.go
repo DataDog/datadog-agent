@@ -456,13 +456,26 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturns
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
 	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-	err := diskCheck.Run()
+	err = diskCheck.Run()
 
 	assert.Nil(t, err)
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+
+	w.Flush()
+	assert.Contains(t, b.String(), "Unable to get disk metrics of / mount point")
+	assert.Contains(t, b.String(), "Unable to get disk metrics of /home mount point")
+	assert.Contains(t, b.String(), "Unable to get disk metrics of /run mount point")
+	assert.Contains(t, b.String(), "Unable to get disk metrics of /dev/shm mount point")
+
 }
 
 func TestGivenADiskCheckWithIncludeAllDevicesTrueConfigured_WhenCheckRuns_ThenAllUsageMetricsAreReported(t *testing.T) {
