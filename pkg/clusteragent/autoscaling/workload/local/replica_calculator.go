@@ -45,7 +45,7 @@ func newReplicaCalculator(podWatcher common.PodWatcher) replicaCalculator {
 }
 
 // calculateHorizontalRecommendations is the entrypoint to calculate the horizontal recommendation for a given DatadogPodAutoscaler
-func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAutoscalerInternal, lStore loadstore.Store) (*model.ScalingValues, error) {
+func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAutoscalerInternal, lStore loadstore.Store) (*model.HorizontalScalingValues, error) {
 	currentTime := r.clock.Now()
 
 	// Get current pods for the target
@@ -116,9 +116,7 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 		le.JoinLeaderValue,
 	)
 
-	return &model.ScalingValues{
-		Horizontal: &recommendedReplicas,
-	}, nil
+	return &recommendedReplicas, nil
 }
 
 func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*workloadmeta.KubernetesPod, queryResult loadstore.QueryResult, currentReplicas float64) (int32, utilizationResult, error) {

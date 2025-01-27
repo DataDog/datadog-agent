@@ -67,27 +67,34 @@ func (r *Recommender) process(ctx context.Context) {
 		return
 	}
 
+	// TODO: filter this list to only retrieve autoscalers where local fallback is enabled
 	podAutoscalers := r.store.GetAll()
 
 	for _, podAutoscaler := range podAutoscalers {
-		if podAutoscaler.CustomRecommenderConfiguration() != nil {
-			// TODO: Process custom recommender
-			continue
-		}
-
-		// Lock the store to avoid concurrent writes
-		podAutoscalerInternal, _ := r.store.LockRead(podAutoscaler.ID(), true)
-
 		// Generate local recommendations
-		horizontalRecommendation, err := r.replicaCalculator.calculateHorizontalRecommendations(podAutoscalerInternal, lStore)
-		if err != nil || horizontalRecommendation == nil {
-			log.Debugf("Error calculating horizontal recommendations for pod autoscaler %s: %s", podAutoscalerInternal.ID(), err)
-			r.store.Unlock(podAutoscalerInternal.ID())
-			continue
-		}
-
-		podAutoscalerInternal.UpdateFromLocalValues(*horizontalRecommendation)
-		r.store.UnlockSet(podAutoscalerInternal.ID(), podAutoscalerInternal, localRecommenderID)
-		log.Debugf("Updated local fallback values for pod autoscaler %s", podAutoscalerInternal.ID())
+		horizontalRecommendation, err := r.replicaCalculator.calculateHorizontalRecommendations(podAutoscaler, lStore)
+		r.updateAutoscalerAndUnlock(podAutoscaler.ID(), horizontalRecommendation, err)
+		log.Debugf("Updated local fallback values for pod autoscaler %s", podAutoscaler.ID())
 	}
+}
+
+func (r *Recommender) updateAutoscalerAndUnlock(key string, horizontalRecommendation *model.HorizontalScalingValues, err error) {
+	recommendation := model.ScalingValues{}
+
+	if err != nil {
+		recommendation.HorizontalError = err
+	}
+
+	if horizontalRecommendation != nil {
+		recommendation.Horizontal = horizontalRecommendation
+	}
+
+	podAutoscalerInternal, found := r.store.LockRead(key, true)
+	if !found { // In case the object is deleted in between when we start calculating
+		log.Debugf("Object %s not found in store; local recommendation values not updated", key)
+		r.store.Unlock(key)
+		return
+	}
+	podAutoscalerInternal.UpdateFromLocalValues(recommendation)
+	r.store.UnlockSet(podAutoscalerInternal.ID(), podAutoscalerInternal, localRecommenderID)
 }
