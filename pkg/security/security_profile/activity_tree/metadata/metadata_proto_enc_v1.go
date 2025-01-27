@@ -35,6 +35,8 @@ func ToProto(meta *Metadata) *adproto.Metadata {
 		Size:              meta.Size,
 		Arch:              meta.Arch,
 		Serialization:     meta.Serialization,
+		CgroupId:          string(meta.CGroupContext.CGroupID),
+		CgroupManager:     meta.CGroupContext.CGroupManager,
 	}
 
 	return pmeta

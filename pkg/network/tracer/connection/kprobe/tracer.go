@@ -31,12 +31,16 @@ import (
 
 const probeUID = "net"
 
-type TracerType int //nolint:revive // TODO
+// TracerType is the type of tracer
+type TracerType int
 
 const (
-	TracerTypePrebuilt        TracerType = iota //nolint:revive // TODO
-	TracerTypeRuntimeCompiled                   //nolint:revive // TODO
-	TracerTypeCORE                              //nolint:revive // TODO
+	// TracerTypePrebuilt is the prebuilt tracer type
+	TracerTypePrebuilt TracerType = iota
+	// TracerTypeRuntimeCompiled is the runtime compiled tracer type
+	TracerTypeRuntimeCompiled
+	// TracerTypeCORE is the CORE tracer type
+	TracerTypeCORE
 )
 
 var (

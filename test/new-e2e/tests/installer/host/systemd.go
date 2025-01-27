@@ -113,6 +113,19 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 		h.t.Logf("Blocked on validating: %v", lastSearchedEvents)
 		h.t.Logf("Expected events: %v", events.Events)
 		h.t.Logf("Actual events: %v", logs)
+
+		// Display all journalctl logs from units in the events
+		units := map[string]struct{}{}
+		for _, events := range events.Events {
+			for _, event := range events {
+				units[event.Unit] = struct{}{}
+			}
+		}
+
+		for unit := range units {
+			h.t.Logf("--- Logs for unit %s:", unit)
+			h.remote.MustExecute(fmt.Sprintf("sudo journalctl -xeu %s", unit))
+		}
 	}
 }
 
