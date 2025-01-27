@@ -54,7 +54,7 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	compressionimpl "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
+	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -115,7 +115,7 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		telemetryimpl.Module(),
 		collectorimpl.Module(),
 		// Sending metrics to the backend
-		compressionimpl.Module(),
+		metricscompressionimpl.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
 		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),

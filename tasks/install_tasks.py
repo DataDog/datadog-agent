@@ -107,7 +107,7 @@ def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
 def install_protoc(ctx, version="26.1"):
     """
     Installs the requested version of protoc in the specified folder (by default /usr/local/bin).
-    Required generate the golang code based on .prod (inv generate-protobuf).
+    Required generate the golang code based on .prod (inv protobuf.generate).
     """
 
     if sys.platform == 'win32':

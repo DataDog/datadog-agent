@@ -5,7 +5,7 @@ go 1.22.0
 replace github.com/DataDog/datadog-agent/pkg/util/log => ../log
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/config v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/config v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1
 	github.com/DataDog/zstd v1.5.6
 	github.com/klauspost/compress v1.17.11
@@ -19,8 +19,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.59.0 // indirect

@@ -24,7 +24,7 @@ elsewhere take precedence (`which` is your friend).
 From the repository root run the following:
 
 ```
-inv generate-protobuf
+inv protobuf.generate 
 ```
 
 Those two will generate the protobuf golang definitions _and_ the
