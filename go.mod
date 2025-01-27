@@ -221,7 +221,7 @@ require (
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/golang/protobuf v1.5.4
 	github.com/google/go-cmp v0.6.0
-	github.com/google/go-containerregistry v0.20.2
+	github.com/google/go-containerregistry v0.20.3
 	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.19
 	github.com/google/pprof v0.0.0-20240827171923-fa2c70bbbfe5 // indirect
@@ -392,13 +392,13 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/containerd/continuity v0.4.4 // indirect
 	github.com/containerd/fifo v1.1.0 // indirect
-	github.com/containerd/stargz-snapshotter/estargz v0.15.1 // indirect
+	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
 	github.com/containerd/ttrpc v1.2.5 // indirect
 	github.com/containernetworking/plugins v1.4.1 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/dgryski/go-jump v0.0.0-20211018200510-ba001c3ffce0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
-	github.com/docker/cli v27.4.0+incompatible // indirect
+	github.com/docker/cli v27.5.0+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.2 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
@@ -502,7 +502,7 @@ require (
 	github.com/twmb/franz-go/pkg/kmsg v1.8.0
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect
-	github.com/vbatts/tar-split v0.11.5 // indirect
+	github.com/vbatts/tar-split v0.11.6 // indirect
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
@@ -561,14 +561,14 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/authtoken v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/api/authtoken v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.59.0
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.61.0
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
 	github.com/DataDog/dd-trace-go/v2 v2.0.0-beta.11
 	github.com/NVIDIA/go-nvml v0.12.4-0
@@ -631,12 +631,12 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace v0.59.0
-	github.com/DataDog/datadog-agent/comp/core/log/mock v0.58.0-devel
+	github.com/DataDog/datadog-agent/comp/core/log/mock v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/status v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.61.0
 	github.com/DataDog/datadog-agent/comp/def v0.61.0
@@ -644,7 +644,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.61.0
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.58.0
@@ -656,7 +656,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.61.0
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor v0.59.0
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.57.0-devel.0.20240718200853-81bf3b2e412d
-	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.59.0-rc.6
+	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.61.0
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0
@@ -724,7 +724,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/rds v1.90.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.6
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
-	github.com/containerd/cgroups/v3 v3.0.4
+	github.com/containerd/cgroups/v3 v3.0.5
 	github.com/containerd/typeurl/v2 v2.2.3
 	github.com/dvsekhvalnov/jose2go v1.7.0
 	github.com/elastic/go-seccomp-bpf v1.5.0

@@ -6,27 +6,10 @@
 package servicediscovery
 
 import (
-	"errors"
-
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	metricTagErrorCode       = "error_code"
-	metricTagServiceName     = "service_name"
-	metricTagServiceLanguage = "service_language"
-	metricTagServiceType     = "service_type"
 )
 
 var (
-	metricFailureEvents = telemetry.NewCounterWithOpts(
-		CheckName,
-		"failure_events",
-		[]string{metricTagErrorCode, metricTagServiceName, metricTagServiceLanguage, metricTagServiceType},
-		"Number of times an error or an unexpected event happened.",
-		telemetry.Options{NoDoubleUnderscoreSep: true},
-	)
 	metricDiscoveredServices = telemetry.NewGaugeWithOpts(
 		CheckName,
 		"discovered_services",
@@ -34,25 +17,4 @@ var (
 		"Number of discovered alive services.",
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
-	metricTimeToScan = telemetry.NewHistogramWithOpts(
-		CheckName,
-		"time_to_scan",
-		[]string{},
-		"Time it took to scan services",
-		[]float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
-		telemetry.Options{NoDoubleUnderscoreSep: true},
-	)
 )
-
-func telemetryFromError(err error) {
-	var codeErr errWithCode
-	if errors.As(err, &codeErr) {
-		log.Debugf("sending telemetry for error: %v", err)
-		svc := ServiceMetadata{}
-		if codeErr.svc != nil {
-			svc = *codeErr.svc
-		}
-		tags := []string{string(codeErr.Code()), svc.Name, svc.Language, svc.Type}
-		metricFailureEvents.Inc(tags...)
-	}
-}

@@ -67,7 +67,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/eks v1.51.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.55.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/docker/cli v27.4.0+incompatible
+	github.com/docker/cli v27.5.0+incompatible
 	github.com/docker/docker v27.5.1+incompatible
 	github.com/fatih/color v1.18.0
 	github.com/google/uuid v1.6.0
@@ -279,7 +279,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.61.0
 	github.com/DataDog/datadog-agent/pkg/trace v0.56.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/aws/aws-sdk-go v1.55.6
