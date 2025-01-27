@@ -8,12 +8,12 @@ package metadata
 import (
 	"testing"
 
-	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"go.uber.org/fx"
 
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
