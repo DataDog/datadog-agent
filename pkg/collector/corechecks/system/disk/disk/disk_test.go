@@ -470,6 +470,21 @@ device_exclude:
 	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
 }
 
+func TestGivenADiskCheckWithDeviceGlobalExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	initConfig := integration.Data([]byte(`
+device_global_exclude:
+  - /dev/sda(.*
+`))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
+
+	assert.NotNil(t, err)
+}
+
 func TestGivenADiskCheckWithDeviceExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseDevices(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createCheck()
