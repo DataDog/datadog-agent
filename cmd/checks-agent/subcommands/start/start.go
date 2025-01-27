@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
+	"runtime/debug"
 
 	// _ "net/http/pprof"
 	"os"
@@ -64,6 +66,10 @@ type CLIParams struct {
 	pidfilePath string
 }
 
+type memoryStats struct {
+	heapSize uint64
+}
+
 // MakeCommand returns the start subcommand for the 'dogstatsd' command.
 func MakeCommand() *cobra.Command {
 	cliParams := &CLIParams{}
@@ -72,7 +78,12 @@ func MakeCommand() *cobra.Command {
 		Short: "Start Checks Agent",
 		Long:  `Runs Checks Agent in the foreground`,
 		RunE: func(*cobra.Command, []string) error {
-			return RunChecksAgent(cliParams, "", start)
+			heapSize := getAlloc()
+
+			fmt.Printf("value before Fx components = %d KB\n", heapSize)
+			return RunChecksAgent(cliParams, "", start, memoryStats{
+				heapSize: heapSize,
+			})
 		},
 	}
 
@@ -83,9 +94,10 @@ func MakeCommand() *cobra.Command {
 	return startCmd
 }
 
-func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{}) error {
+func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{}, memstats memoryStats) error {
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
+		fx.Supply(memstats),
 
 		// Configuration
 		fx.Supply(config.NewParams(
@@ -159,6 +171,7 @@ func (c *customClient) Do(req *http.Request) (*http.Response, error) {
 
 func start(
 	cliParams *CLIParams,
+	memoryStats memoryStats,
 	config config.Component,
 	log log.Component,
 	collector collector.Component,
@@ -168,7 +181,17 @@ func start(
 	telemetry telemetry.Component,
 	_ pid.Component,
 ) error {
+	currentheapSize := getAlloc()
+	fmt.Printf("value after Fx components = %d KB\n", currentheapSize)
+	fmt.Printf("heap size delta after components initialization = %d KB\n", heapDelta(memoryStats.heapSize, currentheapSize))
 
+	// Free memory after initializing all components to return memory to the OS
+	// as soon as possible. That way RSS will be lower
+	debug.FreeOSMemory()
+
+	currentheapSize = getAlloc()
+	fmt.Printf("value after FreeOSMemory = %d KB\n", currentheapSize)
+	fmt.Printf("heap size delta after FreeOSMemory = %d KB\n", heapDelta(memoryStats.heapSize, currentheapSize))
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -401,3 +424,19 @@ func startScheduler(ctx context.Context, client *customClient, scheduler *pkgcol
 
 // 	return profiling.Start(profSettings)
 // }
+
+// heapDelta returns the delta in KB between
+// the current heap size and the previous heap size.
+func heapDelta(prev, cur uint64) uint64 {
+	if cur < prev {
+		return 0
+	}
+	return cur - prev
+}
+
+// getAlloc returns the current heap size in KB.
+func getAlloc() uint64 {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	return m.Alloc / 1024
+}
