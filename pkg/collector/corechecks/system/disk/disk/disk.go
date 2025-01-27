@@ -79,6 +79,15 @@ func (c *Check) diskConfigure(data integration.Data, initConfig integration.Data
 		}
 	}
 
+	deprecationsInstanceConf := map[string]string{
+		"file_system_whitelist": "file_system_include",
+	}
+	for oldKey, newKey := range deprecationsInstanceConf {
+		if _, exists := unmarshalledInstanceConfig[oldKey]; exists {
+			log.Warnf("`%s` is deprecated and will be removed in a future release. Please use `%s` instead.", oldKey, newKey)
+		}
+	}
+
 	c.cfg = NewDiskConfig()
 	useMount, found := unmarshalledInstanceConfig["use_mount"]
 	if useMount, ok := useMount.(bool); found && ok {
