@@ -11,17 +11,23 @@ package command
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/kouhin/envflag"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/run"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
+	configcmd "github.com/DataDog/datadog-agent/pkg/cli/subcommands/config"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
-	"go.opentelemetry.io/collector/featuregate"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 const (
@@ -49,6 +55,14 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	commands := []*cobra.Command{
 		run.MakeCommand(globalConfGetter),
 		version.MakeCommand("otel-agent"),
+		configcmd.MakeCommand(func() configcmd.GlobalParams {
+			return configcmd.GlobalParams{
+				ConfFilePath:   globalParams.CoreConfPath,
+				ConfigName:     globalParams.ConfigName,
+				LoggerName:     globalParams.LoggerName,
+				SettingsClient: newSettingsClient,
+			}
+		}),
 	}
 
 	otelAgentCmd := *commands[0] // root cmd is `run()`; indexed at 0
@@ -79,6 +93,15 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	}
 
 	return &otelAgentCmd
+}
+
+func newSettingsClient() (settings.Client, error) {
+	c := util.GetClient(false)
+	agentIPCHost := pkgconfigsetup.Datadog().GetString("agent_ipc.host")
+	agentIPCPort := pkgconfigsetup.Datadog().GetInt("agent_ipc.host")
+	// use the same url as configsync
+	apiConfigURL := fmt.Sprintf("https://%v:%v/config/v1",agentIPCHost, agentIPCPort)
+	return settingshttp.NewClient(c, apiConfigURL, "otel-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
 }
 
 const configFlag = "config"

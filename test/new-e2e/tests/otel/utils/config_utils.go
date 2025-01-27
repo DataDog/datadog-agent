@@ -227,3 +227,18 @@ func validateConfigs(t *testing.T, expectedCfg string, actualCfg string) {
 
 	assert.YAMLEq(t, expectedCfg, actualCfg)
 }
+
+// TestConfigSubcommand tests config subcommand in otel-agent container
+func TestConfigSubcommand(s OTelTestSuite) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+	agent := getAgentPod(s)
+
+	timeout := time.Now().Add(5 * time.Minute)
+	for i := 1; time.Now().Before(timeout); i++ {
+		stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "otel-agent", []string{"otel-agent", "config"})
+		require.NoError(s.T(), err, "Failed to execute otel-agent config")
+		s.T().Logf("otel-agent config returns:\nstderr: %s\nstdout: %s\n", stderr, stdout)
+		time.Sleep(30 * time.Second)
+	}
+}
