@@ -9,7 +9,6 @@ package start
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,8 +24,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -45,17 +42,11 @@ import (
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	noopEventplatformreceiver "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/noop"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfxnoop "github.com/DataDog/datadog-agent/comp/haagent/fx-noop"
-	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	logscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -122,21 +113,21 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		onlycollectorimpl.Module(),
 		// Sending metrics to the backend
 		metricscompressionimpl.Module(),
-		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
-		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
-		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
-		noopEventplatformreceiver.Module(),
-		defaultforwarder.Module(defaultforwarder.NewParams()),
+		// demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
+		// orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
+		// eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
+		// noopEventplatformreceiver.Module(),
+		// defaultforwarder.Module(defaultforwarder.NewParams()),
 		logscompressionimpl.Module(),
 		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
 		// already migrated components to request it.
-		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
-			return demuxInstance.Serializer()
-		}),
+		// fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
+		// 	return demuxInstance.Serializer()
+		// }),
 
-		fx.Provide(func(ms serializer.MetricSerializer) option.Option[serializer.MetricSerializer] {
-			return option.New[serializer.MetricSerializer](ms)
-		}),
+		// fx.Provide(func(ms serializer.MetricSerializer) option.Option[serializer.MetricSerializer] {
+		// 	return option.New[serializer.MetricSerializer](ms)
+		// }),
 		hostnameimpl.Module(),
 		remoteTagger.Module(tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) {
@@ -174,9 +165,9 @@ func start(
 	memoryStats memoryStats,
 	config config.Component,
 	log log.Component,
-	collector collector.Component,
-	demultiplexer demultiplexer.Component,
-	tagger tagger.Component,
+	_ collector.Component,
+	// demultiplexer demultiplexer.Component,
+	_ tagger.Component,
 	authToken authtoken.Component,
 	telemetry telemetry.Component,
 	_ pid.Component,
@@ -213,24 +204,24 @@ func start(
 		return fmt.Errorf("unable to fetch authentication token")
 	}
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
+	// client := &http.Client{
+	// 	Transport: &http.Transport{
+	// 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	// 	},
+	// }
 
-	customClient := &customClient{
-		client: client,
-		token:  token,
-	}
+	// customClient := &customClient{
+	// 	client: client,
+	// 	token:  token,
+	// }
 
 	// TODO: figure out how to initial.ize checks context
 	// check.InitializeInventoryChecksContext(invChecks)
 
-	scheduler := pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, option.None[integrations.Component](), tagger)
+	// scheduler := pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, option.None[integrations.Component](), tagger)
 
 	// // Start the scheduler
-	go startScheduler(ctx, customClient, scheduler, log, config)
+	// go startScheduler(ctx, customClient, scheduler, log, config)
 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh, log)

@@ -20,13 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -281,8 +278,8 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 	py3Linted[checkName] = struct{}{}
 	py3LintedLock.Unlock()
 
-	status := a7TagUnknown
-	metricValue := 0.0
+	// status := a7TagUnknown
+	// metricValue := 0.0
 	if checkFilePath != "" {
 		// __file__ return the .pyc file path
 		if strings.HasSuffix(checkFilePath, ".pyc") {
@@ -291,8 +288,8 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 
 		if strings.TrimSpace(pkgconfigsetup.Datadog().GetString("python_version")) == "3" {
 			// the linter used by validatePython3 doesn't work when run from python3
-			status = a7TagPython3
-			metricValue = 1.0
+			// status = a7TagPython3
+			// metricValue = 1.0
 		} else {
 			// validatePython3 is CPU and memory hungry, make sure we only run one instance of it
 			// at once to avoid CPU and mem usage spikes
@@ -301,13 +298,13 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 			linterLock.Unlock()
 
 			if err != nil {
-				status = a7TagUnknown
+				// status = a7TagUnknown
 				log.Warnf("Failed to validate Python 3 linting for check '%s': '%s'", checkName, err)
 			} else if len(warnings) == 0 {
-				status = a7TagReady
-				metricValue = 1.0
+				// status = a7TagReady
+				// metricValue = 1.0
 			} else {
-				status = a7TagNotReady
+				// status = a7TagNotReady
 				log.Warnf("The Python 3 linter returned warnings for check '%s'. For more details, check the output of the 'status' command or the status page of the Agent GUI).", checkName)
 				statsLock.Lock()
 				defer statsLock.Unlock()
@@ -320,15 +317,15 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 	}
 
 	// add a serie to the aggregator to be sent on every flush
-	tags := []string{
-		fmt.Sprintf("status:%s", status),
-		fmt.Sprintf("check_name:%s", checkName),
-	}
-	tags = append(tags, agentVersionTags...)
-	aggregator.AddRecurrentSeries(&metrics.Serie{
-		Name:   "datadog.agent.check_ready",
-		Points: []metrics.Point{{Value: metricValue}},
-		Tags:   tagset.CompositeTagsFromSlice(tags),
-		MType:  metrics.APIGaugeType,
-	})
+	// tags := []string{
+	// 	fmt.Sprintf("status:%s", status),
+	// 	fmt.Sprintf("check_name:%s", checkName),
+	// }
+	// tags = append(tags, agentVersionTags...)
+	// aggregator.AddRecurrentSeries(&metrics.Serie{
+	// 	Name:   "datadog.agent.check_ready",
+	// 	Points: []metrics.Point{{Value: metricValue}},
+	// 	Tags:   tagset.CompositeTagsFromSlice(tags),
+	// 	MType:  metrics.APIGaugeType,
+	// })
 }

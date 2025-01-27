@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -45,8 +44,8 @@ type dependencies struct {
 	Log     log.Component
 	HaAgent haagent.Component
 
-	SenderManager    sender.SenderManager
-	MetricSerializer option.Option[serializer.MetricSerializer]
+	// SenderManager    sender.SenderManager
+	// MetricSerializer option.Option[serializer.MetricSerializer]
 }
 
 type collectorImpl struct {
@@ -54,9 +53,9 @@ type collectorImpl struct {
 	config  config.Component
 	haAgent haagent.Component
 
-	senderManager    sender.SenderManager
-	metricSerializer option.Option[serializer.MetricSerializer]
-	checkInstances   int64
+	senderManager sender.SenderManager
+	// metricSerializer option.Option[serializer.MetricSerializer]
+	checkInstances int64
 
 	// state is 'started' or 'stopped'
 	state *atomic.Uint32
@@ -98,11 +97,11 @@ func newProvides(deps dependencies) provides {
 
 func newCollector(deps dependencies) *collectorImpl {
 	c := &collectorImpl{
-		log:                deps.Log,
-		config:             deps.Config,
-		haAgent:            deps.HaAgent,
-		senderManager:      deps.SenderManager,
-		metricSerializer:   deps.MetricSerializer,
+		log:     deps.Log,
+		config:  deps.Config,
+		haAgent: deps.HaAgent,
+		// senderManager:      deps.SenderManager,
+		// metricSerializer:   deps.MetricSerializer,
 		checks:             make(map[checkid.ID]*middleware.CheckWrapper),
 		state:              atomic.NewUint32(stopped),
 		checkInstances:     int64(0),
@@ -112,10 +111,10 @@ func newCollector(deps dependencies) *collectorImpl {
 
 	pkgCollector.InitPython(pkgCollector.GetPythonPaths()...)
 
-	deps.Lc.Append(fx.Hook{
-		OnStart: c.start,
-		OnStop:  c.stop,
-	})
+	// deps.Lc.Append(fx.Hook{
+	// 	OnStart: c.start,
+	// 	OnStop:  c.stop,
+	// })
 
 	return c
 }
