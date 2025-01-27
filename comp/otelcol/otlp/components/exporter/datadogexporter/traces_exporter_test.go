@@ -97,8 +97,8 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	tcfg.TraceWriter.FlushPeriodSeconds = 0.1
 	tcfg.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	tcfg.Endpoints[0].Host = server.URL
-	if enableReceiveResourceSpansV2 {
-		tcfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		tcfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	ctx := context.Background()
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
@@ -139,8 +139,8 @@ func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	tcfg.Endpoints[0].APIKey = "ddog_32_characters_long_api_key1"
 	ctx := context.Background()
 	tcfg.ReceiverEnabled = false
-	if enableReceiveResourceSpansV2 {
-		tcfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		tcfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
