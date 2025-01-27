@@ -182,7 +182,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	if pkgconfig.Get("apm_config.features") == nil {
-		apmConfigFeatures := []string{"enable_receive_resource_spans_v2"}
+		apmConfigFeatures := []string{}
 		if pkgdatadog.OperationAndResourceNameV2FeatureGate.IsEnabled() {
 			apmConfigFeatures = append(apmConfigFeatures, "enable_operation_and_resource_name_logic_v2")
 		}
