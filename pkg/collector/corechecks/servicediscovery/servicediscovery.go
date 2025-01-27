@@ -112,15 +112,8 @@ func (c *Check) Run() error {
 		return nil
 	}
 
-	start := time.Now()
-	defer func() {
-		diff := time.Since(start).Seconds()
-		metricTimeToScan.Observe(diff)
-	}()
-
 	disc, err := c.os.DiscoverServices()
 	if err != nil {
-		telemetryFromError(err)
 		return err
 	}
 

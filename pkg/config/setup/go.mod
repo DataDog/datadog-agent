@@ -37,15 +37,15 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.60.1
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0
-	github.com/DataDog/datadog-agent/pkg/config/model v0.61.0
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.61.0
+	github.com/DataDog/datadog-agent/pkg/config/model v0.64.0-devel
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1
-	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1
 	github.com/DataDog/datadog-agent/pkg/util/system v0.60.1
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.60.1
