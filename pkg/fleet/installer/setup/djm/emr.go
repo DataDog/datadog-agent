@@ -49,22 +49,6 @@ var (
 			Value: "true",
 		},
 	}
-	emrLogs = []common.IntegrationConfigLogs{
-		{
-			Type:    "file",
-			Path:    hadoopLogFolder + "*/*/stdout",
-			Source:  "worker_logs",
-			Service: "hadoop-yarn",
-			Tags:    "log_source:stdout",
-		},
-		{
-			Type:    "file",
-			Path:    hadoopLogFolder + "*/*/stderr",
-			Source:  "worker_logs",
-			Service: "hadoop-yarn",
-			Tags:    "log_source:stderr",
-		},
-	}
 )
 
 type emrInstanceInfo struct {
@@ -87,7 +71,6 @@ type extraEmrInstanceInfo struct {
 
 // SetupEmr sets up the DJM environment on EMR
 func SetupEmr(s *common.Setup) error {
-	s.DdAgentAdditionalGroups = append(s.DdAgentAdditionalGroups, "yarn")
 	s.Packages.Install(common.DatadogAgentPackage, emrAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, emrInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, emrJavaTracerVersion)
@@ -112,12 +95,10 @@ func SetupEmr(s *common.Setup) error {
 		setupResourceManager(s, clusterName)
 	}
 	// Add logs config to both Resource Manager and Workers
-	sparkIntegration := s.Config.IntegrationConfigs["spark.d/conf.yaml"]
 	if os.Getenv("DD_EMR_LOGS_ENABLED") == "true" {
-		s.Config.DatadogYAML.LogsEnabled = true
-		sparkIntegration.Logs = emrLogs
+		enableEmrLogs(s)
+
 	}
-	s.Config.IntegrationConfigs["spark.d/conf.yaml"] = sparkIntegration
 	return nil
 }
 
@@ -202,4 +183,29 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 		return jobFlowID
 	}
 	return clusterName
+}
+
+func enableEmrLogs(s *common.Setup) {
+	// Enable logs in datadog yaml  config
+	s.Config.DatadogYAML.LogsEnabled = true
+	// Add dd-agent user to yarn group so that it gets read permission to the hadoop-yarn logs folder
+	s.DdAgentAdditionalGroups = append(s.DdAgentAdditionalGroups, "yarn")
+	// Load the existing integration config and logs section to it
+	sparkIntegration := s.Config.IntegrationConfigs["spark.d/conf.yaml"]
+	emrLogs := []common.IntegrationConfigLogs{
+		{
+			Type:    "file",
+			Path:    hadoopLogFolder + "*/*/stdout",
+			Source:  "hadoop-yarn",
+			Service: "emr-logs",
+		},
+		{
+			Type:    "file",
+			Path:    hadoopLogFolder + "*/*/stderr",
+			Source:  "hadoop-yarn",
+			Service: "emr-logs",
+		},
+	}
+	sparkIntegration.Logs = emrLogs
+	s.Config.IntegrationConfigs["spark.d/conf.yaml"] = sparkIntegration
 }
