@@ -630,13 +630,11 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 
-	s.mux.Lock()
-	info.ports = ports
-	info.rss = rss
-	s.mux.Unlock()
-
 	service := &model.Service{}
 	info.toModelService(pid, service)
+	service.Ports = ports
+	service.RSS = rss
+
 	return service
 }
 
@@ -781,38 +779,27 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	s.mux.Unlock()
 }
 
-func (s *discovery) updateStartedServicesHeartbeat(response *model.ServicesResponse, now time.Time) {
-	for i := range response.StartedServices {
-		service := &response.StartedServices[i]
-
+func (s *discovery) updateCacheInfo(response *model.ServicesResponse, now time.Time) {
+	updateCachedHeartbeat := func(service *model.Service) {
 		info, ok := s.cache[int32(service.PID)]
 		if !ok {
 			log.Warnf("could not access service info from the cache when update last heartbeat for PID %v start event", service.PID)
+			return
 		}
 
 		info.lastHeartbeat = now.Unix()
-		service.LastHeartbeat = now.Unix()
+		info.ports = service.Ports
+		info.rss = service.RSS
 	}
-}
 
-// generateHeartbeatEvents checks running services to see if they require sending
-// a heartbeat events to prevent the backend to drop them. This function is not
-// thread safe and it is up to the caller to ensure s.mux is locked.
-func (s *discovery) generateHeartbeatEvents(response *model.ServicesResponse, now time.Time) {
-	for pid := range s.runningServices {
-		info, ok := s.cache[pid]
-		if !ok {
-			log.Warnf("could not access service info from the cache to maybe generate a heartbeat event for PID %v", pid)
-		}
+	for i := range response.StartedServices {
+		service := &response.StartedServices[i]
+		updateCachedHeartbeat(service)
+	}
 
-		if serviceHeartbeatTime := time.Unix(info.lastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= heartbeatTime {
-			info.lastHeartbeat = now.Unix()
-
-			log.Debugf("Updating last heartbeat (pid: %v): %v", pid, now)
-			// Build service struct in place in the slice
-			response.HeartbeatServices = append(response.HeartbeatServices, model.Service{})
-			info.toModelService(pid, &response.HeartbeatServices[len(response.HeartbeatServices)-1])
-		}
+	for i := range response.HeartbeatServices {
+		service := &response.HeartbeatServices[i]
+		updateCachedHeartbeat(service)
 	}
 }
 
@@ -897,6 +884,11 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 		s.enrichContainerData(service, containersMap, pidToCid)
 
 		if _, ok := s.runningServices[pid]; ok {
+			if serviceHeartbeatTime := time.Unix(service.LastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= heartbeatTime {
+				service.LastHeartbeat = now.Unix()
+				response.HeartbeatServices = append(response.HeartbeatServices, *service)
+			}
+
 			continue
 		}
 
@@ -905,6 +897,7 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 			// is confirmed to be running.
 			s.runningServices.add(pid)
 			delete(s.potentialServices, pid)
+			service.LastHeartbeat = now.Unix()
 			response.StartedServices = append(response.StartedServices, *service)
 			continue
 		}
@@ -917,9 +910,8 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	s.updateStartedServicesHeartbeat(response, now)
+	s.updateCacheInfo(response, now)
 	s.handleStoppedServices(response, alivePids)
-	s.generateHeartbeatEvents(response, now)
 
 	s.cleanCache(alivePids)
 	s.cleanPidSets(alivePids, s.ignorePids, s.potentialServices)
