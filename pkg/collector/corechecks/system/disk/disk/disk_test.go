@@ -345,6 +345,27 @@ mount_point_blacklist:
 	assert.Contains(t, b.String(), "`mount_point_blacklist` is deprecated and will be removed in a future release. Please use `mount_point_exclude` instead.")
 }
 
+func TestGivenADiskCheckWithExcludedMountPointReConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := new(Check)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+excluded_mountpoint_re:
+  - ext4
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	w.Flush()
+	assert.Contains(t, b.String(), "`excluded_mountpoint_re` is deprecated and will be removed in a future release. Please use `mount_point_exclude` instead.")
+}
+
 func TestGivenADiskCheckWithExcludedFileSystemsConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := new(Check)
