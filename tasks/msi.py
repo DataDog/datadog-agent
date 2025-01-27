@@ -85,6 +85,9 @@ def _get_env(ctx, major_version='7', release_version='nightly-a7', flavor=None):
     env['AGENT_INSTALLER_OUTPUT_DIR'] = BUILD_OUTPUT_DIR
     env['NUGET_PACKAGES_DIR'] = NUGET_PACKAGES_DIR
     env['AGENT_PRODUCT_NAME_SUFFIX'] = ""
+    # Used for installation directories registry keys
+    # https://github.com/openssl/openssl/blob/master/NOTES-WINDOWS.md#installation-directories
+    env['AGENT_OPENSSL_VERSION'] = "3.4"
 
     return env
 
