@@ -8,6 +8,7 @@
 package cgroups
 
 import (
+	"io/fs"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -15,7 +16,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/karrick/godirwalk"
 )
 
 const (
@@ -160,30 +160,28 @@ func (pm *procPidMapper) refreshMapping(cacheValidity time.Duration) {
 	cgroupPidMapping := make(map[string][]int)
 
 	// Going through everything in `<procPath>/<pid>/cgroup`
-	err := godirwalk.Walk(pm.procPath, &godirwalk.Options{
-		AllowNonDirectory: true,
-		Unsorted:          true,
-		Callback: func(_ string, de *godirwalk.Dirent) error {
-			// The callback will be first called with the directory itself
-			if de.Name() == "proc" {
-				return nil
-			}
+	err := filepath.WalkDir(pm.procPath, func(_ string, de fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if de.Name() == "proc" {
+			return nil
+		}
 
-			pid, err := strconv.ParseInt(de.Name(), 10, 0)
-			if err != nil {
-				return godirwalk.SkipThis
-			}
+		pid, err := strconv.ParseInt(de.Name(), 10, 0)
+		if err != nil {
+			return filepath.SkipDir
+		}
 
-			cgroupIdentifier, err := IdentiferFromCgroupReferences(pm.procPath, de.Name(), pm.cgroupController, pm.readerFilter)
-			if err != nil {
-				log.Debugf("Unable to parse cgroup file for pid: %s, err: %v", de.Name(), err)
-			}
-			if cgroupIdentifier != "" {
-				cgroupPidMapping[cgroupIdentifier] = append(cgroupPidMapping[cgroupIdentifier], int(pid))
-			}
+		cgroupIdentifier, err := IdentiferFromCgroupReferences(pm.procPath, de.Name(), pm.cgroupController, pm.readerFilter)
+		if err != nil {
+			log.Debugf("Unable to parse cgroup file for pid: %s, err: %v", de.Name(), err)
+		}
+		if cgroupIdentifier != "" {
+			cgroupPidMapping[cgroupIdentifier] = append(cgroupPidMapping[cgroupIdentifier], int(pid))
+		}
 
-			return godirwalk.SkipThis
-		},
+		return filepath.SkipDir
 	})
 
 	pm.refreshTimestamp = time.Now()
