@@ -111,6 +111,14 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 	defer c.Unlock()
 	startTime := time.Now()
 
+	if c.networkID == "" {
+		networkID, err := retryGetNetworkID(c.sysprobeClient)
+		if err != nil {
+			log.Warnf("error getting network ID: %s", err)
+		}
+		c.networkID = networkID
+	}
+
 	var err error
 	var containers []*model.Container
 	var lastRates map[string]*proccontainers.ContainerRateMetrics

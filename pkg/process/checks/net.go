@@ -161,6 +161,14 @@ func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	start := time.Now()
 
+	if c.networkID == "" {
+		networkID, err := retryGetNetworkID(c.sysprobeClient)
+		if err != nil {
+			log.Warnf("error getting network ID: %s", err)
+		}
+		c.networkID = networkID
+	}
+
 	conns, err := c.getConnections()
 	if err != nil {
 		return nil, err
@@ -533,20 +541,9 @@ func retryGetNetworkID(sysProbeClient *http.Client) (string, error) {
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil && sysProbeClient != nil {
 		log.Infof("no network ID detected. retrying via system-probe: %s", err)
-		const maxRetries = 3
-		for attempt := 1; attempt <= maxRetries; attempt++ {
-			networkID, err = net.GetNetworkID(sysProbeClient)
-			if err == nil {
-				break
-			}
-			log.Infof(
-				"failed to get network ID from system-probe (attempt %d/%d): %s",
-				attempt,
-				maxRetries,
-				err,
-			)
-		}
+		networkID, err = net.GetNetworkID(sysProbeClient)
 		if err != nil {
+			log.Infof("failed to get network ID from system-probe: %s", err)
 			return "", err
 		}
 	}
