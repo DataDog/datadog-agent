@@ -10,6 +10,7 @@ import (
 	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"net/http"
@@ -41,7 +42,7 @@ var (
 	clientTLSConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	serverTLSConfig *tls.Config
+	serverTLSConfig = &tls.Config{}
 	initSource      source
 )
 
@@ -164,7 +165,12 @@ func GetTLSServerConfig() *tls.Config {
 	tokenLock.RLock()
 	defer tokenLock.RUnlock()
 	if initSource == uninitialized {
-		log.Errorf("GetTLSServerConfig was called before being initialized (through SetAuthToken or CreateAndSetAuthToken function)")
+		log.Errorf("GetTLSServerConfig was called before being initialized (through SetAuthToken or CreateAndSetAuthToken function), generating a self-signed certificate")
+		config, err := generateSelfSignedCert()
+		if err != nil {
+			log.Error(err.Error())
+		}
+		serverTLSConfig = &config
 	}
 	return serverTLSConfig.Clone()
 }
@@ -274,4 +280,29 @@ func IsForbidden(ip string) bool {
 func IsIPv6(ip string) bool {
 	parsed := net.ParseIP(ip)
 	return parsed != nil && parsed.To4() == nil
+}
+
+func generateSelfSignedCert() (tls.Config, error) {
+	// create cert
+	hosts := []string{"127.0.0.1", "localhost"}
+	_, rootCertPEM, rootKey, err := pkgtoken.GenerateRootCert(hosts, 2048)
+	if err != nil {
+		return tls.Config{}, fmt.Errorf("unable to generate a self-signed certificate: %v", err)
+	}
+
+	// PEM encode the private key
+	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
+	})
+
+	// Create a TLS cert using the private key and certificate
+	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
+	if err != nil {
+		return tls.Config{}, fmt.Errorf("unable to generate a self-signed certificate: %v", err)
+
+	}
+
+	return tls.Config{
+		Certificates: []tls.Certificate{rootTLSCert},
+	}, nil
 }

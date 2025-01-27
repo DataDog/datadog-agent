@@ -77,7 +77,9 @@ modules:
     used_by_otel: true
   comp/otelcol/otlp/testutil:
     used_by_otel: true
-  comp/serializer/compression:
+  comp/serializer/logscompression:
+    used_by_otel: true
+  comp/serializer/metricscompression:
     used_by_otel: true
   comp/trace/agent/def:
     used_by_otel: true
@@ -139,6 +141,7 @@ modules:
   pkg/config/utils:
     used_by_otel: true
   pkg/errors: default
+  pkg/fips: default
   pkg/gohai: default
   pkg/linters/components/pkgconfigusage:
     independent: false
@@ -209,6 +212,8 @@ modules:
     should_test_condition: is_linux
     used_by_otel: true
   pkg/util/common:
+    used_by_otel: true
+  pkg/util/compression:
     used_by_otel: true
   pkg/util/containers/image:
     used_by_otel: true

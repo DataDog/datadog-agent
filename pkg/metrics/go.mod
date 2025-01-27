@@ -41,14 +41,14 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.57.1
-	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0
+	github.com/DataDog/datadog-agent/pkg/config/model v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.59.0
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/tagset v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.22.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.24.0
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
 )
@@ -60,7 +60,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0 // indirect
@@ -101,7 +101,7 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_golang v1.20.5 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
-	github.com/prometheus/common v0.61.0 // indirect
+	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/shirou/gopsutil/v4 v4.24.12 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
@@ -120,7 +120,7 @@ require (
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
-	google.golang.org/protobuf v1.36.2 // indirect
+	google.golang.org/protobuf v1.36.3 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

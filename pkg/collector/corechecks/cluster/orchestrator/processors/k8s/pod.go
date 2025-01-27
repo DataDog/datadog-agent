@@ -132,7 +132,7 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PodHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*corev1.Pod)
-	return k8sTransformers.ExtractPod(r)
+	return k8sTransformers.ExtractPod(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

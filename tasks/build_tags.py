@@ -37,9 +37,11 @@ ALL_TAGS = {
     "kubelet",
     "linux_bpf",
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
+    "netgo",
     "npm",
     "oracle",
     "orchestrator",
+    'osusergo',
     "otlp",
     "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
@@ -201,6 +203,8 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
     }
 )
 
+CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
+
 # AGENT_TEST_TAGS lists the tags that have to be added to run tests
 AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 
@@ -237,6 +241,7 @@ build_tags = {
         "system-probe": SYSTEM_PROBE_TAGS,
         "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "trace-agent": TRACE_AGENT_TAGS,
+        "cws-instrumentation": CWS_INSTRUMENTATION_TAGS,
         # Test setups
         "test": AGENT_TEST_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),

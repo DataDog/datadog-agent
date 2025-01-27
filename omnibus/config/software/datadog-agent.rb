@@ -99,7 +99,7 @@ build do
     command "inv -e rtloader.clean"
     command "inv -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env
     command "inv -e rtloader.install"
-    bundle_arg = bundled_agents ? bundled_agents.map { |k| "--bundle #{k}" }.join(" ") : "--bundle agent"
+    bundle_arg = bundled_agents.map { |k| "--bundle #{k}" }.join(" ")
 
     include_sds = ""
     if linux_target?
@@ -199,7 +199,7 @@ build do
   # CWS Instrumentation
   cws_inst_support = !heroku_target? && linux_target?
   if cws_inst_support
-    command "invoke -e cws-instrumentation.build", :env => env
+    command "invoke -e cws-instrumentation.build #{fips_args}", :env => env
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
   end
 

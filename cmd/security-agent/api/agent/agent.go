@@ -16,9 +16,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -31,14 +33,16 @@ type Agent struct {
 	statusComponent status.Component
 	settings        settings.Component
 	wmeta           workloadmeta.Component
+	secrets         secrets.Component
 }
 
 // NewAgent returns a new Agent
-func NewAgent(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component) *Agent {
+func NewAgent(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component, secrets secrets.Component) *Agent {
 	return &Agent{
 		statusComponent: statusComponent,
 		settings:        settings,
 		wmeta:           wmeta,
+		secrets:         secrets,
 	}
 }
 
@@ -60,6 +64,7 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 		verbose := r.URL.Query().Get("verbose") == "true"
 		workloadList(w, verbose, a.wmeta)
 	}).Methods("GET")
+	r.HandleFunc("/secret/refresh", a.refreshSecrets).Methods("GET")
 }
 
 func workloadList(w http.ResponseWriter, verbose bool, wmeta workloadmeta.Component) {
@@ -152,4 +157,20 @@ func (a *Agent) makeFlare(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 	w.Write([]byte(filePath))
+}
+
+func (a *Agent) refreshSecrets(w http.ResponseWriter, req *http.Request) {
+	if apiutil.Validate(w, req) != nil {
+		return
+	}
+
+	res, err := a.secrets.Refresh()
+	if err != nil {
+		log.Errorf("error while refresing secrets: %s", err)
+		w.Header().Set("Content-Type", "application/json")
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), http.StatusInternalServerError)
+		return
+	}
+	w.Write([]byte(res))
 }

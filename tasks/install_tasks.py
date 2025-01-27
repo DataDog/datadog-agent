@@ -26,7 +26,7 @@ TOOL_LIST = [
 
 TOOL_LIST_PROTO = [
     'github.com/favadi/protoc-go-inject-tag',
-    'github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway',
+    'github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway',
     'github.com/golang/protobuf/protoc-gen-go',
     'github.com/golang/mock/mockgen',
     'github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto',
@@ -107,7 +107,7 @@ def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
 def install_protoc(ctx, version="26.1"):
     """
     Installs the requested version of protoc in the specified folder (by default /usr/local/bin).
-    Required generate the golang code based on .prod (inv generate-protobuf).
+    Required generate the golang code based on .prod (inv protobuf.generate).
     """
 
     if sys.platform == 'win32':

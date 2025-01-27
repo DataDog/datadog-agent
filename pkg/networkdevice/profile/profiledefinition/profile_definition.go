@@ -22,14 +22,13 @@ type ProfileDefinition struct {
 	Description  string            `yaml:"description,omitempty" json:"description,omitempty"`
 	SysObjectIDs StringArray       `yaml:"sysobjectid,omitempty" json:"sysobjectid,omitempty"`
 	Extends      []string          `yaml:"extends,omitempty" json:"extends,omitempty"`
-	Metadata     MetadataConfig    `yaml:"metadata,omitempty" json:"metadata,omitempty" jsonschema:"-"`
+	Metadata     MetadataConfig    `yaml:"metadata,omitempty" json:"metadata,omitempty"`
 	MetricTags   []MetricTagConfig `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
 	StaticTags   []string          `yaml:"static_tags,omitempty" json:"static_tags,omitempty"`
 	Metrics      []MetricsConfig   `yaml:"metrics,omitempty" json:"metrics,omitempty"`
 
-	// Used previously to pass device vendor field (has been replaced by Metadata).
-	// Used in RC for passing device vendor field.
-	Device DeviceMeta `yaml:"device,omitempty" json:"device,omitempty" jsonschema:"device,omitempty"` // DEPRECATED
+	// DEPRECATED: Use metadata directly
+	Device DeviceMeta `yaml:"device,omitempty" json:"device,omitempty" jsonschema:"device,omitempty"`
 
 	// Version is the profile version.
 	// It is currently used only with downloaded/RC profiles.

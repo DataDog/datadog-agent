@@ -102,7 +102,7 @@ type ntmConfig struct {
 
 	// configEnvVars is the set of env vars that are consulted for
 	// any given configuration key. Multiple env vars can be associated with one key
-	configEnvVars map[string]string
+	configEnvVars map[string][]string
 
 	// known keys are all the keys that meet at least one of these criteria:
 	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
@@ -453,9 +453,11 @@ func (c *ntmConfig) buildEnvVars() {
 		envkey := pair[0]
 		envval := pair[1]
 
-		if configKey, found := c.configEnvVars[envkey]; found {
-			if err := c.insertNodeFromString(root, configKey, envval); err != nil {
-				envWarnings = append(envWarnings, fmt.Sprintf("inserting env var: %s", err))
+		if configKeyList, found := c.configEnvVars[envkey]; found {
+			for _, configKey := range configKeyList {
+				if err := c.insertNodeFromString(root, configKey, envval); err != nil {
+					envWarnings = append(envWarnings, fmt.Sprintf("inserting env var: %s", err))
+				}
 			}
 		}
 	}
@@ -646,7 +648,7 @@ func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 		if c.envKeyReplacer != nil {
 			envvar = c.envKeyReplacer.Replace(envvar)
 		}
-		c.configEnvVars[envvar] = key
+		c.configEnvVars[envvar] = append(c.configEnvVars[envvar], key)
 	}
 
 	c.addToSchema(key, model.SourceEnvVar)
@@ -862,7 +864,7 @@ func (c *ntmConfig) Object() model.Reader {
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := ntmConfig{
 		ready:              atomic.NewBool(false),
-		configEnvVars:      map[string]string{},
+		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]struct{}{},
 		allSettings:        []string{},
 		unknownKeys:        map[string]struct{}{},

@@ -50,6 +50,40 @@ func TestGet(t *testing.T) {
 	assert.Equal(t, 1111, cfg.Get("a"))
 }
 
+func TestGetDefaultType(t *testing.T) {
+	cfg := NewConfig("test", "", nil)
+	cfg.SetKnown("a")
+	cfg.SetKnown("b")
+	cfg.BuildSchema()
+
+	cfg.ReadConfig(strings.NewReader(`---
+a:
+  "url1":
+   - apikey2
+   - apikey3
+  "url2":
+   - apikey4
+b:
+  1:
+   - a
+   - b
+  2:
+   - c
+`))
+
+	expected := map[string]interface{}{
+		"url1": []interface{}{"apikey2", "apikey3"},
+		"url2": []interface{}{"apikey4"},
+	}
+	assert.Equal(t, expected, cfg.Get("a"))
+
+	expected2 := map[interface{}]interface{}{
+		1: []interface{}{"a", "b"},
+		2: []interface{}{"c"},
+	}
+	assert.Equal(t, expected2, cfg.Get("b"))
+}
+
 func TestGetInnerNode(t *testing.T) {
 	cfg := NewConfig("test", "", nil)
 	cfg.SetDefault("a.b.c", 1234)
