@@ -170,7 +170,7 @@ func (pm *procPidMapper) refreshMapping(cacheValidity time.Duration) {
 
 		pid, err := strconv.ParseInt(de.Name(), 10, 0)
 		if err != nil {
-			return filepath.SkipDir
+			return skipThis(de)
 		}
 
 		cgroupIdentifier, err := IdentiferFromCgroupReferences(pm.procPath, de.Name(), pm.cgroupController, pm.readerFilter)
@@ -181,7 +181,7 @@ func (pm *procPidMapper) refreshMapping(cacheValidity time.Duration) {
 			cgroupPidMapping[cgroupIdentifier] = append(cgroupPidMapping[cgroupIdentifier], int(pid))
 		}
 
-		return filepath.SkipDir
+		return skipThis(de)
 	})
 
 	pm.refreshTimestamp = time.Now()
@@ -190,6 +190,17 @@ func (pm *procPidMapper) refreshMapping(cacheValidity time.Duration) {
 	} else {
 		pm.cgroupPidsMapping = cgroupPidMapping
 	}
+}
+
+// skipThis is a helper to skip only the currently processed entry.
+// filepath.SkipDir will skip the given entry if it's a directory,
+// but it will skip unvisited entries of the parent if it's a file
+// which is not what we want usually.
+func skipThis(de fs.DirEntry) error {
+	if de.IsDir() {
+		return filepath.SkipDir
+	}
+	return nil
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
