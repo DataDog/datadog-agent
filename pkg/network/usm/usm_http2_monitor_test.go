@@ -65,6 +65,9 @@ const (
 	http2DefaultTestPath = "/aaa"
 	defaultMethod        = http.MethodPost
 	defaultContentLength = 4
+	// defaultMaxFrameSize is default maximum frame size
+	// ref: https://github.com/golang/net/blob/07e05fd6e95ab445ebe48840c81a027dbace3b8e/http2/http2.go#L59
+	defaultMaxFrameSize = 65536
 )
 
 var (
@@ -394,33 +397,20 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 		},
 		{
 			name: "CONTINUATION frame",
-			runClients: func(t *testing.T, _ int) {
-				client := dialHTTP2Server(t)
-				messageBuilder := func() [][]byte {
-					const headersFrameEndHeaders = false
-					fullHeaders := generateTestHeaderFields(headersGenerationOptions{})
-					prefixHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
-						Headers: fullHeaders[:2],
-					})
-					require.NoError(t, err, "could not create prefix headers frame")
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getHTTP2UnixClientArray(clientsCount, unixPath)
 
-					suffixHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
-						Headers: fullHeaders[2:],
-					})
+				path := strings.Repeat("a", defaultMaxFrameSize)
+				client := clients[getClientsIndex(1, clientsCount)]
+				req, err := client.Post(http2SrvAddr+"/"+path, "application/json", bytes.NewReader([]byte("test")))
+				require.NoError(t, err, "could not make request")
+				_ = req.Body.Close()
 
-					require.NoError(t, err, "could not create suffix headers frame")
-
-					framer := newFramer()
-					framer.
-						writeRawHeaders(t, 1, headersFrameEndHeaders, prefixHeadersFrame).
-						writeRawContinuation(t, 1, endHeaders, suffixHeadersFrame)
-					return [][]byte{framer.bytes()}
-				}
-				require.NoError(t, writeInput(client, 500*time.Millisecond, messageBuilder()...))
 			},
-
 			expectedTelemetry: &usmhttp2.HTTP2Telemetry{
 				Request_seen:        1,
+				Response_seen:       1,
+				End_of_stream:       2,
 				Continuation_frames: 1,
 			},
 		},
