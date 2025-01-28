@@ -109,6 +109,68 @@ class TestUtils(unittest.TestCase):
         )
         self.assertEqual(non_flaky_failing_tests, {})
 
+    def test_flaky_on_log(self):
+        test_washer = TestWasher(
+            test_output_json_file="test_output_failure_panic.json",
+            flakes_file_path="tasks/unit_tests/testdata/flakes_5.yaml",
+        )
+        module_path = "tasks/unit_tests/testdata"
+        _, marked_flaky_tests = test_washer.parse_test_results(module_path)
+        flaky_tests = test_washer.merge_known_flakes(marked_flaky_tests)
+        self.assertEqual(flaky_tests, {})
+
+    def test_flaky_on_log2(self):
+        test_washer = TestWasher(
+            test_output_json_file="test_output_failure_panic.json",
+            flakes_file_path="tasks/unit_tests/testdata/flakes_6.yaml",
+        )
+        module_path = "tasks/unit_tests/testdata"
+        _, marked_flaky_tests = test_washer.parse_test_results(module_path)
+        flaky_tests = test_washer.merge_known_flakes(marked_flaky_tests)
+        self.assertEqual(
+            flaky_tests,
+            {'github.com/DataDog/datadog-agent/pkg/serverless/trace': {'TestLoadConfigShouldBeFast'}},
+        )
+
+    def test_flaky_on_log3(self):
+        test_washer = TestWasher(
+            test_output_json_file="test_output_failure_panic.json",
+            flakes_file_path="tasks/unit_tests/testdata/flakes_7.yaml",
+        )
+        module_path = "tasks/unit_tests/testdata"
+        _, marked_flaky_tests = test_washer.parse_test_results(module_path)
+        flaky_tests = test_washer.merge_known_flakes(marked_flaky_tests)
+        self.assertEqual(
+            flaky_tests,
+            {'github.com/DataDog/datadog-agent/pkg/serverless/trace': {'TestLoadConfigShouldBeFast'}},
+        )
+
+    def test_flaky_on_log4(self):
+        test_washer = TestWasher(
+            test_output_json_file="test_output_failure_panic.json",
+            flakes_file_path="tasks/unit_tests/testdata/flakes_8.yaml",
+        )
+        module_path = "tasks/unit_tests/testdata"
+        _, marked_flaky_tests = test_washer.parse_test_results(module_path)
+        flaky_tests = test_washer.merge_known_flakes(marked_flaky_tests)
+        self.assertEqual(
+            flaky_tests,
+            {'github.com/DataDog/datadog-agent/pkg/serverless/trace': {'TestLoadConfigShouldBeFast'}},
+        )
+
+    def test_flaky_on_log5(self):
+        test_washer = TestWasher(
+            test_output_json_file="test_output_failure_panic.json",
+            flakes_file_path="tasks/unit_tests/testdata/flakes_9.yaml",
+        )
+        module_path = "tasks/unit_tests/testdata"
+        _, marked_flaky_tests = test_washer.parse_test_results(module_path)
+        flaky_tests = test_washer.merge_known_flakes(marked_flaky_tests)
+        self.assertEqual(
+            flaky_tests,
+            {'github.com/DataDog/datadog-agent/pkg/serverless/trace': {'TestLoadConfigShouldBeFast'}},
+        )
+
 
 class TestMergeKnownFlakes(unittest.TestCase):
     def test_with_shared_keys(self):
