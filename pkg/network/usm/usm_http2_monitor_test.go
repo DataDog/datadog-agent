@@ -65,9 +65,6 @@ const (
 	http2DefaultTestPath = "/aaa"
 	defaultMethod        = http.MethodPost
 	defaultContentLength = 4
-	// defaultMaxFrameSize is default maximum frame size
-	// ref: https://httpwg.org/specs/rfc7540.html#rfc.section.6.5.2
-	defaultMaxFrameSize = 65536
 )
 
 var (
@@ -370,6 +367,11 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+	}
+
 	tests := []struct {
 		name              string
 		runClients        func(t *testing.T, clientsCount int)
@@ -397,30 +399,20 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 		},
 		{
 			name: "CONTINUATION frame",
-			runClients: func(t *testing.T, clientsCount int) {
-				clients := getHTTP2UnixClientArray(clientsCount, unixPath)
-
-				path := strings.Repeat("a", defaultMaxFrameSize)
-				client := clients[getClientsIndex(1, clientsCount)]
-				req, err := client.Post(http2SrvAddr+"/"+path, "application/json", bytes.NewReader([]byte("test")))
-				require.NoError(t, err, "could not make request")
-				_ = req.Body.Close()
-
+			runClients: func(t *testing.T, _ int) {
+				conn := dialHTTP2Server(t)
+				require.NoError(t, writeInput(conn, 500*time.Millisecond, buildContinuationMessage(t)...))
 			},
 			expectedTelemetry: &usmhttp2.HTTP2Telemetry{
 				Request_seen:        1,
 				Response_seen:       1,
-				End_of_stream:       2,
 				Continuation_frames: 1,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
-			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
-			}
+			t.Cleanup(func() { cleanProtocolMaps(t, "http2", monitor.ebpfProgram.Manager.Manager) })
 
 			tt.runClients(t, 1)
 
@@ -460,6 +452,30 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 				t.Logf("expected telemetry: %+v;\ngot: %+v", tt.expectedTelemetry, telemetry)
 			}
 		})
+	}
+}
+
+// buildContinuationMessage creates a message with an explicit continuation frame.
+// Note that the server and client set max frame sizes during connection setup
+// and continuation frame is used when headers are too large for a single frame.
+func buildContinuationMessage(t *testing.T) [][]byte {
+	const headersFrameEndHeaders = false
+	fullHeaders := generateTestHeaderFields(headersGenerationOptions{})
+	prefixHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+		Headers: fullHeaders[:2],
+	})
+	require.NoError(t, err, "could not create prefix headers frame")
+
+	suffixHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+		Headers: fullHeaders[2:],
+	})
+
+	require.NoError(t, err, "could not create suffix headers frame")
+
+	return [][]byte{
+		newFramer().writeRawHeaders(t, 1, headersFrameEndHeaders, prefixHeadersFrame).
+			writeRawContinuation(t, 1, endHeaders, suffixHeadersFrame).
+			writeData(t, 1, endStream, emptyBody).bytes(),
 	}
 }
 
