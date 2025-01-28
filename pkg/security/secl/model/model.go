@@ -504,13 +504,15 @@ func NewProcessCacheEntry(coreRelease func(_ *ProcessCacheEntry)) *ProcessCacheE
 
 // ProcessAncestorsIterator defines an iterator of ancestors
 type ProcessAncestorsIterator struct {
-	Element *ProcessCacheEntry
-	prev    *ProcessCacheEntry
+	Root *ProcessCacheEntry
+	prev *ProcessCacheEntry
 }
 
 // Front returns the first element
 func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) *ProcessCacheEntry {
-	it.prev = it.Element
+	if it.Root != nil {
+		it.prev = it.Root
+	}
 	return it.prev
 }
 

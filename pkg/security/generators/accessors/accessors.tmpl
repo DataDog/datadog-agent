@@ -72,7 +72,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					ev := ctx.Event.(*Event)
 
-					iterator := &{{$Field.Iterator.ReturnType}}{Element: ev.{{$Field.Iterator.Name}}}
+					iterator := &{{$Field.Iterator.ReturnType}}{Root: ev.{{$Field.Iterator.Name}}}
 
 					if regID != "" {
 						{{if $Field.Iterator.IsOrigTypePtr}}

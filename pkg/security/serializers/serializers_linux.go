@@ -1123,7 +1123,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 
 	ctx := eval.NewContext(e)
 
-	it := &model.ProcessAncestorsIterator{}
+	it := &model.ProcessAncestorsIterator{Root: e.ProcessCacheEntry}
 	ptr := it.Front(ctx)
 
 	var ancestor *model.ProcessCacheEntry
@@ -1185,7 +1185,7 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 	}
 
 	ctx := eval.NewContext(e)
-	it := &model.ProcessAncestorsIterator{}
+	it := &model.ProcessAncestorsIterator{Root: e.ProcessCacheEntry}
 	ptr := it.Front(ctx)
 
 	for ptr != nil {

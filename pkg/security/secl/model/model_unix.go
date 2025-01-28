@@ -818,8 +818,8 @@ type NetworkFlowMonitorEvent struct {
 
 // FlowsIterator defines an iterator of flows
 type FlowsIterator struct {
-	Element interface{} // not used, direct access from the event
-	prev    int
+	Root interface{} // not used, direct access from the event
+	prev int
 }
 
 // Front returns the first element

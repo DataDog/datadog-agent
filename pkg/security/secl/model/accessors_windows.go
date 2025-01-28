@@ -872,7 +872,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Element: ev.BaseEvent.ProcessContext.Ancestor}
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
 					if element == nil {
@@ -897,7 +897,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Element: ev.BaseEvent.ProcessContext.Ancestor}
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
 					if element == nil {
@@ -922,7 +922,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Element: ev.BaseEvent.ProcessContext.Ancestor}
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
 					if element == nil {
@@ -947,7 +947,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Element: ev.BaseEvent.ProcessContext.Ancestor}
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
 					if element == nil {
@@ -972,7 +972,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Element: ev.BaseEvent.ProcessContext.Ancestor}
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
 					if element == nil {
@@ -998,7 +998,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Element: ev.BaseEvent.ProcessContext.Ancestor}
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
 					if element == nil {
@@ -1024,7 +1024,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Element: ev.BaseEvent.ProcessContext.Ancestor}
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
 					if element == nil {
@@ -1050,7 +1050,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Element: ev.BaseEvent.ProcessContext.Ancestor}
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
 					if element == nil {
@@ -1076,7 +1076,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Element: ev.BaseEvent.ProcessContext.Ancestor}
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
 					if element == nil {
@@ -1111,7 +1111,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Element: ev.BaseEvent.ProcessContext.Ancestor}
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
 					if element == nil {
@@ -1136,7 +1136,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Element: ev.BaseEvent.ProcessContext.Ancestor}
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
 					if element == nil {
@@ -1161,7 +1161,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Element: ev.BaseEvent.ProcessContext.Ancestor}
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
 					if element == nil {
@@ -1186,7 +1186,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Element: ev.BaseEvent.ProcessContext.Ancestor}
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
 				if regID != "" {
 					element := iterator.At(ctx, regID, ctx.Registers[regID])
 					if element == nil {
