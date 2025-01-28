@@ -1,5 +1,15 @@
 #!/bin/sh 
 set -e
+
+# ASCII art map of namespaces and interfaces:
+#                  |                             |
+#    default       |     router                  |     endpoint
+#                  |                             |
+#        veth0 ------> veth1         veth2 ---------> veth3
+#        192.0.2.1 |   192.0.2.2     198.51.100.1|    198.51.100.2
+#                  |                             |
+#--------------------------------------------------------------------
+
 # create namespaces
 ip netns add router
 ip netns add endpoint
@@ -31,7 +41,7 @@ ip netns exec endpoint ip link set veth3 up
 
 ip netns exec endpoint ip link set lo up
 
-# route the packets inside the router namespace and make veth0 the gateway
+# route the packets inside the router namespace and access the gateway using veth0
 ip netns exec router sysctl -w net.ipv4.ip_forward=1
 ip netns exec endpoint ip route add default via 198.51.100.1
 ip route add 198.51.100.0/24 via 192.0.2.2 dev veth0
