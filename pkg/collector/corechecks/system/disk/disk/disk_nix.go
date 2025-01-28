@@ -83,7 +83,7 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 			continue
 		}
 		log.Debugf("Passed partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
-		tags := make([]string, 0, 2)
+		tags := []string{}
 		if c.cfg.tagByFilesystem {
 			tags = append(tags, partition.Fstype, fmt.Sprintf("filesystem:%s", partition.Fstype))
 		}
@@ -95,7 +95,7 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		}
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 		tags = append(tags, fmt.Sprintf("device_name:%s", filepath.Base(partition.Device)))
-		tags = c.applyDeviceTags(partition.Device, partition.Mountpoint, tags)
+		tags = append(tags, c.getDeviceTags(partition.Device, partition.Mountpoint)...)
 		c.sendPartitionMetrics(sender, usage, tags)
 	}
 
@@ -167,13 +167,10 @@ func (c *Check) collectDiskMetrics(sender sender.Sender) error {
 		return err
 	}
 	for deviceName, ioCounter := range iomap {
-
 		tags := []string{}
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 		tags = append(tags, fmt.Sprintf("device_name:%s", deviceName))
-
-		tags = c.applyDeviceTags(deviceName, "", tags)
-
+		tags = append(tags, c.getDeviceTags(deviceName, "")...)
 		c.sendDiskMetrics(sender, ioCounter, tags)
 	}
 
