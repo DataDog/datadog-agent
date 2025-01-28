@@ -74,10 +74,7 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 func (i *InstallerExec) Install(ctx context.Context, url string, args []string, forceInstall bool) (err error) {
 	var cmdLineArgs string
 	if forceInstall {
-		// Don't pass this flag when it's false yet, since the E2E tests do upgrade tests.
-		// Passing this flag will cause them to fail when targeting a stable version of the installer
-		// which doesn't yet support this flag.
-		cmdLineArgs = fmt.Sprintf("--force %t ", forceInstall)
+		cmdLineArgs = "--force "
 	}
 	if len(args) > 0 {
 		cmdLineArgs += fmt.Sprintf("--install_args \"%s\" ", strings.Join(args, ","))
