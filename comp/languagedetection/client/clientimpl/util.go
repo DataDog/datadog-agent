@@ -74,15 +74,24 @@ func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bo
 	return cInfo[container]
 }
 
-// hasLanguageForAllContainers returns true if the pod has language information for all containers
-// We don't consider init containers here because they are short-lived and not relevant for SSI
+// hasLanguageForAllContainers returns true if the pod has language information for all containers.
+//
+// A pod has language information if it meets the following conditions: (1) One process event for
+// each container in the pod has been recieved, and (2) the process check successfully detected at
+// least one supported language in at least one container in the pod.
+//
+// We don't consider init containers here because they are short-lived.
 func (p *podInfo) hasLanguageForAllContainers() bool {
+	atLeastOneContainerLanguageDetected := false
 	for container := range p.containers {
-		if _, ok := p.containerInfo[container]; !ok {
+		// Haven't recieved a process event from this container
+		if cInfo, ok := p.containerInfo[container]; !ok {
 			return false
+		} else if len(cInfo) > 0 {
+			atLeastOneContainerLanguageDetected = true
 		}
 	}
-	return true
+	return atLeastOneContainerLanguageDetected
 }
 
 func (b batch) toProto() *pbgo.ParentLanguageAnnotationRequest {
@@ -119,7 +128,7 @@ func podHasOwner(pod *workloadmeta.KubernetesPod) bool {
 	return len(pod.Owners) > 0
 }
 
-// getContainersFromPod returns the containers and init containers from a pod
+// getContainersFromPod returns the containers from a pod
 func getContainersFromPod(pod *workloadmeta.KubernetesPod) (containers map[langUtil.Container]struct{}) {
 	containers = make(map[langUtil.Container]struct{})
 	for _, container := range pod.Containers {
