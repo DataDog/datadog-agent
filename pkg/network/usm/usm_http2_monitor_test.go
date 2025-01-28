@@ -66,7 +66,7 @@ const (
 	defaultMethod        = http.MethodPost
 	defaultContentLength = 4
 	// defaultMaxFrameSize is default maximum frame size
-	// ref: https://github.com/golang/net/blob/07e05fd6e95ab445ebe48840c81a027dbace3b8e/http2/http2.go#L59
+	// ref: https://httpwg.org/specs/rfc7540.html#rfc.section.6.5.2
 	defaultMaxFrameSize = 65536
 )
 
