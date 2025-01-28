@@ -31,21 +31,22 @@ configure_make(
         # Ensure we don't use the system provided .pc
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
         # Allow python to test its modules at build time
-        "LD_LIBRARY_PATH": "$$EXT_BUILD_DEPS/lib",
+        "LD_LIBRARY_PATH": "$$EXT_BUILD_DEPS/lib:$$EXT_BUILD_DEPS/openssl/lib:$$EXT_BUILD_DEPS/libxcrypt/lib",
     },
     install_prefix = "py_install",
     lib_source = "@python3//:all",
     out_binaries = [
         "python3",
         "pip3",
-        "python3.11",
+        "python3.12",
     ],
-    out_shared_libs = select({
-        "@platforms//os:linux": [
-            "libffi.so",
-        ],
-        "//conditions:default": [],
-    }),
+    out_shared_libs = [
+        "libpython3.12.so",
+        "libpython3.so",
+    ],
+    out_data_dirs = [
+        "lib/python3.12/",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "//deps/libffi",
