@@ -3,6 +3,7 @@ dir: "{{.InterfaceDir}}/mocks"
 outpkg: "mocks"
 mockname: "{{.InterfaceName}}"
 filename: "{{.InterfaceNameSnake}}.go"
+issue-845-fix: true
 
 packages:
   # security agent
