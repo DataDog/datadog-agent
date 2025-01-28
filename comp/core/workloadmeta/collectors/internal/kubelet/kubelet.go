@@ -16,7 +16,6 @@ import (
 
 	"go.uber.org/fx"
 
-	util "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -431,11 +430,11 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
 	resources := workloadmeta.ContainerResources{}
 	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
-		resources.CPURequest = util.FormatCPURequests(cpuReq)
+		resources.CPURequest = kubernetes.FormatCPURequests(cpuReq)
 	}
 
 	if memoryReq, found := spec.Resources.Requests[kubelet.ResourceMemory]; found {
-		resources.MemoryRequest = util.FormatMemoryRequests(memoryReq)
+		resources.MemoryRequest = kubernetes.FormatMemoryRequests(memoryReq)
 	}
 
 	// extract GPU resource info from the possible GPU sources
