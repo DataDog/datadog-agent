@@ -564,6 +564,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 		snapshotBoundSockets, ok := p.Resolvers.ProcessResolver.SnapshottedBoundSockets[event.ProcessContext.Pid]
 		if ok {
 			for _, s := range snapshotBoundSockets {
+				entry.Retain()
 				bindEvent := p.newBindEventFromSnapshot(entry, s)
 				events = append(events, bindEvent)
 			}
