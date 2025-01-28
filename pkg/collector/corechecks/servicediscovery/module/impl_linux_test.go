@@ -92,7 +92,7 @@ func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContai
 			return false
 		},
 	}
-	err := module.Register(cfg, mux, []module.Factory{m}, wmeta, tagger, nil)
+	err := module.Register(cfg, mux, []module.Factory{m}, wmeta, tagger, nil, nil)
 	require.NoError(t, err)
 
 	srv := httptest.NewServer(mux)
