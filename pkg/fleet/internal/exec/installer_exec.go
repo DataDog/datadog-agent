@@ -72,15 +72,13 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 
 // Install installs a package.
 func (i *InstallerExec) Install(ctx context.Context, url string, args []string, forceInstall bool) (err error) {
-	var cmdLineArgs string
+	var cmdLineArgs = url
 	if forceInstall {
-		cmdLineArgs = "--force "
+		cmdLineArgs += " --force"
 	}
 	if len(args) > 0 {
-		cmdLineArgs += fmt.Sprintf("--install_args \"%s\" ", strings.Join(args, ","))
+		cmdLineArgs += fmt.Sprintf(" --install_args \"%s\"", strings.Join(args, ","))
 	}
-	// url must be at the end of the command
-	cmdLineArgs += url
 	cmd := i.newInstallerCmd(ctx, "install", cmdLineArgs)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
