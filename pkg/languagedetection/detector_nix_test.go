@@ -112,6 +112,18 @@ func TestDetectLanguage(t *testing.T) {
 			comm:     "java",
 			expected: languagemodels.Ruby,
 		},
+		{
+			name:     "php",
+			cmdline:  []string{"php", "index.php"},
+			comm:     "php",
+			expected: languagemodels.PHP,
+		},
+		{
+			name:     "php5",
+			cmdline:  []string{"php5", "index.php"},
+			comm:     "php",
+			expected: languagemodels.PHP,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			process := []languagemodels.Process{makeProcess(tc.cmdline, tc.comm)}
