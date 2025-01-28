@@ -23,23 +23,23 @@ func isNil[V comparable](v V) bool {
 }
 
 func newAncestorsIterator[T any, V comparable](iter AncestorsIterator[V], field eval.Field, ctx *eval.Context, ev *Event, perIter func(ev *Event, current V) T) []T {
-	results := make([]T, 0, ctx.AncestorsCounters[field])
+	results := make([]T, 0, ctx.IteratorCountCache[field])
 	for entry := iter.Front(ctx); !isNil(entry); entry = iter.Next(ctx) {
 		results = append(results, perIter(ev, entry))
 	}
-	ctx.AncestorsCounters[field] = len(results)
+	ctx.IteratorCountCache[field] = len(results)
 
 	return results
 }
 
 func newAncestorsIteratorArray[T any, V comparable](iter AncestorsIterator[V], field eval.Field, ctx *eval.Context, ev *Event, perIter func(ev *Event, current V) []T) []T {
-	results := make([]T, 0, ctx.AncestorsCounters[field])
-	ancestorsCount := 0
+	results := make([]T, 0, ctx.IteratorCountCache[field])
+	count := 0
 	for entry := iter.Front(ctx); !isNil(entry); entry = iter.Next(ctx) {
 		results = append(results, perIter(ev, entry)...)
-		ancestorsCount++
+		count++
 	}
-	ctx.AncestorsCounters[field] = ancestorsCount
+	ctx.IteratorCountCache[field] = count
 
 	return results
 }
