@@ -153,6 +153,7 @@ SECURITY_AGENT_TAGS = {
     "docker",
     "zlib",
     "zstd",
+    "kubelet",
     "ec2",
 }
 
