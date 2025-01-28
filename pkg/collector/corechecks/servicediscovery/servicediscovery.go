@@ -36,13 +36,8 @@ type serviceEvents struct {
 	heartbeat []model.Service
 }
 
-type discoveredServices struct {
-	runningServices map[int]*model.Service
-	events          serviceEvents
-}
-
 type osImpl interface {
-	DiscoverServices() (*discoveredServices, error)
+	DiscoverServices() (*serviceEvents, int, error)
 }
 
 var newOSImpl func() (osImpl, error)
@@ -103,21 +98,21 @@ func (c *Check) Run() error {
 		return nil
 	}
 
-	disc, err := c.os.DiscoverServices()
+	events, runningServicesCount, err := c.os.DiscoverServices()
 	if err != nil {
 		return err
 	}
 
-	log.Debugf("runningServices: %d", len(disc.runningServices))
-	metricDiscoveredServices.Set(float64(len(disc.runningServices)))
+	log.Debugf("runningServices: %d", runningServicesCount)
+	metricDiscoveredServices.Set(float64(runningServicesCount))
 
-	for _, p := range disc.events.start {
+	for _, p := range events.start {
 		c.sender.sendStartServiceEvent(p)
 	}
-	for _, p := range disc.events.heartbeat {
+	for _, p := range events.heartbeat {
 		c.sender.sendHeartbeatServiceEvent(p)
 	}
-	for _, p := range disc.events.stop {
+	for _, p := range events.stop {
 		c.sender.sendEndServiceEvent(p)
 	}
 

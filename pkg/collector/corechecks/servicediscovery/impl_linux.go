@@ -66,13 +66,13 @@ func getDiscoveryServices(client *http.Client) (*model.ServicesResponse, error) 
 	return res, nil
 }
 
-func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
+func (li *linuxImpl) DiscoverServices() (*serviceEvents, int, error) {
 	response, err := li.getDiscoveryServices(li.sysProbeClient)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	events := serviceEvents{}
+	events := &serviceEvents{}
 
 	for _, service := range response.StartedServices {
 		pid := service.PID
@@ -95,8 +95,5 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		events.heartbeat = append(events.heartbeat, service)
 	}
 
-	return &discoveredServices{
-		runningServices: li.runningServices,
-		events:          events,
-	}, nil
+	return events, len(li.runningServices), nil
 }
