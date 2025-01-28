@@ -81,7 +81,6 @@ func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 	return &checkTelemetry{
 		nvmlMetricsSent:     tm.NewCounter(subsystem, "nvml_metrics_sent", []string{"collector"}, "Number of NVML metrics sent"),
 		collectorErrors:     tm.NewCounter(subsystem, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
-		sysprobeChecks:      tm.NewCounter(subsystem, "sysprobe_checks", []string{"status"}, "Number of sysprobe checks, by status"),
 		activeMetrics:       tm.NewGauge(subsystem, "active_metrics", nil, "Number of active metrics"),
 		sysprobeMetricsSent: tm.NewCounter(subsystem, "sysprobe_metrics_sent", nil, "Number of metrics sent based on system probe data"),
 	}
@@ -148,10 +147,8 @@ func (c *Check) Run() error {
 func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 	stats, err := sysprobeclient.GetCheck[model.GPUStats](c.sysProbeClient, sysconfig.GPUMonitoringModule)
 	if err != nil {
-		c.telemetry.sysprobeChecks.Add(1, "error")
 		return fmt.Errorf("cannot get data from system-probe: %w", err)
 	}
-	c.telemetry.sysprobeChecks.Add(1, "success")
 
 	// Set all metrics to inactive, so we can remove the ones that we don't see
 	// and send the final metrics
