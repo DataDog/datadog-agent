@@ -597,7 +597,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/log/fx v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/log/fx v0.0.0-20250128190027-4b22c4c88add
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store v0.0.0-00010101000000-000000000000
