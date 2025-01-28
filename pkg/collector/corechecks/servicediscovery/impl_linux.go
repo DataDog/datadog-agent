@@ -95,5 +95,5 @@ func (li *linuxImpl) DiscoverServices() (*serviceEvents, int, error) {
 		events.heartbeat = append(events.heartbeat, service)
 	}
 
-	return events, len(li.runningServices), nil
+	return events, response.RunningServicesCount, nil
 }

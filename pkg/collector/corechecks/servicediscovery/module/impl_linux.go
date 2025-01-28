@@ -907,5 +907,7 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 		log.Warnf("updating services CPU stats: %s", err)
 	}
 
+	response.RunningServicesCount = len(s.runningServices)
+
 	return response, nil
 }

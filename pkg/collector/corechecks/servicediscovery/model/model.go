@@ -31,7 +31,8 @@ type Service struct {
 
 // ServicesResponse is the response for the system-probe /discovery/services endpoint.
 type ServicesResponse struct {
-	StartedServices   []Service `json:"started_services"`
-	StoppedServices   []Service `json:"stopped_services"`
-	HeartbeatServices []Service `json:"heartbeat_services"`
+	StartedServices      []Service `json:"started_services"`
+	StoppedServices      []Service `json:"stopped_services"`
+	HeartbeatServices    []Service `json:"heartbeat_services"`
+	RunningServicesCount int       `json:"running_services_count"`
 }
