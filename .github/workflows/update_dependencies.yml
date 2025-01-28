@@ -80,4 +80,5 @@ jobs:
           --base "$GITHUB_REF" \
           --title "$PR_TITLE" \
           --body-file "$TMP_PR_BODY_PATH" \
-          --label "$PR_LABELS"
+          --label "$PR_LABELS" \
+          --reviewer "DataDog/agent-shared-components"
