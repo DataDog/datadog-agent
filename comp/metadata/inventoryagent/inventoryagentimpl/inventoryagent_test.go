@@ -23,8 +23,6 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -50,7 +48,6 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			authtokenimpl.Module(),
-			haagentmock.Module(),
 		),
 	)
 }
@@ -530,7 +527,6 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			sysprobeconfig.NoneModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			authtokenimpl.Module(),
-			haagentmock.Module(),
 		),
 	)
 	ia = p.Comp.(*inventoryagent)
@@ -666,66 +662,6 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["system_probe_gateway_lookup_enabled"].(bool))
 	assert.True(t, ia.data["system_probe_root_namespace_enabled"].(bool))
 	assert.True(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
-}
-
-func TestFetchHaAgent(t *testing.T) {
-	tests := []struct {
-		name           string
-		haAgentEnabled bool
-		haAgentState   haagent.State
-	}{
-		{
-			name:           "enabled - active",
-			haAgentEnabled: true,
-			haAgentState:   haagent.Active,
-		},
-		{
-			name:           "enabled - standby",
-			haAgentEnabled: true,
-			haAgentState:   haagent.Standby,
-		},
-		{
-			name:           "enabled - unknown",
-			haAgentEnabled: true,
-			haAgentState:   haagent.Unknown,
-		},
-		{
-			name:           "disabled - unknown",
-			haAgentEnabled: false,
-			haAgentState:   haagent.Unknown,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// GIVEN
-			haAgentMock := haagentmock.NewMockHaAgent().(haagentmock.Component)
-			p := newInventoryAgentProvider(
-				fxutil.Test[dependencies](
-					t,
-					fx.Provide(func() log.Component { return logmock.New(t) }),
-					config.MockModule(),
-					sysprobeconfig.NoneModule(),
-					fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-					authtokenimpl.Module(),
-					fx.Provide(func() haagent.Component { return haAgentMock }),
-				),
-			)
-			ia := p.Comp.(*inventoryagent)
-
-			// WHEN
-			haAgentMock.SetEnabled(tt.haAgentEnabled)
-			haAgentMock.SetState(tt.haAgentState)
-			ia.fetchHaAgentMetadata()
-
-			// THEN
-			if tt.haAgentEnabled {
-				assert.Equal(t, tt.haAgentEnabled, ia.data["ha_agent_enabled"].(bool))
-			} else {
-				_, ok := ia.data["ha_agent_state"]
-				assert.False(t, ok)
-			}
-		})
-	}
 }
 
 func TestFetchFleet(t *testing.T) {

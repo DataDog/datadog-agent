@@ -8,14 +8,10 @@ package haagentimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 )
 
 var testConfigID = "datadog/2/HA_AGENT/group-62345762794c0c0b/65f17d667fb50f8ae28a3c858bdb1be9ea994f20249c119e007c520ac115c807"
@@ -30,22 +26,28 @@ func Test_Enabled(t *testing.T) {
 		{
 			name: "enabled",
 			configs: map[string]interface{}{
-				"ha_agent.enabled": true,
+				"enable_metadata_collection": true,
+				"inventories_enabled":        true,
+				"ha_agent.enabled":           true,
 			},
 			expectedEnabled: true,
 		},
 		{
 			name: "disabled",
 			configs: map[string]interface{}{
-				"ha_agent.enabled": false,
+				"enable_metadata_collection": true,
+				"inventories_enabled":        true,
+				"ha_agent.enabled":           false,
 			},
 			expectedEnabled: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			haAgent := newTestHaAgentComponent(t, tt.configs).Comp
+			provides, deps := newTestHaAgentComponent(t, tt.configs)
+			haAgent := provides.Comp
 			assert.Equal(t, tt.expectedEnabled, haAgent.Enabled())
+			assert.Equal(t, tt.expectedEnabled, deps.InventoryAgent.Get()["ha_agent_enabled"])
 		})
 	}
 }
@@ -54,7 +56,8 @@ func Test_GetGroup(t *testing.T) {
 	agentConfigs := map[string]interface{}{
 		"ha_agent.group": "my-group-01",
 	}
-	haAgent := newTestHaAgentComponent(t, agentConfigs).Comp
+	provides, _ := newTestHaAgentComponent(t, agentConfigs)
+	haAgent := provides.Comp
 	assert.Equal(t, "my-group-01", haAgent.GetGroup())
 }
 
@@ -62,7 +65,8 @@ func Test_GetState(t *testing.T) {
 	agentConfigs := map[string]interface{}{
 		"hostname": "my-agent-hostname",
 	}
-	haAgent := newTestHaAgentComponent(t, agentConfigs).Comp
+	provides, _ := newTestHaAgentComponent(t, agentConfigs)
+	haAgent := provides.Comp
 
 	assert.Equal(t, haagent.Unknown, haAgent.GetState())
 
@@ -96,7 +100,7 @@ func Test_RCListener(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provides := newTestHaAgentComponent(t, tt.configs)
+			provides, _ := newTestHaAgentComponent(t, tt.configs)
 			if tt.expectRCListener {
 				assert.NotNil(t, provides.RCListener.ListenerProvider)
 			} else {
@@ -181,12 +185,9 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 				"ha_agent.enabled": true,
 				"ha_agent.group":   testGroup,
 			}
-			agentConfigComponent := fxutil.Test[config.Component](t, fx.Options(
-				config.MockModule(),
-				fx.Replace(config.MockParams{Overrides: agentConfigs}),
-			))
 
-			h := newHaAgentImpl(logmock.New(t), newHaAgentConfigs(agentConfigComponent))
+			provides, deps := newTestHaAgentComponent(t, agentConfigs)
+			h := provides.Comp.(*haAgentImpl)
 
 			if tt.initialState != "" {
 				h.state.Store(string(tt.initialState))
@@ -202,6 +203,7 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 			assert.Equal(t, tt.expectedApplyID, applyID)
 			assert.Equal(t, tt.expectedApplyStatus, applyStatus)
 			assert.Equal(t, tt.expectedAgentState, h.GetState())
+			assert.Equal(t, deps.InventoryAgent.Get()["ha_agent_state"], string(h.GetState()))
 		})
 	}
 }
@@ -273,7 +275,7 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			haAgent := newTestHaAgentComponent(t, tt.agentConfigs)
+			haAgent, _ := newTestHaAgentComponent(t, tt.agentConfigs)
 			haAgent.Comp.SetLeader(tt.leader)
 
 			for integrationName, shouldRun := range tt.expectShouldRunIntegration {
@@ -285,7 +287,7 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 
 func Test_haAgentImpl_resetAgentState(t *testing.T) {
 	// GIVEN
-	haAgent := newTestHaAgentComponent(t, nil)
+	haAgent, _ := newTestHaAgentComponent(t, nil)
 	haAgentComp := haAgent.Comp.(*haAgentImpl)
 	haAgentComp.state.Store(string(haagent.Active))
 	require.Equal(t, haagent.Active, haAgentComp.GetState())

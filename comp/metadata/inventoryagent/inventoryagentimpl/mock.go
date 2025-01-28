@@ -33,17 +33,23 @@ type MockProvides struct {
 	Comp iainterface.Component
 }
 
-type inventoryagentMock struct{}
+type inventoryagentMock struct {
+	data agentMetadata
+}
 
 func newMock() MockProvides {
-	ia := &inventoryagentMock{}
+	ia := &inventoryagentMock{
+		data: make(agentMetadata),
+	}
 	return MockProvides{
 		Comp: ia,
 	}
 }
 
 // Set is an empty function on this mock
-func (m *inventoryagentMock) Set(string, interface{}) {}
+func (m *inventoryagentMock) Set(key string, val interface{}) {
+	m.data[key] = val
+}
 
 // GetAsJSON is a mocked function
 func (m *inventoryagentMock) GetAsJSON() ([]byte, error) {
@@ -52,7 +58,7 @@ func (m *inventoryagentMock) GetAsJSON() ([]byte, error) {
 
 // Get is a mocked function
 func (m *inventoryagentMock) Get() map[string]interface{} {
-	return nil
+	return m.data
 }
 
 // Refresh is a mocked function

@@ -27,7 +27,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
@@ -98,7 +97,6 @@ type inventoryagent struct {
 	data         agentMetadata
 	hostname     string
 	authToken    authtoken.Component
-	haAgent      haagent.Component
 }
 
 type dependencies struct {
@@ -109,7 +107,6 @@ type dependencies struct {
 	SysProbeConfig option.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
 	AuthToken      authtoken.Component
-	HaAgent        haagent.Component
 }
 
 type provides struct {
@@ -131,7 +128,6 @@ func newInventoryAgentProvider(deps dependencies) provides {
 		hostname:     hname,
 		data:         make(agentMetadata),
 		authToken:    deps.AuthToken,
-		haAgent:      deps.HaAgent,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
@@ -365,15 +361,6 @@ func (ia *inventoryagent) fetchFleetMetadata() {
 	ia.data["config_id"] = ia.conf.GetString("config_id")
 }
 
-func (ia *inventoryagent) fetchHaAgentMetadata() {
-	haAgentEnabled := ia.haAgent.Enabled()
-	ia.data["ha_agent_enabled"] = haAgentEnabled
-	if !haAgentEnabled {
-		return
-	}
-	ia.data["ha_agent_state"] = ia.haAgent.GetState()
-}
-
 func (ia *inventoryagent) refreshMetadata() {
 	// Core Agent / agent
 	ia.fetchCoreAgentMetadata()
@@ -387,8 +374,6 @@ func (ia *inventoryagent) refreshMetadata() {
 	ia.fetchSystemProbeMetadata()
 	// Fleet
 	ia.fetchFleetMetadata()
-	// HA Agent
-	ia.fetchHaAgentMetadata()
 }
 
 func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
