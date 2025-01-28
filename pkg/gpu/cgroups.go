@@ -52,8 +52,8 @@ const (
 	systemdDeviceAllowDir  = "run/systemd/transient"
 	cgroupDeviceAllowFile  = "devices.allow"
 	cgroupDeviceAllowDir   = "sys/fs/cgroup/devices"
-	nvidiaDeviceAllow      = "DeviceAllow=char-nvidia rwm\n"
-	nvidiaCgroupAllow      = "c 195:* rwm\n"
+	nvidiaDeviceAllow      = "DeviceAllow=char-nvidia rwm\n" // Allow access to the NVIDIA character devices
+	nvidiaCgroupAllow      = "c 195:* rwm\n"                 // 195 is the major number for the NVIDIA character devices
 )
 
 type deviceType string
