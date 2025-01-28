@@ -15,8 +15,9 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	status "github.com/DataDog/datadog-agent/comp/otelcol/status/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
@@ -24,14 +25,15 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
-// Dependencies defines the dependencies of the status component.
-type Dependencies struct {
+// Requires defines the dependencies of the status component.
+type Requires struct {
 	Config config.Component
 }
 
 // Provides contains components provided by status constructor.
 type Provides struct {
-	StatusProvider status.InformationProvider
+	Comp           status.Component
+	StatusProvider statusComponent.InformationProvider
 }
 
 type statusProvider struct {
@@ -61,28 +63,30 @@ type prometheusRuntimeConfig struct {
 }
 
 // NewComponent creates a new status component.
-func NewComponent(deps Dependencies) Provides {
+func NewComponent(reqs Requires) Provides {
+	comp := statusProvider{
+		Config: reqs.Config,
+		client: apiutil.GetClient(false),
+		receiverStatus: map[string]interface{}{
+			"spans":           0.0,
+			"metrics":         0.0,
+			"logs":            0.0,
+			"refused_spans":   0.0,
+			"refused_metrics": 0.0,
+			"refused_logs":    0.0,
+		},
+		exporterStatus: map[string]interface{}{
+			"spans":          0.0,
+			"metrics":        0.0,
+			"logs":           0.0,
+			"failed_spans":   0.0,
+			"failed_metrics": 0.0,
+			"failed_logs":    0.0,
+		},
+	}
 	return Provides{
-		StatusProvider: status.NewInformationProvider(statusProvider{
-			Config: deps.Config,
-			client: apiutil.GetClient(false),
-			receiverStatus: map[string]interface{}{
-				"spans":           0.0,
-				"metrics":         0.0,
-				"logs":            0.0,
-				"refused_spans":   0.0,
-				"refused_metrics": 0.0,
-				"refused_logs":    0.0,
-			},
-			exporterStatus: map[string]interface{}{
-				"spans":          0.0,
-				"metrics":        0.0,
-				"logs":           0.0,
-				"failed_spans":   0.0,
-				"failed_metrics": 0.0,
-				"failed_logs":    0.0,
-			},
-		}),
+		Comp:           comp,
+		StatusProvider: statusComponent.NewInformationProvider(comp),
 	}
 }
 
@@ -214,10 +218,10 @@ func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (s statusProvider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "otelagent.tmpl", buffer, s.getStatusInfo())
+	return statusComponent.RenderText(templatesFS, "otelagent.tmpl", buffer, s.getStatusInfo())
 }
 
 // HTML renders the html output
 func (s statusProvider) HTML(_ bool, buffer io.Writer) error {
-	return status.RenderHTML(templatesFS, "otelagentHTML.tmpl", buffer, s.getStatusInfo())
+	return statusComponent.RenderHTML(templatesFS, "otelagentHTML.tmpl", buffer, s.getStatusInfo())
 }

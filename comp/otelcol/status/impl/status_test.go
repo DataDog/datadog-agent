@@ -7,40 +7,26 @@ package statusimpl
 
 import (
 	"bytes"
-	"go.uber.org/fx"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 )
 
-type testDependencies struct {
-	fx.In
-	Config config.Component
-}
-
 func TestStatusOut(t *testing.T) {
-	testDeps := fxutil.Test[testDependencies](t, config.MockModule())
-	deps := Dependencies{
-		Config: testDeps.Config,
-	}
-	provides := NewComponent(deps)
-
-	headerProvider := provides.StatusProvider.Provider
-
 	tests := []struct {
 		name       string
-		assertFunc func(t *testing.T)
+		assertFunc func(t *testing.T, headerProvider status.Provider)
 	}{
-		{"JSON", func(t *testing.T) {
+		{"JSON", func(t *testing.T, headerProvider status.Provider) {
 			stats := make(map[string]interface{})
 			headerProvider.JSON(false, stats)
 
 			assert.NotEmpty(t, stats)
 		}},
-		{"Text", func(t *testing.T) {
+		{"Text", func(t *testing.T, headerProvider status.Provider) {
 			b := new(bytes.Buffer)
 			err := headerProvider.Text(false, b)
 
@@ -48,7 +34,7 @@ func TestStatusOut(t *testing.T) {
 
 			assert.NotEmpty(t, b.String())
 		}},
-		{"HTML", func(t *testing.T) {
+		{"HTML", func(t *testing.T, headerProvider status.Provider) {
 			b := new(bytes.Buffer)
 			err := headerProvider.HTML(false, b)
 
@@ -60,7 +46,11 @@ func TestStatusOut(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			test.assertFunc(t)
+			provides := NewComponent(Requires{
+				Config: config.NewMock(t),
+			})
+			headerProvider := provides.StatusProvider.Provider
+			test.assertFunc(t, headerProvider)
 		})
 	}
 }

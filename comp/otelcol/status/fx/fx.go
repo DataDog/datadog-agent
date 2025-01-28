@@ -7,7 +7,6 @@
 package fx
 
 import (
-	status "github.com/DataDog/datadog-agent/comp/otelcol/status/def"
 	statusimpl "github.com/DataDog/datadog-agent/comp/otelcol/status/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -18,6 +17,5 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			statusimpl.NewComponent,
 		),
-		fxutil.ProvideOptional[status.Component](),
 	)
 }
