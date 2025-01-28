@@ -8,16 +8,22 @@
 package local
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -1712,4 +1718,111 @@ func TestRecommend(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
+	// Setup podwatcher
+	pw := workload.NewPodWatcher(nil, nil)
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   "p1",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "pod1",
+			Namespace: "default",
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: "deploymentName-766dbb7846"}},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   "container-id1",
+				Name: "container-name1",
+				Resources: workloadmeta.ContainerResources{
+					CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
+					MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+				},
+			},
+		},
+	}
+	event := workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: pod,
+	}
+	pw.HandleEvent(event)
+	deploymentName := "deploymentName"
+	ns := "default"
+	expectedOwner := workload.NamespacedPodOwner{
+		Namespace: ns,
+		Kind:      kubernetes.DeploymentKind,
+		Name:      deploymentName,
+	}
+	pods := pw.GetPodsForOwner(expectedOwner)
+	assert.Len(t, pods, 1)
+
+	// Setup loadstore
+	lStore := loadstore.GetWorkloadMetricStore(context.TODO())
+	entities := make(map[*loadstore.Entity]*loadstore.EntityValue)
+	entity := loadstore.Entity{
+		EntityType:    loadstore.ContainerType,
+		EntityName:    "container-name1",
+		Namespace:     ns,
+		MetricName:    "container.cpu.usage",
+		PodName:       pod.EntityMeta.Name,
+		PodOwnerName:  deploymentName,
+		PodOwnerkind:  loadstore.Deployment,
+		ContainerName: "container-name1",
+	}
+	entities[&entity] = &loadstore.EntityValue{
+		Timestamp: loadstore.Timestamp(time.Now().Unix() - 15),
+		Value:     loadstore.ValueType(2.4e8),
+	}
+	entities[&entity] = &loadstore.EntityValue{
+		Timestamp: loadstore.Timestamp(time.Now().Unix() - 30),
+		Value:     loadstore.ValueType(2.3e8),
+	}
+	lStore.SetEntitiesValues(entities)
+	queryResult := lStore.GetMetricsRaw("container.cpu.usage", ns, deploymentName, "")
+	assert.Len(t, queryResult.Results, 1)
+
+	dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef: autoscalingv2.CrossVersionObjectReference{
+			Kind:       "Deployment",
+			Name:       deploymentName,
+			APIVersion: "apps/v1",
+		},
+		// Local owner means .Spec source of truth is K8S
+		Owner: datadoghq.DatadogPodAutoscalerLocalOwner,
+		Targets: []datadoghq.DatadogPodAutoscalerTarget{
+			{
+				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
+				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+					Name: "cpu",
+					Value: datadoghq.DatadogPodAutoscalerTargetValue{
+						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+						Utilization: pointer.Ptr(int32(80)),
+					},
+				},
+			},
+		},
+	}
+	dpa := &datadoghq.DatadogPodAutoscaler{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DatadogPodAutoscaler",
+			APIVersion: "datadoghq.com/v1alpha1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      deploymentName,
+			Namespace: ns,
+		},
+		Spec: dpaSpec,
+		Status: datadoghq.DatadogPodAutoscalerStatus{
+			Conditions: []datadoghq.DatadogPodAutoscalerCondition{},
+		},
+	}
+	dpai := model.NewPodAutoscalerInternal(dpa)
+
+	r := newReplicaCalculator(pw)
+	res, err := r.calculateHorizontalRecommendations(dpai, lStore)
+	assert.NoError(t, err)
+	assert.Equal(t, res.Replicas, int32(2))
 }

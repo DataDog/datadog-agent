@@ -101,13 +101,13 @@ func (pw *podWatcherImpl) Run(ctx context.Context) {
 				return
 			}
 			for _, event := range eventBundle.Events {
-				pw.handleEvent(event)
+				pw.HandleEvent(event)
 			}
 		}
 	}
 }
 
-func (pw *podWatcherImpl) handleEvent(event workloadmeta.Event) {
+func (pw *podWatcherImpl) HandleEvent(event workloadmeta.Event) {
 	pw.mutex.Lock()
 	defer pw.mutex.Unlock()
 	pod, ok := event.Entity.(*workloadmeta.KubernetesPod)

@@ -26,6 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	staleDataThresholdSeconds = 60 // maximum time window to look for valid metrics
+)
+
 type replicaCalculator struct {
 	podWatcher workload.PodWatcher
 	clock      clock.Clock

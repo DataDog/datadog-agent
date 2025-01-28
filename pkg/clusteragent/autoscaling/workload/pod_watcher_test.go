@@ -44,7 +44,7 @@ func TestHandleSetEvent(t *testing.T) {
 		Entity: pod,
 	}
 
-	pw.handleEvent(event)
+	pw.HandleEvent(event)
 
 	expectedOwner := NamespacedPodOwner{
 		Namespace: "default",
@@ -78,8 +78,8 @@ func TestHandleUnsetEvent(t *testing.T) {
 		Entity: pod,
 	}
 
-	pw.handleEvent(setEvent)
-	pw.handleEvent(unsetEvent)
+	pw.HandleEvent(setEvent)
+	pw.HandleEvent(unsetEvent)
 
 	pods := pw.GetPodsForOwner(NamespacedPodOwner{
 		Namespace: "default",

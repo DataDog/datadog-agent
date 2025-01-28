@@ -17,7 +17,6 @@ import (
 )
 
 const (
-	staleDataThresholdSeconds      = 180 // 3 minutes
 	watermarkTolerance             = 5
 	containerCPUUsageMetricName    = "container.cpu.usage"
 	containerMemoryUsageMetricName = "container.memory.usage"
