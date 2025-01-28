@@ -674,11 +674,7 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 		created := time.Unix(history[i].Created, 0)
 
 		isEmptyLayer := history[i].Size == 0
-
 		isInheritedLayer := isInheritedLayer(history[i])
-		if isInheritedLayer {
-			log.Debugf("detected an inherited layer for image ID: \"%s\", assigning it digest: \"%s\"", inspect.ID, inspect.RootFS.Layers[inspectIdx])
-		}
 
 		digest := ""
 		if isInheritedLayer || !isEmptyLayer {
