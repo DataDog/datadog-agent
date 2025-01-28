@@ -669,7 +669,7 @@ func (s *discovery) cleanPidSets(alivePids pidSet, sets ...pidSet) {
 // updateServicesCPUStats updates the CPU stats of cached services, as well as the
 // global CPU time cache for future updates. This function is not thread-safe and
 // it is up to the caller to ensure s.mux is locked.
-func (s *discovery) updateServicesCPUStats(responseServices ...[]model.Service) error {
+func (s *discovery) updateServicesCPUStats(response *model.ServicesResponse) error {
 	if time.Since(s.lastCPUTimeUpdate) < s.config.cpuUsageUpdateDelay {
 		return nil
 	}
@@ -679,18 +679,24 @@ func (s *discovery) updateServicesCPUStats(responseServices ...[]model.Service) 
 		return fmt.Errorf("could not get global CPU time: %w", err)
 	}
 
-	for _, services := range responseServices {
+	for pid, info := range s.cache {
+		_ = updateCPUCoresStats(int(pid), info, s.lastGlobalCPUTime, globalCPUTime)
+	}
+
+	updateResponseCPUStats := func(services []model.Service) {
 		for i := range services {
 			service := &services[i]
-			serviceInfo, ok := s.cache[int32(service.PID)]
+			info, ok := s.cache[int32(service.PID)]
 			if !ok {
 				continue
 			}
 
-			_ = updateCPUCoresStats(service.PID, serviceInfo, s.lastGlobalCPUTime, globalCPUTime)
-			service.CPUCores = serviceInfo.cpuUsage
+			service.CPUCores = info.cpuUsage
 		}
 	}
+
+	updateResponseCPUStats(response.StartedServices)
+	updateResponseCPUStats(response.HeartbeatServices)
 
 	s.lastGlobalCPUTime = globalCPUTime
 	s.lastCPUTimeUpdate = time.Now()
@@ -903,7 +909,7 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 	s.cleanCache(alivePids)
 	s.cleanPidSets(alivePids, s.ignorePids, s.potentialServices)
 
-	if err = s.updateServicesCPUStats(response.StartedServices, response.HeartbeatServices); err != nil {
+	if err = s.updateServicesCPUStats(response); err != nil {
 		log.Warnf("updating services CPU stats: %s", err)
 	}
 
