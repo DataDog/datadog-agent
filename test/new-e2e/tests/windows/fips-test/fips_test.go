@@ -167,16 +167,16 @@ func (s *fipsAgentSuite) TestOpenSSLPaths() {
 	// Example output:
 	// 	OpenSSL 3.3.2 3 Sep 2024 (Library: OpenSSL 3.3.2 3 Sep 2024)
 	//  <snipped>
-	// 	OPENSSLDIR: "C:/opt/datadog-agent/embedded3/ssl"
-	// 	ENGINESDIR: "C:/opt/datadog-agent/embedded3/lib/engines-3"
-	// 	MODULESDIR: "C:/opt/datadog-agent/embedded3/lib/ossl-modules"
+	//  compiler: gcc <snipped> -DOSSL_WINCTX=datadog-fips-agent
+	//  OPENSSLDIR: "C:\Program Files\Datadog\Datadog Agent\embedded3\ssl"
+	//  ENGINESDIR: "C:\Program Files\Datadog\Datadog Agent\embedded3\lib\engines-3"
+	//  MODULESDIR: "C:\Program Files\Datadog\Datadog Agent\embedded3\lib\ossl-modules"
 	openssl := path.Join(s.installPath, `embedded3\bin\openssl.exe`)
 	cmd := fmt.Sprintf(`& "%s" version -a`, openssl)
 	out, err := host.Execute(cmd)
 	require.NoError(s.T(), err)
+	assert.Contains(s.T(), out, `-DOSSL_WINCTX=datadog-fips-agent`, "Expected -DOSSL_WINCTX=datadog-fips-agent in openssl.exe output")
 	for name, expected := range expectedOpenSSLPaths {
-		// openssl.exe reports the paths with forward slashes
-		expected = strings.ReplaceAll(expected, "\\", "/")
 		assert.Contains(s.T(), out, fmt.Sprintf(`%s: "%s"`, name, expected), "Expected %s to be %s", name, expected)
 	}
 }
