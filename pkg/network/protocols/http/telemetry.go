@@ -35,7 +35,7 @@ type Telemetry struct {
 	// metricGroup is used here mostly for building the log message below
 	metricGroup *libtelemetry.MetricGroup
 
-	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *TLSCounter
+	hits0XX, hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *TLSCounter
 
 	dropped                                                          *libtelemetry.Counter // this happens when statKeeper reaches capacity
 	rejected                                                         *libtelemetry.Counter // this happens when an user-defined reject-filter matches a request
@@ -56,6 +56,7 @@ func NewTelemetry(protocol string) *Telemetry {
 		aggregations: metricGroup.NewCounter("aggregations", libtelemetry.OptPrometheus),
 
 		// these metrics are also exported as statsd metrics
+		hits0XX:                NewTLSCounter(metricGroup, "total_hits", "status:0xx", libtelemetry.OptStatsd),
 		hits1XX:                NewTLSCounter(metricGroup, "total_hits", "status:1xx", libtelemetry.OptStatsd),
 		hits2XX:                NewTLSCounter(metricGroup, "total_hits", "status:2xx", libtelemetry.OptStatsd),
 		hits3XX:                NewTLSCounter(metricGroup, "total_hits", "status:3xx", libtelemetry.OptStatsd),
@@ -82,6 +83,8 @@ func NewTelemetry(protocol string) *Telemetry {
 func (t *Telemetry) Count(tx Transaction) {
 	statusClass := (tx.StatusCode() / 100) * 100
 	switch statusClass {
+	case 0:
+		t.hits0XX.Add(tx)
 	case 100:
 		t.hits1XX.Add(tx)
 	case 200:
