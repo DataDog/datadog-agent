@@ -77,12 +77,11 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component) check.Chec
 }
 
 func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
-	subsystem := CheckName
 	return &checkTelemetry{
-		nvmlMetricsSent:     tm.NewCounter(subsystem, "nvml_metrics_sent", []string{"collector"}, "Number of NVML metrics sent"),
-		collectorErrors:     tm.NewCounter(subsystem, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
-		activeMetrics:       tm.NewGauge(subsystem, "active_metrics", nil, "Number of active metrics"),
-		sysprobeMetricsSent: tm.NewCounter(subsystem, "sysprobe_metrics_sent", nil, "Number of metrics sent based on system probe data"),
+		nvmlMetricsSent:     tm.NewCounter(CheckName, "nvml_metrics_sent", []string{"collector"}, "Number of NVML metrics sent"),
+		collectorErrors:     tm.NewCounter(CheckName, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
+		activeMetrics:       tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
+		sysprobeMetricsSent: tm.NewCounter(CheckName, "sysprobe_metrics_sent", nil, "Number of metrics sent based on system probe data"),
 	}
 }
 
