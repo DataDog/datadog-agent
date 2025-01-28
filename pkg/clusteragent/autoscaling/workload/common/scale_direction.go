@@ -7,12 +7,6 @@
 
 package common
 
-import (
-	"context"
-
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-)
-
 // ScaleDirection represents the scaling direction
 type ScaleDirection string
 
@@ -24,25 +18,6 @@ const (
 	// ScaleDown indicates scaling down is needed
 	ScaleDown ScaleDirection = "scaleDown"
 )
-
-// NamespacedPodOwner represents a pod owner in a namespace
-type NamespacedPodOwner struct {
-	// Namespace is the namespace of the pod owner
-	Namespace string
-	// Kind is the kind of the pod owner (e.g. Deployment, StatefulSet etc.)
-	// ReplicaSet is replaced by Deployment
-	Kind string
-	// Name is the name of the pod owner
-	Name string
-}
-
-// PodWatcher indexes pods by their owner
-type PodWatcher interface {
-	// Start starts the PodWatcher.
-	Run(ctx context.Context)
-	// GetPodsForOwner returns the pods for the given owner.
-	GetPodsForOwner(NamespacedPodOwner) []*workloadmeta.KubernetesPod
-}
 
 // GetScaleDirection gets the scaling direction based on the current number of replicas vs the recommendation
 func GetScaleDirection(currentReplicas, recommendedReplicas int32) ScaleDirection {
