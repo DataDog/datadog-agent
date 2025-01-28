@@ -64,6 +64,7 @@ func TestSetupDataproc(t *testing.T) {
 		{
 			name: "master node",
 			wantTags: []string{
+				"data_workload_monitoring_trial:true",
 				"cluster_id:test-cluster-uuid",
 				"dataproc_cluster_id:test-cluster-uuid",
 				"cluster_name:test-cluster-name",

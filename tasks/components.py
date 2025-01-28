@@ -326,7 +326,9 @@ def locate_fx_source_files(root_path):
             continue
         if entry.name.startswith('fx'):
             for subentry in entry.iterdir():
-                results.append(subentry)
+                if subentry.is_file() and subentry.suffix == '.go':
+                    results.append(subentry)
+
     return results
 
 

@@ -308,7 +308,7 @@ func (s *TracerSuite) TestTCPRTT() {
 	require.NoError(t, err)
 
 	// Obtain information from a TCP socket via GETSOCKOPT(2) system call.
-	tcpInfo, err := offsetguess.TcpGetInfo(c)
+	tcpInfo, err := offsetguess.TCPGetInfo(c)
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
@@ -386,7 +386,7 @@ func (s *TracerSuite) TestTCPMiscount() {
 		assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
 	}
 
-	assert.NotZero(t, connection.EbpfTracerTelemetry.LastTcpSentMiscounts.Load())
+	assert.NotZero(t, connection.EbpfTracerTelemetry.LastTCPSentMiscounts.Load())
 }
 
 func (s *TracerSuite) TestConnectionExpirationRegression() {
@@ -1200,7 +1200,7 @@ func (s *TracerSuite) TestSelfConnect() {
 
 // sets up two udp sockets talking to each other locally.
 // returns (listener, dialer)
-func setupUdpSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPConn) { //nolint:revive // TODO
+func setupUDPSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPConn) {
 	serverAddr := fmt.Sprintf("%s:%d", ip, 0)
 
 	laddr, err := net.ResolveUDPAddr(udpnet, serverAddr)
@@ -1246,7 +1246,7 @@ func testUDPPeekCount(t *testing.T, udpnet, ip string) {
 	config := testConfig()
 	tr := setupTracer(t, config)
 
-	ln, c := setupUdpSockets(t, udpnet, ip)
+	ln, c := setupUDPSockets(t, udpnet, ip)
 
 	msg := []byte("asdf")
 	_, err := c.Write(msg)
@@ -1335,7 +1335,7 @@ func testUDPPacketSumming(t *testing.T, udpnet, ip string) {
 	config := testConfig()
 	tr := setupTracer(t, config)
 
-	ln, c := setupUdpSockets(t, udpnet, ip)
+	ln, c := setupUDPSockets(t, udpnet, ip)
 
 	msg := []byte("asdf")
 	// send UDP packets of increasing length
@@ -1540,7 +1540,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	t.Logf("port: %d", assignedPort)
 
-	assert.EventuallyWithT(t, func(ct *assert.CollectT) { //nolint:revive // TODO
+	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
 		// use t instead of ct because getConnections uses require (not assert), and we get a better error message that way
 		connections := getConnections(ct, tr)
 

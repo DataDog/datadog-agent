@@ -69,7 +69,7 @@ func (c *Context) Reset() {
 	clear(c.Registers)
 	clear(c.RegisterCache)
 	clear(c.AncestorsCounters)
-	clear(c.resolvedFields)
+	c.resolvedFields = nil
 }
 
 // GetResolvedFields returns the resolved fields, always empty outside of functional tests

@@ -63,6 +63,10 @@ func Parse(r io.Reader) (*KnownFlakyTests, error) {
 	kf := &KnownFlakyTests{packageTestList: make(map[string]map[string]struct{})}
 	for pkg, tests := range pkgToTests {
 		for _, t := range tests {
+			if _, ok := t["test"]; !ok {
+				return nil, fmt.Errorf("test field is required for %s", pkg)
+			}
+
 			// Do not include tests that have an on-log field since they are not always flaky
 			if _, hasOnLog := t["on-log"]; !hasOnLog {
 				kf.Add(pkg, t["test"])

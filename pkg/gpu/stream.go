@@ -52,7 +52,6 @@ type streamKey struct {
 
 // streamData contains kernel spans and allocations for a stream
 type streamData struct {
-	key         streamKey //nolint:unused // TODO
 	spans       []*kernelSpan
 	allocations []*memoryAllocation
 }
