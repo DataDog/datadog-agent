@@ -49,42 +49,42 @@ func TestProcessAverageContainerMetricValue(t *testing.T) {
 			name: "Series with valid values (non-stale)",
 			series: []loadstore.EntityValue{
 				{
-					Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-					Value:     loadstore.ValueType(2),
+					Timestamp: loadstore.Timestamp(testTime.Unix() - 45),
+					Value:     loadstore.ValueType(4),
 				},
 				{
 					Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 					Value:     loadstore.ValueType(3),
 				},
 				{
-					Timestamp: loadstore.Timestamp(testTime.Unix() - 45),
-					Value:     loadstore.ValueType(4),
+					Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
+					Value:     loadstore.ValueType(2),
 				},
 			},
 			currentTime:   testTime,
 			averageMetric: 3.0,
-			lastTimestamp: time.Unix(testTime.Unix()-15, 0),
+			lastTimestamp: time.Unix(testTime.Unix()-45, 0),
 			err:           nil,
 		},
 		{
 			name: "Series with some stale values",
 			series: []loadstore.EntityValue{
 				{
-					Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-					Value:     loadstore.ValueType(2),
+					Timestamp: loadstore.Timestamp(testTime.Unix() - 270),
+					Value:     loadstore.ValueType(4),
 				},
 				{
 					Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
 					Value:     loadstore.ValueType(4),
 				},
 				{
-					Timestamp: loadstore.Timestamp(testTime.Unix() - 270),
-					Value:     loadstore.ValueType(4),
+					Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
+					Value:     loadstore.ValueType(2),
 				},
 			},
 			currentTime:   testTime,
 			averageMetric: 3.0,
-			lastTimestamp: time.Unix(testTime.Unix()-15, 0),
+			lastTimestamp: time.Unix(testTime.Unix()-30, 0),
 			err:           nil,
 		},
 	}
@@ -245,7 +245,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 				podToUtilization: map[string]float64{
 					"pod-name1": 0.275,
 				},
-				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
 		},
@@ -317,7 +317,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 				podToUtilization: map[string]float64{
 					"pod-name1": .275,
 				},
-				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
 		},
@@ -407,7 +407,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 					"pod-name1": 0.25,
 					"pod-name2": 0.30,
 				},
-				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
 		},
@@ -481,7 +481,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 				podToUtilization: map[string]float64{
 					"pod-name1": 0.25,
 				},
-				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
 		},
@@ -653,7 +653,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 				podToUtilization: map[string]float64{
 					"pod-name1": 0.25,
 				},
-				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
 		},
@@ -725,7 +725,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 				podToUtilization: map[string]float64{
 					"pod-name1": 0.25,
 				},
-				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
 		},
@@ -815,7 +815,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 					"pod-name1": 0.25,
 					"pod-name2": 0.30,
 				},
-				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
 		},
@@ -889,7 +889,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 				podToUtilization: map[string]float64{
 					"pod-name1": 0.25,
 				},
-				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
 		},
@@ -1242,7 +1242,7 @@ func TestRecommend(t *testing.T) {
 					"pod-name3": 0.44,
 					"pod-name4": 0.48,
 				},
-				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
 		},
@@ -1423,7 +1423,7 @@ func TestRecommend(t *testing.T) {
 					"pod-name3": 0.94,
 					"pod-name4": 0.96,
 				},
-				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
 		},
@@ -1556,7 +1556,7 @@ func TestRecommend(t *testing.T) {
 					"pod-name3": 0.94,
 					"pod-name4": 0.0,
 				},
-				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
 		},
@@ -1689,7 +1689,7 @@ func TestRecommend(t *testing.T) {
 					"pod-name3": 1.0,
 					"pod-name4": 0.26,
 				},
-				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
+				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
 		},
@@ -1773,12 +1773,13 @@ func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
 		ContainerName: "container-name1",
 	}
 	entities[&entity] = &loadstore.EntityValue{
-		Timestamp: loadstore.Timestamp(time.Now().Unix() - 15),
+		Timestamp: loadstore.Timestamp(time.Now().Unix() - 30),
 		Value:     loadstore.ValueType(2.4e8),
 	}
+	lStore.SetEntitiesValues(entities)
 	entities[&entity] = &loadstore.EntityValue{
-		Timestamp: loadstore.Timestamp(time.Now().Unix() - 30),
-		Value:     loadstore.ValueType(2.3e8),
+		Timestamp: loadstore.Timestamp(time.Now().Unix() - 15),
+		Value:     loadstore.ValueType(2.45e8),
 	}
 	lStore.SetEntitiesValues(entities)
 	queryResult := lStore.GetMetricsRaw("container.cpu.usage", ns, deploymentName, "")
@@ -1790,7 +1791,6 @@ func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
 			Name:       deploymentName,
 			APIVersion: "apps/v1",
 		},
-		// Local owner means .Spec source of truth is K8S
 		Owner: datadoghq.DatadogPodAutoscalerLocalOwner,
 		Targets: []datadoghq.DatadogPodAutoscalerTarget{
 			{
@@ -1824,5 +1824,5 @@ func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
 	r := newReplicaCalculator(pw)
 	res, err := r.calculateHorizontalRecommendations(dpai, lStore)
 	assert.NoError(t, err)
-	assert.Equal(t, res.Replicas, int32(2))
+	assert.Equal(t, int32(2), res.Replicas)
 }

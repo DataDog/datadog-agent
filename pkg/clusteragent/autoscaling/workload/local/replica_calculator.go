@@ -27,7 +27,8 @@ import (
 )
 
 const (
-	staleDataThresholdSeconds = 60 // maximum time window to look for valid metrics
+	staleDataThresholdSeconds   = 60 // maximum time window to look for valid metrics
+	minRequiredMetricDataPoints = 2  // minimum number of data points to consider for a metric
 )
 
 type replicaCalculator struct {
@@ -184,10 +185,6 @@ func calculateUtilization(recSettings resourceRecommenderSettings, pods []*workl
 			}
 
 			series := getContainerMetrics(queryResult, pod.Name, container.Name)
-			if len(series) == 0 { // no metrics data
-				continue
-			}
-
 			averageValue, lastTimestamp, err := processAverageContainerMetricValue(series, currentTime)
 			if err != nil {
 				continue // skip; no usage information
@@ -243,23 +240,31 @@ func getContainerMetrics(queryResult loadstore.QueryResult, podName, containerNa
 // processAverageContainerMetricValue takes a series of metrics and processes them to return the final metric value and
 // corresponding timestamp to use to generate a recommendation
 func processAverageContainerMetricValue(series []loadstore.EntityValue, currentTime time.Time) (float64, time.Time, error) {
-	values := []loadstore.ValueType{}
-	lastTimestamp := time.Time{}
-
-	for _, entity := range series {
-		// Discard stale metrics
-		if isStaleMetric(currentTime, entity.Timestamp) {
-			continue
-		}
-		values = append(values, entity.Value)
-		ts := convertTimestampToTime(entity.Timestamp)
-		if ts.After(lastTimestamp) {
-			lastTimestamp = ts
-		}
+	if len(series) < 2 { // too little metrics data
+		return 0.0, time.Time{}, fmt.Errorf("Missing usage metrics")
 	}
 
-	if len(values) == 0 {
-		return 0.0, lastTimestamp, fmt.Errorf("Missing usage metrics")
+	values := []loadstore.ValueType{}
+	lastTimestamp := convertTimestampToTime(series[len(series)-1].Timestamp)
+
+	// series is already sorted oldest to newest data point based on insertion
+	for i := len(series) - 1; i >= 0; i-- {
+		entity := series[i]
+		// Invalid data point; data not yet populated
+		if entity.Timestamp == 0 {
+			continue
+		}
+
+		// Discard stale metrics
+		if isStaleMetric(currentTime, entity.Timestamp) && len(values) >= minRequiredMetricDataPoints {
+			continue
+		}
+
+		values = append(values, entity.Value)
+		ts := convertTimestampToTime(entity.Timestamp)
+		if ts.Before(lastTimestamp) {
+			lastTimestamp = ts
+		}
 	}
 
 	return average(values), lastTimestamp, nil
