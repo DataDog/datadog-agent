@@ -35,63 +35,65 @@ func ConfigureDeviceCgroups(pid uint32, rootfs string) error {
 	// Configure systemd device allow first, so that in case of a reload we get the correct permissions
 	// The containerID for systemd is the last part of the cgroup path
 	systemdContainerID := filepath.Base(string(cgroup.Path))
-	if err := configureSystemdDeviceAllow(systemdContainerID, rootfs); err != nil {
+	if err := configureDeviceAllow(systemdContainerID, rootfs, systemdDev); err != nil {
 		return fmt.Errorf("failed to configure systemd device allow for container %s: %w", systemdContainerID, err)
 	}
 
 	// Configure cgroup device allow
-	if err := configureCgroupDeviceAllow(string(cgroup.Path), rootfs); err != nil {
+	if err := configureDeviceAllow(string(cgroup.Path), rootfs, cgroupDev); err != nil {
 		return fmt.Errorf("failed to configure cgroup device allow for container %s: %w", cgroup.Path, err)
 	}
 
 	return nil
 }
 
-func configureSystemdDeviceAllow(containerID string, rootfs string) error {
-	systemdDeviceAllowPath, err := buildSafePath(rootfs, "run/systemd/transient", containerID+".d", "50-DeviceAllow.conf")
-	if err != nil {
-		return fmt.Errorf("failed to build systemd/transient path: %w", err)
+const (
+	systemdDeviceAllowFile = "50-DeviceAllow.conf"
+	systemdDeviceAllowDir  = "run/systemd/transient"
+	cgroupDeviceAllowFile  = "devices.allow"
+	cgroupDeviceAllowDir   = "sys/fs/cgroup/devices"
+	nvidiaDeviceAllow      = "DeviceAllow=char-nvidia rwm\n"
+	nvidiaCgroupAllow      = "c 195:* rwm\n"
+)
+
+type deviceType string
+
+const (
+	systemdDev deviceType = "systemd"
+	cgroupDev  deviceType = "cgroup"
+)
+
+func configureDeviceAllow(containerID, rootfs string, devType deviceType) error {
+	var deviceAllowPath string
+	var err error
+	var allowString string
+
+	switch devType {
+	case systemdDev:
+		deviceAllowPath, err = buildSafePath(rootfs, systemdDeviceAllowDir, containerID+".d", systemdDeviceAllowFile)
+		allowString = nvidiaDeviceAllow
+	case cgroupDev:
+		deviceAllowPath, err = buildSafePath(rootfs, cgroupDeviceAllowDir, containerID, cgroupDeviceAllowFile)
+		allowString = nvidiaCgroupAllow
+	default:
+		return fmt.Errorf("unknown device type: %s", devType)
 	}
 
-	log.Debugf("configuring systemd device allow for container %s: %s", containerID, systemdDeviceAllowPath)
-
-	// Open the systemd device allow file
-	systemdDeviceAllow, err := os.OpenFile(systemdDeviceAllowPath, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
-		return fmt.Errorf("failed to open %s: %w", systemdDeviceAllowPath, err)
-	}
-	defer systemdDeviceAllow.Close()
-
-	// Allow access to the NVIDIA character device.
-	// Hardcode the string to avoid this from being accidentally changed to another value or set dynamically.
-	_, err = systemdDeviceAllow.WriteString("DeviceAllow=char-nvidia rwm\n")
-	if err != nil {
-		return fmt.Errorf("failed to write to %s: %w", systemdDeviceAllowPath, err)
+		return fmt.Errorf("failed to build path for %s: %w", devType, err)
 	}
 
-	return nil
-}
+	log.Debugf("configuring %s device allow for container %s: %s", devType, containerID, deviceAllowPath)
 
-func configureCgroupDeviceAllow(containerID, rootfs string) error {
-	cgroupDeviceAllowPath, err := buildSafePath(rootfs, "sys/fs/cgroup/devices", containerID, "devices.allow")
+	deviceAllowFile, err := os.OpenFile(deviceAllowPath, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
-		return fmt.Errorf("failed to build cgroup/devices path: %w", err)
+		return fmt.Errorf("failed to open %s: %w", deviceAllowPath, err)
 	}
+	defer deviceAllowFile.Close()
 
-	log.Debugf("configuring systemd device allow for container %s: %s", containerID, cgroupDeviceAllowPath)
-
-	// Open the cgroup device allow file
-	cgroupDeviceAllow, err := os.OpenFile(cgroupDeviceAllowPath, os.O_APPEND|os.O_WRONLY, 0)
+	_, err = deviceAllowFile.WriteString(allowString)
 	if err != nil {
-		return fmt.Errorf("failed to open %s: %w", cgroupDeviceAllowPath, err)
-	}
-	defer cgroupDeviceAllow.Close()
-
-	// Allow access to the NVIDIA character device. 195 is the major number for the NVIDIA character device.
-	// Hardcode the string to avoid this from being accidentally changed to another value or set dynamically.
-	_, err = cgroupDeviceAllow.WriteString("c 195:* rwm\n")
-	if err != nil {
-		return fmt.Errorf("failed to write to %s: %w", cgroupDeviceAllowPath, err)
+		return fmt.Errorf("failed to write to %s: %w", deviceAllowPath, err)
 	}
 
 	return nil
