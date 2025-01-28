@@ -9,6 +9,7 @@ package disk
 
 import (
 	"regexp"
+	"strings"
 
 	yaml "gopkg.in/yaml.v2"
 
@@ -145,21 +146,21 @@ func (c *Check) diskConfigure(data integration.Data, initConfig integration.Data
 		return err
 	}
 
-	// deviceTagRe, found := unmarshalledInstanceConfig["device_tag_re"]
-	// if deviceTagRe, ok := deviceTagRe.(map[interface{}]interface{}); found && ok {
-	// 	c.cfg.deviceTagRe = make(map[*regexp.Regexp][]string)
-	// 	for reString, tags := range deviceTagRe {
-	// 		if reString, ok := reString.(string); ok {
-	// 			if tags, ok := tags.(string); ok {
-	// 				re, err := regexp.Compile(reString)
-	// 				if err != nil {
-	// 					return err
-	// 				}
-	// 				c.cfg.deviceTagRe[re] = strings.Split(tags, ",")
-	// 			}
-	// 		}
-	// 	}
-	// }
+	deviceTagRe, found := unmarshalledInstanceConfig["device_tag_re"]
+	if deviceTagRe, ok := deviceTagRe.(map[interface{}]interface{}); found && ok {
+		c.cfg.deviceTagRe = make(map[*regexp.Regexp][]string)
+		for reString, tags := range deviceTagRe {
+			if reString, ok := reString.(string); ok {
+				if tags, ok := tags.(string); ok {
+					re, err := regexp.Compile(reString)
+					if err != nil {
+						return err
+					}
+					c.cfg.deviceTagRe[re] = strings.Split(tags, ",")
+				}
+			}
+		}
+	}
 
 	return nil
 }
@@ -340,14 +341,14 @@ func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
 
 func (c *Check) applyDeviceTags(device, mountpoint string, tags []string) []string {
 	// apply device/mountpoint specific tags
+	log.Debugf("Applying device tags for [device: %s] [mountpoint: %s]", device, mountpoint)
+	log.Debugf("Before applying device tags: %s", tags)
 	for re, deviceTags := range c.cfg.deviceTagRe {
-		if re == nil {
-			continue
-		}
 		if re.MatchString(device) || (mountpoint != "" && re.MatchString(mountpoint)) {
 			tags = append(tags, deviceTags...)
 		}
 	}
+	log.Debugf("After applying device tags: %s", tags)
 	return tags
 }
 

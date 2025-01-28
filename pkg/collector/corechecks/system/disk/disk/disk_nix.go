@@ -57,9 +57,10 @@ func (c *Check) Run() error {
 func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 	partitions, err := diskPartitions(c.cfg.allDevices)
 	if err != nil {
+		log.Warnf("Unable to get disk partitions: %s", err)
 		return err
 	}
-
+	log.Debugf("partitions %s", partitions)
 	for _, partition := range partitions {
 		log.Debugf("Checking partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
 		if c.excludePartition(partition) {
@@ -81,7 +82,7 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 			}
 			continue
 		}
-
+		log.Debugf("Passed partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
 		tags := make([]string, 0, 2)
 		if c.cfg.tagByFilesystem {
 			tags = append(tags, partition.Fstype, fmt.Sprintf("filesystem:%s", partition.Fstype))
