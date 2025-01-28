@@ -17,6 +17,8 @@ exporters:
     metrics:
       resource_attributes_as_tags: true
       endpoint: http://127.0.0.1:9091
+    logs:
+      endpoint: http://127.0.0.1:9091
       
 
 processors:
