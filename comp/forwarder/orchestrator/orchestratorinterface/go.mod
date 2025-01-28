@@ -59,7 +59,7 @@ require github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.56.0
 
 // Internal deps fix version
 replace (
-	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
+	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // v2.6
 	github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 )
 
