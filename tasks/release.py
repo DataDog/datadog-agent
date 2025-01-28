@@ -291,7 +291,7 @@ def finish(ctx, release_branch, upstream="origin"):
         # find the correct new version.
         # To support this, we'd have to support a --patch-version param in
         # release.finish
-        new_version = next_final_version(ctx, major_version, False)
+        new_version = next_final_version(ctx, release_branch, False)
         if not yes_no_question(
             f'Do you want to finish the release with version {new_version}?', color="bold", default=False
         ):
@@ -404,7 +404,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         # Get the next final version of the highest major: useful to know which
         # milestone to target, as well as decide which tags from dependency repositories
         # can be used.
-        new_final_version = next_final_version(ctx, major_version, patch_version)
+        new_final_version = next_final_version(ctx, release_branch, patch_version)
         print(color_message(f"Preparing RC for agent version {major_version}", "bold"))
 
         # Step 0: checks

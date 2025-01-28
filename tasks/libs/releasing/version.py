@@ -78,8 +78,8 @@ def current_version(ctx, major_version) -> Version:
     return _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version, release=True)))
 
 
-def next_final_version(ctx, major_version, patch_version) -> Version:
-    previous_version = current_version(ctx, major_version)
+def next_final_version(ctx, release_branch, patch_version) -> Version:
+    previous_version = current_version_for_release_branch(ctx, release_branch)
 
     # Set the new version
     if previous_version.is_devel():
