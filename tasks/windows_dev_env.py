@@ -161,7 +161,6 @@ def _disable_WD_and_reboot(ctx, host):
 def _wait_for_windows_dev_env(ctx, host):
     while True:
         r = ctx.run(f"ssh {host} 'Get-MpComputerStatus | select Antivirus'", hide=True, warn=True)
-        print(r)
         if "Invalid class" in r.stderr:
             break
 
