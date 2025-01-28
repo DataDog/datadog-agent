@@ -79,7 +79,7 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 		}
 
 		queryResult := lStore.GetMetricsRaw(recSettings.metricName, namespace, podOwnerName, recSettings.containerName)
-		rec, utilizationRes, err := recSettings.recommend(currentTime, pods, queryResult)
+		rec, utilizationRes, err := recommend(currentTime, *recSettings, pods, queryResult)
 		if err != nil {
 			log.Debugf("Got error calculating recommendation: %s", err)
 			break
@@ -119,20 +119,20 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 	return &recommendedReplicas, nil
 }
 
-func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*workloadmeta.KubernetesPod, queryResult loadstore.QueryResult) (int32, utilizationResult, error) {
+func recommend(currentTime time.Time, recSettings resourceRecommenderSettings, pods []*workloadmeta.KubernetesPod, queryResult loadstore.QueryResult) (int32, utilizationResult, error) {
 	currentReplicas := float64(len(pods))
-	utilizationRes, err := r.calculateUtilization(pods, queryResult, currentTime)
+	utilizationRes, err := calculateUtilization(recSettings, pods, queryResult, currentTime)
 	if err != nil {
 		return 0, utilizationResult{}, err
 	}
 
-	recommendedReplicas := r.calculateReplicas(currentReplicas, utilizationRes.averageUtilization)
+	recommendedReplicas := calculateReplicas(recSettings, currentReplicas, utilizationRes.averageUtilization)
 
 	scaleDirection := common.GetScaleDirection(int32(currentReplicas), recommendedReplicas)
 	if scaleDirection != common.NoScale && len(utilizationRes.missingPods) > 0 {
 		adjustedPodToUtilization := adjustMissingPods(scaleDirection, utilizationRes.podToUtilization, utilizationRes.missingPods)
 		adjustedUtilization := getAveragePodUtilization(adjustedPodToUtilization)
-		newRecommendation := r.calculateReplicas(currentReplicas, adjustedUtilization)
+		newRecommendation := calculateReplicas(recSettings, currentReplicas, adjustedUtilization)
 
 		// If scale direction is reversed, we should not scale
 		if common.GetScaleDirection(int32(currentReplicas), newRecommendation) != scaleDirection {
@@ -146,7 +146,7 @@ func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*wo
 	return recommendedReplicas, utilizationRes, nil
 }
 
-func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.KubernetesPod, queryResult loadstore.QueryResult, currentTime time.Time) (utilizationResult, error) {
+func calculateUtilization(recSettings resourceRecommenderSettings, pods []*workloadmeta.KubernetesPod, queryResult loadstore.QueryResult, currentTime time.Time) (utilizationResult, error) {
 	totalPodUtilization := 0.0
 	podCount := 0
 	podUtilization := make(map[string]float64)
@@ -166,13 +166,13 @@ func (r *resourceRecommenderSettings) calculateUtilization(pods []*workloadmeta.
 		totalRequests := 0.0
 
 		for _, container := range pod.Containers {
-			if r.containerName != "" && container.Name != r.containerName {
+			if recSettings.containerName != "" && container.Name != recSettings.containerName {
 				continue
 			}
 
-			if r.metricName == "container.memory.usage" && container.Resources.MemoryRequest != nil {
+			if recSettings.metricName == "container.memory.usage" && container.Resources.MemoryRequest != nil {
 				totalRequests += float64(*container.Resources.MemoryRequest)
-			} else if r.metricName == "container.cpu.usage" && container.Resources.CPURequest != nil {
+			} else if recSettings.metricName == "container.cpu.usage" && container.Resources.CPURequest != nil {
 				totalRequests += convertCPURequestToNanocores(*container.Resources.CPURequest)
 			} else {
 				continue // skip; no request information
@@ -272,26 +272,26 @@ func adjustMissingPods(scaleDirection common.ScaleDirection, podToUtilization ma
 	return podToUtilization
 }
 
-func (r *resourceRecommenderSettings) calculateReplicas(currentReplicas float64, averageUtilization float64) int32 {
+func calculateReplicas(recSettings resourceRecommenderSettings, currentReplicas float64, averageUtilization float64) int32 {
 	recommendedReplicas := int32(currentReplicas)
 
-	if averageUtilization > r.highWatermark {
-		rec := int32(math.Ceil(averageUtilization / r.highWatermark * currentReplicas))
+	if averageUtilization > recSettings.highWatermark {
+		rec := int32(math.Ceil(averageUtilization / recSettings.highWatermark * currentReplicas))
 
 		if rec > recommendedReplicas {
 			recommendedReplicas = rec
 		}
 	}
 
-	if averageUtilization < r.lowWatermark {
-		proposedReplicas := math.Max(math.Floor(averageUtilization/r.lowWatermark*currentReplicas), 1)
+	if averageUtilization < recSettings.lowWatermark {
+		proposedReplicas := math.Max(math.Floor(averageUtilization/recSettings.lowWatermark*currentReplicas), 1)
 
 		// Adjust to be below the high watermark
 		for ; proposedReplicas < currentReplicas; proposedReplicas++ {
 			forecastValue := (currentReplicas * averageUtilization / proposedReplicas)
 
 			// Only allow if we don't break the high watermark
-			if forecastValue < r.highWatermark {
+			if forecastValue < recSettings.highWatermark {
 				recommendedReplicas = int32(proposedReplicas)
 				break
 			}

@@ -483,7 +483,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
+			recSettings, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
 				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
 				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
 					Name: "cpu",
@@ -494,7 +494,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 				},
 			})
 			assert.NoError(t, err)
-			utilization, err := r.calculateUtilization(tt.pods, tt.queryResult, tt.currentTime)
+			utilization, err := calculateUtilization(*recSettings, tt.pods, tt.queryResult, tt.currentTime)
 			if err != nil {
 				assert.Error(t, err, tt.err.Error())
 				assert.Equal(t, tt.err, err)
@@ -891,7 +891,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
+			recSettings, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
 				Type: datadoghq.DatadogPodAutoscalerContainerResourceTargetType,
 				ContainerResource: &datadoghq.DatadogPodAutoscalerContainerResourceTarget{
 					Name: "cpu",
@@ -903,7 +903,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 				},
 			})
 			assert.NoError(t, err)
-			utilization, err := r.calculateUtilization(tt.pods, tt.queryResult, tt.currentTime)
+			utilization, err := calculateUtilization(*recSettings, tt.pods, tt.queryResult, tt.currentTime)
 			if err != nil {
 				assert.Error(t, err, tt.err.Error())
 				assert.Equal(t, tt.err, err)
@@ -954,7 +954,7 @@ func TestCalculateReplicas(t *testing.T) {
 
 	for _, tt := range test {
 		t.Run(tt.name, func(t *testing.T) {
-			r, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
+			recSettings, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
 				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
 				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
 					Name: "cpu",
@@ -966,7 +966,7 @@ func TestCalculateReplicas(t *testing.T) {
 			})
 			assert.NoError(t, err)
 
-			replicas := r.calculateReplicas(tt.currentReplicas, tt.averageUtilization)
+			replicas := calculateReplicas(*recSettings, tt.currentReplicas, tt.averageUtilization)
 			assert.Equal(t, tt.want, replicas)
 		})
 	}
@@ -1691,7 +1691,7 @@ func TestRecommend(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
+			recSettings, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
 				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
 				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
 					Name: "cpu",
@@ -1702,7 +1702,7 @@ func TestRecommend(t *testing.T) {
 				},
 			})
 			assert.NoError(t, err)
-			recommendedReplicas, utilizationRes, err := r.recommend(tt.currentTime, tt.pods, tt.queryResult)
+			recommendedReplicas, utilizationRes, err := recommend(tt.currentTime, *recSettings, tt.pods, tt.queryResult)
 			if err != nil {
 				assert.Error(t, err, tt.err.Error())
 				assert.Equal(t, tt.err, err)
