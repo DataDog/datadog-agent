@@ -7,9 +7,12 @@ package cloudservice
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"io"
+	"net/http"
 	"os"
+	"strings"
+	"time"
 )
 
 const (
@@ -17,23 +20,44 @@ const (
 	revisionNameEnvVar      = "K_REVISION"
 	ServiceNameEnvVar       = "K_SERVICE" // ServiceNameEnvVar is also used in the trace package
 	configurationNameEnvVar = "K_CONFIGURATION"
-	functionTypeEnvVar      = "FUNCTION_SIGNATURE_TYPE"
-	functionTargetEnvVar    = "FUNCTION_TARGET" // exists as a cloudrunfunction env var for all runtimes except Go
+	// exists as cloudrunfunction env var for all runtimes except Go
+	functionTypeEnvVar   = "FUNCTION_SIGNATURE_TYPE"
+	functionTargetEnvVar = "FUNCTION_TARGET"
+)
+
+const (
+	// Default values for the metadata service http client requests
+	defaultBaseURL        = "http://metadata.google.internal/computeMetadata/v1"
+	defaultContainerIDURL = "/instance/id"
+	defaultRegionURL      = "/instance/region"
+	defaultProjectID      = "/project/project-id"
+	defaultTimeout        = 300 * time.Millisecond
 )
 
 const (
 	// Span Tag with namespace specific for cloud run (gcr) and cloud run function (gcrfx)
-	cloudRunService      = "gcr."
-	cloudRunFunction     = "gcrfx."
-	runRevisionName      = "gcr.revision_name"
-	functionRevisionName = "gcrfx.revision_name"
-	runServiceName       = "gcr.service_name"
-	functionServiceName  = "gcrfx.service_name"
-	runConfigName        = "gcr.configuration_name"
-	functionConfigName   = "gcrfx.configuration_name"
+	cloudRunService   = "gcr."
+	cloudRunFunction  = "gcrfx."
+	revisionName      = "revision_name"
+	serviceName       = "service_name"
+	configName        = "configuration_name"
+	containerID       = "container_id"
+	location          = "location"
+	projectID         = "project_id"
+	resourceName      = "resource_name"
+	functionTarget    = "function_target"
+	functionSignature = "function_signature_type"
 )
 
-var metadataHelperFunc = helper.GetMetaData
+var metadataHelperFunc = GetMetaData
+
+// GCPConfig holds the metadata configuration
+type GCPConfig struct {
+	containerIDURL string
+	regionURL      string
+	projectIDURL   string
+	timeout        time.Duration
+}
 
 // CloudRun has helper functions for getting Google Cloud Run data
 type CloudRun struct {
@@ -42,61 +66,61 @@ type CloudRun struct {
 
 // GetTags returns a map of gcp-related tags.
 func (c *CloudRun) GetTags() map[string]string {
-	tags := metadataHelperFunc(helper.GetDefaultConfig()).TagMap(c.spanNamespace)
+	isCloudRun := c.spanNamespace == cloudRunService
+	tags := metadataHelperFunc(GetDefaultConfig(), isCloudRun)
 	tags["origin"] = c.GetOrigin()
 	tags["_dd.origin"] = c.GetOrigin()
 
-	revisionName := os.Getenv(revisionNameEnvVar)
-	serviceName := os.Getenv(ServiceNameEnvVar)
-	configName := os.Getenv(configurationNameEnvVar)
-	if revisionName != "" {
-		tags["revision_name"] = revisionName
-		if c.spanNamespace == cloudRunService {
-			tags[runRevisionName] = revisionName
+	revisionNameVal := os.Getenv(revisionNameEnvVar)
+	serviceNameVal := os.Getenv(ServiceNameEnvVar)
+	configNameVal := os.Getenv(configurationNameEnvVar)
+	if revisionNameVal != "" {
+		tags[revisionName] = revisionNameVal
+		if isCloudRun {
+			tags[cloudRunService+revisionName] = revisionNameVal
 		} else {
-			tags[functionRevisionName] = revisionName
+			tags[cloudRunFunction+revisionName] = revisionNameVal
 		}
 	}
 
-	if serviceName != "" {
-		tags["service_name"] = serviceName
-		if c.spanNamespace == cloudRunService {
-			tags[runServiceName] = serviceName
+	if serviceNameVal != "" {
+		tags[serviceName] = serviceNameVal
+		if isCloudRun {
+			tags[cloudRunService+serviceName] = serviceNameVal
 		} else {
-			tags[functionServiceName] = serviceName
+			tags[cloudRunFunction+serviceName] = serviceNameVal
 		}
 	}
 
-	if configName != "" {
-		tags["configuration_name"] = configName
-		if c.spanNamespace == cloudRunService {
-			tags[runConfigName] = configName
+	if configNameVal != "" {
+		tags[configName] = configNameVal
+		if isCloudRun {
+			tags[cloudRunService+configName] = configNameVal
 		} else {
-			tags[functionConfigName] = configName
+			tags[cloudRunFunction+configName] = configNameVal
 		}
 	}
 
 	if c.spanNamespace == cloudRunFunction {
 		return c.getFunctionTags(tags)
 	}
-
-	tags["gcr.resource_name"] = "projects/" + tags["project_id"] + "/locations/" + tags["location"] + "/services/" + serviceName
+	tags[cloudRunService+resourceName] = fmt.Sprintf("projects/%s/locations/%s/services/%s", tags["project_id"], tags["location"], tags["service_name"])
 	return tags
 }
 
 func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
-	functionTarget := os.Getenv(functionTargetEnvVar)
+	functionTargetVal := os.Getenv(functionTargetEnvVar)
 	functionSignatureType := os.Getenv(functionTypeEnvVar)
 
-	if functionTarget != "" {
-		tags[c.spanNamespace+"function_target"] = functionTarget
+	if functionTargetVal != "" {
+		tags[cloudRunFunction+functionTarget] = functionTargetVal
 	}
 
 	if functionSignatureType != "" {
-		tags[c.spanNamespace+"function_signature_type"] = functionSignatureType
+		tags[cloudRunFunction+functionSignature] = functionSignatureType
 	}
 
-	tags["gcrfx.resource_name"] = "projects/" + tags["project_id"] + "/locations/" + tags["location"] + "/services/" + tags["service_name"] + "/functions/" + functionTarget
+	tags[cloudRunFunction+resourceName] = fmt.Sprintf("projects/%s/locations/%s/services/%s/functions/%s", tags["project_id"], tags["location"], tags["service_name"], functionTargetVal)
 	return tags
 }
 
@@ -126,4 +150,80 @@ func isCloudRunFunction() bool {
 	_, cloudRunFunctionMode := os.LookupEnv(functionTargetEnvVar)
 	log.Debug(fmt.Sprintf("cloud run namespace SET TO: %s", cloudRunFunction))
 	return cloudRunFunctionMode
+}
+
+// GetDefaultConfig returns the medatadata's default config
+func GetDefaultConfig() *GCPConfig {
+	return &GCPConfig{
+		containerIDURL: fmt.Sprintf("%s%s", defaultBaseURL, defaultContainerIDURL),
+		regionURL:      fmt.Sprintf("%s%s", defaultBaseURL, defaultRegionURL),
+		projectIDURL:   fmt.Sprintf("%s%s", defaultBaseURL, defaultProjectID),
+		timeout:        defaultTimeout,
+	}
+}
+
+func getRegion(httpClient *http.Client, url string) string {
+	value := getSingleMetadata(httpClient, url)
+	tokens := strings.Split(value, "/")
+	return tokens[len(tokens)-1]
+}
+
+func getSingleMetadata(httpClient *http.Client, url string) string {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		log.Error("unable to build the metadata request, defaulting to unknown")
+		return "unknown"
+	}
+	req.Header.Add("Metadata-Flavor", "Google")
+	res, err := httpClient.Do(req)
+	if err != nil {
+		log.Info("unable to get the requested metadata, defaulting to unknown")
+		return "unknown"
+	}
+	defer res.Body.Close()
+	data, err := io.ReadAll(res.Body)
+	if err != nil {
+		log.Error("unable to read metadata body, defaulting to unknown")
+		return "unknown"
+	}
+	return strings.ToLower(string(data))
+}
+
+// GetMetaData returns the container's metadata
+func GetMetaData(config *GCPConfig, isCloudRun bool) map[string]string {
+	type keyVal struct {
+		key, val string
+	}
+	httpClient := &http.Client{
+		Timeout: config.timeout,
+	}
+
+	metadata := make(map[string]string, 6)
+	metaChan := make(chan keyVal)
+	getMeta := func(fnMetadata func(*http.Client, string) string, url string, baseKey string) {
+		val := fnMetadata(httpClient, url)
+		metaChan <- keyVal{baseKey, val}
+		if isCloudRun {
+			metaChan <- keyVal{cloudRunService + baseKey, val}
+		} else {
+			metaChan <- keyVal{cloudRunFunction + baseKey, val}
+		}
+	}
+
+	go getMeta(getSingleMetadata, config.containerIDURL, containerID)
+	go getMeta(getRegion, config.regionURL, location)
+	go getMeta(getSingleMetadata, config.projectIDURL, projectID)
+	timeout := time.After(config.timeout * 6)
+	for {
+		select {
+		case tagSet := <-metaChan:
+			metadata[tagSet.key] = tagSet.val
+			if len(metadata) == 6 {
+				return metadata
+			}
+		case <-timeout:
+			log.Warn("timed out while fetching GCP compute metadata, defaulting to unknown")
+			return metadata
+		}
+	}
 }
