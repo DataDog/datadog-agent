@@ -8,10 +8,8 @@
 package compliance
 
 import (
-	"runtime"
-	"testing"
-
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"testing"
 
 	"github.com/stretchr/testify/require"
 
@@ -47,11 +45,7 @@ func TestEventCommands(t *testing.T) {
 			subcommandNames = append(subcommandNames, subcommand.Use)
 		}
 
-		if runtime.GOOS == "windows" {
-			require.Equal(t, []string{"event", "load <conf-type>"}, subcommandNames, "subcommand missing")
-		} else {
-			require.Equal(t, []string{"check", "event", "load <conf-type>"}, subcommandNames, "subcommand missing")
-		}
+		require.Equal(t, []string{"event", "load <conf-type>"}, subcommandNames, "subcommand missing")
 
 		fxutil.TestOneShotSubcommand(t,
 			Commands(&command.GlobalParams{}),
