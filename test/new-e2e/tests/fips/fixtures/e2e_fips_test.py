@@ -3,7 +3,7 @@ import win32api
 from checks import AgentCheck
 
 
-class HelloCheck(AgentCheck):
+class FIPSModeCheck(AgentCheck):
     def check(self, instance):
         self.gauge('e2e.fips_mode', _hashlib.get_fips_mode())
         # _hashlib.get_fips_mode() only tests the fipsmodule.cnf enabled value

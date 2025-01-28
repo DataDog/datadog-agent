@@ -131,6 +131,10 @@ func (s *fipsAgentSuite) TestFIPSInstall() {
 	cmd := fmt.Sprintf(`& "%s" fipsinstall -module "%s" -in "%s" -verify`, openssl, fipsModule, fipsConf)
 	_, err := host.Execute(cmd)
 	require.NoError(s.T(), err, "MSI should create valid fipsmodule.cnf")
+}
+
+func (s *fipsAgentSuite) TestOpenSSLPaths() {
+	host := s.Env().RemoteHost
 
 	// assert openssl winctx registry keys exist
 	// https://github.com/openssl/openssl/blob/master/NOTES-WINDOWS.md#installation-directories
@@ -139,16 +143,19 @@ func (s *fipsAgentSuite) TestFIPSInstall() {
 		"ENGINESDIR": fmt.Sprintf(`%sembedded3\lib\engines-3`, s.installPath),
 		"MODULESDIR": fmt.Sprintf(`%sembedded3\lib\ossl-modules`, s.installPath),
 	}
+	// TODO: How to configure the version of OpenSSL?
 	opensslVersion := "3.4"
 	keyPath := fmt.Sprintf(`HKLM:\SOFTWARE\Wow6432Node\OpenSSL-%s-datadog-fips-agent`, opensslVersion)
 	exists, err := windowsCommon.RegistryKeyExists(host, keyPath)
 	require.NoError(s.T(), err)
 	if assert.True(s.T(), exists, "%s should exist", keyPath) {
 		for name, expected := range expectedOpenSSLPaths {
+			// check value matches
 			value, err := windowsCommon.GetRegistryValue(host, keyPath, name)
 			if assert.NoError(s.T(), err, "Failed to get %s", name) {
 				assert.Equal(s.T(), expected, value, "Unexpected value for %s", name)
 			}
+			// ensure value exists as a directory
 			fileInfo, err := host.Lstat(value)
 			if assert.NoError(s.T(), err, "Path %s for %s does not exist", value, name) {
 				assert.True(s.T(), fileInfo.IsDir(), "Path %s for %s is not a directory", value, name)
@@ -157,10 +164,18 @@ func (s *fipsAgentSuite) TestFIPSInstall() {
 	}
 
 	// assert that openssl uses the paths from the registry
-	cmd = fmt.Sprintf(`& "%s" version -a`, openssl)
+	// Example output:
+	// 	OpenSSL 3.3.2 3 Sep 2024 (Library: OpenSSL 3.3.2 3 Sep 2024)
+	//  <snipped>
+	// 	OPENSSLDIR: "C:/opt/datadog-agent/embedded3/ssl"
+	// 	ENGINESDIR: "C:/opt/datadog-agent/embedded3/lib/engines-3"
+	// 	MODULESDIR: "C:/opt/datadog-agent/embedded3/lib/ossl-modules"
+	openssl := path.Join(s.installPath, `embedded3\bin\openssl.exe`)
+	cmd := fmt.Sprintf(`& "%s" version -a`, openssl)
 	out, err := host.Execute(cmd)
 	require.NoError(s.T(), err)
 	for name, expected := range expectedOpenSSLPaths {
+		// openssl.exe reports the paths with forward slashes
 		expected = strings.ReplaceAll(expected, "\\", "/")
 		assert.Contains(s.T(), out, fmt.Sprintf(`%s: "%s"`, name, expected), "Expected %s to be %s", name, expected)
 	}
