@@ -23,10 +23,10 @@ type Context struct {
 	Event Event
 
 	// cache available across all the evaluations
-	StringCache map[string][]string
-	IPNetCache  map[string][]net.IPNet
-	IntCache    map[string][]int
-	BoolCache   map[string][]bool
+	StringCache map[Field][]string
+	IPNetCache  map[Field][]net.IPNet
+	IntCache    map[Field][]int
+	BoolCache   map[Field][]bool
 
 	// iterator register cache. used to cache entry within a single rule evaluation
 	RegisterCache map[RegisterID]*RegisterCacheEntry
@@ -36,9 +36,11 @@ type Context struct {
 
 	now time.Time
 
-	AncestorsCounters map[string]int
+	IteratorCountCache map[string]int
 
 	resolvedFields []string
+
+	IteratorCounters map[Field]int
 
 	Error error
 }
@@ -68,7 +70,7 @@ func (c *Context) Reset() {
 	clear(c.BoolCache)
 	clear(c.Registers)
 	clear(c.RegisterCache)
-	clear(c.AncestorsCounters)
+	clear(c.IteratorCountCache)
 	c.resolvedFields = nil
 }
 
@@ -80,14 +82,14 @@ func (c *Context) GetResolvedFields() []string {
 // NewContext return a new Context
 func NewContext(evt Event) *Context {
 	return &Context{
-		Event:             evt,
-		StringCache:       make(map[string][]string),
-		IPNetCache:        make(map[string][]net.IPNet),
-		IntCache:          make(map[string][]int),
-		BoolCache:         make(map[string][]bool),
-		Registers:         make(map[RegisterID]int),
-		RegisterCache:     make(map[RegisterID]*RegisterCacheEntry),
-		AncestorsCounters: make(map[string]int),
+		Event:              evt,
+		StringCache:        make(map[Field][]string),
+		IPNetCache:         make(map[Field][]net.IPNet),
+		IntCache:           make(map[Field][]int),
+		BoolCache:          make(map[Field][]bool),
+		Registers:          make(map[RegisterID]int),
+		RegisterCache:      make(map[RegisterID]*RegisterCacheEntry),
+		IteratorCountCache: make(map[string]int),
 	}
 }
 

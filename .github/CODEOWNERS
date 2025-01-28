@@ -27,8 +27,8 @@
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
 /CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery @DataDog/container-ecosystems
 
-/*.md                                   @DataDog/agent-devx-infra @DataDog/documentation
-/NOTICE                                 @DataDog/agent-delivery @DataDog/documentation
+/*.md                                   @DataDog/agent-devx-infra
+/NOTICE                                 @DataDog/agent-delivery
 
 /LICENSE*                               # do not notify anyone
 
@@ -37,6 +37,7 @@
 
 /mkdocs.yml                             @DataDog/agent-devx-infra
 /release.json                           @DataDog/agent-delivery @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations @DataDog/agent-security
+/renovate.json                          @DataDog/agent-devx-infra
 /requirements.txt                       @DataDog/agent-devx-infra
 /pyproject.toml                         @DataDog/agent-devx-infra @DataDog/agent-devx-loops
 /repository.datadog.yml                 @DataDog/agent-devx-infra
@@ -252,14 +253,14 @@
 /Dockerfiles/agent-ot                    @DataDog/opentelemetry
 /Dockerfiles/agent/bouncycastle-fips     @DataDog/agent-metrics-logs
 
-/docs/                                  @DataDog/documentation @DataDog/agent-devx-loops
-/docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
+/docs/                                  @DataDog/agent-devx-loops
+/docs/dev/checks/                       @DataDog/agent-metrics-logs
 /docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
 
-/docs/public/components/                                     @DataDog/documentation @DataDog/agent-shared-components
-/docs/public/hostname/                                       @DataDog/documentation @DataDog/agent-shared-components
-/docs/public/architecture/dogstatsd/                         @DataDog/documentation @DataDog/agent-metrics-logs
-/docs/public/guidelines/deprecated-components-documentation/ @DataDog/documentation @DataDog/agent-shared-components
+/docs/public/components/                                     @DataDog/agent-shared-components
+/docs/public/hostname/                                       @DataDog/agent-shared-components
+/docs/public/architecture/dogstatsd/                         @DataDog/agent-metrics-logs
+/docs/public/guidelines/deprecated-components-documentation/ @DataDog/agent-shared-components
 
 /google-marketplace/                    @DataDog/container-ecosystems
 
@@ -273,7 +274,7 @@
 /Makefile.trace                         @DataDog/agent-apm
 
 /omnibus/                               @DataDog/agent-delivery
-/omnibus/python-scripts/                @DataDog/agent-shared-components
+/omnibus/python-scripts/                @DataDog/agent-shared-components @DataDog/windows-agent
 /omnibus/config/patches/openscap/                         @DataDog/agent-cspm
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-delivery

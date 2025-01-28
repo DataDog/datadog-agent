@@ -8,6 +8,7 @@ package checkconfig
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"net"
@@ -70,11 +71,6 @@ const DefaultPingTimeout = 3 * time.Second
 
 // DefaultPingInterval is the default time to wait between sending ping packets
 const DefaultPingInterval = 10 * time.Millisecond
-
-// config.ProfileName will be set to ProfileNameAuto if the profile is auto-detected,
-// and ProfileNameInline if metrics were provided in the initial config (so that no profile is used)
-const ProfileNameAuto = "<autodetect>"
-const ProfileNameInline = "<inline>"
 
 var uptimeMetricConfig = profiledefinition.MetricsConfig{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}
 
@@ -168,13 +164,20 @@ type CheckConfig struct {
 	PrivProtocol    string
 	PrivKey         string
 	ContextName     string
+	OidConfig       OidConfig
 	// RequestedMetrics are the metrics explicitly requested by config.
 	RequestedMetrics []profiledefinition.MetricsConfig
 	// RequestedMetricTags are the tags explicitly requested by config.
-	RequestedMetricTags   []profiledefinition.MetricTagConfig
+	RequestedMetricTags []profiledefinition.MetricTagConfig
+	// Metrics combines RequestedMetrics with profile metrics.
+	Metrics  []profiledefinition.MetricsConfig
+	Metadata profiledefinition.MetadataConfig
+	// MetricTags combines RequestedMetricTags with profile metric tags.
+	MetricTags            []profiledefinition.MetricTagConfig
 	OidBatchSize          int
 	BulkMaxRepetitions    uint32
 	ProfileProvider       profile.Provider
+	ProfileTags           []string
 	ProfileName           string
 	ExtraTags             []string
 	InstanceTags          []string
@@ -185,6 +188,7 @@ type CheckConfig struct {
 	DeviceIDTags          []string
 	ResolvedSubnetName    string
 	Namespace             string
+	AutodetectProfile     bool
 	MinCollectionInterval time.Duration
 
 	Network                  string
@@ -197,6 +201,61 @@ type CheckConfig struct {
 
 	PingEnabled bool
 	PingConfig  pinger.Config
+}
+
+// SetProfile refreshes config based on profile
+func (c *CheckConfig) SetProfile(profileName string) error {
+	profileConf := c.ProfileProvider.GetProfile(profileName)
+	if profileConf == nil {
+		return fmt.Errorf("unknown profile `%s`", profileName)
+	}
+	log.Debugf("Refreshing with profile `%s`", profileName)
+	c.ProfileName = profileName
+
+	if log.ShouldLog(log.DebugLvl) {
+		profileDefJSON, _ := json.Marshal(profileConf.Definition)
+		log.Debugf("Profile content `%s`: %s", profileName, string(profileDefJSON))
+	}
+	c.RebuildMetadataMetricsAndTags()
+	return nil
+}
+
+// GetProfileDef returns the autodetected profile definition if there is one,
+// the active profile if it exists, or nil if neither is true.
+func (c *CheckConfig) GetProfileDef() *profiledefinition.ProfileDefinition {
+	if c.ProfileName != "" {
+		profile := c.ProfileProvider.GetProfile(c.ProfileName)
+		if profile != nil {
+			return &profile.Definition
+		}
+		log.Warnf("profile `%s` not found", c.ProfileName)
+	}
+	return nil
+}
+
+// RebuildMetadataMetricsAndTags rebuilds c.Metrics, c.Metadata, c.MetricTags,
+// and c.OidConfig by merging data from requested metrics/tags and the current
+// profile.
+func (c *CheckConfig) RebuildMetadataMetricsAndTags() {
+	c.Metrics = c.RequestedMetrics
+	c.MetricTags = c.RequestedMetricTags
+	c.ProfileTags = nil
+	profileDef := c.GetProfileDef()
+	if profileDef != nil {
+		c.ProfileTags = append(c.ProfileTags, "snmp_profile:"+c.ProfileName)
+		if profileDef.Device.Vendor != "" {
+			c.ProfileTags = append(c.ProfileTags, "device_vendor:"+profileDef.Device.Vendor)
+		}
+		c.ProfileTags = append(c.ProfileTags, profileDef.StaticTags...)
+		c.Metadata = updateMetadataDefinitionWithDefaults(profileDef.Metadata, c.CollectTopology)
+		c.Metrics = append(c.Metrics, profileDef.Metrics...)
+		c.MetricTags = append(c.MetricTags, profileDef.MetricTags...)
+	} else {
+		c.Metadata = updateMetadataDefinitionWithDefaults(nil, c.CollectTopology)
+	}
+	c.OidConfig.clean()
+	c.OidConfig.addScalarOids(c.parseScalarOids(c.Metrics, c.MetricTags, c.Metadata))
+	c.OidConfig.addColumnOids(c.parseColumnOids(c.Metrics, c.Metadata))
 }
 
 // UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags
@@ -251,7 +310,8 @@ func (c *CheckConfig) getDeviceIDTags() []string {
 // ToString used for logging CheckConfig without sensitive information
 func (c *CheckConfig) ToString() string {
 	return fmt.Sprintf("CheckConfig: IPAddress=`%s`, Port=`%d`, SnmpVersion=`%s`, Timeout=`%d`, Retries=`%d`, "+
-		"User=`%s`, AuthProtocol=`%s`, PrivProtocol=`%s`, ContextName=`%s`, OidBatchSize=`%d`, ProfileName=`%s`",
+		"User=`%s`, AuthProtocol=`%s`, PrivProtocol=`%s`, ContextName=`%s`, OidConfig=`%#v`, "+
+		"OidBatchSize=`%d`, ProfileTags=`%#v`",
 		c.IPAddress,
 		c.Port,
 		c.SnmpVersion,
@@ -261,8 +321,9 @@ func (c *CheckConfig) ToString() string {
 		c.AuthProtocol,
 		c.PrivProtocol,
 		c.ContextName,
+		c.OidConfig,
 		c.OidBatchSize,
-		c.ProfileName,
+		c.ProfileTags,
 	)
 }
 
@@ -438,13 +499,11 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.ProfileProvider = profiles
 
 	// profile configs
-	c.ProfileName = instance.Profile
-	if c.ProfileName == "" {
-		if len(instance.Metrics) > 0 {
-			c.ProfileName = ProfileNameInline
-		} else {
-			c.ProfileName = ProfileNameAuto
-		}
+	profileName := instance.Profile
+	if profileName != "" || len(instance.Metrics) > 0 {
+		c.AutodetectProfile = false
+	} else {
+		c.AutodetectProfile = true
 	}
 
 	c.InstanceTags = instance.Tags
@@ -464,6 +523,15 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	errors = append(errors, configvalidation.ValidateEnrichMetricTags(c.RequestedMetricTags)...)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
+	}
+
+	if profileName != "" {
+		err = c.SetProfile(profileName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to refresh with profile `%s`: %s", profileName, err)
+		}
+	} else {
+		c.RebuildMetadataMetricsAndTags()
 	}
 
 	// Ping configuration
@@ -577,14 +645,24 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.PrivKey = c.PrivKey
 	newConfig.ContextName = c.ContextName
 	newConfig.ContextName = c.ContextName
+	newConfig.OidConfig = c.OidConfig
 	newConfig.RequestedMetrics = make([]profiledefinition.MetricsConfig, len(c.RequestedMetrics))
 	copy(newConfig.RequestedMetrics, c.RequestedMetrics)
+	newConfig.Metrics = make([]profiledefinition.MetricsConfig, len(c.Metrics))
+	copy(newConfig.Metrics, c.Metrics)
+
+	// Metadata: shallow copy is enough since metadata is not modified.
+	// However, it might be fully replaced, see CheckConfig.SetProfile
+	newConfig.Metadata = c.Metadata
 
 	newConfig.RequestedMetricTags = make([]profiledefinition.MetricTagConfig, len(c.RequestedMetricTags))
 	copy(newConfig.RequestedMetricTags, c.RequestedMetricTags)
+	newConfig.MetricTags = make([]profiledefinition.MetricTagConfig, len(c.MetricTags))
+	copy(newConfig.MetricTags, c.MetricTags)
 	newConfig.OidBatchSize = c.OidBatchSize
 	newConfig.BulkMaxRepetitions = c.BulkMaxRepetitions
 	newConfig.ProfileProvider = c.ProfileProvider
+	newConfig.ProfileTags = netutils.CopyStrings(c.ProfileTags)
 	newConfig.ProfileName = c.ProfileName
 	newConfig.ExtraTags = netutils.CopyStrings(c.ExtraTags)
 	newConfig.InstanceTags = netutils.CopyStrings(c.InstanceTags)
@@ -596,6 +674,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.DeviceIDTags = netutils.CopyStrings(c.DeviceIDTags)
 	newConfig.ResolvedSubnetName = c.ResolvedSubnetName
 	newConfig.Namespace = c.Namespace
+	newConfig.AutodetectProfile = c.AutodetectProfile
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 	newConfig.InterfaceConfigs = c.InterfaceConfigs
 
@@ -619,6 +698,62 @@ func (c *CheckConfig) CopyWithNewIP(ipAddress string) *CheckConfig {
 // IsDiscovery return weather it's a network/autodiscovery config or not
 func (c *CheckConfig) IsDiscovery() bool {
 	return c.Network != ""
+}
+
+func (c *CheckConfig) parseScalarOids(metrics []profiledefinition.MetricsConfig, metricTags []profiledefinition.MetricTagConfig, metadataConfigs profiledefinition.MetadataConfig) []string {
+	var oids []string
+	for _, metric := range metrics {
+		oids = append(oids, metric.Symbol.OID)
+	}
+	for _, metricTag := range metricTags {
+		oids = append(oids, metricTag.Symbol.OID)
+	}
+	if c.CollectDeviceMetadata {
+		for resource, metadataConfig := range metadataConfigs {
+			if !profiledefinition.IsMetadataResourceWithScalarOids(resource) {
+				continue
+			}
+			for _, field := range metadataConfig.Fields {
+				oids = append(oids, field.Symbol.OID)
+				for _, symbol := range field.Symbols {
+					oids = append(oids, symbol.OID)
+				}
+			}
+			// we don't support tags for now for resource (e.g. device) based on scalar OIDs
+			// profile root level `metric_tags` (tags used for both metadata, metrics, service checks)
+			// can be used instead
+		}
+	}
+	return oids
+}
+
+func (c *CheckConfig) parseColumnOids(metrics []profiledefinition.MetricsConfig, metadataConfigs profiledefinition.MetadataConfig) []string {
+	var oids []string
+	for _, metric := range metrics {
+		for _, symbol := range metric.Symbols {
+			oids = append(oids, symbol.OID)
+		}
+		for _, metricTag := range metric.MetricTags {
+			oids = append(oids, metricTag.Symbol.OID)
+		}
+	}
+	if c.CollectDeviceMetadata {
+		for resource, metadataConfig := range metadataConfigs {
+			if profiledefinition.IsMetadataResourceWithScalarOids(resource) {
+				continue
+			}
+			for _, field := range metadataConfig.Fields {
+				oids = append(oids, field.Symbol.OID)
+				for _, symbol := range field.Symbols {
+					oids = append(oids, symbol.OID)
+				}
+			}
+			for _, tagConfig := range metadataConfig.IDTags {
+				oids = append(oids, tagConfig.Symbol.OID)
+			}
+		}
+	}
+	return oids
 }
 
 func getSubnetFromTags(tags []string) (string, error) {
