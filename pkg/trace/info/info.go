@@ -16,6 +16,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -205,7 +206,7 @@ func InitInfo(conf *config.AgentConfig) error {
 // automatically ignore extra fields.
 type StatusInfo struct {
 	CmdLine  []string `json:"cmdline"`
-	Pid      int      `json:"pid"`
+	Pid      string   `json:"pid"`
 	Uptime   int      `json:"uptime"`
 	MemStats struct {
 		Alloc uint64
@@ -327,7 +328,7 @@ func initInfo(conf *config.AgentConfig) error {
 			return fmt.Sprintf("%02.1f", v*100)
 		},
 	}
-	expvar.NewInt("pid").Set(int64(os.Getpid()))
+	expvar.NewString("pid").Set(strconv.Itoa(os.Getpid()))
 	expvar.Publish("uptime", expvar.Func(publishUptime))
 	expvar.Publish("version", expvar.Func(publishVersion))
 	expvar.Publish("receiver", expvar.Func(publishReceiverStats))
