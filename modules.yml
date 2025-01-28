@@ -130,10 +130,6 @@ modules:
   pkg/version: default
   tasks/unit-tests/testdata/go_mod_formatter/invalid_package: ignored
   tasks/unit-tests/testdata/go_mod_formatter/valid_package: ignored
-  test/e2e/containers/otlp_sender:
-    independent: false
-    should_tag: false
-    should_test_condition: never
   test/fakeintake: default
   test/integration/serverless/recorder-extension: ignored
   test/integration/serverless/src: ignored
