@@ -215,27 +215,40 @@ func (s *discovery) handleStatusEndpoint(w http.ResponseWriter, _ *http.Request)
 }
 
 func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	services := make([]model.Service, 0)
 
-	services := struct {
-		RunningServices   []model.Service `json:"running_services"`
-		PotentialServices []model.Service `json:"potential_services"`
-	}{
-		RunningServices:   make([]model.Service, 0, len(s.runningServices)),
-		PotentialServices: make([]model.Service, 0, len(s.potentialServices)),
+	procRoot := kernel.ProcFSRoot()
+	pids, err := process.Pids()
+	if err != nil {
+		utils.WriteAsJSON(w, "could not get PIDs")
+		return
 	}
 
-	for pid, service := range s.cache {
-		if s.runningServices.has(pid) {
-			services.RunningServices = append(services.RunningServices, *service.toModelService(pid, &model.Service{}))
-			continue
-		}
+	context := parsingContext{
+		procRoot:  procRoot,
+		netNsInfo: make(map[uint32]*namespaceInfo),
+	}
 
-		if s.potentialServices.has(pid) {
-			services.PotentialServices = append(services.PotentialServices, *service.toModelService(pid, &model.Service{}))
+	containers, _, pidToCid, err := s.containerProvider.GetContainers(containerCacheValidity, nil)
+	if err != nil {
+		log.Errorf("could not get containers: %s", err)
+	}
+
+	// Build mapping of Container ID to container object to avoid traversal of
+	// the containers slice for every services.
+	containersMap := make(map[string]*agentPayload.Container, len(containers))
+	for _, c := range containers {
+		containersMap[c.Id] = c
+	}
+
+	for _, pid := range pids {
+		service := s.getService(context, pid)
+		if service == nil {
 			continue
 		}
+		s.enrichContainerData(service, containersMap, pidToCid)
+
+		services = append(services, *service)
 	}
 
 	utils.WriteAsJSON(w, services)
