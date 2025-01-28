@@ -165,8 +165,8 @@ func TestOTLPMetrics(t *testing.T) {
 func testOTLPMetrics(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	assert := assert.New(t)
 	cfg := NewTestConfig(t)
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	stats := &teststatsd.Client{}
 
@@ -231,8 +231,8 @@ func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	// Verify that while EnableOperationAndResourceNamesV2 is in alpha, SpanNameRemappings overrides it
 	cfg := NewTestConfig(t)
 	cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{"libname.unspecified": "new"}
 	out := make(chan *Payload, 1)
@@ -269,8 +269,8 @@ func TestOTLPSpanNameV2(t *testing.T) {
 func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
 	cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
@@ -708,8 +708,8 @@ func TestCreateChunks(t *testing.T) {
 
 func testCreateChunk(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	cfg.OTLPReceiver.ProbabilisticSampling = 50
 	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
@@ -763,8 +763,8 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 
 func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
@@ -1260,8 +1260,8 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	}
 	for _, tt := range testcases {
 		cfg := NewTestConfig(t)
-		if enableReceiveResourceSpansV2 {
-			cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+		if !enableReceiveResourceSpansV2 {
+			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
 		cfg.Hostname = tt.config
 		out := make(chan *Payload, 1)
@@ -1296,7 +1296,6 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 
 func TestResourceRelatedSpanAttributesAreIgnored_ReceiveResourceSpansV2(t *testing.T) {
 	cfg := NewTestConfig(t)
-	cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	rattr := map[string]interface{}{}
@@ -1343,16 +1342,16 @@ func TestOTLPReceiver(t *testing.T) {
 func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	t.Run("New", func(t *testing.T) {
 		cfg := NewTestConfig(t)
-		if enableReceiveResourceSpansV2 {
-			cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+		if !enableReceiveResourceSpansV2 {
+			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
 		assert.NotNil(t, NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}).conf)
 	})
 
 	t.Run("Start/nil", func(t *testing.T) {
 		cfg := NewTestConfig(t)
-		if enableReceiveResourceSpansV2 {
-			cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+		if !enableReceiveResourceSpansV2 {
+			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
 		o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.Start()
@@ -1363,8 +1362,8 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	t.Run("Start/grpc", func(t *testing.T) {
 		port := testutil.FreeTCPPort(t)
 		cfg := NewTestConfig(t)
-		if enableReceiveResourceSpansV2 {
-			cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+		if !enableReceiveResourceSpansV2 {
+			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
 		cfg.OTLPReceiver = &config.OTLP{
 			BindHost: "localhost",
@@ -1384,8 +1383,8 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	t.Run("processRequest", func(t *testing.T) {
 		out := make(chan *Payload, 5)
 		cfg := NewTestConfig(t)
-		if enableReceiveResourceSpansV2 {
-			cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+		if !enableReceiveResourceSpansV2 {
+			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
 		o := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.processRequest(context.Background(), http.Header(map[string][]string{
@@ -1627,7 +1626,6 @@ func TestOTelSpanToDDSpan(t *testing.T) {
 func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
 	now := uint64(otlpTestSpan.StartTimestamp())
-	cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
 	if enableOperationAndResourceNameV2 {
 		cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
@@ -3410,7 +3408,6 @@ func testOTLPConvertSpanSetPeerService(enableOperationAndResourceNameV2 bool, t 
 func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
 	cfg := NewTestConfig(t)
-	cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
 	if enableOperationAndResourceNameV2 {
 		cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
@@ -3795,8 +3792,8 @@ func testResourceAttributesMap(enableReceiveResourceSpansV2 bool, t *testing.T) 
 	lib := pcommon.NewInstrumentationScope()
 	span := testutil.NewOTLPSpan(&testutil.OTLPSpan{})
 	cfg := NewTestConfig(t)
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}).convertSpan(rattr, lib, span)
 	assert.Len(t, rattr, 1) // ensure "rattr" has no new entries
@@ -4273,8 +4270,8 @@ func benchmarkProcessRequest(enableReceiveResourceSpansV2 bool, b *testing.B) {
 	}()
 
 	cfg := NewBenchmarkTestConfig(b)
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	b.ReportAllocs()
@@ -4316,8 +4313,8 @@ func benchmarkProcessRequestTopLevel(enableReceiveResourceSpansV2 bool, b *testi
 	}()
 
 	cfg := NewBenchmarkTestConfig(b)
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	cfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
 	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})

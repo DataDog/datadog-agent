@@ -11,6 +11,8 @@ import (
 	"encoding/hex"
 	"testing"
 
+	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
+	"github.com/golang/mock/gomock"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -84,6 +86,52 @@ func TestProbabilisticSampler(t *testing.T) {
 			Meta:    map[string]string{"_dd.p.tid": hex.EncodeToString(tid[:8])},
 		})
 		assert.False(t, sampled)
+	})
+	t.Run("keep-dd-metrics", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		statsdClient := mockStatsd.NewMockClientInterface(ctrl)
+
+		tid := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+		conf := &config.AgentConfig{
+			ProbabilisticSamplerEnabled:            true,
+			ProbabilisticSamplerHashSeed:           0,
+			ProbabilisticSamplerSamplingPercentage: 41,
+			Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
+		}
+		sampler := NewProbabilisticSampler(conf, statsdClient)
+		sampled := sampler.Sample(&trace.Span{
+			TraceID: binary.BigEndian.Uint64(tid[8:]),
+			Meta:    map[string]string{"_dd.p.tid": hex.EncodeToString(tid[:8])},
+		})
+		assert.True(t, sampled)
+
+		statsdClient.EXPECT().Count(metricSamplerKept, int64(1), []string{"sampler:probabilistic"}, float64(1)).Times(1)
+		statsdClient.EXPECT().Count(metricSamplerSeen, int64(1), []string{"sampler:probabilistic"}, float64(1)).Times(1)
+		sampler.metrics.report()
+	})
+	t.Run("drop-dd-metrics", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		statsdClient := mockStatsd.NewMockClientInterface(ctrl)
+
+		tid := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+		conf := &config.AgentConfig{
+			ProbabilisticSamplerEnabled:            true,
+			ProbabilisticSamplerHashSeed:           0,
+			ProbabilisticSamplerSamplingPercentage: 40,
+			Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
+		}
+		sampler := NewProbabilisticSampler(conf, statsdClient)
+		sampled := sampler.Sample(&trace.Span{
+			TraceID: 555,
+			Meta:    map[string]string{"_dd.p.tid": hex.EncodeToString(tid[:8])},
+		})
+		assert.False(t, sampled)
+
+		statsdClient.EXPECT().Count(metricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+		statsdClient.EXPECT().Count(metricSamplerSeen, int64(1), []string{"sampler:probabilistic"}, float64(1)).Times(1)
+		sampler.metrics.report()
 	})
 	t.Run("keep-dd-64-full", func(t *testing.T) {
 		conf := &config.AgentConfig{

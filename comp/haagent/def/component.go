@@ -13,8 +13,8 @@ type Component interface {
 	// Enabled returns true if ha_agent.enabled is set to true
 	Enabled() bool
 
-	// GetGroup returns the value of ha_agent.group
-	GetGroup() string
+	// GetConfigID returns the value of config_id
+	GetConfigID() string
 
 	// GetState returns current HA agent state
 	GetState() State

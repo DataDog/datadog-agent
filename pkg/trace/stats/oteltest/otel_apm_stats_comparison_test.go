@@ -50,8 +50,8 @@ func testOTelAPMStatsMatch(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	require.NoError(t, err)
 	tcfg := getTraceAgentCfg(attributesTranslator)
 	peerTagKeys := tcfg.ConfiguredPeerTags()
-	if enableReceiveResourceSpansV2 {
-		tcfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		tcfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 
 	metricsClient := &statsd.NoOpClient{}
