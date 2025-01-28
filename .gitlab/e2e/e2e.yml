@@ -58,6 +58,7 @@
     E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
     E2E_LOGS_PROCESSING_TEST_DEPTH: 1
+    E2E_FIPS: "true"
   script:
     - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
