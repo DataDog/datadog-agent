@@ -594,7 +594,7 @@ class GithubAPI:
         # - hard PRs are merged in more than 1 week
         # More details about criteria definition: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4271079846/Code+Review+Experience+Improvement#Complexity-label
         criteria = {
-            'easy': {'files': 4, 'lines': 150, 'comments': 1},
+            'easy': {'files': 4, 'lines': 150, 'comments': 2},
             'hard': {'files': 12, 'lines': 650, 'comments': 9},
         }
         if (

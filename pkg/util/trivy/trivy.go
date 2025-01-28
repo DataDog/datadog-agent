@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
@@ -33,10 +32,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/walker"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/aquasecurity/trivy/pkg/scanner"
-	"github.com/aquasecurity/trivy/pkg/scanner/langpkg"
-	"github.com/aquasecurity/trivy/pkg/scanner/ospkg"
 	"github.com/aquasecurity/trivy/pkg/types"
-	"github.com/aquasecurity/trivy/pkg/vulnerability"
 
 	// This is required to load sqlite based RPM databases
 	_ "modernc.org/sqlite"
@@ -64,9 +60,6 @@ type Collector struct {
 	config           collectorConfig
 	cacheInitialized sync.Once
 	persistentCache  CacheWithCleaner
-	osScanner        ospkg.Scanner
-	langScanner      langpkg.Scanner
-	vulnClient       vulnerability.Client
 	marshaler        cyclonedx.Marshaler
 	wmeta            option.Option[workloadmeta.Component]
 }
@@ -158,11 +151,8 @@ func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Compone
 			maxCacheSize:      cfg.GetInt("sbom.cache.max_disk_size"),
 			overlayFSSupport:  cfg.GetBool("sbom.container_image.overlayfs_direct_scan"),
 		},
-		osScanner:   ospkg.NewScanner(),
-		langScanner: langpkg.NewScanner(),
-		vulnClient:  vulnerability.NewClient(db.Config{}),
-		marshaler:   cyclonedx.NewMarshaler(""),
-		wmeta:       wmeta,
+		marshaler: cyclonedx.NewMarshaler(""),
+		wmeta:     wmeta,
 	}, nil
 }
 
@@ -294,21 +284,18 @@ func (d *driver) Scan(_ context.Context, target, artifactKey string, blobKeys []
 		return nil, ftypes.OS{}, xerrors.Errorf("failed to apply layers: %w", err)
 	}
 
-	scanTarget := types.ScanTarget{
-		Name:       target,
-		OS:         detail.OS,
-		Repository: detail.Repository,
-		Packages:   detail.Packages,
-	}
-
 	result := types.Result{
 		Target: fmt.Sprintf("%s (%s %s)", target, detail.OS.Family, detail.OS.Name),
 		Class:  types.ClassOSPkg,
-		Type:   scanTarget.OS.Family,
+		Type:   detail.OS.Family,
 	}
 
-	sort.Sort(scanTarget.Packages)
-	result.Packages = scanTarget.Packages
+	sort.Sort(detail.Packages)
+	result.Packages = detail.Packages
+	for _, app := range detail.Applications {
+		sort.Sort(app.Packages)
+		result.Packages = append(result.Packages, app.Packages...)
+	}
 
 	return []types.Result{result}, detail.OS, nil
 }
@@ -328,11 +315,9 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 
 	trivyReport, err := s.ScanArtifact(ctx, types.ScanOptions{
 		ScanRemovedPackages: false,
-		PkgTypes:            []types.PkgType{types.PkgTypeOS},
-		PkgRelationships: []ftypes.Relationship{
-			ftypes.RelationshipUnknown,
-		},
-		Scanners: types.Scanners{types.VulnerabilityScanner},
+		PkgTypes:            []types.PkgType{types.PkgTypeOS, types.PkgTypeLibrary},
+		PkgRelationships:    ftypes.Relationships,
+		Scanners:            types.Scanners{types.SBOMScanner},
 	})
 	if err != nil {
 		return nil, err
