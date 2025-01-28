@@ -6,14 +6,17 @@
 package fips
 
 import (
+	_ "embed"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -24,6 +27,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+//go:embed fixtures/e2e_fips_test.py
+var fipsTestCheck string
+
 type windowsVMSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
 
@@ -31,12 +37,25 @@ type windowsVMSuite struct {
 }
 
 func TestWindowsVM(t *testing.T) {
-	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
+	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.Provisioner(
 		// Enable FIPS mode on the host (done before Agent install)
 		awsHostWindows.WithFIPSModeOptions(fipsmode.WithFIPSModeEnabled()),
 		// Use FIPS Agent package
 		awsHostWindows.WithAgentOptions(
 			agentparams.WithFlavor(agentparams.FIPSFlavor),
+			agentparams.WithFile(
+				`C:/ProgramData/Datadog/checks.d/e2e_fips_test.py`,
+				fipsTestCheck,
+				false,
+			),
+			agentparams.WithFile(
+				`C:/ProgramData/Datadog/conf.d/e2e_fips_test.yaml`,
+				`
+init_config:
+instances: [{}]
+`,
+				false,
+			),
 		),
 	))}
 
@@ -74,6 +93,22 @@ func (s *windowsVMSuite) TestVersionCommands() {
 			s.Assert().NoError(err)
 		})
 	})
+}
+
+// TestReportsFIPSStatusMetrics tests that the custom check from our fixtures
+// is able to report metrics while in FIPS mode. These metric values are based
+// on the status of Python's FIPS mode.
+func (s *windowsVMSuite) TestReportsFIPSStatusMetrics() {
+	// Install custom check
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("e2e.fips_mode", fakeintakeclient.WithMetricValueHigherThan(0))
+		assert.NoError(c, err)
+		assert.Greater(c, len(metrics), 0, "no 'e2e.fips_mode' with value higher than 0 yet")
+
+		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("e2e.fips_dll_loaded", fakeintakeclient.WithMetricValueHigherThan(0))
+		assert.NoError(c, err)
+		assert.Greater(c, len(metrics), 0, "no 'e2e.fips_dll_loaded' with value higher than 0 yet")
+	}, 5*time.Minute, 10*time.Second)
 }
 
 func (s *windowsVMSuite) testAgentBinaries(subtest func(executable string)) {
