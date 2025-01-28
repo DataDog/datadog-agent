@@ -269,15 +269,18 @@ func waitForConfigsFromAD(ctx context.Context,
 		default:
 		}
 	}()
-
+	fmt.Println("wack0")
 	var match func(cfg integration.Config) bool
 	if wildcard {
+		fmt.Println("wack0.5?")
 		// match all configs
 		match = func(integration.Config) bool { return true }
 	} else {
+		fmt.Println("wack1")
 		// match configs with names in checkNames
 		match = func(cfg integration.Config) bool {
 			for _, checkName := range checkNames {
+				print("checkname is ", checkName)
 				if cfg.Name == checkName {
 					return true
 				}
@@ -287,11 +290,14 @@ func waitForConfigsFromAD(ctx context.Context,
 	}
 
 	stopChan := make(chan struct{})
+	fmt.Println("wack2")
 	// add the scheduler in a goroutine, since it will schedule any "catch-up" immediately,
 	// placing items in configChan
 	go ac.AddScheduler(adtypes.CheckCmdName, schedulerFunc(func(configs []integration.Config) {
 		var errorList []error
+		fmt.Println("wack3", configs)
 		for _, cfg := range configs {
+			fmt.Println("wack instance filter:", instanceFilter)
 			if instanceFilter != "" {
 				instances, filterErrors := filterInstances(cfg.Instances, instanceFilter)
 				if len(filterErrors) > 0 {
@@ -309,18 +315,22 @@ func waitForConfigsFromAD(ctx context.Context,
 			}
 		}
 		if len(errorList) > 0 {
+			fmt.Println("ERROR LIST?")
 			returnErr = errors.New(utilserror.NewAggregate(errorList).Error())
 			stopChan <- struct{}{}
 		}
 	}), true)
 
 	for wildcard || len(configs) < discoveryMinInstances {
+		fmt.Println("entered for loop")
 		select {
 		case cfg := <-configChan:
 			configs = append(configs, cfg)
 		case <-stopChan:
+			fmt.Println("cancle <-stopChan")
 			return
 		case <-ctx.Done():
+			fmt.Println("cancle <-ctx.Done()")
 			return
 		}
 	}

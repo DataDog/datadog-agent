@@ -91,7 +91,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 // runAnalyzeLogs initializes the launcher and sends the log config file path to the source provider.
 func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscovery.Component) error {
+	fmt.Println("WHY IS THERE AN ERROR IN MAIN?")
 	outputChan, launchers, pipelineProvider := runAnalyzeLogsHelper(cliParams, config, ac)
+	if outputChan == nil {
+		return fmt.Errorf("Invalid input")
+	}
 
 	// Set up an inactivity timeout
 	inactivityTimeout := time.Duration(cliParams.inactivityTimeout) * time.Second
@@ -126,17 +130,20 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscov
 // Used to make testing easier
 func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
 	configSource := sources.NewConfigSources()
+	fmt.Println("WHY IS THERE AN ERROR IN MAIN?")
+	// waitTime := time.Duration(cliParams.inactivityTimeout)*time.Second
+	waitTime := time.Duration(15) * time.Second
+	waitCtx, _ := context.WithTimeout(
+		context.Background(), waitTime)
 
-	waitCtx, cancelTimeout := context.WithTimeout(
-		context.Background(), time.Duration(cliParams.inactivityTimeout)*time.Second)
-
-	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.LogConfigPath}, int(cliParams.inactivityTimeout), "", ac)
-	cancelTimeout()
+	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.LogConfigPath}, 1, "", ac)
+	// cancelTimeout()
 	if err != nil {
 		return nil, nil, nil
 	}
 	var sources []*sources.LogSource
 	sources = nil
+	fmt.Println("all Configs is ", allConfigs)
 	for _, config := range allConfigs {
 		if config.Name != cliParams.LogConfigPath {
 			continue
