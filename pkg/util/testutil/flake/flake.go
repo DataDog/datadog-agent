@@ -87,7 +87,7 @@ func MarkOnLog(t testing.TB, pattern string) {
 	if err == nil {
 		f, err := os.Open(flakyPatternsConfig)
 		if err != nil {
-			t.Fatalf("failed to open flaky patterns config file: %v", err)
+			t.Logf("Warning: failed to open flaky patterns config file: %v", err)
 			return
 		}
 		defer f.Close()
@@ -95,14 +95,14 @@ func MarkOnLog(t testing.TB, pattern string) {
 		dec := yaml.NewDecoder(f)
 		err = dec.Decode(&flakyConfig)
 		if err != nil {
-			t.Fatalf("failed to decode flaky patterns config file: %v", err)
+			t.Logf("Warning: failed to decode flaky patterns config file: %v", err)
 			return
 		}
 	}
 
 	packageName, err := getPackageName()
 	if err != nil {
-		t.Fatalf("failed to get package name: %v", err)
+		t.Logf("Warning: failed to get package name: %v", err)
 		return
 	}
 
@@ -119,13 +119,13 @@ func MarkOnLog(t testing.TB, pattern string) {
 	// Write config back
 	f, err := os.OpenFile(flakyPatternsConfig, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		t.Fatalf("failed to open flaky patterns config file: %v", err)
+		t.Logf("Warning: failed to open flaky patterns config file: %v", err)
 		return
 	}
 	encoder := yaml.NewEncoder(f)
 	err = encoder.Encode(flakyConfig)
 	if err != nil {
-		t.Fatalf("failed to encode flaky patterns config file: %v", err)
+		t.Logf("Warning: failed to encode flaky patterns config file: %v", err)
 		return
 	}
 }
