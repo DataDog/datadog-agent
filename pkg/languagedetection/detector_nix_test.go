@@ -121,7 +121,7 @@ func TestDetectLanguage(t *testing.T) {
 		{
 			name:     "php5",
 			cmdline:  []string{"php5", "index.php"},
-			comm:     "php",
+			comm:     "php5",
 			expected: languagemodels.PHP,
 		},
 	} {

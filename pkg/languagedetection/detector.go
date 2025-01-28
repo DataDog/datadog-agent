@@ -63,15 +63,16 @@ var knownPrefixes = map[string]languageFromCLI{
 
 // exactMatches maps an exact exe name match to a prefix
 var exactMatches = map[string]languageFromCLI{
-	"py":     {name: languagemodels.Python},
-	"python": {name: languagemodels.Python},
-	"java":   {name: languagemodels.Java},
-	"npm":    {name: languagemodels.Node},
-	"node":   {name: languagemodels.Node},
-	"dotnet": {name: languagemodels.Dotnet},
-	"ruby":   {name: languagemodels.Ruby},
-	"rubyw":  {name: languagemodels.Ruby},
-	"php":    {name: languagemodels.PHP},
+	"py":      {name: languagemodels.Python},
+	"python":  {name: languagemodels.Python},
+	"java":    {name: languagemodels.Java},
+	"npm":     {name: languagemodels.Node},
+	"node":    {name: languagemodels.Node},
+	"dotnet":  {name: languagemodels.Dotnet},
+	"ruby":    {name: languagemodels.Ruby},
+	"rubyw":   {name: languagemodels.Ruby},
+	"php":     {name: languagemodels.PHP},
+	"php-fpm": {name: languagemodels.PHP},
 }
 
 // languageNameFromCmdline returns a process's language from its command.
