@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -22,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"go.uber.org/fx"
 )
 
 const (
@@ -338,7 +339,7 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 		return
 	}
 
-	podInfo := c.currentBatch.getOrAddPodInfo(pod.Name, pod.Namespace, &pod.Owners[0])
+	podInfo := c.currentBatch.getOrAddPodInfo(pod)
 	containerInfo := podInfo.getOrAddContainerInfo(containerName, isInitcontainer)
 	added := containerInfo.Add(langUtil.Language(process.Language.Name))
 	if added {
@@ -371,9 +372,6 @@ func (c *client) handlePodEvent(podEvent workloadmeta.Event) {
 func (c *client) getCurrentBatchProto() *pbgo.ParentLanguageAnnotationRequest {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	if len(c.currentBatch) == 0 {
-		return nil
-	}
 	return c.currentBatch.toProto()
 }
 
@@ -384,14 +382,10 @@ func (c *client) getFreshBatchProto() *pbgo.ParentLanguageAnnotationRequest {
 	batch := make(batch)
 
 	for podName := range c.freshlyUpdatedPods {
-		if containerInfo, ok := c.currentBatch[podName]; ok {
-			batch[podName] = containerInfo
+		if podInfo, ok := c.currentBatch[podName]; ok {
+			batch[podName] = podInfo
 		}
 	}
 
-	if len(batch) > 0 {
-		return batch.toProto()
-	}
-
-	return nil
+	return batch.toProto()
 }

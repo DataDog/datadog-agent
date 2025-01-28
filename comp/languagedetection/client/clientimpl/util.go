@@ -22,22 +22,26 @@ type eventsToRetry struct {
 
 type batch map[string]*podInfo
 
-func (b batch) getOrAddPodInfo(podName, podnamespace string, ownerRef *workloadmeta.KubernetesPodOwner) *podInfo {
-	if podInfo, ok := b[podName]; ok {
+func (b batch) getOrAddPodInfo(pod *workloadmeta.KubernetesPod) *podInfo {
+	if podInfo, ok := b[pod.Name]; ok {
 		return podInfo
 	}
-	b[podName] = &podInfo{
-		namespace:     podnamespace,
+	containers := getContainersFromPod(pod)
+	b[pod.Name] = &podInfo{
+		namespace:     pod.Namespace,
 		containerInfo: make(langUtil.ContainersLanguages),
-		ownerRef:      ownerRef,
+		ownerRef:      &pod.Owners[0],
+		containers:    containers,
 	}
-	return b[podName]
+	return b[pod.Name]
 }
 
 type podInfo struct {
 	namespace     string
 	containerInfo langUtil.ContainersLanguages
 	ownerRef      *workloadmeta.KubernetesPodOwner
+	// Record all of the containers in the pod
+	containers map[langUtil.Container]struct{}
 }
 
 func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {
@@ -70,10 +74,28 @@ func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bo
 	return cInfo[container]
 }
 
+// hasLanguageForAllContainers returns true if the pod has language information for all containers
+// We don't consider init containers here because they are short-lived and not relevant for SSI
+func (p *podInfo) hasLanguageForAllContainers() bool {
+	for container := range p.containers {
+		if _, ok := p.containerInfo[container]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func (b batch) toProto() *pbgo.ParentLanguageAnnotationRequest {
 	res := &pbgo.ParentLanguageAnnotationRequest{}
 	for podName, podInfo := range b {
-		res.PodDetails = append(res.PodDetails, podInfo.toProto(podName))
+		if podInfo.hasLanguageForAllContainers() {
+			res.PodDetails = append(res.PodDetails, podInfo.toProto(podName))
+		}
+	}
+
+	// No pods with complete language information
+	if len(res.PodDetails) == 0 {
+		return nil
 	}
 	return res
 }
@@ -95,4 +117,14 @@ func getContainerInfoFromPod(cid string, pod *workloadmeta.KubernetesPod) (strin
 
 func podHasOwner(pod *workloadmeta.KubernetesPod) bool {
 	return len(pod.Owners) > 0
+}
+
+// getContainersFromPod returns the containers and init containers from a pod
+func getContainersFromPod(pod *workloadmeta.KubernetesPod) (containers map[langUtil.Container]struct{}) {
+	containers = make(map[langUtil.Container]struct{})
+	for _, container := range pod.Containers {
+		c := *langUtil.NewContainer(container.Name)
+		containers[c] = struct{}{}
+	}
+	return
 }
