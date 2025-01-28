@@ -6,7 +6,7 @@ class Version:
     @staticmethod
     def from_tag(tag):
         RE_VERSION = re.compile(
-            r"^(?P<prefix>.*?)(?P<major>\d+)\.(?P<minor>\d+)(\.(?P<patch>\d+))?(-rc\.(?P<rc>\d+))?(?P<devel>-devel)?$"
+            r"^v?(?P<prefix>.*?)(?P<major>\d+)\.(?P<minor>\d+)(\.(?P<patch>\d+))?(-rc\.(?P<rc>\d+))?(?P<devel>-devel)?$"
         )
 
         match = RE_VERSION.match(tag)
