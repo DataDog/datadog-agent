@@ -17,6 +17,14 @@ type EventMonitoringModuleClient struct {
 	mock.Mock
 }
 
+type EventMonitoringModuleClient_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *EventMonitoringModuleClient) EXPECT() *EventMonitoringModuleClient_Expecter {
+	return &EventMonitoringModuleClient_Expecter{mock: &_m.Mock}
+}
+
 // GetProcessEvents provides a mock function with given fields: ctx, in, opts
 func (_m *EventMonitoringModuleClient) GetProcessEvents(ctx context.Context, in *api.GetProcessEventParams, opts ...grpc.CallOption) (grpc.ServerStreamingClient[api.ProcessEventMessage], error) {
 	_va := make([]interface{}, len(opts))
@@ -52,6 +60,43 @@ func (_m *EventMonitoringModuleClient) GetProcessEvents(ctx context.Context, in 
 	}
 
 	return r0, r1
+}
+
+// EventMonitoringModuleClient_GetProcessEvents_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetProcessEvents'
+type EventMonitoringModuleClient_GetProcessEvents_Call struct {
+	*mock.Call
+}
+
+// GetProcessEvents is a helper method to define mock.On call
+//   - ctx context.Context
+//   - in *api.GetProcessEventParams
+//   - opts ...grpc.CallOption
+func (_e *EventMonitoringModuleClient_Expecter) GetProcessEvents(ctx interface{}, in interface{}, opts ...interface{}) *EventMonitoringModuleClient_GetProcessEvents_Call {
+	return &EventMonitoringModuleClient_GetProcessEvents_Call{Call: _e.mock.On("GetProcessEvents",
+		append([]interface{}{ctx, in}, opts...)...)}
+}
+
+func (_c *EventMonitoringModuleClient_GetProcessEvents_Call) Run(run func(ctx context.Context, in *api.GetProcessEventParams, opts ...grpc.CallOption)) *EventMonitoringModuleClient_GetProcessEvents_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]grpc.CallOption, len(args)-2)
+		for i, a := range args[2:] {
+			if a != nil {
+				variadicArgs[i] = a.(grpc.CallOption)
+			}
+		}
+		run(args[0].(context.Context), args[1].(*api.GetProcessEventParams), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *EventMonitoringModuleClient_GetProcessEvents_Call) Return(_a0 api.EventMonitoringModule_GetProcessEventsClient, _a1 error) *EventMonitoringModuleClient_GetProcessEvents_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *EventMonitoringModuleClient_GetProcessEvents_Call) RunAndReturn(run func(context.Context, *api.GetProcessEventParams, ...grpc.CallOption) (api.EventMonitoringModule_GetProcessEventsClient, error)) *EventMonitoringModuleClient_GetProcessEvents_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewEventMonitoringModuleClient creates a new instance of EventMonitoringModuleClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

@@ -1,4 +1,4 @@
-with-expecter: false
+with-expecter: true
 dir: "{{.InterfaceDir}}/mocks"
 outpkg: "mocks"
 mockname: "{{.InterfaceName}}"
