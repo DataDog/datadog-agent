@@ -99,19 +99,32 @@ def next_final_version(ctx, major_version, patch_version) -> Version:
 
 
 def current_version_for_release_branch(ctx, release_branch) -> Version:
-    """Finds the latest version of a release branch from tags."""
+    """Finds the latest version of a release branch from tags.
+
+    Note that this will take into account only full release or RC tags ignoring devel tags / tags with a prefix.
+
+    Examples:
+        For release_branch = '7.63.x'.
+        - If there are ['7.63.0-rc.1', '7.63.0-rc.2'] tags, returns Version(7, 63, 0, rc=2).
+        - If there are ['7.63.0-rc.1', '7.63.0'] tags, returns Version(7, 63, 0).
+        - If there are ['7.63.0', '7.63.1-rc.1'] tags, returns Version(7, 63, 1, rc=1).
+        - If there are ['7.63.0', '7.63.1-rc.1', '7.63.1'] tags, returns Version(7, 63, 1).
+    """
 
     RE_RELEASE_BRANCH = re.compile(r'(\d+)\.(\d+)\.x')
     match = RE_RELEASE_BRANCH.match(release_branch)
     assert match, f"Invalid release branch name: {release_branch} (should be X.YY.x)"
 
     # Get all the versions for this release X.YY
-    cmd = rf"git tag | grep -E '{match.group(1)}\.{match.group(2)}\.[0-9]+-rc\.[0-9]+'"
+    cmd = rf"git tag | grep -E '^{match.group(1)}\.{match.group(2)}\.[0-9]+(-rc\.[0-9]+)?$'"
     res = ctx.run(cmd, hide=True, warn=True)
     res = res.stdout.strip().split('\n') if res else []
 
     # from_tag might return None, ignore those
     versions = [v for v in sorted(Version.from_tag(tag) for tag in res) if v]
+
+    if not versions:
+        return Version(int(match.group(1)), int(match.group(2)), 0)
 
     return versions[-1]
 
