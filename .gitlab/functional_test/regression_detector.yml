@@ -107,7 +107,7 @@ single-machine-performance-regression_detector:
     - |
       RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
       job submit \
-      --warmup-seconds 0
+      --warmup-seconds 0 \
       --baseline-image ${BASELINE_IMAGE} \
       --comparison-image ${COMPARISON_IMAGE} \
       --baseline-sha ${BASELINE_SHA} \
