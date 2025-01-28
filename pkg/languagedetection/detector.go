@@ -38,7 +38,7 @@ type languageFromCLI struct {
 
 var (
 	rubyPattern = regexp.MustCompile(`^ruby\d+\.\d+$`)
-	phpPattern  = regexp.MustCompile(`^php\d$`)
+	phpPattern  = regexp.MustCompile(`^php(?:-fpm)?\d(?:\.\d)?$`)
 )
 
 func matchesRubyPrefix(exe string) bool {
