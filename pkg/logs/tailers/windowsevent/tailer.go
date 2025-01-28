@@ -27,10 +27,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
+	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
+	evtsubscribe "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 )
 
 // Config is a event log tailer configuration
@@ -51,6 +51,7 @@ type Tailer struct {
 
 	cancelTail context.CancelFunc
 	doneTail   chan struct{}
+	done       chan struct{}
 
 	sub                 evtsubscribe.PullSubscription
 	bookmark            evtbookmark.Bookmark
@@ -94,6 +95,7 @@ func (t *Tailer) toMessage(m *windowsevent.Map) (*message.Message, error) {
 func (t *Tailer) Start(bookmark string) {
 	log.Infof("Starting windows event log tailing for channel %s query %s", t.config.ChannelPath, t.config.Query)
 	t.doneTail = make(chan struct{})
+	t.done = make(chan struct{})
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.cancelTail = ctxCancel
 	go t.forwardMessages()
@@ -110,9 +112,16 @@ func (t *Tailer) Stop() {
 	t.decoder.Stop()
 
 	t.sub.Stop()
+
+	<-t.done
 }
 
 func (t *Tailer) forwardMessages() {
+	defer func() {
+		// the decoder has successfully been flushed
+		close(t.done)
+	}()
+
 	for decodedMessage := range t.decoder.OutputChan {
 		if len(decodedMessage.GetContent()) > 0 {
 			t.outputChan <- decodedMessage

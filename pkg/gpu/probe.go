@@ -233,8 +233,7 @@ func (p *Probe) initRCGPU(cfg *config.Config) error {
 
 func (p *Probe) initCOREGPU(cfg *config.Config) error {
 	asset := getAssetName("gpu", cfg.BPFDebug)
-	var err error //nolint:gosimple // TODO
-	err = ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
+	err := ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
 		return p.setupManager(ar, o)
 	})
 	return err

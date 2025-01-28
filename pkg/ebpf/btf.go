@@ -90,7 +90,8 @@ type returnBTF struct {
 	vmlinux *btf.Spec
 }
 
-type BTFResultMetadata struct { //nolint:revive // TODO
+// BTFResultMetadata holds metadata about BTF results
+type BTFResultMetadata struct {
 	// numLoadAttempts is how many times the loader has been invoked (doesn't include cached requests)
 	numLoadAttempts int
 	// loaderUsed the name of the loader that was used to get the BTF data
