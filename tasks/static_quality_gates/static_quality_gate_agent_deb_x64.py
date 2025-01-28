@@ -10,16 +10,16 @@ def entrypoint(**kwargs):
         kwargs, max_on_wire_size=read_byte_input, max_on_disk_size=read_byte_input, ctx=None, metricHandler=None
     )
     ctx = arguments.ctx
-    metricHandler = arguments.metricHandler
+    metric_handler = arguments.metricHandler
     max_on_wire_size = arguments.max_on_wire_size
     max_on_disk_size = arguments.max_on_disk_size
 
-    metricHandler.register_gate_tags(
+    metric_handler.register_gate_tags(
         "static_quality_gate_agent_deb_x64", gate_name="static_quality_gate_agent_deb_x64", arch="x64", os="debian"
     )
 
-    metricHandler.register_metric("static_quality_gate_agent_deb_x64", "max_on_wire_size", max_on_wire_size)
-    metricHandler.register_metric("static_quality_gate_agent_deb_x64", "max_on_disk_size", max_on_disk_size)
+    metric_handler.register_metric("static_quality_gate_agent_deb_x64", "max_on_wire_size", max_on_wire_size)
+    metric_handler.register_metric("static_quality_gate_agent_deb_x64", "max_on_disk_size", max_on_disk_size)
 
     package_os = "debian"
     package_path = find_package_path("datadog-agent", package_os, "amd64")
@@ -29,16 +29,17 @@ def entrypoint(**kwargs):
         package_on_wire_size = file_size(path=package_path)
         package_on_disk_size = directory_size(ctx, path=extract_dir)
 
-        metricHandler.register_metric("static_quality_gate_agent_deb_x64", "current_on_wire_size", package_on_wire_size)
-        metricHandler.register_metric("static_quality_gate_agent_deb_x64", "current_on_disk_size", package_on_disk_size)
+        metric_handler.register_metric(
+            "static_quality_gate_agent_deb_x64", "current_on_wire_size", package_on_wire_size
+        )
+        metric_handler.register_metric(
+            "static_quality_gate_agent_deb_x64", "current_on_disk_size", package_on_disk_size
+        )
 
         error_message = ""
         if package_on_wire_size > max_on_wire_size:
-            err_msg = color_message(
-                f"Package size on wire (compressed package size) {package_on_wire_size} is higher than the maximum allowed {max_on_wire_size} by the gate !\n",
-                "red",
-            )
-            print(err_msg)
+            err_msg = f"Package size on wire (compressed package size) {package_on_wire_size} is higher than the maximum allowed {max_on_wire_size} by the gate !\n"
+            print(color_message(err_msg, "red"))
             error_message += err_msg
         else:
             print(
@@ -48,11 +49,8 @@ def entrypoint(**kwargs):
                 )
             )
         if package_on_disk_size > max_on_disk_size:
-            err_msg = color_message(
-                f"Package size on disk (uncompressed package size) {package_on_disk_size} is higher than the maximum allowed {max_on_disk_size} by the gate !\n",
-                "red",
-            )
-            print(err_msg)
+            err_msg = f"Package size on disk (uncompressed package size) {package_on_disk_size} is higher than the maximum allowed {max_on_disk_size} by the gate !\n"
+            print(color_message(err_msg, "red"))
             error_message += err_msg
         else:
             print(

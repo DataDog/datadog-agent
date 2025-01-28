@@ -7,6 +7,8 @@ from tasks.static_quality_gates.lib.gates_lib import argument_extractor, read_by
 def calculate_image_on_disk_size(ctx, url):
     # Pull image locally to get on disk size
     ctx.run(f"crane pull {url} output.tar")
+    # The downloaded image contains some metadata files and another tar.gz file. We are computing the sum of
+    # these metadata files and the uncompressed size of the tar.gz inside of output.tar.
     ctx.run("tar -xf output.tar")
     image_content = ctx.run("tar -tvf output.tar | awk -F' ' '{print $3; print $6}'").stdout.splitlines()
     total_size = 0
@@ -29,17 +31,17 @@ def entrypoint(**kwargs):
         kwargs, max_on_wire_size=read_byte_input, max_on_disk_size=read_byte_input, ctx=None, metricHandler=None
     )
     ctx = arguments.ctx
-    metricHandler = arguments.metricHandler
+    metric_handler = arguments.metricHandler
     max_on_wire_size = arguments.max_on_wire_size
     max_on_disk_size = arguments.max_on_disk_size
     gate_name = "static_quality_gate_docker_agent_amd64"
 
-    metricHandler.register_gate_tags(
+    metric_handler.register_gate_tags(
         "static_quality_gate_docker_agent", gate_name="static_quality_gate_docker_agent", arch="x64", os="docker"
     )
 
-    metricHandler.register_metric(gate_name, "max_on_wire_size", max_on_wire_size)
-    metricHandler.register_metric(gate_name, "max_on_disk_size", max_on_disk_size)
+    metric_handler.register_metric(gate_name, "max_on_wire_size", max_on_wire_size)
+    metric_handler.register_metric(gate_name, "max_on_disk_size", max_on_disk_size)
 
     pipeline_id = os.environ["CI_PIPELINE_ID"]
     commit_sha = os.environ["CI_COMMIT_SHORT_SHA"]
@@ -61,16 +63,13 @@ def entrypoint(**kwargs):
     # Calculate image on disk size
     image_on_disk_size = calculate_image_on_disk_size(ctx, url)
 
-    metricHandler.register_metric(gate_name, "current_on_wire_size", image_on_wire_size)
-    metricHandler.register_metric(gate_name, "current_on_disk_size", image_on_disk_size)
+    metric_handler.register_metric(gate_name, "current_on_wire_size", image_on_wire_size)
+    metric_handler.register_metric(gate_name, "current_on_disk_size", image_on_disk_size)
 
     error_message = ""
     if image_on_wire_size > max_on_wire_size:
-        err_msg = color_message(
-            f"Image size on wire (compressed image size) {image_on_wire_size} is higher than the maximum allowed {max_on_wire_size} by the gate !\n",
-            "red",
-        )
-        print(err_msg)
+        err_msg = f"Image size on wire (compressed image size) {image_on_wire_size} is higher than the maximum allowed {max_on_wire_size} by the gate !\n"
+        print(color_message(err_msg, "red"))
         error_message += err_msg
     else:
         print(
@@ -80,11 +79,8 @@ def entrypoint(**kwargs):
             )
         )
     if image_on_disk_size > max_on_disk_size:
-        err_msg = color_message(
-            f"Image size on disk (uncompressed image size) {image_on_disk_size} is higher than the maximum allowed {max_on_disk_size} by the gate !\n",
-            "red",
-        )
-        print(err_msg)
+        err_msg = f"Image size on disk (uncompressed image size) {image_on_disk_size} is higher than the maximum allowed {max_on_disk_size} by the gate !\n"
+        print(color_message(err_msg, "red"))
         error_message += err_msg
     else:
         print(
