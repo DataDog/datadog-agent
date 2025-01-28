@@ -22,7 +22,7 @@ const (
 )
 
 // Subinterface of rcclient.Component to allow mocking
-type rcClient interface {
+type RcClient interface {
 	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 }
 
@@ -33,7 +33,7 @@ type configRetriever struct {
 	clock    clock.Clock
 }
 
-func newConfigRetriever(store *store, isLeader func() bool, rcClient rcClient) (*configRetriever, error) {
+func NewConfigRetriever(store *store, isLeader func() bool, rcClient RcClient) (*configRetriever, error) {
 	cr := &configRetriever{
 		store:    store,
 		isLeader: isLeader,

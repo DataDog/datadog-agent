@@ -18,6 +18,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
@@ -26,7 +27,7 @@ import (
 )
 
 type replicaCalculator struct {
-	podWatcher common.PodWatcher
+	podWatcher workload.PodWatcher
 	clock      clock.Clock
 }
 
@@ -37,7 +38,7 @@ type utilizationResult struct {
 	recommendationTimestamp time.Time
 }
 
-func newReplicaCalculator(podWatcher common.PodWatcher) replicaCalculator {
+func newReplicaCalculator(podWatcher workload.PodWatcher) replicaCalculator {
 	return replicaCalculator{
 		podWatcher: podWatcher,
 		clock:      clock.RealClock{},
@@ -59,7 +60,7 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 	podOwnerName := targetRef.Name
 	namespace := dpai.Namespace()
 
-	podOwner := common.NamespacedPodOwner{
+	podOwner := workload.NamespacedPodOwner{
 		Namespace: namespace,
 		Name:      podOwnerName,
 		Kind:      targetGVK.Kind,

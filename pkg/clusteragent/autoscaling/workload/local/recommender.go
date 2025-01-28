@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,7 +30,7 @@ type Recommender struct {
 }
 
 // NewRecommender creates a new Recommender to start generating local recommendations
-func NewRecommender(podWatcher common.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) *Recommender {
+func NewRecommender(podWatcher workload.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) *Recommender {
 	replicaCalculator := newReplicaCalculator(podWatcher)
 
 	return &Recommender{

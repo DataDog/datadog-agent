@@ -166,3 +166,7 @@ func (h *HashHeap) Exists(key string) bool {
 	_, ok := h.Keys[key]
 	return ok
 }
+
+func (h *HashHeap) MaxSize() int {
+	return h.maxSize
+}
