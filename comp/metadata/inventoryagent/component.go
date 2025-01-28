@@ -6,7 +6,7 @@
 // Package inventoryagent implements a component to generate the 'datadog_agent' metadata payload for inventory.
 package inventoryagent
 
-// team: agent-shared-components
+// team: agent-configuration
 
 // Component is the component type.
 type Component interface {
