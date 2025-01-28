@@ -79,7 +79,7 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 		}
 
 		queryResult := lStore.GetMetricsRaw(recSettings.metricName, namespace, podOwnerName, recSettings.containerName)
-		rec, utilizationRes, err := recSettings.recommend(currentTime, pods, queryResult, float64(*dpai.CurrentReplicas()))
+		rec, utilizationRes, err := recSettings.recommend(currentTime, pods, queryResult)
 		if err != nil {
 			log.Debugf("Got error calculating recommendation: %s", err)
 			break
@@ -119,7 +119,8 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 	return &recommendedReplicas, nil
 }
 
-func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*workloadmeta.KubernetesPod, queryResult loadstore.QueryResult, currentReplicas float64) (int32, utilizationResult, error) {
+func (r resourceRecommenderSettings) recommend(currentTime time.Time, pods []*workloadmeta.KubernetesPod, queryResult loadstore.QueryResult) (int32, utilizationResult, error) {
+	currentReplicas := float64(len(pods))
 	utilizationRes, err := r.calculateUtilization(pods, queryResult, currentTime)
 	if err != nil {
 		return 0, utilizationResult{}, err

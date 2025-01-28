@@ -979,7 +979,6 @@ func TestRecommend(t *testing.T) {
 		pods                []*workloadmeta.KubernetesPod
 		queryResult         loadstore.QueryResult
 		currentTime         time.Time
-		currentReplicas     float64
 		recommendedReplicas int32
 		utilizationRes      utilizationResult
 		err                 error
@@ -1009,7 +1008,6 @@ func TestRecommend(t *testing.T) {
 			},
 			queryResult:         loadstore.QueryResult{},
 			currentTime:         testTime,
-			currentReplicas:     4,
 			recommendedReplicas: 0,
 			utilizationRes:      utilizationResult{},
 			err:                 fmt.Errorf("Issue fetching metrics data"),
@@ -1059,7 +1057,6 @@ func TestRecommend(t *testing.T) {
 			currentTime:         testTime,
 			recommendedReplicas: 0,
 			utilizationRes:      utilizationResult{},
-			currentReplicas:     4,
 			err:                 fmt.Errorf("Issue calculating pod utilization"),
 		},
 		{
@@ -1086,6 +1083,66 @@ func TestRecommend(t *testing.T) {
 						{
 							ID:   "container-id2",
 							Name: "container-name2",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar-two",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name2",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "container-id1",
+							Name: "container-name1",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar-two",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name3",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "container-id1",
+							Name: "container-name1",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar-two",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name4",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "container-id1",
+							Name: "container-name1",
 							Resources: workloadmeta.ContainerResources{
 								CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
@@ -1121,16 +1178,63 @@ func TestRecommend(t *testing.T) {
 							},
 						},
 					},
+					{
+						PodName: "pod-name2",
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-name1": {
+								{
+									Value:     loadstore.ValueType(1e8),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
+								},
+								{
+									Value:     loadstore.ValueType(1.1e8),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
+								},
+							},
+						},
+					},
+					{
+						PodName: "pod-name3",
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-name1": {
+								{
+									Value:     loadstore.ValueType(1.1e8),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
+								},
+								{
+									Value:     loadstore.ValueType(1.1e8),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
+								},
+							},
+						},
+					},
+					{
+						PodName: "pod-name4",
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-name1": {
+								{
+									Value:     loadstore.ValueType(1.2e8),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
+								},
+								{
+									Value:     loadstore.ValueType(1.2e8),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
+								},
+							},
+						},
+					},
 				},
 			},
 			currentTime:         testTime,
-			currentReplicas:     4,
 			recommendedReplicas: 3,
 			utilizationRes: utilizationResult{
-				averageUtilization: 0.517,
+				averageUtilization: 0.46425,
 				missingPods:        []string{},
 				podToUtilization: map[string]float64{
 					"pod-name1": 0.517,
+					"pod-name2": 0.420,
+					"pod-name3": 0.44,
+					"pod-name4": 0.48,
 				},
 				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
@@ -1167,6 +1271,66 @@ func TestRecommend(t *testing.T) {
 						},
 					},
 				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar-two",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name2",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "container-id1",
+							Name: "container-name1",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar-three",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name3",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "container-id1",
+							Name: "container-name1",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar-four",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name4",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "container-id1",
+							Name: "container-name1",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
 			},
 			queryResult: loadstore.QueryResult{
 				Results: []loadstore.PodResult{
@@ -1195,16 +1359,63 @@ func TestRecommend(t *testing.T) {
 							},
 						},
 					},
+					{
+						PodName: "pod-name2",
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-name1": {
+								{
+									Value:     loadstore.ValueType(2.4e8),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
+								},
+								{
+									Value:     loadstore.ValueType(2.2e8),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
+								},
+							},
+						},
+					},
+					{
+						PodName: "pod-name3",
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-name1": {
+								{
+									Value:     loadstore.ValueType(2.3e8),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
+								},
+								{
+									Value:     loadstore.ValueType(2.4e8),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
+								},
+							},
+						},
+					},
+					{
+						PodName: "pod-name4",
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-name1": {
+								{
+									Value:     loadstore.ValueType(2.4e8),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
+								},
+								{
+									Value:     loadstore.ValueType(2.4e8),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
+								},
+							},
+						},
+					},
 				},
 			},
 			currentTime:         testTime,
-			currentReplicas:     4,
 			recommendedReplicas: 5,
 			utilizationRes: utilizationResult{
-				averageUtilization: 0.944,
+				averageUtilization: 0.941,
 				missingPods:        []string{},
 				podToUtilization: map[string]float64{
 					"pod-name1": 0.944,
+					"pod-name2": 0.92,
+					"pod-name3": 0.94,
+					"pod-name4": 0.96,
 				},
 				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
@@ -1244,8 +1455,48 @@ func TestRecommend(t *testing.T) {
 					},
 					Containers: []workloadmeta.OrchestratorContainer{
 						{
-							ID:   "container-id2",
-							Name: "container-name2",
+							ID:   "container-id1",
+							Name: "container-name1",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name3",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "container-id1",
+							Name: "container-name1",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name4",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "container-id1",
+							Name: "container-name1",
 							Resources: workloadmeta.ContainerResources{
 								CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
@@ -1271,17 +1522,33 @@ func TestRecommend(t *testing.T) {
 							},
 						},
 					},
+					{
+						PodName: "pod-name3",
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-name1": {
+								{
+									Value:     loadstore.ValueType(2.4e8),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
+								},
+								{
+									Value:     loadstore.ValueType(2.3e8),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
+								},
+							},
+						},
+					},
 				},
 			},
 			currentTime:         testTime,
-			currentReplicas:     4,
 			recommendedReplicas: 4,
 			utilizationRes: utilizationResult{
 				averageUtilization: 0.94,
-				missingPods:        []string{"pod-name2"},
+				missingPods:        []string{"pod-name2", "pod-name4"},
 				podToUtilization: map[string]float64{
 					"pod-name1": 0.94,
 					"pod-name2": 0.0,
+					"pod-name3": 0.94,
+					"pod-name4": 0.0,
 				},
 				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
@@ -1313,7 +1580,7 @@ func TestRecommend(t *testing.T) {
 				{
 					EntityID: workloadmeta.EntityID{
 						Kind: workloadmeta.KindKubernetesPod,
-						ID:   "foo-bar",
+						ID:   "foo-bar-two",
 					},
 					EntityMeta: workloadmeta.EntityMeta{
 						Name:      "pod-name2",
@@ -1323,6 +1590,46 @@ func TestRecommend(t *testing.T) {
 						{
 							ID:   "container-id2",
 							Name: "container-name2",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar-three",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name3",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "container-id1",
+							Name: "container-name1",
+							Resources: workloadmeta.ContainerResources{
+								CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
+								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+							},
+						},
+					},
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "foo-bar-four",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "pod-name4",
+						Namespace: "default",
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "container-id1",
+							Name: "container-name1",
 							Resources: workloadmeta.ContainerResources{
 								CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
 								MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
@@ -1348,17 +1655,33 @@ func TestRecommend(t *testing.T) {
 							},
 						},
 					},
+					{
+						PodName: "pod-name4",
+						ContainerValues: map[string][]loadstore.EntityValue{
+							"container-name1": {
+								{
+									Value:     loadstore.ValueType(0.6e8),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
+								},
+								{
+									Value:     loadstore.ValueType(0.7e8),
+									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
+								},
+							},
+						},
+					},
 				},
 			},
 			currentTime:         testTime,
-			currentReplicas:     4,
 			recommendedReplicas: 3, // original recommendation 1
 			utilizationRes: utilizationResult{
-				averageUtilization: 0.62,
-				missingPods:        []string{"pod-name2"},
+				averageUtilization: 0.625,
+				missingPods:        []string{"pod-name2", "pod-name3"},
 				podToUtilization: map[string]float64{
 					"pod-name1": 0.24,
 					"pod-name2": 1.0,
+					"pod-name3": 1.0,
+					"pod-name4": 0.26,
 				},
 				recommendationTimestamp: time.Unix(testTime.Unix()-15, 0),
 			},
@@ -1379,7 +1702,7 @@ func TestRecommend(t *testing.T) {
 				},
 			})
 			assert.NoError(t, err)
-			recommendedReplicas, utilizationRes, err := r.recommend(tt.currentTime, tt.pods, tt.queryResult, tt.currentReplicas)
+			recommendedReplicas, utilizationRes, err := r.recommend(tt.currentTime, tt.pods, tt.queryResult)
 			if err != nil {
 				assert.Error(t, err, tt.err.Error())
 				assert.Equal(t, tt.err, err)
