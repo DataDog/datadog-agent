@@ -651,6 +651,11 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 	}, nil
 }
 
+// it has been observed that docker can return layers that are missing all metadata when inherited from a base container
+func isInheritedLayer(layer image.HistoryResponseItem) bool {
+	return layer.CreatedBy == "" && layer.Size == 0
+}
+
 func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, inspect types.ImageInspect) []workloadmeta.ContainerImageLayer {
 	var layers []workloadmeta.ContainerImageLayer
 
@@ -660,18 +665,26 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 		return layers
 	}
 
-	// inspectIdx tracks the current RootFS layer ID (in Docker, this corresponds to the Diff ID of a layer) index
-	// Docker returns the RootFS layers in chronological order
+	// inspectIdx tracks the current RootFS layer ID index (in Docker, this corresponds to the Diff ID of a layer)
+	// NOTE: Docker returns the RootFS layers in chronological order
 	inspectIdx := 0
 
 	// Docker returns the history layers in reverse-chronological order
 	for i := len(history) - 1; i >= 0; i-- {
 		created := time.Unix(history[i].Created, 0)
-		emptyLayer := history[i].Size == 0
 
-		// if the layer is empty, we can assume there is no associated digest
+		isEmptyLayer := history[i].Size == 0
+
+		isInheritedLayer := isInheritedLayer(history[i])
+		if isInheritedLayer {
+			log.Debugf("detected an inherited layer for image ID: \"%s\", assigning it digest: \"%s\"", inspect.ID, inspect.RootFS.Layers[inspectIdx])
+		}
+
 		digest := ""
-		if !emptyLayer {
+		if isInheritedLayer || !isEmptyLayer {
+			if isInheritedLayer {
+				log.Debugf("detected an inherited layer for image ID: \"%s\", assigning it digest: \"%s\"", inspect.ID, inspect.RootFS.Layers[inspectIdx])
+			}
 			digest = inspect.RootFS.Layers[inspectIdx]
 			inspectIdx++
 		}
@@ -683,7 +696,7 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 				Created:    &created,
 				CreatedBy:  history[i].CreatedBy,
 				Comment:    history[i].Comment,
-				EmptyLayer: emptyLayer,
+				EmptyLayer: isEmptyLayer,
 			},
 		}
 

@@ -24,7 +24,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 	var noDiffCmd = "ENV var=dummy"
 
 	var nonEmptySize int64 = 1
-	var cmd = "RUN /bin/sh dummy"
+	var cmd = "COPY dummy.sh ."
 
 	var baseTimeUnix int64
 	var baseTime = time.Unix(baseTimeUnix, 0)
@@ -38,7 +38,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 		expected []workloadmeta.ContainerImageLayer
 	}{
 		{
-			name: "Equal number of history and inspect layers produces expected result",
+			name: "Layer with CreatedBy and positive Size is assigned a digest",
 			history: []image.HistoryResponseItem{
 				{
 					Size:      nonEmptySize,
@@ -64,14 +64,32 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 			},
 		},
 		{
-			name: "History with empty layer merges correctly with inspect layers and produces expected result",
+			name: "Inherited layer with no CreatedBy and no Size is detected and is assigned a digest",
 			history: []image.HistoryResponseItem{
 				{
-					Size:      nonEmptySize,
-					CreatedBy: cmd,
-					Created:   baseTimeUnix,
+					Size:    emptySize,
+					Created: baseTimeUnix,
 				},
-				// history is reverse-chronological so we will expect this to be the first layer processed
+			},
+			inspect: types.ImageInspect{
+				RootFS: types.RootFS{
+					Layers: []string{layerID},
+				},
+			},
+			expected: []workloadmeta.ContainerImageLayer{
+				{
+					Digest:    layerID,
+					SizeBytes: emptySize,
+					History: &v1.History{
+						Created:    &baseTime,
+						EmptyLayer: true,
+					},
+				},
+			},
+		},
+		{
+			name: "Layer with CreatedBy and empty Size is NOT assigned a digest",
+			history: []image.HistoryResponseItem{
 				{
 					Size:      emptySize,
 					CreatedBy: noDiffCmd,
@@ -85,7 +103,48 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 			},
 			expected: []workloadmeta.ContainerImageLayer{
 				{
-					Digest:    "", // should be empty because first history layer is empty
+					SizeBytes: emptySize,
+					History: &v1.History{
+						CreatedBy:  noDiffCmd,
+						Created:    &baseTime,
+						EmptyLayer: true,
+					},
+				},
+			},
+		},
+		{
+			name: "Mix of layers with and without digests are merged in the proper order",
+			history: []image.HistoryResponseItem{
+				{ // "2" in the expected field
+					Size:      nonEmptySize,
+					Created:   baseTimeUnix,
+					CreatedBy: cmd,
+				},
+				{
+					Size:      emptySize,
+					Created:   baseTimeUnix,
+					CreatedBy: noDiffCmd,
+				},
+				{ // "1" in the expected field
+					Size:    emptySize,
+					Created: baseTimeUnix,
+				},
+			},
+			inspect: types.ImageInspect{
+				RootFS: types.RootFS{
+					Layers: []string{"1", "2"},
+				},
+			},
+			expected: []workloadmeta.ContainerImageLayer{
+				{
+					Digest:    "1",
+					SizeBytes: emptySize,
+					History: &v1.History{
+						Created:    &baseTime,
+						EmptyLayer: true,
+					},
+				},
+				{
 					SizeBytes: emptySize,
 					History: &v1.History{
 						Created:    &baseTime,
@@ -94,7 +153,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 					},
 				},
 				{
-					Digest:    layerID,
+					Digest:    "2",
 					SizeBytes: nonEmptySize,
 					History: &v1.History{
 						Created:    &baseTime,
@@ -115,7 +174,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 			},
 			inspect: types.ImageInspect{
 				RootFS: types.RootFS{
-					Layers: []string{layerID, layerID}, // multiple layers here
+					Layers: []string{layerID, layerID},
 				},
 			},
 			expected: []workloadmeta.ContainerImageLayer{},
