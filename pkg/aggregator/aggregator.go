@@ -309,10 +309,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 	}
 
 	configID := pkgconfigsetup.Datadog().GetString("config_id")
-	if configID == "" {
-		// Ensure we never report an empty config ID
-		configID = "default"
-	}
 
 	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
 
