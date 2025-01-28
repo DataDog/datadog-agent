@@ -170,7 +170,10 @@ Here an example of an inventory payload:
         "environment_variable_configuration": "api_key: \"***************************aaaaa\"",
         "remote_configuration": "log_level: \"debug\"",
         "cli_configuration": "log_level: \"warn\"",
-        "source_local_configuration": ""
+        "source_local_configuration": "",
+        "config_id": "my-config",
+        "ha_agent_enabled": true",
+        "ha_agent_state": "active"
     }
     "hostname": "my-host",
     "timestamp": 1631281754507358895
