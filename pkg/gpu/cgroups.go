@@ -34,8 +34,7 @@ func ConfigureDeviceCgroups(pid uint32, rootfs string) error {
 
 	// Configure systemd device allow first, so that in case of a reload we get the correct permissions
 	// The containerID for systemd is the last part of the cgroup path
-	cgroupParts := strings.Split(string(cgroup.Path), "/")
-	systemdContainerID := cgroupParts[len(cgroupParts)-1]
+	systemdContainerID := filepath.Base(string(cgroup.Path))
 	if err := configureSystemdDeviceAllow(systemdContainerID, rootfs); err != nil {
 		return fmt.Errorf("failed to configure systemd device allow for container %s: %w", systemdContainerID, err)
 	}
