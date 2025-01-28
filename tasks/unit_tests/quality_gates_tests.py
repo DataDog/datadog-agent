@@ -70,8 +70,63 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             body='Please find below the results from static quality gates\n### Error\n\n|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|\n|----|----|----|----|----|----|\n|❌|gateA|10MiB|10MiB|10MiB|10MiB|\n|❌|gateB|10MiB|10MiB|10MiB|10MiB|\n<details>\n<summary>Gate failure full details</summary>\n\n|Quality gate|Error type|Error message|\n|----|---|--------|\n|gateA|AssertionError|some_msg_A|\n|gateB|AssertionError|some_msg_B|\n\n</details>\n\n\n',
         )
 
-    def test_one_of_each(self):
-        pass
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
+    )
+    @patch(
+        "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formated_metric",
+        new=MagicMock(return_value="10MiB"),
+    )
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_one_of_each(self, pr_commenter_mock):
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        display_pr_comment(
+            c,
+            False,
+            [
+                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
+                {'name': 'gateB', 'error_type': None, 'message': None},
+            ],
+            gate_metric_handler,
+        )
+        pr_commenter_mock.assert_called_once()
+        pr_commenter_mock.assert_called_with(
+            ANY,
+            title='Static quality checks ❌',
+            body='Please find below the results from static quality gates\n### Error\n\n|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|\n|----|----|----|----|----|----|\n|❌|gateA|10MiB|10MiB|10MiB|10MiB|\n<details>\n<summary>Gate failure full details</summary>\n\n|Quality gate|Error type|Error message|\n|----|---|--------|\n|gateA|AssertionError|some_msg_A|\n\n</details>\n\n\n### Info\n\n|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|\n|----|----|----|----|----|----|\n|✅|gateB|10MiB|10MiB|10MiB|10MiB|\n',
+        )
 
-    def test_missing_data(self):
-        pass
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
+    )
+    @patch(
+        "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formated_metric",
+        new=MagicMock(return_value="10MiB", side_effect=KeyError),
+    )
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_missing_data(self, pr_commenter_mock):
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        display_pr_comment(
+            c,
+            False,
+            [
+                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
+            ],
+            gate_metric_handler,
+        )
+        pr_commenter_mock.assert_called_once()
+        pr_commenter_mock.assert_called_with(
+            ANY,
+            title='Static quality checks ❌',
+            body='Please find below the results from static quality gates\n### Error\n\n|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|\n|----|----|----|----|----|----|\n|❌|gateA|DataNotFound|DataNotFound|DataNotFound|DataNotFound|\n<details>\n<summary>Gate failure full details</summary>\n\n|Quality gate|Error type|Error message|\n|----|---|--------|\n|gateA|AssertionError|some_msg_A|\n\n</details>\n\n\n',
+        )
