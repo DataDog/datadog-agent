@@ -68,21 +68,19 @@ const (
 	samplerHasher = uint64(1111111111111111111)
 )
 
-func (s SamplingPriority) tag() string {
-	var v string
+func (s SamplingPriority) tagValue() string {
 	switch s {
 	case PriorityUserDrop:
-		v = "manual_drop"
+		return "manual_drop"
 	case PriorityAutoDrop:
-		v = "auto_drop"
+		return "auto_drop"
 	case PriorityAutoKeep:
-		v = "auto_keep"
+		return "auto_keep"
 	case PriorityUserKeep:
-		v = "manual_keep"
+		return "manual_keep"
 	default:
-		v = "none"
+		return "none"
 	}
-	return "sampling_priority:" + v
 }
 
 // SampleByRate returns whether to keep a trace, based on its ID and a sampling rate.
