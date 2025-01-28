@@ -71,7 +71,6 @@ from tasks.libs.releasing.version import (
     VERSION_RE,
     _create_version_from_match,
     current_version,
-    current_version_for_release_branch,
     deduce_version,
     get_version_major,
     next_final_version,
