@@ -207,6 +207,7 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 		mux.Handle(e.Pattern, h)
 	}
 	r.Handlers["/info"] = infoHandler
+	mux.HandleFunc("/info", infoHandler)
 
 	return mux
 }

@@ -59,7 +59,10 @@ func (e *ddExtension) Start(_ context.Context, host component.Host) error {
 
 func (e *ddExtension) startForOTelAgent(host component.Host) error {
 	// start server that handles profiles
-	e.newServer()
+	err := e.newServer()
+	if err != nil {
+		return err
+	}
 	go e.startServer(host)
 
 	profilerOptions := e.buildProfilerOptions()

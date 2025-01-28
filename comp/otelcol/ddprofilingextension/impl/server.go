@@ -7,6 +7,7 @@
 package ddprofilingextensionimpl
 
 import (
+	"errors"
 	"net/http"
 
 	"go.opentelemetry.io/collector/component"
@@ -22,15 +23,19 @@ func (e *ddExtension) endpoint() (endpoint string) {
 	return
 }
 
-func (e *ddExtension) newServer() {
+func (e *ddExtension) newServer() error {
 	mux := http.NewServeMux()
-	mux.Handle("/profiling/v1/input", e.traceAgent.GetHTTPHandler("/profiling/v1/input"))
+	profilesHandler := e.traceAgent.GetHTTPHandler("/profiling/v1/input")
+	if profilesHandler == nil {
+		return errors.New("cannot create HTTP server: profiling handler is nil")
+	}
+	mux.Handle("/profiling/v1/input", profilesHandler)
 
-	server := &http.Server{
+	e.server = &http.Server{
 		Addr:    "localhost:" + e.endpoint(),
 		Handler: mux,
 	}
-	e.server = server
+	return nil
 }
 
 func (e *ddExtension) startServer(host component.Host) {
