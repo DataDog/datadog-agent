@@ -71,6 +71,7 @@ from tasks.libs.releasing.version import (
     VERSION_RE,
     _create_version_from_match,
     current_version,
+    current_version_for_release_branch,
     deduce_version,
     get_version_major,
     next_final_version,
@@ -400,7 +401,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
 
         # Get the version of the highest major: useful for some logging & to get
         # the version to use for Go submodules updates
-        new_highest_version = next_rc_version(ctx, major_version, patch_version)
+        new_highest_version = next_rc_version(ctx, release_branch, patch_version)
         # Get the next final version of the highest major: useful to know which
         # milestone to target, as well as decide which tags from dependency repositories
         # can be used.
@@ -428,7 +429,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
 
         # Step 1: Update release entries
         print(color_message("Updating release entries", "bold"))
-        new_version = next_rc_version(ctx, major_version, patch_version)
+        new_version = next_rc_version(ctx, release_branch, patch_version)
 
         update_release_json(new_version, new_final_version)
 
@@ -520,14 +521,12 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
         start_qual: Start the qualification phase for agent 6 release candidates.
     """
 
-    major_version = get_version_major(release_branch)
-
     with agent_context(ctx, release_branch):
         datadog_agent = get_gitlab_repo()
 
         # Get the version of the highest major: needed for tag_version and to know
         # which tag to target when creating the pipeline.
-        new_version = next_rc_version(ctx, major_version, patch_version)
+        new_version = next_rc_version(ctx, release_branch, patch_version)
 
         # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
         versions_string = str(new_version)
@@ -1154,8 +1153,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
     Check if there was any modification on the release repositories since last release candidate.
     """
     with agent_context(ctx, release_branch):
-        major_version = get_version_major(release_branch)
-        next_version = next_rc_version(ctx, major_version)
+        next_version = next_rc_version(ctx, release_branch)
         repo_data = generate_repo_data(ctx, warning_mode, next_version, release_branch)
         changes = 'false'
         for repo_name, repo in repo_data.items():

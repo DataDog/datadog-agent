@@ -1,7 +1,26 @@
+import re
 from copy import deepcopy
 
 
 class Version:
+    @staticmethod
+    def from_tag(tag):
+        RE_VERSION = re.compile(r"^(?P<prefix>.*?)(?P<major>\d+)\.(?P<minor>\d+)(\.(?P<patch>\d+))?(-rc\.(?P<rc>\d+))?(?P<devel>-devel)?$")
+
+        match = RE_VERSION.match(tag)
+        if not match:
+            return None
+
+        return Version(
+            prefix=match.group("prefix"),
+            major=int(match.group("major")),
+            minor=int(match.group("minor")),
+            patch=int(match.group("patch")) if match.group("patch") else None,
+            rc=int(match.group("rc")) if match.group("rc") else None,
+            devel=bool(match.group("devel"))
+        )
+
+
     def __init__(self, major, minor, patch=None, rc=None, devel=False, prefix=""):
         self.prefix = prefix
         self.major = major

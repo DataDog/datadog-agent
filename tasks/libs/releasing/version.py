@@ -98,9 +98,27 @@ def next_final_version(ctx, major_version, patch_version) -> Version:
         return previous_version.next_version(bump_minor=True, rc=False)
 
 
-def next_rc_version(ctx, major_version, patch_version=False) -> Version:
+def current_version_for_release_branch(ctx, release_branch) -> Version:
+    """Finds the latest version of a release branch from tags."""
+
+    RE_RELEASE_BRANCH = re.compile(r'(\d+)\.(\d+)\.x')
+    match = RE_RELEASE_BRANCH.match(release_branch)
+    assert match, f"Invalid release branch name: {release_branch} (should be X.YY.x)"
+
+    # Get all the versions for this release X.YY
+    cmd = fr"git tag | grep -E '{match.group(1)}\.{match.group(2)}\.[0-9]+-rc\.[0-9]+'"
+    res = ctx.run(cmd, hide=True, warn=True)
+    res = res.stdout.strip().split('\n') if res else []
+
+    # from_tag might return None, ignore those
+    versions = [v for v in sorted(Version.from_tag(tag) for tag in res) if v]
+
+    return versions[-1]
+
+
+def next_rc_version(ctx, release_branch, patch_version=False) -> Version:
     # Fetch previous version from the most recent tag on the branch
-    previous_version = current_version(ctx, major_version)
+    previous_version = current_version_for_release_branch(ctx, release_branch)
 
     if previous_version.is_rc():
         # We're already on an RC, only bump the RC version
