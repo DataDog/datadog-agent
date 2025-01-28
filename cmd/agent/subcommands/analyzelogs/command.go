@@ -26,9 +26,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -90,9 +92,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // runAnalyzeLogs initializes the launcher and sends the log config file path to the source provider.
-func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscovery.Component) error {
-	fmt.Println("WHY IS THERE AN ERROR IN MAIN?")
-	outputChan, launchers, pipelineProvider := runAnalyzeLogsHelper(cliParams, config, ac)
+func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscovery.Component, wmeta workloadmeta.Component) error {
+	outputChan, launchers, pipelineProvider := runAnalyzeLogsHelper(cliParams, config, ac, wmeta)
 	if outputChan == nil {
 		return fmt.Errorf("Invalid input")
 	}
@@ -128,14 +129,15 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscov
 }
 
 // Used to make testing easier
-func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
+func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component, wmeta workloadmeta.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
 	configSource := sources.NewConfigSources()
 	fmt.Println("WHY IS THERE AN ERROR IN MAIN?")
 	// waitTime := time.Duration(cliParams.inactivityTimeout)*time.Second
 	waitTime := time.Duration(15) * time.Second
 	waitCtx, _ := context.WithTimeout(
 		context.Background(), waitTime)
-
+	common.LoadComponents(nil, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+	ac.LoadAndRun(context.Background())
 	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.LogConfigPath}, 1, "", ac)
 	// cancelTimeout()
 	if err != nil {
