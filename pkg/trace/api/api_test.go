@@ -151,6 +151,16 @@ func TestListenTCP(t *testing.T) {
 	})
 }
 
+func TestNoDuplicatePatterns(t *testing.T) {
+	handlerPatternsMap := make(map[string]int)
+	for _, endpoint := range endpoints {
+		handlerPatternsMap[endpoint.Pattern]++
+		if handlerPatternsMap[endpoint.Pattern] > 1 {
+			assert.Fail(t, fmt.Sprintf("duplicate handler pattern %v", endpoint.Pattern))
+		}
+	}
+}
+
 func TestTracesDecodeMakingHugeAllocation(t *testing.T) {
 	r := newTestReceiverFromConfig(newTestReceiverConfig())
 	r.Start()
