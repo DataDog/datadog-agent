@@ -182,8 +182,8 @@ func (s *cspmTestSuite) TestFindings() {
 	require.NoError(s.T(), err)
 	require.Len(s.T(), res.Items, 1)
 	agentPod := res.Items[0]
-	_, _, err = s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPod.Name, "security-agent", []string{"security-agent", "compliance", "check", "--dump-reports", "/tmp/reports", "--report"})
-	require.NoError(s.T(), err)
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPod.Name, "security-agent", []string{"security-agent", "compliance", "check", "--dump-reports", "/tmp/reports", "--report"})
+	require.NoError(s.T(), err, fmt.Sprintf("stdout:%s stderr:%s", stdout, stderr))
 	dumpContent, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPod.Name, "security-agent", []string{"cat", "/tmp/reports"})
 	require.NoError(s.T(), err)
 	findings, err := parseFindingOutput(dumpContent)
