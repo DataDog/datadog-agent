@@ -1107,7 +1107,7 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 replace (
 	// Maps to Trivy fork https://github.com/DataDog/trivy/commits/lebauce/container-artifact
 	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20241223234648-d2ac813bf11b
-	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
+	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20220713235824-e694909a1ede
 )
 
 // Fixes CVE-2023-1732, imported by nikos
