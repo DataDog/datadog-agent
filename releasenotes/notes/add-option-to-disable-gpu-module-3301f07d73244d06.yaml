@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Add a build option (`--glibc`, enabled by default) to build the Agent on `glibc` environment.
+    On the other libc environments like `musl`, the Agent should be built with `--no-glibc` option.
+    The option enables system-probe gpu module and corechecks gpu collector using
+    `github.com/NVIDIA/go-nvml` which depends on a glibc-extended definition.
