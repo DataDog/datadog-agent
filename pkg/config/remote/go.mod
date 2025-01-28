@@ -44,7 +44,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.59.0
-	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0
+	github.com/DataDog/datadog-agent/pkg/config/model v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.57.0
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.56.0-rc.3
@@ -66,20 +66,20 @@ require (
 require (
 	github.com/DataDog/appsec-internal-go v1.9.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/api v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/api v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0 // indirect
@@ -97,6 +97,7 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/google/pprof v0.0.0-20240827171923-fa2c70bbbfe5 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.0 // indirect
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.8 // indirect
 	github.com/hashicorp/go-secure-stdlib/strutil v0.1.2 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.6 // indirect
@@ -129,7 +130,6 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
-	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
@@ -145,10 +145,9 @@ require (
 	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
-	google.golang.org/genproto v0.0.0-20240903143218-8af14fe29dc1 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20241230172942-26aa7a208def // indirect
-	google.golang.org/grpc v1.69.2
+	google.golang.org/genproto/googleapis/api v0.0.0-20250115164207-1a7da9e5054f // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
+	google.golang.org/grpc v1.69.4
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

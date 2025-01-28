@@ -49,7 +49,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0
+	github.com/DataDog/datadog-agent/pkg/config/model v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1
@@ -59,12 +59,12 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.59.0 // indirect
@@ -75,7 +75,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.56.0-rc.3 // indirect
@@ -107,7 +107,7 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_golang v1.20.5 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
-	github.com/prometheus/common v0.61.0 // indirect
+	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/shirou/gopsutil/v4 v4.24.12 // indirect
 	github.com/spf13/afero v1.11.0 // indirect

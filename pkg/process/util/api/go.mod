@@ -11,17 +11,17 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.140
+	github.com/DataDog/agent-payload/v5 v5.0.141
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3
 	github.com/gogo/protobuf v1.3.2
 	github.com/stretchr/testify v1.10.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.55.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -34,7 +34,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.20.5 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
-	github.com/prometheus/common v0.61.0 // indirect
+	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/spf13/cobra v1.8.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect

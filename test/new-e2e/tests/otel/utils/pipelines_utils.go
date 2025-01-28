@@ -170,13 +170,13 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 		assert.Equal(s.T(), version, sp.Meta["version"])
 		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
 		if sp.Meta["span.kind"] == "client" {
-			assert.Equal(s.T(), "telemetrygen.client", sp.Name)
+			assert.Equal(s.T(), "client.request", sp.Name)
 			assert.Equal(s.T(), "lets-go", sp.Resource)
 			assert.Equal(s.T(), "http", sp.Type)
 			assert.Zero(s.T(), sp.ParentID)
 		} else {
 			assert.Equal(s.T(), "server", sp.Meta["span.kind"])
-			assert.Equal(s.T(), "telemetrygen.server", sp.Name)
+			assert.Equal(s.T(), "server.request", sp.Name)
 			assert.Equal(s.T(), "okey-dokey-0", sp.Resource)
 			assert.Equal(s.T(), "web", sp.Type)
 			assert.IsType(s.T(), uint64(0), sp.ParentID)

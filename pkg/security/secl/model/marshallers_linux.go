@@ -172,7 +172,8 @@ func (adlc *ActivityDumpLoadConfig) MarshalBinary() ([]byte, error) {
 	binary.NativeEndian.PutUint64(raw[16:24], adlc.WaitListTimestampRaw)
 	binary.NativeEndian.PutUint64(raw[24:32], adlc.StartTimestampRaw)
 	binary.NativeEndian.PutUint64(raw[32:40], adlc.EndTimestampRaw)
-	binary.NativeEndian.PutUint32(raw[40:44], adlc.Rate)
+	binary.NativeEndian.PutUint16(raw[40:42], adlc.Rate)
+	binary.NativeEndian.PutUint16(raw[42:44], 0)
 	binary.NativeEndian.PutUint32(raw[44:48], adlc.Paused)
 
 	return raw, nil

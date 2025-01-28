@@ -146,14 +146,14 @@ func TestGetRefAndKeychain(t *testing.T) {
 	}
 
 	tests := []test{
-		{url: "install.datad0g.com/agent-package-dev:latest", expectedRef: "install.datad0g.com/agent-package-dev:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "install.datad0g.com/agent-package:latest", expectedRef: "install.datad0g.com/agent-package:latest", expectedKeychain: authn.DefaultKeychain},
 		{url: "gcr.io/datadoghq/agent-package@sha256:1234", expectedRef: "gcr.io/datadoghq/agent-package@sha256:1234", expectedKeychain: authn.DefaultKeychain},
-		{url: "install.datad0g.com/agent-package-dev:latest", registryOverride: "fake.io", expectedRef: "fake.io/agent-package-dev:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "install.datad0g.com/agent-package:latest", registryOverride: "fake.io", expectedRef: "fake.io/agent-package:latest", expectedKeychain: authn.DefaultKeychain},
 		{url: "gcr.io/datadoghq/agent-package@sha256:1234", registryOverride: "fake.io", expectedRef: "fake.io/agent-package@sha256:1234", expectedKeychain: authn.DefaultKeychain},
 		{
-			url:                "install.datad0g.com/agent-package-dev:latest",
-			regOverrideByImage: map[string]string{"agent-package-dev": "fake.io"},
-			expectedRef:        "fake.io/agent-package-dev:latest",
+			url:                "install.datad0g.com/agent-package:latest",
+			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
+			expectedRef:        "fake.io/agent-package:latest",
 			expectedKeychain:   authn.DefaultKeychain,
 		},
 		{
@@ -176,28 +176,15 @@ func TestGetRefAndKeychain(t *testing.T) {
 			expectedKeychain:   authn.DefaultKeychain,
 		},
 		{
-			url:                "gcr.io/datadoghq/agent-package-dev@sha256:1234",
-			registryOverride:   "fake-other.io",
-			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
-			expectedRef:        "fake-other.io/agent-package-dev@sha256:1234",
-			expectedKeychain:   authn.DefaultKeychain,
-		},
-		{
-			url:                  "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			url:                  "gcr.io/datadoghq/agent-package@sha256:1234",
 			registryAuthOverride: "gcr",
-			expectedRef:          "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			expectedRef:          "gcr.io/datadoghq/agent-package@sha256:1234",
 			expectedKeychain:     google.Keychain,
 		},
 		{
-			url:                    "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			url:                    "gcr.io/datadoghq/agent-package@sha256:1234",
 			regAuthOverrideByImage: map[string]string{"agent-package": "gcr"},
-			expectedRef:            "gcr.io/datadoghq/agent-package-dev@sha256:1234",
-			expectedKeychain:       authn.DefaultKeychain,
-		},
-		{
-			url:                    "gcr.io/datadoghq/agent-package-dev@sha256:1234",
-			regAuthOverrideByImage: map[string]string{"agent-package-dev": "gcr"},
-			expectedRef:            "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			expectedRef:            "gcr.io/datadoghq/agent-package@sha256:1234",
 			expectedKeychain:       google.Keychain,
 		},
 	}
@@ -224,7 +211,7 @@ func TestPackageURL(t *testing.T) {
 	}
 
 	tests := []test{
-		{site: "datad0g.com", pkg: "datadog-agent", version: "latest", expected: "oci://install.datad0g.com/agent-package-dev:latest"},
+		{site: "datad0g.com", pkg: "datadog-agent", version: "latest", expected: "oci://install.datad0g.com/agent-package:latest"},
 		{site: "datadoghq.com", pkg: "datadog-agent", version: "1.2.3", expected: "oci://install.datadoghq.com/agent-package:1.2.3"},
 	}
 
@@ -290,10 +277,9 @@ func TestGetRefAndKeychains(t *testing.T) {
 	tests := []test{
 		{
 			name: "no override - staging",
-			url:  "install.datad0g.com/agent-package-dev:latest",
+			url:  "install.datad0g.com/agent-package:latest",
 			expectedRefAndKeychains: []urlWithKeychain{
-				{ref: "install.datad0g.com/agent-package-dev:latest", keychain: authn.DefaultKeychain},
-				{ref: "docker.io/datadog/agent-package-dev:latest", keychain: authn.DefaultKeychain},
+				{ref: "install.datad0g.com/agent-package:latest", keychain: authn.DefaultKeychain},
 			},
 		},
 		{

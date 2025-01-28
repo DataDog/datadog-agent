@@ -370,9 +370,14 @@ func Test_fetchColumnOidsBatch_usingGetBulkAndGetNextFallback(t *testing.T) {
 	sess.On("GetNext", []string{"1.1.3"}).Return(&secondBatchPacket1, nil)
 	sess.On("GetNext", []string{"1.1.3.1"}).Return(&secondBatchPacket2, nil)
 
-	columnOIDs := []string{"1.1.1", "1.1.2", "1.1.3"}
-
-	columnValues, err := Fetch(sess, nil, columnOIDs, 2, checkconfig.DefaultBulkMaxRepetitions)
+	config := &checkconfig.CheckConfig{
+		BulkMaxRepetitions: checkconfig.DefaultBulkMaxRepetitions,
+		OidBatchSize:       2,
+		OidConfig: checkconfig.OidConfig{
+			ColumnOids: []string{"1.1.1", "1.1.2", "1.1.3"},
+		},
+	}
+	columnValues, err := Fetch(sess, config)
 	assert.Nil(t, err)
 
 	expectedColumnValues := &valuestore.ResultValueStore{
@@ -714,32 +719,41 @@ func Test_fetchScalarOids_v1NoSuchName_errorIndexTooLow(t *testing.T) {
 func Test_fetchValues_errors(t *testing.T) {
 	tests := []struct {
 		name          string
-		maxReps       uint32
-		batchSize     int
-		ScalarOIDs    []string
-		ColumnOIDs    []string
+		config        checkconfig.CheckConfig
 		bulkPacket    gosnmp.SnmpPacket
 		expectedError error
 	}{
 		{
-			name:          "invalid batch size",
-			maxReps:       checkconfig.DefaultBulkMaxRepetitions,
-			ScalarOIDs:    []string{"1.1", "1.2"},
+			name: "invalid batch size",
+			config: checkconfig.CheckConfig{
+				BulkMaxRepetitions: checkconfig.DefaultBulkMaxRepetitions,
+				OidConfig: checkconfig.OidConfig{
+					ScalarOids: []string{"1.1", "1.2"},
+				},
+			},
 			expectedError: fmt.Errorf("failed to fetch scalar oids with batching: failed to create oid batches: batch size must be positive. invalid size: 0"),
 		},
 		{
-			name:          "get fetch error",
-			maxReps:       checkconfig.DefaultBulkMaxRepetitions,
-			batchSize:     10,
-			ScalarOIDs:    []string{"1.1", "2.2"},
+			name: "get fetch error",
+			config: checkconfig.CheckConfig{
+				BulkMaxRepetitions: checkconfig.DefaultBulkMaxRepetitions,
+				OidBatchSize:       10,
+				OidConfig: checkconfig.OidConfig{
+					ScalarOids: []string{"1.1", "2.2"},
+				},
+			},
 			expectedError: fmt.Errorf("failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.1 2.2]`: get error"),
 		},
 		{
-			name:          "bulk fetch error",
-			maxReps:       checkconfig.DefaultBulkMaxRepetitions,
-			batchSize:     10,
-			ScalarOIDs:    []string{},
-			ColumnOIDs:    []string{"1.1", "2.2"},
+			name: "bulk fetch error",
+			config: checkconfig.CheckConfig{
+				BulkMaxRepetitions: checkconfig.DefaultBulkMaxRepetitions,
+				OidBatchSize:       10,
+				OidConfig: checkconfig.OidConfig{
+					ScalarOids: []string{},
+					ColumnOids: []string{"1.1", "2.2"},
+				},
+			},
 			expectedError: fmt.Errorf("failed to fetch oids with GetNext batching: failed to fetch column oids: fetch column: failed getting oids `[1.1 2.2]` using GetNext: getnext error"),
 		},
 	}
@@ -750,7 +764,7 @@ func Test_fetchValues_errors(t *testing.T) {
 			sess.On("GetBulk", []string{"1.1", "2.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
 			sess.On("GetNext", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("getnext error"))
 
-			_, err := Fetch(sess, tt.ScalarOIDs, tt.ColumnOIDs, tt.batchSize, tt.maxReps)
+			_, err := Fetch(sess, &tt.config)
 
 			assert.Equal(t, tt.expectedError, err)
 		})
