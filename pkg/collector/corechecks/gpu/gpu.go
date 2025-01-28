@@ -54,7 +54,6 @@ type Check struct {
 type checkTelemetry struct {
 	nvmlMetricsSent     telemetry.Counter
 	collectorErrors     telemetry.Counter
-	sysprobeChecks      telemetry.Counter
 	activeMetrics       telemetry.Gauge
 	sysprobeMetricsSent telemetry.Counter
 }
