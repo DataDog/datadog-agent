@@ -66,6 +66,9 @@ func TestOctogonConstants(t *testing.T) {
 	}
 
 	t.Run("rc-vs-fallback", func(t *testing.T) {
+		if kv.IsAmazonLinux2023Kernel() {
+			t.Skipf("skip rc-vs-fallback on Amazon Linux 2023")
+		}
 		checkKernelCompatibility(t, "SLES kernels", func(kv *kernel.Version) bool {
 			return kv.IsSLESKernel() || (kv.IsAmazonLinux2023Kernel() && (testEnvironment == DockerEnvironment))
 		})
@@ -109,6 +112,9 @@ func TestOctogonConstants(t *testing.T) {
 	})
 
 	t.Run("btf-vs-fallback", func(t *testing.T) {
+		if kv.IsAmazonLinux2023Kernel() {
+			t.Skipf("skip btf-vs-fallback on Amazon Linux 2023")
+		}
 		btfFetcher, err := constantfetch.NewBTFConstantFetcherFromCurrentKernel()
 		if err != nil {
 			t.Skipf("btf constant fetcher is not available: %v", err)

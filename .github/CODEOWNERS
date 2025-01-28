@@ -179,8 +179,6 @@
 
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
 
-/.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
-
 
 
 /chocolatey/                            @DataDog/windows-agent
