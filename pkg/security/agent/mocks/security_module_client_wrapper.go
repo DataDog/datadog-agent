@@ -4,8 +4,6 @@ package mocks
 
 import (
 	api "github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	grpc "google.golang.org/grpc"
-
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -341,23 +339,23 @@ func (_c *SecurityModuleClientWrapper_GenerateEncoding_Call) RunAndReturn(run fu
 }
 
 // GetActivityDumpStream provides a mock function with no fields
-func (_m *SecurityModuleClientWrapper) GetActivityDumpStream() (grpc.ServerStreamingClient[api.ActivityDumpStreamMessage], error) {
+func (_m *SecurityModuleClientWrapper) GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error) {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetActivityDumpStream")
 	}
 
-	var r0 grpc.ServerStreamingClient[api.ActivityDumpStreamMessage]
+	var r0 api.SecurityModule_GetActivityDumpStreamClient
 	var r1 error
-	if rf, ok := ret.Get(0).(func() (grpc.ServerStreamingClient[api.ActivityDumpStreamMessage], error)); ok {
+	if rf, ok := ret.Get(0).(func() (api.SecurityModule_GetActivityDumpStreamClient, error)); ok {
 		return rf()
 	}
-	if rf, ok := ret.Get(0).(func() grpc.ServerStreamingClient[api.ActivityDumpStreamMessage]); ok {
+	if rf, ok := ret.Get(0).(func() api.SecurityModule_GetActivityDumpStreamClient); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(grpc.ServerStreamingClient[api.ActivityDumpStreamMessage])
+			r0 = ret.Get(0).(api.SecurityModule_GetActivityDumpStreamClient)
 		}
 	}
 
@@ -387,12 +385,12 @@ func (_c *SecurityModuleClientWrapper_GetActivityDumpStream_Call) Run(run func()
 	return _c
 }
 
-func (_c *SecurityModuleClientWrapper_GetActivityDumpStream_Call) Return(_a0 grpc.ServerStreamingClient[api.ActivityDumpStreamMessage], _a1 error) *SecurityModuleClientWrapper_GetActivityDumpStream_Call {
+func (_c *SecurityModuleClientWrapper_GetActivityDumpStream_Call) Return(_a0 api.SecurityModule_GetActivityDumpStreamClient, _a1 error) *SecurityModuleClientWrapper_GetActivityDumpStream_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *SecurityModuleClientWrapper_GetActivityDumpStream_Call) RunAndReturn(run func() (grpc.ServerStreamingClient[api.ActivityDumpStreamMessage], error)) *SecurityModuleClientWrapper_GetActivityDumpStream_Call {
+func (_c *SecurityModuleClientWrapper_GetActivityDumpStream_Call) RunAndReturn(run func() (api.SecurityModule_GetActivityDumpStreamClient, error)) *SecurityModuleClientWrapper_GetActivityDumpStream_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -455,23 +453,23 @@ func (_c *SecurityModuleClientWrapper_GetConfig_Call) RunAndReturn(run func() (*
 }
 
 // GetEvents provides a mock function with no fields
-func (_m *SecurityModuleClientWrapper) GetEvents() (grpc.ServerStreamingClient[api.SecurityEventMessage], error) {
+func (_m *SecurityModuleClientWrapper) GetEvents() (api.SecurityModule_GetEventsClient, error) {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetEvents")
 	}
 
-	var r0 grpc.ServerStreamingClient[api.SecurityEventMessage]
+	var r0 api.SecurityModule_GetEventsClient
 	var r1 error
-	if rf, ok := ret.Get(0).(func() (grpc.ServerStreamingClient[api.SecurityEventMessage], error)); ok {
+	if rf, ok := ret.Get(0).(func() (api.SecurityModule_GetEventsClient, error)); ok {
 		return rf()
 	}
-	if rf, ok := ret.Get(0).(func() grpc.ServerStreamingClient[api.SecurityEventMessage]); ok {
+	if rf, ok := ret.Get(0).(func() api.SecurityModule_GetEventsClient); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(grpc.ServerStreamingClient[api.SecurityEventMessage])
+			r0 = ret.Get(0).(api.SecurityModule_GetEventsClient)
 		}
 	}
 
@@ -501,12 +499,12 @@ func (_c *SecurityModuleClientWrapper_GetEvents_Call) Run(run func()) *SecurityM
 	return _c
 }
 
-func (_c *SecurityModuleClientWrapper_GetEvents_Call) Return(_a0 grpc.ServerStreamingClient[api.SecurityEventMessage], _a1 error) *SecurityModuleClientWrapper_GetEvents_Call {
+func (_c *SecurityModuleClientWrapper_GetEvents_Call) Return(_a0 api.SecurityModule_GetEventsClient, _a1 error) *SecurityModuleClientWrapper_GetEvents_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *SecurityModuleClientWrapper_GetEvents_Call) RunAndReturn(run func() (grpc.ServerStreamingClient[api.SecurityEventMessage], error)) *SecurityModuleClientWrapper_GetEvents_Call {
+func (_c *SecurityModuleClientWrapper_GetEvents_Call) RunAndReturn(run func() (api.SecurityModule_GetEventsClient, error)) *SecurityModuleClientWrapper_GetEvents_Call {
 	_c.Call.Return(run)
 	return _c
 }

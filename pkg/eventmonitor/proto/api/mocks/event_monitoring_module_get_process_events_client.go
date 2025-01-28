@@ -232,7 +232,7 @@ func (_c *EventMonitoringModule_GetProcessEventsClient_Recv_Call) RunAndReturn(r
 }
 
 // RecvMsg provides a mock function with given fields: m
-func (_m *EventMonitoringModule_GetProcessEventsClient) RecvMsg(m interface{}) error {
+func (_m *EventMonitoringModule_GetProcessEventsClient) RecvMsg(m any) error {
 	ret := _m.Called(m)
 
 	if len(ret) == 0 {
@@ -240,7 +240,7 @@ func (_m *EventMonitoringModule_GetProcessEventsClient) RecvMsg(m interface{}) e
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(interface{}) error); ok {
+	if rf, ok := ret.Get(0).(func(any) error); ok {
 		r0 = rf(m)
 	} else {
 		r0 = ret.Error(0)
@@ -255,14 +255,14 @@ type EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call struct {
 }
 
 // RecvMsg is a helper method to define mock.On call
-//   - m interface{}
+//   - m any
 func (_e *EventMonitoringModule_GetProcessEventsClient_Expecter) RecvMsg(m interface{}) *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call {
 	return &EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call{Call: _e.mock.On("RecvMsg", m)}
 }
 
-func (_c *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call) Run(run func(m interface{})) *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call {
+func (_c *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call) Run(run func(m any)) *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(interface{}))
+		run(args[0].(any))
 	})
 	return _c
 }
@@ -272,13 +272,13 @@ func (_c *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call) Return(_a0 
 	return _c
 }
 
-func (_c *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call) RunAndReturn(run func(interface{}) error) *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call {
+func (_c *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call) RunAndReturn(run func(any) error) *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // SendMsg provides a mock function with given fields: m
-func (_m *EventMonitoringModule_GetProcessEventsClient) SendMsg(m interface{}) error {
+func (_m *EventMonitoringModule_GetProcessEventsClient) SendMsg(m any) error {
 	ret := _m.Called(m)
 
 	if len(ret) == 0 {
@@ -286,7 +286,7 @@ func (_m *EventMonitoringModule_GetProcessEventsClient) SendMsg(m interface{}) e
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(interface{}) error); ok {
+	if rf, ok := ret.Get(0).(func(any) error); ok {
 		r0 = rf(m)
 	} else {
 		r0 = ret.Error(0)
@@ -301,14 +301,14 @@ type EventMonitoringModule_GetProcessEventsClient_SendMsg_Call struct {
 }
 
 // SendMsg is a helper method to define mock.On call
-//   - m interface{}
+//   - m any
 func (_e *EventMonitoringModule_GetProcessEventsClient_Expecter) SendMsg(m interface{}) *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call {
 	return &EventMonitoringModule_GetProcessEventsClient_SendMsg_Call{Call: _e.mock.On("SendMsg", m)}
 }
 
-func (_c *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call) Run(run func(m interface{})) *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call {
+func (_c *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call) Run(run func(m any)) *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(interface{}))
+		run(args[0].(any))
 	})
 	return _c
 }
@@ -318,7 +318,7 @@ func (_c *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call) Return(_a0 
 	return _c
 }
 
-func (_c *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call) RunAndReturn(run func(interface{}) error) *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call {
+func (_c *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call) RunAndReturn(run func(any) error) *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -4,6 +4,7 @@ outpkg: "mocks"
 mockname: "{{.InterfaceName}}"
 filename: "{{.InterfaceNameSnake}}.go"
 issue-845-fix: true
+resolve-type-alias: false
 
 packages:
   # security agent
