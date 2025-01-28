@@ -4,7 +4,7 @@
     Version: {{.version}}<br>
     Flavor: {{.flavor}}<br>
     {{- if .fips_status}}
-    FIPS compliant: {{.fips_status}}<br>
+    FIPS Mode: {{.fips_status}}<br>
     {{- end }}
     PID: {{.pid}}<br>
     Agent start: {{ formatUnixTime .agent_start_nano }}<br>
