@@ -990,8 +990,7 @@ collect_topology: false
 	assert.Nil(t, err)
 
 	cfg := agentconfig.NewMock(t)
-	cfg.SetWithoutSource("ha_agent.enabled", true)
-	cfg.SetWithoutSource("ha_agent.group", "my-group")
+	cfg.SetWithoutSource("tags", []string{"tag1:value1"})
 
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, cfg)
 	assert.Nil(t, err)
@@ -1000,5 +999,5 @@ collect_topology: false
 	externalTags := deviceCk.buildExternalTags()
 
 	// THEN
-	assert.Equal(t, []string{"agent_group:my-group"}, externalTags)
+	assert.Equal(t, []string{"tag1:value1"}, externalTags)
 }
