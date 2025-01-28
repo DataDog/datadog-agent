@@ -69,6 +69,13 @@ func getPackageName() (string, error) {
 
 // MarkOnLog marks the test as flaky when the `pattern` regular expression is found in its logs.
 func MarkOnLog(t testing.TB, pattern string) {
+	// Types for the yaml file
+	type testEntry struct {
+		Test  string `yaml:"test"`
+		OnLog string `yaml:"on-log"`
+	}
+	type configEntries = map[string][]testEntry
+
 	t.Helper()
 	flakyPatternsConfig := os.Getenv("E2E_FLAKY_PATTERNS_CONFIG")
 	if flakyPatternsConfig == "" {
@@ -80,7 +87,7 @@ func MarkOnLog(t testing.TB, pattern string) {
 	flakyPatternsConfigMutex.Lock()
 	defer flakyPatternsConfigMutex.Unlock()
 
-	flakyConfig := make(map[string]interface{})
+	flakyConfig := make(configEntries)
 
 	// Read initial config
 	_, err := os.Stat(flakyPatternsConfig)
@@ -107,13 +114,11 @@ func MarkOnLog(t testing.TB, pattern string) {
 	}
 
 	// Update config by adding an entry to this test with this pattern
-	entry := make(map[string]interface{})
-	entry["test"] = t.Name()
-	entry["on-log"] = pattern
+	entry := testEntry{Test: t.Name(), OnLog: pattern}
 	if packageConfig, ok := flakyConfig[packageName]; ok {
-		flakyConfig[packageName] = append(packageConfig.([]interface{}), entry)
+		flakyConfig[packageName] = append(packageConfig, entry)
 	} else {
-		flakyConfig[packageName] = []map[string]interface{}{entry}
+		flakyConfig[packageName] = []testEntry{entry}
 	}
 
 	// Write config back
@@ -122,6 +127,8 @@ func MarkOnLog(t testing.TB, pattern string) {
 		t.Logf("Warning: failed to open flaky patterns config file: %v", err)
 		return
 	}
+	defer f.Close()
+
 	encoder := yaml.NewEncoder(f)
 	err = encoder.Encode(flakyConfig)
 	if err != nil {
