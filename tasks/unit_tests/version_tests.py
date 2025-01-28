@@ -338,6 +338,7 @@ class TestGetMatchingPattern(unittest.TestCase):
         self.assertEqual(get_matching_pattern(c, major_version="42", release=False), r"42\.*")
         c.run.assert_not_called()
 
+
 class TestFromTag(unittest.TestCase):
     def test_tags_standard(self):
         tag = "7.62.1"
