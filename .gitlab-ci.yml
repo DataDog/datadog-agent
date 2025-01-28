@@ -620,8 +620,10 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
-.not_on_release_branch:
+.not_on_release_branch_or_tagged_commit:
   - <<: *if_release_branch
+    when: never
+  - <<: *if_tagged_commit
     when: never
 
 .only_main:

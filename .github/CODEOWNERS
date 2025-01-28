@@ -37,6 +37,7 @@
 
 /mkdocs.yml                             @DataDog/agent-devx-infra
 /release.json                           @DataDog/agent-delivery @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations @DataDog/agent-security
+/renovate.json                          @DataDog/agent-devx-infra
 /requirements.txt                       @DataDog/agent-devx-infra
 /pyproject.toml                         @DataDog/agent-devx-infra @DataDog/agent-devx-loops
 /repository.datadog.yml                 @DataDog/agent-devx-infra
@@ -273,7 +274,7 @@
 /Makefile.trace                         @DataDog/agent-apm
 
 /omnibus/                               @DataDog/agent-delivery
-/omnibus/python-scripts/                @DataDog/agent-shared-components
+/omnibus/python-scripts/                @DataDog/agent-shared-components @DataDog/windows-agent
 /omnibus/config/patches/openscap/                         @DataDog/agent-cspm
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-delivery
