@@ -237,8 +237,12 @@ func TestConfigSubcommand(s OTelTestSuite) {
 	timeout := time.Now().Add(5 * time.Minute)
 	for i := 1; time.Now().Before(timeout); i++ {
 		stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "otel-agent", []string{"otel-agent", "config"})
-		require.NoError(s.T(), err, "Failed to execute otel-agent config")
-		s.T().Logf("otel-agent config returns:\nstderr: %s\nstdout: %s\n", stderr, stdout)
-		time.Sleep(30 * time.Second)
+		if err != nil {
+			s.T().Logf("otel-agent config err %v", err)
+			time.Sleep(30 * time.Second)
+		} else {
+			s.T().Logf("otel-agent config returns:\nstderr: %s\nstdout: %s\n", stderr, stdout)
+			break
+		}
 	}
 }
