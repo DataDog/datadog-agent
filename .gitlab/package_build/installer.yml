@@ -42,7 +42,7 @@ datadog-agent-oci-x64-a7:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   needs:
     [
       "go_mod_tidy_check",
@@ -66,7 +66,7 @@ datadog-agent-oci-arm64-a7:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   needs:
     [
       "go_mod_tidy_check",
@@ -92,7 +92,7 @@ installer-install-scripts:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     KUBERNETES_CPU_REQUEST: 8
@@ -151,7 +151,7 @@ installer-amd64:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: amd64
@@ -167,7 +167,7 @@ installer-arm64:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: arm64

@@ -11,7 +11,7 @@ docker_trigger_internal:
     - job: docker_build_agent7_jmx_arm64
       artifacts: false
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
     IMAGE_VERSION: tmpl-v11
@@ -56,7 +56,7 @@ docker_trigger_internal-fips:
     - job: docker_build_fips_agent7_arm64
       artifacts: false
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
     IMAGE_VERSION: tmpl-v11
@@ -101,7 +101,7 @@ docker_trigger_internal-ot:
     - job: docker_build_ot_agent7_jmx_arm64
       artifacts: false
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
     IMAGE_VERSION: tmpl-v11
@@ -146,7 +146,7 @@ docker_trigger_cluster_agent_internal:
     - job: docker_build_cluster_agent_arm64
       artifacts: false
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
     IMAGE_VERSION: tmpl-v5
@@ -192,7 +192,7 @@ docker_trigger_cws_instrumentation_internal:
     - job: docker_build_cws_instrumentation_arm64
       artifacts: false
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
     IMAGE_VERSION: tmpl-v2

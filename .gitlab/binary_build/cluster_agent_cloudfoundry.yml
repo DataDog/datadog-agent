@@ -5,7 +5,7 @@ cluster_agent_cloudfoundry-build_amd64:
     - when: on_success
   stage: binary_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   artifacts:
     expire_in: 2 weeks

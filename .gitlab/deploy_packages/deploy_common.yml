@@ -2,7 +2,7 @@
 .deploy_packages_deb:
   resource_group: deb_bucket
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
@@ -27,7 +27,7 @@
 .deploy_packages_rpm:
   resource_group: rpm_bucket
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   variables:
     ARTIFACTS_PREFIX: ""
   before_script:
@@ -85,7 +85,7 @@
   resource_group: deb_bucket
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: deploy_packages
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
@@ -97,7 +97,7 @@
   resource_group: rpm_bucket
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: deploy_packages
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   variables:
     ARTIFACTS_PREFIX: ""
   before_script:
@@ -117,7 +117,7 @@ deploy_installer_install_scripts:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: deploy_packages
   needs: ["installer-install-scripts"]
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:

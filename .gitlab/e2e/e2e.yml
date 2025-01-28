@@ -4,7 +4,7 @@
 .new_e2e_template:
   stage: e2e
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   needs:
     - !reference [.needs_new_e2e_template]
   before_script:
@@ -691,7 +691,7 @@ generate-flakes-finder-pipeline:
     - qa_agent
     - qa_agent_ot
     - tests_windows_sysprobe_x64
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   script:
     - inv -e testwasher.generate-flake-finder-pipeline
   artifacts:
@@ -717,7 +717,7 @@ trigger-flakes-finder:
 
 new-e2e-eks-cleanup-on-failure:
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   stage: e2e_cleanup
   dependencies: [go_e2e_deps]
   script:

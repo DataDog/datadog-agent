@@ -19,10 +19,10 @@
 
 build_otel_agent_binary_x64:
   extends: .build_otel_agent_binary_common
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
 
 build_otel_agent_binary_arm64:
   extends: .build_otel_agent_binary_common
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES

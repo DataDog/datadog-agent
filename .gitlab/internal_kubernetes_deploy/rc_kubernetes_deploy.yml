@@ -18,7 +18,7 @@ rc_kubernetes_deploy:
       artifacts: false
       optional: true
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   variables:
     OPTION_AUTOMATIC_ROLLOUT: "true"
     SKIP_PLAN_CHECK: "true"

@@ -10,7 +10,7 @@ notify-on-tagged-success:
   stage: notify
   rules: !reference [.on_deploy_stable_or_beta_repo_branch]
   dependencies: []
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   script: |
     MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
@@ -21,7 +21,7 @@ notify:
   stage: notify
   rules: !reference [.on_main_or_release_branch_or_deploy_always]
   dependencies: []
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   resource_group: notification
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
   script:
@@ -34,7 +34,7 @@ notify:
 send_pipeline_stats:
   stage: notify
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   when: always
   dependencies: []
   script:
@@ -45,7 +45,7 @@ send_pipeline_stats:
 notify_github:
   stage: notify
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   rules:
     - !reference [.except_mergequeue]
     - !reference [.except_main_or_release_branch]
@@ -81,7 +81,7 @@ notify_gitlab_ci_changes:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: notify
   needs: [compute_gitlab_ci_config]
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   rules:
     - !reference  [.except_mergequeue]
     - changes:
@@ -101,7 +101,7 @@ notify_gitlab_ci_changes:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: notify
   dependencies: []
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   resource_group: notification
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
 
@@ -155,7 +155,7 @@ close_failing_tests_stale_issues:
       when: never
     - !reference [.on_deploy_nightly_repo_branch_always]
   needs: []
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   script:
     - weekday="$(date --utc '+%A')"
     # Weekly on Friday

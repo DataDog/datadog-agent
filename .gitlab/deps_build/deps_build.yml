@@ -70,14 +70,14 @@
 build_clang_x64:
   extends: .build_clang_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   variables:
     ARCH: amd64
 
 build_clang_arm64:
   extends: .build_clang_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["arch:arm64"]
+  tags: ["nodeless-arch:arm64"]
   variables:
     ARCH: arm64
 
@@ -87,7 +87,7 @@ build_processed_btfhub_archive:
     - !reference [.on_scheduled_main_or_manual]
   stage: deps_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["nodeless-arch:amd64"]
   variables:
     KUBERNETES_CPU_REQUEST: 32
   script:
