@@ -140,6 +140,7 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 		analyzer.TypeSBOM,
 		analyzer.TypeUbuntuESM,
 		analyzer.TypeLicenseFile,
+		analyzer.TypeRpmArchive,
 	)
 	return disabledAnalyzers
 }
@@ -331,7 +332,7 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 		PkgRelationships: []ftypes.Relationship{
 			ftypes.RelationshipUnknown,
 		},
-		Scanners: types.Scanners{types.VulnerabilityScanner},
+		Scanners: types.Scanners{types.SBOMScanner},
 	})
 	if err != nil {
 		return nil, err

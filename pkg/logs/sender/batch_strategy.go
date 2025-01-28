@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,12 +32,12 @@ type batchStrategy struct {
 	flushWg    *sync.WaitGroup
 	buffer     *MessageBuffer
 	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
-	pipelineName    string
-	serializer      Serializer
-	batchWait       time.Duration
-	contentEncoding ContentEncoding
-	stopChan        chan struct{} // closed when the goroutine has finished
-	clock           clock.Clock
+	pipelineName string
+	serializer   Serializer
+	batchWait    time.Duration
+	compression  compression.Compressor
+	stopChan     chan struct{} // closed when the goroutine has finished
+	clock        clock.Clock
 
 	// Telemtry
 	pipelineMonitor metrics.PipelineMonitor
@@ -54,9 +55,9 @@ func NewBatchStrategy(inputChan chan *message.Message,
 	maxBatchSize int,
 	maxContentSize int,
 	pipelineName string,
-	contentEncoding ContentEncoding,
+	compression compression.Compressor,
 	pipelineMonitor metrics.PipelineMonitor) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverless, flushWg, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding, pipelineMonitor)
+	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverless, flushWg, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), compression, pipelineMonitor)
 }
 
 func newBatchStrategyWithClock(inputChan chan *message.Message,
@@ -70,7 +71,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	maxContentSize int,
 	pipelineName string,
 	clock clock.Clock,
-	contentEncoding ContentEncoding,
+	compression compression.Compressor,
 	pipelineMonitor metrics.PipelineMonitor) Strategy {
 
 	return &batchStrategy{
@@ -82,7 +83,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 		buffer:          NewMessageBuffer(maxBatchSize, maxContentSize),
 		serializer:      serializer,
 		batchWait:       batchWait,
-		contentEncoding: contentEncoding,
+		compression:     compression,
 		stopChan:        make(chan struct{}),
 		pipelineName:    pipelineName,
 		clock:           clock,
@@ -168,7 +169,7 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 	serializedMessage := s.serializer.Serialize(messages)
 	log.Debugf("Send messages for pipeline %s (msg_count:%d, content_size=%d, avg_msg_size=%.2f)", s.pipelineName, len(messages), len(serializedMessage), float64(len(serializedMessage))/float64(len(messages)))
 
-	encodedPayload, err := s.contentEncoding.encode(serializedMessage)
+	encodedPayload, err := s.compression.Compress(serializedMessage)
 	if err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
 		s.utilization.Stop()
@@ -183,7 +184,7 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 	p := &message.Payload{
 		Messages:      messages,
 		Encoded:       encodedPayload,
-		Encoding:      s.contentEncoding.name(),
+		Encoding:      s.compression.ContentEncoding(),
 		UnencodedSize: len(serializedMessage),
 	}
 	s.utilization.Stop()

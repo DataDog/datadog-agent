@@ -125,7 +125,7 @@ func dumpKindClusterState(ctx context.Context, name string) (ret string, err err
 	}
 
 	// instancesDescription.Reservations = []
-	if instancesDescription == nil || (len(instancesDescription.Reservations) > 0 && len(instancesDescription.Reservations[0].Instances) != 1) {
+	if instancesDescription == nil || len(instancesDescription.Reservations) == 0 || (len(instancesDescription.Reservations) > 0 && len(instancesDescription.Reservations[0].Instances) != 1) {
 		return ret, fmt.Errorf("did not find exactly one instance for cluster %s", name)
 	}
 
@@ -143,7 +143,7 @@ func dumpKindClusterState(ctx context.Context, name string) (ret string, err err
 		auth = append(auth, ssh.PublicKeysCallback(agent.NewClient(sshAgent).Signers))
 	}
 
-	if sshKeyPath, found := os.LookupEnv("E2E_PRIVATE_KEY_PATH"); found {
+	if sshKeyPath, found := os.LookupEnv("E2E_AWS_PRIVATE_KEY_PATH"); found {
 		sshKey, err := os.ReadFile(sshKeyPath)
 		if err != nil {
 			return ret, fmt.Errorf("failed to read SSH key: %v", err)

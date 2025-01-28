@@ -8,11 +8,6 @@ on:
         required: false
         default: 'main'
         type: string
-      force_refresh:
-        description: 'Force refresh of the constants'
-        required: false
-        default: 'false'
-        type: boolean
   schedule:
     - cron: '30 4 * * 5' # at 4:30 UTC on Friday
 
@@ -83,18 +78,10 @@ jobs:
           echo "ARTIFACT_NAME=constants-${{ matrix.cone }}" | tr '/' '-' >> $GITHUB_OUTPUT
 
       - name: Sync constants
-        if: ${{ !inputs.force_refresh }}
         env:
           ARTIFACT_NAME: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
         run: |
           inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json
-
-      - name: Force sync constants
-        if: ${{ inputs.force_refresh }}
-        env:
-          ARTIFACT_NAME: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
-        run: |
-          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json --force-refresh
 
       - name: Upload artifact
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
@@ -136,6 +123,7 @@ jobs:
       - name: Combine constants
         run: |
           inv -e security-agent.combine-btfhub-constants --archive-path=./dev/dist/constants
+          inv -e security-agent.split-btfhub-constants
 
       - name: Compute branch name
         id: branch-name

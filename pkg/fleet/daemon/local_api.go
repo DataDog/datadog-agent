@@ -13,7 +13,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -23,10 +22,10 @@ import (
 // StatusResponse is the response to the status endpoint.
 type StatusResponse struct {
 	APIResponse
-	Version            string                      `json:"version"`
-	Packages           map[string]repository.State `json:"packages"`
-	ApmInjectionStatus APMInjectionStatus          `json:"apm_injection_status"`
-	RemoteConfigState  []*pbgo.PackageState        `json:"remote_config_state"`
+	Version            string                  `json:"version"`
+	Packages           map[string]PackageState `json:"packages"`
+	ApmInjectionStatus APMInjectionStatus      `json:"apm_injection_status"`
+	RemoteConfigState  []*pbgo.PackageState    `json:"remote_config_state"`
 }
 
 // APMInjectionStatus contains the instrumentation status of the APM injection.
@@ -87,6 +86,7 @@ func (l *localAPIImpl) handler() http.Handler {
 	r.HandleFunc("/{package}/config_experiment/stop", l.stopConfigExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/config_experiment/promote", l.promoteConfigExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/install", l.install).Methods(http.MethodPost)
+	r.HandleFunc("/{package}/remove", l.remove).Methods(http.MethodPost)
 	return r
 }
 
@@ -133,11 +133,11 @@ func (l *localAPIImpl) setCatalog(w http.ResponseWriter, r *http.Request) {
 	l.daemon.SetCatalog(catalog)
 }
 
-// example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/experiment/start -d '{"version":"1.21.5"}'
+// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/experiment/start -d '{"version":"1.21.5"}'
 func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
-	var request taskWithVersionParams
+	var request experimentTaskParams
 	var response APIResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
@@ -163,7 +163,7 @@ func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/experiment/stop -d '{}'
+// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/experiment/stop -d '{}'
 func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
@@ -180,7 +180,7 @@ func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/experiment/promote -d '{}'
+// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/experiment/promote -d '{}'
 func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
@@ -197,11 +197,11 @@ func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/config_experiment/start -d '{"version":"1.21.5"}'
+// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/config_experiment/start -d '{"version":"1.21.5"}'
 func (l *localAPIImpl) startConfigExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
-	var request taskWithVersionParams
+	var request experimentTaskParams
 	var response APIResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
@@ -220,7 +220,7 @@ func (l *localAPIImpl) startConfigExperiment(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-// example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/config_experiment/stop -d '{}'
+// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/config_experiment/stop -d '{}'
 func (l *localAPIImpl) stopConfigExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
@@ -237,7 +237,7 @@ func (l *localAPIImpl) stopConfigExperiment(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-// example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/config_experiment/promote -d '{}'
+// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/config_experiment/promote -d '{}'
 func (l *localAPIImpl) promoteConfigExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
@@ -254,11 +254,11 @@ func (l *localAPIImpl) promoteConfigExperiment(w http.ResponseWriter, r *http.Re
 	}
 }
 
-// example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/install -d '{"version":"1.21.5"}'
+// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/install -d '{"version":"1.21.5"}'
 func (l *localAPIImpl) install(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
-	var request taskWithVersionParams
+	var request experimentTaskParams
 	var response APIResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
@@ -289,12 +289,41 @@ func (l *localAPIImpl) install(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/remove -d '{}'
+func (l *localAPIImpl) remove(w http.ResponseWriter, r *http.Request) {
+	pkg := mux.Vars(r)["package"]
+	w.Header().Set("Content-Type", "application/json")
+	var request experimentTaskParams
+	var response APIResponse
+	defer func() {
+		_ = json.NewEncoder(w).Encode(response)
+	}()
+	var err error
+	if r.ContentLength > 0 {
+		err = json.NewDecoder(r.Body).Decode(&request)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			response.Error = &APIError{Message: err.Error()}
+			return
+		}
+	}
+
+	log.Infof("Received local request to remove package %s", pkg)
+	err = l.daemon.Remove(r.Context(), pkg)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response.Error = &APIError{Message: err.Error()}
+		return
+	}
+}
+
 // LocalAPIClient is a client to interact with the locally exposed daemon API.
 type LocalAPIClient interface {
 	Status() (StatusResponse, error)
 
 	SetCatalog(catalog string) error
 	Install(pkg, version string) error
+	Remove(pkg string) error
 	StartExperiment(pkg, version string) error
 	StopExperiment(pkg string) error
 	PromoteExperiment(pkg string) error
@@ -359,7 +388,7 @@ func (c *localAPIClientImpl) SetCatalog(catalog string) error {
 
 // StartExperiment starts an experiment for a package.
 func (c *localAPIClientImpl) StartExperiment(pkg, version string) error {
-	params := taskWithVersionParams{
+	params := experimentTaskParams{
 		Version: version,
 	}
 	body, err := json.Marshal(params)
@@ -438,7 +467,7 @@ func (c *localAPIClientImpl) PromoteExperiment(pkg string) error {
 
 // StartConfigExperiment starts a config experiment for a package.
 func (c *localAPIClientImpl) StartConfigExperiment(pkg, version string) error {
-	params := taskWithVersionParams{
+	params := experimentTaskParams{
 		Version: version,
 	}
 	body, err := json.Marshal(params)
@@ -517,7 +546,7 @@ func (c *localAPIClientImpl) PromoteConfigExperiment(pkg string) error {
 
 // Install installs a package with a specific version.
 func (c *localAPIClientImpl) Install(pkg, version string) error {
-	params := taskWithVersionParams{
+	params := experimentTaskParams{
 		Version: version,
 	}
 	body, err := json.Marshal(params)
@@ -542,6 +571,30 @@ func (c *localAPIClientImpl) Install(pkg, version string) error {
 	}
 	if response.Error != nil {
 		return fmt.Errorf("error installing: %s", response.Error.Message)
+	}
+	return nil
+}
+
+// Remove removes a package
+func (c *localAPIClientImpl) Remove(pkg string) error {
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/remove", c.addr, pkg), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	var response APIResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("error removing: %s", response.Error.Message)
 	}
 	return nil
 }

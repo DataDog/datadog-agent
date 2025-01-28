@@ -25,6 +25,8 @@ modules:
     used_by_otel: true
   comp/core/log/def:
     used_by_otel: true
+  comp/core/log/fx:
+    used_by_otel: true
   comp/core/log/impl:
     used_by_otel: true
   comp/core/log/impl-trace: default
@@ -35,9 +37,21 @@ modules:
   comp/core/status:
     used_by_otel: true
   comp/core/status/statusimpl: default
+  comp/core/tagger/def:
+    used_by_otel: true
+  comp/core/tagger/fx-remote:
+    used_by_otel: true
+  comp/core/tagger/generic_store:
+    used_by_otel: true
+  comp/core/tagger/impl-remote:
+    used_by_otel: true
   comp/core/tagger/origindetection:
     used_by_otel: true
+  comp/core/tagger/subscriber:
+    used_by_otel: true
   comp/core/tagger/tags:
+    used_by_otel: true
+  comp/core/tagger/telemetry:
     used_by_otel: true
   comp/core/tagger/types:
     used_by_otel: true
@@ -54,18 +68,12 @@ modules:
   comp/logs/agent/config:
     used_by_otel: true
   comp/netflow/payload: default
-  comp/otelcol/collector-contrib/def:
-    used_by_otel: true
-  comp/otelcol/collector-contrib/impl:
-    used_by_otel: true
-  comp/otelcol/converter/def:
-    used_by_otel: true
-  comp/otelcol/converter/impl:
-    used_by_otel: true
-  comp/otelcol/ddflareextension/def:
-    used_by_otel: true
-  comp/otelcol/ddflareextension/impl:
-    used_by_otel: true
+  comp/otelcol/collector-contrib/def: default
+  comp/otelcol/collector-contrib/impl: default
+  comp/otelcol/converter/def: default
+  comp/otelcol/converter/impl: default
+  comp/otelcol/ddflareextension/def: default
+  comp/otelcol/ddflareextension/impl: default
   comp/otelcol/logsagentpipeline:
     used_by_otel: true
   comp/otelcol/logsagentpipeline/logsagentpipelineimpl:
@@ -78,13 +86,14 @@ modules:
     used_by_otel: true
   comp/otelcol/otlp/components/metricsclient:
     used_by_otel: true
-  comp/otelcol/otlp/components/processor/infraattributesprocessor:
-    used_by_otel: true
+  comp/otelcol/otlp/components/processor/infraattributesprocessor: default
   comp/otelcol/otlp/components/statsprocessor:
     used_by_otel: true
   comp/otelcol/otlp/testutil:
     used_by_otel: true
-  comp/serializer/compression:
+  comp/serializer/logscompression:
+    used_by_otel: true
+  comp/serializer/metricscompression:
     used_by_otel: true
   comp/trace/agent/def:
     used_by_otel: true
@@ -146,6 +155,7 @@ modules:
   pkg/config/utils:
     used_by_otel: true
   pkg/errors: default
+  pkg/fips: default
   pkg/gohai: default
   pkg/linters/components/pkgconfigusage:
     independent: false
@@ -211,11 +221,14 @@ modules:
     used_by_otel: true
   pkg/util/buf:
     used_by_otel: true
-  pkg/util/cache: default
+  pkg/util/cache:
+    used_by_otel: true
   pkg/util/cgroups:
     should_test_condition: is_linux
     used_by_otel: true
   pkg/util/common:
+    used_by_otel: true
+  pkg/util/compression:
     used_by_otel: true
   pkg/util/containers/image:
     used_by_otel: true
@@ -228,7 +241,8 @@ modules:
   pkg/util/flavor: default
   pkg/util/fxutil:
     used_by_otel: true
-  pkg/util/grpc: default
+  pkg/util/grpc:
+    used_by_otel: true
   pkg/util/hostname/validate:
     used_by_otel: true
   pkg/util/http:

@@ -17,7 +17,7 @@ from datetime import date
 from time import sleep
 
 from gitlab import GitlabError
-from invoke import task
+from invoke import Failure, task
 from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
@@ -26,6 +26,7 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
     GITHUB_REPO_NAME,
 )
+from tasks.libs.common.datadog_api import get_ci_pipeline_events
 from tasks.libs.common.git import (
     check_base_branch,
     check_clean_branch_state,
@@ -63,8 +64,8 @@ from tasks.libs.releasing.json import (
     set_new_release_branch,
     update_release_json,
 )
-from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude
 from tasks.libs.releasing.version import (
+    FINAL_VERSION_RE,
     MINOR_RC_VERSION_RE,
     RC_VERSION_RE,
     VERSION_RE,
@@ -84,6 +85,8 @@ GITLAB_FILES_TO_UPDATE = [
 ]
 
 BACKPORT_LABEL_COLOR = "5319e7"
+TAG_BATCH_SIZE = 3
+QUALIFICATION_TAG = "qualification"
 
 
 @task
@@ -122,6 +125,13 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
         for module in modules.values():
             for dependency in module.dependencies:
                 dependency_mod = modules[dependency]
+                if (
+                    agent_version.startswith('6')
+                    and 'pkg/util/optional' in dependency_mod.dependency_path(agent_version)
+                    and 'test/new-e2e' in module.go_mod_path()
+                ):
+                    # Skip this dependency update in new-e2e for Agent 6, as it's incompatible.
+                    continue
                 ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
 
 
@@ -140,10 +150,11 @@ def __get_force_option(force: bool) -> str:
     return force_option
 
 
-def __tag_single_module(ctx, module, agent_version, commit, force_option, devel):
+def __tag_single_module(ctx, module, tag_name, commit, force_option, devel):
     """Tag a given module."""
     tags = []
-    for tag in module.tag(agent_version):
+    tags_to_commit = module.tag(tag_name) if VERSION_RE.match(tag_name) else [tag_name]
+    for tag in tags_to_commit:
         if devel:
             tag += "-devel"
 
@@ -193,14 +204,24 @@ def tag_modules(
 
         if push:
             tags_list = ' '.join(tags)
-            ctx.run(f"git push origin {tags_list}{force_option}")
+            for idx in range(0, len(tags), TAG_BATCH_SIZE):
+                batch_tags = tags[idx : idx + TAG_BATCH_SIZE]
+                ctx.run(f"git push origin {' '.join(batch_tags)}{force_option}")
             print(f"Pushed tag {tags_list}")
         print(f"Created module tags for version {agent_version}")
 
 
 @task
 def tag_version(
-    ctx, release_branch=None, commit="HEAD", push=True, force=False, devel=False, version=None, trust=False
+    ctx,
+    release_branch=None,
+    commit="HEAD",
+    push=True,
+    force=False,
+    devel=False,
+    version=None,
+    trust=False,
+    start_qual=False,
 ):
     """Create tags for a given Datadog Agent version.
 
@@ -210,6 +231,7 @@ def tag_version(
         push: Will push the tags to the origin remote (on by default).
         force: Will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
         devel: Will create -devel tags (used after creation of the release branch)
+        start_qual: Will start the qualification phase for agent 6 release candidate by adding a qualification tag
 
     Examples:
         $ inv -e release.tag-version 7.27.x            # Create tags and push them to origin
@@ -225,6 +247,16 @@ def tag_version(
     force_option = __get_force_option(force)
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         tags = __tag_single_module(ctx, get_default_modules()["."], agent_version, commit, force_option, devel)
+
+        # create or update the qualification tag using the force option (points tag to next RC)
+        if is_agent6(ctx) and (start_qual or is_qualification(ctx, "6.53.x")):
+            if FINAL_VERSION_RE.match(agent_version):
+                ctx.run(f"git push --delete origin {QUALIFICATION_TAG}")
+            else:
+                force_option = __get_force_option(not start_qual)
+                tags += __tag_single_module(
+                    ctx, get_default_modules()["."], QUALIFICATION_TAG, commit, force_option, False
+                )
 
     if push:
         tags_list = ' '.join(tags)
@@ -298,24 +330,7 @@ def finish(ctx, release_branch, upstream="origin"):
                 code=1,
             )
 
-        # Step 4: Add release changelog preludes
-        print(color_message("Adding Agent release changelog prelude", "bold"))
-        _add_prelude(ctx, str(new_version))
-
-        print(color_message("Adding DCA release changelog prelude", "bold"))
-        _add_dca_prelude(ctx, str(new_version))
-
-        ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually, push the {final_branch} branch and then open a PR against {final_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        # Step 5: Push branch and create PR
+        # Step 4: Push branch and create PR
         print(color_message("Pushing new branch to the upstream repository", "bold"))
         res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
         if res.exited is None or res.exited > 0:
@@ -328,7 +343,7 @@ def finish(ctx, release_branch, upstream="origin"):
             )
 
         create_release_pr(
-            f"Final updates for release.json and Go modules for {new_version} release + preludes",
+            f"Final updates for release.json and Go modules for {new_version} release",
             release_branch,
             final_branch,
             new_version,
@@ -401,10 +416,11 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         update_branch = f"release/{new_highest_version}-{int(time.time())}"
 
         check_clean_branch_state(ctx, github, update_branch)
-        if not check_base_branch(release_branch, new_highest_version):
+        active_releases = [branch.name for branch in github.latest_unreleased_release_branches()]
+        if not any(check_base_branch(release_branch, unreleased_branch) for unreleased_branch in active_releases):
             raise Exit(
                 color_message(
-                    f"The branch you are on is neither {get_default_branch()} or the correct release branch ({new_highest_version.branch()}). Aborting.",
+                    f"The branch you are on is neither {get_default_branch()} or amongst the active release branches ({active_releases}). Aborting.",
                     "red",
                 ),
                 code=1,
@@ -474,12 +490,25 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
                 "pr_url": pr_url,
                 "version": str(new_highest_version),
             }
-
-            ctx.run(f"curl -X POST -H 'Content-Type: application/json' --data '{json.dumps(payload)}' {slack_webhook}")
+            send_slack_msg(ctx, payload, slack_webhook)
 
 
 @task
-def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
+def is_qualification(ctx, release_branch, output=False):
+    with agent_context(ctx, release_branch):
+        try:
+            ctx.run(f"git tag | grep {QUALIFICATION_TAG}", hide=True)
+            if output:
+                print('true')
+            return True
+        except Failure:
+            if output:
+                print("false")
+            return False
+
+
+@task
+def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, start_qual=False):
     """To be done after the PR created by release.create-rc is merged, with the same options
     as release.create-rc.
 
@@ -488,6 +517,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
 
     Args:
         k8s_deployments: When set to True the child pipeline deploying to subset of k8s staging clusters will be triggered.
+        start_qual: Start the qualification phase for agent 6 release candidates.
     """
 
     major_version = get_version_major(release_branch)
@@ -507,7 +537,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
         print(color_message("Checking repository state", "bold"))
 
         # Check that the base branch is valid
-        if not check_base_branch(release_branch, new_version):
+        if not check_base_branch(release_branch, new_version.branch()):
             raise Exit(
                 color_message(
                     f"The branch you are on is neither {get_default_branch()} or the correct release branch ({new_version.branch()}). Aborting.",
@@ -537,7 +567,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
         # tag_version only takes the highest version (Agent 7 currently), and creates
         # the tags for all supported versions
         # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
-        tag_version(ctx, version=str(new_version), force=False)
+        tag_version(ctx, version=str(new_version), force=False, start_qual=start_qual)
         tag_modules(ctx, version=str(new_version), force=False)
 
         print(color_message(f"Waiting until the {new_version} tag appears in Gitlab", "bold"))
@@ -553,16 +583,40 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
         print(color_message("Creating RC pipeline", "bold"))
 
         # Step 2: Run the RC pipeline
+        run_rc_pipeline(release_branch, gitlab_tag.name, k8s_deployments)
 
-        run(
-            ctx,
-            git_ref=gitlab_tag.name,
-            use_release_entries=True,
-            repo_branch="beta",
-            deploy=True,
-            rc_build=True,
-            rc_k8s_deployments=k8s_deployments,
-        )
+
+def get_qualification_rc_tag(ctx, release_branch):
+    with agent_context(ctx, release_branch):
+        err_msg = "Error: Expected exactly one release candidate tag associated with the qualification tag commit. Tags found:"
+        try:
+            res = ctx.run(f"git tag --points-at $(git rev-list -n 1 {QUALIFICATION_TAG}) | grep 6.53")
+        except Failure as err:
+            raise Exit(message=f"{err_msg} []", code=1) from err
+
+        tags = [tag for tag in res.stdout.split("\n") if tag.strip()]
+        if len(tags) > 1:
+            raise Exit(message=f"{err_msg} {tags}", code=1)
+        if not RC_VERSION_RE.match(tags[0]):
+            raise Exit(message=f"Error: The tag '{tags[0]}' does not match expected release candidate pattern", code=1)
+
+        return tags[0]
+
+
+@task
+def run_rc_pipeline(ctx, release_branch, gitlab_tag=None, k8s_deployments=False):
+    if not gitlab_tag:
+        gitlab_tag = get_qualification_rc_tag(ctx, release_branch)
+
+    run(
+        ctx,
+        git_ref=gitlab_tag,
+        use_release_entries=True,
+        repo_branch="beta",
+        deploy=True,
+        rc_build=True,
+        rc_k8s_deployments=k8s_deployments,
+    )
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
@@ -676,7 +730,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
     # Strings with proper branch/tag names
     release_branch = current.branch()
 
-    with agent_context(ctx, get_default_branch(major=major_version)):
+    with agent_context(ctx, get_default_branch()):
         # Step 0: checks
         ctx.run("git fetch")
 
@@ -706,6 +760,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
             f'backport/{release_branch}',
             BACKPORT_LABEL_COLOR,
             f'Automatically create a backport PR to {release_branch}',
+            exist_ok=True,
         )
 
         # Step 2 - Create PRs with new settings in datadog-agent repository
@@ -1206,7 +1261,6 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
     """
     Create a PR to bump the current_milestone in the release.json file
     """
-    import github
 
     gh = GithubAPI()
 
@@ -1215,14 +1269,7 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
     next.devel = False
 
     print(f"Creating the {next} milestone...")
-
-    try:
-        gh.create_milestone(str(next))
-    except github.GithubException as e:
-        if e.status == 422:
-            print(f"Milestone {next} already exists")
-        else:
-            raise e
+    gh.create_milestone(str(next), exist_ok=True)
 
     with agent_context(ctx, get_default_branch(major=major_version)):
         milestone_branch = f"release_milestone-{int(time.time())}"
@@ -1259,3 +1306,37 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
             milestone_branch,
             next,
         )
+
+
+def send_slack_msg(ctx, payload, webhook):
+    ctx.run(f'curl -X POST -H "Content-Type: application/json" --data "{payload}" {webhook}')
+
+
+@task
+def check_previous_agent6_rc(ctx):
+    """
+    Validates that there are no existing Agent 6 release candidate pull requests
+    and checks if an Agent 6 build pipeline has been run in the past week
+    """
+    err_msg = ""
+    agent6_prs = ""
+    github = GithubAPI()
+    prs = github.get_pr_for_branch(None, "6.53.x")
+    for pr in prs:
+        if "Update release.json and Go modules for 6.53" in pr.title and not pr.draft:
+            agent6_prs += f"\n- {pr.title}: https://github.com/DataDog/datadog-agent/pull/{pr.number}"
+    if agent6_prs:
+        err_msg += "AGENT 6 ERROR: The following Agent 6 release candidate PRs already exist. Please address these PRs before creating a new release candidate"
+        err_msg += agent6_prs
+
+    response = get_ci_pipeline_events(
+        'ci_level:pipeline @ci.pipeline.name:"DataDog/datadog-agent" @git.tag:6.53.* -@ci.pipeline.downstream:true -@ci.partial_pipeline:retry',
+        7,
+    )
+    if not response.data:
+        err_msg += "\nAGENT 6 ERROR: No Agent 6 build pipelines have run in the past week. Please trigger a build pipeline for the next agent 6 release candidate."
+
+    if err_msg:
+        payload = {'message': err_msg}
+        send_slack_msg(ctx, payload, os.environ.get("SLACK_DATADOG_AGENT_CI_WEBHOOK"))
+        raise Exit(message=err_msg, code=1)

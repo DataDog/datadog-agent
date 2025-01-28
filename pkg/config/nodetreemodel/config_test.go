@@ -256,6 +256,7 @@ func TestAllSettings(t *testing.T) {
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b.c", 0)
 	cfg.SetDefault("b.d", 0)
+	cfg.SetKnown("b.e")
 	cfg.BuildSchema()
 
 	cfg.ReadConfig(strings.NewReader("a: 987"))
@@ -345,6 +346,44 @@ func TestIsSet(t *testing.T) {
 
 	assert.False(t, cfg.IsSet("unknown"))
 	assert.False(t, cfg.IsKnown("unknown"))
+}
+
+func TestIsConfigured(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.SetKnown("c")
+	cfg.BindEnv("d")
+
+	t.Setenv("TEST_D", "123")
+
+	cfg.BuildSchema()
+
+	cfg.Set("b", 123, model.SourceAgentRuntime)
+
+	assert.False(t, cfg.IsConfigured("a"))
+	assert.True(t, cfg.IsConfigured("b"))
+	assert.False(t, cfg.IsConfigured("c"))
+	assert.True(t, cfg.IsConfigured("d"))
+
+	assert.False(t, cfg.IsConfigured("unknown"))
+}
+
+func TestEnvVarMultipleSettings(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.SetDefault("c", 0)
+	cfg.BindEnv("a", "TEST_MY_ENVVAR")
+	cfg.BindEnv("b", "TEST_MY_ENVVAR")
+
+	t.Setenv("TEST_MY_ENVVAR", "123")
+
+	cfg.BuildSchema()
+
+	assert.Equal(t, 123, cfg.GetInt("a"))
+	assert.Equal(t, 123, cfg.GetInt("b"))
+	assert.Equal(t, 0, cfg.GetInt("c"))
 }
 
 func TestAllKeysLowercased(t *testing.T) {

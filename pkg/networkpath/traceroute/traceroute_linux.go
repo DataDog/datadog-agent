@@ -12,9 +12,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,12 +35,8 @@ type LinuxTraceroute struct {
 func New(cfg config.Config, _ telemetry.Component) (*LinuxTraceroute, error) {
 	log.Debugf("Creating new traceroute with config: %+v", cfg)
 	return &LinuxTraceroute{
-		cfg: cfg,
-		sysprobeClient: &http.Client{
-			Transport: &http.Transport{
-				DialContext: sysprobeclient.DialContextFunc(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
-			},
-		},
+		cfg:            cfg,
+		sysprobeClient: getSysProbeClient(),
 	}, nil
 }
 

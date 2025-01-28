@@ -9,6 +9,7 @@ package fipstest
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -74,6 +75,14 @@ func (s *fipsAgentSuite) TestWithSystemFIPSDisabled() {
 			require.NoError(s.T(), err)
 		})
 	})
+
+	s.Run("status command", func() {
+		s.Run("gofips disabled", func() {
+			status, err := s.execAgentCommand("status")
+			require.NoError(s.T(), err)
+			assert.Contains(s.T(), status, "FIPS compliant: false")
+		})
+	})
 }
 
 func (s *fipsAgentSuite) TestWithSystemFIPSEnabled() {
@@ -91,6 +100,36 @@ func (s *fipsAgentSuite) TestWithSystemFIPSEnabled() {
 			require.NoError(s.T(), err)
 		})
 	})
+
+	s.Run("status command", func() {
+		s.Run("gofips enabled", func() {
+			status, err := s.execAgentCommand("status")
+			require.NoError(s.T(), err)
+			assert.Contains(s.T(), status, "FIPS compliant: true")
+		})
+
+		s.Run("gofips disabled", func() {
+			status, err := s.execAgentCommand("status")
+			require.NoError(s.T(), err)
+			assert.Contains(s.T(), status, "FIPS compliant: true")
+		})
+	})
+}
+
+func (s *fipsAgentSuite) TestFIPSProviderPresent() {
+	host := s.Env().RemoteHost
+	exists, _ := host.FileExists(path.Join(s.installPath, "embedded3/lib/ossl-modules/fips.dll"))
+	require.True(s.T(), exists, "Agent install path should contain the FIPS provider but doesn't")
+}
+
+func (s *fipsAgentSuite) TestFIPSInstall() {
+	host := s.Env().RemoteHost
+	openssl := path.Join(s.installPath, "embedded3/bin/openssl.exe")
+	fipsModule := path.Join(s.installPath, "embedded3/lib/ossl-modules/fips.dll")
+	fipsConf := path.Join(s.installPath, "embedded3/ssl/fipsmodule.cnf")
+	cmd := fmt.Sprintf(`& "%s" fipsinstall -module "%s" -in "%s" -verify`, openssl, fipsModule, fipsConf)
+	_, err := host.Execute(cmd)
+	require.NoError(s.T(), err, "MSI should create valid fipsmodule.cnf")
 }
 
 func (s *fipsAgentSuite) execAgentCommand(command string, options ...client.ExecuteOption) (string, error) {

@@ -47,6 +47,7 @@ const (
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
+	KindGPU                    Kind = "gpu"
 )
 
 // Source is the source name of an entity.
@@ -1349,3 +1350,96 @@ func (e EventBundle) Acknowledge() {
 // InitHelper this should be provided as a helper to allow passing the component into
 // the inithook for additional start-time configutation.
 type InitHelper func(context.Context, Component, config.Component) error
+
+// GPU represents a GPU resource.
+type GPU struct {
+	EntityID
+	EntityMeta
+	// Vendor is the name of the manufacturer of the device (e.g., NVIDIA)
+	Vendor string
+
+	// Device is the comercial name of the device (e.g., Tesla V100) as returned
+	// by the device driver (NVML for NVIDIA GPUs). Note that some models might
+	// have some additional information like the memory size (e.g., Tesla
+	// A100-SXM2-80GB), the exact format of this field is vendor and device
+	// specific.
+	Device     string
+	ActivePIDs []int
+
+	// Index is the index of the GPU in the host system. This is useful as sometimes
+	// GPUs will be identified by their index instead of their UUID. Note that the index
+	// is not guaranteed to be stable across reboots, nor is necessarily the same inside
+	// of containers.
+	Index int
+
+	// Architecture contains the architecture of the GPU (e.g., Pascal, Volta, etc.). Optional, can be empty.
+	Architecture string
+
+	// ComputeCapability contains the compute capability version of the GPU. Optional, can be 0/0
+	ComputeCapability GPUComputeCapability
+
+	// SMCount is the number of streaming multiprocessors in the GPU. Optional, can be empty.
+	SMCount int
+}
+
+var _ Entity = &GPU{}
+
+// GetID implements Entity#GetID.
+func (g GPU) GetID() EntityID {
+	return g.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (g *GPU) Merge(e Entity) error {
+	gg, ok := e.(*GPU)
+	if !ok {
+		return fmt.Errorf("cannot merge GPU with different kind %T", e)
+	}
+
+	// If the source has active PIDs, remove the ones from the destination so merge() takes latest active PIDs from the soure
+	if gg.ActivePIDs != nil {
+		g.ActivePIDs = nil
+	}
+
+	return merge(g, gg)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (g GPU) DeepCopy() Entity {
+	cp := deepcopy.Copy(g).(GPU)
+	return &cp
+}
+
+// String implements Entity#String.
+func (g GPU) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, g.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprintln(&sb, g.EntityMeta.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "Vendor:", g.Vendor)
+	_, _ = fmt.Fprintln(&sb, "Device:", g.Device)
+	_, _ = fmt.Fprintln(&sb, "Active PIDs:", g.ActivePIDs)
+	_, _ = fmt.Fprintln(&sb, "Index:", g.Index)
+	_, _ = fmt.Fprintln(&sb, "Architecture:", g.Architecture)
+	_, _ = fmt.Fprintln(&sb, "Compute Capability:", g.ComputeCapability)
+	_, _ = fmt.Fprintln(&sb, "Streaming Multiprocessor Count:", g.SMCount)
+
+	return sb.String()
+}
+
+// GPUComputeCapability represents the compute capability version of a GPU.
+type GPUComputeCapability struct {
+	// Major represents the major version of the compute capability.
+	Major int
+
+	// Minor represents the minor version of the compute capability.
+	Minor int
+}
+
+func (gcc GPUComputeCapability) String() string {
+	return fmt.Sprintf("%d.%d", gcc.Major, gcc.Minor)
+}

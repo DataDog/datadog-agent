@@ -32,7 +32,6 @@ var noDDExporterProvidedConfig string
 var noDDExporterFullConfig string
 
 func TestOTelAgentWithNoDDExporter(t *testing.T) {
-	t.Skip("Skipping broken test: incident-33599") // incident-33599
 	values := `
 datadog:
   logs:

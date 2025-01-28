@@ -7,6 +7,7 @@ proxy:
     - https://my2.endpoint.eu
 use_dogstatsd: yes
 skip_ssl_validation: yes
+min_tls_version: "tlsv1.3"
 dogstatsd_port: 18125
 dogstatsd_non_local_traffic: yes
 log_level: info
@@ -91,3 +92,4 @@ apm_config:
       luhn: true
     cache:
       enabled: true
+      max_size: 5555555

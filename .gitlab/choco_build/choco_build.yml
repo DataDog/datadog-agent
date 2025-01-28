@@ -6,8 +6,8 @@
 .windows_choco_7_x64:
   rules:
     !reference [.on_deploy_stable_or_beta_repo_branch]
-  stage: choco_and_install_script_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  stage: choco_build
+  extends: .windows_docker_default
   variables:
     ARCH: "x64"
   script:
@@ -21,7 +21,7 @@
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e BUCKET_BRANCH="$BUCKET_BRANCH"
       -e AWS_NETWORKING=true
-      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      ${WINBUILDIMAGE}
       powershell.exe -C "C:\mnt\tasks\winbuildscripts\Generate-Chocolatey-Package.ps1 -MSIDirectory c:\mnt\omnibus\pkg -Flavor $FLAVOR -InstallDeps 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - $CopyNupkgToS3 = "$S3_CP_CMD --recursive --exclude '*' --include '*.nupkg' build-out $S3_RELEASE_ARTIFACTS_URI/choco/nupkg"
