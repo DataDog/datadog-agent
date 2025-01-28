@@ -103,6 +103,8 @@ func (e *EbpfEvent) String() string {
 	output.WriteString("ebpfTx{")
 	output.WriteString("Method: '" + Method(e.Http.Request_method).String() + "', ")
 	output.WriteString("Tags: '0x" + strconv.FormatUint(e.Http.Tags, 16) + "', ")
+	output.WriteString("Started: " + strconv.FormatUint(e.Http.Request_started, 10) + ", ")
+	output.WriteString("Response Last Seen: " + strconv.FormatUint(e.Http.Response_last_seen, 10) + ", ")
 	output.WriteString("Fragment: '" + hex.EncodeToString(e.Http.Request_fragment[:]) + "', ")
 	output.WriteString("}")
 	return output.String()
