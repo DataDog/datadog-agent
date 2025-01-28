@@ -8,6 +8,7 @@
 package disk
 
 import (
+	"errors"
 	"regexp"
 	"strings"
 
@@ -40,6 +41,9 @@ type diskConfig struct {
 	deviceTagRe         map[*regexp.Regexp][]string
 	allDevices          bool
 	minDiskSize         uint64
+	tagByLabel          bool
+	useLsblk            bool
+	blkidCacheFile      string
 }
 
 func NewDiskConfig() *diskConfig {
@@ -56,6 +60,9 @@ func NewDiskConfig() *diskConfig {
 		deviceTagRe:         make(map[*regexp.Regexp][]string),
 		allDevices:          true,
 		minDiskSize:         0,
+		tagByLabel:          true,
+		useLsblk:            false,
+		blkidCacheFile:      "",
 	}
 }
 
@@ -145,7 +152,6 @@ func (c *Check) diskConfigure(data integration.Data, initConfig integration.Data
 	if err != nil {
 		return err
 	}
-
 	deviceTagRe, found := unmarshalledInstanceConfig["device_tag_re"]
 	if deviceTagRe, ok := deviceTagRe.(map[interface{}]interface{}); found && ok {
 		c.cfg.deviceTagRe = make(map[*regexp.Regexp][]string)
@@ -160,6 +166,21 @@ func (c *Check) diskConfigure(data integration.Data, initConfig integration.Data
 				}
 			}
 		}
+	}
+	tagByLabel, found := unmarshalledInstanceConfig["tag_by_label"]
+	if tagByLabel, ok := tagByLabel.(bool); found && ok {
+		c.cfg.tagByLabel = tagByLabel
+	}
+	useLsblk, found := unmarshalledInstanceConfig["use_lsblk"]
+	if useLsblk, ok := useLsblk.(bool); found && ok {
+		c.cfg.useLsblk = useLsblk
+	}
+	blkidCacheFile, found := unmarshalledInstanceConfig["blkid_cache_file"]
+	if blkidCacheFile, ok := blkidCacheFile.(string); found && ok {
+		c.cfg.blkidCacheFile = blkidCacheFile
+	}
+	if c.cfg.tagByLabel && c.cfg.useLsblk && c.cfg.blkidCacheFile != "" {
+		return errors.New("Only one of 'use_lsblk' and 'blkid_cache_file' can be set at the same time.")
 	}
 
 	return nil

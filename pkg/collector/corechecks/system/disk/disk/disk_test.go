@@ -1589,3 +1589,19 @@ device_tag_re:
 
 	assert.NotNil(t, err)
 }
+
+func TestGivenADiskCheckWithUseLsblkAndBlkidCacheFileConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := new(Check)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+use_lsblk: true
+blkid_cache_file: /run/blkid/blkid.tab
+`))
+	expectedError := "Only one of 'use_lsblk' and 'blkid_cache_file' can be set at the same time."
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.EqualError(t, err, expectedError)
+}
