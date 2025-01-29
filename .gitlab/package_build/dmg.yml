@@ -48,19 +48,23 @@ new-agent_dmg-x64-a7:
   needs: []
   # needs: ["go_deps", "go_tools_deps"]
   timeout: 6h
-  # before_script:
-  #   - export RELEASE_VERSION=$RELEASE_VERSION_7
   artifacts:
     expire_in: 2 weeks
     paths:
       # - $OMNIBUS_PACKAGE_DIR
       - /tmp/celian
+  # before_script:
+  #   - export RELEASE_VERSION=$RELEASE_VERSION_7
+  before_script: [] # TODO
   script:
     # - !reference [.retrieve_linux_go_deps]
     # - !reference [.retrieve_linux_go_tools_deps]
     # - echo $GOPATH
     # - exit
     # TODO
+    - echo /Applications/Xcode*
+    - sudo xcode-select -s /Applications/Xcode_14.2.app
+    - exit
     - !reference [.vault_login]
     - |
       echo AGENT_MAJOR_VERSION: $AGENT_MAJOR_VERSION
