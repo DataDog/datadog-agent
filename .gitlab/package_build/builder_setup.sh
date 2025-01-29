@@ -39,7 +39,7 @@ export GPG_VERSION=1.4.23
 export CODECOV_VERSION=v0.6.1
 export OPENSSL_VERSION=1.1
 
-export GO_VERSION=$(cat $GOPATH/src/github.com/DataDog/datadog-agent/.go-version)
+export GO_VERSION=$(cat .go-version)
 
 # Helper to run a bash command with retries, with an exponential backoff.
 # Returns 1 if the provided command fails every time, 0 otherwise.

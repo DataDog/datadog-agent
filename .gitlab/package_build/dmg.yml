@@ -171,11 +171,11 @@ new-agent_dmg-x64-a7:
       echo 'export GOPATH=$HOME/go' >> ~/.build_setup
       echo 'export PATH="$GOPATH/bin:$PATH"' >> ~/.build_setup
     - . ~/.build_setup
-    - export AGENT_DIR="$GOPATH/src/github.com/DataDog/datadog-agent"
-    # Clone agent
-    - rm -rf "$AGENT_DIR" && mkdir -p "$AGENT_DIR"
-    # TODO: Proper way
-    - cp -r ./* "$AGENT_DIR"
+    # - export AGENT_DIR="$GOPATH/src/github.com/DataDog/datadog-agent"
+    # # Clone agent
+    # - rm -rf "$AGENT_DIR" && mkdir -p "$AGENT_DIR"
+    # # TODO: Proper way
+    # - cp -r ./* "$AGENT_DIR"
     # TODO: xcode 14.2?
     # - sudo xcode-select -s /Applications/Xcode_14.3.1.app
     # TODO: # Remove preinstalled environment

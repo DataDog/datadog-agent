@@ -30,7 +30,6 @@ export KEYCHAIN_NAME=${KEYCHAIN_NAME:-"login.keychain"}
 
 # Load build setup vars
 source ~/.build_setup
-cd $GOPATH/src/github.com/DataDog/datadog-agent
 
 # Install python deps (invoke, etc.)
 
