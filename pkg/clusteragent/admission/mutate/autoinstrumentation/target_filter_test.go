@@ -21,7 +21,7 @@ func TestTargetFilter(t *testing.T) {
 	tests := map[string]struct {
 		configPath string
 		in         *corev1.Pod
-		out        []language
+		expected   []libInfo
 	}{
 		"a rule without selectors applies as a default": {
 			configPath: "testdata/filter.yaml",
@@ -33,7 +33,13 @@ func TestTargetFilter(t *testing.T) {
 					},
 				},
 			},
-			out: []language{js},
+			expected: []libInfo{
+				{
+					ctrName: "",
+					lang:    js,
+					image:   "registry/dd-lib-js-init:v5",
+				},
+			},
 		},
 		"a pod that matches no targets gets no values": {
 			configPath: "testdata/filter_no_default.yaml",
@@ -45,7 +51,7 @@ func TestTargetFilter(t *testing.T) {
 					},
 				},
 			},
-			out: nil,
+			expected: nil,
 		},
 		"a single service example matches rule": {
 			configPath: "testdata/filter.yaml",
@@ -57,7 +63,13 @@ func TestTargetFilter(t *testing.T) {
 					},
 				},
 			},
-			out: []language{python},
+			expected: []libInfo{
+				{
+					ctrName: "",
+					lang:    python,
+					image:   "registry/dd-lib-python-init:v2",
+				},
+			},
 		},
 		"a java microservice service matches rule": {
 			configPath: "testdata/filter.yaml",
@@ -69,7 +81,13 @@ func TestTargetFilter(t *testing.T) {
 					},
 				},
 			},
-			out: []language{java},
+			expected: []libInfo{
+				{
+					ctrName: "",
+					lang:    java,
+					image:   "registry/dd-lib-java-init:v1",
+				},
+			},
 		},
 		"a disabled namespace gets no tracers": {
 			configPath: "testdata/filter.yaml",
@@ -81,7 +99,7 @@ func TestTargetFilter(t *testing.T) {
 					},
 				},
 			},
-			out: nil,
+			expected: nil,
 		},
 		"unset tracer versions applies all tracers": {
 			configPath: "testdata/filter.yaml",
@@ -93,7 +111,33 @@ func TestTargetFilter(t *testing.T) {
 					},
 				},
 			},
-			out: []language{java, js, python, dotnet, ruby},
+			expected: []libInfo{
+				{
+					ctrName: "",
+					lang:    java,
+					image:   "registry/dd-lib-java-init:v1",
+				},
+				{
+					ctrName: "",
+					lang:    js,
+					image:   "registry/dd-lib-js-init:v5",
+				},
+				{
+					ctrName: "",
+					lang:    python,
+					image:   "registry/dd-lib-python-init:v2",
+				},
+				{
+					ctrName: "",
+					lang:    dotnet,
+					image:   "registry/dd-lib-dotnet-init:v3",
+				},
+				{
+					ctrName: "",
+					lang:    ruby,
+					image:   "registry/dd-lib-ruby-init:v2",
+				},
+			},
 		},
 	}
 
@@ -109,24 +153,10 @@ func TestTargetFilter(t *testing.T) {
 			require.NoError(t, err)
 
 			// Filter the pod.
-			libList := f.filter(test.in)
+			actual := f.filter(test.in)
 
 			// Validate the output.
-			languages := convertLibList(libList)
-			require.Equal(t, test.out, languages)
+			require.Equal(t, test.expected, actual)
 		})
 	}
-}
-
-func convertLibList(libs []libInfo) []language {
-	if len(libs) == 0 {
-		return nil
-	}
-
-	languages := make([]language, len(libs))
-	for i, lib := range libs {
-		languages[i] = lib.lang
-	}
-
-	return languages
 }

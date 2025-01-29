@@ -14,17 +14,17 @@ apm_config:
           matchNames:
           - "billing-service"
         ddTraceVersions:
-          python: "default"
+          python: "v2"
       - name: "Microservices"
         selector:
           matchLabels:
             language: "java"
         ddTraceVersions:
-          java: "default"
+          java: "v1"
       - name: "Unknown Language"
         selector:
           matchLabels:
             language: "unknown"
       - name: "Default"
         ddTraceVersions:
-          js: "default"
+          js: "v5"
