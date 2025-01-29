@@ -1479,7 +1479,32 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenUsageMetricsAreNotRe
 	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"tmpfs", "filesystem:tmpfs"})
 }
 
-func TestGivenADiskCheckWithTagByFileSystemConfigured_WhenCheckRuns_ThenUsageMetricsAreReportedWithFileSystemTags(t *testing.T) {
+func TestGivenADiskCheckWithTagByFileSystemFalseConfigured_WhenCheckRuns_ThenUsageMetricsAreReportedWithFileSystemTags(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := new(Check)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("tag_by_filesystem: false"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"tmpfs", "filesystem:tmpfs"})
+}
+
+func TestGivenADiskCheckWithTagByFileSystemTrueConfigured_WhenCheckRuns_ThenUsageMetricsAreReportedWithFileSystemTags(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := new(Check)
 	m := mocksender.NewMockSender(diskCheck.ID())
