@@ -20,25 +20,25 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
-//go:embed fixtures/local-mock/network_path.yaml
-var localMockNetworkPathYaml []byte
+//go:embed fixtures/fake-traceroute/network_path.yaml
+var fakeNetworkPathYaml []byte
 
-//go:embed fixtures/local-mock/fake_router_setup.sh
+//go:embed fixtures/fake-traceroute/fake_router_setup.sh
 var fakeRouterSetupScript []byte
 
-//go:embed fixtures/local-mock/fake_router_teardown.sh
+//go:embed fixtures/fake-traceroute/fake_router_teardown.sh
 var fakeRouterTeardownScript []byte
 
-type localMockTracerouteTestSuite struct {
+type fakeTracerouteTestSuite struct {
 	baseNetworkPathIntegrationTestSuite
 }
 
-func TestLocalMockTracerouteSuite(t *testing.T) {
+func TestFakeTracerouteSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &localMockTracerouteTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &fakeTracerouteTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
-			agentparams.WithIntegration("network_path.d", string(localMockNetworkPathYaml)),
+			agentparams.WithIntegration("network_path.d", string(fakeNetworkPathYaml)),
 			agentparams.WithFile("/tmp/fake_router_setup.sh", string(fakeRouterSetupScript), false),
 			agentparams.WithFile("/tmp/fake_router_teardown.sh", string(fakeRouterTeardownScript), false),
 		)),
@@ -46,7 +46,7 @@ func TestLocalMockTracerouteSuite(t *testing.T) {
 
 }
 
-func (s *localMockTracerouteTestSuite) TestLocalMockTraceroute() {
+func (s *fakeTracerouteTestSuite) TestFakeTraceroute() {
 	t := s.T()
 	t.Cleanup(func() {
 		s.Env().RemoteHost.MustExecute("sudo sh /tmp/fake_router_teardown.sh")
