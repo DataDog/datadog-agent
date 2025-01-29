@@ -201,7 +201,7 @@ func (c *NetworkCheck) Run() error {
 			submitInterfaceMetrics(sender, interfaceIO)
 			err = fetchEthtoolStats(sender, interfaceIO)
 			if err != nil {
-				continue
+				return err
 			}
 		}
 	}

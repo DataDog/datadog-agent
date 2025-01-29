@@ -313,6 +313,16 @@ func TestNetworkCheck(t *testing.T) {
 		},
 	}
 
+	mockSyscall := new(MockSyscall)
+
+	mockSyscall.On("Socket", mock.Anything, mock.Anything, mock.Anything).Return(1, nil)
+	mockSyscall.On("Syscall", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(uintptr(0), uintptr(0), syscall.Errno(0))
+	mockSyscall.On("Close", mock.Anything).Return(nil)
+
+	getSyscall = mockSyscall.Syscall
+	getSocket = mockSyscall.Socket
+	getClose = mockSyscall.Close
+
 	networkCheck := NetworkCheck{
 		net: net,
 	}
