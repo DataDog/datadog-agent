@@ -66,7 +66,7 @@ func (d *DatadogInstallScript) Run(opts ...Option) (string, error) {
 		"DD_AGENT_MINOR_VERSION": "58.0",
 		"DD_INSTALLER_URL":       params.installerURL,
 	}
-	
+
 	for k, v := range params.extraEnvVars {
 		envVars[k] = v
 	}
