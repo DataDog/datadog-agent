@@ -8,6 +8,7 @@ package fipscompliance
 import (
 	_ "embed"
 	"fmt"
+	"os"
 	"strings"
 
 	"testing"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/stretchr/testify/require"
 )
 
 //go:embed fixtures/docker-compose.yaml
@@ -29,6 +31,9 @@ type fipsServerLinuxSuite struct {
 }
 
 func TestFIPSCiphersLinuxSuite(t *testing.T) {
+	require.NotEmpty(t, os.Getenv("E2E_COMMIT_SHA"), "E2E_COMMIT_SHA must be set")
+	require.NotEmpty(t, os.Getenv("E2E_PIPELINE_ID"), "E2E_PIPELINE_ID must be set")
+
 	e2e.Run(
 		t,
 		&fipsServerLinuxSuite{},
