@@ -161,7 +161,7 @@ new-agent_dmg-x64-a7:
       export PYTHON_RUNTIMES=3
       export INSTALL_DIR=/tmp/celian/bin
       export CONFIG_DIR=/tmp/celian/config
-    - rm -f .build_setup; touch .build_setup
+    - rm -f ~/.build_setup; touch ~/.build_setup
     - mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
     # TODO: xcode 14.2?
     # - sudo xcode-select -s /Applications/Xcode_14.3.1.app
