@@ -20,7 +20,7 @@ from gitlab import GitlabError
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
-from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
+from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr, create_release_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
@@ -32,6 +32,7 @@ from tasks.libs.common.git import (
     check_clean_branch_state,
     clone,
     get_default_branch,
+    get_git_references,
     get_last_commit,
     get_last_release_tag,
     is_agent6,
@@ -56,6 +57,7 @@ from tasks.libs.releasing.documentation import (
 from tasks.libs.releasing.json import (
     DEFAULT_BRANCHES,
     DEFAULT_BRANCHES_AGENT6,
+    INTEGRATIONS_CORE_JSON_FIELD,
     UNFREEZE_REPOS,
     _get_release_json_value,
     _save_release_json,
@@ -1337,3 +1339,57 @@ def check_previous_agent6_rc(ctx):
         payload = {'message': err_msg}
         send_slack_msg(ctx, payload, os.environ.get("SLACK_DATADOG_AGENT_CI_WEBHOOK"))
         raise Exit(message=err_msg, code=1)
+
+
+@task
+def bump_integrations_core(ctx, slack_webhook=None):
+    """
+    Create a PR to bump the integrations core fields in the release.json file
+    """
+    if os.environ.get("GITHUB_ACTIONS"):
+        set_git_config('user.name', 'github-actions[bot]')
+        set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
+
+    commit_hash = get_git_references(ctx, "integrations-core", "HEAD").split()[0]
+
+    rj = load_release_json()
+
+    for nightly in ["nightly", "nightly-a7"]:
+        rj[nightly][INTEGRATIONS_CORE_JSON_FIELD] = commit_hash
+
+    _save_release_json(rj)
+
+    main_branch = "main"
+    bump_integrations_core_branch = f"bump-integrations-core-{int(time.time())}"
+    ctx.run(f"git checkout -b {bump_integrations_core_branch}")
+    ctx.run("git add release.json")
+
+    commit_message = "Update integrations core to HEAD"
+    ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
+    if not ok:
+        raise Exit(
+            color_message(
+                f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {bump_integrations_core_branch} branch and then open a PR against {main_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    if not ctx.run(f"git push --set-upstream origin {bump_integrations_core_branch}", warn=True):
+        raise Exit(
+            color_message(
+                f"Could not push branch {bump_integrations_core_branch} to the upstream 'origin'. Please push it manually and then open a PR against {main_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    # to find the correct current milestone 'devel' is set to False even though this will only run on development branches
+    current = current_version(ctx, 7)
+    current.rc = False
+    current.devel = False
+    pr_url = create_datadog_agent_pr(commit_message, main_branch, bump_integrations_core_branch, str(current))
+
+    if slack_webhook:
+        payload = {'pr_url': pr_url}
+        send_slack_msg(ctx, payload, slack_webhook)
