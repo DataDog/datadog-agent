@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
@@ -31,7 +30,7 @@ var fakeRouterSetupScript []byte
 var fakeRouterTeardownScript []byte
 
 type localMockTracerouteTestSuite struct {
-	e2e.BaseSuite[environments.Host]
+	baseNetworkPathIntegrationTestSuite
 }
 
 func TestLocalMockTracerouteSuite(t *testing.T) {
@@ -74,7 +73,9 @@ func (s *localMockTracerouteTestSuite) TestLocalMockTraceroute() {
 		assert.Equal(c, targetIP, np.Destination.IPAddress)
 		assert.NotZero(c, np.Destination.Port)
 
-		assert.Len(c, np.Hops, 2)
+		if !assert.Len(c, np.Hops, 2) {
+			return
+		}
 
 		assert.Equal(c, 1, np.Hops[0].TTL)
 		assert.Equal(c, routerIP, np.Hops[0].IPAddress)
@@ -94,25 +95,13 @@ func (s *localMockTracerouteTestSuite) TestLocalMockTraceroute() {
 			return
 		}
 
-		var udpPath, tcpPath *aggregator.Netpath
-		for _, np := range nps {
-			if np.Destination.Hostname != targetIP {
-				continue
-			}
+		udpPath := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
+			return np.Destination.Hostname == targetIP && np.Protocol == "UDP"
+		})
+		tcpPath := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
+			return np.Destination.Hostname == targetIP && np.Protocol == "TCP"
+		})
 
-			switch np.Protocol {
-			case "UDP":
-				udpPath = np
-			case "TCP":
-				tcpPath = np
-			}
-		}
-		if !assert.NotNil(c, udpPath, "no UDP path found") {
-			return
-		}
-		if !assert.NotNil(c, tcpPath, "no TCP path found") {
-			return
-		}
 		validatePath(c, udpPath)
 		validatePath(c, tcpPath)
 		assert.Equal(c, uint16(443), tcpPath.Destination.Port)
