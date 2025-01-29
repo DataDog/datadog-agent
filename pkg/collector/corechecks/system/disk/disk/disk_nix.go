@@ -195,14 +195,16 @@ func (c *Check) includeMountPoint(mountPoint string) bool {
 func (c *Check) collectDiskMetrics(sender sender.Sender) error {
 	iomap, err := diskIOCounters()
 	if err != nil {
+		log.Warnf("Unable to get disk iocounters: %s", err)
 		return err
 	}
-	for deviceName, ioCounter := range iomap {
+	for deviceName, ioCounters := range iomap {
+		log.Debugf("Checking iocounters: [device: %s] [ioCounters: %s]", deviceName, ioCounters)
 		tags := []string{}
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 		tags = append(tags, fmt.Sprintf("device_name:%s", deviceName))
 		tags = append(tags, c.getDeviceTags(deviceName, "")...)
-		c.sendDiskMetrics(sender, ioCounter, tags)
+		c.sendDiskMetrics(sender, ioCounters, tags)
 	}
 
 	return nil
