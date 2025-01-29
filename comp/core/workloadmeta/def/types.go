@@ -1387,12 +1387,13 @@ type GPU struct {
 	MigDevices []*MigDevice
 }
 
-// MigDevice contains information about a MIG device, including the GPU instance ID, device info, attributes, and profile.
+// MigDevice contains information about a MIG device, including the GPU instance ID, device info, attributes, and profile. Nvidia MIG allows a single physical GPU to be partitioned into multiple isolated GPU instances so that multiple workloads can run on the same GPU.
 type MigDevice struct {
 	// GPUInstanceID is the ID of the GPU instance. This is a unique identifier inside the parent GPU device.
 	GPUInstanceID int
-	UUID          string
-	Name          string
+	// UUID is the device id retrieved from nvml in the format "MIG-XXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXX"
+	UUID string
+	Name string
 	// GPUInstanceSliceCount and MemorySizeInGb are retrieved from the profile
 	// mig 1g.10gb profile will have GPUInstanceSliceCount = 1 and MemorySizeMB = 10000
 	GPUInstanceSliceCount uint32

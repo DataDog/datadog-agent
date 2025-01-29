@@ -99,14 +99,11 @@ func (c *collector) getGPUdeviceInfo(device nvml.Device) (*workloadmeta.GPU, err
 		Device:     name,
 		Index:      gpuIndexID,
 		MigEnabled: false,
-		MigDevices: make([]*workloadmeta.MigDevice, 0),
+		MigDevices: nil,
 	}
 
 	migEnabled, _, ret := c.nvmlLib.DeviceGetMigMode(device)
-	if ret != nvml.SUCCESS {
-		migEnabled = nvml.DEVICE_MIG_DISABLE
-	}
-	if migEnabled == nvml.DEVICE_MIG_ENABLE {
+	if ret == nvml.SUCCESS && migEnabled == nvml.DEVICE_MIG_ENABLE {
 		// If any mid detection fails, we will return an mig disabled in config
 		migDeviceCount, ret := c.nvmlLib.DeviceGetMaxMigDeviceCount(device)
 		if ret != nvml.SUCCESS {
