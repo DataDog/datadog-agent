@@ -181,11 +181,8 @@ func (s *TracerSuite) TestTCPRetransmit() {
 		// Iterate through active connections until we find connection created above, and confirm send + recv counts
 		connections := getConnections(ct, tr)
 
-		ok := false
-		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		if !assert.True(ct, ok) {
-			return
-		}
+		conn, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		require.NotNil(ct, conn)
 
 		assert.Equal(ct, 100*clientMessageSize, int(conn.Monotonic.SentBytes))
 		assert.Equal(ct, serverMessageSize, int(conn.Monotonic.RecvBytes))
@@ -1292,12 +1289,12 @@ func testUDPPeekCount(t *testing.T, udpnet, ip string) {
 	var outgoing *network.ConnectionStats
 	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 		conns := getConnections(collect, tr)
-		newOutgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		if ok {
+		newOutgoing, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if newOutgoing != nil {
 			outgoing = newOutgoing
 		}
-		newIncoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
-		if ok {
+		newIncoming, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		if newIncoming != nil {
 			incoming = newIncoming
 		}
 		require.NotNil(collect, outgoing)
@@ -1360,12 +1357,12 @@ func testUDPPacketSumming(t *testing.T, udpnet, ip string) {
 	var outgoing *network.ConnectionStats
 	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 		conns := getConnections(collect, tr)
-		newOutgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		if ok {
+		newOutgoing, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if newOutgoing != nil {
 			outgoing = newOutgoing
 		}
-		newIncoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
-		if ok {
+		newIncoming, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		if newIncoming != nil {
 			incoming = newIncoming
 		}
 
@@ -2048,12 +2045,12 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	var incoming, outgoing *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		connections := getConnections(collect, tr)
-		newOutgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		if ok {
+		newOutgoing, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if newOutgoing != nil {
 			outgoing = newOutgoing
 		}
-		newIncoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-		if ok {
+		newIncoming, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		if newIncoming != nil {
 			incoming = newIncoming
 		}
 

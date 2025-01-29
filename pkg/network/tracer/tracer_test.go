@@ -403,13 +403,13 @@ func (s *TracerSuite) TestTCPConnsReported() {
 		connections := getConnections(collect, tr)
 
 		// Server-side
-		newForward, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-		if ok {
+		newForward, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		if newForward != nil {
 			forward = newForward
 		}
 		// Client-side
-		newReverse, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		if ok {
+		newReverse, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if newReverse != nil {
 			reverse = newReverse
 		}
 
