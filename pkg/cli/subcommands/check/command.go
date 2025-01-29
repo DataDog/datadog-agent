@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
@@ -79,6 +80,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -307,6 +309,18 @@ func run(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
 
 	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
+	fmt.Println("ALL CONFIGS AGENT CHECK COMMAND ", allConfigs)
+	for _, config := range allConfigs {
+		fmt.Println("WACK config", config)
+		fmt.Println("wack2 config.LogsConfig", config.LogsConfig)
+		fmt.Println("wack3 config.Instances", config.Instances)
+		sources, err := ad.CreateSources(integration.Config{
+			Provider:   names.File,
+			LogsConfig: config.Instances[0],
+		})
+		fmt.Println("wack4 sources", sources)
+		fmt.Println("wack5 err", err)
+	}
 	cancelTimeout()
 	if err != nil {
 		return err

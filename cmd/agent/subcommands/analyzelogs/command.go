@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -77,6 +78,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				dualTaggerfx.Module(common.DualTaggerParams()),
+				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(defaults.DefaultParams()),
 				autodiscoveryimpl.Module(),
 			)
@@ -131,9 +133,8 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscov
 // Used to make testing easier
 func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component, wmeta workloadmeta.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
 	configSource := sources.NewConfigSources()
-	fmt.Println("WHY IS THERE AN ERROR IN MAIN?")
-	// waitTime := time.Duration(cliParams.inactivityTimeout)*time.Second
-	waitTime := time.Duration(15) * time.Second
+	fmt.Println("HOLY AIDS?")
+	waitTime := time.Duration(cliParams.inactivityTimeout) * time.Second
 	waitCtx, _ := context.WithTimeout(
 		context.Background(), waitTime)
 	common.LoadComponents(nil, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
@@ -145,12 +146,20 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 	}
 	var sources []*sources.LogSource
 	sources = nil
-	fmt.Println("all Configs is ", allConfigs)
+	fmt.Println("AGENT ANALYZE LOGS ALL CONFIGS ", allConfigs)
 	for _, config := range allConfigs {
 		if config.Name != cliParams.LogConfigPath {
 			continue
 		}
-		sources, err = ad.CreateSources(config)
+		fmt.Println("CONFIG IS ???", config)
+		fmt.Println("CONFIG Instances IS ???", config.Instances)
+		fmt.Println("CONFIG LogsConfig IS ???", config.LogsConfig)
+		sources, err = ad.CreateSources(integration.Config{
+			Provider:   names.File,
+			LogsConfig: config.Instances[0],
+		})
+		fmt.Println("SOURCE ERROR?", err)
+		fmt.Println("SOURCES IS???", sources)
 		break
 	}
 
@@ -164,6 +173,7 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 		absolutePath = wd + "/" + cliParams.LogConfigPath
 
 		data, err := os.ReadFile(absolutePath)
+		fmt.Println("HEHEXD", data)
 		if err != nil {
 			fmt.Println("Cannot read file path of logs config")
 			return nil, nil, nil

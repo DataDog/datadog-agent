@@ -1,0 +1,7 @@
+logs:
+  - type: file
+    path: wack.log
+    log_processing_rules:
+      - type: exclude_at_match
+        name: exclude_random
+        pattern: "datadog-agent"
