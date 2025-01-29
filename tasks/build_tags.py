@@ -132,6 +132,13 @@ PROCESS_AGENT_TAGS = {
     "zlib",
     "zstd",
     "fargateprocess",
+    "containerd",
+    "crio",
+    "cri",
+    "docker",
+    "ec2",
+    "kubelet",
+    "podman",
 }
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
