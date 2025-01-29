@@ -10,14 +10,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
-	"runtime"
-	"strings"
-	"syscall"
-
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
@@ -51,20 +48,9 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 	if len(args) > 0 {
 		span.SetTag("args", strings.Join(args, ", "))
 	}
-	var cmd *exec.Cmd
 	env = append(os.Environ(), env...)
-	if runtime.GOOS != "windows" {
-		// os.Interrupt is not support on Windows
-		// It gives " run failed: exec: canceling Cmd: not supported by windows"
-		cmd = exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
-		cmd.Cancel = func() error {
-			return cmd.Process.Signal(os.Interrupt)
-		}
-	} else {
-		escapedBinPath := fmt.Sprintf(`"%s"`, strings.ReplaceAll(i.installerBinPath, "/", `\`))
-		cmd = exec.Command(i.installerBinPath)
-		cmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: strings.Join(append([]string{escapedBinPath, command}, args...), " ")}
-	}
+	cmd := i.newCmd(ctx, command, args)
+
 	env = append(env, telemetry.EnvFromContext(ctx)...)
 	cmd.Env = env
 	cmd.Stdout = os.Stdout
