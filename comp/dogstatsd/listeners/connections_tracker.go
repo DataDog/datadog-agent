@@ -109,8 +109,7 @@ func (t *ConnectionTracker) HandleConnections() {
 			time.Sleep(t.closeDelay)
 
 			for c := range t.connections {
-				// First, when possible, we close the write end of the connection to notify
-				// the client that we are shutting down.
+				// Then, we finish closing the connection.
 				switch c := c.(type) {
 				case *net.TCPConn:
 					err = c.CloseRead()
