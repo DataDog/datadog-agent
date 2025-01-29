@@ -217,7 +217,8 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 			},
 			KernelLockdown:  string(kernel.GetLockdownMode()),
 			UseMmapableMaps: p.GetKernelVersion().HaveMmapableMaps(),
-			UseRingBuffer:   p.UseRingBuffers(),
+			UseRingBuffer:   p.GetUseRingBuffers(),
+			UseFentry:       p.GetUseFentry(),
 		}
 
 		envErrors := p.VerifyEnvironment()

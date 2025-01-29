@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
-	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -157,8 +156,7 @@ AND status = 'ACTIVE'`)
 		return fmt.Errorf("failed to collect session sampling activity: %w \n%s", err, activityQuery)
 	}
 
-	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
-	defer o.Stop()
+	o := c.LazyInitObfuscator()
 	var payloadSent bool
 	var lastNow string
 	for _, sample := range sessionSamples {

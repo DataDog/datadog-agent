@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,9 +21,9 @@ import (
 )
 
 // NewRoleCollectorVersions builds the group of collector versions.
-func NewRoleCollectorVersions() collectors.CollectorVersions {
+func NewRoleCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewRoleCollector(),
+		NewRoleCollector(metadataAsTags),
 	)
 }
 
@@ -35,7 +36,11 @@ type RoleCollector struct {
 }
 
 // NewRoleCollector creates a new collector for the Kubernetes Role resource.
-func NewRoleCollector() *RoleCollector {
+func NewRoleCollector(metadataAsTags utils.MetadataAsTags) *RoleCollector {
+	resourceType := getResourceType(roleName, roleVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &RoleCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -43,9 +48,11 @@ func NewRoleCollector() *RoleCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "roles",
+			Name:                      roleName,
 			NodeType:                  orchestrator.K8sRole,
-			Version:                   "rbac.authorization.k8s.io/v1",
+			Version:                   roleVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.RoleHandlers)),
 	}

@@ -25,10 +25,11 @@ import (
 func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	// Get local address for the interface that connects to this
 	// host and store in in the probe
-	addr, err := common.LocalAddrForHost(t.Target, t.DestPort)
+	addr, conn, err := common.LocalAddrForHost(t.Target, t.DestPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local address for target: %w", err)
 	}
+	conn.Close() // we don't need the UDP port here
 	t.srcIP = addr.IP
 
 	// So far I haven't had success trying to simply create a socket
@@ -99,7 +100,7 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 }
 
 func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*common.Hop, error) {
-	tcpHeader, tcpPacket, err := createRawTCPSyn(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl)
+	tcpHeader, tcpPacket, err := t.createRawTCPSyn(seqNum, ttl)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
 		return nil, err

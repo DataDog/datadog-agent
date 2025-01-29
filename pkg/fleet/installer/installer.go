@@ -330,7 +330,21 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
-	return i.promoteExperiment(ctx, pkg)
+	err = i.promoteExperiment(ctx, pkg)
+	if err != nil {
+		return err
+	}
+
+	// Update db
+	state, err := repository.GetState()
+	if err != nil {
+		return fmt.Errorf("could not get repository state: %w", err)
+	}
+	return i.db.SetPackage(db.Package{
+		Name:             pkg,
+		Version:          state.Stable,
+		InstallerVersion: version.AgentVersion,
+	})
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
