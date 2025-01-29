@@ -232,7 +232,7 @@
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
 /cmd/system-probe/modules/traceroute*   @DataDog/network-device-monitoring @Datadog/Networks
 /cmd/system-probe/modules/ping*         @DataDog/ndm-core
-/cmd/system-probe/modules/language_detection* @DataDog/container-intake @DataDog/universal-service-monitoring
+/cmd/system-probe/modules/language_detection* @DataDog/container-intake @DataDog/agent-discovery
 /cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
 /cmd/system-probe/main_windows*.go      @DataDog/windows-kernel-integrations
@@ -345,7 +345,7 @@
 /pkg/commonchecks/                      @DataDog/agent-metrics
 /pkg/cli/                               @DataDog/agent-shared-components
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-platform
-/pkg/discovery/                         @DataDog/universal-service-monitoring
+/pkg/discovery/                         @DataDog/agent-discovery
 /pkg/errors/                            @DataDog/agent-shared-components
 /pkg/fips                               @DataDog/agent-shared-components
 /pkg/gohai                              @DataDog/agent-shared-components
@@ -404,7 +404,7 @@
 /pkg/collector/corechecks/net/          @DataDog/agent-shared-components
 /pkg/collector/corechecks/oracle        @DataDog/database-monitoring
 /pkg/collector/corechecks/sbom/         @DataDog/container-integrations
-/pkg/collector/corechecks/servicediscovery/ @DataDog/universal-service-monitoring
+/pkg/collector/corechecks/servicediscovery/ @DataDog/agent-discovery
 /pkg/collector/corechecks/snmp/         @DataDog/ndm-core
 /pkg/collector/corechecks/system/                 @DataDog/agent-shared-components
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/agent-shared-components @DataDog/windows-agent
@@ -485,7 +485,7 @@
 /pkg/util/testutil/patternscanner.go    @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/testutil/docker               @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/trie                          @DataDog/container-integrations
-/pkg/languagedetection                  @DataDog/container-intake @DataDog/universal-service-monitoring
+/pkg/languagedetection                  @DataDog/container-intake @DataDog/agent-discovery
 /pkg/linters/                           @DataDog/agent-devx-loops
 /pkg/linters/components/                @DataDog/agent-shared-components
 /pkg/logs/                              @DataDog/agent-logs
@@ -607,7 +607,7 @@
 /test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /test/fakeintake/aggregator/ndmflowAggregator.go @DataDog/ndm-integrations
 /test/fakeintake/aggregator/ndmflowAggregator_test.go @DataDog/ndm-integrations
-/test/fakeintake/aggregator/servicediscovery* @DataDog/universal-service-monitoring
+/test/fakeintake/aggregator/servicediscovery* @DataDog/agent-discovery
 /test/new-e2e/                                @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /test/new-e2e/pkg/components/datadog-installer @DataDog/windows-agent
 /test/new-e2e/test-infra-definition           @DataDog/agent-devx-loops
@@ -617,7 +617,7 @@
 /test/new-e2e/tests/agent-shared-components   @DataDog/agent-shared-components
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-shared-components
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
-/test/new-e2e/tests/discovery                 @DataDog/universal-service-monitoring
+/test/new-e2e/tests/discovery                 @DataDog/agent-discovery
 /test/new-e2e/tests/fips-compliance           @DataDog/agent-shared-components
 /test/new-e2e/tests/ha-agent                  @DataDog/ndm-core
 /test/new-e2e/tests/language-detection        @DataDog/container-intake

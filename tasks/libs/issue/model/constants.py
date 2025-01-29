@@ -41,4 +41,5 @@ TEAMS = (
     'apm-onboarding',
     'fleet',
     'agent-processing-and-routing',
+    'agent-discovery'
 )
