@@ -62,20 +62,27 @@ new-agent_dmg-x64-a7:
     # - exit
     # TODO
     - !reference [.vault_login]
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - 'echo AGENT_MAJOR_VERSION: $AGENT_MAJOR_VERSION'
-    - export AGENT_MAJOR_VERSION=7
+    - |
+      echo AGENT_MAJOR_VERSION: $AGENT_MAJOR_VERSION
+      echo RELEASE_VERSION: $RELEASE_VERSION
+      echo OMNIBUS_BASE_DIR: $OMNIBUS_BASE_DIR
+      echo USE_S3_CACHING: $USE_S3_CACHING
+      echo GOPATH: $GOPATH
+    -  |
+      export INTEGRATION_WHEELS_CACHE_BUCKET=dd-agent-omnibus
+      export INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD="true"
+      export S3_OMNIBUS_CACHE_BUCKET="dd-ci-datadog-agent-omnibus-cache-build-stable"
+      export S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS="true"
+      export RELEASE_VERSION=$RELEASE_VERSION_7
+      export AGENT_MAJOR_VERSION=7
+      export PYTHON_RUNTIMES=3
+      export INSTALL_DIR=/tmp/celian/bin
+      export CONFIG_DIR=/tmp/celian/config
     #
-    - mkdir -p /tmp/celian/bin /tmp/celian/config
-    - export INSTALL_DIR=/tmp/celian/bin
-    - export CONFIG_DIR=/tmp/celian/config
+    - mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
     # LINUX: - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor "$FLAVOR" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
     # MACOS SIGN: inv -e $INVOKE_TASK --hardened-runtime --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" || exit 1
     # MACOS NO SIGN: inv -e $INVOKE_TASK --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" || exit 1
-    - 'echo RELEASE_VERSION: $RELEASE_VERSION'
-    - 'echo OMNIBUS_BASE_DIR: $OMNIBUS_BASE_DIR'
-    - 'echo USE_S3_CACHING: $USE_S3_CACHING'
-    - 'echo GOPATH: $GOPATH'
     # TODO
     # - FLAVOR=datadog-agent
     # - 'echo FLAVOR: $FLAVOR'
