@@ -24,7 +24,7 @@ var (
 	_                extension.Extension = (*ddExtension)(nil)
 	_                component.Config    = (*Config)(nil)
 	defaultEndpoint                      = "7501"
-	errApiKeyMissing error               = errors.New("API key is required for ddprofiling extension")
+	errApiKeyMissing                     = errors.New("API key is required for ddprofiling extension")
 )
 
 // ddExtension is a basic OpenTelemetry Collector extension.

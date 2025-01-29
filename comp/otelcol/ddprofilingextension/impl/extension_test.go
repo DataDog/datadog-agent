@@ -166,8 +166,8 @@ func TestOSSExtension(t *testing.T) {
 	extt, ok := ext.(*ddExtension)
 	assert.True(t, ok)
 	assert.Equal(t, nil, extt.traceAgent)
-	var unitializedHttpServer *http.Server
-	assert.Equal(t, unitializedHttpServer, extt.server)
+	var unitializedHTTPServer *http.Server
+	assert.Equal(t, unitializedHTTPServer, extt.server)
 
 	timeout := time.After(15 * time.Second)
 	select {
