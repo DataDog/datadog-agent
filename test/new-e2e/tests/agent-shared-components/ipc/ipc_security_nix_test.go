@@ -38,8 +38,6 @@ func (v *ipcSecurityLinuxSuite) TestServersideIPCCertUsage() {
 
 	ipcCertFilePath := "/etc/datadog-agent/ipc_cert.pem"
 
-	v.T().Log("Setting up the secret resolver and the initial api key file")
-
 	// fill the config template
 	templateVars := map[string]interface{}{
 		"IPCCertFilePath": ipcCertFilePath,
@@ -68,7 +66,7 @@ func (v *ipcSecurityLinuxSuite) TestServersideIPCCertUsage() {
 	v.T().Log("Getting the IPC cert")
 	ipcCertContent := v.Env().RemoteHost.MustExecute("sudo cat " + ipcCertFilePath)
 
-	// Demultiplexing cert and key from file
+	// Reading and decoding cert and key from file
 	var block *pem.Block
 
 	block, _ = pem.Decode([]byte(strings.TrimSpace(ipcCertContent)))

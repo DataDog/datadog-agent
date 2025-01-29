@@ -61,7 +61,7 @@ func (v *ipcSecurityWindowsSuite) TestServersideIPCCertUsage() {
 		),
 	))
 
-	// Currently the framework does not restart the security agent on Windows so we need to do it manually.
+	// Currently the e2e framework does not restart the security agent on Windows so we need to do it manually.
 	// When the framework will support it, remove the line below and add `agentclientparams.WithSecurityAgentOnPort(securityCmdPort)` to the agent options.
 	v.Env().RemoteHost.MustExecute("Restart-Service datadog-security-agent")
 
@@ -70,7 +70,7 @@ func (v *ipcSecurityWindowsSuite) TestServersideIPCCertUsage() {
 	ipcCertContent, err := v.Env().RemoteHost.ReadFile(ipcCertFilePath)
 	require.NoError(v.T(), err)
 
-	// Demultiplexing cert and key from file
+	// Reading and decoding cert and key from file
 	var block *pem.Block
 
 	block, _ = pem.Decode(ipcCertContent)
