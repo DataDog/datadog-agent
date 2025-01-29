@@ -81,4 +81,4 @@ jobs:
           --title "$PR_TITLE" \
           --body-file "$TMP_PR_BODY_PATH" \
           --label "$PR_LABELS" \
-          --reviewer "DataDog/agent-shared-components"
+          --reviewer "DataDog/agent-runtimes"
