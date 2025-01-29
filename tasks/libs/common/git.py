@@ -254,12 +254,13 @@ def get_last_commit(ctx, repo, branch):
     )
 
 
-def get_git_references(ctx, repo, ref):
+def get_git_references(ctx, repo, ref, tags=False):
     """
     Fetches a specific reference (ex: branch, tag, or HEAD) from a remote Git repository
     """
+    filter_by = " -t" if tags else ""
     return ctx.run(
-        rf'git ls-remote https://github.com/DataDog/{repo} "{ref}"',
+        rf'git ls-remote{filter_by} https://github.com/DataDog/{repo} "{ref}"',
         hide=True,
     ).stdout.strip()
 
@@ -270,7 +271,7 @@ def get_last_release_tag(ctx, repo, pattern):
 
     import semver
 
-    tags = get_git_references(ctx, repo, pattern)
+    tags = get_git_references(ctx, repo, pattern, tags=True)
     if not tags:
         raise Exit(
             color_message(
