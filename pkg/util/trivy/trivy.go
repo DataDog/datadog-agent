@@ -110,6 +110,7 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	}
 	if analyzersDisabled(LanguagesAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeLanguages...)
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeIndividualPkgs...)
 	}
 	if analyzersDisabled(SecretAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeSecret)
