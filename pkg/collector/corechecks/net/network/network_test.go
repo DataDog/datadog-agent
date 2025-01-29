@@ -10,6 +10,7 @@ package network
 import (
 	"bufio"
 	"bytes"
+	"syscall"
 	"testing"
 
 	"github.com/shirou/gopsutil/v4/net"
@@ -71,6 +72,25 @@ func (n *fakeNetworkStats) Connections(kind string) ([]net.ConnectionStat, error
 
 func (n *fakeNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
 	return n.netstatTCPExtCountersValues, n.netstatTCPExtCountersError
+}
+
+type MockSyscall struct {
+	mock.Mock
+}
+
+func (m *MockSyscall) Socket(domain, typ, protocol int) (fd int, err error) {
+	args := m.Called(domain, typ, protocol)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *MockSyscall) Syscall(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
+	args := m.Called(trap, a1, a2, a3)
+	return args.Get(0).(uintptr), args.Get(1).(uintptr), syscall.Errno(0)
+}
+
+func (m *MockSyscall) Close(fd int) error {
+	args := m.Called(fd)
+	return args.Error(0)
 }
 
 func TestDefaultConfiguration(t *testing.T) {
@@ -568,6 +588,60 @@ excluded_interface_re: "eth[0-9]"
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(31), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.drop", float64(32), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(33), "", lo0Tags)
+}
+
+func TestFetchEthtoolStats(t *testing.T) {
+	mockSyscall := new(MockSyscall)
+
+	mockSyscall.On("Socket", mock.Anything, mock.Anything, mock.Anything).Return(1, nil)
+	mockSyscall.On("Syscall", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(uintptr(0), uintptr(0), syscall.Errno(0))
+	mockSyscall.On("Close", mock.Anything).Return(nil)
+
+	getSyscall = mockSyscall.Syscall
+	getSocket = mockSyscall.Socket
+	getClose = mockSyscall.Close
+
+	net := &fakeNetworkStats{
+		counterStats: []net.IOCountersStat{
+			{
+				Name:        "eth0",
+				BytesRecv:   100,
+				BytesSent:   200,
+				PacketsRecv: 300,
+				Dropin:      400,
+				Errin:       500,
+				PacketsSent: 600,
+				Dropout:     700,
+				Errout:      800,
+			},
+		},
+	}
+
+	networkCheck := NetworkCheck{
+		net: net,
+	}
+
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test")
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	err := networkCheck.Run()
+	assert.Nil(t, err)
+
+	// tags := []string{"interface:eth0", "driver_name:dummy_driver", "driver_version:1"}
+
+	// mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(100), "", tags)
+	// mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(200), "", tags)
+	// mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(300), "", tags)
+	// mockSender.AssertCalled(t, "Rate", "system.net.packets_in.drop", float64(400), "", tags)
+	// mockSender.AssertCalled(t, "Rate", "system.net.packets_in.error", float64(500), "", tags)
+	// mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(600), "", tags)
+	// mockSender.AssertCalled(t, "Rate", "system.net.packets_out.drop", float64(700), "", tags)
+	// mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(800), "", tags)
 }
 
 func TestNetStatTCPExtCountersUsingCorrectMockedProcfsPath(t *testing.T) {
