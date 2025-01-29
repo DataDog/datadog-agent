@@ -9,8 +9,6 @@
 package securityprofile
 
 import (
-	adprotov1 "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -39,25 +37,6 @@ func (efr EventFilteringResult) toTag() string {
 		return "in_profile:false"
 	}
 	return ""
-}
-
-// ProtoToState converts a proto state to a profile one
-func ProtoToState(eps adprotov1.EventProfileState) model.EventFilteringProfileState {
-	switch eps {
-	case adprotov1.EventProfileState_NO_PROFILE:
-		return model.NoProfile
-	case adprotov1.EventProfileState_PROFILE_AT_MAX_SIZE:
-		return model.ProfileAtMaxSize
-	case adprotov1.EventProfileState_UNSTABLE_PROFILE:
-		return model.UnstableEventType
-	case adprotov1.EventProfileState_STABLE_PROFILE:
-		return model.StableEventType
-	case adprotov1.EventProfileState_AUTO_LEARNING:
-		return model.AutoLearning
-	case adprotov1.EventProfileState_WORKLOAD_WARMUP:
-		return model.WorkloadWarmup
-	}
-	return model.NoProfile
 }
 
 var (

@@ -36,6 +36,26 @@ import (
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
 
+// VersionContext holds the context of one version (defined by its image tag)
+type VersionContext struct {
+	FirstSeenNano uint64
+	LastSeenNano  uint64
+
+	EventTypeState map[model.EventType]*EventTypeState
+
+	// Syscalls is the syscalls profile
+	Syscalls []uint32
+
+	// Tags defines the tags used to compute this profile, for each present profile versions
+	Tags []string
+}
+
+// EventTypeState defines an event type state
+type EventTypeState struct {
+	LastAnomalyNano uint64
+	State           model.EventFilteringProfileState
+}
+
 // Profile represents a security profile
 type Profile struct {
 	// common to ActivityDump and SecurityProfile
@@ -46,18 +66,18 @@ type Profile struct {
 	Metadata mtdt.Metadata
 	selector cgroupModel.WorkloadSelector
 	tags     []string
-	// storageRequests map[config.StorageFormat][]config.StorageRequest
-
-	// fields from SecurityProfile
-	profileCookie  uint64
-	LoadedInKernel *atomic.Bool
-	LoadedNano     *atomic.Uint64
-	eventTypes     []model.EventType
 
 	versionContextsLock sync.Mutex
 	versionContexts     map[string]*VersionContext
 
-	// Instances is the list of workload instances to which the profile should apply
+	eventTypes []model.EventType
+
+	// fields from SecurityProfile
+	// TODO: move the following fields to a dedicated "WorkloadProfileGroup" struct responsible for managing the profile instances
+	profileCookie  uint64
+	LoadedInKernel *atomic.Bool
+	LoadedNano     *atomic.Uint64
+	// Instances is the list of workload instances to witch the profile should apply
 	InstancesLock sync.Mutex
 	Instances     []*tags.Workload
 }
@@ -221,28 +241,6 @@ func (p *Profile) FakeOverweight() {
 	defer p.m.Unlock()
 	p.ActivityTree.Stats.ProcessNodes = 99999
 }
-
-// // AddStorageRequest adds a storage request to a profile
-// func (p *Profile) AddStorageRequest(request config.StorageRequest) {
-// 	p.m.Lock()
-// 	defer p.m.Unlock()
-
-// 	p.storageRequests[request.Format] = append(p.storageRequests[request.Format], request)
-// }
-
-// // GetStorageRequests returns a copy of the storage requests of the profile
-// func (p *Profile) GetStorageRequests() map[config.StorageFormat][]config.StorageRequest {
-// 	p.m.Lock()
-// 	defer p.m.Unlock()
-
-// 	storageRequestsCpy := make(map[config.StorageFormat][]config.StorageRequest)
-// 	for format, requests := range p.storageRequests {
-// 		requestsCpy := make([]config.StorageRequest, len(requests))
-// 		copy(requestsCpy, requests)
-// 		storageRequestsCpy[format] = append(storageRequestsCpy[format], requestsCpy...)
-// 	}
-// 	return storageRequestsCpy
-// }
 
 // AddTags adds tags to the profile
 func (p *Profile) AddTags(tags []string) {
