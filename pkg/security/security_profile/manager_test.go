@@ -477,7 +477,7 @@ func TestActivityDumpManager_getExpiredDumps(t *testing.T) {
 				ad.SetState(dump.Running)
 			}
 
-			adm := &manager{
+			adm := &Manager{
 				activeDumps:        tt.fields.activeDumps,
 				ignoreFromSnapshot: make(map[model.PathKey]bool),
 			}
@@ -751,21 +751,6 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 							Stats: &activity_tree.Stats{},
 						},
 					}},
-					// {ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1"}}, ActivityTree: &activity_tree.ActivityTree{
-					// 	Stats: &activity_tree.Stats{},
-					// }},
-					// {ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2"}}, ActivityTree: &activity_tree.ActivityTree{
-					// 	Stats: &activity_tree.Stats{ProcessNodes: 3},
-					// }},
-					// {ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3"}}, ActivityTree: &activity_tree.ActivityTree{
-					// 	Stats: &activity_tree.Stats{},
-					// }},
-					// {ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4"}}, ActivityTree: &activity_tree.ActivityTree{
-					// 	Stats: &activity_tree.Stats{ProcessNodes: 2},
-					// }},
-					// {ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5"}}, ActivityTree: &activity_tree.ActivityTree{
-					// 	Stats: &activity_tree.Stats{},
-					// }},
 				},
 			},
 			[]*dump.ActivityDump{
@@ -969,7 +954,7 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adm := &manager{
+			adm := &Manager{
 				activeDumps: tt.fields.activeDumps,
 				config: &config.Config{
 					RuntimeSecurity: &config.RuntimeSecurityConfig{
@@ -1786,7 +1771,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 	t0 := time.Now()
 
 	// secprofile manager, only use for config and stats
-	spm := &manager{
+	spm := &Manager{
 		eventFiltering: make(map[eventFilteringEntry]*atomic.Uint64),
 		config: &config.Config{
 			RuntimeSecurity: &config.RuntimeSecurityConfig{

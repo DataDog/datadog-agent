@@ -66,105 +66,77 @@ var (
 	TracedEventTypesReductionOrder = []model.EventType{model.BindEventType, model.IMDSEventType, model.DNSEventType, model.SyscallsEventType, model.FileOpenEventType}
 )
 
-// ManagerInterface is the interface for the security profile manager
-type ManagerInterface interface {
-	// gRPC API
-	DumpActivity(*api.ActivityDumpParams) (*api.ActivityDumpMessage, error)                              // ok
-	ListActivityDumps(*api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error)                 // ok
-	StopActivityDump(*api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error)                  // ok
-	GenerateTranscoding(params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error)    // ok
-	ListSecurityProfiles(params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) // ok
-	SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error)  // ok
-	// Probe interface
-	Start(context.Context)                                                           // ok
-	SendStats() error                                                                // ok
-	LookupEventInProfiles(*model.Event)                                              // ok
-	HasActiveActivityDump(*model.Event) bool                                         // ok
-	FillProfileContextFromContainerID(string, *model.SecurityProfileContext, string) // ok
-	ProcessEvent(*model.Event)                                                       // ok
-	HandleCGroupTracingEvent(*model.CgroupTracingEvent)                              // ok
-	SnapshotTracedCgroups()                                                          // ok
-	FakeDumpOverweight(name string)                                                  // ok
-	ListAllProfileStates()                                                           // ok
-	GetProfile(selector cgroupModel.WorkloadSelector) *profile.Profile               // ok
-	AddProfile(profile *profile.Profile)                                             // ok
-	// These should probably be moved outside of the manager using a regular/static function
-	GetActivityDumpTracedEventTypes() []model.EventType // ok
-	GetAnomalyDetectionEventTypes() []model.EventType   // ok
-}
-
-type manager struct {
+// Manager is the manager for activity dumps and security profiles
+type Manager struct {
 	m sync.Mutex
 
-	config        *config.Config              // ok
-	statsdClient  statsd.ClientInterface      // ok
-	resolvers     *resolvers.EBPFResolvers    // ok
-	kernelVersion *kernel.Version             // ok
-	newEvent      func() *model.Event         // ok
-	pathsReducer  *activity_tree.PathsReducer // ok
+	config        *config.Config
+	statsdClient  statsd.ClientInterface
+	resolvers     *resolvers.EBPFResolvers
+	kernelVersion *kernel.Version
+	newEvent      func() *model.Event
+	pathsReducer  *activity_tree.PathsReducer
 
 	// fields from ActivityDumpManager
-	dumpHandler            ActivityDumpHandler
-	activityDumpLoadConfig map[containerutils.CGroupManager]*model.ActivityDumpLoadConfig // ok
+	activityDumpLoadConfig map[containerutils.CGroupManager]*model.ActivityDumpLoadConfig
 
 	// ebpf maps
-	tracedPIDsMap              *ebpf.Map // ok
-	tracedCgroupsMap           *ebpf.Map // ok
-	cgroupWaitList             *ebpf.Map // ok
-	activityDumpsConfigMap     *ebpf.Map // ok
-	activityDumpConfigDefaults *ebpf.Map // ok
+	tracedPIDsMap              *ebpf.Map
+	tracedCgroupsMap           *ebpf.Map
+	cgroupWaitList             *ebpf.Map
+	activityDumpsConfigMap     *ebpf.Map
+	activityDumpConfigDefaults *ebpf.Map
 
-	ignoreFromSnapshot   map[model.PathKey]bool                                   // ok
-	dumpLimiter          *lru.Cache[cgroupModel.WorkloadSelector, *atomic.Uint64] // ok
-	workloadDenyList     []cgroupModel.WorkloadSelector                           // ok
-	workloadDenyListHits *atomic.Uint64                                           // ok
+	ignoreFromSnapshot   map[model.PathKey]bool
+	dumpLimiter          *lru.Cache[cgroupModel.WorkloadSelector, *atomic.Uint64]
+	workloadDenyList     []cgroupModel.WorkloadSelector
+	workloadDenyListHits *atomic.Uint64
 
 	// storage
 	localStorage              *Directory
 	remoteStorage             *ActivityDumpRemoteStorageForwarder
 	configuredStorageRequests map[config.StorageFormat][]config.StorageRequest
 
-	activeDumps   []*dump.ActivityDump    // ok
-	snapshotQueue chan *dump.ActivityDump // ok
-	// storage             *ActivityDumpStorageManager // ok
-	contextTags         []string  // ok
-	hostname            string    // ok
-	lastStoppedDumpTime time.Time // ok
+	activeDumps         []*dump.ActivityDump
+	snapshotQueue       chan *dump.ActivityDump
+	contextTags         []string
+	hostname            string
+	lastStoppedDumpTime time.Time
 
 	// ActivityDumpLoadController
-	minDumpTimeout time.Duration // ok
+	minDumpTimeout time.Duration
 
 	// stats
-	emptyDropped       *atomic.Uint64 // ok
-	dropMaxDumpReached *atomic.Uint64 // ok
+	emptyDropped       *atomic.Uint64
+	dropMaxDumpReached *atomic.Uint64
 
 	// fields from SecurityProfileManager
 
-	eventTypes []model.EventType // ok
+	secProfEventTypes []model.EventType
 
 	// ebpf maps
-	securityProfileMap         *ebpf.Map // ok
-	securityProfileSyscallsMap *ebpf.Map // ok
+	securityProfileMap         *ebpf.Map
+	securityProfileSyscallsMap *ebpf.Map
 
-	profilesLock        sync.Mutex                                        // ok
-	profiles            map[cgroupModel.WorkloadSelector]*profile.Profile // ok
-	evictedVersionsLock sync.Mutex                                        // ok
-	evictedVersions     []cgroupModel.WorkloadSelector                    // ok
+	profilesLock        sync.Mutex
+	profiles            map[cgroupModel.WorkloadSelector]*profile.Profile
+	evictedVersionsLock sync.Mutex
+	evictedVersions     []cgroupModel.WorkloadSelector
 
-	pendingCacheLock sync.Mutex                                                     // ok
-	pendingCache     *simplelru.LRU[cgroupModel.WorkloadSelector, *profile.Profile] // ok
-	cacheHit         *atomic.Uint64                                                 // ok
-	cacheMiss        *atomic.Uint64                                                 // ok
+	pendingCacheLock sync.Mutex
+	pendingCache     *simplelru.LRU[cgroupModel.WorkloadSelector, *profile.Profile]
+	cacheHit         *atomic.Uint64
+	cacheMiss        *atomic.Uint64
 
 	// event filtering
-	eventFiltering map[eventFilteringEntry]*atomic.Uint64 // ok
+	eventFiltering map[eventFilteringEntry]*atomic.Uint64
 
-	// new
+	// chan used to move an ActivityDump profile to a SecurityProfile profile
 	newProfiles chan *profile.Profile
 }
 
 // NewManager returns a new instance of the security profile manager
-func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler ActivityDumpHandler) (ManagerInterface, error) {
+func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler ActivityDumpHandler) (*Manager, error) {
 	tracedPIDs, err := managerhelper.Map(ebpf, "traced_pids")
 	if err != nil {
 		return nil, err
@@ -219,21 +191,12 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		workloadDenyList = append(workloadDenyList, selectorTmp)
 	}
 
-	m := &manager{
-		dumpHandler: dumpHandler,
-	}
-
-	// storage, err := NewActivityDumpStorageManager(cfg, statsdClient, m, m)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("couldn't instantiate the activity dump storage manager: %w", err)
-	// }
-
 	localStorage, err := NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate the local storage: %w", err)
 	}
 
-	remoteStorage, err := NewActivityDumpRemoteStorageForwarder(m)
+	remoteStorage, err := NewActivityDumpRemoteStorageForwarder(dumpHandler)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate the remote storage forwarder: %w", err)
 	}
@@ -279,64 +242,66 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		return nil, fmt.Errorf("couldn't create security profile cache: %w", err)
 	}
 
-	var eventTypes []model.EventType
+	var secProfEventTypes []model.EventType
 	if cfg.RuntimeSecurity.SecurityProfileAutoSuppressionEnabled {
-		eventTypes = append(eventTypes, cfg.RuntimeSecurity.SecurityProfileAutoSuppressionEventTypes...)
+		secProfEventTypes = append(secProfEventTypes, cfg.RuntimeSecurity.SecurityProfileAutoSuppressionEventTypes...)
 	}
 	if cfg.RuntimeSecurity.AnomalyDetectionEnabled {
-		eventTypes = append(eventTypes, cfg.RuntimeSecurity.AnomalyDetectionEventTypes...)
+		secProfEventTypes = append(secProfEventTypes, cfg.RuntimeSecurity.AnomalyDetectionEventTypes...)
 	}
 	// merge and remove duplicated event types
-	slices.Sort(eventTypes)
-	eventTypes = slices.Clip(slices.Compact(eventTypes))
+	slices.Sort(secProfEventTypes)
+	secProfEventTypes = slices.Clip(slices.Compact(secProfEventTypes))
 
-	m.config = cfg
-	m.statsdClient = statsdClient
-	m.resolvers = resolvers
-	m.kernelVersion = kernelVersion
-	m.newEvent = newEvent
-	m.pathsReducer = activity_tree.NewPathsReducer()
+	m := &Manager{
+		config:        cfg,
+		statsdClient:  statsdClient,
+		resolvers:     resolvers,
+		kernelVersion: kernelVersion,
+		newEvent:      newEvent,
+		pathsReducer:  activity_tree.NewPathsReducer(),
 
-	m.tracedPIDsMap = tracedPIDs
-	m.tracedCgroupsMap = tracedCgroupsMap
-	m.cgroupWaitList = cgroupWaitList
-	m.activityDumpsConfigMap = activityDumpsConfigMap
-	m.activityDumpConfigDefaults = activityDumpConfigDefaultsMap
+		tracedPIDsMap:              tracedPIDs,
+		tracedCgroupsMap:           tracedCgroupsMap,
+		cgroupWaitList:             cgroupWaitList,
+		activityDumpsConfigMap:     activityDumpsConfigMap,
+		activityDumpConfigDefaults: activityDumpConfigDefaultsMap,
 
-	m.ignoreFromSnapshot = make(map[model.PathKey]bool)
-	m.dumpLimiter = dumpLimiter
-	m.workloadDenyList = workloadDenyList
-	m.workloadDenyListHits = atomic.NewUint64(0)
+		ignoreFromSnapshot:   make(map[model.PathKey]bool),
+		dumpLimiter:          dumpLimiter,
+		workloadDenyList:     workloadDenyList,
+		workloadDenyListHits: atomic.NewUint64(0),
 
-	m.snapshotQueue = make(chan *dump.ActivityDump, 100)
-	// m.storage = storage
-	m.localStorage = localStorage
-	m.remoteStorage = remoteStorage
-	m.configuredStorageRequests = perFormatStorageRequests(configuredStorageRequests)
+		snapshotQueue:             make(chan *dump.ActivityDump, 100),
+		localStorage:              localStorage,
+		remoteStorage:             remoteStorage,
+		configuredStorageRequests: perFormatStorageRequests(configuredStorageRequests),
 
-	m.contextTags = contextTags
-	m.hostname = hostname
+		contextTags: contextTags,
+		hostname:    hostname,
 
-	m.minDumpTimeout = minDumpTimeout
+		minDumpTimeout: minDumpTimeout,
 
-	m.emptyDropped = atomic.NewUint64(0)
-	m.dropMaxDumpReached = atomic.NewUint64(0)
+		emptyDropped:       atomic.NewUint64(0),
+		dropMaxDumpReached: atomic.NewUint64(0),
 
-	m.eventTypes = eventTypes
+		secProfEventTypes: secProfEventTypes,
 
-	m.securityProfileMap = securityProfileMap
-	m.securityProfileSyscallsMap = securityProfileSyscallsMap
+		securityProfileMap:         securityProfileMap,
+		securityProfileSyscallsMap: securityProfileSyscallsMap,
 
-	m.profiles = make(map[cgroupModel.WorkloadSelector]*profile.Profile)
+		profiles: make(map[cgroupModel.WorkloadSelector]*profile.Profile),
 
-	m.pendingCache = profileCache
-	m.cacheHit = atomic.NewUint64(0)
-	m.cacheMiss = atomic.NewUint64(0)
+		pendingCache: profileCache,
+		cacheHit:     atomic.NewUint64(0),
+		cacheMiss:    atomic.NewUint64(0),
 
-	m.eventFiltering = make(map[eventFilteringEntry]*atomic.Uint64)
+		eventFiltering: make(map[eventFilteringEntry]*atomic.Uint64),
+
+		newProfiles: make(chan *profile.Profile, 100),
+	}
+
 	m.initMetricsMap()
-
-	m.newProfiles = make(chan *profile.Profile, 100)
 
 	defaultLoadConfigs, err := m.getDefaultLoadConfigs()
 	if err != nil {
@@ -353,7 +318,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	return m, nil
 }
 
-func (m *manager) initMetricsMap() {
+func (m *Manager) initMetricsMap() {
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		for _, state := range model.AllEventFilteringProfileState {
 			for _, result := range allEventFilteringResults {
@@ -368,7 +333,7 @@ func (m *manager) initMetricsMap() {
 }
 
 // ProcessEvent processes a new event and insert it in an activity dump if applicable
-func (m *manager) ProcessEvent(event *model.Event) {
+func (m *Manager) ProcessEvent(event *model.Event) {
 	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
 		return
 	}
@@ -394,15 +359,8 @@ func (m *manager) ProcessEvent(event *model.Event) {
 	}
 }
 
-// HandleActivityDump sends an activity dump to the backend
-func (m *manager) HandleActivityDump(dump *api.ActivityDumpStreamMessage) {
-	if m.dumpHandler != nil {
-		m.dumpHandler.HandleActivityDump(dump)
-	}
-}
-
 // HasActiveActivityDump returns true if the given event has an active dump
-func (m *manager) HasActiveActivityDump(event *model.Event) bool {
+func (m *Manager) HasActiveActivityDump(event *model.Event) bool {
 	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
 		return false
 	}
@@ -430,7 +388,7 @@ func (m *manager) HasActiveActivityDump(event *model.Event) bool {
 }
 
 // Start runs the manager
-func (m *manager) Start(ctx context.Context) {
+func (m *Manager) Start(ctx context.Context) {
 	var adCleanupTickerChan <-chan time.Time
 	var adTagsTickerChan <-chan time.Time
 	var adLoadControlTickerChan <-chan time.Time
@@ -495,7 +453,7 @@ func (m *manager) Start(ctx context.Context) {
 }
 
 // getExpiredDumps returns the list of dumps that have timed out and remove them from the active dumps
-func (m *manager) getExpiredDumps() []*dump.ActivityDump {
+func (m *Manager) getExpiredDumps() []*dump.ActivityDump {
 	m.m.Lock()
 	defer m.m.Unlock()
 
@@ -515,7 +473,7 @@ func (m *manager) getExpiredDumps() []*dump.ActivityDump {
 }
 
 // cleanup
-func (m *manager) cleanup() {
+func (m *Manager) cleanup() {
 	// fetch expired dumps
 	dumps := m.getExpiredDumps()
 
@@ -555,7 +513,7 @@ func (m *manager) cleanup() {
 }
 
 // Activity Dump
-func (m *manager) newActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, waitListTimeout time.Duration, rate uint16, start time.Time, flags containerutils.CGroupFlags) *model.ActivityDumpLoadConfig {
+func (m *Manager) newActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, waitListTimeout time.Duration, rate uint16, start time.Time, flags containerutils.CGroupFlags) *model.ActivityDumpLoadConfig {
 	lc := &model.ActivityDumpLoadConfig{
 		TracedEventTypes: evt,
 		Timeout:          timeout,
@@ -570,7 +528,7 @@ func (m *manager) newActivityDumpLoadConfig(evt []model.EventType, timeout time.
 	return lc
 }
 
-func (m *manager) defaultActivityDumpLoadConfig(now time.Time, flags containerutils.CGroupFlags) *model.ActivityDumpLoadConfig {
+func (m *Manager) defaultActivityDumpLoadConfig(now time.Time, flags containerutils.CGroupFlags) *model.ActivityDumpLoadConfig {
 	return m.newActivityDumpLoadConfig(
 		m.config.RuntimeSecurity.ActivityDumpTracedEventTypes,
 		m.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout,
@@ -581,7 +539,7 @@ func (m *manager) defaultActivityDumpLoadConfig(now time.Time, flags containerut
 	)
 }
 
-func (m *manager) getDefaultLoadConfigs() (map[containerutils.CGroupManager]*model.ActivityDumpLoadConfig, error) {
+func (m *Manager) getDefaultLoadConfigs() (map[containerutils.CGroupManager]*model.ActivityDumpLoadConfig, error) {
 	if m.activityDumpLoadConfig != nil {
 		return m.activityDumpLoadConfig, nil
 	}
@@ -611,7 +569,7 @@ func (m *manager) getDefaultLoadConfigs() (map[containerutils.CGroupManager]*mod
 }
 
 // insertActivityDump inserts an activity dump in the list of activity dumps handled by the manager
-func (m *manager) insertActivityDump(newDump *dump.ActivityDump) error {
+func (m *Manager) insertActivityDump(newDump *dump.ActivityDump) error {
 	// sanity checks
 	if len(newDump.Profile.Metadata.ContainerID) > 0 {
 		// check if the provided container ID is new
@@ -667,7 +625,7 @@ func (m *manager) insertActivityDump(newDump *dump.ActivityDump) error {
 const systemdSystemDir = "/usr/lib/systemd/system"
 
 // resolveTags thread unsafe version ot ResolveTags
-func (m *manager) resolveTags(ad *dump.ActivityDump) error {
+func (m *Manager) resolveTags(ad *dump.ActivityDump) error {
 	selector := ad.Profile.GetWorkloadSelector()
 	if selector != nil {
 		return nil
@@ -706,7 +664,7 @@ func (m *manager) resolveTags(ad *dump.ActivityDump) error {
 }
 
 // resolveTags resolves activity dump container tags when they are missing
-func (m *manager) resolveTagsAll() {
+func (m *Manager) resolveTagsAll() {
 	m.m.Lock()
 	defer m.m.Unlock()
 
@@ -716,7 +674,7 @@ func (m *manager) resolveTagsAll() {
 }
 
 // resolveTagsPerAd resolves the tags for a single activity dump
-func (m *manager) resolveTagsPerAd(ad *dump.ActivityDump) {
+func (m *Manager) resolveTagsPerAd(ad *dump.ActivityDump) {
 	err := m.resolveTags(ad)
 	if err != nil {
 		seclog.Warnf("couldn't resolve activity dump tags (will try again later): %v", err)
@@ -759,7 +717,7 @@ func (m *manager) resolveTagsPerAd(ad *dump.ActivityDump) {
 	}
 }
 
-func (m *manager) snapshot(ad *dump.ActivityDump) error {
+func (m *Manager) snapshot(ad *dump.ActivityDump) error {
 	ad.Profile.Snapshot(m.newEvent)
 
 	// try to resolve the tags now
@@ -767,7 +725,7 @@ func (m *manager) snapshot(ad *dump.ActivityDump) error {
 	return nil
 }
 
-func (m *manager) enableKernelEventCollection(ad *dump.ActivityDump) error {
+func (m *Manager) enableKernelEventCollection(ad *dump.ActivityDump) error {
 	// insert load config now (it might already exist when starting a new partial dump, update it in that case)
 	if err := m.activityDumpsConfigMap.Update(ad.Cookie, ad.LoadConfig.Load(), ebpf.UpdateAny); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyExist) {
@@ -791,7 +749,7 @@ func (m *manager) enableKernelEventCollection(ad *dump.ActivityDump) error {
 
 // pause (thread unsafe) assuming the current dump is running, "pause" sets the kernel space filters of the dump so that
 // events are ignored in kernel space, and not sent to user space.
-func (m *manager) pauseKernelEventCollection(ad *dump.ActivityDump) error {
+func (m *Manager) pauseKernelEventCollection(ad *dump.ActivityDump) error {
 	if ad.GetState() <= dump.Paused {
 		// nothing to do
 		return nil
@@ -810,7 +768,7 @@ func (m *manager) pauseKernelEventCollection(ad *dump.ActivityDump) error {
 
 // disable (thread unsafe) assuming the current dump is running, "disable" removes kernel space filters so that events are no longer sent
 // from kernel space
-func (m *manager) disableKernelEventCollection(ad *dump.ActivityDump) error {
+func (m *Manager) disableKernelEventCollection(ad *dump.ActivityDump) error {
 	if ad.GetState() <= dump.Disabled {
 		// nothing to do
 		return nil
@@ -834,7 +792,7 @@ func (m *manager) disableKernelEventCollection(ad *dump.ActivityDump) error {
 
 // finalize (thread unsafe) finalizes an active dump: envs and args are scrubbed, tags, service and container ID are set. If a cgroup
 // spot can be released, the dump will be fully stopped.
-func (m *manager) finalizeKernelEventCollection(ad *dump.ActivityDump, releaseTracedCgroupSpot bool) {
+func (m *Manager) finalizeKernelEventCollection(ad *dump.ActivityDump, releaseTracedCgroupSpot bool) {
 	if ad.GetState() == dump.Stopped {
 		return
 	}
@@ -889,7 +847,7 @@ func (m *manager) finalizeKernelEventCollection(ad *dump.ActivityDump, releaseTr
 }
 
 // getOverweightDumps returns the list of dumps that crossed the config.ActivityDumpMaxDumpSize threshold
-func (m *manager) getOverweightDumps() []*dump.ActivityDump {
+func (m *Manager) getOverweightDumps() []*dump.ActivityDump {
 	var dumps []*dump.ActivityDump
 	var toDelete []int
 	for i, ad := range m.activeDumps {
@@ -913,7 +871,7 @@ func (m *manager) getOverweightDumps() []*dump.ActivityDump {
 }
 
 // FakeDumpOverweight fakes a dump stats to force triggering the load controller. For unitary tests purpose only.
-func (m *manager) FakeDumpOverweight(name string) {
+func (m *Manager) FakeDumpOverweight(name string) {
 	m.m.Lock()
 	defer m.m.Unlock()
 	for _, p := range m.activeDumps {
@@ -924,7 +882,7 @@ func (m *manager) FakeDumpOverweight(name string) {
 }
 
 // stopDumpsWithSelector stops the active dumps for the given selector and prevent a workload with the provided selector from ever being dumped again
-func (m *manager) stopDumpsWithSelector(selector cgroupModel.WorkloadSelector) {
+func (m *Manager) stopDumpsWithSelector(selector cgroupModel.WorkloadSelector) {
 	counter, ok := m.dumpLimiter.Get(selector)
 	if !ok {
 		counter = atomic.NewUint64(uint64(m.config.RuntimeSecurity.ActivityDumpMaxDumpCountPerWorkload))
@@ -949,14 +907,14 @@ func (m *manager) stopDumpsWithSelector(selector cgroupModel.WorkloadSelector) {
 
 // loadController
 
-func (m *manager) sendLoadControllerTriggeredMetric(tags []string) error {
+func (m *Manager) sendLoadControllerTriggeredMetric(tags []string) error {
 	if err := m.statsdClient.Count(metrics.MetricActivityDumpLoadControllerTriggered, 1, tags, 1.0); err != nil {
 		return fmt.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpLoadControllerTriggered, err)
 	}
 	return nil
 }
 
-func (m *manager) nextPartialDump(prev *dump.ActivityDump) *dump.ActivityDump {
+func (m *Manager) nextPartialDump(prev *dump.ActivityDump) *dump.ActivityDump {
 	previousLoadConfig := prev.LoadConfig.Load()
 	timeToThreshold := time.Since(prev.Profile.Metadata.Start)
 
@@ -1017,18 +975,12 @@ func (m *manager) nextPartialDump(prev *dump.ActivityDump) *dump.ActivityDump {
 		ad.Profile.AddTags(prev.Profile.GetTags())
 	})
 
-	// for _, requests := range prev.Profile.GetStorageRequests() {
-	// 	for _, request := range requests {
-	// 		newDump.Profile.AddStorageRequest(request)
-	// 	}
-	// }
-
 	newDump.Cookie = prev.Cookie
 
 	return newDump
 }
 
-func (m *manager) triggerLoadController() {
+func (m *Manager) triggerLoadController() {
 	m.m.Lock()
 	defer m.m.Unlock()
 
@@ -1069,7 +1021,7 @@ func (m *manager) triggerLoadController() {
 // Activity dump creations
 
 // handleSilentWorkloads checks if we should start tracing one of the workloads from a profile without an activity tree of the Security Profile manager
-func (m *manager) handleSilentWorkloads() {
+func (m *Manager) handleSilentWorkloads() {
 	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
 		return
 	}
@@ -1138,7 +1090,7 @@ workloadLoop:
 	}
 }
 
-func (m *manager) startDumpWithConfig(containerID containerutils.ContainerID, cgroupContext model.CGroupContext, cookie uint64, loadConfig model.ActivityDumpLoadConfig) error {
+func (m *Manager) startDumpWithConfig(containerID containerutils.ContainerID, cgroupContext model.CGroupContext, cookie uint64, loadConfig model.ActivityDumpLoadConfig) error {
 	// create a new activity dump
 	newDump := dump.NewActivityDump(m.pathsReducer, m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs, 0, m.config.RuntimeSecurity.ActivityDumpTracedEventTypes, m.updateTracedPid, &loadConfig, func(ad *dump.ActivityDump) {
 		ad.Profile.Metadata.ContainerID = containerID
@@ -1162,22 +1114,6 @@ func (m *manager) startDumpWithConfig(containerID containerutils.ContainerID, cg
 	})
 	newDump.Cookie = cookie
 
-	// for _, format := range m.config.RuntimeSecurity.ActivityDumpLocalStorageFormats {
-	// 	newDump.Profile.AddStorageRequest(config.NewStorageRequest(
-	// 		config.LocalStorage,
-	// 		format,
-	// 		m.config.RuntimeSecurity.ActivityDumpLocalStorageCompression,
-	// 		m.config.RuntimeSecurity.ActivityDumpLocalStorageDirectory,
-	// 	))
-	// }
-
-	// newDump.Profile.AddStorageRequest(config.NewStorageRequest(
-	// 	config.RemoteStorage,
-	// 	config.Protobuf,
-	// 	true, // force remote compression
-	// 	"",
-	// ))
-
 	if err := m.insertActivityDump(newDump); err != nil {
 		return fmt.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
 	}
@@ -1185,7 +1121,7 @@ func (m *manager) startDumpWithConfig(containerID containerutils.ContainerID, cg
 }
 
 // HandleCGroupTracingEvent handles a cgroup tracing event
-func (m *manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
+func (m *Manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
 	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
 		return
 	}
@@ -1206,7 +1142,7 @@ func (m *manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
 // event lost recovery
 
 // SnapshotTracedCgroups recovers lost CGroup tracing events by going through the kernel space map of cgroups
-func (m *manager) SnapshotTracedCgroups() {
+func (m *Manager) SnapshotTracedCgroups() {
 	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
 		return
 	}
@@ -1249,16 +1185,16 @@ func (m *manager) SnapshotTracedCgroups() {
 
 // snapshot
 
-func (m *manager) newProcessCacheEntrySearcher(ad *dump.ActivityDump) *processCacheEntrySearcher {
+func (m *Manager) newProcessCacheEntrySearcher(ad *dump.ActivityDump) *processCacheEntrySearcher {
 	return &processCacheEntrySearcher{
-		m:             m,
+		manager:       m,
 		ad:            ad,
 		ancestorCache: make(map[*model.ProcessContext]*model.ProcessCacheEntry),
 	}
 }
 
 // updateTracedPid traces a pid in kernel space
-func (m *manager) updateTracedPid(ad *dump.ActivityDump, pid uint32) {
+func (m *Manager) updateTracedPid(ad *dump.ActivityDump, pid uint32) {
 	// start by looking up any existing entry
 	var cookie uint64
 	_ = m.tracedPIDsMap.Lookup(pid, &cookie)
@@ -1269,7 +1205,7 @@ func (m *manager) updateTracedPid(ad *dump.ActivityDump, pid uint32) {
 }
 
 type processCacheEntrySearcher struct {
-	m             *manager
+	manager       *Manager
 	ad            *dump.ActivityDump
 	ancestorCache map[*model.ProcessContext]*model.ProcessCacheEntry
 }
@@ -1309,9 +1245,9 @@ func (pces *processCacheEntrySearcher) searchTracedProcessCacheEntry(entry *mode
 
 	pces.ad.Profile.AddSnapshotAncestors(
 		ancestors,
-		pces.m.resolvers,
+		pces.manager.resolvers,
 		func(pce *model.ProcessCacheEntry) {
-			pces.m.updateTracedPid(pces.ad, pce.Process.Pid)
+			pces.manager.updateTracedPid(pces.ad, pce.Process.Pid)
 		},
 	)
 }
@@ -1319,7 +1255,7 @@ func (pces *processCacheEntrySearcher) searchTracedProcessCacheEntry(entry *mode
 // SendStats
 
 // SendStats sends the manager stats
-func (m *manager) SendStats() error {
+func (m *Manager) SendStats() error {
 	m.m.Lock()
 	defer m.m.Unlock()
 
@@ -1354,7 +1290,6 @@ func (m *manager) SendStats() error {
 			}
 		}
 
-		// m.storage.SendTelemetry()
 		m.localStorage.SendTelemetry(m.statsdClient)
 		m.remoteStorage.SendTelemetry(m.statsdClient)
 	}
@@ -1434,22 +1369,10 @@ func (m *manager) SendStats() error {
 	return nil
 }
 
-// config wrappers - These should probably be moved outside of the manager using a regular static function
-
-// GetActivityDumpTracedEventTypes returns traced event types
-func (m *manager) GetActivityDumpTracedEventTypes() []model.EventType {
-	return m.config.RuntimeSecurity.ActivityDumpTracedEventTypes
-}
-
-// GetAnomalyDetectionEventTypes returns the event types that may generate anomaly detections
-func (m *manager) GetAnomalyDetectionEventTypes() []model.EventType {
-	return m.config.RuntimeSecurity.AnomalyDetectionEventTypes
-}
-
 ///////////// SecurityProfileManager
 
 // fetchSilentWorkloads returns the list of workloads for which we haven't received any profile
-func (m *manager) fetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*tags.Workload {
+func (m *Manager) fetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*tags.Workload {
 
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
@@ -1470,7 +1393,7 @@ func (m *manager) fetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*tag
 }
 
 // LookupEventInProfiles lookups event in profiles
-func (m *manager) LookupEventInProfiles(event *model.Event) {
+func (m *Manager) LookupEventInProfiles(event *model.Event) {
 	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
 		return
 	}
@@ -1595,7 +1518,7 @@ func (m *manager) LookupEventInProfiles(event *model.Event) {
 }
 
 // tryAutolearn tries to autolearn the input event. It returns the profile state: stable, unstable, autolearning or workloadwarmup
-func (m *manager) tryAutolearn(profile *profile.Profile, ctx *profile.VersionContext, event *model.Event, imageTag string) model.EventFilteringProfileState {
+func (m *Manager) tryAutolearn(profile *profile.Profile, ctx *profile.VersionContext, event *model.Event, imageTag string) model.EventFilteringProfileState {
 	profileState := m.getEventTypeState(profile, ctx, event, event.GetEventType(), imageTag)
 	var nodeType activity_tree.NodeGenerationType
 	if profileState == model.AutoLearning {
@@ -1665,7 +1588,7 @@ func fillProfileContextFromProfile(ctx *model.SecurityProfileContext, p *profile
 }
 
 // FillProfileContextFromContainerID populates a SecurityProfileContext for the given container ID
-func (m *manager) FillProfileContextFromContainerID(id string, ctx *model.SecurityProfileContext, imageTag string) {
+func (m *Manager) FillProfileContextFromContainerID(id string, ctx *model.SecurityProfileContext, imageTag string) {
 	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
 		return
 	}
@@ -1691,7 +1614,7 @@ func (m *manager) FillProfileContextFromContainerID(id string, ctx *model.Securi
 }
 
 // loadProfile (thread unsafe) loads a Security Profile in kernel space
-func (m *manager) loadProfileMap(profile *profile.Profile) error {
+func (m *Manager) loadProfileMap(profile *profile.Profile) error {
 	profile.LoadedInKernel.Store(true)
 	profile.LoadedNano.Store(uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now())))
 
@@ -1706,7 +1629,7 @@ func (m *manager) loadProfileMap(profile *profile.Profile) error {
 }
 
 // unloadProfile (thread unsafe) unloads a Security Profile from kernel space
-func (m *manager) unloadProfileMap(profile *profile.Profile) {
+func (m *Manager) unloadProfileMap(profile *profile.Profile) {
 	profile.LoadedInKernel.Store(false)
 
 	// remove kernel space filters
@@ -1719,7 +1642,7 @@ func (m *manager) unloadProfileMap(profile *profile.Profile) {
 }
 
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
-func (m *manager) linkProfileMap(profile *profile.Profile, workload *tags.Workload) {
+func (m *Manager) linkProfileMap(profile *profile.Profile, workload *tags.Workload) {
 	if err := m.securityProfileMap.Put([]byte(workload.ContainerID), profile.GetProfileCookie()); err != nil {
 		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name, err)
 		return
@@ -1728,7 +1651,7 @@ func (m *manager) linkProfileMap(profile *profile.Profile, workload *tags.Worklo
 }
 
 // linkProfile applies a profile to the provided workload
-func (m *manager) linkProfile(profile *profile.Profile, workload *tags.Workload) {
+func (m *Manager) linkProfile(profile *profile.Profile, workload *tags.Workload) {
 	profile.InstancesLock.Lock()
 	defer profile.InstancesLock.Unlock()
 
@@ -1750,7 +1673,7 @@ func (m *manager) linkProfile(profile *profile.Profile, workload *tags.Workload)
 }
 
 // unlinkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
-func (m *manager) unlinkProfileMap(profile *profile.Profile, workload *tags.Workload) {
+func (m *Manager) unlinkProfileMap(profile *profile.Profile, workload *tags.Workload) {
 	if !profile.LoadedInKernel.Load() {
 		return
 	}
@@ -1762,7 +1685,7 @@ func (m *manager) unlinkProfileMap(profile *profile.Profile, workload *tags.Work
 }
 
 // unlinkProfile removes the link between a workload and a profile
-func (m *manager) unlinkProfile(profile *profile.Profile, workload *tags.Workload) {
+func (m *Manager) unlinkProfile(profile *profile.Profile, workload *tags.Workload) {
 	profile.InstancesLock.Lock()
 	defer profile.InstancesLock.Unlock()
 
@@ -1778,7 +1701,7 @@ func (m *manager) unlinkProfile(profile *profile.Profile, workload *tags.Workloa
 	m.unlinkProfileMap(profile, workload)
 }
 
-func (m *manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
+func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 	workload.Lock()
@@ -1824,7 +1747,7 @@ func (m *manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 				m.pathsReducer,
 				m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs,
 				m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth,
-				m.eventTypes,
+				m.secProfEventTypes,
 			)
 
 			// insert the profile in the list of active profiles
@@ -1848,7 +1771,7 @@ func (m *manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 	m.linkProfile(p, workload)
 }
 
-func (m *manager) onWorkloadDeletedEvent(workload *tags.Workload) {
+func (m *Manager) onWorkloadDeletedEvent(workload *tags.Workload) {
 	// lookup the profile
 	selector := cgroupModel.WorkloadSelector{
 		Image: workload.Selector.Image,
@@ -1869,7 +1792,7 @@ func (m *manager) onWorkloadDeletedEvent(workload *tags.Workload) {
 	m.shouldDeleteProfile(p)
 }
 
-func (m *manager) shouldDeleteProfile(p *profile.Profile) {
+func (m *Manager) shouldDeleteProfile(p *profile.Profile) {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 	m.pendingCacheLock.Lock()
@@ -1908,7 +1831,7 @@ func (m *manager) shouldDeleteProfile(p *profile.Profile) {
 }
 
 // persistProfile (thread unsafe) persists a profile to the filesystem
-func (m *manager) persistProfile(p *profile.Profile) error {
+func (m *Manager) persistProfile(p *profile.Profile) error {
 	raw, err := p.EncodeSecurityProfileProtobuf()
 	if err != nil {
 		return fmt.Errorf("couldn't encode profile: %w", err)
@@ -1948,7 +1871,7 @@ func (m *manager) persistProfile(p *profile.Profile) error {
 }
 
 // onNewProfile handles the arrival of a new profile (or the new version of a profile) from a provider
-func (m *manager) onNewProfile(newProfile *profile.Profile) {
+func (m *Manager) onNewProfile(newProfile *profile.Profile) {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
@@ -1973,7 +1896,7 @@ func (m *manager) onNewProfile(newProfile *profile.Profile) {
 			m.pathsReducer,
 			m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs,
 			m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth,
-			m.eventTypes,
+			m.secProfEventTypes,
 		)
 		p.LoadFromNewProfile(newProfile)
 
@@ -1982,9 +1905,6 @@ func (m *manager) onNewProfile(newProfile *profile.Profile) {
 		m.pendingCache.Add(profileManagerSelector, p)
 		return
 	}
-
-	// profile.Lock()
-	// defer profile.Unlock()
 
 	// if profile was waited, push it
 	if !p.LoadedInKernel.Load() {
@@ -2005,11 +1925,11 @@ func (m *manager) onNewProfile(newProfile *profile.Profile) {
 	// if we already have a loaded profile for this workload, just ignore the new one
 }
 
-func (m *manager) canGenerateAnomaliesFor(e *model.Event) bool {
+func (m *Manager) canGenerateAnomaliesFor(e *model.Event) bool {
 	return m.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(m.config.RuntimeSecurity.AnomalyDetectionEventTypes, e.GetEventType())
 }
 
-func (m *manager) getEventTypeState(p *profile.Profile, pctx *profile.VersionContext, event *model.Event, eventType model.EventType, imageTag string) model.EventFilteringProfileState {
+func (m *Manager) getEventTypeState(p *profile.Profile, pctx *profile.VersionContext, event *model.Event, eventType model.EventType, imageTag string) model.EventFilteringProfileState {
 	eventState, ok := pctx.EventTypeState[event.GetEventType()]
 	if !ok {
 		eventState = &profile.EventTypeState{
@@ -2083,12 +2003,12 @@ func (m *manager) getEventTypeState(p *profile.Profile, pctx *profile.VersionCon
 	return profileState
 }
 
-func (m *manager) incrementEventFilteringStat(eventType model.EventType, state model.EventFilteringProfileState, result EventFilteringResult) {
+func (m *Manager) incrementEventFilteringStat(eventType model.EventType, state model.EventFilteringProfileState, result EventFilteringResult) {
 	m.eventFiltering[eventFilteringEntry{eventType, state, result}].Inc()
 }
 
 // CountEvictedVersion count the evicted version for associated metric
-func (m *manager) countEvictedVersion(imageName, imageTag string) {
+func (m *Manager) countEvictedVersion(imageName, imageTag string) {
 	m.evictedVersionsLock.Lock()
 	defer m.evictedVersionsLock.Unlock()
 	m.evictedVersions = append(m.evictedVersions, cgroupModel.WorkloadSelector{
@@ -2097,7 +2017,7 @@ func (m *manager) countEvictedVersion(imageName, imageTag string) {
 	})
 }
 
-func (m *manager) persist(p *profile.Profile, formatsRequests map[config.StorageFormat][]config.StorageRequest) error {
+func (m *Manager) persist(p *profile.Profile, formatsRequests map[config.StorageFormat][]config.StorageRequest) error {
 	for format, requests := range formatsRequests {
 		p.Metadata.Serialization = format.String()
 
@@ -2138,7 +2058,7 @@ func (m *manager) persist(p *profile.Profile, formatsRequests map[config.Storage
 }
 
 // ListAllProfileStates list all profiles and their versions (debug purpose only)
-func (m *manager) ListAllProfileStates() {
+func (m *Manager) ListAllProfileStates() {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 	for _, profile := range m.profiles {
@@ -2147,7 +2067,7 @@ func (m *manager) ListAllProfileStates() {
 }
 
 // GetProfile returns a profile by its selector
-func (m *manager) GetProfile(selector cgroupModel.WorkloadSelector) *profile.Profile {
+func (m *Manager) GetProfile(selector cgroupModel.WorkloadSelector) *profile.Profile {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
@@ -2156,7 +2076,7 @@ func (m *manager) GetProfile(selector cgroupModel.WorkloadSelector) *profile.Pro
 }
 
 // AddProfile adds a profile to the manager
-func (m *manager) AddProfile(profile *profile.Profile) {
+func (m *Manager) AddProfile(profile *profile.Profile) {
 	m.newProfiles <- profile
 }
 
@@ -2173,7 +2093,7 @@ func perFormatStorageRequests(requests []config.StorageRequest) map[config.Stora
 ///////////
 
 // ListActivityDumps returns the list of active activity dumps
-func (m *manager) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
+func (m *Manager) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
 	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
 		return &api.ActivityDumpListMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
@@ -2193,7 +2113,7 @@ func (m *manager) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.Activit
 }
 
 // DumpActivity handles an activity dump request
-func (m *manager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
+func (m *Manager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
 	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
 		return &api.ActivityDumpMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
@@ -2216,12 +2136,6 @@ func (m *manager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDum
 			return &api.ActivityDumpMessage{Error: err.Error()}, err
 		}
 	}
-
-	// storageRequests, err := config.ParseStorageRequests(params.GetStorage())
-	// if err != nil {
-	// 	err := fmt.Errorf("failed to handle activity dump request: invalid storage request: %w", err)
-	// 	return &api.ActivityDumpMessage{Error: err.Error()}, err
-	// }
 
 	cgroupFlags := containerutils.CGroupFlags(0)
 	if params.GetCGroupID() != "" {
@@ -2264,11 +2178,6 @@ func (m *manager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDum
 		ad.Profile.Header.Source = ActivityDumpSource
 	})
 
-	// // add local storage requests
-	// for _, request := range storageRequests {
-	// 	newDump.Profile.AddStorageRequest(request)
-	// }
-
 	if err := m.insertActivityDump(newDump); err != nil {
 		err := fmt.Errorf("couldn't start tracing [%s]: %w", params.GetContainerID(), err)
 		return &api.ActivityDumpMessage{Error: err.Error()}, err
@@ -2278,7 +2187,7 @@ func (m *manager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDum
 }
 
 // StopActivityDump stops an active activity dump
-func (m *manager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
+func (m *Manager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
 	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
 		return &api.ActivityDumpStopMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
@@ -2339,7 +2248,7 @@ func (m *manager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.Act
 }
 
 // GenerateTranscoding executes the requested transcoding operation
-func (m *manager) GenerateTranscoding(params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
+func (m *Manager) GenerateTranscoding(params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
 		return &api.TranscodingRequestMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
@@ -2385,7 +2294,7 @@ func (m *manager) GenerateTranscoding(params *api.TranscodingRequestParams) (*ap
 }
 
 // ListSecurityProfiles returns the list of security profiles
-func (m *manager) ListSecurityProfiles(params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
+func (m *Manager) ListSecurityProfiles(params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
 	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
 		return &api.SecurityProfileListMessage{
 			Error: ErrSecurityProfileManagerDisabled.Error(),
@@ -2418,7 +2327,7 @@ func (m *manager) ListSecurityProfiles(params *api.SecurityProfileListParams) (*
 }
 
 // SaveSecurityProfile saves the requested security profile to disk
-func (m *manager) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
+func (m *Manager) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
 	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
 		return &api.SecurityProfileSaveMessage{
 			Error: ErrSecurityProfileManagerDisabled.Error(),

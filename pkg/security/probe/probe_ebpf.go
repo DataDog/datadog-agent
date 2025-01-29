@@ -117,12 +117,12 @@ type EBPFProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
-	event           *model.Event
-	monitors        *EBPFMonitors
-	profileManagers securityprofile.ManagerInterface
-	fieldHandlers   *EBPFFieldHandlers
-	eventPool       *ddsync.TypedPool[model.Event]
-	numCPU          int
+	event          *model.Event
+	monitors       *EBPFMonitors
+	profileManager *securityprofile.Manager
+	fieldHandlers  *EBPFFieldHandlers
+	eventPool      *ddsync.TypedPool[model.Event]
+	numCPU         int
 
 	ctx       context.Context
 	cancelFnc context.CancelFunc
@@ -466,7 +466,7 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
-	p.profileManagers, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler)
+	p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler)
 	if err != nil {
 		return err
 	}
@@ -484,7 +484,7 @@ func (p *EBPFProbe) Init() error {
 		p.wg.Add(1)
 		go func() {
 			defer p.wg.Done()
-			p.profileManagers.Start(p.ctx)
+			p.profileManager.Start(p.ctx)
 		}()
 	}
 
@@ -680,11 +680,11 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	logTraceEvent(event.GetEventType(), event)
 
 	// filter out event if already present on a profile
-	p.profileManagers.LookupEventInProfiles(event)
+	p.profileManager.LookupEventInProfiles(event)
 
 	// mark the events that have an associated activity dump
 	// this is needed for auto suppressions performed by the CWS rule engine
-	if p.profileManagers.HasActiveActivityDump(event) {
+	if p.profileManager.HasActiveActivityDump(event) {
 		event.AddToFlags(model.EventFlagsHasActiveActivityDump)
 	}
 
@@ -699,13 +699,13 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
 		imageTag := utils.GetTagValue("image_tag", event.ContainerContext.Tags)
-		p.profileManagers.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext, imageTag)
+		p.profileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext, imageTag)
 		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
 			p.sendAnomalyDetection(event)
 		}
 	} else if event.Error == nil {
 		// Process event after evaluation because some monitors need the DentryResolver to have been called first.
-		p.profileManagers.ProcessEvent(event)
+		p.profileManager.ProcessEvent(event)
 	}
 	p.monitors.ProcessEvent(event)
 }
@@ -716,7 +716,7 @@ func (p *EBPFProbe) SendStats() error {
 
 	p.processKiller.SendStats(p.statsdClient)
 
-	if err := p.profileManagers.SendStats(); err != nil {
+	if err := p.profileManager.SendStats(); err != nil {
 		return err
 	}
 
@@ -809,7 +809,7 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 func (p *EBPFProbe) onEventLost(_ string, perEvent map[string]uint64) {
 	// snapshot traced cgroups if a CgroupTracing event was lost
 	if p.probe.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
-		p.profileManagers.SnapshotTracedCgroups()
+		p.profileManager.SnapshotTracedCgroups()
 	}
 }
 
@@ -962,7 +962,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			}
 
 			event.CGroupContext = cgroupContext
-			p.profileManagers.HandleCGroupTracingEvent(&event.CgroupTracing)
+			p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 		}
 		return
 	case model.CgroupWriteEventType:
@@ -2486,9 +2486,9 @@ func getFuncArgCount(prog *lib.ProgramSpec) uint64 {
 	return uint64(argc)
 }
 
-// GetProfileManagers returns the security profile managers
-func (p *EBPFProbe) GetProfileManagers() securityprofile.ManagerInterface {
-	return p.profileManagers
+// GetProfileManager returns the security profile manager
+func (p *EBPFProbe) GetProfileManager() *securityprofile.Manager {
+	return p.profileManager
 }
 
 const (

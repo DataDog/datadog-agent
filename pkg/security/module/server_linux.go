@@ -84,7 +84,7 @@ func (a *APIServer) DumpActivity(_ context.Context, params *api.ActivityDumpPara
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if manager := p.GetProfileManagers(); manager != nil {
+	if manager := p.GetProfileManager(); manager != nil {
 		msg, err := manager.DumpActivity(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
@@ -102,7 +102,7 @@ func (a *APIServer) ListActivityDumps(_ context.Context, params *api.ActivityDum
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if manager := p.GetProfileManagers(); manager != nil {
+	if manager := p.GetProfileManager(); manager != nil {
 		msg, err := manager.ListActivityDumps(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
@@ -120,7 +120,7 @@ func (a *APIServer) StopActivityDump(_ context.Context, params *api.ActivityDump
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if manager := p.GetProfileManagers(); manager != nil {
+	if manager := p.GetProfileManager(); manager != nil {
 		msg, err := manager.StopActivityDump(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
@@ -138,7 +138,7 @@ func (a *APIServer) TranscodingRequest(_ context.Context, params *api.Transcodin
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if manager := p.GetProfileManagers(); manager != nil {
+	if manager := p.GetProfileManager(); manager != nil {
 		msg, err := manager.GenerateTranscoding(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
@@ -156,7 +156,7 @@ func (a *APIServer) ListSecurityProfiles(_ context.Context, params *api.Security
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if manager := p.GetProfileManagers(); manager != nil {
+	if manager := p.GetProfileManager(); manager != nil {
 		msg, err := manager.ListSecurityProfiles(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
@@ -174,7 +174,7 @@ func (a *APIServer) SaveSecurityProfile(_ context.Context, params *api.SecurityP
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if manager := p.GetProfileManagers(); manager != nil {
+	if manager := p.GetProfileManager(); manager != nil {
 		msg, err := manager.SaveSecurityProfile(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
