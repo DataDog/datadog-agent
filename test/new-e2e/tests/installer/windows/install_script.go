@@ -8,11 +8,12 @@ package installer
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
-	"github.com/DataDog/test-infra-definitions/components/os"
+	"os"
 	"strings"
 )
 
@@ -46,10 +47,26 @@ func (d *DatadogInstallScript) Run(opts ...Option) (string, error) {
 		// update URL
 		params.installerURL = artifactURL
 	}
-	params.extraEnvVars["DD_INSTALLER_URL"] = params.installerURL
+
+	apiKey := os.Getenv("DD_API_KEY")
+	if apiKey == "" {
+		var err error
+		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
+		if apiKey == "" || err != nil {
+			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
+		}
+	}
 
 	// Set the environment variables for the install script
-	envVars := installer.InstallScriptEnv(os.AMD64Arch)
+	envVars := map[string]string{
+		"DD_API_KEY":             apiKey,
+		"DD_SITE":                "datadoghq.com",
+		"DD_REMOTE_UPDATES":      "true",
+		"DD_AGENT_MAJOR_VERSION": "7",
+		"DD_AGENT_MINOR_VERSION": "58.0",
+		"DD_INSTALLER_URL":       params.installerURL,
+	}
+	
 	for k, v := range params.extraEnvVars {
 		envVars[k] = v
 	}

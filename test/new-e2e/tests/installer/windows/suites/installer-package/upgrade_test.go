@@ -56,7 +56,7 @@ func (s *testInstallerUpgradesSuite) TestUpgrades() {
 			//		CURRENT_AGENT_VERSION: 7.57.0-devel+git.479.c6f7923.pipeline.40641070
 			//		version: 7.57.0-devel+git.481.634b7cd
 			actualVersion, err := agentVersion.New(version, "")
-			s.Require().NoError(err, "Agent version was in the wrong format")
+			s.Require().NoErrorf(err, "Agent version %s is in the wrong format", version)
 			s.Require().Equal(s.CurrentAgentVersion().GetNumberAndPre(), actualVersion.GetNumberAndPre())
 		})
 }

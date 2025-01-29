@@ -43,10 +43,12 @@ func (s *testInstallScriptSuite) TestInstallAgentPackage() {
 
 func (s *testInstallScriptSuite) InstallLastStable() {
 	// Arrange
+	structuredStableAgentVersion, err := agentVersion.New(s.StableAgentVersion().Version(), "")
+	s.Require().NoError(err, "Agent version was in the wrong format")
 
 	// Act
 	output, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
-		"DD_AGENT_MINOR_VERSION": fmt.Sprintf("%d.0", s.CurrentAgentVersion().Minor-1),
+		"DD_AGENT_MINOR_VERSION": fmt.Sprintf("%d.0", structuredStableAgentVersion.Minor),
 	}))
 
 	// Assert
@@ -55,9 +57,7 @@ func (s *testInstallScriptSuite) InstallLastStable() {
 		HasARunningDatadogInstallerService().
 		HasARunningDatadogAgentService().
 		WithVersionMatchPredicate(func(version string) {
-			actualVersion, err := agentVersion.New(version, "")
-			s.Require().NoError(err, "Agent version was in the wrong format")
-			s.Require().Equal(s.CurrentAgentVersion().Minor-1, actualVersion.Minor)
+			s.Require().Contains(version, structuredStableAgentVersion.GetNumber())
 		})
 }
 
