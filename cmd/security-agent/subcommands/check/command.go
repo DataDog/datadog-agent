@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -108,7 +109,13 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 
 // RunCheck runs a check
 func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsdComp statsd.Component, checkArgs *CliParams, compression logscompression.Component) error {
-	hname, err := hostname.Get(context.TODO())
+	var hname string
+	var err error
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		hname, err = hostname.Get(context.TODO())
+	} else {
+		hname, err = hostnameutils.GetHostnameWithContextAndFallback(context.Background())
+	}
 	if err != nil {
 		return err
 	}
