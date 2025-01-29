@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "pkg/security/proto/api";
+option go_package = "pkg/eventmonitor/proto/api";
 
 package api;
 
