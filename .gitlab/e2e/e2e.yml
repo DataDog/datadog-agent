@@ -771,7 +771,7 @@ trigger-fips-e2e:
     include:
       - artifact: flake-finder-gitlab-ci.yml
         job: generate-flakes-finder-pipeline
-  allow_failure: true
+    strategy: depend
 
 new-e2e-eks-cleanup-on-failure:
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
