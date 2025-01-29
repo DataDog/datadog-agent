@@ -164,7 +164,7 @@ new-agent_dmg-x64-a7:
     - rm -f .build_setup; touch .build_setup
     - mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
     # TODO: xcode 14.2?
-    - sudo xcode-select -s /Applications/Xcode_14.3.1.app
+    # - sudo xcode-select -s /Applications/Xcode_14.3.1.app
     # TODO: # Remove preinstalled environment
     # -  |
     #    # The base box ships a few things that can have unwanted effects on the MacOS build.
