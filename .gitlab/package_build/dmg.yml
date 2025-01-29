@@ -56,8 +56,6 @@ new-agent_dmg-x64-a7:
       # - $OMNIBUS_PACKAGE_DIR
       - /tmp/celian
   script:
-    - inv --list
-    - exit
     # - !reference [.retrieve_linux_go_deps]
     # - !reference [.retrieve_linux_go_tools_deps]
     # - echo $GOPATH
