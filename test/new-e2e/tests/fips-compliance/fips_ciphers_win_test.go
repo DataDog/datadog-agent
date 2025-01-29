@@ -86,7 +86,9 @@ func (s *fipsServerWinSuite) SetupSuite() {
 	logFile := filepath.Join(s.SessionOutputDir(), "install.log")
 	_, err = windowsAgent.InstallAgent(agentHost,
 		windowsAgent.WithPackage(agentPackage),
-		windowsAgent.WithInstallLogFile(logFile))
+		windowsAgent.WithInstallLogFile(logFile),
+		// The connectivity-datadog-core-endpoints diagnoses require a non-empty API key
+		windowsAgent.WithZeroAPIKey())
 	require.NoError(s.T(), err)
 }
 
@@ -101,7 +103,8 @@ func (s *fipsServerWinSuite) generateTraffic() {
 	}
 	agent := `C:\Program Files\Datadog\Datadog Agent\bin\agent.exe`
 	cmd := fmt.Sprintf(`& '%s' diagnose --include connectivity-datadog-core-endpoints --local`, agent)
-	agentHost.Execute(cmd, client.WithEnvVariables(agentEnv))
+	out, _ := agentHost.Execute(cmd, client.WithEnvVariables(agentEnv))
+	require.NotContains(s.T(), out, "Total:0", "Expected diagnoses to run, ensure an API key is configured")
 }
 
 // multiVMEnvProvisioner provisions a Windows VM and a Linux Docker VM
