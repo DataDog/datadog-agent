@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -379,6 +380,10 @@ func Initialize(paths ...string) error {
 	}
 	log.Debugf("Using '%s' as Python interpreter path", pythonBinPath)
 
+	if fips.Enabled() {
+		initFIPS(PythonHome)
+	}
+
 	//nolint:revive // TODO(AML) Fix revive linter
 	var pyErr *C.char = nil
 
@@ -496,4 +501,22 @@ func initPymemTelemetry(d time.Duration) {
 			prevAlloc = s.alloc
 		}
 	}()
+}
+
+// initFIPS sets the OPENSSL_CONF and OPENSSL_MODULES environment variables
+func initFIPS(embeddedPath string) {
+	if v := os.Getenv("OPENSSL_CONF"); v == "" {
+		pathToOpenSSLConf := filepath.Join(embeddedPath, "ssl", "openssl.cnf")
+		if _, err := os.Stat(pathToOpenSSLConf); os.IsNotExist(err) {
+			return log.Errorf("The configuration file %s does not exist", pathToOpenSSLConf)
+		}
+		os.Setenv("OPENSSL_CONF", pathToOpenSSLConf)
+	}
+	if v := os.Getenv("OPENSSL_MODULES"); v == "" {
+		pathToOpenSSLModules := filepath.Join(embeddedPath, "lib", "ossl-modules")
+		if _, err := os.Stat(pathToOpenSSLModules); os.IsNotExist(err) {
+			return log.Errorf("The directory %s does not exist", pathToOpenSSLModules)
+		}
+		os.Setenv("OPENSSL_MODULES", pathToOpenSSLModules)
+	}
 }
