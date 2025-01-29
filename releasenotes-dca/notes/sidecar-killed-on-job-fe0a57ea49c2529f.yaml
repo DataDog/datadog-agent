@@ -1,5 +1,5 @@
 # Each section from every release note are combined when the
-# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
 # it does not depend on any information only available in another
 # section. This may mean repeating some details, but each section
 # must be readable independently of the other.
@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Include `gpu_vendor` pod tags on the Datadog Cluster Agent when
-    enabling datadog.clusterTagger.collectKubernetesTags.
+    When the Datadog Cluster Agent injects the Datadog Agent as a sidecar
+    on a Job, the agent will now exit when the main Job completes.
