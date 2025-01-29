@@ -61,7 +61,9 @@ new-agent_dmg-x64-a7:
     # - echo $GOPATH
     # - exit
     # TODO
+    - !reference [.vault_login]
     - export RELEASE_VERSION=$RELEASE_VERSION_7
+    #
     - mkdir -p /tmp/celian/bin /tmp/celian/config
     - export INSTALL_DIR=/tmp/celian/bin
     - export CONFIG_DIR=/tmp/celian/config
