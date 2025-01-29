@@ -12,11 +12,13 @@ import (
 	"bytes"
 	"syscall"
 	"testing"
+	"unsafe"
 
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -83,8 +85,40 @@ func (m *MockSyscall) Socket(domain, typ, protocol int) (fd int, err error) {
 	return args.Int(0), args.Error(1)
 }
 
+//nolint:govet
 func (m *MockSyscall) Syscall(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
 	args := m.Called(trap, a1, a2, a3)
+	if trap == unix.SYS_IOCTL {
+		cmd := a2
+		req := (*ifreq)(unsafe.Pointer(a3))
+
+		switch cmd {
+		case uintptr(ETHTOOL_GDRVINFO):
+			drvInfo := (*ethtool_drvinfo)(unsafe.Pointer(req.Data))
+			drvInfo.Driver = "mock_driver"
+			drvInfo.Version = "mock_version"
+			return 0, 0, 0
+
+		case uintptr(ETHTOOL_GSSET_INFO):
+			stringSet := (*ethtool_gstrings)(unsafe.Pointer(req.Data))
+			stringSet.Len = 2
+			return 0, 0, 0
+
+		case uintptr(ETHTOOL_GSTRINGS):
+			stringSet := (*ethtool_gstrings)(unsafe.Pointer(req.Data))
+			mockStats := []string{"tx_packets", "rx_bytes"}
+			for i, stat := range mockStats {
+				copy(stringSet.Data[i*ETH_GSTRING_LEN:(i+1)*ETH_GSTRING_LEN], stat)
+			}
+			return 0, 0, 0
+
+		case uintptr(ETHTOOL_GSTATS):
+			stats := (*ethtool_stats)(unsafe.Pointer(req.Data))
+			stats.Data[0] = 12345
+			stats.Data[1] = 67890
+			return 0, 0, 0
+		}
+	}
 	return args.Get(0).(uintptr), args.Get(1).(uintptr), syscall.Errno(0)
 }
 
@@ -642,16 +676,9 @@ func TestFetchEthtoolStats(t *testing.T) {
 	err := networkCheck.Run()
 	assert.Nil(t, err)
 
-	// tags := []string{"interface:eth0", "driver_name:dummy_driver", "driver_version:1"}
-
-	// mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(100), "", tags)
-	// mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(200), "", tags)
-	// mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(300), "", tags)
-	// mockSender.AssertCalled(t, "Rate", "system.net.packets_in.drop", float64(400), "", tags)
-	// mockSender.AssertCalled(t, "Rate", "system.net.packets_in.error", float64(500), "", tags)
-	// mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(600), "", tags)
-	// mockSender.AssertCalled(t, "Rate", "system.net.packets_out.drop", float64(700), "", tags)
-	// mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(800), "", tags)
+	expectedTags := []string{"interface:eth0", "driver_name:mock_driver", "driver_version:mock_version"}
+	mockSender.AssertCalled(t, "Rate", "system.net.tx_packets", float64(12345), "", expectedTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.rx_bytes", float64(67890), "", expectedTags)
 }
 
 func TestNetStatTCPExtCountersUsingCorrectMockedProcfsPath(t *testing.T) {
