@@ -8,9 +8,9 @@ package command
 
 const (
 	// DatadogCodeSignatureThumbprint is the thumbprint of the Datadog Code Signing certificate
-	// Valid From: May 2023
-	// Valid To:   May 2025
-	DatadogCodeSignatureThumbprint = `B03F29CC07566505A718583E9270A6EE17678742`
+	// Valid From: June 2024
+	// Valid To:   June 2026
+	DatadogCodeSignatureThumbprint = `59063C826DAA5B628B5CE8A2B32015019F164BF0`
 	// RegistryKeyPath is the root registry key that the Datadog Agent uses to store some state
 	RegistryKeyPath = "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent"
 	// DefaultInstallPath is the default install path for the Datadog Agent

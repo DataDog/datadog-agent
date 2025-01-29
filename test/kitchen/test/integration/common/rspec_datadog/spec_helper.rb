@@ -460,8 +460,8 @@ def is_file_signed(fullpath)
   puts "checking file #{fullpath}"
   expect(File).to exist(fullpath)
   output = `powershell -command "(get-authenticodesignature -FilePath '#{fullpath}').SignerCertificate.Thumbprint"`
-  ## signature below is for new cert acquired May 2023 using new hsm-backed signing method
-  signature_hash = "B03F29CC07566505A718583E9270A6EE17678742"
+  ## signature below is for new cert valid From: Jun 2024; To: Jun 2026
+  signature_hash = "59063C826DAA5B628B5CE8A2B32015019F164BF0"
   if output.upcase.strip == signature_hash.upcase.strip
     return true
   end
