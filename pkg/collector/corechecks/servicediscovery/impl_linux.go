@@ -61,10 +61,5 @@ func getDiscoveryServices(client *http.Client) (*model.ServicesResponse, error) 
 }
 
 func (li *linuxImpl) DiscoverServices() (*model.ServicesResponse, error) {
-	response, err := li.getDiscoveryServices(li.sysProbeClient)
-	if err != nil {
-		return nil, err
-	}
-
-	return response, nil
+	return li.getDiscoveryServices(li.sysProbeClient)
 }
