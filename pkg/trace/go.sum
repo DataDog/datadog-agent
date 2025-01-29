@@ -6,6 +6,12 @@ github.com/DataDog/go-tuf v1.1.0-0.5.2 h1:4CagiIekonLSfL8GMHRHcHudo1fQnxELS9g4ti
 github.com/DataDog/go-tuf v1.1.0-0.5.2/go.mod h1:zBcq6f654iVqmkk8n2Cx81E1JnNTMOAx1UEO/wZR+P0=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.24.1-0.20250129101016-29cbfb25255b h1:j7jCsyMuJ1dbJw2nmC9axYdVBzl+qzphM2gW3f9mLJQ=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.24.1-0.20250129101016-29cbfb25255b/go.mod h1:yZM7PFH3niM0ATH4SM1BBZd+6+k3cjZhxTIz6AvujCI=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.25.0 h1:w3xjWrxSB91I1tVutVGwEK80AB+nwrT8pgWB+UL8aI0=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.25.0/go.mod h1:yZM7PFH3niM0ATH4SM1BBZd+6+k3cjZhxTIz6AvujCI=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.25.0 h1:tOcpGwtxO0gMqO0wYArFt+l2Iz8rZ/xywD461eJYA68=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.25.0/go.mod h1:RJ8U3HWuJiw9iaXU1aVpy99UjtZxIw1sbOEzqDt4/lQ=
+github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.25.0 h1:8DS1kBMTWDubU7MZiP57MLQWxJEQnsKtXYtRPjZk0Rw=
+github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.25.0/go.mod h1:xJsTiSGH/yz+mElJ4eU7S1m9iYvPxZELGwFe5VBKuNs=
 github.com/DataDog/sketches-go v1.4.6 h1:acd5fb+QdUzGrosfNLwrIhqyrbMORpvBy7mE+vHlT3I=
 github.com/DataDog/sketches-go v1.4.6/go.mod h1:7Y8GN8Jf66DLyDhc94zuWA3uHEt/7ttt8jHOBWWrSOg=
 github.com/DataDog/zstd v1.5.6 h1:LbEglqepa/ipmmQJUDnSsfvA8e8IStVcGaFWDuxvGOY=
@@ -124,6 +130,8 @@ github.com/opencontainers/runtime-spec v1.2.0 h1:z97+pHb3uELt/yiAWD691HNHQIF07bE
 github.com/opencontainers/runtime-spec v1.2.0/go.mod h1:jwyrGlmzljRJv/Fgzds9SsS/C5hL+LL3ko9hs6T5lQ0=
 github.com/outcaste-io/ristretto v0.2.3 h1:AK4zt/fJ76kjlYObOeNwh4T3asEuaCmp26pOvUOL9w0=
 github.com/outcaste-io/ristretto v0.2.3/go.mod h1:W8HywhmtlopSB1jeMg3JtdIhf+DYkLAr0VN/s4+MHac=
+github.com/patrickmn/go-cache v2.1.0+incompatible h1:HRMgzkcYKYpi3C8ajMPV8OFXaaRUnok+kx1WdO15EQc=
+github.com/patrickmn/go-cache v2.1.0+incompatible/go.mod h1:3Qf8kWWT7OJRJbdiICTKqZju1ZixQ/KpMGzzAfe6+WQ=
 github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c h1:dAMKvw0MlJT1GshSTtih8C2gDs04w8dReiOGXrGLNoY=
 github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c/go.mod h1:RqIHx9QI14HlwKwm98g9Re5prTQ6LdeRQn+gXJFxsJM=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
