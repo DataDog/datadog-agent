@@ -70,6 +70,12 @@
                             "extract_value": {
                               "type": "string"
                             },
+                            "match_pattern": {
+                              "type": "string"
+                            },
+                            "match_value": {
+                              "type": "string"
+                            },
                             "scale_factor": {
                               "type": "number"
                             },
@@ -96,6 +102,12 @@
                                 "type": "string"
                               },
                               "extract_value": {
+                                "type": "string"
+                              },
+                              "match_pattern": {
+                                "type": "string"
+                              },
+                              "match_value": {
                                 "type": "string"
                               },
                               "scale_factor": {
@@ -151,6 +163,12 @@
                           "type": "string"
                         },
                         "extract_value": {
+                          "type": "string"
+                        },
+                        "match_pattern": {
+                          "type": "string"
+                        },
+                        "match_value": {
                           "type": "string"
                         },
                         "scale_factor": {
@@ -301,21 +319,6 @@
         },
         "metric_tags": {
           "$ref": "#/$defs/MetricTagConfigList"
-        },
-        "options": {
-          "$ref": "#/$defs/MetricsConfigOption"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "MetricsConfigOption": {
-      "properties": {
-        "placement": {
-          "type": "integer"
-        },
-        "metric_suffix": {
-          "type": "string"
         },
         "options": {
           "$ref": "#/$defs/MetricsConfigOption"
