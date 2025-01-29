@@ -11,7 +11,6 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.uber.org/atomic"
@@ -19,20 +18,16 @@ import (
 
 type haAgentImpl struct {
 	log            log.Component
-	inventoryAgent inventoryagent.Component
 	haAgentConfigs *haAgentConfigs
 	state          *atomic.String
 }
 
-func newHaAgentImpl(log log.Component, inventoryAgent inventoryagent.Component, haAgentConfigs *haAgentConfigs) *haAgentImpl {
-	haagentImpl := &haAgentImpl{
+func newHaAgentImpl(log log.Component, haAgentConfigs *haAgentConfigs) *haAgentImpl {
+	return &haAgentImpl{
 		log:            log,
-		inventoryAgent: inventoryAgent,
 		haAgentConfigs: haAgentConfigs,
 		state:          atomic.NewString(string(haagent.Unknown)),
 	}
-	haagentImpl.setState(haagent.Unknown)
-	return haagentImpl
 }
 
 func (h *haAgentImpl) Enabled() bool {
@@ -65,21 +60,14 @@ func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
 
 	if newState != prevState {
 		h.log.Infof("agent state switched from %s to %s", prevState, newState)
-		h.setState(newState)
+		h.state.Store(string(newState))
 	} else {
 		h.log.Debugf("agent state not changed (current state: %s)", prevState)
 	}
 }
 
-func (h *haAgentImpl) setState(newState haagent.State) {
-	h.state.Store(string(newState))
-
-	// Set ha_agent_state Agent Metadata
-	h.inventoryAgent.Set("ha_agent_state", string(newState))
-}
-
 func (h *haAgentImpl) resetAgentState() {
-	h.setState(haagent.Unknown)
+	h.state.Store(string(haagent.Unknown))
 }
 
 // ShouldRunIntegration return true if the agent integrations should to run.

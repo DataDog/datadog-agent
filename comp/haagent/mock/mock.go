@@ -35,7 +35,7 @@ func (m *mockHaAgent) Enabled() bool {
 func (m *mockHaAgent) SetLeader(_ string) {
 }
 
-func (m *mockHaAgent) GetState() haagent.State { return m.state }
+func (m *mockHaAgent) GetState() haagent.State { return haagent.Standby }
 
 func (m *mockHaAgent) SetConfigID(configID string) {
 	m.configID = configID
