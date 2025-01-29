@@ -228,9 +228,10 @@ func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags 
 	}
 
 	cgroupContext := &model.CGroupContext{
-		CGroupID:    containerutils.CGroupID(cgroup),
-		CGroupFlags: containerutils.CGroupFlags(cgroupFlags),
-		CGroupFile:  pathKey,
+		CGroupID:      containerutils.CGroupID(cgroup),
+		CGroupFlags:   containerutils.CGroupFlags(cgroupFlags),
+		CGroupFile:    pathKey,
+		CGroupManager: containerutils.CGroupManager(cgroupFlags & containerutils.CGroupManagerMask).String(),
 	}
 
 	return cgroupContext, nil
@@ -252,6 +253,11 @@ func (r *EBPFResolvers) Snapshot() error {
 
 	if err := selinux.SnapshotSELinux(selinuxStatusMap); err != nil {
 		return err
+	}
+
+	// snapshot sockets
+	if err := r.snapshotBoundSockets(); err != nil {
+		return fmt.Errorf("unable to snapshot bound sockets: %w", err)
 	}
 
 	return nil
@@ -312,6 +318,24 @@ func (r *EBPFResolvers) snapshot() error {
 
 		// Sync the namespace cache
 		r.NamespaceResolver.SyncCache(pid)
+	}
+
+	return nil
+}
+
+func (r *EBPFResolvers) snapshotBoundSockets() error {
+	processes, err := utils.GetProcesses()
+	if err != nil {
+		return err
+	}
+
+	for _, proc := range processes {
+		bs, err := utils.GetBoundSockets(proc)
+		if err != nil {
+			log.Debugf("sockets snapshot failed for (pid: %v): %s", proc.Pid, err)
+			continue
+		}
+		r.ProcessResolver.SyncBoundSockets(uint32(proc.Pid), bs)
 	}
 
 	return nil

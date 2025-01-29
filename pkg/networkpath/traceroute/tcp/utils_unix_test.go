@@ -23,6 +23,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/testutils"
 )
 
+var (
+	innerSrcIP = net.ParseIP("10.0.0.1")
+	innerDstIP = net.ParseIP("192.168.1.1")
+)
+
 type (
 	mockRawConn struct {
 		setReadDeadlineErr error
@@ -123,7 +128,7 @@ func Test_handlePackets(t *testing.T) {
 			ctxTimeout:  500 * time.Millisecond,
 			conn: &mockRawConn{
 				header:  testutils.CreateMockIPv4Header(srcIP, dstIP, 1),
-				payload: testutils.CreateMockICMPPacket(nil, testutils.CreateMockICMPLayer(layers.ICMPv4CodeTTLExceeded), testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP), testutils.CreateMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false),
+				payload: testutils.CreateMockICMPWithTCPPacket(nil, testutils.CreateMockICMPLayer(layers.ICMPv4CodeTTLExceeded), testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP), testutils.CreateMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false),
 			},
 			localIP:          innerSrcIP,
 			localPort:        12345,

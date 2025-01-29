@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/test/new-e2e
 
 go 1.23.1
 
-toolchain go1.23.3
+toolchain go1.23.5
 
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
@@ -45,9 +45,9 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.140
+	github.com/DataDog/agent-payload/v5 v5.0.141
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.56.2
-	github.com/DataDog/datadog-agent/pkg/util/option v0.59.1
+	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.56.2
@@ -60,15 +60,15 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20250123105416-9e836ad2dc14
+	github.com/DataDog/test-infra-definitions v0.0.0-20250127165314-f92dca10d03c
 	github.com/aws/aws-sdk-go-v2 v1.33.0
 	github.com/aws/aws-sdk-go-v2/config v1.29.1
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.200.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.51.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.55.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/docker/cli v27.4.0+incompatible
-	github.com/docker/docker v27.5.0+incompatible
+	github.com/docker/cli v27.5.0+incompatible
+	github.com/docker/docker v27.5.1+incompatible
 	github.com/fatih/color v1.18.0
 	github.com/google/uuid v1.6.0
 	github.com/kr/pretty v0.3.1
@@ -253,12 +253,12 @@ require (
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
 	golang.org/x/mod v0.22.0 // indirect
 	golang.org/x/net v0.34.0
-	golang.org/x/oauth2 v0.24.0 // indirect
+	golang.org/x/oauth2 v0.25.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/text v0.21.0
 	golang.org/x/time v0.9.0 // indirect
 	golang.org/x/tools v0.29.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20241230172942-26aa7a208def // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
 	google.golang.org/grpc v1.69.4 // indirect
 	google.golang.org/protobuf v1.36.3 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
@@ -279,7 +279,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/trace v0.56.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/aws/aws-sdk-go v1.55.6

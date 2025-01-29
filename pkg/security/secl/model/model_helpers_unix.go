@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"modernc.org/mathutil"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 const (
@@ -133,7 +133,7 @@ func (c *Credentials) Equals(o *Credentials) bool {
 }
 
 // SetSpan sets the span
-func (p *Process) SetSpan(spanID uint64, traceID mathutil.Int128) {
+func (p *Process) SetSpan(spanID uint64, traceID utils.TraceID) {
 	p.SpanID = spanID
 	p.TraceID = traceID
 }
