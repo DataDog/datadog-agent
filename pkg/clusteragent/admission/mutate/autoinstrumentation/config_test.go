@@ -3,14 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package autoinstrumentation_test
+//go:build kubeapiserver
+
+package autoinstrumentation
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -18,14 +19,14 @@ func TestNewInstrumentationConfig(t *testing.T) {
 	tests := []struct {
 		name       string
 		configPath string
-		expected   *autoinstrumentation.InstrumentationConfig
+		expected   *InstrumentationConfig
 		shouldErr  bool
 	}{
 		{
 			name:       "valid config enabled namespaces",
 			configPath: "testdata/enabled_namespaces.yaml",
 			shouldErr:  false,
-			expected: &autoinstrumentation.InstrumentationConfig{
+			expected: &InstrumentationConfig{
 				Enabled:            true,
 				EnabledNamespaces:  []string{"default"},
 				DisabledNamespaces: []string{},
@@ -40,7 +41,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			name:       "valid config disabled namespaces",
 			configPath: "testdata/disabled_namespaces.yaml",
 			shouldErr:  false,
-			expected: &autoinstrumentation.InstrumentationConfig{
+			expected: &InstrumentationConfig{
 				Enabled:            true,
 				EnabledNamespaces:  []string{},
 				DisabledNamespaces: []string{"default"},
@@ -60,7 +61,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.NewFromFile(t, tt.configPath)
-			actual, err := autoinstrumentation.NewInstrumentationConfig(mockConfig)
+			actual, err := NewInstrumentationConfig(mockConfig)
 			if tt.shouldErr {
 				require.Error(t, err)
 				return
