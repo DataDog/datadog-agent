@@ -732,7 +732,7 @@ generate-fips-e2e-pipeline:
     - !reference [.except_disable_e2e_tests]
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
-  needs: compute_gitlab_ci_config
+  needs: [compute_gitlab_ci_config]
   # needs:
   #   - compute_gitlab_ci_config
   #   - deploy_deb_testing-a7_arm64
