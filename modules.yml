@@ -25,6 +25,8 @@ modules:
     used_by_otel: true
   comp/core/log/def:
     used_by_otel: true
+  comp/core/log/fx:
+    used_by_otel: true
   comp/core/log/impl:
     used_by_otel: true
   comp/core/log/impl-trace: default
@@ -35,9 +37,21 @@ modules:
   comp/core/status:
     used_by_otel: true
   comp/core/status/statusimpl: default
+  comp/core/tagger/def:
+    used_by_otel: true
+  comp/core/tagger/fx-remote:
+    used_by_otel: true
+  comp/core/tagger/generic_store:
+    used_by_otel: true
+  comp/core/tagger/impl-remote:
+    used_by_otel: true
   comp/core/tagger/origindetection:
     used_by_otel: true
+  comp/core/tagger/subscriber:
+    used_by_otel: true
   comp/core/tagger/tags:
+    used_by_otel: true
+  comp/core/tagger/telemetry:
     used_by_otel: true
   comp/core/tagger/types:
     used_by_otel: true
@@ -176,7 +190,9 @@ modules:
     used_by_otel: true
   pkg/metrics:
     used_by_otel: true
+  pkg/network/payload: default
   pkg/networkdevice/profile: default
+  pkg/networkpath/payload: default
   pkg/obfuscate:
     used_by_otel: true
   pkg/orchestrator/model:
@@ -209,7 +225,8 @@ modules:
     used_by_otel: true
   pkg/util/buf:
     used_by_otel: true
-  pkg/util/cache: default
+  pkg/util/cache:
+    used_by_otel: true
   pkg/util/cgroups:
     should_test_condition: is_linux
     used_by_otel: true
@@ -228,7 +245,8 @@ modules:
   pkg/util/flavor: default
   pkg/util/fxutil:
     used_by_otel: true
-  pkg/util/grpc: default
+  pkg/util/grpc:
+    used_by_otel: true
   pkg/util/hostname/validate:
     used_by_otel: true
   pkg/util/http:

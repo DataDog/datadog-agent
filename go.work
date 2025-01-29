@@ -11,14 +11,21 @@ use (
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface
 	comp/core/log/def
+	comp/core/log/fx
 	comp/core/log/impl
 	comp/core/log/impl-trace
 	comp/core/log/mock
 	comp/core/secrets
 	comp/core/status
 	comp/core/status/statusimpl
+	comp/core/tagger/def
+	comp/core/tagger/fx-remote
+	comp/core/tagger/generic_store
+	comp/core/tagger/impl-remote
 	comp/core/tagger/origindetection
+	comp/core/tagger/subscriber
 	comp/core/tagger/tags
+	comp/core/tagger/telemetry
 	comp/core/tagger/types
 	comp/core/tagger/utils
 	comp/core/telemetry
@@ -86,7 +93,9 @@ use (
 	pkg/logs/status/utils
 	pkg/logs/util/testutils
 	pkg/metrics
+	pkg/network/payload
 	pkg/networkdevice/profile
+	pkg/networkpath/payload
 	pkg/obfuscate
 	pkg/orchestrator/model
 	pkg/process/util/api

@@ -18,7 +18,7 @@ type EventMonitoringModuleClient struct {
 }
 
 // GetProcessEvents provides a mock function with given fields: ctx, in, opts
-func (_m *EventMonitoringModuleClient) GetProcessEvents(ctx context.Context, in *api.GetProcessEventParams, opts ...grpc.CallOption) (api.EventMonitoringModule_GetProcessEventsClient, error) {
+func (_m *EventMonitoringModuleClient) GetProcessEvents(ctx context.Context, in *api.GetProcessEventParams, opts ...grpc.CallOption) (grpc.ServerStreamingClient[api.ProcessEventMessage], error) {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -32,16 +32,16 @@ func (_m *EventMonitoringModuleClient) GetProcessEvents(ctx context.Context, in 
 		panic("no return value specified for GetProcessEvents")
 	}
 
-	var r0 api.EventMonitoringModule_GetProcessEventsClient
+	var r0 grpc.ServerStreamingClient[api.ProcessEventMessage]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *api.GetProcessEventParams, ...grpc.CallOption) (api.EventMonitoringModule_GetProcessEventsClient, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *api.GetProcessEventParams, ...grpc.CallOption) (grpc.ServerStreamingClient[api.ProcessEventMessage], error)); ok {
 		return rf(ctx, in, opts...)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *api.GetProcessEventParams, ...grpc.CallOption) api.EventMonitoringModule_GetProcessEventsClient); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *api.GetProcessEventParams, ...grpc.CallOption) grpc.ServerStreamingClient[api.ProcessEventMessage]); ok {
 		r0 = rf(ctx, in, opts...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(api.EventMonitoringModule_GetProcessEventsClient)
+			r0 = ret.Get(0).(grpc.ServerStreamingClient[api.ProcessEventMessage])
 		}
 	}
 
