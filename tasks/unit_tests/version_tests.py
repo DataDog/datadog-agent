@@ -381,8 +381,19 @@ class TestCurrentVersionForReleaseBranch(unittest.TestCase):
         ctx = MagicMock()
         ctx.run.return_value.stdout = "7.63.0-rc.1\n7.63.0-rc.2"
         version = current_version_for_release_branch(ctx, '7.63.x')
-        print(version)
         self.assertEqual(version, Version(7, 63, 0, rc=2))
+
+    def test_rc_version_sorted(self):
+        ctx = MagicMock()
+        ctx.run.return_value.stdout = "7.63.0-rc.2\n7.63.0-rc.1"
+        version = current_version_for_release_branch(ctx, '7.63.x')
+        self.assertEqual(version, Version(7, 63, 0, rc=2))
+
+    def test_rc_version_sorted_hard(self):
+        ctx = MagicMock()
+        ctx.run.return_value.stdout = "7.63.0-rc.10\n7.63.0-rc.2"
+        version = current_version_for_release_branch(ctx, '7.63.x')
+        self.assertEqual(version, Version(7, 63, 0, rc=10))
 
     def test_next_rc_version(self):
         ctx = MagicMock()
