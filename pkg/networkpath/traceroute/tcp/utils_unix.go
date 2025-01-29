@@ -11,7 +11,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
@@ -20,6 +19,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"go.uber.org/multierr"
 	"golang.org/x/net/ipv4"
+	"golang.org/x/sys/unix"
 )
 
 type (
@@ -27,6 +27,16 @@ type (
 		SetReadDeadline(t time.Time) error
 		ReadFrom(b []byte) (*ipv4.Header, []byte, *ipv4.ControlMessage, error)
 		WriteTo(h *ipv4.Header, p []byte, cm *ipv4.ControlMessage) error
+	}
+
+	// TODO: naming is a bit off, this is a response to a packet
+	response struct {
+		IP   net.IP
+		Type uint8
+		Code uint8
+		Port uint16
+		Time time.Time
+		Err  error
 	}
 )
 
@@ -45,74 +55,58 @@ func sendPacket(rawConn rawConnWrapper, header *ipv4.Header, payload []byte) err
 // Once a matching packet is received by a listener, it will cause the other listener
 // to be canceled, and data from the matching packet will be returned to the caller
 func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
-	var tcpErr error
-	var icmpErr error
-	var wg sync.WaitGroup
-	var icmpIP net.IP
-	var tcpIP net.IP
-	var icmpCode layers.ICMPv4TypeCode
-	var tcpFinished time.Time
-	var icmpFinished time.Time
-	var port uint16
-	wg.Add(2)
+	respChan := make(chan response, 2)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	go func() {
-		defer wg.Done()
-		defer cancel()
-		tcpIP, port, _, tcpFinished, tcpErr = handlePackets(ctx, tcpConn, "tcp", localIP, localPort, remoteIP, remotePort, seqNum)
+		respChan <- handlePackets(ctx, tcpConn, localIP, localPort, remoteIP, remotePort, seqNum)
 	}()
 	go func() {
-		defer wg.Done()
-		defer cancel()
-		icmpIP, _, icmpCode, icmpFinished, icmpErr = handlePackets(ctx, icmpConn, "icmp", localIP, localPort, remoteIP, remotePort, seqNum)
+		respChan <- handlePackets(ctx, icmpConn, localIP, localPort, remoteIP, remotePort, seqNum)
 	}()
-	wg.Wait()
 
-	if tcpErr != nil && icmpErr != nil {
-		_, tcpCanceled := tcpErr.(common.CanceledError)
-		_, icmpCanceled := icmpErr.(common.CanceledError)
-		if icmpCanceled && tcpCanceled {
+	// wait for both responses to return
+	// as one could error even if the other
+	// succeeds
+	var err error
+	for i := 0; i < 2; i++ {
+		select {
+		case <-ctx.Done():
 			log.Trace("timed out waiting for responses")
 			return net.IP{}, 0, 0, time.Time{}, nil
-		}
-		if tcpErr != nil {
-			log.Errorf("TCP listener error: %s", tcpErr.Error())
-		}
-		if icmpErr != nil {
-			log.Errorf("ICMP listener error: %s", icmpErr.Error())
-		}
+		case resp := <-respChan:
+			if resp.Err == nil {
+				return resp.IP, resp.Port, 0, resp.Time, nil // TODO: update response code to include ICMP type and code
+			}
 
-		return net.IP{}, 0, 0, time.Time{}, multierr.Append(fmt.Errorf("tcp error: %w", tcpErr), fmt.Errorf("icmp error: %w", icmpErr))
+			err = multierr.Append(err, resp.Err)
+		}
 	}
 
-	// if there was an error for TCP, but not
-	// ICMP, return the ICMP response
-	if tcpErr != nil {
-		return icmpIP, port, icmpCode, icmpFinished, nil
-	}
-
-	// return the TCP response
-	return tcpIP, port, 0, tcpFinished, nil
+	return net.IP{}, 0, 0, time.Time{}, err
 }
 
 // handlePackets in its current implementation should listen for the first matching
 // packet on the connection and then return. If no packet is received within the
 // timeout or if the listener is canceled, it should return a canceledError
-func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
+func handlePackets(ctx context.Context, conn rawConnWrapper, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) response {
 	buf := make([]byte, 1024)
 	tp := newParser()
 	icmpParser := icmp.NewICMPTCPParser()
 	for {
 		select {
 		case <-ctx.Done():
-			return net.IP{}, 0, 0, time.Time{}, common.CanceledError("listener canceled")
+			return response{
+				Err: common.CanceledError("listener canceled"),
+			}
 		default:
 		}
 		now := time.Now()
 		err := conn.SetReadDeadline(now.Add(time.Millisecond * 100))
 		if err != nil {
-			return net.IP{}, 0, 0, time.Time{}, fmt.Errorf("failed to read: %w", err)
+			return response{
+				Err: fmt.Errorf("failed to read: %w", err),
+			}
 		}
 		header, packet, _, err := conn.ReadFrom(buf)
 		if err != nil {
@@ -121,34 +115,42 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, lo
 					continue
 				}
 			}
-			return net.IP{}, 0, 0, time.Time{}, err
+			return response{
+				Err: err,
+			}
 		}
 		// once we have a packet, take a timestamp to know when
 		// the response was received, if it matches, we will
 		// return this timestamp
 		received := time.Now()
-		// TODO: remove listener constraint and parse all packets
-		// in the same function return a succinct struct here
-		if listener == "icmp" {
+
+		if header.Protocol == unix.IPPROTO_ICMP {
 			icmpResponse, err := icmpParser.Parse(header, packet)
 			if err != nil {
 				log.Tracef("failed to parse ICMP packet: %s", err)
 				continue
 			}
 			if icmpResponse.Matches(localIP, localPort, remoteIP, remotePort, seqNum) {
-				return icmpResponse.SrcIP, 0, icmpResponse.TypeCode, received, nil
+				return response{
+					IP:   icmpResponse.SrcIP,
+					Type: icmpResponse.TypeCode.Type(),
+					Code: icmpResponse.TypeCode.Code(),
+					Time: received,
+				}
 			}
-		} else if listener == "tcp" {
+		} else if header.Protocol == unix.IPPROTO_TCP {
 			tcpResp, err := tp.parseTCP(header, packet)
 			if err != nil {
 				log.Tracef("failed to parse TCP packet: %s", err)
 				continue
 			}
 			if tcpResp.Match(localIP, localPort, remoteIP, remotePort, seqNum) {
-				return tcpResp.SrcIP, uint16(tcpResp.TCPResponse.SrcPort), 0, received, nil
+				return response{
+					IP:   tcpResp.SrcIP,
+					Port: uint16(tcpResp.SrcPort),
+					Time: received,
+				}
 			}
-		} else {
-			return net.IP{}, 0, 0, received, fmt.Errorf("unsupported listener type")
 		}
 	}
 }
