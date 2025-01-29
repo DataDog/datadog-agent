@@ -35,7 +35,8 @@ agent_dmg-x64-a7:
 
 new-agent_dmg-x64-a7:
   stage: package_build
-  tags: ["macos:ventura-arm64-test", "specific:true"]
+  # tags: ["macos:ventura-arm64-test", "specific:true"]
+  tags: ["macos:ventura-arm64", "specific:true"]
   # TODO
   # rules:
   #   - !reference [.on_macos_gui_change]
@@ -55,6 +56,8 @@ new-agent_dmg-x64-a7:
       # - $OMNIBUS_PACKAGE_DIR
       - /tmp/celian
   script:
+    - inv --list
+    - exit
     # - !reference [.retrieve_linux_go_deps]
     # - !reference [.retrieve_linux_go_tools_deps]
     # - echo $GOPATH
