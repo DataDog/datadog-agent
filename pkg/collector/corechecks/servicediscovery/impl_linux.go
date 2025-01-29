@@ -26,15 +26,12 @@ func init() {
 
 type linuxImpl struct {
 	getDiscoveryServices func(client *http.Client) (*model.ServicesResponse, error)
-	time                 timer
-
-	sysProbeClient *http.Client
+	sysProbeClient       *http.Client
 }
 
 func newLinuxImpl() (osImpl, error) {
 	return &linuxImpl{
 		getDiscoveryServices: getDiscoveryServices,
-		time:                 realTime{},
 		sysProbeClient:       sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 	}, nil
 }

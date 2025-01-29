@@ -529,7 +529,6 @@ func Test_linuxImpl(t *testing.T) {
 				check.os.(*linuxImpl).getDiscoveryServices = func(_ *http.Client) (*model.ServicesResponse, error) {
 					return makeServiceResponseWithTime(cr.time, cr.servicesResp), nil
 				}
-				check.os.(*linuxImpl).time = mTimer
 				check.sender.hostname = mHostname
 
 				err = check.Run()
