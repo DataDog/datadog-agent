@@ -201,7 +201,7 @@ func (c *NetworkCheck) Run() error {
 			submitInterfaceMetrics(sender, interfaceIO)
 			err = fetchEthtoolStats(sender, interfaceIO)
 			if err != nil {
-				return err
+				continue
 			}
 		}
 	}
@@ -285,10 +285,11 @@ func fetchEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) err
 	if err != nil {
 		return err
 	}
-	defer getClose(ethtoolSocket)
-	if err != nil {
-		return err
-	}
+	defer func() {
+		if err := getClose(ethtoolSocket); err != nil {
+			log.Errorf("failed to close socket: %v", err)
+		}
+	}()
 
 	// Preparing the interface name and copy it into the request
 	ifaceBytes := []byte(interfaceIO.Name)
