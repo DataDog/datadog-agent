@@ -245,7 +245,7 @@ func processAverageContainerMetricValue(series []loadstore.EntityValue, currentT
 	}
 
 	values := []loadstore.ValueType{}
-	lastTimestamp := convertTimestampToTime(series[len(series)-1].Timestamp)
+	var lastTimestamp time.Time
 
 	// series is already sorted oldest to newest data point based on insertion
 	for i := len(series) - 1; i >= 0; i-- {
@@ -262,7 +262,8 @@ func processAverageContainerMetricValue(series []loadstore.EntityValue, currentT
 
 		values = append(values, entity.Value)
 		ts := convertTimestampToTime(entity.Timestamp)
-		if ts.Before(lastTimestamp) {
+		// we want to keep the oldest timestamp used in the average
+		if (lastTimestamp == time.Time{}) || ts.Before(lastTimestamp) {
 			lastTimestamp = ts
 		}
 	}
