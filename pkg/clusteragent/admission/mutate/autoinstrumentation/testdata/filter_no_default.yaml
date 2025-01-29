@@ -1,0 +1,27 @@
+---
+apm_config:
+  instrumentation:
+    enabled: true
+    disabled_namespaces:
+      - "infra"
+      - "system"
+    targets:
+      - name: "Billing Service"
+        selector:
+          matchLabels:
+            app: "billing-service"
+        namespaceSelector:
+          matchNames:
+          - "billing-service"
+        ddTraceVersions:
+          python: "default"
+      - name: "Microservices"
+        selector:
+          matchLabels:
+            language: "java"
+        ddTraceVersions:
+          java: "default"
+      - name: "Unknown Language"
+        selector:
+          matchLabels:
+            language: "unknown"
