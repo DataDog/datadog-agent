@@ -976,7 +976,7 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
             "true"  # Add E2E_FIPS variable to the job, to force using FIPS
         )
         if 'E2E_PRE_INITIALIZED' in new_jobs[f"{job}-fips"]['variables']:
-            del job_details[f"{job}-fips"]['variables']['E2E_PRE_INITIALIZED']
+            del new_jobs[f"{job}-fips"]['variables']['E2E_PRE_INITIALIZED']
 
     with open("fips-e2e-gitlab-ci.yml", "w") as f:
         f.write(yaml.safe_dump(new_jobs))
