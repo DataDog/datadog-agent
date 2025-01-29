@@ -33,20 +33,114 @@ agent_dmg-x64-a7:
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
+# new-agent_dmg-x64-a7:
+#   stage: package_build
+#   tags: ["macos:ventura-arm64-test", "specific:true"]
+#   extends: [.macos_gitlab]
+#   # TODO
+#   # rules:
+#   #   - !reference [.on_macos_gui_change]
+#   #   - !reference [.on_packaging_change]
+#   #   - !reference [.on_main_or_release_branch]
+#   #   - !reference [.on_all_builds]
+#   #   - !reference [.manual]
+#   # needs: ["go_mod_tidy_check"] # TODO
+#   needs: []
+#   # needs: ["go_deps", "go_tools_deps"]
+#   timeout: 6h
+#   artifacts:
+#     expire_in: 2 weeks
+#     paths:
+#       # - $OMNIBUS_PACKAGE_DIR
+#       - /tmp/celian
+#   # before_script:
+#   #   - export RELEASE_VERSION=$RELEASE_VERSION_7
+#   # before_script: [] # TODO
+#   script:
+#     # - !reference [.retrieve_linux_go_deps]
+#     # - !reference [.retrieve_linux_go_tools_deps]
+#     # - echo $GOPATH
+#     # - exit
+#     # TODO
+#     # - sudo xcode-select -s /Applications/Xcode_14.2.app # Available: /Applications/Xcode-14.3.1.app /Applications/Xcode-15.2.0.app
+#     - !reference [.vault_login]
+#     - |
+#       echo AGENT_MAJOR_VERSION: $AGENT_MAJOR_VERSION
+#       echo RELEASE_VERSION: $RELEASE_VERSION
+#       echo OMNIBUS_BASE_DIR: $OMNIBUS_BASE_DIR
+#       echo USE_S3_CACHING: $USE_S3_CACHING
+#       echo GOPATH: $GOPATH
+#     -  |
+#       export INTEGRATION_WHEELS_CACHE_BUCKET=dd-agent-omnibus
+#       export INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD="true"
+#       export S3_OMNIBUS_CACHE_BUCKET="dd-ci-datadog-agent-omnibus-cache-build-stable"
+#       export S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS="true"
+#       export RELEASE_VERSION=$RELEASE_VERSION_7
+#       export AGENT_MAJOR_VERSION=7
+#       export PYTHON_RUNTIMES=3
+#       export INSTALL_DIR=/tmp/celian/bin
+#       export CONFIG_DIR=/tmp/celian/config
+#     #
+#     - mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
+#     # LINUX: - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor "$FLAVOR" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
+#     # MACOS SIGN: inv -e $INVOKE_TASK --hardened-runtime --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" || exit 1
+#     # MACOS NO SIGN: inv -e $INVOKE_TASK --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" || exit 1
+#     # TODO
+#     # - FLAVOR=datadog-agent
+#     # - 'echo FLAVOR: $FLAVOR'
+#     # - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
+#     - inv -e omnibus.build --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
+#     - echo Done
+#     - ls -la /tmp/celian/bin
+#     - ls -la /tmp/celian/config
+#     - du /tmp/celian
+
+#     # # TODO: xcode 14.2
+#     # - echo /Applications/Xcode*.app
+#     # # Remove preinstalled environment
+#     # -  |
+#     #    # The base box ships a few things that can have unwanted effects on the MacOS build.
+#     #     # For instance, we compile Python in the pipeline. If Python finds some libraries while
+#     #     # it's being compiled, then it will add a dynamic link to them and add some features.
+#     #     # In this particular case, Python sees that there is libintl.8.dylib (provided by the gettext brew package)
+#     #     # in the default include path, thus links to it. However, that's not something we need, so we don't actually
+#     #     # ship that library in the MacOS package. Since we have a feature to make a build fail if we depend on
+#     #     # something we don't ship, this made the build fail (see: https://github.com/DataDog/datadog-agent-macos-build/runs/1011733463?check_suite_focus=true).
+
+#     #     # In order to avoid such cases in the future where we use things we didn't expect to, we'd rather
+#     #     # start with a "clean" runner with the bare minimum, and only install the brew packages we require.
+#     #     brew remove --force --ignore-dependencies $(brew list --formula)
+
+#     #     # Also completely remove the ruby env, otherwise some files remain after the formula uninstall,
+#     #     # possibly causing gem version mismatch issues (eg. bundler).
+#     #     rm -rf /usr/local/lib/ruby
+#     #     # Remove existing Python installation as it may otherwise interfere
+#     #     sudo rm -rf /Library/Frameworks/Python.framework/Versions/*
+#     # # TODO: Cache brew deps
+#     # # TODO: Cache _omnibus_cache_key
+#     # - bash .gitlab/package_build/builder_setup.sh
+
+
+
+
+
+
+
+#     # - echo "About to build for $RELEASE_VERSION"
+#     # # remove artifacts from previous pipelines that may come from the cache
+#     # - rm -rf $OMNIBUS_PACKAGE_DIR/*
+#     # - mkdir -p $OMNIBUS_PACKAGE_DIR
+#     # - !reference [.setup_macos_github_app]
+#     # - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
+#     # - export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
+#     # - python3 -m pip install -r tasks/libs/requirements-github.txt
+#     # - inv -e github.trigger-macos --workflow-type "build" --datadog-agent-ref "$CI_COMMIT_SHA" --release-version "$RELEASE_VERSION" --destination "$OMNIBUS_PACKAGE_DIR" --version-cache "$VERSION_CACHE_CONTENT" --integrations-core-ref "$INTEGRATIONS_CORE_VERSION"
+#     # - !reference [.upload_sbom_artifacts]
+
 new-agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-arm64-test", "specific:true"]
-  extends: [.macos_gitlab]
-  # TODO
-  # rules:
-  #   - !reference [.on_macos_gui_change]
-  #   - !reference [.on_packaging_change]
-  #   - !reference [.on_main_or_release_branch]
-  #   - !reference [.on_all_builds]
-  #   - !reference [.manual]
-  # needs: ["go_mod_tidy_check"] # TODO
   needs: []
-  # needs: ["go_deps", "go_tools_deps"]
   timeout: 6h
   artifacts:
     expire_in: 2 weeks
@@ -55,24 +149,9 @@ new-agent_dmg-x64-a7:
       - /tmp/celian
   # before_script:
   #   - export RELEASE_VERSION=$RELEASE_VERSION_7
-  before_script: [] # TODO
   script:
-    # - !reference [.retrieve_linux_go_deps]
-    # - !reference [.retrieve_linux_go_tools_deps]
-    # - echo $GOPATH
-    # - exit
-    # TODO
-    - echo /Applications/Xcode*
-    - sudo xcode-select -s /Applications/Xcode_14.2.app
-    - exit
-    - !reference [.vault_login]
+    # Setup
     - |
-      echo AGENT_MAJOR_VERSION: $AGENT_MAJOR_VERSION
-      echo RELEASE_VERSION: $RELEASE_VERSION
-      echo OMNIBUS_BASE_DIR: $OMNIBUS_BASE_DIR
-      echo USE_S3_CACHING: $USE_S3_CACHING
-      echo GOPATH: $GOPATH
-    -  |
       export INTEGRATION_WHEELS_CACHE_BUCKET=dd-agent-omnibus
       export INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD="true"
       export S3_OMNIBUS_CACHE_BUCKET="dd-ci-datadog-agent-omnibus-cache-build-stable"
@@ -82,24 +161,11 @@ new-agent_dmg-x64-a7:
       export PYTHON_RUNTIMES=3
       export INSTALL_DIR=/tmp/celian/bin
       export CONFIG_DIR=/tmp/celian/config
-    #
+    - rm -f .build_setup; touch .build_setup
     - mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
-    # LINUX: - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor "$FLAVOR" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
-    # MACOS SIGN: inv -e $INVOKE_TASK --hardened-runtime --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" || exit 1
-    # MACOS NO SIGN: inv -e $INVOKE_TASK --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" || exit 1
-    # TODO
-    # - FLAVOR=datadog-agent
-    # - 'echo FLAVOR: $FLAVOR'
-    # - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
-    - inv -e omnibus.build --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
-    - echo Done
-    - ls -la /tmp/celian/bin
-    - ls -la /tmp/celian/config
-    - du /tmp/celian
-
-    # # TODO: xcode 14.2
-    # - echo /Applications/Xcode*.app
-    # # Remove preinstalled environment
+    # TODO: xcode 14.2?
+    - sudo xcode-select -s /Applications/Xcode_14.3.1.app
+    # TODO: # Remove preinstalled environment
     # -  |
     #    # The base box ships a few things that can have unwanted effects on the MacOS build.
     #     # For instance, we compile Python in the pipeline. If Python finds some libraries while
@@ -118,10 +184,18 @@ new-agent_dmg-x64-a7:
     #     rm -rf /usr/local/lib/ruby
     #     # Remove existing Python installation as it may otherwise interfere
     #     sudo rm -rf /Library/Frameworks/Python.framework/Versions/*
-    # # TODO: Cache brew deps
-    # # TODO: Cache _omnibus_cache_key
-    # - bash .gitlab/package_build/builder_setup.sh
-
+    # TODO: Cache brew deps
+    # TODO: Cache _omnibus_cache_key
+    - bash .gitlab/package_build/builder_setup.sh
+    # TODO: Add certificates to the keychain
+    # TODO: Cache ruby deps
+    - |
+      export GOMODCACHE=~/gomodcache
+      if [ "${USE_CACHING_PROXY_RUBY}" = "true" ]; then export BUNDLE_MIRROR__RUBYGEMS__ORG=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_GEMS_PATH}; fi
+      if [ "${USE_CACHING_PROXY_PYTHON}" = "true" ]; then export PIP_INDEX_URL=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_PYPI_PATH}; fi
+      mkdir -p $GOMODCACHE
+      bash ./scripts/build_script.sh
+    # TODO: Other things...
 
 
 
@@ -138,3 +212,12 @@ new-agent_dmg-x64-a7:
     # - python3 -m pip install -r tasks/libs/requirements-github.txt
     # - inv -e github.trigger-macos --workflow-type "build" --datadog-agent-ref "$CI_COMMIT_SHA" --release-version "$RELEASE_VERSION" --destination "$OMNIBUS_PACKAGE_DIR" --version-cache "$VERSION_CACHE_CONTENT" --integrations-core-ref "$INTEGRATIONS_CORE_VERSION"
     # - !reference [.upload_sbom_artifacts]
+
+    - echo "About to build for $RELEASE_VERSION"
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    - mkdir -p $OMNIBUS_PACKAGE_DIR
+    - !reference [.setup_macos_github_app]
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
+    - export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
+    - python3 -m pip install -r tasks/libs/requirements-github.txt
