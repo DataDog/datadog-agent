@@ -374,23 +374,28 @@ func (c *Check) getDeviceTags(device, mountpoint string) []string {
 }
 
 func (c *Check) getDeviceLabels(device string) ([]string, error) {
-	log.Debugf("Getting device labels for [device: %s]", device)
-	rawOutput, err := runBlkid(device)
-	log.Debugf("blkid outout: '%s' [error: %s]", rawOutput, err)
-	if err != nil {
-		return nil, err
-	}
-	labels := []string{}
-	labelRegex := regexp.MustCompile(`LABEL="([^"]+)"`)
-	scanner := bufio.NewScanner(strings.NewReader(rawOutput))
-	for scanner.Scan() {
-		line := scanner.Text()
-		if match := labelRegex.FindStringSubmatch(line); len(match) == 2 {
-			labels = append(labels, match[1])
+	if c.cfg.tagByLabel {
+		log.Debugf("Getting device labels for [device: %s]", device)
+		rawOutput, err := runBlkid(device)
+		log.Debugf("blkid outout: '%s' [error: %s]", rawOutput, err)
+		if err != nil {
+			return nil, err
 		}
+		labels := []string{}
+		labelRegex := regexp.MustCompile(`LABEL="([^"]+)"`)
+		scanner := bufio.NewScanner(strings.NewReader(rawOutput))
+		for scanner.Scan() {
+			line := scanner.Text()
+			if match := labelRegex.FindStringSubmatch(line); len(match) == 2 {
+				labels = append(labels, match[1])
+			}
+		}
+		log.Debugf("getLabelTags: %s", labels)
+		return labels, nil
+	} else {
+		log.Debugf("'tag_by_filesystem' not enabled, returning empty device labels list")
+		return []string{}, nil
 	}
-	log.Debugf("getLabelTags: %s", labels)
-	return labels, nil
 }
 
 // Factory creates a new check factory
