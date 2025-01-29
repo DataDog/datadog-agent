@@ -48,7 +48,8 @@ type podPatcher struct {
 
 var _ PodPatcher = podPatcher{}
 
-func NewPODPatcher(store *store, isLeader func() bool, client dynamic.Interface, eventRecorder record.EventRecorder) PodPatcher {
+// NewPodPatcher creates a new PodPatcher
+func NewPodPatcher(store *store, isLeader func() bool, client dynamic.Interface, eventRecorder record.EventRecorder) PodPatcher {
 	return podPatcher{
 		store:         store,
 		isLeader:      isLeader,

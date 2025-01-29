@@ -51,7 +51,7 @@ func StartWorkloadAutoscaling(
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "datadog-workload-autoscaler"})
 
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
-	podPatcher := workload.NewPODPatcher(store, le.IsLeader, apiCl.DynamicCl, eventRecorder)
+	podPatcher := workload.NewPodPatcher(store, le.IsLeader, apiCl.DynamicCl, eventRecorder)
 	podWatcher := workload.NewPodWatcher(wlm, podPatcher)
 	localRecommender := local.NewRecommender(podWatcher, store)
 
