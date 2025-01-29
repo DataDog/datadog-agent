@@ -8,7 +8,6 @@ package networkpathintegration
 
 import (
 	_ "embed"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -88,16 +87,12 @@ func (s *localMockTracerouteTestSuite) TestLocalMockTraceroute() {
 		assert.True(c, np.Hops[1].Reachable)
 	}
 
-	var obj string
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		nps, err := s.Env().FakeIntake.Client().GetNetpathEvents()
 		assert.NoError(c, err, "GetNetpathEvents() errors")
 		if !assert.NotNil(c, nps, "GetNetpathEvents() returned nil netpaths") {
 			return
 		}
-
-		objb, _ := json.Marshal(nps)
-		obj = string(objb)
 
 		var udpPath, tcpPath *aggregator.Netpath
 		for _, np := range nps {
@@ -122,5 +117,4 @@ func (s *localMockTracerouteTestSuite) TestLocalMockTraceroute() {
 		validatePath(c, tcpPath)
 		assert.Equal(c, uint16(443), tcpPath.Destination.Port)
 	}, 2*time.Minute, 3*time.Second)
-	println(obj)
 }
