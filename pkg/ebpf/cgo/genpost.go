@@ -116,13 +116,6 @@ func TestCgoAlignment_%[1]s(t *testing.T) {
 `
 
 func writeTests(rdr io.Reader, dstFile string, packageName string) error {
-	dst, err := os.Create(dstFile)
-	if err != nil {
-		return err
-	}
-	defer dst.Close()
-	fmt.Fprintf(dst, testHeaderTemplate, packageName)
-
 	var typeNames []string
 	structRegex := regexp.MustCompile("type ([^ ]+) struct")
 	scanner := bufio.NewScanner(rdr)
@@ -139,6 +132,13 @@ func writeTests(rdr io.Reader, dstFile string, packageName string) error {
 	if len(typeNames) == 0 {
 		return nil
 	}
+
+	dst, err := os.Create(dstFile)
+	if err != nil {
+		return err
+	}
+	defer dst.Close()
+	fmt.Fprintf(dst, testHeaderTemplate, packageName)
 
 	fmt.Fprint(dst, testImportTemplate)
 	for _, typeName := range typeNames {
