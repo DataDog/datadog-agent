@@ -58,6 +58,7 @@
     E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
     E2E_LOGS_PROCESSING_TEST_DEPTH: 1
+    ON_NIGHTLY_FIPS: "true"
   script:
     - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
@@ -139,6 +140,7 @@ new-e2e-containers-eks-init:
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
+    ON_NIGHTLY_FIPS: "false"
   allow_failure: true
 
 new-e2e-containers-eks:
@@ -281,6 +283,7 @@ new-e2e-npm-eks-init:
     TEAM: network-performance-monitoring
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_INIT_ONLY: "true"
+    ON_NIGHTLY_FIPS: "false"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
   allow_failure: true
 
@@ -440,6 +443,7 @@ new-e2e-installer:
     TEAM: fleet
     FLEET_INSTALL_METHOD: "install_script"
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2
+    ON_NIGHTLY_FIPS: "false" # Requires change about how the agent is installed if we want to test FIPS with the installer
 
 new-e2e-installer-windows:
   extends: .new_e2e_template
@@ -464,6 +468,7 @@ new-e2e-installer-windows:
     TARGETS: ./tests/installer/windows
     TEAM: fleet
     FLEET_INSTALL_METHOD: "windows"
+    ON_NIGHTLY_FIPS: "false" # Requires change about how the agent is installed if we want to test FIPS with the installer
   parallel:
     matrix:
       # agent-package
@@ -498,6 +503,7 @@ new-e2e-installer-ansible:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
     FLEET_INSTALL_METHOD: "ansible"
+    ON_NIGHTLY_FIPS: "false" # Requires change about how the agent is installed if we want to test FIPS with the installer
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template
@@ -585,6 +591,7 @@ new-e2e-otel-eks-init:
     TEAM: otel
     EXTRA_PARAMS: --run "TestOTelAgentIA(EKS|USTEKS)"
     E2E_INIT_ONLY: "true"
+    ON_NIGHTLY_FIPS: "false"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
 
   allow_failure: true
