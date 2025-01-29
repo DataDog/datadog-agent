@@ -1,3 +1,4 @@
+import os
 import unittest
 from unittest.mock import ANY, MagicMock, patch
 
@@ -140,9 +141,9 @@ class DynamicMockContext:
 
     def run(self, *args, **kwargs):
         try:
-            self.mock_context.run(*args, **kwargs)
+            return self.mock_context.run(*args, **kwargs)
         except NotImplementedError:
-            self.actual_context.run(*args, **kwargs)
+            return self.actual_context.run(*args, **kwargs)
 
 
 class TestOnDiskImageSizeCalculation(unittest.TestCase):
@@ -150,12 +151,33 @@ class TestOnDiskImageSizeCalculation(unittest.TestCase):
         actualContext = Context()
         c = MockContext(
             run={
-                'crane pull some_url output.tar"': Result('Done'),
+                'crane pull some_url output.tar': Result('Done'),
+                "tar -tvf output.tar | awk -F' ' '{print $3; print $6}'": Result(
+                    "3\nsome_metadata.json\n9728\nsome_archive.tar.gz"
+                ),
             }
         )
-        actualContext.run("cd tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/")
+        cwd = os.getcwd()
+        os.chdir(os.path.abspath('./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/'))
         context = DynamicMockContext(actual_context=actualContext, mock_context=c)
-        calculate_image_on_disk_size(context, "some_url")
+        calculated_size = calculate_image_on_disk_size(context, "some_url")
+        os.remove('./some_archive.tar.gz')
+        os.remove('some_metadata.json')
+        os.chdir(cwd)
+        assert calculated_size == 5861
 
     def test_metadata_only(self):
-        pass
+        actualContext = Context()
+        c = MockContext(
+            run={
+                'crane pull some_url output.tar': Result('Done'),
+                "tar -tvf output.tar | awk -F' ' '{print $3; print $6}'": Result("3\nsome_metadata.json"),
+            }
+        )
+        cwd = os.getcwd()
+        os.chdir(os.path.abspath('./tasks/unit_tests/testdata/fake_agent_image/without_tar_gz_archive/'))
+        context = DynamicMockContext(actual_context=actualContext, mock_context=c)
+        calculated_size = calculate_image_on_disk_size(context, "some_url")
+        os.remove('some_metadata.json')
+        os.chdir(cwd)
+        assert calculated_size == 3
