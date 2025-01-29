@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build kubeapiserver
+//go:build kubeapiserver && test
 
 package local
 
@@ -48,18 +48,9 @@ func TestProcessAverageContainerMetricValue(t *testing.T) {
 		{
 			name: "Series with valid values (non-stale)",
 			series: []loadstore.EntityValue{
-				{
-					Timestamp: loadstore.Timestamp(testTime.Unix() - 45),
-					Value:     loadstore.ValueType(4),
-				},
-				{
-					Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-					Value:     loadstore.ValueType(3),
-				},
-				{
-					Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-					Value:     loadstore.ValueType(2),
-				},
+				*newEntityValue(testTime.Unix()-45, 4),
+				*newEntityValue(testTime.Unix()-30, 3),
+				*newEntityValue(testTime.Unix()-15, 2),
 			},
 			currentTime:   testTime,
 			averageMetric: 3.0,
@@ -69,18 +60,9 @@ func TestProcessAverageContainerMetricValue(t *testing.T) {
 		{
 			name: "Series with some stale values",
 			series: []loadstore.EntityValue{
-				{
-					Timestamp: loadstore.Timestamp(testTime.Unix() - 270),
-					Value:     loadstore.ValueType(4),
-				},
-				{
-					Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-					Value:     loadstore.ValueType(4),
-				},
-				{
-					Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-					Value:     loadstore.ValueType(2),
-				},
+				*newEntityValue(testTime.Unix()-270, 4),
+				*newEntityValue(testTime.Unix()-30, 4),
+				*newEntityValue(testTime.Unix()-15, 2),
 			},
 			currentTime:   testTime,
 			averageMetric: 3.0,
@@ -178,14 +160,8 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 						PodName: "pod-name2",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-1": {
-								{
-									Value:     loadstore.ValueType(2e8),
-									Timestamp: loadstore.Timestamp(time.Now().Unix()),
-								},
-								{
-									Value:     loadstore.ValueType(3e8),
-									Timestamp: loadstore.Timestamp(time.Now().Unix() - 15),
-								},
+								*newEntityValue(time.Now().Unix(), 2e8),
+								*newEntityValue(time.Now().Unix()-15, 3e8),
 							},
 						},
 					},
@@ -225,14 +201,8 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(2.5e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(3e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2.5e8),
+								*newEntityValue(time.Now().Unix()-30, 3e8),
 							},
 						},
 					},
@@ -287,24 +257,12 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(2e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(3e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2e8),
+								*newEntityValue(time.Now().Unix()-30, 3e8),
 							},
 							"container-name2": {
-								{
-									Value:     loadstore.ValueType(2e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(4e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2e8),
+								*newEntityValue(time.Now().Unix()-30, 4e8),
 							},
 						},
 					},
@@ -371,14 +329,8 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(2e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(3e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2e8),
+								*newEntityValue(time.Now().Unix()-30, 3e8),
 							},
 						},
 					},
@@ -386,14 +338,8 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 						PodName: "pod-name2",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name2": {
-								{
-									Value:     loadstore.ValueType(2e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(4e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2e8),
+								*newEntityValue(time.Now().Unix()-30, 4e8),
 							},
 						},
 					},
@@ -461,14 +407,8 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(2e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(3e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2e8),
+								*newEntityValue(time.Now().Unix()-30, 3e8),
 							},
 						},
 					},
@@ -586,14 +526,8 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 						PodName: "pod-name2",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-1": {
-								{
-									Value:     loadstore.ValueType(2e8),
-									Timestamp: loadstore.Timestamp(time.Now().Unix()),
-								},
-								{
-									Value:     loadstore.ValueType(3e8),
-									Timestamp: loadstore.Timestamp(time.Now().Unix() - 15),
-								},
+								*newEntityValue(time.Now().Unix(), 2e8),
+								*newEntityValue(time.Now().Unix()-15, 3e8),
 							},
 						},
 					},
@@ -633,14 +567,8 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(2e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(3e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2e8),
+								*newEntityValue(time.Now().Unix()-30, 3e8),
 							},
 						},
 					},
@@ -695,24 +623,12 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(2e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(3e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2e8),
+								*newEntityValue(time.Now().Unix()-30, 3e8),
 							},
 							"container-name2": {
-								{
-									Value:     loadstore.ValueType(2e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(4e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2e8),
+								*newEntityValue(time.Now().Unix()-30, 4e8),
 							},
 						},
 					},
@@ -779,14 +695,8 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(2e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(3e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2e8),
+								*newEntityValue(time.Now().Unix()-30, 3e8),
 							},
 						},
 					},
@@ -794,14 +704,8 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 						PodName: "pod-name2",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(2e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(4e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2e8),
+								*newEntityValue(time.Now().Unix()-30, 4e8),
 							},
 						},
 					},
@@ -869,14 +773,8 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(2e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(3e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2e8),
+								*newEntityValue(time.Now().Unix()-30, 3e8),
 							},
 						},
 					},
@@ -1047,14 +945,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name2",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-1": {
-								{
-									Value:     loadstore.ValueType(2e8),
-									Timestamp: loadstore.Timestamp(time.Now().Unix()),
-								},
-								{
-									Value:     loadstore.ValueType(3e8),
-									Timestamp: loadstore.Timestamp(time.Now().Unix() - 15),
-								},
+								*newEntityValue(time.Now().Unix(), 2e8),
+								*newEntityValue(time.Now().Unix()-15, 3e8),
 							},
 						},
 					},
@@ -1163,24 +1055,12 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(1e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(1.23e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 1e8),
+								*newEntityValue(time.Now().Unix()-30, 1.23e8),
 							},
 							"container-name2": {
-								{
-									Value:     loadstore.ValueType(1.4e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(1.54e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(testTime.Unix()-15, 1.4e8),
+								*newEntityValue(testTime.Unix()-30, 1.54e8),
 							},
 						},
 					},
@@ -1188,14 +1068,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name2",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(1e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(1.1e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 1e8),
+								*newEntityValue(time.Now().Unix()-30, 1.1e8),
 							},
 						},
 					},
@@ -1203,14 +1077,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name3",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(1.1e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(1.1e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 1.1e8),
+								*newEntityValue(time.Now().Unix()-30, 1.1e8),
 							},
 						},
 					},
@@ -1218,14 +1086,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name4",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(1.2e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(1.2e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 1.2e8),
+								*newEntityValue(time.Now().Unix()-30, 1.2e8),
 							},
 						},
 					},
@@ -1344,24 +1206,12 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(2.4e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(2.3e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2.4e8),
+								*newEntityValue(time.Now().Unix()-30, 2.3e8),
 							},
 							"container-name2": {
-								{
-									Value:     loadstore.ValueType(2.44e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(2.3e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2.44e8),
+								*newEntityValue(time.Now().Unix()-30, 2.3e8),
 							},
 						},
 					},
@@ -1369,14 +1219,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name2",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(2.4e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(2.2e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2.4e8),
+								*newEntityValue(time.Now().Unix()-30, 2.2e8),
 							},
 						},
 					},
@@ -1384,14 +1228,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name3",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(2.3e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(2.4e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2.3e8),
+								*newEntityValue(time.Now().Unix()-30, 2.4e8),
 							},
 						},
 					},
@@ -1399,14 +1237,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name4",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(2.4e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(2.4e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2.4e8),
+								*newEntityValue(time.Now().Unix()-30, 2.4e8),
 							},
 						},
 					},
@@ -1517,14 +1349,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(2.4e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(2.3e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2.4e8),
+								*newEntityValue(time.Now().Unix()-30, 2.3e8),
 							},
 						},
 					},
@@ -1532,14 +1358,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name3",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(2.4e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(2.3e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 2.4e8),
+								*newEntityValue(time.Now().Unix()-30, 2.3e8),
 							},
 						},
 					},
@@ -1650,14 +1470,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(0.7e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(0.5e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 0.7e8),
+								*newEntityValue(time.Now().Unix()-30, 0.5e8),
 							},
 						},
 					},
@@ -1665,14 +1479,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name4",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								{
-									Value:     loadstore.ValueType(0.6e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 15),
-								},
-								{
-									Value:     loadstore.ValueType(0.7e8),
-									Timestamp: loadstore.Timestamp(testTime.Unix() - 30),
-								},
+								*newEntityValue(time.Now().Unix()-15, 0.6e8),
+								*newEntityValue(time.Now().Unix()-30, 0.7e8),
 							},
 						},
 					},
@@ -1721,36 +1529,13 @@ func TestRecommend(t *testing.T) {
 }
 
 func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
-	// Setup podwatcher
-	pw := workload.NewPodWatcher(nil, nil)
-	pod := &workloadmeta.KubernetesPod{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesPod,
-			ID:   "p1",
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:      "pod1",
-			Namespace: "default",
-		},
-		Owners: []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: "deploymentName-766dbb7846"}},
-		Containers: []workloadmeta.OrchestratorContainer{
-			{
-				ID:   "container-id1",
-				Name: "container-name1",
-				Resources: workloadmeta.ContainerResources{
-					CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
-					MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
-				},
-			},
-		},
-	}
-	event := workloadmeta.Event{
-		Type:   workloadmeta.EventTypeSet,
-		Entity: pod,
-	}
-	pw.HandleEvent(event)
 	deploymentName := "deploymentName"
 	ns := "default"
+
+	// Setup podwatcher
+	pw := workload.NewPodWatcher(nil, nil)
+	pw.HandleEvent(newPodEvent(ns, deploymentName, "pod1", []string{"container-name1"}))
+
 	expectedOwner := workload.NamespacedPodOwner{
 		Namespace: ns,
 		Kind:      kubernetes.DeploymentKind,
@@ -1762,25 +1547,10 @@ func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
 	// Setup loadstore
 	lStore := loadstore.GetWorkloadMetricStore(context.TODO())
 	entities := make(map[*loadstore.Entity]*loadstore.EntityValue)
-	entity := loadstore.Entity{
-		EntityType:    loadstore.ContainerType,
-		EntityName:    "container-name1",
-		Namespace:     ns,
-		MetricName:    "container.cpu.usage",
-		PodName:       pod.EntityMeta.Name,
-		PodOwnerName:  deploymentName,
-		PodOwnerkind:  loadstore.Deployment,
-		ContainerName: "container-name1",
-	}
-	entities[&entity] = &loadstore.EntityValue{
-		Timestamp: loadstore.Timestamp(time.Now().Unix() - 30),
-		Value:     loadstore.ValueType(2.4e8),
-	}
+	entity := newEntity("container.cpu.usage", ns, deploymentName, "pod1", "container-name1")
+	entities[entity] = newEntityValue(time.Now().Unix()-30, 2.4e8)
 	lStore.SetEntitiesValues(entities)
-	entities[&entity] = &loadstore.EntityValue{
-		Timestamp: loadstore.Timestamp(time.Now().Unix() - 15),
-		Value:     loadstore.ValueType(2.45e8),
-	}
+	entities[entity] = newEntityValue(time.Now().Unix()-15, 2.45e8)
 	lStore.SetEntitiesValues(entities)
 	queryResult := lStore.GetMetricsRaw("container.cpu.usage", ns, deploymentName, "")
 	assert.Len(t, queryResult.Results, 1)
@@ -1825,4 +1595,7 @@ func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
 	res, err := r.calculateHorizontalRecommendations(dpai, lStore)
 	assert.NoError(t, err)
 	assert.Equal(t, int32(2), res.Replicas)
+
+	// cleanup
+	resetWorkloadMetricStore()
 }
