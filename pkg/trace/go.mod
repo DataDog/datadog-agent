@@ -10,16 +10,16 @@ go 1.22.0
 replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
 
 require (
-	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.63.0-rc.1
-	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.63.0-rc.1
-	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.63.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.63.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/proto v0.63.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.63.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.63.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.63.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.63.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.63.0-rc.1
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.63.0-rc.2
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.63.0-rc.2
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.63.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.63.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.63.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.63.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.63.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.63.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.63.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.63.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.24.0
 	github.com/DataDog/sketches-go v1.4.6
@@ -52,7 +52,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.63.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.63.0-rc.2
 	github.com/shirou/gopsutil/v4 v4.24.12
 	go.opentelemetry.io/collector/component/componenttest v0.118.0
 )
@@ -65,7 +65,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/version v0.63.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.63.0-rc.2 // indirect
 	github.com/DataDog/go-sqllexer v0.0.20 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
