@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -113,6 +114,20 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 			}
 		}
 		c.sendPartitionMetrics(sender, usage, tags)
+
+		if c.cfg.serviceCheckRw {
+			checkStatus := servicecheck.ServiceCheckUnknown
+			for _, opt := range partition.Opts {
+				if opt == "rw" {
+					checkStatus = servicecheck.ServiceCheckOK
+					break
+				} else if opt == "ro" {
+					checkStatus = servicecheck.ServiceCheckCritical
+					break
+				}
+			}
+			sender.ServiceCheck("disk.read_write", checkStatus, "", tags, "")
+		}
 	}
 
 	return nil

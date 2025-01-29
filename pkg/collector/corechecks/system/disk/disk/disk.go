@@ -45,6 +45,7 @@ type diskConfig struct {
 	tagByLabel          bool
 	useLsblk            bool
 	blkidCacheFile      string
+	serviceCheckRw      bool
 }
 
 func NewDiskConfig() *diskConfig {
@@ -64,6 +65,7 @@ func NewDiskConfig() *diskConfig {
 		tagByLabel:          true,
 		useLsblk:            false,
 		blkidCacheFile:      "",
+		serviceCheckRw:      false,
 	}
 }
 
@@ -182,6 +184,10 @@ func (c *Check) diskConfigure(data integration.Data, initConfig integration.Data
 	}
 	if c.cfg.tagByLabel && c.cfg.useLsblk && c.cfg.blkidCacheFile != "" {
 		return errors.New("Only one of 'use_lsblk' and 'blkid_cache_file' can be set at the same time.")
+	}
+	serviceCheckRw, found := unmarshalledInstanceConfig["service_check_rw"]
+	if serviceCheckRw, ok := serviceCheckRw.(bool); found && ok {
+		c.cfg.serviceCheckRw = serviceCheckRw
 	}
 
 	return nil
