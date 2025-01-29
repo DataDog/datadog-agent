@@ -58,25 +58,23 @@ function do_with_retries() {
 
 # Install or upgrade brew (will also install Command Line Tools)
 
-# NOTE: The macOS runner has HOMEBREW_NO_INSTALL_FROM_API set, which makes it
-# try to clone homebrew-core. At one point, cloning of homebrew-core started
-# returning the following error for us in about 50 % of cases:
-#     remote: fatal: object 80a071c049c4f2e465e0b1c40cfc6325005ab05b cannot be read
-#     remote: aborting due to possible repository corruption on the remote side.
-# Unsetting HOMEBREW_NO_INSTALL_FROM_API makes brew use formulas from
-# https://formulae.brew.sh/, thus avoiding cloning the repository, hence
-# avoiding the error.
-brew untap --force homebrew/cask
-rm -rf /usr/local/Homebrew/Library/Taps/homebrew/homebrew-core
+# TODO
+# # NOTE: The macOS runner has HOMEBREW_NO_INSTALL_FROM_API set, which makes it
+# # try to clone homebrew-core. At one point, cloning of homebrew-core started
+# # returning the following error for us in about 50 % of cases:
+# #     remote: fatal: object 80a071c049c4f2e465e0b1c40cfc6325005ab05b cannot be read
+# #     remote: aborting due to possible repository corruption on the remote side.
+# # Unsetting HOMEBREW_NO_INSTALL_FROM_API makes brew use formulas from
+# # https://formulae.brew.sh/, thus avoiding cloning the repository, hence
+# # avoiding the error.
+# brew untap --force homebrew/cask
+# rm -rf /usr/local/Homebrew/Library/Taps/homebrew/homebrew-core
 
 do_with_retries "CI=1; unset HOMEBREW_NO_INSTALL_FROM_API; $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" 5
 
 # Add our custom repository
-echo TAP
 brew tap
-brew tap --force DataDog/datadog-agent-macos-build
-# brew tap DataDog/datadog-agent-macos-build
-echo END
+brew tap DataDog/datadog-agent-macos-build
 
 brew uninstall python@2 -f || true # Uninstall python 2 if present
 brew uninstall python -f || true # Uninstall python 3 if present
