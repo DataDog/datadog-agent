@@ -35,19 +35,6 @@ type ProfileDefinition struct {
 	Version uint64 `yaml:"version,omitempty" json:"version"`
 }
 
-// GetVendor returns the static vendor for this profile, if one is set
-func (p *ProfileDefinition) GetVendor() string {
-	device, ok := p.Metadata["device"]
-	if !ok {
-		return ""
-	}
-	vendor, ok := device.Fields["vendor"]
-	if !ok {
-		return ""
-	}
-	return vendor.Value
-}
-
 // DeviceProfileRcConfig represent the profile stored in remote config.
 type DeviceProfileRcConfig struct {
 	Profile ProfileDefinition `json:"profile_definition"`
