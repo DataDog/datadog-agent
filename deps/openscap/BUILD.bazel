@@ -52,7 +52,7 @@ cmake(
     }),
     visibility = ["//visibility:public"],
     deps = [
-        "//deps/attr",
+        "//deps/libattr",
         "//deps/dbus",
         "//deps/libacl",
         "//deps/libgcrypt",

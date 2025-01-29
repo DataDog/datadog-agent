@@ -13,6 +13,6 @@ configure_make(
     }),
     visibility = ["//visibility:public"],
     deps = [
-        "//deps/attr",
+        "//deps/libattr",
     ],
 )

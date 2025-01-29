@@ -76,12 +76,12 @@ http_archive(
     url = "https://python.org/ftp/python/{0}/Python-{0}.tgz".format(PYTHON3_VERSION),
 )
 
-ATTR_VERSION = "2.5.1"
+ATTR_VERSION = "2.5.2"
 
 http_archive(
-    name = "attr",
+    name = "libattr",
     build_file_content = all_content,
-    sha256 = "db448a626f9313a1a970d636767316a8da32aede70518b8050fa0de7947adc32",
+    sha256 = "f2e97b0ab7ce293681ab701915766190d607a1dba7fae8a718138150b700a70b",
     strip_prefix = "attr-{0}".format(ATTR_VERSION),
     url = "http://download.savannah.nongnu.org/releases/attr/attr-{0}.tar.xz".format(ATTR_VERSION),
 )

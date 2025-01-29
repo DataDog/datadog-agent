@@ -1,16 +1,18 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name = "attr",
+    name = "libattr",
     configure_options = [
         "--disable-static",
         "--disable-nls",
     ],
-    lib_source = "@attr//:all",
+    lib_source = "@libattr//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
             "libattr.so",
         ],
     }),
     visibility = ["//visibility:public"],
+    # Workaround for https://github.com/bazel-contrib/rules_foreign_cc/issues/1160
+    env = {"LD": ""},
 )
