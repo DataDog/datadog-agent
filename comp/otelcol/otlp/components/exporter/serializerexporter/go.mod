@@ -68,12 +68,12 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/metrics v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/proto v0.63.0-devel
+	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/serializer v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/tagset v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.61.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.24.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.24.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.24.1-0.20250129101016-29cbfb25255b
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.24.1-0.20250129101016-29cbfb25255b
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.24.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.118.0
@@ -212,12 +212,12 @@ require (
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/fx v1.23.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8 // indirect
+	golang.org/x/exp v0.0.0-20250128182459-e0ece0dbea4c // indirect
 	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
-	google.golang.org/grpc v1.69.4 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250127172529-29210b9bc287 // indirect
+	google.golang.org/grpc v1.70.0 // indirect
 	google.golang.org/protobuf v1.36.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
