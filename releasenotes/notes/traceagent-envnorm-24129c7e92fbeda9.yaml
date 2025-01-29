@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    APM: Fix an issue where the environment tag was normalized incorrectly. This resulted in some valid envs e.g. (123foo) having the leading digits removed, this fix allows these envs to pass through unedited.
+    APM: Fix an issue where the environment tag was normalized incorrectly. This resulted in some valid envs, like `123foo`, having the leading digits removed. This fix allows these envs to pass through unedited.
