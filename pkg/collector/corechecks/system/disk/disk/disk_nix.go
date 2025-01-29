@@ -9,6 +9,7 @@ package disk
 
 import (
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -24,8 +25,14 @@ import (
 var (
 	diskPartitions = disk.Partitions
 	diskUsage      = disk.Usage
-
-	ioCounters = disk.IOCounters
+	ioCounters     = disk.IOCounters
+	runBlkid       = func(device string) (string, error) {
+		out, err := exec.Command("blkid", device).Output()
+		if err != nil {
+			return "", err
+		}
+		return string(out), nil
+	}
 )
 
 // Check stores disk-specific additional fields
@@ -96,6 +103,16 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 		tags = append(tags, fmt.Sprintf("device_name:%s", filepath.Base(partition.Device)))
 		tags = append(tags, c.getDeviceTags(partition.Device, partition.Mountpoint)...)
+		if c.cfg.tagByLabel {
+			labels, err := c.getDeviceLabels(partition.Device)
+			if err != nil {
+				log.Debugf("Unable to get label tags of %s device: %s", partition.Device, err)
+			} else {
+				for _, label := range labels {
+					tags = append(tags, fmt.Sprintf("label:%s", label), fmt.Sprintf("device_label:%s", label))
+				}
+			}
+		}
 		c.sendPartitionMetrics(sender, usage, tags)
 	}
 

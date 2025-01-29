@@ -8,6 +8,7 @@
 package disk
 
 import (
+	"bufio"
 	"errors"
 	"regexp"
 	"strings"
@@ -370,6 +371,26 @@ func (c *Check) getDeviceTags(device, mountpoint string) []string {
 	}
 	log.Debugf("getDeviceTags: %s", tags)
 	return tags
+}
+
+func (c *Check) getDeviceLabels(device string) ([]string, error) {
+	log.Debugf("Getting device labels for [device: %s]", device)
+	rawOutput, err := runBlkid(device)
+	log.Debugf("blkid outout: '%s' [error: %s]", rawOutput, err)
+	if err != nil {
+		return nil, err
+	}
+	labels := []string{}
+	labelRegex := regexp.MustCompile(`LABEL="([^"]+)"`)
+	scanner := bufio.NewScanner(strings.NewReader(rawOutput))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if match := labelRegex.FindStringSubmatch(line); len(match) == 2 {
+			labels = append(labels, match[1])
+		}
+	}
+	log.Debugf("getLabelTags: %s", labels)
+	return labels, nil
 }
 
 // Factory creates a new check factory
