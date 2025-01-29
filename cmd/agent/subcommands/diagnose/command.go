@@ -216,6 +216,20 @@ This command print the inventory-otel metadata payload. This payload is used by 
 		},
 	}
 
+	payloadInventoriesHaAgentCmd := &cobra.Command{
+		Use:   "inventory-ha-agent",
+		Short: "Print the Inventory HA Agent metadata payload.",
+		Long: `
+This command print the inventory-ha-agent metadata payload. This payload is used by the 'HA Agent' feature.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("inventory-ha-agent")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+
 	payloadInventoriesChecksCmd := &cobra.Command{
 		Use:   "inventory-checks",
 		Short: "[internal] Print the Inventory checks metadata payload.",
@@ -290,6 +304,7 @@ This command print the security-agent metadata payload. This payload is used by 
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesOtelCmd)
+	showPayloadCommand.AddCommand(payloadInventoriesHaAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesPkgSigningCmd)
 	showPayloadCommand.AddCommand(payloadSystemProbeCmd)

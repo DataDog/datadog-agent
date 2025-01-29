@@ -8,9 +8,11 @@
 package metadata
 
 import (
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
+	inventoryhaagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryhaagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel/inventoryotelimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
@@ -36,6 +38,8 @@ func Bundle() fxutil.BundleOptions {
 		packagesigningimpl.Module(),
 		systemprobe.Module(),
 		securityagent.Module(),
+		haagentfx.Module(),
+		inventoryhaagentfx.Module(),
 	)
 }
 
