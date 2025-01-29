@@ -68,12 +68,12 @@ function do_with_retries() {
 # # https://formulae.brew.sh/, thus avoiding cloning the repository, hence
 # # avoiding the error.
 # brew untap --force homebrew/cask
+# TODO: Need this?
 # rm -rf /usr/local/Homebrew/Library/Taps/homebrew/homebrew-core
 
 do_with_retries "CI=1; unset HOMEBREW_NO_INSTALL_FROM_API; $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" 5
 
 # Add our custom repository
-brew tap
 brew tap DataDog/datadog-agent-macos-build
 
 brew uninstall python@2 -f || true # Uninstall python 2 if present
