@@ -156,6 +156,7 @@ new-e2e-containers-eks:
     TEAM: container-integrations
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_PRE_INITIALIZED: "true"
+    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
@@ -567,6 +568,7 @@ new-e2e-windows-security-agent:
     - deploy_windows_testing-a7
     - tests_windows_secagent_x64
   variables:
+    ON_NIGHTLY_FIPS: "true"
     TARGETS: ./tests/security-agent-functional
     TEAM: windows-kernel-integrations
 
@@ -699,6 +701,54 @@ generate-flakes-finder-pipeline:
       - $CI_PROJECT_DIR/flake-finder-gitlab-ci.yml
 
 trigger-flakes-finder:
+  stage: e2e
+  needs: [generate-flakes-finder-pipeline]
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.manual]
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    PARENT_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    PARENT_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
+  trigger:
+    include:
+      - artifact: flake-finder-gitlab-ci.yml
+        job: generate-flakes-finder-pipeline
+  allow_failure: true
+
+generate-fips-e2e-pipeline:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: e2e
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.manual]
+  needs:
+    - compute_gitlab_ci_config
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
+    - deploy_windows_testing-a7
+    - deploy_installer_oci
+    - deploy_agent_oci
+    - qa_cws_instrumentation
+    - qa_dca
+    - qa_dogstatsd
+    - qa_agent
+    - qa_agent_ot
+    - tests_windows_sysprobe_x64
+  tags: ["arch:amd64"]
+  script:
+    - inv -e pipeline.generate-fips-e2e-pipeline
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/flake-finder-gitlab-ci.yml
+
+trigger-fips-e2e:
   stage: e2e
   needs: [generate-flakes-finder-pipeline]
   rules:
