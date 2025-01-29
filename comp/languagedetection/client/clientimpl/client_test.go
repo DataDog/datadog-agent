@@ -139,6 +139,16 @@ func TestClientSend(t *testing.T) {
 			Kind: "replicaset",
 			ID:   "dummyid",
 		},
+		containers: map[langUtil.Container]struct{}{
+			{
+				Name: "java-cont",
+				Init: false,
+			}: {},
+			{
+				Name: "go-cont",
+				Init: true,
+			}: {},
+		},
 	}
 	podName := "nginx"
 	client.currentBatch[podName] = podInfo
@@ -192,6 +202,16 @@ func TestClientSendFreshPods(t *testing.T) {
 			Name: "dummyrs",
 			Kind: "replicaset",
 			ID:   "dummyid",
+		},
+		containers: map[langUtil.Container]struct{}{
+			{
+				Name: "java-cont",
+				Init: false,
+			}: {},
+			{
+				Name: "go-cont",
+				Init: true,
+			}: {},
 		},
 	}
 	podName := "nginx"
