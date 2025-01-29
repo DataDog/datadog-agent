@@ -932,7 +932,7 @@ func TestClientProcessEvent_PartialContainersWithUnsupportedLang(t *testing.T) {
 	assert.Empty(t, client.processesWithoutPod)
 	assert.Equal(t, map[string]struct{}{"nginx-pod-name": {}}, client.freshlyUpdatedPods)
 
-	// Ensure that the client sends the data even if we recieve a container and its processes
+	// Ensure that the client sends the data even if we receive a container and its processes
 	// but no language is detected one some of the containers
 	assert.NotEmpty(t, client.getFreshBatchProto())
 	assert.NotEmpty(t, client.getCurrentBatchProto())
