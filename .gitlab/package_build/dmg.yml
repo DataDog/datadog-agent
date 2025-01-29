@@ -44,8 +44,8 @@ new-agent_dmg-x64-a7:
   #   - !reference [.on_all_builds]
   #   - !reference [.manual]
   # needs: ["go_mod_tidy_check"] # TODO
-  # needs: []
-  needs: ["go_deps", "go_tools_deps"]
+  needs: []
+  # needs: ["go_deps", "go_tools_deps"]
   timeout: 6h
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
@@ -55,10 +55,10 @@ new-agent_dmg-x64-a7:
       # - $OMNIBUS_PACKAGE_DIR
       - /tmp/celian
   script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
-    - echo $GOPATH
-    - exit
+    # - !reference [.retrieve_linux_go_deps]
+    # - !reference [.retrieve_linux_go_tools_deps]
+    # - echo $GOPATH
+    # - exit
     - mkdir -p /tmp/celian/bin /tmp/celian/config
     - export INSTALL_DIR=/tmp/celian/bin
     - export CONFIG_DIR=/tmp/celian/config
@@ -67,7 +67,8 @@ new-agent_dmg-x64-a7:
     - 'echo OMNIBUS_BASE_DIR: $OMNIBUS_BASE_DIR'
     - 'echo USE_S3_CACHING: $USE_S3_CACHING'
     - 'echo GOPATH: $GOPATH'
-    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor "$FLAVOR" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
+    - 'echo FLAVOR: $FLAVOR'
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --flavor "$FLAVOR" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
     - echo Done
     - ls -la /tmp/celian/bin
     - ls -la /tmp/celian/config
