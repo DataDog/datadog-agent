@@ -203,14 +203,19 @@ http_archive(
     url = "http://ftp.rpm.org/popt/releases/popt-1.x/popt-{0}.tar.gz".format(POPT_VERSION),
 )
 
-ELFUTILS_VERSION = "0.189"
+ELFUTILS_VERSION = "0.192"
 
 http_archive(
     name = "elfutils",
     build_file_content = all_content,
-    sha256 = "39bd8f1a338e2b7cd4abc3ff11a0eddc6e690f69578a57478d8179b4148708c8",
+    sha256 = "616099beae24aba11f9b63d86ca6cc8d566d968b802391334c91df54eab416b4",
     strip_prefix = "elfutils-{0}".format(ELFUTILS_VERSION),
     url = "https://sourceware.org/elfutils/ftp/{0}/elfutils-{0}.tar.bz2".format(ELFUTILS_VERSION),
+    patch_args = ["-p1"],
+    patch_tool = "patch",
+    patches = [
+        "//deps/elfutils:patches/0001-don-t-hardcode-rpath-link-to-LDFLAGS.patch",
+    ],
 )
 
 # Defines a zstd target for the lib

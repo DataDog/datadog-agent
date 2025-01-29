@@ -3,23 +3,14 @@ load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 configure_make(
     name = "elfutils",
     configure_options = [
-        "--with-zlib=$$EXT_BUILD_DEPS/zlib",
-        "--with-lzma=$$EXT_BUILD_DEPS/lzma",
-        "--with-sax1",
-        "--without-iconv",
-        "--without-python",
-        "--without-icu",
-        "--without-debug",
-        "--without-mem-debug",
-        "--without-run-debug",
-        "--without-legacy",
-        "--without-catalog",
-        "--without-docbook",
-        "--disable-static",
+        "--disable-debuginfod",
+        "--disable-libdebuginfod",
+        "--disable-nls",
     ],
     lib_source = "@elfutils//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
+            "libelf.so",
         ],
     }),
     visibility = ["//visibility:public"],
@@ -28,4 +19,6 @@ configure_make(
         "@xz//:lzma",
         "@zlib",
     ],
+    configure_in_place = True,
+    autoreconf = True,
 )
