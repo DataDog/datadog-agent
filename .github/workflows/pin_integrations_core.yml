@@ -1,4 +1,4 @@
-name: Pin Integrations Core
+name: Bump Integrations Core
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ env:
 permissions: {}
 
 jobs:
-    pin_integrations_core:
+    bump_integrations_core:
         runs-on: ubuntu-latest
         permissions:
           contents: write
@@ -34,7 +34,7 @@ jobs:
                 pip install -r tasks/libs/requirements-github.txt
                 pip install -r tasks/requirements_release_tasks.txt
 
-            - name: Pin Integrations Core
+            - name: Bump Integrations Core
               run: |
-                inv release.pin-integrations-core --slack-webhook ${{ secrets.PIN_INTEGRATIONS_CORE_SLACK_WEBHOOK }}
+                inv release.bump-integrations-core --slack-webhook ${{ secrets.BUMP_INTEGRATIONS_CORE_SLACK_WEBHOOK }}
 
