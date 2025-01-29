@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// team: agent-metrics-logs
+// team: agent-metrics
 
 // ServerlessDogstatsd is the interface for the serverless dogstatsd server.
 type ServerlessDogstatsd interface {
