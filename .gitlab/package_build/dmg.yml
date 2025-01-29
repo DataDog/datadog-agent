@@ -34,13 +34,15 @@ agent_dmg-x64-a7:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 new-agent_dmg-x64-a7:
+  stage: package_build
   tags: ["macos:ventura-arm64-test", "specific:true"]
-  rules:
-    - !reference [.on_macos_gui_change]
-    - !reference [.on_packaging_change]
-    - !reference [.on_main_or_release_branch]
-    - !reference [.on_all_builds]
-    - !reference [.manual]
+  # TODO
+  # rules:
+  #   - !reference [.on_macos_gui_change]
+  #   - !reference [.on_packaging_change]
+  #   - !reference [.on_main_or_release_branch]
+  #   - !reference [.on_all_builds]
+  #   - !reference [.manual]
   # needs: ["go_mod_tidy_check"] # TODO
   needs: []
   timeout: 6h
