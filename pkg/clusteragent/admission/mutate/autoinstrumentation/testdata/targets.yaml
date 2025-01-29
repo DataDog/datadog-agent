@@ -1,0 +1,21 @@
+---
+apm_config:
+  instrumentation:
+    enabled: true
+    disabled_namespaces:
+      - "hacks"
+    targets:
+      - name: "Billing Service"
+        selector:
+          matchLabels:
+            app: "billing-service"
+          matchExpressions:
+            - key: "env"
+              operator: "In"
+              values:
+                - "prod"
+        namespaceSelector:
+          matchNames:
+          - "billing"
+        ddTraceVersions:
+          java: "default"

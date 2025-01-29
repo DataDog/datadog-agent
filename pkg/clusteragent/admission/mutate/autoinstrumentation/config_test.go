@@ -53,8 +53,56 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			},
 		},
 		{
+			name:       "valid targets based config",
+			configPath: "testdata/targets.yaml",
+			shouldErr:  false,
+			expected: &InstrumentationConfig{
+				Enabled:           true,
+				EnabledNamespaces: []string{},
+				InjectorImageTag:  "0",
+				LibVersions:       map[string]string{},
+				Version:           "v2",
+				DisabledNamespaces: []string{
+					"hacks",
+				},
+				Targets: []Target{
+					{
+						Name: "Billing Service",
+						Selector: PodSelector{
+							MatchLabels: map[string]string{
+								"app": "billing-service",
+							},
+							MatchExpressions: []PodSelectorMatchExpression{
+								{
+									Key:      "env",
+									Operator: "In",
+									Values:   []string{"prod"},
+								},
+							},
+						},
+						NamespaceSelector: NamespaceSelector{
+							MatchNames: []string{"billing"},
+						},
+						TracerVersions: map[string]string{
+							"java": "default",
+						},
+					},
+				},
+			},
+		},
+		{
 			name:       "both enabled and disabled namespaces",
 			configPath: "testdata/both_enabled_and_disabled.yaml",
+			shouldErr:  true,
+		},
+		{
+			name:       "both enabled namespaces and targets",
+			configPath: "testdata/both_enabled_and_targets.yaml",
+			shouldErr:  true,
+		},
+		{
+			name:       "both library versions and targets",
+			configPath: "testdata/both_versions_and_targets.yaml",
 			shouldErr:  true,
 		},
 	}
