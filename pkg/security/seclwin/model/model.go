@@ -576,14 +576,6 @@ type ProcessContext struct {
 	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`
 }
 
-// SetAncestorFields force the process cache entry to be valid
-func SetAncestorFields(pce *ProcessCacheEntry, subField string, value interface{}) (bool, error) {
-	if subField != "is_kworker" {
-		pce.IsKworker = false
-	}
-	return true, nil
-}
-
 // ExitEvent represents a process exit event
 type ExitEvent struct {
 	*Process

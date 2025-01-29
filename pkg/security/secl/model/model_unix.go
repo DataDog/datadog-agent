@@ -309,6 +309,14 @@ type Process struct {
 	lineageError    error `field:"-"`
 }
 
+// SetAncestorFields force the process cache entry to be valid
+func SetAncestorFields(pce *ProcessCacheEntry, subField string, value interface{}) (bool, error) {
+	if subField != "is_kworker" {
+		pce.IsKworker = false
+	}
+	return true, nil
+}
+
 // ExecEvent represents a exec event
 type ExecEvent struct {
 	SyscallContext
