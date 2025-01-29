@@ -9,9 +9,14 @@
 package python
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,23 +30,21 @@ import (
 */
 import "C"
 
+type metric struct {
+	CheckId         string   `json:"check_id,omitempty"`
+	Type            string   `json:"type,omitempty"`
+	MetricName      string   `json:"metric_name,omitempty"`
+	Value           float64  `json:"value,omitempty"`
+	Hostname        string   `json:"hostname,omitempty"`
+	Tags            []string `json:"tags,omitempty"`
+	FlushFirstValue bool     `json:"flush_first_value,omitempty"`
+}
+
 // SubmitMetric is the method exposed to Python scripts to submit metrics
 //
 //export SubmitMetric
 func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.char, value C.double, tags **C.char, hostname *C.char, flushFirstValue C.bool) {
 	goCheckID := C.GoString(checkID)
-
-	checkContext, err := getCheckContext()
-	if err != nil {
-		log.Errorf("Python check context: %v", err)
-		return
-	}
-
-	sender, err := checkContext.senderManager.GetSender(checkid.ID(goCheckID))
-	if err != nil || sender == nil {
-		log.Errorf("Error submitting metric to the Sender: %v", err)
-		return
-	}
 
 	_name := C.GoString(metricName)
 	_value := float64(value)
@@ -49,22 +52,52 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 	_tags := cStringArrayToSlice(tags)
 	_flushFirstValue := bool(flushFirstValue)
 
+	var _metricType string
 	switch metricType {
 	case C.DATADOG_AGENT_RTLOADER_GAUGE:
-		sender.Gauge(_name, _value, _hostname, _tags)
+		_metricType = "GAUGE"
 	case C.DATADOG_AGENT_RTLOADER_RATE:
-		sender.Rate(_name, _value, _hostname, _tags)
+		_metricType = "RATE"
 	case C.DATADOG_AGENT_RTLOADER_COUNT:
-		sender.Count(_name, _value, _hostname, _tags)
+		_metricType = "COUNT"
 	case C.DATADOG_AGENT_RTLOADER_MONOTONIC_COUNT:
-		sender.MonotonicCountWithFlushFirstValue(_name, _value, _hostname, _tags, _flushFirstValue)
+		_metricType = "MONOTONIC_COUNT"
 	case C.DATADOG_AGENT_RTLOADER_COUNTER:
-		sender.Counter(_name, _value, _hostname, _tags)
+		_metricType = "COUNTER"
 	case C.DATADOG_AGENT_RTLOADER_HISTOGRAM:
-		sender.Histogram(_name, _value, _hostname, _tags)
+		_metricType = "HISTOGRAM"
 	case C.DATADOG_AGENT_RTLOADER_HISTORATE:
-		sender.Historate(_name, _value, _hostname, _tags)
+		_metricType = "HISTORATE"
 	}
+
+	// Send the HTTP request
+	url := fmt.Sprintf("https://localhost:%v/v1/grpc/aggregator/metrics", pkgconfigsetup.Datadog().GetInt("cmd_port"))
+	hc := util.GetClient(false)
+	// Construct the POST payload.
+	payload := metric{
+		CheckId:         goCheckID,
+		Type:            _metricType,
+		MetricName:      _name,
+		Value:           _value,
+		Hostname:        _hostname,
+		Tags:            _tags,
+		FlushFirstValue: _flushFirstValue,
+	}
+	postData, err := json.Marshal(payload)
+
+	if err != nil {
+		log.Errorf("Error marshalling payload: %v", err)
+		return
+	}
+
+	resp, err := util.DoPost(hc, url, "application/json", bytes.NewBuffer(postData))
+
+	if err != nil {
+		log.Errorf("Error submitting metric to the aggregator: %v", err)
+		return
+	}
+
+	log.Infof("python to aggregator response: %s", string(resp))
 }
 
 // SubmitServiceCheck is the method exposed to Python scripts to submit service checks

@@ -55,6 +55,7 @@ type Worker struct {
 	shouldAddCheckStatsFunc func(id checkid.ID) bool
 	utilizationTickInterval time.Duration
 	haAgent                 haagent.Component
+	remoteRunner            bool
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
@@ -66,6 +67,7 @@ func NewWorker(
 	pendingChecksChan chan check.Check,
 	checksTracker *tracker.RunningChecksTracker,
 	shouldAddCheckStatsFunc func(id checkid.ID) bool,
+	remoteRunner bool,
 ) (*Worker, error) {
 
 	if checksTracker == nil {
@@ -89,6 +91,7 @@ func NewWorker(
 		senderManager.GetDefaultSender,
 		haAgent,
 		pollingInterval,
+		remoteRunner,
 	)
 }
 
@@ -104,9 +107,10 @@ func newWorkerWithOptions(
 	getDefaultSenderFunc func() (sender.Sender, error),
 	haAgent haagent.Component,
 	utilizationTickInterval time.Duration,
+	remoteRunner bool,
 ) (*Worker, error) {
 
-	if getDefaultSenderFunc == nil {
+	if getDefaultSenderFunc == nil && !remoteRunner {
 		return nil, fmt.Errorf("worker cannot initialize using a nil getDefaultSenderFunc")
 	}
 
@@ -122,6 +126,7 @@ func newWorkerWithOptions(
 		getDefaultSenderFunc:    getDefaultSenderFunc,
 		haAgent:                 haAgent,
 		utilizationTickInterval: utilizationTickInterval,
+		remoteRunner:            remoteRunner,
 	}, nil
 }
 
@@ -170,37 +175,39 @@ func (w *Worker) Run() {
 
 		checkWarnings := check.GetWarnings()
 
-		// Use the default sender for the service checks
-		sender, err := w.getDefaultSenderFunc()
-		if err != nil {
-			log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
-		}
-		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String()), "dd_enable_check_intake:true"}
-		serviceCheckStatus := servicecheck.ServiceCheckOK
-
-		hname, _ := hostname.Get(context.TODO())
-
-		if len(checkWarnings) != 0 {
-			expvars.AddWarningsCount(len(checkWarnings))
-			serviceCheckStatus = servicecheck.ServiceCheckWarning
-		}
-
-		if checkErr != nil {
-			checkLogger.Error(checkErr)
-			expvars.AddErrorsCount(1)
-			serviceCheckStatus = servicecheck.ServiceCheckCritical
-		}
-
-		if sender != nil && !longRunning {
-			if pkgconfigsetup.Datadog().GetBool("integration_check_status_enabled") {
-				sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
+		if w.remoteRunner {
+		} else {
+			// Use the default sender for the service checks
+			sender, err := w.getDefaultSenderFunc()
+			if err != nil {
+				log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
 			}
-			// FIXME(remy): this `Commit()` should be part of the `if` above, we keep
-			// it here for now to make sure it's not breaking any historical behavior
-			// with the shared default sender.
-			sender.Commit()
-		}
+			serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String()), "dd_enable_check_intake:true"}
+			serviceCheckStatus := servicecheck.ServiceCheckOK
 
+			hname, _ := hostname.Get(context.TODO())
+
+			if len(checkWarnings) != 0 {
+				expvars.AddWarningsCount(len(checkWarnings))
+				serviceCheckStatus = servicecheck.ServiceCheckWarning
+			}
+
+			if checkErr != nil {
+				checkLogger.Error(checkErr)
+				expvars.AddErrorsCount(1)
+				serviceCheckStatus = servicecheck.ServiceCheckCritical
+			}
+
+			if sender != nil && !longRunning {
+				if pkgconfigsetup.Datadog().GetBool("integration_check_status_enabled") {
+					sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
+				}
+				// FIXME(remy): this `Commit()` should be part of the `if` above, we keep
+				// it here for now to make sure it's not breaking any historical behavior
+				// with the shared default sender.
+				sender.Commit()
+			}
+		}
 		// Remove the check from the running list
 		w.checksTracker.DeleteCheck(check.ID())
 

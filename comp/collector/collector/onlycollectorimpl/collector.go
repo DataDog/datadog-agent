@@ -44,7 +44,7 @@ type dependencies struct {
 	Log     log.Component
 	HaAgent haagent.Component
 
-	// SenderManager    sender.SenderManager
+	SenderManager sender.SenderManager
 	// MetricSerializer option.Option[serializer.MetricSerializer]
 }
 
@@ -97,10 +97,10 @@ func newProvides(deps dependencies) provides {
 
 func newCollector(deps dependencies) *collectorImpl {
 	c := &collectorImpl{
-		log:     deps.Log,
-		config:  deps.Config,
-		haAgent: deps.HaAgent,
-		// senderManager:      deps.SenderManager,
+		log:           deps.Log,
+		config:        deps.Config,
+		haAgent:       deps.HaAgent,
+		senderManager: deps.SenderManager,
 		// metricSerializer:   deps.MetricSerializer,
 		checks:             make(map[checkid.ID]*middleware.CheckWrapper),
 		state:              atomic.NewUint32(stopped),
@@ -111,10 +111,10 @@ func newCollector(deps dependencies) *collectorImpl {
 
 	pkgCollector.InitPython(pkgCollector.GetPythonPaths()...)
 
-	// deps.Lc.Append(fx.Hook{
-	// 	OnStart: c.start,
-	// 	OnStop:  c.stop,
-	// })
+	deps.Lc.Append(fx.Hook{
+		OnStart: c.start,
+		OnStop:  c.stop,
+	})
 
 	return c
 }
@@ -138,7 +138,7 @@ func (c *collectorImpl) start(_ context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	run := runner.NewRunner(c.senderManager, c.haAgent)
+	run := runner.NewRunner(c.senderManager, c.haAgent, true)
 	sched := scheduler.NewScheduler(run.GetChan())
 
 	// let the runner some visibility into the scheduler

@@ -7,6 +7,7 @@ import "datadog/remoteagent/remoteagent.proto";
 import "datadog/remoteconfig/remoteconfig.proto";
 import "datadog/workloadmeta/workloadmeta.proto";
 import "datadog/autodiscovery/autodiscovery.proto";
+import "datadog/aggregator/aggregator.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 
@@ -185,6 +186,14 @@ service AgentSecure {
             get: "/v1/grpc/host_tags"
         };
     };
+    
+    // Send metrics to internal aggregator
+    rpc SendCheckMetric(datadog.aggregator.Metric) returns (datadog.aggregator.MetricResponse) {
+    option (google.api.http) = {
+        post: "/v1/grpc/aggregator/metrics"
+        body: "*"
+    };
+};
 
 }
 

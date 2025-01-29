@@ -9,6 +9,7 @@ package start
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -43,10 +44,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	haagentfxnoop "github.com/DataDog/datadog-agent/comp/haagent/fx-noop"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	logscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -59,6 +67,59 @@ type CLIParams struct {
 
 type memoryStats struct {
 	heapSize uint64
+}
+
+type mockSender struct{}
+
+func (m *mockSender) Commit()                                                                     {}
+func (m *mockSender) Gauge(metric string, value float64, hostname string, tags []string)          {}
+func (m *mockSender) GaugeNoIndex(metric string, value float64, hostname string, tags []string)   {}
+func (m *mockSender) Rate(metric string, value float64, hostname string, tags []string)           {}
+func (m *mockSender) Count(metric string, value float64, hostname string, tags []string)          {}
+func (m *mockSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {}
+func (m *mockSender) MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
+}
+func (m *mockSender) Counter(metric string, value float64, hostname string, tags []string)      {}
+func (m *mockSender) Histogram(metric string, value float64, hostname string, tags []string)    {}
+func (m *mockSender) Historate(metric string, value float64, hostname string, tags []string)    {}
+func (m *mockSender) Distribution(metric string, value float64, hostname string, tags []string) {}
+func (m *mockSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string) {
+}
+func (m *mockSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
+}
+func (m *mockSender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
+	return nil
+}
+func (m *mockSender) CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
+	return nil
+}
+func (m *mockSender) Event(e event.Event)                                  {}
+func (m *mockSender) EventPlatformEvent(rawEvent []byte, eventType string) {}
+func (m *mockSender) GetSenderStats() stats.SenderStats {
+	return stats.SenderStats{}
+}
+func (m *mockSender) DisableDefaultHostname(disable bool) {}
+func (m *mockSender) SetCheckCustomTags(tags []string)    {}
+func (m *mockSender) SetCheckService(service string)      {}
+func (m *mockSender) SetNoIndex(noIndex bool)             {}
+func (m *mockSender) FinalizeCheckServiceTag()            {}
+func (m *mockSender) OrchestratorMetadata(msgs []types.ProcessMessageBody, clusterID string, nodeType int) {
+}
+func (m *mockSender) OrchestratorManifest(msgs []types.ProcessMessageBody, clusterID string) {}
+
+type mockSenderManager struct{}
+
+func (m *mockSenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
+	return &mockSender{}, nil
+}
+func (m *mockSenderManager) SetSender(sender.Sender, checkid.ID) error {
+	return nil
+}
+func (m *mockSenderManager) DestroySender(id checkid.ID) {
+
+}
+func (m *mockSenderManager) GetDefaultSender() (sender.Sender, error) {
+	return &mockSender{}, nil
 }
 
 // MakeCommand returns the start subcommand for the 'dogstatsd' command.
@@ -146,6 +207,9 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 
 		pidimpl.Module(),
 		fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
+		fx.Provide(func() sender.SenderManager {
+			return &mockSenderManager{}
+		}),
 	)
 }
 
@@ -165,9 +229,9 @@ func start(
 	memoryStats memoryStats,
 	config config.Component,
 	log log.Component,
-	_ collector.Component,
-	// demultiplexer demultiplexer.Component,
-	_ tagger.Component,
+	collector collector.Component,
+	senderManager sender.SenderManager,
+	tagger tagger.Component,
 	authToken authtoken.Component,
 	telemetry telemetry.Component,
 	_ pid.Component,
@@ -204,24 +268,24 @@ func start(
 		return fmt.Errorf("unable to fetch authentication token")
 	}
 
-	// client := &http.Client{
-	// 	Transport: &http.Transport{
-	// 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	// 	},
-	// }
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
 
-	// customClient := &customClient{
-	// 	client: client,
-	// 	token:  token,
-	// }
+	customClient := &customClient{
+		client: client,
+		token:  token,
+	}
 
-	// TODO: figure out how to initial.ize checks context
+	// TODO: figure out how to initial.ize checks contexts
 	// check.InitializeInventoryChecksContext(invChecks)
 
-	// scheduler := pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, option.None[integrations.Component](), tagger)
+	scheduler := pkgcollector.InitCheckScheduler(option.New(collector), &mockSenderManager{}, option.None[integrations.Component](), tagger)
 
-	// // Start the scheduler
-	// go startScheduler(ctx, customClient, scheduler, log, config)
+	// Start the scheduler
+	go startScheduler(ctx, customClient, scheduler, log, config)
 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh, log)

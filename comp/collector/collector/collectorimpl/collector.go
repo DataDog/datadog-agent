@@ -189,7 +189,7 @@ func (c *collectorImpl) start(_ context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	run := runner.NewRunner(c.senderManager, c.haAgent)
+	run := runner.NewRunner(c.senderManager, c.haAgent, false)
 	sched := scheduler.NewScheduler(run.GetChan())
 
 	// let the runner some visibility into the scheduler

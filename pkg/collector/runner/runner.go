@@ -51,10 +51,11 @@ type Runner struct {
 	checksTracker       *tracker.RunningChecksTracker // Tracker in charge of maintaining the running check list
 	scheduler           *scheduler.Scheduler          // Scheduler runner operates on
 	schedulerLock       sync.RWMutex                  // Lock around operations on the scheduler
+	remoteRunner        bool                          // Flag indicating if the runner is a remote runner
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
-func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *Runner {
+func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component, remoteRunner bool) *Runner {
 	numWorkers := pkgconfigsetup.Datadog().GetInt("check_runners")
 
 	r := &Runner{
@@ -66,6 +67,7 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *R
 		isStaticWorkerCount: numWorkers != 0,
 		pendingChecksChan:   make(chan check.Check),
 		checksTracker:       tracker.NewRunningChecksTracker(),
+		remoteRunner:        remoteRunner,
 	}
 
 	if !r.isStaticWorkerCount {
@@ -126,6 +128,7 @@ func (r *Runner) newWorker() (*worker.Worker, error) {
 		r.pendingChecksChan,
 		r.checksTracker,
 		r.ShouldAddCheckStats,
+		r.remoteRunner,
 	)
 	if err != nil {
 		log.Errorf("Runner %d was unable to instantiate a worker: %s", r.id, err)

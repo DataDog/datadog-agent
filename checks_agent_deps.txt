@@ -1,3 +1,4 @@
+github.com/DataDog/datadog-agent/cmd/checks-agent
 github.com/DataDog/datadog-agent/cmd/checks-agent/command
 github.com/DataDog/datadog-agent/cmd/checks-agent/subcommands/start
 github.com/DataDog/datadog-agent/cmd/checks-agent/subcommands/version
