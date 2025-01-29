@@ -28,8 +28,6 @@ type linuxImpl struct {
 	getDiscoveryServices func(client *http.Client) (*model.ServicesResponse, error)
 	time                 timer
 
-	runningServices map[int]*model.Service
-
 	sysProbeClient *http.Client
 }
 
@@ -37,7 +35,6 @@ func newLinuxImpl() (osImpl, error) {
 	return &linuxImpl{
 		getDiscoveryServices: getDiscoveryServices,
 		time:                 realTime{},
-		runningServices:      make(map[int]*model.Service),
 		sysProbeClient:       sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 	}, nil
 }
@@ -75,23 +72,14 @@ func (li *linuxImpl) DiscoverServices() (*serviceEvents, int, error) {
 	events := &serviceEvents{}
 
 	for _, service := range response.StartedServices {
-		pid := service.PID
-		li.runningServices[pid] = &service
 		events.start = append(events.start, service)
 	}
 
 	for _, service := range response.StoppedServices {
-		pid := service.PID
-		delete(li.runningServices, pid)
 		events.stop = append(events.stop, service)
 	}
 
 	for _, service := range response.HeartbeatServices {
-		pid := service.PID
-		if _, ok := li.runningServices[pid]; !ok {
-			continue
-		}
-
 		events.heartbeat = append(events.heartbeat, service)
 	}
 
