@@ -25,9 +25,7 @@ func getUDSAncillarySize() int {
 }
 
 // enableUDSPassCred returns a "not implemented" error on non-linux hosts
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func enableUDSPassCred(_ netUnixConn) error {
+func enableUDSPassCred(rawconn sysctl.RawConn) error {
 	return ErrLinuxOnly
 }
 
