@@ -444,7 +444,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
 		Chunks:          o.createChunks(tracesByID, priorityByID),
-		Env:             traceutil.NormalizeTag(env),
+		Env:             traceutil.NormalizeTagValue(env),
 		ContainerID:     containerID,
 		LanguageName:    tagstats.Lang,
 		LanguageVersion: tagstats.LangVersion,
