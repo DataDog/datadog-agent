@@ -11,7 +11,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7
-	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.0.0-20250129172314-517df3f51a84
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.59.0
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.59.0
 	github.com/DataDog/datadog-agent/pkg/tagset v0.59.0

@@ -17,8 +17,8 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.0.0-20250129172314-517df3f51a84
+	github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote v0.0.0-20250129172314-517df3f51a84
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.60.1
 	go.uber.org/fx v1.23.0
 )
@@ -30,9 +30,9 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.60.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store v0.0.0-20250129172314-517df3f51a84 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.0.0-20250129172314-517df3f51a84 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.60.1 // indirect
