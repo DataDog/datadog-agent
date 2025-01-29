@@ -10,7 +10,7 @@ package fips
 
 // Status returns an empty string when not the datadog-fips-agent flavor
 func Status() string {
-	return "not available"
+	return ""
 }
 
 // Enabled  returns false when not the datadog-fips-agent flavor

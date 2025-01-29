@@ -47,7 +47,7 @@ func (v *linuxStatusSuite) TestFIPSProxyStatus() {
 		{
 			name:            `Agent \(.*\)`,
 			shouldBePresent: true,
-			shouldContain:   []string{"FIPS Mode: proxy", "FIPS proxy"},
+			shouldContain:   []string{"FIPS proxy"},
 		},
 	}
 

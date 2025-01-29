@@ -35,6 +35,7 @@ func TestLinuxFIPSComplianceSuite(t *testing.T) {
 			awshost.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)),
 			awshost.WithAgentOptions(agentparams.WithFlavor("datadog-fips-agent")),
 		)),
+		e2e.WithSkipDeleteOnFailure(),
 	)
 }
 
@@ -42,7 +43,7 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSDefaultConfig() {
 	status := v.Env().RemoteHost.MustExecute("sudo GOFIPS=0 datadog-agent status")
 	assert.NotContains(v.T(), status, "can't enable FIPS mode for OpenSSL")
 	assert.Contains(v.T(), status, "Status date")
-	assert.Contains(v.T(), status, "FIPS Mode: disabled")
+	assert.Contains(v.T(), status, "FIPS compliant: false")
 
 	v.Env().RemoteHost.MustExecute("sudo systemctl set-environment GOFIPS=1")
 	v.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent")
@@ -51,7 +52,7 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSDefaultConfig() {
 		status = v.Env().RemoteHost.MustExecute("sudo GOFIPS=1 datadog-agent status")
 		assert.NotContains(t, status, "can't enable FIPS mode for OpenSSL")
 		assert.Contains(t, status, "Status date")
-		assert.Contains(t, status, "FIPS Mode: enabled")
+		assert.Contains(t, status, "FIPS compliant: true")
 	}, 60*time.Second, 5*time.Second)
 
 	v.Env().RemoteHost.MustExecute("sudo systemctl unset-environment GOFIPS")
