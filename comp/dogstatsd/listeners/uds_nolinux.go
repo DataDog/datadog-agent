@@ -26,7 +26,7 @@ func getUDSAncillarySize() int {
 }
 
 // enableUDSPassCred returns a "not implemented" error on non-linux hosts
-func enableUDSPassCred(rawconn syscall.RawConn) error {
+func enableUDSPassCred(_ syscall.RawConn) error {
 	return ErrLinuxOnly
 }
 
