@@ -1903,7 +1903,7 @@ func (s *TracerSuite) TestShortWrite() {
 	f := os.NewFile(uintptr(sk), "")
 	c, err := net.FileConn(f)
 	require.NoError(t, err)
-	defer c.Close()
+	t.Cleanup(func() { c.Close() })
 
 	unix.Shutdown(sk, unix.SHUT_WR)
 	close(read)
