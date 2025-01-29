@@ -759,7 +759,7 @@ generate-fips-e2e-pipeline:
 
 trigger-fips-e2e:
   stage: e2e
-  needs: [generate-flakes-finder-pipeline]
+  needs: [generate-fips-e2e-pipeline]
   rules:
     - !reference [.except_disable_e2e_tests]
     - !reference [.on_deploy_nightly_repo_branch]
