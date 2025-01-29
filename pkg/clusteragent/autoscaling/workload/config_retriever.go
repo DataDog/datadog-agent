@@ -33,6 +33,7 @@ type ConfigRetriever struct {
 	clock    clock.Clock
 }
 
+// NewConfigRetriever creates a new ConfigRetriever
 func NewConfigRetriever(store *store, isLeader func() bool, rcClient RcClient) (*ConfigRetriever, error) {
 	cr := &ConfigRetriever{
 		store:    store,

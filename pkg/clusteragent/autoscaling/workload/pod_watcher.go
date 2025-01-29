@@ -33,12 +33,13 @@ type NamespacedPodOwner struct {
 
 // PodWatcher indexes pods by their owner
 type PodWatcher interface {
-	// Start starts the PodWatcher.
+	// Run starts the PodWatcher.
 	Run(ctx context.Context)
 	// GetPodsForOwner returns the pods for the given owner.
 	GetPodsForOwner(NamespacedPodOwner) []*workloadmeta.KubernetesPod
 }
 
+// PodWatcherImpl is the implementation of the autoscaling PodWatcher
 type PodWatcherImpl struct {
 	mutex sync.RWMutex
 
@@ -107,6 +108,7 @@ func (pw *PodWatcherImpl) Run(ctx context.Context) {
 	}
 }
 
+// HandleEvent handles a workloadmeta event and updates the podwatcher state
 func (pw *PodWatcherImpl) HandleEvent(event workloadmeta.Event) {
 	pw.mutex.Lock()
 	defer pw.mutex.Unlock()
