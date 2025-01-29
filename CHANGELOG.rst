@@ -13,7 +13,8 @@ Prelude
 -------
 
 Released on: 2025-01-29
-Pinned to datadog-agent v7.62.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7620>`_.
+
+- Please refer to the `7.62.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7620>`_ for the list of changes on the Core Checks
 
 .. _Release Notes_7.62.0_New Features:
 
@@ -51,10 +52,6 @@ Enhancement Notes
 - Adds tagger tags to pod manifests.
 
 - Added the output of ``sestatus`` into the Agent flare. This information will appear in ``system-probe/selinux_sestatus.log``.
-
-- The Datadog Cluster Agent admission controller agent sidecar injection now sets up
-  Agent sidecars to run with securityContext of `readOnlyRootFilesystem:false` by default.
-  Advanced users can customize the securityContext via clusterAgent.admissionController.agentSidecarInjection.profiles.
 
 - Extended Agent telemetry histogram details, specifically:
     - Added previously omitted and implicit `+Inf` bucket value to histogram payload.
@@ -122,17 +119,11 @@ Bug Fixes
 
 - Use ``/var/run/syslog`` as the default syslog socket path on macOS.
 
-- Include `gpu_vendor` pod tags on the Datadog Cluster Agent when
-  enabling datadog.clusterTagger.collectKubernetesTags.
-
 - Fixes consistency issue with container image filters.
   Depending on the Agent configuration, filters were sometimes behaving differently
   for metrics and logs. For example, an image filter that worked for excluding logs
   didn't work when used to exclude metrics, and vice versa. 
   The exclusion logic is now consistent between metrics and logs.
-
-- When the Datadog Cluster Agent injects the Datadog Agent as a sidecar
-  on a Job, the agent will now exit when the main Job completes.
 
 - Fixed race condition in stream UDS clients of Dogstatsd that
   allowed for the loss of received data.

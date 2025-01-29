@@ -29,6 +29,10 @@ Enhancement Notes
   reducing memory, CPU, and network usage in the Cluster Agent while preserving
   full metric functionality.
 
+- The Datadog Cluster Agent admission controller agent sidecar injection now sets up
+  Agent sidecars to run with securityContext of `readOnlyRootFilesystem:false` by default.
+  Advanced users can customize the securityContext via clusterAgent.admissionController.agentSidecarInjection.profiles.
+
 
 .. _Release Notes_7.62.0_Bug Fixes:
 
@@ -41,6 +45,12 @@ Bug Fixes
 
 - Add mapping for apiservices and customresourcedefinitions to KSM check to
   prevent errors on startup with discovering resources.
+
+- Include `gpu_vendor` pod tags on the Datadog Cluster Agent when
+  enabling datadog.clusterTagger.collectKubernetesTags.
+
+- When the Datadog Cluster Agent injects the Datadog Agent as a sidecar
+  on a Job, the agent will now exit when the main Job completes.
 
 
 .. _Release Notes_7.61.0:
