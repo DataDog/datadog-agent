@@ -7,6 +7,7 @@
 package security
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -16,7 +17,6 @@ import (
 	"fmt"
 	"math/big"
 	"net"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -112,6 +112,26 @@ func GenerateRootCert(hosts []string, bits int) (cert *x509.Certificate, certPEM
 	return
 }
 
+type authtokenFactory struct {
+}
+
+func (authtokenFactory) Generate() (string, error) {
+	key := make([]byte, authTokenMinimalLen)
+	_, err := rand.Read(key)
+	if err != nil {
+		return "", fmt.Errorf("can't create agent authentication token value: %s", err)
+	}
+	return hex.EncodeToString(key), nil
+}
+
+func (authtokenFactory) Serialize(src string) ([]byte, error) {
+	return []byte(src), nil
+}
+
+func (authtokenFactory) Deserialize(raw []byte) (string, error) {
+	return string(raw), nil
+}
+
 // GetAuthTokenFilepath returns the path to the auth_token file.
 func GetAuthTokenFilepath(config configModel.Reader) string {
 	if config.GetString("auth_token_file_path") != "" {
@@ -123,50 +143,35 @@ func GetAuthTokenFilepath(config configModel.Reader) string {
 // FetchAuthToken gets the authentication token from the auth token file & creates one if it doesn't exist
 // Requires that the config has been set up before calling
 func FetchAuthToken(config configModel.Reader) (string, error) {
-	return fetchAuthToken(config, false)
+	return filesystem.FetchArtifact(GetAuthTokenFilepath(config), &authtokenFactory{})
 }
 
-// CreateOrFetchToken gets the authentication token from the auth token file & creates one if it doesn't exist
+// FetchOrCreateAuthToken gets the authentication token from the auth token file & creates one if it doesn't exist
 // Requires that the config has been set up before calling
-func CreateOrFetchToken(config configModel.Reader) (string, error) {
-	return fetchAuthToken(config, true)
+// It takes a context to allow for cancellation or timeout of the operation
+func FetchOrCreateAuthToken(ctx context.Context, config configModel.Reader) (string, error) {
+	return filesystem.FetchOrCreateArtifact(ctx, GetAuthTokenFilepath(config), &authtokenFactory{})
 }
 
-func fetchAuthToken(config configModel.Reader, tokenCreationAllowed bool) (string, error) {
-	authTokenFile := GetAuthTokenFilepath(config)
+type dcaAuthTokenFactory struct {
+}
 
-	// Create a new token if it doesn't exist and if permitted by calling func
-	if _, e := os.Stat(authTokenFile); os.IsNotExist(e) && tokenCreationAllowed {
-		// print the caller to identify what is calling this function
-		if _, file, line, ok := runtime.Caller(2); ok {
-			log.Infof("[%s:%d] Creating a new authentication token", file, line)
-		}
-		key := make([]byte, authTokenMinimalLen)
-		_, e = rand.Read(key)
-		if e != nil {
-			return "", fmt.Errorf("can't create agent authentication token value: %s", e)
-		}
-
-		// Write the auth token to the auth token file (platform-specific)
-		e = saveAuthToken(hex.EncodeToString(key), authTokenFile)
-		if e != nil {
-			return "", fmt.Errorf("error writing authentication token file on fs: %s", e)
-		}
-		log.Infof("Saved a new authentication token to %s", authTokenFile)
+func (dcaAuthTokenFactory) Generate() (string, error) {
+	key := make([]byte, authTokenMinimalLen)
+	_, err := rand.Read(key)
+	if err != nil {
+		return "", fmt.Errorf("can't create agent authentication token value: %s", err)
 	}
-	// Read the token
-	authTokenRaw, e := os.ReadFile(authTokenFile)
-	if e != nil {
-		return "", fmt.Errorf("unable to read authentication token file: %s", e.Error())
-	}
+	return hex.EncodeToString(key), nil
+}
 
-	// Do some basic validation
-	authToken := strings.TrimSpace(string(authTokenRaw))
-	if len(authToken) < authTokenMinimalLen {
-		return "", fmt.Errorf("invalid authentication token: must be at least %d characters in length", authTokenMinimalLen)
-	}
+func (dcaAuthTokenFactory) Serialize(src string) ([]byte, error) {
+	return []byte(src), nil
+}
 
-	return authToken, nil
+func (dcaAuthTokenFactory) Deserialize(raw []byte) (string, error) {
+	token := string(raw)
+	return token, validateAuthToken(token)
 }
 
 // GetClusterAgentAuthToken load the authentication token from:
@@ -175,7 +180,7 @@ func fetchAuthToken(config configModel.Reader, tokenCreationAllowed bool) (strin
 // If using the token from the filesystem, the token file must be next to the datadog.yaml
 // with the filename: cluster_agent.auth_token, it will fail if the file does not exist
 func GetClusterAgentAuthToken(config configModel.Reader) (string, error) {
-	return getClusterAgentAuthToken(config, false)
+	return getClusterAgentAuthToken(context.Background(), config, false)
 }
 
 // CreateOrGetClusterAgentAuthToken load the authentication token from:
@@ -184,11 +189,11 @@ func GetClusterAgentAuthToken(config configModel.Reader) (string, error) {
 // If using the token from the filesystem, the token file must be next to the datadog.yaml
 // with the filename: cluster_agent.auth_token, if such file does not exist it will be
 // created and populated with a newly generated token.
-func CreateOrGetClusterAgentAuthToken(config configModel.Reader) (string, error) {
-	return getClusterAgentAuthToken(config, true)
+func CreateOrGetClusterAgentAuthToken(ctx context.Context, config configModel.Reader) (string, error) {
+	return getClusterAgentAuthToken(ctx, config, true)
 }
 
-func getClusterAgentAuthToken(config configModel.Reader, tokenCreationAllowed bool) (string, error) {
+func getClusterAgentAuthToken(ctx context.Context, config configModel.Reader, tokenCreationAllowed bool) (string, error) {
 	authToken := config.GetString("cluster_agent.auth_token")
 	if authToken != "" {
 		log.Infof("Using configured cluster_agent.auth_token")
@@ -196,37 +201,12 @@ func getClusterAgentAuthToken(config configModel.Reader, tokenCreationAllowed bo
 	}
 
 	// load the cluster agent auth token from filesystem
-	tokenAbsPath := filepath.Join(configUtils.ConfFileDirectory(config), clusterAgentAuthTokenFilename)
-	log.Debugf("Empty cluster_agent.auth_token, loading from %s", tokenAbsPath)
-
-	// Create a new token if it doesn't exist
-	if _, e := os.Stat(tokenAbsPath); os.IsNotExist(e) && tokenCreationAllowed {
-		key := make([]byte, authTokenMinimalLen)
-		_, e = rand.Read(key)
-		if e != nil {
-			return "", fmt.Errorf("can't create cluster agent authentication token value: %s", e)
-		}
-
-		// Write the auth token to the auth token file (platform-specific)
-		e = saveAuthToken(hex.EncodeToString(key), tokenAbsPath)
-		if e != nil {
-			return "", fmt.Errorf("error writing authentication token file on fs: %s", e)
-		}
-		log.Infof("Saved a new authentication token for the Cluster Agent at %s", tokenAbsPath)
+	location := filepath.Join(configUtils.ConfFileDirectory(config), clusterAgentAuthTokenFilename)
+	log.Debugf("Empty cluster_agent.auth_token, loading from %s", location)
+	if tokenCreationAllowed {
+		return filesystem.FetchOrCreateArtifact(ctx, location, &dcaAuthTokenFactory{})
 	}
-
-	_, err := os.Stat(tokenAbsPath)
-	if err != nil {
-		return "", fmt.Errorf("empty cluster_agent.auth_token and cannot find %q: %s", tokenAbsPath, err)
-	}
-	b, err := os.ReadFile(tokenAbsPath)
-	if err != nil {
-		return "", fmt.Errorf("empty cluster_agent.auth_token and cannot read %s: %s", tokenAbsPath, err)
-	}
-	log.Debugf("cluster_agent.auth_token loaded from %s", tokenAbsPath)
-
-	authToken = string(b)
-	return authToken, validateAuthToken(authToken)
+	return filesystem.FetchArtifact(location, &dcaAuthTokenFactory{})
 }
 
 func validateAuthToken(authToken string) error {
@@ -234,43 +214,4 @@ func validateAuthToken(authToken string) error {
 		return fmt.Errorf("cluster agent authentication token length must be greater than %d, curently: %d", authTokenMinimalLen, len(authToken))
 	}
 	return nil
-}
-
-// writes auth token(s) to a file with the same permissions as datadog.yaml
-func saveAuthToken(token, tokenPath string) error {
-	log.Infof("Saving a new authentication token in %s", tokenPath)
-	if err := writeFileAndSync(tokenPath, []byte(token), 0o600); err != nil {
-		return err
-	}
-
-	perms, err := filesystem.NewPermission()
-	if err != nil {
-		return err
-	}
-
-	if err := perms.RestrictAccessToUser(tokenPath); err != nil {
-		log.Errorf("Failed to write auth token acl %s", err)
-		return err
-	}
-
-	log.Infof("Wrote auth token in %s", tokenPath)
-	return nil
-}
-
-// call the file.Sync method to flush the file to disk and catch potential I/O errors
-func writeFileAndSync(name string, data []byte, perm os.FileMode) error {
-	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
-	if err != nil {
-		return err
-	}
-	_, err = f.Write(data)
-	// only sync data if the write was successful
-	if err == nil {
-		err = f.Sync()
-	}
-	// but always close the file and report the first error that occurred
-	if err1 := f.Close(); err1 != nil && err == nil {
-		err = err1
-	}
-	return err
 }
