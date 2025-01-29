@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -42,10 +43,11 @@ import (
 const (
 	pathServices = "/services"
 
+	heartbeatTime = 15 * time.Minute
 	// Use a low cache validity to ensure that we refresh information every time
 	// the check is run if needed. This is the same as cacheValidityNoRT in
 	// pkg/process/checks/container.go.
-	containerCacheValidatity = 2 * time.Second
+	containerCacheValidity = 2 * time.Second
 )
 
 // Ensure discovery implements the module.Module interface.
@@ -54,18 +56,77 @@ var _ module.Module = &discovery{}
 // serviceInfo holds process data that should be cached between calls to the
 // endpoint.
 type serviceInfo struct {
-	generatedName        string
-	generatedNameSource  string
-	containerServiceName string
-	ddServiceName        string
-	ddServiceInjected    bool
-	checkedContainerData bool
-	language             language.Language
-	apmInstrumentation   apm.Instrumentation
-	cmdLine              []string
-	startTimeMilli       uint64
-	cpuTime              uint64
-	cpuUsage             float64
+	name                       string
+	generatedName              string
+	generatedNameSource        string
+	containerServiceName       string
+	containerServiceNameSource string
+	ddServiceName              string
+	ddServiceInjected          bool
+	ports                      []uint16
+	checkedContainerData       bool
+	language                   language.Language
+	apmInstrumentation         apm.Instrumentation
+	cmdLine                    []string
+	startTimeMilli             uint64
+	rss                        uint64
+	cpuTime                    uint64
+	cpuUsage                   float64
+	containerID                string
+	lastHeartbeat              int64
+}
+
+// toModelService fills the model.Service struct pointed to by out, using the
+// service info to do it.
+func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Service {
+	if i == nil {
+		log.Warn("toModelService called with nil pointer")
+		return nil
+	}
+
+	out.PID = int(pid)
+	out.Name = i.name
+	out.GeneratedName = i.generatedName
+	out.GeneratedNameSource = i.generatedNameSource
+	out.ContainerServiceName = i.containerServiceName
+	out.ContainerServiceNameSource = i.containerServiceNameSource
+	out.DDService = i.ddServiceName
+	out.DDServiceInjected = i.ddServiceInjected
+	out.Ports = i.ports
+	out.APMInstrumentation = string(i.apmInstrumentation)
+	out.Language = string(i.language)
+	out.Type = string(servicetype.Detect(i.ports))
+	out.RSS = i.rss
+	out.CommandLine = i.cmdLine
+	out.StartTimeMilli = i.startTimeMilli
+	out.CPUCores = i.cpuUsage
+	out.ContainerID = i.containerID
+	out.LastHeartbeat = i.lastHeartbeat
+
+	return out
+}
+
+type timeProvider interface {
+	Now() time.Time
+}
+
+type realTime struct{}
+
+func (realTime) Now() time.Time { return time.Now() }
+
+type pidSet map[int32]struct{}
+
+func (s pidSet) has(pid int32) bool {
+	_, present := s[pid]
+	return present
+}
+
+func (s pidSet) add(pid int32) {
+	s[pid] = struct{}{}
+}
+
+func (s pidSet) remove(pid int32) {
+	delete(s, pid)
 }
 
 // discovery is an implementation of the Module interface for the discovery module.
@@ -73,11 +134,20 @@ type discovery struct {
 	config *discoveryConfig
 
 	mux *sync.RWMutex
+
 	// cache maps pids to data that should be cached between calls to the endpoint.
 	cache map[int32]*serviceInfo
 
-	// ignorePids processes to be excluded from discovery
-	ignorePids map[int32]struct{}
+	// potentialServices stores processes that we have seen once in the previous
+	// iteration, but not yet confirmed to be a running service.
+	potentialServices pidSet
+
+	// runningServices stores services that we have previously confirmed as
+	// running.
+	runningServices pidSet
+
+	// ignorePids stores processes to be excluded from discovery
+	ignorePids pidSet
 
 	// privilegedDetector is used to detect the language of a process.
 	privilegedDetector privileged.LanguageDetector
@@ -93,24 +163,28 @@ type discovery struct {
 	lastCPUTimeUpdate time.Time
 
 	containerProvider proccontainers.ContainerProvider
+	timeProvider      timeProvider
 }
 
-func newDiscovery(containerProvider proccontainers.ContainerProvider) *discovery {
+func newDiscovery(containerProvider proccontainers.ContainerProvider, tp timeProvider) *discovery {
 	return &discovery{
 		config:             newConfig(),
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
-		ignorePids:         make(map[int32]struct{}),
+		potentialServices:  make(pidSet),
+		runningServices:    make(pidSet),
+		ignorePids:         make(pidSet),
 		privilegedDetector: privileged.NewLanguageDetector(),
 		scrubber:           procutil.NewDefaultDataScrubber(),
 		containerProvider:  containerProvider,
+		timeProvider:       tp,
 	}
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
 func NewDiscoveryModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 	sharedContainerProvider := proccontainers.InitSharedContainerProvider(deps.WMeta, deps.Tagger)
-	return newDiscovery(sharedContainerProvider), nil
+	return newDiscovery(sharedContainerProvider, realTime{}), nil
 }
 
 // GetStats returns the stats of the discovery module.
@@ -121,6 +195,7 @@ func (s *discovery) GetStats() map[string]interface{} {
 // Register registers the discovery module with the provided HTTP mux.
 func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
+	httpMux.HandleFunc("/debug", s.handleDebugEndpoint)
 	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
 	return nil
 }
@@ -139,6 +214,46 @@ func (s *discovery) handleStatusEndpoint(w http.ResponseWriter, _ *http.Request)
 	_, _ = w.Write([]byte("Discovery Module is running"))
 }
 
+func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) {
+	services := make([]model.Service, 0)
+
+	procRoot := kernel.ProcFSRoot()
+	pids, err := process.Pids()
+	if err != nil {
+		utils.WriteAsJSON(w, "could not get PIDs")
+		return
+	}
+
+	context := parsingContext{
+		procRoot:  procRoot,
+		netNsInfo: make(map[uint32]*namespaceInfo),
+	}
+
+	containers, _, pidToCid, err := s.containerProvider.GetContainers(containerCacheValidity, nil)
+	if err != nil {
+		log.Errorf("could not get containers: %s", err)
+	}
+
+	// Build mapping of Container ID to container object to avoid traversal of
+	// the containers slice for every services.
+	containersMap := make(map[string]*agentPayload.Container, len(containers))
+	for _, c := range containers {
+		containersMap[c.Id] = c
+	}
+
+	for _, pid := range pids {
+		service := s.getService(context, pid)
+		if service == nil {
+			continue
+		}
+		s.enrichContainerData(service, containersMap, pidToCid)
+
+		services = append(services, *service)
+	}
+
+	utils.WriteAsJSON(w, services)
+}
+
 // handleServers is the handler for the /services endpoint.
 // Returns the list of currently running services.
 func (s *discovery) handleServices(w http.ResponseWriter, _ *http.Request) {
@@ -149,10 +264,7 @@ func (s *discovery) handleServices(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	resp := &model.ServicesResponse{
-		Services: *services,
-	}
-	utils.WriteAsJSON(w, resp)
+	utils.WriteAsJSON(w, services)
 }
 
 const prefix = "socket:["
@@ -374,19 +486,6 @@ func (s *discovery) shouldIgnoreService(name string) bool {
 	return found
 }
 
-// cleanIgnoredPids removes dead PIDs from the list of ignored processes.
-func (s *discovery) cleanIgnoredPids(alivePids map[int32]struct{}) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
-	for pid := range s.ignorePids {
-		if _, alive := alivePids[pid]; alive {
-			continue
-		}
-		delete(s.ignorePids, pid)
-	}
-}
-
 // getServiceInfo gets the service information for a process using the
 // servicedetector module.
 func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
@@ -430,7 +529,13 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	nameMeta := servicediscovery.GetServiceName(lang, ctx)
 	apmInstrumentation := apm.Detect(lang, ctx)
 
+	name := nameMeta.DDService
+	if name == "" {
+		name = nameMeta.Name
+	}
+
 	return &serviceInfo{
+		name:                name,
 		generatedName:       nameMeta.Name,
 		generatedNameSource: string(nameMeta.Source),
 		ddServiceName:       nameMeta.DDService,
@@ -533,40 +638,26 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		s.mux.Unlock()
 	}
 
-	name := info.ddServiceName
-	if name == "" {
-		name = info.generatedName
-	}
-	if s.shouldIgnoreService(name) {
+	if s.shouldIgnoreService(info.name) {
 		s.addIgnoredPid(pid)
 		return nil
 	}
 
-	return &model.Service{
-		PID:                 int(pid),
-		Name:                name,
-		GeneratedName:       info.generatedName,
-		GeneratedNameSource: info.generatedNameSource,
-		DDService:           info.ddServiceName,
-		DDServiceInjected:   info.ddServiceInjected,
-		Ports:               ports,
-		APMInstrumentation:  string(info.apmInstrumentation),
-		Language:            string(info.language),
-		RSS:                 rss,
-		CommandLine:         info.cmdLine,
-		StartTimeMilli:      info.startTimeMilli,
-		CPUCores:            info.cpuUsage,
-	}
+	service := &model.Service{}
+	info.toModelService(pid, service)
+	service.Ports = ports
+	service.RSS = rss
+
+	return service
 }
 
 // cleanCache deletes dead PIDs from the cache. Note that this does not actually
 // shrink the map but should free memory for the service name strings referenced
-// from it.
-func (s *discovery) cleanCache(alivePids map[int32]struct{}) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
+// from it. This function is not thread-safe and it is up to the caller to ensure
+// s.mux is locked.
+func (s *discovery) cleanCache(alivePids pidSet) {
 	for pid := range s.cache {
-		if _, alive := alivePids[pid]; alive {
+		if alivePids.has(pid) {
 			continue
 		}
 
@@ -574,12 +665,24 @@ func (s *discovery) cleanCache(alivePids map[int32]struct{}) {
 	}
 }
 
-// updateServicesCPUStats updates the CPU stats of cached services, as well as the
-// global CPU time cache for future updates.
-func (s *discovery) updateServicesCPUStats(services []model.Service) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
+// cleanPidSets deletes dead PIDs from the provided pidSets. This function is not
+// thread-safe and it is up to the caller to ensure s.mux is locked.
+func (s *discovery) cleanPidSets(alivePids pidSet, sets ...pidSet) {
+	for _, set := range sets {
+		for pid := range set {
+			if alivePids.has(pid) {
+				continue
+			}
 
+			delete(set, pid)
+		}
+	}
+}
+
+// updateServicesCPUStats updates the CPU stats of cached services, as well as the
+// global CPU time cache for future updates. This function is not thread-safe and
+// it is up to the caller to ensure s.mux is locked.
+func (s *discovery) updateServicesCPUStats(response *model.ServicesResponse) error {
 	if time.Since(s.lastCPUTimeUpdate) < s.config.cpuUsageUpdateDelay {
 		return nil
 	}
@@ -589,16 +692,24 @@ func (s *discovery) updateServicesCPUStats(services []model.Service) error {
 		return fmt.Errorf("could not get global CPU time: %w", err)
 	}
 
-	for i := range services {
-		service := &services[i]
-		serviceInfo, ok := s.cache[int32(service.PID)]
-		if !ok {
-			continue
-		}
-
-		_ = updateCPUCoresStats(service.PID, serviceInfo, s.lastGlobalCPUTime, globalCPUTime)
-		service.CPUCores = serviceInfo.cpuUsage
+	for pid, info := range s.cache {
+		_ = updateCPUCoresStats(int(pid), info, s.lastGlobalCPUTime, globalCPUTime)
 	}
+
+	updateResponseCPUStats := func(services []model.Service) {
+		for i := range services {
+			service := &services[i]
+			info, ok := s.cache[int32(service.PID)]
+			if !ok {
+				continue
+			}
+
+			service.CPUCores = info.cpuUsage
+		}
+	}
+
+	updateResponseCPUStats(response.StartedServices)
+	updateResponseCPUStats(response.HeartbeatServices)
 
 	s.lastGlobalCPUTime = globalCPUTime
 	s.lastCPUTimeUpdate = time.Now()
@@ -680,13 +791,63 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	serviceInfo, ok := s.cache[int32(service.PID)]
 	if ok {
 		serviceInfo.containerServiceName = serviceName
+		serviceInfo.containerServiceNameSource = tagName
 		serviceInfo.checkedContainerData = true
+		serviceInfo.containerID = id
 	}
 	s.mux.Unlock()
 }
 
+func (s *discovery) updateCacheInfo(response *model.ServicesResponse, now time.Time) {
+	updateCachedHeartbeat := func(service *model.Service) {
+		info, ok := s.cache[int32(service.PID)]
+		if !ok {
+			log.Warnf("could not access service info from the cache when update last heartbeat for PID %v start event", service.PID)
+			return
+		}
+
+		info.lastHeartbeat = now.Unix()
+		info.ports = service.Ports
+		info.rss = service.RSS
+	}
+
+	for i := range response.StartedServices {
+		service := &response.StartedServices[i]
+		updateCachedHeartbeat(service)
+	}
+
+	for i := range response.HeartbeatServices {
+		service := &response.HeartbeatServices[i]
+		updateCachedHeartbeat(service)
+	}
+}
+
+// handleStoppedServices verifies services previously seen and registered as
+// running are still alive. If not, it will use the latest cached information
+// about them to generate a stop event for the service. This function is not
+// thread-safe and it is up to the caller to ensure s.mux is locked.
+func (s *discovery) handleStoppedServices(response *model.ServicesResponse, alivePids pidSet) {
+	for pid := range s.runningServices {
+		if alivePids.has(pid) {
+			continue
+		}
+
+		s.runningServices.remove(pid)
+		info, ok := s.cache[pid]
+		if !ok {
+			log.Warnf("could not get service from the cache to generate a stopped service event for PID %v", pid)
+			continue
+		}
+		delete(s.cache, pid)
+
+		// Build service struct in place in the slice
+		response.StoppedServices = append(response.StoppedServices, model.Service{})
+		info.toModelService(pid, &response.StoppedServices[len(response.StoppedServices)-1])
+	}
+}
+
 // getStatus returns the list of currently running services.
-func (s *discovery) getServices() (*[]model.Service, error) {
+func (s *discovery) getServices() (*model.ServicesResponse, error) {
 	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
@@ -698,9 +859,14 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 		netNsInfo: make(map[uint32]*namespaceInfo),
 	}
 
-	var services []model.Service
-	alivePids := make(map[int32]struct{}, len(pids))
-	containers, _, pidToCid, err := s.containerProvider.GetContainers(containerCacheValidatity, nil)
+	response := &model.ServicesResponse{
+		StartedServices:   make([]model.Service, 0, len(s.potentialServices)),
+		StoppedServices:   make([]model.Service, 0),
+		HeartbeatServices: make([]model.Service, 0),
+	}
+
+	alivePids := make(pidSet, len(pids))
+	containers, _, pidToCid, err := s.containerProvider.GetContainers(containerCacheValidity, nil)
 	if err != nil {
 		log.Errorf("could not get containers: %s", err)
 	}
@@ -712,8 +878,10 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 		containersMap[c.Id] = c
 	}
 
+	now := s.timeProvider.Now()
+
 	for _, pid := range pids {
-		alivePids[pid] = struct{}{}
+		alivePids.add(pid)
 
 		service := s.getService(context, pid)
 		if service == nil {
@@ -721,15 +889,44 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 		}
 		s.enrichContainerData(service, containersMap, pidToCid)
 
-		services = append(services, *service)
+		if _, ok := s.runningServices[pid]; ok {
+			if serviceHeartbeatTime := time.Unix(service.LastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= heartbeatTime {
+				service.LastHeartbeat = now.Unix()
+				response.HeartbeatServices = append(response.HeartbeatServices, *service)
+			}
+
+			continue
+		}
+
+		if _, ok := s.potentialServices[pid]; ok {
+			// We have seen it first in the previous call of getServices, so it
+			// is confirmed to be running.
+			s.runningServices.add(pid)
+			delete(s.potentialServices, pid)
+			service.LastHeartbeat = now.Unix()
+			response.StartedServices = append(response.StartedServices, *service)
+			continue
+		}
+
+		// This is a new potential service
+		s.potentialServices.add(pid)
+		log.Debugf("[pid: %d] adding process to potential: %s", pid, service.Name)
 	}
 
-	s.cleanCache(alivePids)
-	s.cleanIgnoredPids(alivePids)
+	s.mux.Lock()
+	defer s.mux.Unlock()
 
-	if err = s.updateServicesCPUStats(services); err != nil {
+	s.updateCacheInfo(response, now)
+	s.handleStoppedServices(response, alivePids)
+
+	s.cleanCache(alivePids)
+	s.cleanPidSets(alivePids, s.ignorePids, s.potentialServices)
+
+	if err = s.updateServicesCPUStats(response); err != nil {
 		log.Warnf("updating services CPU stats: %s", err)
 	}
 
-	return &services, nil
+	response.RunningServicesCount = len(s.runningServices)
+
+	return response, nil
 }

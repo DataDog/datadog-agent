@@ -69,7 +69,7 @@ def guess_from_keywords(issue):
 def simple_match(word):
     pattern_matching = {
         "agent-apm": ['apm', 'java', 'dotnet', 'ruby', 'trace'],
-        "containers": [
+        "container-integrations": [
             'container',
             'pod',
             'kubernetes',

@@ -27,7 +27,7 @@ func (s *MacroStore) List() []*Macro {
 }
 
 // Get returns the marcro
-func (s *MacroStore) Get(id string) *Macro {
+func (s *MacroStore) Get(id MacroID) *Macro {
 	if s == nil {
 		return nil
 	}
@@ -38,6 +38,15 @@ func (s *MacroStore) Get(id string) *Macro {
 		}
 	}
 	return nil
+}
+
+// GetMacroEvaluator returns the macro evaluator associated with the macro ID
+func (s *MacroStore) GetMacroEvaluator(id MacroID) (*MacroEvaluator, bool) {
+	macro := s.Get(id)
+	if macro == nil {
+		return nil, false
+	}
+	return macro.evaluator, true
 }
 
 // Contains returns returns true is there is already a macro with this ID in the store

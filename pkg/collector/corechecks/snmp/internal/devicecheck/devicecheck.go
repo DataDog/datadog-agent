@@ -19,7 +19,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	haagenthelpers "github.com/DataDog/datadog-agent/comp/haagent/helpers"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -314,11 +313,7 @@ func (d *DeviceCheck) setDeviceHostExternalTags() {
 }
 
 func (d *DeviceCheck) buildExternalTags() []string {
-	agentTags := configUtils.GetConfiguredTags(d.agentConfig, false)
-	if haagenthelpers.IsEnabled(d.agentConfig) {
-		agentTags = append(agentTags, haagenthelpers.GetHaAgentTags(d.agentConfig)...)
-	}
-	return agentTags
+	return configUtils.GetConfiguredTags(d.agentConfig, false)
 }
 
 // getValuesAndTags build (or fetches from cache) a profile describing all the

@@ -137,7 +137,7 @@ func TestBuildProfile(t *testing.T) {
 				MetricTags: []profiledefinition.MetricTagConfig{
 					{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
 				},
-				StaticTags: []string{"snmp_profile:profile1", "device_vendor:a-vendor"},
+				StaticTags: []string{"snmp_profile:profile1"},
 				Metadata:   mergedMetadata,
 			},
 		}, {
@@ -155,7 +155,7 @@ func TestBuildProfile(t *testing.T) {
 				MetricTags: []profiledefinition.MetricTagConfig{
 					{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
 				},
-				StaticTags: []string{"snmp_profile:profile1", "device_vendor:a-vendor"},
+				StaticTags: []string{"snmp_profile:profile1"},
 				Metadata:   mergedMetadata,
 			},
 		}, {
@@ -183,7 +183,7 @@ func TestBuildProfile(t *testing.T) {
 					{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
 				},
 				Metadata:   mergedMetadata,
-				StaticTags: []string{"snmp_profile:profile1", "device_vendor:a-vendor"},
+				StaticTags: []string{"snmp_profile:profile1"},
 			},
 		}, {
 			name: "static unknown",

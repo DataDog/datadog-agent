@@ -11,15 +11,15 @@
 package model
 
 import (
+	"net"
 	"net/netip"
 	"time"
-
-	"modernc.org/mathutil"
 
 	"github.com/google/gopacket"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 const (
@@ -237,8 +237,8 @@ type Process struct {
 	CGroup      CGroupContext              `field:"cgroup"`                                         // SECLDoc[cgroup] Definition:`CGroup`
 	ContainerID containerutils.ContainerID `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
 
-	SpanID  uint64          `field:"-"`
-	TraceID mathutil.Int128 `field:"-"`
+	SpanID  uint64        `field:"-"`
+	TraceID utils.TraceID `field:"-"`
 
 	TTYName     string      `field:"tty_name"`                         // SECLDoc[tty_name] Definition:`Name of the TTY associated with the process`
 	Comm        string      `field:"comm"`                             // SECLDoc[comm] Definition:`Comm attribute of the process`
@@ -659,7 +659,7 @@ type ActivityDumpLoadConfig struct {
 	WaitListTimestampRaw uint64
 	StartTimestampRaw    uint64
 	EndTimestampRaw      uint64
-	Rate                 uint32 // max number of events per sec
+	Rate                 uint16 // max number of events per sec
 	Paused               uint32
 }
 
@@ -751,6 +751,14 @@ type OnDemandEvent struct {
 // LoginUIDWriteEvent is used to propagate login UID updates to user space
 type LoginUIDWriteEvent struct {
 	AUID uint32 `field:"-"`
+}
+
+// SnapshottedBoundSocket represents a snapshotted bound socket
+type SnapshottedBoundSocket struct {
+	IP       net.IP
+	Port     uint16
+	Family   uint16
+	Protocol uint16
 }
 
 // RawPacketEvent represents a packet event

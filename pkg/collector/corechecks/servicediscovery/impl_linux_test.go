@@ -57,11 +57,6 @@ var (
 		env: []string{},
 		cwd: "",
 	}
-	procTestService1DifferentPID = testProc{
-		pid: 102,
-		env: []string{},
-		cwd: "",
-	}
 )
 
 var (
@@ -76,6 +71,7 @@ var (
 		DDServiceInjected:          true,
 		Ports:                      []uint16{8080},
 		APMInstrumentation:         string(apm.None),
+		Type:                       "web_service",
 		RSS:                        100 * 1024 * 1024,
 		CPUCores:                   1.5,
 		CommandLine:                []string{"test-service-1"},
@@ -93,23 +89,9 @@ var (
 		DDServiceInjected:          true,
 		Ports:                      []uint16{8080},
 		APMInstrumentation:         string(apm.None),
+		Type:                       "web_service",
 		RSS:                        200 * 1024 * 1024,
 		CPUCores:                   1.5,
-		CommandLine:                []string{"test-service-1"},
-		StartTimeMilli:             procLaunchedMilli,
-		ContainerID:                dummyContainerID,
-	}
-	portTCP8080DifferentPID = model.Service{
-		PID:                        procTestService1DifferentPID.pid,
-		Name:                       "test-service-1",
-		GeneratedName:              "test-service-1-generated",
-		GeneratedNameSource:        "test-service-1-generated-source",
-		ContainerServiceName:       "test-service-1-container",
-		ContainerServiceNameSource: "service",
-		DDService:                  "test-service-1",
-		DDServiceInjected:          true,
-		Ports:                      []uint16{8080},
-		APMInstrumentation:         string(apm.Injected),
 		CommandLine:                []string{"test-service-1"},
 		StartTimeMilli:             procLaunchedMilli,
 		ContainerID:                dummyContainerID,
@@ -123,6 +105,7 @@ var (
 		ContainerServiceNameSource: "app",
 		Language:                   "python",
 		Ports:                      []uint16{5000},
+		Type:                       "web_service",
 		CommandLine:                pythonCommandLine,
 		StartTimeMilli:             procLaunchedMilli,
 		ContainerID:                dummyContainerID,
@@ -135,6 +118,7 @@ var (
 		ContainerServiceName:       "test-service-1-container",
 		ContainerServiceNameSource: "service",
 		Ports:                      []uint16{5432},
+		Type:                       "db",
 		CommandLine:                []string{"test-service-1"},
 		StartTimeMilli:             procLaunchedMilli,
 		ContainerID:                dummyContainerID,
@@ -192,31 +176,24 @@ func Test_linuxImpl(t *testing.T) {
 			name: "basic",
 			checkRun: []*checkRun{
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
+					servicesResp: &model.ServicesResponse{StartedServices: []model.Service{
 						portTCP5000,
 						portTCP8080,
 					}},
 					time: calcTime(0),
 				},
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP5000,
-						portTCP8080,
-					}},
-					time: calcTime(1 * time.Minute),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
+					servicesResp: &model.ServicesResponse{HeartbeatServices: []model.Service{
 						portTCP5000,
 						portTCP8080UpdatedRSS,
 					}},
 					time: calcTime(20 * time.Minute),
 				},
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP5000,
+					servicesResp: &model.ServicesResponse{StoppedServices: []model.Service{
+						portTCP8080UpdatedRSS,
 					}},
-					time: calcTime(21 * time.Minute),
+					time: calcTime(20 * time.Minute),
 				},
 			},
 			wantEvents: []*event{
@@ -237,7 +214,7 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                        "",
 						StartTime:                  calcTime(0).Unix(),
 						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(1 * time.Minute).Unix(),
+						LastSeen:                   calcTime(0).Unix(),
 						Ports:                      []uint16{8080},
 						PID:                        99,
 						CommandLine:                []string{"test-service-1"},
@@ -316,7 +293,7 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                        "",
 						StartTime:                  calcTime(0).Unix(),
 						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(1 * time.Minute).Unix(),
+						LastSeen:                   calcTime(0).Unix(),
 						Ports:                      []uint16{5000},
 						PID:                        500,
 						ServiceLanguage:            "python",
@@ -353,31 +330,24 @@ func Test_linuxImpl(t *testing.T) {
 			name: "repeated_service_name",
 			checkRun: []*checkRun{
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
+					servicesResp: &model.ServicesResponse{StartedServices: []model.Service{
 						portTCP8080,
 						portTCP5432,
 					}},
 					time: calcTime(0),
 				},
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080,
-						portTCP5432,
-					}},
-					time: calcTime(1 * time.Minute),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
+					servicesResp: &model.ServicesResponse{HeartbeatServices: []model.Service{
 						portTCP8080,
 						portTCP5432,
 					}},
 					time: calcTime(20 * time.Minute),
 				},
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080,
+					servicesResp: &model.ServicesResponse{StoppedServices: []model.Service{
+						portTCP5432,
 					}},
-					time: calcTime(21 * time.Minute),
+					time: calcTime(20 * time.Minute),
 				},
 			},
 			wantEvents: []*event{
@@ -396,7 +366,7 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                        "",
 						StartTime:                  calcTime(0).Unix(),
 						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(1 * time.Minute).Unix(),
+						LastSeen:                   calcTime(0).Unix(),
 						Ports:                      []uint16{5432},
 						PID:                        101,
 						CommandLine:                []string{"test-service-1"},
@@ -420,7 +390,7 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                        "",
 						StartTime:                  calcTime(0).Unix(),
 						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(1 * time.Minute).Unix(),
+						LastSeen:                   calcTime(0).Unix(),
 						Ports:                      []uint16{8080},
 						PID:                        99,
 						CommandLine:                []string{"test-service-1"},
@@ -503,91 +473,29 @@ func Test_linuxImpl(t *testing.T) {
 				},
 			},
 		},
-		{
-			// in case we detect a service is restarted, we skip the stop event and send
-			// another start event instead.
-			name: "restart_service",
-			checkRun: []*checkRun{
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080,
-					}},
-					time: calcTime(0),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080,
-					}},
-					time: calcTime(1 * time.Minute),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080DifferentPID,
-					}},
-					time: calcTime(21 * time.Minute),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080DifferentPID,
-					}},
-					time: calcTime(22 * time.Minute),
-				},
-			},
-			wantEvents: []*event{
-				{
-					RequestType: "start-service",
-					APIVersion:  "v2",
-					Payload: &eventPayload{
-						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
-						GeneratedServiceName:       "test-service-1-generated",
-						GeneratedServiceNameSource: "test-service-1-generated-source",
-						ContainerServiceName:       "test-service-1-container",
-						ContainerServiceNameSource: "service",
-						DDService:                  "test-service-1",
-						ServiceNameSource:          "injected",
-						ServiceType:                "web_service",
-						HostName:                   host,
-						Env:                        "",
-						StartTime:                  calcTime(0).Unix(),
-						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(1 * time.Minute).Unix(),
-						Ports:                      []uint16{8080},
-						PID:                        99,
-						CommandLine:                []string{"test-service-1"},
-						APMInstrumentation:         "none",
-						RSSMemory:                  100 * 1024 * 1024,
-						CPUCores:                   1.5,
-						ContainerID:                dummyContainerID,
-					},
-				},
-				{
-					RequestType: "start-service",
-					APIVersion:  "v2",
-					Payload: &eventPayload{
-						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
-						GeneratedServiceName:       "test-service-1-generated",
-						GeneratedServiceNameSource: "test-service-1-generated-source",
-						ContainerServiceName:       "test-service-1-container",
-						ContainerServiceNameSource: "service",
-						DDService:                  "test-service-1",
-						ServiceNameSource:          "injected",
-						ServiceType:                "web_service",
-						HostName:                   host,
-						Env:                        "",
-						StartTime:                  calcTime(0).Unix(),
-						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(22 * time.Minute).Unix(),
-						Ports:                      []uint16{8080},
-						PID:                        102,
-						CommandLine:                []string{"test-service-1"},
-						APMInstrumentation:         "injected",
-						ContainerID:                dummyContainerID,
-					},
-				},
-			},
-		},
+	}
+
+	makeServiceResponseWithTime := func(responseTime time.Time, resp *model.ServicesResponse) *model.ServicesResponse {
+		respWithTime := &model.ServicesResponse{
+			StartedServices:   make([]model.Service, 0, len(resp.StartedServices)),
+			StoppedServices:   make([]model.Service, 0, len(resp.StoppedServices)),
+			HeartbeatServices: make([]model.Service, 0, len(resp.HeartbeatServices)),
+		}
+
+		for _, service := range resp.StartedServices {
+			service.LastHeartbeat = responseTime.Unix()
+			respWithTime.StartedServices = append(respWithTime.StartedServices, service)
+		}
+		for _, service := range resp.StoppedServices {
+			service.LastHeartbeat = responseTime.Unix()
+			respWithTime.StoppedServices = append(respWithTime.StoppedServices, service)
+		}
+		for _, service := range resp.HeartbeatServices {
+			service.LastHeartbeat = responseTime.Unix()
+			respWithTime.HeartbeatServices = append(respWithTime.HeartbeatServices, service)
+		}
+
+		return respWithTime
 	}
 
 	for _, tc := range tests {
@@ -619,9 +527,8 @@ func Test_linuxImpl(t *testing.T) {
 
 				// set mocks
 				check.os.(*linuxImpl).getDiscoveryServices = func(_ *http.Client) (*model.ServicesResponse, error) {
-					return cr.servicesResp, nil
+					return makeServiceResponseWithTime(cr.time, cr.servicesResp), nil
 				}
-				check.os.(*linuxImpl).time = mTimer
 				check.sender.hostname = mHostname
 
 				err = check.Run()

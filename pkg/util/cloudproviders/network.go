@@ -27,27 +27,29 @@ const (
 // * GCE
 // * EC2
 func GetNetworkID(ctx context.Context) (string, error) {
+	var err error
 	return cache.Get[string](
 		networkIDCacheKey,
 		func() (string, error) {
+			var networkID string
 			// the id from configuration
-			if networkID := pkgconfigsetup.Datadog().GetString("network.id"); networkID != "" {
+			if networkID = pkgconfigsetup.Datadog().GetString("network.id"); networkID != "" {
 				log.Debugf("GetNetworkID: using configured network ID: %s", networkID)
 				return networkID, nil
 			}
 
 			log.Debugf("GetNetworkID trying GCE")
-			if networkID, err := gce.GetNetworkID(ctx); err == nil {
+			if networkID, err = gce.GetNetworkID(ctx); err == nil {
 				log.Debugf("GetNetworkID: using network ID from GCE metadata: %s", networkID)
 				return networkID, nil
 			}
 
 			log.Debugf("GetNetworkID trying EC2")
-			if networkID, err := ec2.GetNetworkID(ctx); err == nil {
+			if networkID, err = ec2.GetNetworkID(ctx); err == nil {
 				log.Debugf("GetNetworkID: using network ID from EC2 metadata: %s", networkID)
 				return networkID, nil
 			}
 
-			return "", fmt.Errorf("could not detect network ID")
+			return "", fmt.Errorf("could not detect network ID: %s", err)
 		})
 }
