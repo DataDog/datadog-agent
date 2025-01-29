@@ -35,8 +35,8 @@ agent_dmg-x64-a7:
 
 new-agent_dmg-x64-a7:
   stage: package_build
-  # tags: ["macos:ventura-arm64-test", "specific:true"]
-  tags: ["macos:ventura-arm64", "specific:true"]
+  tags: ["macos:ventura-arm64-test", "specific:true"]
+  extends: [.macos_gitlab]
   # TODO
   # rules:
   #   - !reference [.on_macos_gui_change]
