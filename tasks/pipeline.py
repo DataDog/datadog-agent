@@ -949,6 +949,7 @@ def generate_fips_e2e_child_pipeline(ctx, generate_config=False):
             and 'ON_NIGHTLY_FIPS' in job_details['variables']
             and job_details['variables']['ON_NIGHTLY_FIPS'] == "true"
             and not job.startswith(".")
+            and job_details["stage"] == "e2e"
         ):
             kept_job[job] = job_details
 
