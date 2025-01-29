@@ -248,6 +248,8 @@ single-machine-performance-regression_detector:
     # If we make it here that means quality gates must not have failed.
     - datadog-ci tag --level job --tags smp_quality_gates:"passed"
   after_script:
+    # If a job is manually canceled through gitlab, the SMP job still runs to completion.
+    # Given that we have the job id it is possible to manually cancel through SMP cli, but this is easier.
     - if [ "$CI_JOB_STATUS" != "canceled" ]; then exit 0; fi
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     - datadog-ci tag --level job --tags smp_failure_mode:"canceled"
