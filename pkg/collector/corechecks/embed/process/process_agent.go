@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -71,9 +72,9 @@ func (c *ProcessAgentCheck) ConfigSource() string {
 }
 
 // Loader returns the check loader
-func (c *ProcessAgentCheck) Loader() string {
+func (*ProcessAgentCheck) Loader() string {
 	// the process check is scheduled by the Go loader
-	return "Go"
+	return corechecks.GoCheckLoaderName
 }
 
 // InitConfig returns the init configuration

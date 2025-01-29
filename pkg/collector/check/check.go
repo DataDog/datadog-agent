@@ -30,6 +30,7 @@ type Check interface {
 	// String provides a printable version of the check name
 	String() string
 	// Loader returns the name of the check loader
+	// This is used in tags so should match the tag value format constraints (eg. lowercase, no spaces)
 	Loader() string
 	// Configure configures the check
 	Configure(senderManger sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error

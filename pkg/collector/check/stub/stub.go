@@ -31,7 +31,7 @@ func (c *StubCheck) Version() string { return "" }
 func (c *StubCheck) ConfigSource() string { return "" }
 
 // Loader returns a stubbed loader name
-func (c *StubCheck) Loader() string { return "StubLoader" }
+func (*StubCheck) Loader() string { return "stub" }
 
 // Stop is a noop
 func (c *StubCheck) Stop() {}

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -71,9 +72,9 @@ func (c *APMCheck) ConfigSource() string {
 }
 
 // Loader returns the check loader
-func (c *APMCheck) Loader() string {
+func (*APMCheck) Loader() string {
 	// the apm check is scheduled by the Go loader
-	return "Go"
+	return corechecks.GoCheckLoaderName
 }
 
 // Run executes the check with retries

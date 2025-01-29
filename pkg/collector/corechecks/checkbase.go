@@ -214,8 +214,8 @@ func (c *CheckBase) ConfigSource() string {
 	return c.source
 }
 
-func (c *CheckBase) Loader() string {
-	return "Go"
+func (*CheckBase) Loader() string {
+	return GoCheckLoaderName
 }
 
 // InitConfig returns the init_config configuration for the check.
