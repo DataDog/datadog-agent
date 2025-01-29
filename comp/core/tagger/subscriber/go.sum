@@ -1,3 +1,7 @@
+github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.0.0-20250129172314-517df3f51a84 h1:2nL9G1SdPYbC2U0bvXEGj85+Y+muJgSDgzxmdnV4Xkk=
+github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.0.0-20250129172314-517df3f51a84/go.mod h1:JfSEpaM7XJkpFsODUZhbbYIvwxmUbW8zHZIGKdQrLnY=
+github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel h1:hNKm+VRH3lfOzSnhKUj3Dr+MI99pxhRlL36qoPK6WCA=
+github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel/go.mod h1:BECd5pnMX9MEnARCAV+S7M0Sk/gYwopL7QlhCFdXSI0=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=

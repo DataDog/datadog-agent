@@ -2,11 +2,6 @@ module github.com/DataDog/datadog-agent/comp/core/tagger/subscriber
 
 go 1.22.0
 
-replace (
-	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry => ../telemetry
-	github.com/DataDog/datadog-agent/pkg/util/option => ../../../../pkg/util/option/
-)
-
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.0.0-20250129172314-517df3f51a84
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.59.0
@@ -97,3 +92,7 @@ replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../pkg/ut
 replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
 
 replace github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
+
+replace github.com/DataDog/datadog-agent/comp/core/tagger/telemetry => ../telemetry
+
+replace github.com/DataDog/datadog-agent/pkg/util/option => ../../../../pkg/util/option
