@@ -1,0 +1,151 @@
+From 932c68ad6978616a8b0c914c82af928e877ba2ed Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Wed, 29 Jan 2025 13:50:34 +0100
+Subject: [PATCH 2/2] fix configure checks
+
+---
+ dist/configure | 30 +++++++++++++++---------------
+ 1 file changed, 15 insertions(+), 15 deletions(-)
+
+diff --git a/dist/configure b/dist/configure
+index db718de..77d8067 100755
+--- a/dist/configure
++++ b/dist/configure
+@@ -20611,7 +20611,7 @@ else
+ 
+ #include <stdlib.h>
+ #include <pthread.h>
+-main() {
++int main() {
+ 	pthread_cond_t cond;
+ 	pthread_mutex_t mutex;
+ 	pthread_condattr_t condattr;
+@@ -20671,7 +20671,7 @@ else
+ 
+ #include <stdlib.h>
+ #include <pthread.h>
+-main() {
++int main() {
+ 	pthread_cond_t cond;
+ 	pthread_condattr_t condattr;
+ 	exit(pthread_condattr_init(&condattr) ||
+@@ -20721,7 +20721,7 @@ else
+ 
+ #include <stdlib.h>
+ #include <pthread.h>
+-main() {
++int main() {
+ 	pthread_rwlock_t rwlock;
+ 	pthread_rwlockattr_t rwlockattr;
+ 	exit(pthread_rwlockattr_init(&rwlockattr) ||
+@@ -20785,7 +20785,7 @@ else
+ 
+ #include <stdlib.h>
+ #include <pthread.h>
+-main() {
++int main() {
+ 	pthread_cond_t cond;
+ 	pthread_mutex_t mutex;
+ 	pthread_condattr_t condattr;
+@@ -20845,7 +20845,7 @@ else
+ 
+ #include <stdlib.h>
+ #include <pthread.h>
+-main() {
++int main() {
+ 	pthread_cond_t cond;
+ 	pthread_condattr_t condattr;
+ 	exit(pthread_condattr_init(&condattr) ||
+@@ -20895,7 +20895,7 @@ else
+ 
+ #include <stdlib.h>
+ #include <pthread.h>
+-main() {
++int main() {
+ 	pthread_rwlock_t rwlock;
+ 	pthread_rwlockattr_t rwlockattr;
+ 	exit(pthread_rwlockattr_init(&rwlockattr) ||
+@@ -20960,7 +20960,7 @@ else
+ 
+ #include <stdlib.h>
+ #include <pthread.h>
+-main() {
++int main() {
+ 	pthread_cond_t cond;
+ 	pthread_mutex_t mutex;
+ 	pthread_condattr_t condattr;
+@@ -21018,7 +21018,7 @@ else
+ 
+ #include <stdlib.h>
+ #include <pthread.h>
+-main() {
++int main() {
+ 	pthread_cond_t cond;
+ 	pthread_condattr_t condattr;
+ 	exit(pthread_condattr_init(&condattr) ||
+@@ -21068,7 +21068,7 @@ else
+ 
+ #include <stdlib.h>
+ #include <pthread.h>
+-main() {
++int main() {
+ 	pthread_rwlock_t rwlock;
+ 	pthread_rwlockattr_t rwlockattr;
+ 	exit(pthread_rwlockattr_init(&rwlockattr) ||
+@@ -21130,7 +21130,7 @@ else
+ 
+ #include <stdlib.h>
+ #include <pthread.h>
+-main() {
++int main() {
+ 	pthread_cond_t cond;
+ 	pthread_mutex_t mutex;
+ 	pthread_condattr_t condattr;
+@@ -21188,7 +21188,7 @@ else
+ 
+ #include <stdlib.h>
+ #include <pthread.h>
+-main() {
++int main() {
+ 	pthread_cond_t cond;
+ 	pthread_condattr_t condattr;
+ 	exit(pthread_condattr_init(&condattr) ||
+@@ -21238,7 +21238,7 @@ else
+ 
+ #include <stdlib.h>
+ #include <pthread.h>
+-main() {
++int main() {
+ 	pthread_rwlock_t rwlock;
+ 	pthread_rwlockattr_t rwlockattr;
+ 	exit(pthread_rwlockattr_init(&rwlockattr) ||
+@@ -23456,7 +23456,7 @@ else
+ /* end confdefs.h.  */
+ 
+ #include <sys/time.h>
+-main() {
++int main() {
+ 	struct timespec t;
+ 	return (clock_gettime(CLOCK_MONOTONIC, &t) != 0);
+ }
+@@ -24226,7 +24226,7 @@ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+-		main() {
++		int main() {
+ 			$db_cv_seq_type l;
+ 			unsigned $db_cv_seq_type u;
+ 			char buf[100];
+@@ -24322,7 +24322,7 @@ else
+ 	    exit(1);
+     }
+ 
+-    main() {
++    int main() {
+ 	    const char *underlying;
+ 	    unsigned gapsize;
+ 	    char *base;
+-- 
+2.34.1
+

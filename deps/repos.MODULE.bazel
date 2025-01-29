@@ -229,6 +229,11 @@ http_archive(
     sha256 = "e0a992d740709892e81f9d93f06daf305cf73fb81b545afe72478043172c3628",
     strip_prefix = "db-{0}".format(LIBDB_VERSION),
     url = "https://github.com/berkeleydb/libdb/releases/download/v{0}/db-{0}.tar.gz".format(LIBDB_VERSION),
+    patch_args = ["-p1"],
+    patch_tool = "patch",
+    patches = [
+        "//deps/libdb:patches/0002-fix-configure-checks.patch",
+    ],
 )
 
 # Defies a "liblua" target for the lib
