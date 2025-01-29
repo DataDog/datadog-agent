@@ -13,7 +13,7 @@
   - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
   - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
   - echo "--- CC ---"
-  - mkdir -f /tmp/celian/bin /tmp/celian/config
+  - mkdir -p /tmp/celian/bin /tmp/celian/config
   - 'echo "Old install dir: $INSTALL_DIR"'
   - 'echo "Old config dir: $CONFIG_DIR"'
   - export INSTALL_DIR=/tmp/celian/bin
