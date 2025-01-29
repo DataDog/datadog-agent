@@ -221,6 +221,12 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 		}
 	}
 
+	if rcvbuf := config.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
+		if err := conn.SetReadBuffer(rcvbuf); err != nil {
+			log.Warnf("could not set socket rcvbuf: %s", err)
+		}
+	}
+
 	for {
 		var n int
 		var oobn int
