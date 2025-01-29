@@ -258,7 +258,6 @@ def get_git_references(ctx, repo, ref):
     """
     Fetches a specific reference (ex: branch, tag, or HEAD) from a remote Git repository
     """
-    print(repo, ref)
     return ctx.run(
         rf'git ls-remote https://github.com/DataDog/{repo} "{ref}"',
         hide=True,
