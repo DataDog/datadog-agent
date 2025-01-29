@@ -1138,7 +1138,7 @@ func (tm *testModule) StopActivityDump(name string) error {
 		return errors.New("not supported")
 	}
 
-	managers := p.GetProfileManagers()
+	managers := p.GetProfileManager()
 	if managers == nil {
 		return errors.New("no manager")
 	}
@@ -1166,7 +1166,7 @@ func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
 		return nil, errors.New("not supported")
 	}
 
-	managers := p.GetProfileManagers()
+	managers := p.GetProfileManager()
 	if managers == nil {
 		return nil, errors.New("No monitor")
 	}
@@ -1205,7 +1205,7 @@ func (tm *testModule) DecodeActivityDump(path string) (*dump.ActivityDump, error
 		return nil, errors.New("not supported")
 	}
 
-	managers := p.GetProfileManagers()
+	managers := p.GetProfileManager()
 	if managers == nil {
 		return nil, errors.New("No manager")
 	}
@@ -1372,7 +1372,7 @@ func (tm *testModule) triggerLoadControllerReducer(_ *dockerCmdWrapper, id *acti
 		return
 	}
 
-	managers := p.GetProfileManagers()
+	managers := p.GetProfileManager()
 	if managers == nil {
 		return
 	}
@@ -1704,7 +1704,7 @@ func (tm *testModule) ListAllProfiles() {
 		return
 	}
 
-	m := p.GetProfileManagers()
+	m := p.GetProfileManager()
 	if m == nil {
 		return
 	}
@@ -1718,7 +1718,7 @@ func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelec
 		return errors.New("no ebpf probe")
 	}
 
-	m := p.GetProfileManagers()
+	m := p.GetProfileManager()
 	if m == nil {
 		return errors.New("no profile managers")
 	}
@@ -1741,7 +1741,7 @@ func (tm *testModule) GetProfileVersions(imageName string) ([]string, error) {
 		return []string{}, errors.New("no ebpf probe")
 	}
 
-	m := p.GetProfileManagers()
+	m := p.GetProfileManager()
 	if m == nil {
 		return []string{}, errors.New("no profile managers")
 	}
