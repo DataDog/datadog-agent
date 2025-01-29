@@ -234,9 +234,9 @@ def tag_version(
         start_qual: Will start the qualification phase for agent 6 release candidate by adding a qualification tag
 
     Examples:
-        $ inv -e release.tag-version 7.27.x            # Create tags and push them to origin
-        $ inv -e release.tag-version 7.27.x --no-push  # Create tags locally; don't push them
-        $ inv -e release.tag-version 7.29.x --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
+        $ inv -e release.tag-version -r 7.27.x            # Create tags and push them to origin
+        $ inv -e release.tag-version -r 7.27.x --no-push  # Create tags locally; don't push them
+        $ inv -e release.tag-version -r 7.29.x --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
     """
 
     assert release_branch or version
@@ -258,10 +258,10 @@ def tag_version(
                     ctx, get_default_modules()["."], QUALIFICATION_TAG, commit, force_option, False
                 )
 
-    if push:
-        tags_list = ' '.join(tags)
-        ctx.run(f"git push origin {tags_list}{force_option}")
-        print(f"Pushed tag {tags_list}")
+        if push:
+            tags_list = ' '.join(tags)
+            ctx.run(f"git push origin {tags_list}{force_option}")
+            print(f"Pushed tag {tags_list}")
     print(f"Created tags for version {agent_version}")
 
 
