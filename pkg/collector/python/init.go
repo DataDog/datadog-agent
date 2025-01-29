@@ -380,7 +380,12 @@ func Initialize(paths ...string) error {
 	}
 	log.Debugf("Using '%s' as Python interpreter path", pythonBinPath)
 
-	if fips.Enabled() {
+	fipsEnabled, err := fips.Enabled()
+	if err != nil {
+		log.Warnf("Error checking FIPS mode: %v", err)
+	}
+
+	if fipsEnabled {
 		initFIPS(PythonHome)
 	}
 
