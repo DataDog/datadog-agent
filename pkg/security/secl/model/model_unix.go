@@ -228,7 +228,7 @@ type LinuxBinprm struct {
 }
 
 // SetInterpreterFields set the proper field so that this will be seen as a valid interpreter, see HasInterpreter
-func SetInterpreterFields(bprm *LinuxBinprm, subField string, value interface{}) (bool, error) {
+func SetInterpreterFields(bprm *LinuxBinprm, subField string, _ interface{}) (bool, error) {
 	// set a fake inode so that the interpreter becomes valid
 	if bprm.FileEvent.Inode == 0 && subField != "file.inode" {
 		bprm.FileEvent.Inode = fakeInodeMSW
@@ -310,7 +310,7 @@ type Process struct {
 }
 
 // SetAncestorFields force the process cache entry to be valid
-func SetAncestorFields(pce *ProcessCacheEntry, subField string, value interface{}) (bool, error) {
+func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (bool, error) {
 	if subField != "is_kworker" {
 		pce.IsKworker = false
 	}

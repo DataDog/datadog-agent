@@ -509,7 +509,7 @@ type ProcessAncestorsIterator struct {
 }
 
 // Front returns the first element
-func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) *ProcessCacheEntry {
+func (it *ProcessAncestorsIterator) Front(_ *eval.Context) *ProcessCacheEntry {
 	if it.Root != nil {
 		it.prev = it.Root
 	}
