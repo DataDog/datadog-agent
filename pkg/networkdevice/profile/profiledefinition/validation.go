@@ -51,22 +51,23 @@ const (
 func ValidateEnrichProfile(profile *ProfileDefinition) []string {
 	NormalizeMetrics(profile.Metrics)
 	// migrate legacy profile.Device.Vendor to metadata field.
-	if profile.Device.Vendor != "" {
-		dev, ok := profile.Metadata["device"]
-		if !ok {
-			profile.Metadata["device"] = MetadataResourceConfig{
-				Fields: make(map[string]MetadataField),
-			}
-			dev = profile.Metadata["device"]
-		}
-		_, ok = dev.Fields["vendor"]
-		if !ok {
-			dev.Fields["vendor"] = MetadataField{
-				Value: profile.Device.Vendor,
-			}
-		}
-		profile.Device.Vendor = ""
-	}
+	// TODO this is commented out because it changes existing behavior; uncomment when we want to support this properly.
+	// if profile.Device.Vendor != "" {
+	// 	dev, ok := profile.Metadata["device"]
+	// 	if !ok {
+	// 		profile.Metadata["device"] = MetadataResourceConfig{
+	// 			Fields: make(map[string]MetadataField),
+	// 		}
+	// 		dev = profile.Metadata["device"]
+	// 	}
+	// 	_, ok = dev.Fields["vendor"]
+	// 	if !ok {
+	// 		dev.Fields["vendor"] = MetadataField{
+	// 			Value: profile.Device.Vendor,
+	// 		}
+	// 	}
+	// 	profile.Device.Vendor = ""
+	// }
 	errors := ValidateEnrichMetadata(profile.Metadata)
 	errors = append(errors, ValidateEnrichMetrics(profile.Metrics)...)
 	errors = append(errors, ValidateEnrichMetricTags(profile.MetricTags)...)
