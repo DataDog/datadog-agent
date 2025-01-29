@@ -76,38 +76,12 @@ func NewEmptyActivityDump(pathsReducer *activity_tree.PathsReducer, differentiat
 func NewActivityDump(pathsReducer *activity_tree.PathsReducer, differentiateArgs bool, dnsMatchMaxDepth int, eventTypes []model.EventType, onNeedNewTracedPid OnNeedNewTracedPid, loadConfig *model.ActivityDumpLoadConfig, options ...WithDumpOption) *ActivityDump {
 	ad := NewEmptyActivityDump(pathsReducer, differentiateArgs, dnsMatchMaxDepth, eventTypes, onNeedNewTracedPid)
 
-	/*now := time.Now()
-	ad.Metadata = mtdt.Metadata{
-		AgentVersion:      version.AgentVersion,
-		AgentCommit:       version.Commit,
-		KernelVersion:     adm.kernelVersion.Code.String(),
-		LinuxDistribution: adm.kernelVersion.OsRelease["PRETTY_NAME"],
-		Name:              fmt.Sprintf("activity-dump-%s", utils.RandString(10)),
-		ProtobufVersion:   ProtobufVersion,
-		Start:             now,
-		End:               now.Add(adm.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout),
-		Arch:              utils.RuntimeArch(),
-	}
-	ad.Host = adm.hostname
-	ad.Source = ActivityDumpSource
-	ad.adm = adm
-
-	// set load configuration to initial defaults
-	ad.LoadConfig = NewActivityDumpLoadConfig(
-		adm.config.RuntimeSecurity.ActivityDumpTracedEventTypes,
-		adm.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout,
-		adm.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout,
-		adm.config.RuntimeSecurity.ActivityDumpRateLimiter,
-		now,
-		cgroupFlags,
-		adm.resolvers.TimeResolver,
-	)
-	ad.LoadConfigCookie = utils.NewCookie()*/
 	ad.LoadConfig.Store(loadConfig)
 
 	for _, option := range options {
 		option(ad)
 	}
+
 	return ad
 }
 

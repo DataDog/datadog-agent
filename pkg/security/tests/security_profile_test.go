@@ -2387,7 +2387,7 @@ func TestSecurityProfileSyscallDrift(t *testing.T) {
 
 	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
 		if err = test.GetProbeEvent(func() error {
-			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManagers()
+			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
 			manager.AddProfile(generateSyscallTestProfile(test.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.TimeResolver))
 
 			time.Sleep(1 * time.Second) // ensure the profile has time to be pushed kernel space
@@ -2509,7 +2509,7 @@ func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
 
 	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
 		if err = test.GetProbeEvent(func() error {
-			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManagers()
+			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
 			manager.AddProfile(generateSyscallTestProfile(test.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.TimeResolver, model.SysExecve, model.SysExit, model.SysExitGroup))
 
 			time.Sleep(1 * time.Second) // ensure the profile has time to be pushed kernel space
@@ -2623,7 +2623,7 @@ func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 
 	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
 		if err = test.GetProbeEvent(func() error {
-			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManagers()
+			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
 			manager.AddProfile(generateSyscallTestProfile(
 				test.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.TimeResolver,
 				model.SysExecve,
