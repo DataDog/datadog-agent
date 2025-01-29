@@ -19,7 +19,28 @@
             with:
               app-id: ${{ vars.DD_GITHUB_TOKEN_GENERATOR_APP_ID }}
               private-key: ${{ secrets.DD_GITHUB_TOKEN_GENERATOR_PRIVATE_KEY }}
+          - name: Check if the PR is mergeable
+            uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+            id: check-mergeable
+            with:
+              github-token: ${{ steps.app-token.outputs.token }}
+              script: |
+                const pullRequestNumber = context.payload.pull_request.number;
+                const { data: pullRequest } = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pullRequestNumber
+                });
+
+                return `${pullRequest.mergeable && pullRequest.mergeable_state === 'clean'}`;
+              result-encoding: string
+          - name: Contact agent-devx
+            if: ${{ steps.check-mergeable.outputs.result != 'true' }}
+            run: |
+              message="Hi!\nThis dependabot PR ${{github.event.pull_request.html_url}} is not mergeable.\nPlease check it out."
+              curl -X POST -H "Content-Type: application/json" --data '{"message": "$message"}' ${{ secrets.SLACK_AGENT_DEVX_WEBHOOK }}
           - name: Add Merge Comment to Pull Request
+            if: ${{ steps.check-mergeable.outputs.result == 'true' }}
             uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
             with:
               github-token: ${{ steps.app-token.outputs.token }}
