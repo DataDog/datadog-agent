@@ -119,7 +119,7 @@ func retrieveConfig(datadogConfig config.Component, injectionFilter mutatecommon
 
 	instCfg, err := NewInstrumentationConfig(datadogConfig)
 	if err != nil {
-		return webhookConfig, fmt.Errorf("unable to parse apm_config.instrumentation configuration: %w", err)
+		return webhookConfig, err
 	}
 
 	webhookConfig.pinnedLibraries = getPinnedLibraries(instCfg.LibVersions, webhookConfig.containerRegistry)
