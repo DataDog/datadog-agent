@@ -925,7 +925,7 @@ def compare_to_itself(ctx):
 
 
 @task
-def generate_fips_e2e_child_pipeline(ctx, generate_config=False):
+def generate_fips_e2e_pipeline(ctx, generate_config=False):
     """
     Generate a child pipeline with updated e2e tests variables
     """
