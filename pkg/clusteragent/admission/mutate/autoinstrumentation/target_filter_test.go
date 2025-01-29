@@ -109,7 +109,7 @@ func TestTargetFilter(t *testing.T) {
 			require.NoError(t, err)
 
 			// Filter the pod.
-			libList := f.Filter(test.in)
+			libList := f.filter(test.in)
 
 			// Validate the output.
 			languages := convertLibList(libList)

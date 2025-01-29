@@ -18,7 +18,6 @@ import (
 type TargetFilter struct {
 	targets            []targetInternal
 	disabledNamespaces map[string]bool
-	containerRegistry  string
 }
 
 // targetInternal is the struct we use to conver the config based target into
@@ -55,7 +54,7 @@ func NewTargetFilter(targets []Target, disabledNamespaces []string, containerReg
 		}
 
 		// Get the library versions to inject. If no versions are specified, we inject all libraries.
-		libVersions := []libInfo{}
+		var libVersions []libInfo
 		if len(t.TracerVersions) == 0 {
 			libVersions = getAllLatestDefaultLibraries(containerRegistry)
 		} else {
@@ -77,8 +76,8 @@ func NewTargetFilter(targets []Target, disabledNamespaces []string, containerReg
 	}, nil
 }
 
-// Filter filters a pod based on the targets. It returns the list of libraries to inject.
-func (f *TargetFilter) Filter(pod *corev1.Pod) []libInfo {
+// filter filters a pod based on the targets. It returns the list of libraries to inject.
+func (f *TargetFilter) filter(pod *corev1.Pod) []libInfo {
 	// If the namespace is disabled, we don't need to check the targets.
 	if _, ok := f.disabledNamespaces[pod.Namespace]; ok {
 		return nil
