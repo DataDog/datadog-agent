@@ -280,7 +280,7 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 
 	trivyReport, err := s.ScanArtifact(ctx, types.ScanOptions{
 		ScanRemovedPackages: false,
-		PkgTypes:            []types.PkgType{types.PkgTypeOS, types.PkgTypeLibrary},
+		PkgTypes:            types.PkgTypes,
 		PkgRelationships:    ftypes.Relationships,
 		Scanners:            types.Scanners{types.SBOMScanner},
 	})
