@@ -29,8 +29,8 @@ func (mc *MetadataConfig) UnmarshalJSON(data []byte) error {
 }
 
 // Clone duplicates this MetadataConfig
-func (m MetadataConfig) Clone() MetadataConfig {
-	return CloneMap(m)
+func (mc MetadataConfig) Clone() MetadataConfig {
+	return CloneMap(mc)
 }
 
 // MetadataResourceConfig holds configs for a metadata resource
