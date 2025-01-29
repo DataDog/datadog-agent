@@ -770,8 +770,8 @@ trigger-fips-e2e:
     PARENT_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
   trigger:
     include:
-      - artifact: flake-finder-gitlab-ci.yml
-        job: generate-flakes-finder-pipeline
+      - artifact: fips-e2e-gitlab-ci.yml
+        job: generate-fips-e2e-pipeline
     strategy: depend
 
 new-e2e-eks-cleanup-on-failure:
