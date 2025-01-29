@@ -126,6 +126,29 @@ func setupDefaultMocks() {
 	diskUsage = func(mountpoint string) (*disk.UsageStat, error) {
 		return usageData[mountpoint], nil
 	}
+	ioCountersData := map[string]disk.IOCountersStat{
+		"/dev/sda1": {
+			Name:       "/dev/sda1",
+			ReadCount:  100,
+			WriteCount: 200,
+			ReadBytes:  1048576,
+			WriteBytes: 2097152,
+			ReadTime:   300,
+			WriteTime:  450,
+		},
+		"/dev/sda2": {
+			Name:       "/dev/sda2",
+			ReadCount:  50,
+			WriteCount: 75,
+			ReadBytes:  524288,
+			WriteBytes: 1048576,
+			ReadTime:   500,
+			WriteTime:  150,
+		},
+	}
+	diskIOCounters = func(_names ...string) (map[string]disk.IOCountersStat, error) {
+		return ioCountersData, nil
+	}
 	blkidData := map[string]string{
 		"/dev/sda1": `UUID="abc-123" LABEL="MYLABEL1"`,
 		"/dev/sda2": `UUID="def-456" LABEL="MYLABEL2"`,
@@ -163,6 +186,26 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllUsageMetricsAreRe
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
 	m.AssertMetric(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
 	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllIOCountersMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "MonotonicCount", "system.disk.read_time", float64(300), "", []string{"device:/dev/sda1", "device_name:/dev/sda1"})
+	m.AssertMetric(t, "MonotonicCount", "system.disk.write_time", float64(450), "", []string{"device:/dev/sda1", "device_name:/dev/sda1"})
+	m.AssertMetric(t, "Rate", "system.disk.read_time_pct", float64(30), "", []string{"device:/dev/sda1", "device_name:/dev/sda1"})
+	m.AssertMetric(t, "Rate", "system.disk.write_time_pct", float64(45), "", []string{"device:/dev/sda1", "device_name:/dev/sda1"})
+	m.AssertMetric(t, "MonotonicCount", "system.disk.read_time", float64(500), "", []string{"device:/dev/sda2", "device_name:/dev/sda2"})
+	m.AssertMetric(t, "MonotonicCount", "system.disk.write_time", float64(150), "", []string{"device:/dev/sda2", "device_name:/dev/sda2"})
+	m.AssertMetric(t, "Rate", "system.disk.read_time_pct", float64(50), "", []string{"device:/dev/sda2", "device_name:/dev/sda2"})
+	m.AssertMetric(t, "Rate", "system.disk.write_time_pct", float64(15), "", []string{"device:/dev/sda2", "device_name:/dev/sda2"})
 }
 
 func TestGivenADiskCheckWithFileSystemGlobalBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
@@ -485,6 +528,25 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturns
 	assert.Contains(t, b.String(), "Unable to get disk metrics of /run mount point")
 	assert.Contains(t, b.String(), "Unable to get disk metrics of /dev/shm mount point")
 
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndIOCountersSystemCallReturnsError_ThenErrorIsReturnedAndNoUsageMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskIOCounters = func(...string) (map[string]disk.IOCountersStat, error) {
+		return nil, errors.New("error calling diskIOCounters")
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.NotNil(t, err)
+	m.AssertNotCalled(t, "MonotonicCount", "system.disk.read_time", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "MonotonicCount", "system.disk.write_time", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Rate", "system.disk.read_time_pct", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Rate", "system.disk.write_time_pct", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 }
 
 func TestGivenADiskCheckWithIncludeAllDevicesTrueConfigured_WhenCheckRuns_ThenAllUsageMetricsAreReported(t *testing.T) {

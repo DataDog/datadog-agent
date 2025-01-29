@@ -26,7 +26,7 @@ import (
 var (
 	diskPartitions = disk.Partitions
 	diskUsage      = disk.Usage
-	ioCounters     = disk.IOCounters
+	diskIOCounters = disk.IOCounters
 	runBlkid       = func(device string) (string, error) {
 		out, err := exec.Command("blkid", device).Output()
 		if err != nil {
@@ -193,7 +193,7 @@ func (c *Check) includeMountPoint(mountPoint string) bool {
 }
 
 func (c *Check) collectDiskMetrics(sender sender.Sender) error {
-	iomap, err := ioCounters()
+	iomap, err := diskIOCounters()
 	if err != nil {
 		return err
 	}
