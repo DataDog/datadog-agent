@@ -7,6 +7,7 @@
 package util
 
 import (
+	"context"
 	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
@@ -16,12 +17,15 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const createAndSetAuthTokenTimeout = 10 * time.Second
 
 type source int
 
@@ -62,7 +66,7 @@ func SetAuthToken(config model.Reader) error {
 	if err != nil {
 		return err
 	}
-	ipccert, ipckey, err := cert.FetchAgentIPCCert(config)
+	ipccert, ipckey, err := cert.FetchIPCCert(config)
 	if err != nil {
 		return err
 	}
@@ -104,14 +108,41 @@ func CreateAndSetAuthToken(config model.Reader) error {
 		return nil
 	}
 
-	var err error
-	token, err = pkgtoken.CreateOrFetchToken(config)
-	if err != nil {
-		return err
-	}
-	ipccert, ipckey, err := cert.CreateOrFetchAgentIPCCert(config)
-	if err != nil {
-		return err
+	ctx, cancel := context.WithTimeout(context.Background(), createAndSetAuthTokenTimeout)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 2)
+	var ipccert, ipckey []byte
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		var err error
+		token, err = pkgtoken.FetchOrCreateAuthToken(ctx, config)
+		if err != nil {
+			err = fmt.Errorf("error while creating or fetching auth token: %v", err.Error())
+		}
+		errs <- err
+	}()
+
+	go func() {
+		defer wg.Done()
+		var err error
+		ipccert, ipckey, err = cert.FetchOrCreateIPCCert(ctx, config)
+		if err != nil {
+			err = fmt.Errorf("error while creating or fetching IPC cert: %v", err.Error())
+		}
+		errs <- err
+	}()
+
+	for i := 0; i < 2; i++ {
+		err := <-errs
+		if err != nil {
+			cancel()
+			wg.Wait()
+			return err
+		}
 	}
 
 	certPool := x509.NewCertPool()
@@ -139,7 +170,7 @@ func CreateAndSetAuthToken(config model.Reader) error {
 // IsInitialized return true if the auth_token and IPC cert/key pair have been initialized with SetAuthToken or CreateAndSetAuthToken functions
 func IsInitialized() bool {
 	tokenLock.RLock()
-	defer tokenLock.Unlock()
+	defer tokenLock.RUnlock()
 	return initSource != uninitialized
 }
 
@@ -186,8 +217,11 @@ func InitDCAAuthToken(config model.Reader) error {
 		return nil
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	var err error
-	dcaToken, err = pkgtoken.CreateOrGetClusterAgentAuthToken(config)
+	dcaToken, err = pkgtoken.CreateOrGetClusterAgentAuthToken(ctx, config)
 	return err
 }
 
