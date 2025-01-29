@@ -60,6 +60,8 @@ new-agent_dmg-x64-a7:
     # - !reference [.retrieve_linux_go_tools_deps]
     # - echo $GOPATH
     # - exit
+    # TODO
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
     - mkdir -p /tmp/celian/bin /tmp/celian/config
     - export INSTALL_DIR=/tmp/celian/bin
     - export CONFIG_DIR=/tmp/celian/config
@@ -71,7 +73,7 @@ new-agent_dmg-x64-a7:
     # TODO
     # - FLAVOR=datadog-agent
     # - 'echo FLAVOR: $FLAVOR'
-    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
     - echo Done
     - ls -la /tmp/celian/bin
     - ls -la /tmp/celian/config
