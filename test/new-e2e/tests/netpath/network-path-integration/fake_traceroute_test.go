@@ -20,13 +20,13 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
-//go:embed fixtures/fake-traceroute/network_path.yaml
+//go:embed fake-traceroute/network_path.yaml
 var fakeNetworkPathYaml []byte
 
-//go:embed fixtures/fake-traceroute/fake_router_setup.sh
+//go:embed fake-traceroute/router_setup.sh
 var fakeRouterSetupScript []byte
 
-//go:embed fixtures/fake-traceroute/fake_router_teardown.sh
+//go:embed fake-traceroute/router_teardown.sh
 var fakeRouterTeardownScript []byte
 
 type fakeTracerouteTestSuite struct {
@@ -39,8 +39,8 @@ func TestFakeTracerouteSuite(t *testing.T) {
 		awshost.WithAgentOptions(
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
 			agentparams.WithIntegration("network_path.d", string(fakeNetworkPathYaml)),
-			agentparams.WithFile("/tmp/fake_router_setup.sh", string(fakeRouterSetupScript), false),
-			agentparams.WithFile("/tmp/fake_router_teardown.sh", string(fakeRouterTeardownScript), false),
+			agentparams.WithFile("/tmp/router_setup.sh", string(fakeRouterSetupScript), false),
+			agentparams.WithFile("/tmp/router_teardown.sh", string(fakeRouterTeardownScript), false),
 		)),
 	))
 
@@ -49,9 +49,9 @@ func TestFakeTracerouteSuite(t *testing.T) {
 func (s *fakeTracerouteTestSuite) TestFakeTraceroute() {
 	t := s.T()
 	t.Cleanup(func() {
-		s.Env().RemoteHost.MustExecute("sudo sh /tmp/fake_router_teardown.sh")
+		s.Env().RemoteHost.MustExecute("sudo sh /tmp/router_teardown.sh")
 	})
-	s.Env().RemoteHost.MustExecute("sudo sh /tmp/fake_router_setup.sh")
+	s.Env().RemoteHost.MustExecute("sudo sh /tmp/router_setup.sh")
 
 	routerIP := "192.0.2.2"
 	targetIP := "198.51.100.2"
