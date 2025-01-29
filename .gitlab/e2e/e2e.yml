@@ -755,7 +755,7 @@ generate-fips-e2e-pipeline:
     - inv -e pipeline.generate-fips-e2e-pipeline
   artifacts:
     paths:
-      - $CI_PROJECT_DIR/flake-finder-gitlab-ci.yml
+      - $CI_PROJECT_DIR/fips-e2e-gitlab-ci.yml
 
 trigger-fips-e2e:
   stage: e2e
