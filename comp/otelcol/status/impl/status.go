@@ -7,6 +7,7 @@
 package statusimpl
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -98,6 +99,15 @@ func (s statusProvider) Name() string {
 // Section return the section
 func (s statusProvider) Section() string {
 	return "OTel Agent"
+}
+
+func (s statusProvider) GetStatus() (string, error) {
+	buf := new(bytes.Buffer)
+	err := s.Text(false, buf)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
 
 func (s statusProvider) getStatusInfo() map[string]interface{} {
