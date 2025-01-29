@@ -161,8 +161,19 @@ new-agent_dmg-x64-a7:
       export PYTHON_RUNTIMES=3
       export INSTALL_DIR=/tmp/celian/bin
       export CONFIG_DIR=/tmp/celian/config
+      export GOPATH="$GOROOT"
     - rm -f ~/.build_setup; touch ~/.build_setup
+    - rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
     - mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
+    # Clone agent
+    - |
+      mkdir -p $HOME/go
+      echo 'export GOPATH=$HOME/go' >> ~/.build_setup
+      echo 'export PATH="$GOPATH/bin:$PATH"' >> ~/.build_setup
+    - . ~/.build_setup
+    - export AGENT_DIR="$GOPATH/src/github.com/DataDog/datadog-agent"
+    # TODO: Proper way
+    - cp -r ./* "$AGENT_DIR"
     # TODO: xcode 14.2?
     # - sudo xcode-select -s /Applications/Xcode_14.3.1.app
     # TODO: # Remove preinstalled environment
