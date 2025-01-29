@@ -234,9 +234,9 @@ def tag_version(
         start_qual: Will start the qualification phase for agent 6 release candidate by adding a qualification tag
 
     Examples:
-        $ inv -e release.tag-version 7.27.x            # Create tags and push them to origin
-        $ inv -e release.tag-version 7.27.x --no-push  # Create tags locally; don't push them
-        $ inv -e release.tag-version 7.29.x --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
+        $ inv -e release.tag-version -r 7.27.x            # Create tags and push them to origin
+        $ inv -e release.tag-version -r 7.27.x --no-push  # Create tags locally; don't push them
+        $ inv -e release.tag-version -r 7.29.x --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
     """
 
     assert release_branch or version
@@ -258,10 +258,10 @@ def tag_version(
                     ctx, get_default_modules()["."], QUALIFICATION_TAG, commit, force_option, False
                 )
 
-    if push:
-        tags_list = ' '.join(tags)
-        ctx.run(f"git push origin {tags_list}{force_option}")
-        print(f"Pushed tag {tags_list}")
+        if push:
+            tags_list = ' '.join(tags)
+            ctx.run(f"git push origin {tags_list}{force_option}")
+            print(f"Pushed tag {tags_list}")
     print(f"Created tags for version {agent_version}")
 
 
@@ -291,7 +291,7 @@ def finish(ctx, release_branch, upstream="origin"):
         # find the correct new version.
         # To support this, we'd have to support a --patch-version param in
         # release.finish
-        new_version = next_final_version(ctx, major_version, False)
+        new_version = next_final_version(ctx, release_branch, False)
         if not yes_no_question(
             f'Do you want to finish the release with version {new_version}?', color="bold", default=False
         ):
@@ -400,11 +400,11 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
 
         # Get the version of the highest major: useful for some logging & to get
         # the version to use for Go submodules updates
-        new_highest_version = next_rc_version(ctx, major_version, patch_version)
+        new_highest_version = next_rc_version(ctx, release_branch, patch_version)
         # Get the next final version of the highest major: useful to know which
         # milestone to target, as well as decide which tags from dependency repositories
         # can be used.
-        new_final_version = next_final_version(ctx, major_version, patch_version)
+        new_final_version = next_final_version(ctx, release_branch, patch_version)
         print(color_message(f"Preparing RC for agent version {major_version}", "bold"))
 
         # Step 0: checks
@@ -428,7 +428,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
 
         # Step 1: Update release entries
         print(color_message("Updating release entries", "bold"))
-        new_version = next_rc_version(ctx, major_version, patch_version)
+        new_version = next_rc_version(ctx, release_branch, patch_version)
 
         update_release_json(new_version, new_final_version)
 
@@ -520,14 +520,12 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
         start_qual: Start the qualification phase for agent 6 release candidates.
     """
 
-    major_version = get_version_major(release_branch)
-
     with agent_context(ctx, release_branch):
         datadog_agent = get_gitlab_repo()
 
         # Get the version of the highest major: needed for tag_version and to know
         # which tag to target when creating the pipeline.
-        new_version = next_rc_version(ctx, major_version, patch_version)
+        new_version = next_rc_version(ctx, release_branch, patch_version)
 
         # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
         versions_string = str(new_version)
@@ -583,7 +581,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
         print(color_message("Creating RC pipeline", "bold"))
 
         # Step 2: Run the RC pipeline
-        run_rc_pipeline(release_branch, gitlab_tag.name, k8s_deployments)
+        run_rc_pipeline(ctx, release_branch, gitlab_tag.name, k8s_deployments)
 
 
 def get_qualification_rc_tag(ctx, release_branch):
@@ -1154,8 +1152,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
     Check if there was any modification on the release repositories since last release candidate.
     """
     with agent_context(ctx, release_branch):
-        major_version = get_version_major(release_branch)
-        next_version = next_rc_version(ctx, major_version)
+        next_version = next_rc_version(ctx, release_branch)
         repo_data = generate_repo_data(ctx, warning_mode, next_version, release_branch)
         changes = 'false'
         for repo_name, repo in repo_data.items():
