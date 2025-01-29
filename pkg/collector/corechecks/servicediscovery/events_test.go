@@ -44,9 +44,7 @@ func Test_telemetrySender(t *testing.T) {
 	mSender := mocksender.NewMockSender("test-servicediscovery")
 	mSender.SetupAcceptAll()
 
-	mTimer := NewMocktimer(ctrl)
 	now := time.Date(2024, 5, 13, 0, 0, 0, 0, time.UTC)
-	mTimer.EXPECT().Now().Return(now).AnyTimes()
 
 	host := "test-host"
 	_, mHostname := hostnameinterface.NewMock(hostnameinterface.MockHostname(host))
@@ -54,34 +52,30 @@ func Test_telemetrySender(t *testing.T) {
 	ts := newTelemetrySender(mSender)
 	ts.hostname = mHostname
 
-	svc := serviceInfo{
-		service: model.Service{
-			PID:                        99,
-			CommandLine:                []string{"test-service", "--args"},
-			Ports:                      []uint16{80, 8080},
-			StartTimeMilli:             uint64(now.Add(-20 * time.Minute).UnixMilli()),
-			RSS:                        500 * 1024 * 1024,
-			GeneratedName:              "generated-name",
-			GeneratedNameSource:        "generated-name-source",
-			ContainerServiceName:       "container-service-name",
-			ContainerServiceNameSource: "service",
-			DDService:                  "dd-service",
-			DDServiceInjected:          true,
-			CPUCores:                   1.5,
-			ContainerID:                "abcd",
-		},
-		meta: ServiceMetadata{
-			Name:               "test-service",
-			Language:           "jvm",
-			Type:               "web_service",
-			APMInstrumentation: "injected",
-		},
-		LastHeartbeat: now,
+	service := model.Service{
+		PID:                        99,
+		Name:                       "test-service",
+		GeneratedName:              "generated-name",
+		GeneratedNameSource:        "generated-name-source",
+		ContainerServiceName:       "container-service-name",
+		ContainerServiceNameSource: "service",
+		DDService:                  "dd-service",
+		DDServiceInjected:          true,
+		Ports:                      []uint16{80, 8080},
+		APMInstrumentation:         "injected",
+		Language:                   "jvm",
+		Type:                       "web_service",
+		RSS:                        500 * 1024 * 1024,
+		CommandLine:                []string{"test-service", "--args"},
+		StartTimeMilli:             uint64(now.Add(-20 * time.Minute).UnixMilli()),
+		CPUCores:                   1.5,
+		ContainerID:                "abcd",
+		LastHeartbeat:              now.Unix(),
 	}
 
-	ts.sendStartServiceEvent(svc)
-	ts.sendHeartbeatServiceEvent(svc)
-	ts.sendEndServiceEvent(svc)
+	ts.sendStartServiceEvent(service)
+	ts.sendHeartbeatServiceEvent(service)
+	ts.sendEndServiceEvent(service)
 
 	wantEvents := []*event{
 		{
@@ -184,9 +178,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 	mSender := mocksender.NewMockSender("test-servicediscovery")
 	mSender.SetupAcceptAll()
 
-	mTimer := NewMocktimer(ctrl)
 	now := time.Date(2024, 5, 13, 0, 0, 0, 0, time.UTC)
-	mTimer.EXPECT().Now().Return(now).AnyTimes()
 
 	host := "test-host"
 	_, mHostname := hostnameinterface.NewMock(hostnameinterface.MockHostname(host))
@@ -194,30 +186,26 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 	ts := newTelemetrySender(mSender)
 	ts.hostname = mHostname
 
-	svc := serviceInfo{
-		service: model.Service{
-			PID:                        55,
-			CommandLine:                []string{"foo", "--option"},
-			StartTimeMilli:             uint64(now.Add(-20 * time.Minute).UnixMilli()),
-			GeneratedName:              "generated-name2",
-			GeneratedNameSource:        "generated-name-source2",
-			ContainerServiceName:       "container-service-name2",
-			ContainerServiceNameSource: "service",
-			DDService:                  "dd-service-provided",
-			ContainerID:                "abcd",
-		},
-		meta: ServiceMetadata{
-			Name:               "test-service",
-			Language:           "jvm",
-			Type:               "web_service",
-			APMInstrumentation: "injected",
-		},
-		LastHeartbeat: now,
+	service := model.Service{
+		PID:                        55,
+		Name:                       "test-service",
+		GeneratedName:              "generated-name2",
+		GeneratedNameSource:        "generated-name-source2",
+		ContainerServiceName:       "container-service-name2",
+		ContainerServiceNameSource: "service",
+		DDService:                  "dd-service-provided",
+		APMInstrumentation:         "injected",
+		Language:                   "jvm",
+		Type:                       "web_service",
+		CommandLine:                []string{"foo", "--option"},
+		StartTimeMilli:             uint64(now.Add(-20 * time.Minute).UnixMilli()),
+		ContainerID:                "abcd",
+		LastHeartbeat:              now.Unix(),
 	}
 
-	ts.sendStartServiceEvent(svc)
-	ts.sendHeartbeatServiceEvent(svc)
-	ts.sendEndServiceEvent(svc)
+	ts.sendStartServiceEvent(service)
+	ts.sendHeartbeatServiceEvent(service)
+	ts.sendEndServiceEvent(service)
 
 	wantEvents := []*event{
 		{
