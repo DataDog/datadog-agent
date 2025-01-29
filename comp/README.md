@@ -16,7 +16,7 @@ Package autoexit lets setup automatic shutdown mechanism if necessary
 
 ### [comp/agent/cloudfoundrycontainer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer)
 
-*Datadog Team*: platform-integrations
+*Datadog Team*: agent-integrations
 
 Package cloudfoundrycontainer provides the cloud foundry container component.
 
@@ -26,13 +26,13 @@ Package expvarserver contains the component type for the expVar server.
 
 ### [comp/agent/jmxlogger](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/jmxlogger)
 
-*Datadog Team*: agent-metrics-logs
+*Datadog Team*: agent-metrics
 
 Package jmxlogger implements the logger for JMX.
 
 ## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator) (Component Bundle)
 
-*Datadog Team*: agent-metrics-logs
+*Datadog Team*: agent-metrics
 
 Package aggregator implements the "aggregator" bundle,
 
@@ -68,7 +68,7 @@ auth_token file but can fetch it it's available.
 
 ## [comp/checks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks) (Component Bundle)
 
-*Datadog Team*: agent-metrics-logs
+*Datadog Team*: agent-metrics
 
 Package checks implements the "checks" bundle, for all of the component based agent checks
 
@@ -92,7 +92,7 @@ Package winregistry implements the Windows Registry check
 
 ## [comp/collector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/collector) (Component Bundle)
 
-*Datadog Team*: agent-metrics-logs
+*Datadog Team*: agent-metrics
 
 Package collector defines the collector bundle.
 
@@ -201,7 +201,7 @@ Package workloadmeta provides the workloadmeta component for the Datadog Agent
 
 ## [comp/dogstatsd](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd) (Component Bundle)
 
-*Datadog Team*: agent-metrics-logs
+*Datadog Team*: agent-metrics
 
 
 
@@ -231,7 +231,7 @@ Package status implements the core status component information provider interfa
 
 ## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder) (Component Bundle)
 
-*Datadog Team*: agent-processing-and-routing
+*Datadog Team*: agent-metrics
 
 Package forwarder implements the "forwarder" bundle
 
@@ -241,13 +241,19 @@ Package defaultforwarder implements a component to send payloads to the backend
 
 ### [comp/forwarder/eventplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatform)
 
+*Datadog Team*: agent-logs
+
 Package eventplatform contains the logic for forwarding events to the event platform
 
 ### [comp/forwarder/eventplatformreceiver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver)
 
+*Datadog Team*: agent-logs
+
 Package eventplatformreceiver implements the receiver for the event platform package
 
 ### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
+
+*Datadog Team*: agent-logs
 
 Package orchestrator implements the orchestrator forwarder component.
 
@@ -257,7 +263,7 @@ Package orchestratorinterface defines the interface for the orchestrator forward
 
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs) (Component Bundle)
 
-*Datadog Team*: agent-metrics-logs
+*Datadog Team*: agent-logs
 
 
 
@@ -615,11 +621,17 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 Package rdnsquerier provides the reverse DNS querier component.
 
-### [comp/serializer/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/compression)
+### [comp/serializer/logscompression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/logscompression)
 
-*Datadog Team*: agent-metrics-logs
+*Datadog Team*: agent-logs
 
-Package compression provides a compression implementation based on the configuration or available build tags.
+Package logscompression provides the component for logs compression
+
+### [comp/serializer/metricscompression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/metricscompression)
+
+*Datadog Team*: agent-metrics
+
+Package metricscompression provides the component for metrics compression
 
 ### [comp/snmpscan](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmpscan)
 

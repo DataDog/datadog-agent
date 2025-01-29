@@ -328,6 +328,7 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 				udsOriginDetectionErrors.Add(1)
 				l.telemetryStore.tlmUDSOriginDetectionError.Inc(tlmListenerID, l.transport)
 			} else {
+				packet.ProcessID = uint32(pid)
 				packet.Origin = container
 				if capBuff != nil {
 					capBuff.ContainerID = container

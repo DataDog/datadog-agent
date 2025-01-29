@@ -63,7 +63,7 @@ func (h *testServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func testServer(t *testing.T, testFile string) *httptest.Server {
 	t.Helper()
-	server := httptest.NewTLSServer(&testServerHandler{t: t, testFile: testFile})
+	server := httptest.NewServer(&testServerHandler{t: t, testFile: testFile})
 	t.Logf("test server (serving fake yet valid data) listening on %s", server.URL)
 	return server
 }
@@ -94,7 +94,7 @@ func (h *testServerWarningHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 }
 
 func testServerWarning(t *testing.T) *httptest.Server {
-	server := httptest.NewTLSServer(&testServerWarningHandler{t: t})
+	server := httptest.NewServer(&testServerWarningHandler{t: t})
 	t.Logf("test server (serving data containing worrying values) listening on %s", server.URL)
 	return server
 }
@@ -119,7 +119,7 @@ func (h *testServerErrorHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 }
 
 func testServerError(t *testing.T) *httptest.Server {
-	server := httptest.NewTLSServer(&testServerErrorHandler{t: t})
+	server := httptest.NewServer(&testServerErrorHandler{t: t})
 	t.Logf("test server (serving bad data to trigger errors) listening on %s", server.URL)
 	return server
 }
@@ -331,7 +331,7 @@ func TestError(t *testing.T) {
 	assert.Equal(len(lines[1]), len(lines[2]))
 	assert.Equal("", lines[3])
 	assert.Regexp(regexp.MustCompile(`^  Error: .*$`), lines[4])
-	assert.Equal(fmt.Sprintf("  URL: https://127.0.0.1:%d/debug/vars", port), lines[5])
+	assert.Equal(fmt.Sprintf("  URL: http://127.0.0.1:%d/debug/vars", port), lines[5])
 	assert.Equal("", lines[6])
 	assert.Equal("", lines[7])
 }

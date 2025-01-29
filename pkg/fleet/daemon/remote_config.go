@@ -46,7 +46,7 @@ func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
 }
 
 // Start starts the remote config client.
-func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRemoteAPIRequest handleRemoteAPIRequest) {
+func (rc *remoteConfig) Start(handleConfigsUpdate handleConfigsUpdate, handleCatalogUpdate handleCatalogUpdate, handleRemoteAPIRequest handleRemoteAPIRequest) {
 	if rc.client == nil {
 		return
 	}
@@ -55,6 +55,7 @@ func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRem
 		// subscribe in a goroutine to avoid deadlocking the client
 		go rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
 	}
+	rc.client.Subscribe(state.ProductInstallerConfig, handleInstallerConfigUpdate(handleConfigsUpdate))
 	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate, subscribeToTask))
 	rc.client.Start()
 }
@@ -72,6 +73,40 @@ func (rc *remoteConfig) GetState() *pbgo.ClientUpdater {
 // SetState sets the state of the remote config client.
 func (rc *remoteConfig) SetState(state *pbgo.ClientUpdater) {
 	rc.client.SetInstallerState(state)
+}
+
+type installerConfig struct {
+	ID      string          `json:"id"`
+	Configs json.RawMessage `json:"configs"`
+}
+
+type handleConfigsUpdate func(configs map[string]installerConfig) error
+
+func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
+	return func(configs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+		installerConfigs := map[string]installerConfig{}
+		for id, config := range configs {
+			var installerConfig installerConfig
+			err := json.Unmarshal(config.Config, &installerConfig)
+			if err != nil {
+				log.Errorf("could not unmarshal installer config: %s", err)
+				applyStateCallback(id, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+				return
+			}
+			installerConfigs[installerConfig.ID] = installerConfig
+		}
+		err := h(installerConfigs)
+		if err != nil {
+			log.Errorf("could not update installer configs: %s", err)
+			for id := range configs {
+				applyStateCallback(id, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+			}
+			return
+		}
+		for id := range configs {
+			applyStateCallback(id, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		}
+	}
 }
 
 // Package represents a downloadable package.
@@ -164,6 +199,9 @@ func validatePackage(pkg Package) error {
 }
 
 const (
+	methodInstallPackage   = "install_package"
+	methodUninstallPackage = "uninstall_package"
+
 	methodStartExperiment   = "start_experiment"
 	methodStopExperiment    = "stop_experiment"
 	methodPromoteExperiment = "promote_experiment"
@@ -191,9 +229,14 @@ type expectedState struct {
 	ExperimentConfig string `json:"experiment_config"`
 }
 
-type taskWithVersionParams struct {
+type experimentTaskParams struct {
 	Version     string   `json:"version"`
 	InstallArgs []string `json:"install_args"`
+}
+
+type installPackageTaskParams struct {
+	Version            string `json:"version"`
+	ApmInstrumentation string `json:"apm_instrumentation"`
 }
 
 type handleRemoteAPIRequest func(request remoteAPIRequest) error

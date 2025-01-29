@@ -8,7 +8,6 @@
 package model
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"path"
@@ -18,7 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"modernc.org/mathutil"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 const (
@@ -134,7 +133,7 @@ func (c *Credentials) Equals(o *Credentials) bool {
 }
 
 // SetSpan sets the span
-func (p *Process) SetSpan(spanID uint64, traceID mathutil.Int128) {
+func (p *Process) SetSpan(spanID uint64, traceID utils.TraceID) {
 	p.SpanID = spanID
 	p.TraceID = traceID
 }
@@ -199,13 +198,13 @@ func (f *FileFields) HasHardLinks() bool {
 	return f.NLink > 1
 }
 
-// GetInLowerLayer returns whether a file is in a lower layer
-func (f *FileFields) GetInLowerLayer() bool {
+// IsInLowerLayer returns whether a file is in a lower layer
+func (f *FileFields) IsInLowerLayer() bool {
 	return f.Flags&LowerLayer != 0
 }
 
-// GetInUpperLayer returns whether a file is in the upper layer
-func (f *FileFields) GetInUpperLayer() bool {
+// IsInUpperLayer returns whether a file is in the upper layer
+func (f *FileFields) IsInUpperLayer() bool {
 	return f.Flags&UpperLayer != 0
 }
 
@@ -330,12 +329,6 @@ func (d NetDevice) GetKey() string {
 	return fmt.Sprintf("%v_%v", d.IfIndex, d.NetNS)
 }
 
-func (p *PathKey) Write(buffer []byte) {
-	binary.NativeEndian.PutUint64(buffer[0:8], p.Inode)
-	binary.NativeEndian.PutUint32(buffer[8:12], p.MountID)
-	binary.NativeEndian.PutUint32(buffer[12:16], p.PathID)
-}
-
 // IsNull returns true if a key is invalid
 func (p *PathKey) IsNull() bool {
 	return p.Inode == 0 && p.MountID == 0
@@ -343,18 +336,6 @@ func (p *PathKey) IsNull() bool {
 
 func (p *PathKey) String() string {
 	return fmt.Sprintf("%x/%x", p.MountID, p.Inode)
-}
-
-// MarshalBinary returns the binary representation of a path key
-func (p *PathKey) MarshalBinary() ([]byte, error) {
-	if p.IsNull() {
-		return nil, &ErrInvalidKeyPath{Inode: p.Inode, MountID: p.MountID}
-	}
-
-	buff := make([]byte, 16)
-	p.Write(buff)
-
-	return buff, nil
 }
 
 // PathKeySize defines the path key size
@@ -380,17 +361,6 @@ func (pl *PathLeaf) GetName() string {
 func (pl *PathLeaf) SetName(name string) {
 	copy(pl.Name[:], []byte(name))
 	pl.Len = uint16(len(name) + 1)
-}
-
-// MarshalBinary returns the binary representation of a path key
-func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
-	buff := make([]byte, PathLeafSize)
-
-	pl.Parent.Write(buff)
-	copy(buff[16:], pl.Name[:])
-	binary.NativeEndian.PutUint16(buff[16+len(pl.Name):], pl.Len)
-
-	return buff, nil
 }
 
 // ResolveHashes resolves the hash of the provided file
