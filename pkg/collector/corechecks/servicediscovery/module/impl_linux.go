@@ -611,7 +611,7 @@ func getServiceNameFromContainerTags(tags []string) (string, string) {
 	// The map entries will be filled as we go through the containers tags.
 	tagsPriority := []struct {
 		tagName  string
-		tagValue *string
+		tagValue []string
 	}{
 		{"service", nil},
 		{"app", nil},
@@ -636,7 +636,10 @@ func getServiceNameFromContainerTags(tags []string) (string, string) {
 			}
 
 			value := tag[sepIndex+1:]
-			tagsPriority[i].tagValue = &value
+			insertionIdx, found := slices.BinarySearch(tagsPriority[i].tagValue, value)
+			if !found {
+				tagsPriority[i].tagValue = slices.Insert(tagsPriority[i].tagValue, insertionIdx, value)
+			}
 			break
 		}
 	}
@@ -646,8 +649,9 @@ func getServiceNameFromContainerTags(tags []string) (string, string) {
 			continue
 		}
 
-		log.Debugf("Using %v:%v tag for service name", tag.tagName, *tag.tagValue)
-		return tag.tagName, *tag.tagValue
+		value := strings.Join(tag.tagValue, "-")
+		log.Debugf("Using %v:%v tag for service name", tag.tagName, value)
+		return tag.tagName, value
 	}
 
 	return "", ""
