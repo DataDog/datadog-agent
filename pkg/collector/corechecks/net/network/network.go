@@ -199,7 +199,10 @@ func (c *NetworkCheck) Run() error {
 	for _, interfaceIO := range ioByInterface {
 		if !c.isDeviceExcluded(interfaceIO.Name) {
 			submitInterfaceMetrics(sender, interfaceIO)
-			fetchEthtoolStats(sender, interfaceIO)
+			err = fetchEthtoolStats(sender, interfaceIO)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -283,6 +286,9 @@ func fetchEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) err
 		return err
 	}
 	defer getClose(ethtoolSocket)
+	if err != nil {
+		return err
+	}
 
 	// Preparing the interface name and copy it into the request
 	ifaceBytes := []byte(interfaceIO.Name)
@@ -297,7 +303,7 @@ func fetchEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) err
 	req.Data = uintptr(unsafe.Pointer(&drvInfo))
 	_, _, errno := getSyscall(unix.SYS_IOCTL, uintptr(ethtoolSocket), uintptr(ETHTOOL_GDRVINFO), uintptr(unsafe.Pointer(&req)))
 	if errno != 0 {
-		return errors.New("failed to get driver info for interface " + interfaceIO.Name + ": " + string(errno))
+		return errors.New("failed to get driver info for interface " + interfaceIO.Name + ": " + fmt.Sprintf("%d", errno))
 	}
 
 	driverName := string(bytes.Trim([]byte(drvInfo.Driver[:]), "\x00"))
@@ -311,7 +317,7 @@ func fetchEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) err
 	req.Data = uintptr(unsafe.Pointer(&stringSet))
 	_, _, errno = getSyscall(unix.SYS_IOCTL, uintptr(ethtoolSocket), uintptr(ETHTOOL_GSSET_INFO), uintptr(unsafe.Pointer(&req)))
 	if errno != 0 {
-		return errors.New("failed to get stats set info for interface " + interfaceIO.Name + ": " + string(errno))
+		return errors.New("failed to get stats set info for interface " + interfaceIO.Name + ": " + fmt.Sprintf("%d", errno))
 	}
 	statsCount := stringSet.Len
 
@@ -320,7 +326,7 @@ func fetchEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) err
 	req.Data = uintptr(unsafe.Pointer(&stringSet))
 	_, _, errno = getSyscall(unix.SYS_IOCTL, uintptr(ethtoolSocket), uintptr(ETHTOOL_GSTRINGS), uintptr(unsafe.Pointer(&req)))
 	if errno != 0 {
-		return errors.New("failed to get stats names for interface " + interfaceIO.Name + ": " + string(errno))
+		return errors.New("failed to get stats names for interface " + interfaceIO.Name + ": " + fmt.Sprintf("%d", errno))
 	}
 
 	statsNames := make([]string, statsCount)
@@ -339,7 +345,7 @@ func fetchEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) err
 	req.Data = uintptr(unsafe.Pointer(&stats))
 	_, _, errno = getSyscall(unix.SYS_IOCTL, uintptr(ethtoolSocket), uintptr(ETHTOOL_GSTATS), uintptr(unsafe.Pointer(&req)))
 	if errno != 0 {
-		return errors.New("failed to get stats for interface " + interfaceIO.Name + ": " + string(errno))
+		return errors.New("failed to get stats for interface " + interfaceIO.Name + ": " + fmt.Sprintf("%d", errno))
 	}
 
 	tags := []string{
