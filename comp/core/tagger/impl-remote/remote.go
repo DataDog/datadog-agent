@@ -481,7 +481,7 @@ func (t *remoteTagger) run() {
 		}
 	}()
 	for {
-		url := fmt.Sprintf("https://localhost:%v/v1/grpc/tagger/stream_entities", t.options.Target)
+		url := fmt.Sprintf("https://localhost%v/v1/grpc/tagger/stream_entities", t.options.Target)
 		req, err := http.NewRequest("POST", url, nil)
 		if err != nil {
 			t.log.Warnf("Failed to create request: %v", err)
