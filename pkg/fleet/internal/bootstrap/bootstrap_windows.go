@@ -11,12 +11,13 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
-	"os"
-	"path/filepath"
-
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	iexec "github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
@@ -31,7 +32,7 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
 	}
-	tmpDir, err := os.MkdirTemp(paths.RootTmpDir, "")
+	tmpDir, err := os.MkdirTemp(paths.RootTmpDir, "bootstrap")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
 	}
@@ -59,7 +60,7 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		return nil, fmt.Errorf("unexpected package name: %s, expected %s", downloadedPackage.Name, InstallerPackage)
 	}
 
-	layoutTmpDir, err := os.MkdirTemp(paths.RootTmpDir, "")
+	layoutTmpDir, err := os.MkdirTemp(paths.RootTmpDir, "layout")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary directory: %w", err)
 	}
@@ -84,10 +85,12 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		return nil, fmt.Errorf("no MSIs in package")
 	}
 
+	adminInstallDir := path.Join(tmpDir, "datadog-installer")
+
 	cmd, err := msi.Cmd(
-		msi.Install(),
+		msi.AdministrativeInstall(),
 		msi.WithMsi(msis[0]),
-		msi.WithDdAgentUserName(env.AgentUserName),
+		msi.WithAdditionalArgs([]string{fmt.Sprintf(`TARGETDIR="%s"`, strings.ReplaceAll(adminInstallDir, "/", `\`))}),
 	)
 	var output []byte
 	if err == nil {
@@ -97,5 +100,5 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	if err != nil {
 		return nil, fmt.Errorf("failed to install the Datadog Installer: %w\n%s", err, string(output))
 	}
-	return iexec.NewInstallerExec(env, paths.StableInstallerPath), nil
+	return iexec.NewInstallerExec(env, path.Join(adminInstallDir, "ProgramFiles64Folder", "Datadog", "Datadog Installer", "datadog-installer.exe")), nil
 }

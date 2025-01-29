@@ -77,7 +77,7 @@ func (i *InstallerExec) Install(ctx context.Context, url string, args []string, 
 		cmdLineArgs = append(cmdLineArgs, "--force")
 	}
 	if len(args) > 0 {
-		cmdLineArgs = append(cmdLineArgs, fmt.Sprintf(" --install_args \"%s\"", strings.Join(args, ",")))
+		cmdLineArgs = append(cmdLineArgs, fmt.Sprintf("--install_args \"%s\"", strings.Join(args, ",")))
 	}
 	cmd := i.newInstallerCmd(ctx, "install", cmdLineArgs...)
 	defer func() { cmd.span.Finish(err) }()
