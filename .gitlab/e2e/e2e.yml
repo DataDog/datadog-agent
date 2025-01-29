@@ -557,6 +557,7 @@ new-e2e-windows-systemprobe:
     - deploy_windows_testing-a7
     - tests_windows_sysprobe_x64
   variables:
+    ON_NIGHTLY_FIPS: "false" # Requires change about how the agent is installed if we want to test FIPS with windows systemprobe tests
     TARGETS: ./tests/sysprobe-functional
     TEAM: windows-kernel-integrations
   parallel:
@@ -574,7 +575,7 @@ new-e2e-windows-security-agent:
     - deploy_windows_testing-a7
     - tests_windows_secagent_x64
   variables:
-    ON_NIGHTLY_FIPS: "true"
+    ON_NIGHTLY_FIPS: "false" # Requires change about how the agent is installed if we want to test FIPS with windows security agent tests
     TARGETS: ./tests/security-agent-functional
     TEAM: windows-kernel-integrations
 
