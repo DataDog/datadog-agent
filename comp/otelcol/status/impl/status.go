@@ -122,6 +122,7 @@ func getPrometheusURL(extensionResp ddflareextension.Response) (string, error) {
 		if prometheusEndpoint.Host != "" && prometheusEndpoint.Port != 0 {
 			prometheusHost = prometheusEndpoint.Host
 			prometheusPort = prometheusEndpoint.Port
+			break
 		}
 	}
 	return fmt.Sprintf("http://%v:%d/metrics", prometheusHost, prometheusPort), nil
