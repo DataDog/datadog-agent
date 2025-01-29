@@ -10,11 +10,13 @@ package securityprofile
 
 import (
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -306,4 +308,22 @@ func (d *Directory) SendTelemetry(sender statsd.ClientInterface) {
 	if count := d.deletedCount.Swap(0); count > 0 {
 		_ = sender.Count(metrics.MetricActivityDumpLocalStorageDeleted, int64(count), nil, 1.0)
 	}
+}
+
+func compressWithGZip(filename string, rawBuf []byte) (*bytes.Buffer, error) {
+	var buf bytes.Buffer
+
+	zw := gzip.NewWriter(&buf)
+	zw.Name = strings.TrimSuffix(filename, ".gz")
+	zw.ModTime = time.Now()
+
+	if _, err := zw.Write(rawBuf); err != nil {
+		return nil, fmt.Errorf("couldn't compress activity dump: %w", err)
+	}
+	// Closing the gzip stream also flushes it
+	if err := zw.Close(); err != nil {
+		return nil, fmt.Errorf("couldn't compress activity dump: %w", err)
+	}
+
+	return &buf, nil
 }
