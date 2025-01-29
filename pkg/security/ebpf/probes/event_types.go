@@ -77,13 +77,15 @@ var SyscallMonitorSelectors = []manager.ProbesSelector{
 }
 
 // SnapshotSelectors selectors required during the snapshot
-func SnapshotSelectors() []manager.ProbesSelector {
+func SnapshotSelectors(fentry bool) []manager.ProbesSelector {
 	procsOpen := kprobeOrFentry("cgroup_procs_open")
 	tasksOpen := kprobeOrFentry("cgroup_tasks_open")
 	return []manager.ProbesSelector{
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{procsOpen, tasksOpen}},
+
 		// required to stat /proc/.../exe
 		kprobeOrFentry("security_inode_getattr"),
-		&manager.BestEffort{Selectors: []manager.ProbesSelector{procsOpen, tasksOpen}},
+		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "newfstatat", fentry, EntryAndExit)},
 	}
 }
 

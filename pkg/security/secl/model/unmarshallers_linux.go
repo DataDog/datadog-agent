@@ -386,7 +386,7 @@ func (p *PathKey) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 72 {
+	if len(data) < FileFieldsSize {
 		return 0, ErrNotEnoughData
 	}
 
@@ -413,7 +413,7 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	timeNsec = binary.NativeEndian.Uint64(data[48:56])
 	e.MTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
 
-	return 72, nil
+	return FileFieldsSize, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -518,8 +518,8 @@ func (s *SpanContext) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	s.SpanID = binary.NativeEndian.Uint64(data[0:8])
-	s.TraceID.Lo = int64(binary.NativeEndian.Uint64(data[8:16]))
-	s.TraceID.Hi = int64(binary.NativeEndian.Uint64(data[16:24]))
+	s.TraceID.Lo = binary.NativeEndian.Uint64(data[8:16])
+	s.TraceID.Hi = binary.NativeEndian.Uint64(data[16:24])
 	return 24, nil
 }
 
@@ -1030,7 +1030,8 @@ func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, erro
 	adlc.WaitListTimestampRaw = binary.NativeEndian.Uint64(data[16:24])
 	adlc.StartTimestampRaw = binary.NativeEndian.Uint64(data[24:32])
 	adlc.EndTimestampRaw = binary.NativeEndian.Uint64(data[32:40])
-	adlc.Rate = binary.NativeEndian.Uint32(data[40:44])
+	adlc.Rate = binary.NativeEndian.Uint16(data[40:42])
+	// 2 bytes of padding
 	adlc.Paused = binary.NativeEndian.Uint32(data[44:48])
 	return 48, nil
 }

@@ -38,6 +38,7 @@ repos:
   hooks:
     - id: go-fmt
       args: [ "-w", "-s" ]
+      exclude: ^.*.(pb.go|_gen.go)$
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: 2c9f875913ee60ca25ce70243dc24d5b6415598c # v4.6.0
     hooks:
@@ -145,3 +146,10 @@ repos:
       language: system
       pass_filenames: false
       files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py)$
+    - id: protocol-buffer
+      name: validate-protocol-buffer-generated-files
+      description: Validate that the generated protocol buffer files are up to date
+      entry: 'inv protobuf.generate --no-do-mockgen'
+      language: system
+      pass_filenames: false
+      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*.proto)$

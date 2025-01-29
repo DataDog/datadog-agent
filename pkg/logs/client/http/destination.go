@@ -397,12 +397,6 @@ func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() 
 
 	transportConfig := cfg.Get("logs_config.http_protocol")
 
-	// If any proxy is set, use http1
-	// This will be removed in a future version
-	if cfg.GetProxies() != nil {
-		transportConfig = "http1"
-	}
-
 	// Configure transport based on user setting
 	switch transportConfig {
 	case "http1":

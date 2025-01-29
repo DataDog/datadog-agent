@@ -76,18 +76,17 @@ func generateHeaderText(param *ditypes.Parameter, out io.Writer) error {
 		return generateSliceHeader(param, out)
 	} else if reflect.Kind(param.Kind) == reflect.String {
 		return generateStringHeader(param, out)
-	} else { //nolint:revive // TODO
-		tmplt, err := resolveHeaderTemplate(param)
-		if err != nil {
-			return err
-		}
-		err = tmplt.Execute(out, param)
-		if err != nil {
-			return err
-		}
-		if len(param.ParameterPieces) != 0 {
-			return generateHeadersText(param.ParameterPieces, out)
-		}
+	}
+	template, err := resolveHeaderTemplate(param)
+	if err != nil {
+		return err
+	}
+	err = template.Execute(out, param)
+	if err != nil {
+		return err
+	}
+	if len(param.ParameterPieces) != 0 {
+		return generateHeadersText(param.ParameterPieces, out)
 	}
 	return nil
 }

@@ -54,7 +54,9 @@ type ebpfLessTracer struct {
 	config *config.Config
 
 	packetSrc *filter.AFPacketSource
-	exit      chan struct{}
+	// packetSrcBusy is needed because you can't close packetSrc while it's still visiting
+	packetSrcBusy sync.WaitGroup
+	exit          chan struct{}
 
 	udp *udpProcessor
 	tcp *ebpfless.TCPProcessor
@@ -77,14 +79,15 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 	}
 
 	tr := &ebpfLessTracer{
-		config:       cfg,
-		packetSrc:    packetSrc,
-		exit:         make(chan struct{}),
-		udp:          &udpProcessor{},
-		tcp:          ebpfless.NewTCPProcessor(cfg),
-		conns:        make(map[ebpfless.PCAPTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
-		boundPorts:   ebpfless.NewBoundPorts(cfg),
-		cookieHasher: newCookieHasher(),
+		config:        cfg,
+		packetSrc:     packetSrc,
+		packetSrcBusy: sync.WaitGroup{},
+		exit:          make(chan struct{}),
+		udp:           &udpProcessor{},
+		tcp:           ebpfless.NewTCPProcessor(cfg),
+		conns:         make(map[ebpfless.PCAPTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
+		boundPorts:    ebpfless.NewBoundPorts(cfg),
+		cookieHasher:  newCookieHasher(),
 	}
 
 	tr.ns, err = netns.Get()
@@ -101,7 +104,11 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 		return fmt.Errorf("could not update bound ports: %w", err)
 	}
 
+	t.packetSrcBusy.Add(1)
 	go func() {
+		defer func() {
+			t.packetSrcBusy.Done()
+		}()
 		var eth layers.Ethernet
 		var ip4 layers.IPv4
 		var ip6 layers.IPv6
@@ -111,7 +118,7 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 		parser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &eth, &ip4, &ip6, &tcp, &udp)
 		parser.IgnoreUnsupported = true
 		for {
-			err := t.packetSrc.VisitPackets(t.exit, func(b []byte, info filter.PacketInfo, _ time.Time) error {
+			err := t.packetSrc.VisitPackets(func(b []byte, info filter.PacketInfo, _ time.Time) error {
 				if err := parser.DecodeLayers(b, &decoded); err != nil {
 					return fmt.Errorf("error decoding packet layers: %w", err)
 				}
@@ -131,8 +138,15 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 			})
 
 			if err != nil {
-				log.Errorf("exiting packet loop: %s", err)
+				log.Errorf("exiting visiting packets: %s", err)
 				return
+			}
+
+			// Properly synchronizes termination process
+			select {
+			case <-t.exit:
+				return
+			default:
 			}
 		}
 	}()
@@ -343,6 +357,10 @@ func (t *ebpfLessTracer) Stop() {
 	}
 
 	close(t.exit)
+	// close the packet capture loop and wait for it to finish
+	t.packetSrc.Close()
+	t.packetSrcBusy.Wait()
+
 	t.ns.Close()
 	t.boundPorts.Stop()
 }

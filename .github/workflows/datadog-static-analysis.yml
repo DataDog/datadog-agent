@@ -16,7 +16,7 @@ jobs:
         persist-credentials: false
     - name: Check code meets quality and security standards
       id: datadog-static-analysis
-      uses: DataDog/datadog-static-analyzer-github-action@v1
+      uses: DataDog/datadog-static-analyzer-github-action@06d501a75f56e4075c67a7dbc61a74b6539a05c8 # v1.2.1
       with:
         dd_api_key: ${{ secrets.DD_STATIC_ANALYZER_API_KEY }}
         dd_app_key: ${{ secrets.DD_STATIC_ANALYZER_APP_KEY }}
