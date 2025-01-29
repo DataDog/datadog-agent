@@ -6,7 +6,9 @@
 package profiledefinition
 
 import (
+	"maps"
 	"regexp"
+	"slices"
 )
 
 // ProfileMetricType metric type used to override default type of the metric
@@ -51,6 +53,11 @@ const (
 // When this happens, in ValidateEnrichMetricTags we harmonize by moving MetricTagConfig.OID to MetricTagConfig.Symbol.OID.
 type SymbolConfigCompat SymbolConfig
 
+// Clone creates a duplicate of this SymbolConfigCompat
+func (s SymbolConfigCompat) Clone() SymbolConfigCompat {
+	return SymbolConfigCompat(SymbolConfig(s).Clone())
+}
+
 // SymbolConfig holds info for a single symbol/oid
 type SymbolConfig struct {
 	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
@@ -73,6 +80,14 @@ type SymbolConfig struct {
 	//   Valid `metric_type` types: `gauge`, `rate`, `monotonic_count`, `monotonic_count_and_rate`
 	//   Deprecated types: `counter` (use `rate` instead), percent (use `scale_factor` instead)
 	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty"`
+}
+
+// Clone creates a duplicate of this SymbolConfig
+func (s SymbolConfig) Clone() SymbolConfig {
+	// SymbolConfig has no mutable members, so simple assignment copies it.
+	// (technically this is false - regexes in go are mutable SOLELY through the
+	// .Longest() method. But we never use that, so we ignore it here)
+	return s
 }
 
 // MetricTagConfig holds metric tag info
@@ -104,6 +119,18 @@ type MetricTagConfig struct {
 	Pattern *regexp.Regexp    `yaml:"-" json:"-"`
 
 	SymbolTag string `yaml:"-" json:"-"`
+}
+
+// Clone duplicates this MetricTagConfig
+func (m MetricTagConfig) Clone() MetricTagConfig {
+	m2 := m // non-pointer assignment shallow-copies members
+	// deep copy symbols and structures
+	m2.Column = m.Column.Clone()
+	m2.Symbol = m.Symbol.Clone()
+	m2.IndexTransform = slices.Clone(m.IndexTransform)
+	m2.Mapping = maps.Clone(m.Mapping)
+	m2.Tags = maps.Clone(m.Tags)
+	return m2
 }
 
 // MetricTagConfigList holds configs for a list of metric tags
@@ -149,6 +176,23 @@ type MetricsConfig struct {
 	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty"`
 
 	Options MetricsConfigOption `yaml:"options,omitempty" json:"options,omitempty"`
+}
+
+// Clone duplicates this MetricsConfig
+func (m MetricsConfig) Clone() MetricsConfig {
+	return MetricsConfig{
+		MIB:        m.MIB,
+		Table:      m.Table.Clone(),
+		Symbol:     m.Symbol.Clone(),
+		OID:        m.OID,
+		Name:       m.Name,
+		Symbols:    CloneSlice(m.Symbols),
+		StaticTags: slices.Clone(m.StaticTags),
+		MetricTags: CloneSlice(m.MetricTags),
+		ForcedType: m.ForcedType,
+		MetricType: m.MetricType,
+		Options:    m.Options,
+	}
 }
 
 // GetSymbolTags returns symbol tags

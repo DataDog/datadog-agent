@@ -5,8 +5,8 @@
 
 //go:build linux
 
-// Package utils holds utils related files
-package utils
+// Package procfs holds procfs related files
+package procfs
 
 import (
 	"fmt"
@@ -14,12 +14,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v4/process"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // GetBoundSockets returns the list of bound sockets for a given process
