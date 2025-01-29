@@ -48,8 +48,8 @@ new-agent_dmg-x64-a7:
   needs: []
   # needs: ["go_deps", "go_tools_deps"]
   timeout: 6h
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
+  # before_script:
+  #   - export RELEASE_VERSION=$RELEASE_VERSION_7
   artifacts:
     expire_in: 2 weeks
     paths:
