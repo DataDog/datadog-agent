@@ -3,6 +3,8 @@ load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 configure_make(
     name = "attr",
     configure_options = [
+        "--disable-static",
+        "--disable-nls",
     ],
     lib_source = "@attr//:all",
     out_shared_libs = select({
