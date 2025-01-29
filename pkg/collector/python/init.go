@@ -509,19 +509,22 @@ func initPymemTelemetry(d time.Duration) {
 }
 
 // initFIPS sets the OPENSSL_CONF and OPENSSL_MODULES environment variables
-func initFIPS(embeddedPath string) {
+func initFIPS(embeddedPath string) error {
 	if v := os.Getenv("OPENSSL_CONF"); v == "" {
 		pathToOpenSSLConf := filepath.Join(embeddedPath, "ssl", "openssl.cnf")
 		if _, err := os.Stat(pathToOpenSSLConf); os.IsNotExist(err) {
-			return log.Errorf("The configuration file %s does not exist", pathToOpenSSLConf)
+			log.Errorf("The configuration file %s does not exist", pathToOpenSSLConf)
+			return nil
 		}
 		os.Setenv("OPENSSL_CONF", pathToOpenSSLConf)
 	}
 	if v := os.Getenv("OPENSSL_MODULES"); v == "" {
 		pathToOpenSSLModules := filepath.Join(embeddedPath, "lib", "ossl-modules")
 		if _, err := os.Stat(pathToOpenSSLModules); os.IsNotExist(err) {
-			return log.Errorf("The directory %s does not exist", pathToOpenSSLModules)
+			log.Errorf("The directory %s does not exist", pathToOpenSSLModules)
+			return nil
 		}
 		os.Setenv("OPENSSL_MODULES", pathToOpenSSLModules)
 	}
+	return nil
 }
