@@ -47,7 +47,6 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
             and 'ON_NIGHTLY_FIPS' in job_details['variables']
             and job_details['variables']['ON_NIGHTLY_FIPS'] == "true"
             and not job.startswith(".")
-            and job_details["stage"] == "e2e"
         ):
             kept_job[job] = job_details
 
@@ -87,3 +86,22 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
 
     with gitlab_section("Fips e2e generated pipeline", collapsed=True):
         print(yaml.safe_dump(new_jobs))
+
+
+@task
+def e2e_running_in_fips_mode_on_nightly(ctx):
+    config = resolve_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
+    fips_status = {}
+    for job, job_details in config.items():
+        if "new-e2e" not in job or job.startswith(".") or job_details["stage"] != "e2e":
+            continue
+        if (
+            'variables' in job_details
+            and 'ON_NIGHTLY_FIPS' in job_details['variables']
+            and job_details['variables']['ON_NIGHTLY_FIPS'] == "true"
+        ):
+            fips_status[job] = True
+        else:
+            fips_status[job] = False
+    for job, status in fips_status.items():
+        print(f"{job} is running in FIPS mode on nightly: {status}")
