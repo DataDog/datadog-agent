@@ -9,6 +9,7 @@ package rules
 import (
 	"errors"
 	"fmt"
+	"net"
 	"reflect"
 	"slices"
 	"strings"
@@ -208,6 +209,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 					variableValue = actionDef.Set.Value
 				} else if actionDef.Set.Field != "" {
+					// here
 					_, kind, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
 					if err != nil {
 						errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", actionDef.Set.Field, err))
@@ -221,6 +223,12 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						variableValue = []int{}
 					case reflect.Bool:
 						variableValue = false
+					case reflect.Struct:
+						suffix := strings.Split(actionDef.Set.Field, ".")[len(strings.Split(actionDef.Set.Field, "."))-1]
+						switch suffix {
+						case "ip":
+							variableValue = []net.IPNet{}
+						}
 					default:
 						errs = multierror.Append(errs, fmt.Errorf("unsupported field type '%s' for variable '%s'", kind, actionDef.Set.Name))
 						continue
