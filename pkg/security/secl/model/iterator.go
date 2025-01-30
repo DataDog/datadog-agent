@@ -6,7 +6,9 @@
 // Package model holds model related files
 package model
 
-import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+import (
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+)
 
 // Iterator is a generic interface that iterators must implement
 type Iterator[T any] interface {
@@ -22,21 +24,21 @@ func isNil[V comparable](v V) bool {
 	return v == zero
 }
 
-func newIterator[T any, V comparable](iter Iterator[V], field eval.Field, ctx *eval.Context, ev *Event, perIter func(ev *Event, current V) T) []T {
+func newIterator[T any, V comparable](iter Iterator[V], field eval.Field, ctx *eval.Context, ev *Event, perIterCb func(ev *Event, current V) T) []T {
 	results := make([]T, 0, ctx.IteratorCountCache[field])
 	for entry := iter.Front(ctx); !isNil(entry); entry = iter.Next(ctx) {
-		results = append(results, perIter(ev, entry))
+		results = append(results, perIterCb(ev, entry))
 	}
 	ctx.IteratorCountCache[field] = len(results)
 
 	return results
 }
 
-func newIteratorArray[T any, V comparable](iter Iterator[V], field eval.Field, ctx *eval.Context, ev *Event, perIter func(ev *Event, current V) []T) []T {
+func newIteratorArray[T any, V comparable](iter Iterator[V], field eval.Field, ctx *eval.Context, ev *Event, perIterCb func(ev *Event, current V) []T) []T {
 	results := make([]T, 0, ctx.IteratorCountCache[field])
 	count := 0
 	for entry := iter.Front(ctx); !isNil(entry); entry = iter.Next(ctx) {
-		results = append(results, perIter(ev, entry)...)
+		results = append(results, perIterCb(ev, entry)...)
 		count++
 	}
 	ctx.IteratorCountCache[field] = count
