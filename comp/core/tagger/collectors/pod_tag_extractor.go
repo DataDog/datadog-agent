@@ -34,6 +34,8 @@ func (p *PodTagExtractor) Extract(podEntity *workloadmeta.KubernetesPod, cardina
 		return append(tagInfos.LowCardTags, tagInfos.OrchestratorCardTags...)
 	case types.LowCardinality:
 		return tagInfos.LowCardTags
+	case types.NoneCardinality:
+		return []string{}
 	default:
 		log.Errorf("unsupported tag cardinality %v", cardinality)
 		return []string{}

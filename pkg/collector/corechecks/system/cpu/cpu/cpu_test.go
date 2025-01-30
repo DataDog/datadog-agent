@@ -8,52 +8,70 @@ package cpu
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-
-	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
 var (
-	firstSample = []cpu.TimesStat{
-		{
-			CPU:       "cpu-total",
-			User:      1229386,
-			Nice:      623,
-			System:    263584,
-			Idle:      25496761,
-			Iowait:    12113,
-			Irq:       10,
-			Softirq:   1151,
-			Steal:     0,
-			Guest:     0,
-			GuestNice: 0,
-		},
+	firstTotalSample = cpu.TimesStat{
+		CPU:       "cpu-total",
+		User:      29386,
+		Nice:      623,
+		System:    63584,
+		Idle:      96761,
+		Iowait:    12113,
+		Irq:       10,
+		Softirq:   1151,
+		Steal:     0,
+		Guest:     0,
+		GuestNice: 0,
 	}
-	secondSample = []cpu.TimesStat{
+	secondTotalSample = cpu.TimesStat{
+		CPU:       "cpu-total",
+		User:      29586,
+		Nice:      625,
+		System:    68584,
+		Idle:      96761,
+		Iowait:    12153,
+		Irq:       15,
+		Softirq:   1451,
+		Steal:     2,
+		Guest:     0,
+		GuestNice: 0,
+	}
+	perCPUSamples = []cpu.TimesStat{
 		{
-			CPU:       "cpu-total",
-			User:      1229586,
-			Nice:      625,
-			System:    268584,
-			Idle:      25596761,
-			Iowait:    12153,
-			Irq:       15,
-			Softirq:   1451,
-			Steal:     2,
-			Guest:     0,
-			GuestNice: 0,
+			CPU:       "cpu0",
+			User:      83970.9,
+			Nice:      0.0,
+			System:    64060.9,
+			Idle:      208877.4,
+			Iowait:    12.1,
+			Irq:       43.5,
+			Softirq:   8.6,
+			Steal:     65.9,
+			Guest:     2.4,
+			GuestNice: 5.1,
+		},
+		{
+			CPU:       "cpu1",
+			User:      82638.9,
+			Nice:      50.0,
+			System:    61564.1,
+			Idle:      212758.8,
+			Iowait:    1.2,
+			Irq:       2.3,
+			Softirq:   3.4,
+			Steal:     4.5,
+			Guest:     5.6,
+			GuestNice: 6.7,
 		},
 	}
 	cpuInfo = []cpu.InfoStat{
@@ -81,59 +99,19 @@ func createCheck() check.Check {
 	return cpuCheck
 }
 
-func TestCPUCheckLinuxFirstRunOk(t *testing.T) {
-	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
+func setupDefaultMocks() {
+	getContextSwitches = func() (int64, error) {
+		return 4, nil
+	}
+	getCpuInfo = func() ([]cpu.InfoStat, error) {
 		return cpuInfo, nil
 	}
-	cpuCheck := createCheck()
-	m := mocksender.NewMockSender(cpuCheck.ID())
-	if runtime.GOOS == "linux" {
-		m.On(metrics.MonotonicCountType.String(), "system.cpu.context_switches", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string")).Return().Times(1)
+	getCpuTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
+		if perCpu {
+			return perCPUSamples, nil
+		}
+		return []cpu.TimesStat{firstTotalSample}, nil
 	}
-	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", float64(1), mock.AnythingOfType("string"), mock.AnythingOfType("[]string")).Return().Times(1)
-	m.On("Commit").Return().Times(1)
-
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-	cpuTimesFunc = func(bool) ([]cpu.TimesStat, error) {
-		return firstSample, nil
-	}
-	err := cpuCheck.Run()
-
-	assert.Nil(t, err)
-	m.AssertExpectations(t)
-}
-
-func TestCPUCheckLinuxTwoRunsOk(t *testing.T) {
-	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
-		return cpuInfo, nil
-	}
-	cpuCheck := createCheck()
-	m := mocksender.NewMockSender(cpuCheck.ID())
-	if runtime.GOOS == "linux" {
-		m.On(metrics.MonotonicCountType.String(), "system.cpu.context_switches", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string")).Return().Times(2)
-	}
-	m.On(metrics.GaugeType.String(), "system.cpu.user", 0.1913803067769472, "", []string(nil)).Return().Times(1)
-	m.On(metrics.GaugeType.String(), "system.cpu.system", 5.026101621048045, "", []string(nil)).Return().Times(1)
-	m.On(metrics.GaugeType.String(), "system.cpu.interrupt", 0.2889653146879648, "", []string(nil)).Return().Times(1)
-	m.On(metrics.GaugeType.String(), "system.cpu.iowait", 0.03789709045088063, "", []string(nil)).Return().Times(1)
-	m.On(metrics.GaugeType.String(), "system.cpu.idle", 94.74272612720159, "", []string(nil)).Return().Times(1)
-	m.On(metrics.GaugeType.String(), "system.cpu.stolen", 0.0018948545225440318, "", []string(nil)).Return().Times(1)
-	m.On(metrics.GaugeType.String(), "system.cpu.guest", 0.0, "", []string(nil)).Return().Times(1)
-	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(2)
-	m.On("Commit").Return().Times(2)
-
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-	cpuTimesFunc = func(bool) ([]cpu.TimesStat, error) {
-		return firstSample, nil
-	}
-	cpuCheck.Run()
-	cpuTimesFunc = func(bool) ([]cpu.TimesStat, error) {
-		return secondSample, nil
-	}
-	err := cpuCheck.Run()
-
-	assert.Nil(t, err)
-	m.AssertExpectations(t)
 }
 
 func TestCPUCheckLinuxErrorInInstanceConfig(t *testing.T) {
@@ -145,26 +123,23 @@ func TestCPUCheckLinuxErrorInInstanceConfig(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func TestCPUCheckLinuxErrorInCpuInfo(t *testing.T) {
-	cpuInfoError := errors.New("cpu.Check: could not query CPU info")
-	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
-		return nil, cpuInfoError
-	}
+func TestCPUCheckLinuxErrorReportTotalPerCPUConfigNotBoolean(t *testing.T) {
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
 
-	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`report_total_percpu: "string_value"`), nil, "test")
 
-	assert.Equal(t, cpuInfoError, err)
+	assert.NotNil(t, err)
 }
 
 func TestCPUCheckLinuxErrorStoppedSender(t *testing.T) {
 	stoppedSenderError := errors.New("demultiplexer is stopped")
-	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
+	getCpuInfo = func() ([]cpu.InfoStat, error) {
 		return cpuInfo, nil
 	}
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
+	m.SetupAcceptAll()
 
 	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 	m.GetSenderManager().(*aggregator.AgentDemultiplexer).Stop(false)
@@ -173,115 +148,279 @@ func TestCPUCheckLinuxErrorStoppedSender(t *testing.T) {
 	assert.Equal(t, stoppedSenderError, err)
 }
 
-func TestCPUCheckLinuxErrorProcFsPathNoExists(t *testing.T) {
-	pkgconfigsetup.Datadog().SetDefault("procfs_path", "/tmp")
-	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
-		return cpuInfo, nil
-	}
-	cpuTimesFunc = func(bool) ([]cpu.TimesStat, error) {
-		return firstSample, nil
+func TestContextSwitchesError(t *testing.T) {
+	setupDefaultMocks()
+	getContextSwitches = func() (int64, error) {
+		return 0, errors.New("GetContextSwitches error")
 	}
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
-	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", float64(1), mock.AnythingOfType("string"), mock.AnythingOfType("[]string")).Return().Times(1)
-	m.On("Commit").Return().Times(1)
+	m.SetupAcceptAll()
 
 	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 	err := cpuCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertExpectations(t)
-	m.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 0)
+	m.AssertNotCalled(t, "MonotonicCount", "system.cpu.context_switches", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 }
 
-func TestCPUCheckLinuxErrorProcFsPathEmptyFile(t *testing.T) {
-	tempFilePath := filepath.Join(os.TempDir(), "stat")
-	tempFile, err := os.Create(tempFilePath)
-	if err != nil {
-		t.Fatal("Error creating temporary file:", err)
-	}
-	defer os.Remove(tempFile.Name())
-	pkgconfigsetup.Datadog().SetDefault("procfs_path", os.TempDir())
-	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
-		return cpuInfo, nil
-	}
-	cpuTimesFunc = func(bool) ([]cpu.TimesStat, error) {
-		return firstSample, nil
+func TestContextSwitchesOk(t *testing.T) {
+	setupDefaultMocks()
+	cpuCheck := createCheck()
+	m := mocksender.NewMockSender(cpuCheck.ID())
+	m.SetupAcceptAll()
+
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := cpuCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "MonotonicCount", "system.cpu.context_switches", 4, "", []string(nil))
+}
+
+func TestNumCoresError(t *testing.T) {
+	setupDefaultMocks()
+	cpuInfoError := errors.New("cpu.Check: could not query CPU info")
+	getCpuInfo = func() ([]cpu.InfoStat, error) {
+		return nil, cpuInfoError
 	}
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
-	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", float64(1), mock.AnythingOfType("string"), mock.AnythingOfType("[]string")).Return().Times(1)
-	m.On("Commit").Return().Times(1)
+	m.SetupAcceptAll()
 
 	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-	err = cpuCheck.Run()
+	err := cpuCheck.Run()
 
-	assert.Nil(t, err)
-	m.AssertExpectations(t)
-	m.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 0)
+	assert.Equal(t, cpuInfoError, err)
+	m.AssertNotCalled(t, "Gauge", "system.cpu.num_cores", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 }
 
-func TestCPUCheckLinuxErrorProcFsPathWrongFormat(t *testing.T) {
-	tempFilePath := filepath.Join(os.TempDir(), "stat")
-	tempFile, err := os.Create(tempFilePath)
-	if err != nil {
-		t.Fatal("Error creating temporary file:", err)
-	}
-	defer os.Remove(tempFile.Name())
-	_, err = tempFile.WriteString("ctxt string_value\n")
-	if err != nil {
-		t.Fatal("Error writing to temporary file:", err)
-	}
-	pkgconfigsetup.Datadog().SetDefault("procfs_path", os.TempDir())
-	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
-		return cpuInfo, nil
-	}
-	cpuTimesFunc = func(bool) ([]cpu.TimesStat, error) {
-		return firstSample, nil
-	}
+func TestNumCoresOk(t *testing.T) {
+	setupDefaultMocks()
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
-	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", float64(1), mock.AnythingOfType("string"), mock.AnythingOfType("[]string")).Return().Times(1)
-	m.On("Commit").Return().Times(1)
+	m.SetupAcceptAll()
 
 	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-	err = cpuCheck.Run()
+	err := cpuCheck.Run()
 
-	assert.Nil(t, err)
-	m.AssertExpectations(t)
-	m.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 0)
+	assert.Equal(t, nil, err)
+	m.AssertMetric(t, "Gauge", "system.cpu.num_cores", 1, "", nil)
 }
 
-func TestCPUCheckLinuxErrorInCpuTimes(t *testing.T) {
-	cpuTimesError := errors.New("cpu Times error")
-	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
-		return cpuInfo, nil
-	}
-	cpuTimesFunc = func(bool) ([]cpu.TimesStat, error) {
+func TestSystemCpuMetricsError(t *testing.T) {
+	setupDefaultMocks()
+	cpuTimesError := errors.New("cpu.Check: could not query CPU times")
+	getCpuTimes = func(bool) ([]cpu.TimesStat, error) {
 		return nil, cpuTimesError
 	}
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
+	m.SetupAcceptAll()
 
 	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 	err := cpuCheck.Run()
 
 	assert.Equal(t, cpuTimesError, err)
+	m.AssertNotCalled(t, "Gauge", "system.cpu.user", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.system", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.interrupt", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.iowait", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.idle", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.stolen", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.guest", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 }
 
-func TestCPUCheckLinuxEmptyCpuTimes(t *testing.T) {
+func TestSystemCpuMetricsEmpty(t *testing.T) {
+	setupDefaultMocks()
 	expectedError := errors.New("no cpu stats retrieve (empty results)")
-	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
-		return cpuInfo, nil
-	}
-	cpuTimesFunc = func(bool) ([]cpu.TimesStat, error) {
+	getCpuTimes = func(bool) ([]cpu.TimesStat, error) {
 		return []cpu.TimesStat{}, nil
 	}
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
+	m.SetupAcceptAll()
 
 	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 	err := cpuCheck.Run()
 
 	assert.Equal(t, expectedError, err)
+	m.AssertNotCalled(t, "Gauge", "system.cpu.user", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.system", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.interrupt", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.iowait", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.idle", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.stolen", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.guest", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+}
+
+func TestSystemCpuMetricsNotReportedOnFirstCheck(t *testing.T) {
+	setupDefaultMocks()
+	cpuCheck := createCheck()
+	m := mocksender.NewMockSender(cpuCheck.ID())
+	m.SetupAcceptAll()
+
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := cpuCheck.Run()
+
+	assert.Equal(t, nil, err)
+	m.AssertNotCalled(t, "Gauge", "system.cpu.user", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.system", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.interrupt", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.iowait", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.idle", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.stolen", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.guest", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+}
+
+func TestSystemCpuMetricsReportedOnSecondCheck(t *testing.T) {
+	setupDefaultMocks()
+	firstCall := true
+	getCpuTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
+		if perCpu {
+			return perCPUSamples, nil
+		}
+		if firstCall {
+			firstCall = false
+			return []cpu.TimesStat{firstTotalSample}, nil
+		}
+		return []cpu.TimesStat{secondTotalSample}, nil
+	}
+	cpuCheck := createCheck()
+	m := mocksender.NewMockSender(cpuCheck.ID())
+	m.SetupAcceptAll()
+
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	cpuCheck.Run()
+	err := cpuCheck.Run()
+
+	assert.Equal(t, nil, err)
+	m.AssertMetric(t, "Gauge", "system.cpu.user", 3.640295548747522, "", []string(nil))
+	m.AssertMetric(t, "Gauge", "system.cpu.system", 95.60281131735448, "", []string(nil))
+	m.AssertMetric(t, "Gauge", "system.cpu.interrupt", 5.496485853306902, "", []string(nil))
+	m.AssertMetric(t, "Gauge", "system.cpu.iowait", 0.7208506037123806, "", []string(nil))
+	m.AssertMetric(t, "Gauge", "system.cpu.idle", 0.0, "", []string(nil))
+	m.AssertMetric(t, "Gauge", "system.cpu.stolen", 0.03604253018561903, "", []string(nil))
+	m.AssertMetric(t, "Gauge", "system.cpu.guest", 0.0, "", []string(nil))
+}
+
+func TestSystemCpuMetricsPerCpuError(t *testing.T) {
+	setupDefaultMocks()
+	cpuTimesError := errors.New("cpu.Check: could not query CPU times")
+	getCpuTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
+		if perCpu {
+			return nil, cpuTimesError
+		}
+		return []cpu.TimesStat{firstTotalSample}, nil
+	}
+	cpuCheck := createCheck()
+	m := mocksender.NewMockSender(cpuCheck.ID())
+	m.SetupAcceptAll()
+
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`report_total_percpu: true`), nil, "test")
+	err := cpuCheck.Run()
+
+	assert.Equal(t, cpuTimesError, err)
+	m.AssertNotCalled(t, "Gauge", "system.cpu.user.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.nice.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.system.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.idle.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.iowait.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.irq.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.softirq.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.steal.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.guest.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.cpu.guestnice.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+
+}
+
+func TestSystemCpuMetricsPerCpuDefault(t *testing.T) {
+	setupDefaultMocks()
+	getCpuTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
+		if perCpu {
+			return perCPUSamples, nil
+		}
+		return []cpu.TimesStat{firstTotalSample}, nil
+	}
+	cpuCheck := createCheck()
+	m := mocksender.NewMockSender(cpuCheck.ID())
+	m.SetupAcceptAll()
+
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := cpuCheck.Run()
+
+	assert.Equal(t, nil, err)
+	m.AssertMetric(t, "Gauge", "system.cpu.user.total", 29386, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.nice.total", 623, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.system.total", 63584, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.idle.total", 96761, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.iowait.total", 12113, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.irq.total", 10, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.softirq.total", 1151, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.steal.total", 0.0, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.guest.total", 0.0, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.guestnice.total", 0.0, "", []string{"core:cpu-total"})
+}
+func TestSystemCpuMetricsPerCpuFalse(t *testing.T) {
+	setupDefaultMocks()
+	getCpuTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
+		if perCpu {
+			return perCPUSamples, nil
+		}
+		return []cpu.TimesStat{firstTotalSample}, nil
+	}
+	cpuCheck := createCheck()
+	m := mocksender.NewMockSender(cpuCheck.ID())
+	m.SetupAcceptAll()
+
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`report_total_percpu: false`), nil, "test")
+	err := cpuCheck.Run()
+
+	assert.Equal(t, nil, err)
+	m.AssertMetric(t, "Gauge", "system.cpu.user.total", 29386, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.nice.total", 623, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.system.total", 63584, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.idle.total", 96761, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.iowait.total", 12113, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.irq.total", 10, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.softirq.total", 1151, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.steal.total", 0.0, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.guest.total", 0.0, "", []string{"core:cpu-total"})
+	m.AssertMetric(t, "Gauge", "system.cpu.guestnice.total", 0.0, "", []string{"core:cpu-total"})
+}
+func TestSystemCpuMetricsPerCpuTrue(t *testing.T) {
+	setupDefaultMocks()
+	getCpuTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
+		if perCpu {
+			return perCPUSamples, nil
+		}
+		return []cpu.TimesStat{firstTotalSample}, nil
+	}
+	cpuCheck := createCheck()
+	m := mocksender.NewMockSender(cpuCheck.ID())
+	m.SetupAcceptAll()
+
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`report_total_percpu: true`), nil, "test")
+	err := cpuCheck.Run()
+
+	assert.Equal(t, nil, err)
+	m.AssertMetric(t, "Gauge", "system.cpu.user.total", 83970.9, "", []string{"core:cpu0"})
+	m.AssertMetric(t, "Gauge", "system.cpu.user.total", 82638.9, "", []string{"core:cpu1"})
+	m.AssertMetric(t, "Gauge", "system.cpu.nice.total", 0.0, "", []string{"core:cpu0"})
+	m.AssertMetric(t, "Gauge", "system.cpu.nice.total", 50.0, "", []string{"core:cpu1"})
+	m.AssertMetric(t, "Gauge", "system.cpu.system.total", 64060.9, "", []string{"core:cpu0"})
+	m.AssertMetric(t, "Gauge", "system.cpu.system.total", 61564.1, "", []string{"core:cpu1"})
+	m.AssertMetric(t, "Gauge", "system.cpu.idle.total", 208877.4, "", []string{"core:cpu0"})
+	m.AssertMetric(t, "Gauge", "system.cpu.idle.total", 212758.8, "", []string{"core:cpu1"})
+	m.AssertMetric(t, "Gauge", "system.cpu.iowait.total", 12.1, "", []string{"core:cpu0"})
+	m.AssertMetric(t, "Gauge", "system.cpu.iowait.total", 1.2, "", []string{"core:cpu1"})
+	m.AssertMetric(t, "Gauge", "system.cpu.irq.total", 43.5, "", []string{"core:cpu0"})
+	m.AssertMetric(t, "Gauge", "system.cpu.irq.total", 2.3, "", []string{"core:cpu1"})
+	m.AssertMetric(t, "Gauge", "system.cpu.softirq.total", 8.6, "", []string{"core:cpu0"})
+	m.AssertMetric(t, "Gauge", "system.cpu.softirq.total", 3.4, "", []string{"core:cpu1"})
+	m.AssertMetric(t, "Gauge", "system.cpu.steal.total", 65.9, "", []string{"core:cpu0"})
+	m.AssertMetric(t, "Gauge", "system.cpu.steal.total", 4.5, "", []string{"core:cpu1"})
+	m.AssertMetric(t, "Gauge", "system.cpu.guest.total", 2.4, "", []string{"core:cpu0"})
+	m.AssertMetric(t, "Gauge", "system.cpu.guest.total", 5.6, "", []string{"core:cpu1"})
+	m.AssertMetric(t, "Gauge", "system.cpu.guestnice.total", 5.1, "", []string{"core:cpu0"})
+	m.AssertMetric(t, "Gauge", "system.cpu.guestnice.total", 6.7, "", []string{"core:cpu1"})
 }

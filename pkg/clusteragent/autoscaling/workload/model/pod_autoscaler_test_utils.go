@@ -24,47 +24,49 @@ import (
 
 // FakePodAutoscalerInternal is a fake PodAutoscalerInternal object.
 type FakePodAutoscalerInternal struct {
-	Namespace                 string
-	Name                      string
-	Generation                int64
-	Spec                      *datadoghq.DatadogPodAutoscalerSpec
-	SettingsTimestamp         time.Time
-	CreationTimestamp         time.Time
-	ScalingValues             ScalingValues
-	HorizontalLastActions     []datadoghq.DatadogPodAutoscalerHorizontalAction
-	HorizontalLastLimitReason string
-	HorizontalLastActionError error
-	HorizontalEventsRetention time.Duration
-	VerticalLastAction        *datadoghq.DatadogPodAutoscalerVerticalAction
-	VerticalLastActionError   error
-	CurrentReplicas           *int32
-	ScaledReplicas            *int32
-	Error                     error
-	Deleted                   bool
-	TargetGVK                 schema.GroupVersionKind
+	Namespace                      string
+	Name                           string
+	Generation                     int64
+	Spec                           *datadoghq.DatadogPodAutoscalerSpec
+	SettingsTimestamp              time.Time
+	CreationTimestamp              time.Time
+	ScalingValues                  ScalingValues
+	HorizontalLastActions          []datadoghq.DatadogPodAutoscalerHorizontalAction
+	HorizontalLastLimitReason      string
+	HorizontalLastActionError      error
+	HorizontalEventsRetention      time.Duration
+	VerticalLastAction             *datadoghq.DatadogPodAutoscalerVerticalAction
+	VerticalLastActionError        error
+	CurrentReplicas                *int32
+	ScaledReplicas                 *int32
+	Error                          error
+	Deleted                        bool
+	TargetGVK                      schema.GroupVersionKind
+	CustomRecommenderConfiguration *RecommenderConfiguration
 }
 
 // Build creates a PodAutoscalerInternal object from the FakePodAutoscalerInternal.
 func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 	return PodAutoscalerInternal{
-		namespace:                 f.Namespace,
-		name:                      f.Name,
-		generation:                f.Generation,
-		spec:                      f.Spec,
-		settingsTimestamp:         f.SettingsTimestamp,
-		creationTimestamp:         f.CreationTimestamp,
-		scalingValues:             f.ScalingValues,
-		horizontalLastActions:     f.HorizontalLastActions,
-		horizontalLastLimitReason: f.HorizontalLastLimitReason,
-		horizontalLastActionError: f.HorizontalLastActionError,
-		horizontalEventsRetention: f.HorizontalEventsRetention,
-		verticalLastAction:        f.VerticalLastAction,
-		verticalLastActionError:   f.VerticalLastActionError,
-		currentReplicas:           f.CurrentReplicas,
-		scaledReplicas:            f.ScaledReplicas,
-		error:                     f.Error,
-		deleted:                   f.Deleted,
-		targetGVK:                 f.TargetGVK,
+		namespace:                      f.Namespace,
+		name:                           f.Name,
+		generation:                     f.Generation,
+		spec:                           f.Spec,
+		settingsTimestamp:              f.SettingsTimestamp,
+		creationTimestamp:              f.CreationTimestamp,
+		scalingValues:                  f.ScalingValues,
+		horizontalLastActions:          f.HorizontalLastActions,
+		horizontalLastLimitReason:      f.HorizontalLastLimitReason,
+		horizontalLastActionError:      f.HorizontalLastActionError,
+		horizontalEventsRetention:      f.HorizontalEventsRetention,
+		verticalLastAction:             f.VerticalLastAction,
+		verticalLastActionError:        f.VerticalLastActionError,
+		currentReplicas:                f.CurrentReplicas,
+		scaledReplicas:                 f.ScaledReplicas,
+		error:                          f.Error,
+		deleted:                        f.Deleted,
+		targetGVK:                      f.TargetGVK,
+		customRecommenderConfiguration: f.CustomRecommenderConfiguration,
 	}
 }
 
@@ -110,7 +112,7 @@ func ComparePodAutoscalers(expected any, actual any) string {
 				if fake, ok := x.(FakePodAutoscalerInternal); ok {
 					return fake.Build()
 				}
-				panic("filer failed - unexpected type")
+				panic("filter failed - unexpected type")
 			}),
 		),
 		cmp.FilterValues(

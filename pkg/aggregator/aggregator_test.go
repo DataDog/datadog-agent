@@ -27,8 +27,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
+	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
+	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -57,8 +60,11 @@ func initF() {
 	tagsetTlm.reset()
 }
 
-func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
-	seriesSink := metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 1000, 1000)
+func testNewFlushTrigger(start time.Time, waitForSerializer bool, callback func(_ *metrics.Serie)) flushTrigger {
+	if callback == nil {
+		callback = func(_ *metrics.Serie) {}
+	}
+	seriesSink := metrics.NewIterableSeries(callback, 1000, 1000)
 	flushedSketches := make(metrics.SketchSeriesList, 0)
 
 	return flushTrigger{
@@ -130,7 +136,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 		return agg.checkSamplers[checkID1].deregistered && !agg.checkSamplers[checkID2].deregistered
 	}, time.Second, 10*time.Millisecond)
 
-	agg.Flush(testNewFlushTrigger(time.Now(), false))
+	agg.Flush(testNewFlushTrigger(time.Now(), false, nil))
 
 	agg.mu.Lock()
 	require.Len(t, agg.checkSamplers, 1)
@@ -265,12 +271,72 @@ func TestDefaultData(t *testing.T) {
 
 	s.On("SendSeries", series).Return(nil).Times(1)
 
-	agg.Flush(testNewFlushTrigger(start, false))
+	agg.Flush(testNewFlushTrigger(start, false, nil))
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 
 	// not counted as huge for (just checking the first threshold..)
 	assert.Equal(t, uint64(0), tagsetTlm.hugeSeriesCount[0].Load())
+}
+
+func TestDefaultSeries(t *testing.T) {
+	s := &MockSerializerIterableSerie{}
+	taggerComponent := taggerMock.SetupFakeTagger(t)
+
+	mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
+	mockHaAgent.SetEnabled(true)
+	mockHaAgent.SetState(haagent.Active)
+
+	agg := NewBufferedAggregator(s, nil, mockHaAgent, taggerComponent, "hostname", DefaultFlushInterval)
+
+	start := time.Now()
+
+	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
+	agentUpMatcher := mock.MatchedBy(func(m servicecheck.ServiceChecks) bool {
+		require.Equal(t, 1, len(m))
+		require.Equal(t, "datadog.agent.up", m[0].CheckName)
+		require.Equal(t, servicecheck.ServiceCheckOK, m[0].Status)
+		require.Equal(t, []string{}, m[0].Tags)
+		require.Equal(t, agg.hostname, m[0].Host)
+
+		return true
+	})
+	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
+
+	expectedSeries := metrics.Series{&metrics.Serie{
+		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
+		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
+		Tags:           tagset.CompositeTagsFromSlice([]string{"version:" + version.AgentVersion}),
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	}, &metrics.Serie{
+		Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
+		Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
+		Tags:           tagset.CompositeTagsFromSlice([]string{"agent_state:standby"}),
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	}, &metrics.Serie{
+		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
+		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
+		Host:           agg.hostname,
+		Tags:           tagset.CompositeTagsFromSlice([]string{}),
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+		NoIndex:        true,
+	}}
+
+	s.On("SendSeries", expectedSeries).Return(nil).Times(1)
+
+	var flushedSeries metrics.Series
+	triggerInstance := testNewFlushTrigger(start, false, func(serie *metrics.Serie) {
+		flushedSeries = append(flushedSeries, serie)
+	})
+
+	agg.Flush(triggerInstance)
+
+	assert.EqualValues(t, expectedSeries, flushedSeries)
 }
 
 func TestSeriesTooManyTags(t *testing.T) {
@@ -579,16 +645,6 @@ func TestTags(t *testing.T) {
 			withVersion:             true,
 			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "kube_cluster_name:foo"},
 		},
-		{
-			name:                    "tags disabled, without version, ha agent enabled",
-			hostname:                "hostname",
-			tlmContainerTagsEnabled: false,
-			agentTags:               func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
-			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
-			withVersion:             false,
-			haAgentEnabled:          true,
-			want:                    []string{"agent_group:group01"},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -740,10 +796,11 @@ type aggregatorDeps struct {
 	Demultiplexer    *AgentDemultiplexer
 	OrchestratorFwd  orchestratorforwarder.Component
 	EventPlatformFwd eventplatform.Component
+	Compressor       compression.Component
 }
 
 func createAggrDeps(t *testing.T) aggregatorDeps {
-	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), compressionmock.MockModule(), haagentmock.Module())
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), logscompressionmock.MockModule(), metricscompressionmock.MockModule(), haagentmock.Module())
 
 	opts := demuxTestOptions()
 	return aggregatorDeps{

@@ -11,19 +11,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
 	agentPackage      = "datadog-agent"
-	pathOldAgent      = "/opt/datadog-agent"
 	agentSymlink      = "/usr/bin/datadog-agent"
 	agentUnit         = "datadog-agent.service"
 	traceAgentUnit    = "datadog-agent-trace.service"
@@ -55,6 +56,13 @@ var (
 )
 
 var (
+	rootOwnedConfigPaths = []string{
+		"security-agent.yaml",
+		"system-probe.yaml",
+		"inject/tracer.yaml",
+		"inject",
+		"managed",
+	}
 	// matches omnibus/package-scripts/agent-deb/postinst
 	rootOwnedAgentPaths = []string{
 		"embedded/bin/system-probe",
@@ -64,20 +72,32 @@ var (
 	}
 )
 
+// PrepareAgent prepares the machine to install the agent
+func PrepareAgent(ctx context.Context) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "prepare_agent")
+	defer func() { span.Finish(err) }()
+
+	for _, unit := range stableUnits {
+		if err := stopUnit(ctx, unit); err != nil {
+			log.Warnf("Failed to stop %s: %s", unit, err)
+		}
+		if err := disableUnit(ctx, unit); err != nil {
+			log.Warnf("Failed to disable %s: %s", unit, err)
+		}
+	}
+	return removeDebRPMPackage(ctx, agentPackage)
+}
+
 // SetupAgent installs and starts the agent
 func SetupAgent(ctx context.Context, _ []string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
+	span, ctx := telemetry.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup agent, reverting: %s", err)
 			err = errors.Join(err, RemoveAgent(ctx))
 		}
-		span.Finish(tracer.WithError(err))
+		span.Finish(err)
 	}()
-
-	if err = stopOldAgentUnits(ctx); err != nil {
-		return err
-	}
 
 	for _, unit := range stableUnits {
 		if err = loadUnit(ctx, unit); err != nil {
@@ -92,7 +112,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	if err = os.MkdirAll("/etc/datadog-agent", 0755); err != nil {
 		return fmt.Errorf("failed to create /etc/datadog-agent: %v", err)
 	}
-	ddAgentUID, ddAgentGID, err := GetAgentIDs()
+	ddAgentUID, ddAgentGID, err := getAgentIDs()
 	if err != nil {
 		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
 	}
@@ -100,8 +120,18 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	if err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID); err != nil {
 		return fmt.Errorf("failed to chown /etc/datadog-agent: %v", err)
 	}
+	if err = chownRecursive("/etc/datadog-agent", ddAgentUID, ddAgentGID, rootOwnedConfigPaths); err != nil {
+		return fmt.Errorf("failed to chown /etc/datadog-agent: %v", err)
+	}
 	if err = chownRecursive("/opt/datadog-packages/datadog-agent/stable/", ddAgentUID, ddAgentGID, rootOwnedAgentPaths); err != nil {
 		return fmt.Errorf("failed to chown /opt/datadog-packages/datadog-agent/stable/: %v", err)
+	}
+	// Give root:datadog-agent permissions to system-probe and security-agent config files if they exist
+	if err = os.Chown("/etc/datadog-agent/system-probe.yaml", 0, ddAgentGID); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to chown /etc/datadog-agent/system-probe.yaml: %v", err)
+	}
+	if err = os.Chown("/etc/datadog-agent/security-agent.yaml", 0, ddAgentGID); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to chown /etc/datadog-agent/security-agent.yaml: %v", err)
 	}
 
 	if err = systemdReload(ctx); err != nil {
@@ -117,8 +147,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	}
 
 	// write installinfo before start, or the agent could write it
-	// TODO: add installer version properly
-	if err = installinfo.WriteInstallInfo("installer_package", "manual_update"); err != nil {
+	if err = installinfo.WriteInstallInfo("installer", fmt.Sprintf("installer-%s", version.AgentVersion), "manual_update"); err != nil {
 		return fmt.Errorf("failed to write install info: %v", err)
 	}
 
@@ -138,69 +167,57 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 
 // RemoveAgent stops and removes the agent
 func RemoveAgent(ctx context.Context) error {
-	span, ctx := tracer.StartSpanFromContext(ctx, "remove_agent_units")
-	defer span.Finish()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "remove_agent_units")
+	var spanErr error
+	defer func() { span.Finish(spanErr) }()
 	// stop experiments, they can restart stable agent
 	for _, unit := range experimentalUnits {
 		if err := stopUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
+			spanErr = err
 		}
 	}
 	// stop stable agents
 	for _, unit := range stableUnits {
 		if err := stopUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
+			spanErr = err
 		}
 	}
 
 	if err := disableUnit(ctx, agentUnit); err != nil {
 		log.Warnf("Failed to disable %s: %s", agentUnit, err)
+		spanErr = err
 	}
 
 	// remove units from disk
 	for _, unit := range experimentalUnits {
 		if err := removeUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to remove %s: %s", unit, err)
+			spanErr = err
 		}
 	}
 	for _, unit := range stableUnits {
 		if err := removeUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to remove %s: %s", unit, err)
+			spanErr = err
 		}
 	}
 	if err := os.Remove(agentSymlink); err != nil {
 		log.Warnf("Failed to remove agent symlink: %s", err)
+		spanErr = err
 	}
 	installinfo.RmInstallInfo()
 	// TODO: Return error to caller?
 	return nil
 }
 
-func oldAgentInstalled() bool {
-	_, err := os.Stat(pathOldAgent)
-	return err == nil
-}
-
-func stopOldAgentUnits(ctx context.Context) error {
-	if !oldAgentInstalled() {
-		return nil
-	}
-	span, ctx := tracer.StartSpanFromContext(ctx, "remove_old_agent_units")
-	defer span.Finish()
-	for _, unit := range stableUnits {
-		if err := stopUnit(ctx, unit); err != nil {
-			return fmt.Errorf("failed to stop %s: %v", unit, err)
-		}
-		if err := disableUnit(ctx, unit); err != nil {
-			return fmt.Errorf("failed to disable %s: %v", unit, err)
-		}
-	}
-	return nil
-}
-
 func chownRecursive(path string, uid int, gid int, ignorePaths []string) error {
-	return filepath.Walk(path, func(p string, _ os.FileInfo, err error) error {
+	return filepath.WalkDir(path, func(p string, _ fs.DirEntry, err error) error {
 		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
 			return err
 		}
 		relPath, err := filepath.Rel(path, p)
@@ -212,13 +229,17 @@ func chownRecursive(path string, uid int, gid int, ignorePaths []string) error {
 				return nil
 			}
 		}
-		return os.Chown(p, uid, gid)
+		err = os.Chown(p, uid, gid)
+		if err != nil && os.IsNotExist(err) {
+			return nil
+		}
+		return err
 	})
 }
 
 // StartAgentExperiment starts the agent experiment
 func StartAgentExperiment(ctx context.Context) error {
-	ddAgentUID, ddAgentGID, err := GetAgentIDs()
+	ddAgentUID, ddAgentGID, err := getAgentIDs()
 	if err != nil {
 		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
 	}

@@ -77,11 +77,16 @@ def setup(
         "--cap-add=SYS_PTRACE",
         "--security-opt",
         "seccomp=unconfined",
+        "-w",
+        "/workspaces/datadog-agent",
         "--name",
         "datadog_agent_devcontainer",
     ]
     devcontainer["remoteUser"] = "datadog"
-    devcontainer["mounts"] = ["source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind,consistency=cached"]
+    devcontainer["mounts"] = [
+        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind,consistency=cached",
+        "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached",
+    ]
     devcontainer["customizations"] = {
         "vscode": {
             "settings": {

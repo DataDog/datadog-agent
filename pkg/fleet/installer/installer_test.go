@@ -17,10 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/fixtures"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 )
 
 var testCtx = context.TODO()
@@ -31,6 +31,7 @@ type testPackageManager struct {
 
 func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string, locksPath string) *testPackageManager {
 	packages := repository.NewRepositories(rootPath, locksPath)
+	configs := repository.NewRepositories(t.TempDir(), t.TempDir())
 	db, err := db.New(filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
 	return &testPackageManager{
@@ -39,6 +40,7 @@ func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string, lo
 			db:             db,
 			downloader:     oci.NewDownloader(&env.Env{}, s.Client()),
 			packages:       packages,
+			configs:        configs,
 			userConfigsDir: t.TempDir(),
 			packagesDir:    rootPath,
 		},
@@ -222,5 +224,4 @@ func TestPurge(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(rootPath, "packages.db"), "purge should remove the packages database")
 	assert.NoDirExists(t, rootPath, "purge should remove the packages directory")
 	assert.Nil(t, installer.db, "purge should close the packages database")
-	assert.Nil(t, installer.cdn, "purge should close the CDN client")
 }

@@ -24,7 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 )
 
 type cspmTestSuite struct {
@@ -172,7 +172,7 @@ var expectedFindingsWorkerNode = findings{
 var values string
 
 func TestCSPM(t *testing.T) {
-	e2e.Run(t, &cspmTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithoutDualShipping()))))
+	e2e.Run(t, &cspmTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)))))
 }
 
 func (s *cspmTestSuite) TestFindings() {

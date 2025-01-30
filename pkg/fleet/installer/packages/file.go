@@ -15,8 +15,8 @@ import (
 	"os"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 var rollbackNoop = func() error { return nil }
@@ -46,8 +46,8 @@ func newFileMutator(path string, transform func(ctx context.Context, existing []
 }
 
 func (ft *fileMutator) mutate(ctx context.Context) (rollback func() error, err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "mutate_file")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "mutate_file")
+	defer func() { span.Finish(err) }()
 	span.SetTag("file", ft.path)
 
 	defer os.Remove(ft.pathTmp)

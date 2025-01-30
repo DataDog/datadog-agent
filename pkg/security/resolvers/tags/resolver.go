@@ -21,6 +21,8 @@ type Event int
 const (
 	// WorkloadSelectorResolved is used to notify that a new cgroup with a resolved workload selector is ready
 	WorkloadSelectorResolved Event = iota
+	// WorkloadSelectorDeleted is used to notify that a cgroup with a resolved workload selector is deleted
+	WorkloadSelectorDeleted
 )
 
 // Tagger defines a Tagger for the Tags Resolver

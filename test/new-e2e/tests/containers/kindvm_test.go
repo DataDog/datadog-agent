@@ -6,14 +6,14 @@
 package containers
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 )
 
 type kindSuite struct {
@@ -21,7 +21,6 @@ type kindSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
-	flake.Mark(t)
 	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
 		awskubernetes.WithEC2VMOptions(
 			ec2.WithInstanceType("t3.xlarge"),
@@ -29,6 +28,7 @@ func TestKindSuite(t *testing.T) {
 		awskubernetes.WithFakeIntakeOptions(fakeintake.WithMemory(2048)),
 		awskubernetes.WithDeployDogstatsd(),
 		awskubernetes.WithDeployTestWorkload(),
+		awskubernetes.WithAgentOptions(kubernetesagentparams.WithDualShipping()),
 	)))
 }
 

@@ -14,6 +14,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/net/http2/hpack"
@@ -29,13 +30,13 @@ import (
 var oversizedLogLimit = log.NewLogLimit(10, time.Minute*10)
 
 // validatePath validates the given path.
-func validatePath(str string) error {
+func validatePath(str []byte) error {
 	if len(str) == 0 {
 		return errors.New("decoded path is empty")
 	}
 	// ensure we found a '/' at the beginning of the path
 	if str[0] != '/' {
-		return fmt.Errorf("decoded path '%s' doesn't start with '/'", str)
+		return fmt.Errorf("decoded path (%#v) doesn't start with '/'", str)
 	}
 	return nil
 }
@@ -51,27 +52,41 @@ func validatePathSize(size uint8) error {
 	return nil
 }
 
+// Buffer pool to be used for decoding HTTP2 paths.
+// This is used to avoid allocating a new buffer for each path decoding.
+var bufPool = sync.Pool{
+	New: func() interface{} { return new(bytes.Buffer) },
+}
+
 // decodeHTTP2Path tries to decode (Huffman) the path from the given buffer.
 // Possible errors:
 // - If the given pathSize is 0.
 // - If the given pathSize is larger than the buffer size.
 // - If the Huffman decoding fails.
 // - If the decoded path doesn't start with a '/'.
-func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8) ([]byte, error) {
+func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8, output []byte) ([]byte, error) {
 	if err := validatePathSize(pathSize); err != nil {
 		return nil, err
 	}
 
-	str, err := hpack.HuffmanDecodeToString(buf[:pathSize])
+	tmpBuffer := bufPool.Get().(*bytes.Buffer)
+	tmpBuffer.Reset()
+	defer bufPool.Put(tmpBuffer)
+
+	n, err := hpack.HuffmanDecode(tmpBuffer, buf[:pathSize])
 	if err != nil {
 		return nil, err
 	}
 
-	if err = validatePath(str); err != nil {
+	if err = validatePath(tmpBuffer.Bytes()); err != nil {
 		return nil, err
 	}
 
-	return []byte(str), nil
+	if n > len(output) {
+		n = len(output)
+	}
+	copy(output[:n], tmpBuffer.Bytes())
+	return output[:n], nil
 }
 
 // Path returns the URL from the request fragment captured in eBPF.
@@ -87,10 +102,9 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 		}
 	}
 
-	var res []byte
 	var err error
 	if tx.Stream.Path.Is_huffman_encoded {
-		res, err = decodeHTTP2Path(tx.Stream.Path.Raw_buffer, tx.Stream.Path.Length)
+		buffer, err = decodeHTTP2Path(tx.Stream.Path.Raw_buffer, tx.Stream.Path.Length, buffer)
 		if err != nil {
 			if oversizedLogLimit.ShouldLog() {
 				log.Warnf("unable to decode HTTP2 path (%#v) due to: %s", tx.Stream.Path.Raw_buffer[:tx.Stream.Path.Length], err)
@@ -98,32 +112,35 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 			return nil, false
 		}
 	} else {
-		if err = validatePathSize(tx.Stream.Path.Length); err != nil {
+		if tx.Stream.Path.Length == 0 {
 			if oversizedLogLimit.ShouldLog() {
-				log.Warnf("path size: %d is invalid due to: %s", tx.Stream.Path.Length, err)
+				log.Warn("path size: 0 is invalid")
+			}
+			return nil, false
+		} else if int(tx.Stream.Path.Length) > len(tx.Stream.Path.Raw_buffer) {
+			if oversizedLogLimit.ShouldLog() {
+				log.Warnf("Truncating as path size: %d is greater than the buffer size: %d", tx.Stream.Path.Length, len(buffer))
+			}
+			tx.Stream.Path.Length = uint8(len(tx.Stream.Path.Raw_buffer))
+		}
+		n := copy(buffer, tx.Stream.Path.Raw_buffer[:tx.Stream.Path.Length])
+		// Truncating exceeding nulls.
+		buffer = buffer[:n]
+		if err = validatePath(buffer); err != nil {
+			if oversizedLogLimit.ShouldLog() {
+				// The error already contains the path, so we don't need to log it again.
+				log.Warn(err)
 			}
 			return nil, false
 		}
-
-		res = tx.Stream.Path.Raw_buffer[:tx.Stream.Path.Length]
-		if err = validatePath(string(res)); err != nil {
-			if oversizedLogLimit.ShouldLog() {
-				log.Warnf("path %s is invalid due to: %s", string(res), err)
-			}
-			return nil, false
-		}
-
-		res = tx.Stream.Path.Raw_buffer[:tx.Stream.Path.Length]
 	}
 
 	// Ignore query parameters
-	queryStart := bytes.IndexByte(res, byte('?'))
+	queryStart := bytes.IndexByte(buffer, byte('?'))
 	if queryStart == -1 {
-		queryStart = len(res)
+		queryStart = len(buffer)
 	}
-
-	n := copy(buffer, res[:queryStart])
-	return buffer[:n], true
+	return buffer[:queryStart], true
 }
 
 // RequestLatency returns the latency of the request in nanoseconds
@@ -199,7 +216,7 @@ func (tx *EbpfTx) Method() http.Method {
 	// if the length of the method is greater than the buffer, then we return 0.
 	if int(tx.Stream.Request_method.Length) > len(tx.Stream.Request_method.Raw_buffer) || tx.Stream.Request_method.Length == 0 {
 		if oversizedLogLimit.ShouldLog() {
-			log.Errorf("method length %d is longer than the size buffer: %v and is huffman encoded: %v",
+			log.Warnf("method length %d is longer than the size buffer: %v and is huffman encoded: %v",
 				tx.Stream.Request_method.Length, tx.Stream.Request_method.Raw_buffer, tx.Stream.Request_method.Is_huffman_encoded)
 		}
 		return http.MethodUnknown

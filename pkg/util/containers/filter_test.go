@@ -30,6 +30,14 @@ func TestFilter(t *testing.T) {
 	}{
 		{
 			c: ctnDef{
+				ID:    "0",
+				Name:  "container-with-sha",
+				Image: "docker-dd-agent@sha256:1892862abcdef61516516",
+			},
+			ns: "default",
+		},
+		{
+			c: ctnDef{
 				ID:    "1",
 				Name:  "secret-container-dd",
 				Image: "docker-dd-agent",
@@ -268,25 +276,33 @@ func TestFilter(t *testing.T) {
 		expectedIDs []string
 	}{
 		{
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+			expectedIDs: []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
-			excludeList: []string{"name:secret"},
+			excludeList: []string{"image:^docker-dd-agent$"},
 			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
+			excludeList: []string{"image:^apache$"},
+			expectedIDs: []string{"0", "1", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+		},
+		{
+			excludeList: []string{"name:secret"},
+			expectedIDs: []string{"0", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+		},
+		{
 			excludeList: []string{"image:secret"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+			expectedIDs: []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
 			includeList: []string{},
 			excludeList: []string{"image:apache", "image:alpine"},
-			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+			expectedIDs: []string{"0", "1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
 			includeList: []string{"name:mysql"},
 			excludeList: []string{"name:dd"},
-			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+			expectedIDs: []string{"0", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
 			excludeList: []string{"kube_namespace:.*"},
@@ -295,7 +311,7 @@ func TestFilter(t *testing.T) {
 		},
 		{
 			excludeList: []string{"kube_namespace:bar"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+			expectedIDs: []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
 		},
 		{
 			excludeList: []string{"name:.*"},
@@ -305,7 +321,17 @@ func TestFilter(t *testing.T) {
 		{
 			excludeList: []string{"image:.*"},
 			includeList: []string{"image:docker-dd-agent"},
-			expectedIDs: []string{"1", "30"},
+			expectedIDs: []string{"0", "1", "30"},
+		},
+		{
+			excludeList: []string{"image:.*"},
+			includeList: []string{"image:^docker-dd-agent$"},
+			expectedIDs: []string{"0", "1", "30"},
+		},
+		{
+			excludeList: []string{"image:.*"},
+			includeList: []string{"image:^docker-dd-agent$"},
+			expectedIDs: []string{"0", "1", "30"},
 		},
 		// Test kubernetes defaults
 		{
@@ -326,7 +352,7 @@ func TestFilter(t *testing.T) {
 				pauseContainerUpstream,
 				pauseContainerCDK,
 			},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "14", "15", "29", "30", "31"},
+			expectedIDs: []string{"0", "1", "2", "3", "4", "5", "14", "15", "29", "30", "31"},
 		},
 	} {
 		t.Run("", func(t *testing.T) {
@@ -463,8 +489,8 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	pkgconfigsetup.Datadog().SetDefault("ac_include", []string{"image:apache.*"})
 	pkgconfigsetup.Datadog().SetDefault("ac_exclude", []string{"name:dd-.*"})
 
-	f, err := NewAutodiscoveryFilter(GlobalFilter)
-	require.NoError(t, err)
+	f := NewAutodiscoveryFilter(GlobalFilter)
+	assert.Emptyf(t, f.Errors, "Expected no errors.")
 
 	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
 	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
@@ -479,8 +505,8 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	pkgconfigsetup.Datadog().SetDefault("ac_include", []string{"image:apache/legacy.*"})
 	pkgconfigsetup.Datadog().SetDefault("ac_exclude", []string{"name:dd/legacy-.*"})
 
-	f, err = NewAutodiscoveryFilter(GlobalFilter)
-	require.NoError(t, err)
+	f = NewAutodiscoveryFilter(GlobalFilter)
+	assert.Emptyf(t, f.Errors, "Expected no errors.")
 
 	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
 	assert.False(t, f.IsExcluded(nil, "dd/legacy-152462", "dummy:latest", ""))
@@ -494,8 +520,8 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	pkgconfigsetup.Datadog().SetDefault("container_include_metrics", []string{"image:apache.*"})
 	pkgconfigsetup.Datadog().SetDefault("container_exclude_metrics", []string{"name:dd-.*"})
 
-	f, err = NewAutodiscoveryFilter(MetricsFilter)
-	require.NoError(t, err)
+	f = NewAutodiscoveryFilter(MetricsFilter)
+	assert.Emptyf(t, f.Errors, "Expected no errors.")
 
 	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
 	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
@@ -508,8 +534,8 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	pkgconfigsetup.Datadog().SetDefault("container_include_logs", []string{"image:apache.*"})
 	pkgconfigsetup.Datadog().SetDefault("container_exclude_logs", []string{"name:dd-.*"})
 
-	f, err = NewAutodiscoveryFilter(LogsFilter)
-	require.NoError(t, err)
+	f = NewAutodiscoveryFilter(LogsFilter)
+	assert.Emptyf(t, f.Errors, "Expected no errors.")
 
 	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
 	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
@@ -522,8 +548,7 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	pkgconfigsetup.Datadog().SetDefault("container_include", []string{"image:apache.*", "invalid"})
 	pkgconfigsetup.Datadog().SetDefault("container_exclude", []string{"name:dd-.*", "invalid"})
 
-	f, err = NewAutodiscoveryFilter(GlobalFilter)
-	require.NoError(t, err)
+	f = NewAutodiscoveryFilter(GlobalFilter)
 
 	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
 	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
@@ -541,8 +566,10 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	pkgconfigsetup.Datadog().SetDefault("container_include", []string{"image:apache.*", "kube_namespace:?"})
 	pkgconfigsetup.Datadog().SetDefault("container_exclude", []string{"name:dd-.*", "invalid"})
 
-	f, err = NewAutodiscoveryFilter(GlobalFilter)
-	assert.Error(t, err, errors.New("invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`"))
+	f = NewAutodiscoveryFilter(GlobalFilter)
+	_, errFound := f.Errors["invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`"]
+	assert.Truef(t, errFound, "Expected to find error: invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`")
+
 	assert.NotNil(t, f)
 	fe = map[string]struct{}{
 		"invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`":                                {},
@@ -612,7 +639,6 @@ func TestParseFilters(t *testing.T) {
 		imageFilters     []*regexp.Regexp
 		nameFilters      []*regexp.Regexp
 		namespaceFilters []*regexp.Regexp
-		expectedErrMsg   error
 		filterErrors     []string
 	}{
 		{
@@ -621,16 +647,22 @@ func TestParseFilters(t *testing.T) {
 			imageFilters:     []*regexp.Regexp{regexp.MustCompile("nginx.*")},
 			nameFilters:      []*regexp.Regexp{regexp.MustCompile("xyz-.*"), regexp.MustCompile("abc")},
 			namespaceFilters: []*regexp.Regexp{regexp.MustCompile("sandbox.*")},
-			expectedErrMsg:   nil,
+			filterErrors:     nil,
+		},
+		{
+			desc:             "valid filters, image filter strict match without tag or digest",
+			filters:          []string{"image:^nginx$", "name:xyz-.*", "kube_namespace:sandbox.*", "name:abc"},
+			imageFilters:     []*regexp.Regexp{regexp.MustCompile("^nginx(@sha256)?:.*")},
+			nameFilters:      []*regexp.Regexp{regexp.MustCompile("xyz-.*"), regexp.MustCompile("abc")},
+			namespaceFilters: []*regexp.Regexp{regexp.MustCompile("sandbox.*")},
 			filterErrors:     nil,
 		},
 		{
 			desc:             "invalid regex",
 			filters:          []string{"image:apache.*", "name:a(?=b)", "kube_namespace:sandbox.*", "name:abc"},
-			imageFilters:     nil,
-			nameFilters:      nil,
-			namespaceFilters: nil,
-			expectedErrMsg:   errors.New("invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"),
+			imageFilters:     []*regexp.Regexp{regexp.MustCompile("apache.*")},
+			nameFilters:      []*regexp.Regexp{regexp.MustCompile("abc")},
+			namespaceFilters: []*regexp.Regexp{regexp.MustCompile("sandbox.*")},
 			filterErrors:     []string{"invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"},
 		},
 		{
@@ -639,7 +671,6 @@ func TestParseFilters(t *testing.T) {
 			imageFilters:     []*regexp.Regexp{regexp.MustCompile("redis.*")},
 			nameFilters:      []*regexp.Regexp{regexp.MustCompile("dd-.*"), regexp.MustCompile("abc")},
 			namespaceFilters: []*regexp.Regexp{regexp.MustCompile("dev-.*")},
-			expectedErrMsg:   nil,
 			filterErrors: []string{
 				"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
 				"Container filter \"also invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
@@ -648,25 +679,23 @@ func TestParseFilters(t *testing.T) {
 		{
 			desc:             "invalid regex and invalid filter prefix",
 			filters:          []string{"invalid", "name:a(?=b)", "image:apache.*", "kube_namespace:?", "also invalid", "name:abc"},
-			imageFilters:     nil,
-			nameFilters:      nil,
+			imageFilters:     []*regexp.Regexp{regexp.MustCompile("apache.*")},
+			nameFilters:      []*regexp.Regexp{regexp.MustCompile("abc")},
 			namespaceFilters: nil,
-			expectedErrMsg:   errors.New("invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"),
 			filterErrors: []string{
+				"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
 				"invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`",
 				"invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`",
-				"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
 				"Container filter \"also invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
 			},
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", filters, tc.desc), func(t *testing.T) {
-			imageFilters, nameFilters, namespaceFilters, filterErrors, err := parseFilters(tc.filters)
+			imageFilters, nameFilters, namespaceFilters, filterErrors := parseFilters(tc.filters)
 			assert.Equal(t, tc.imageFilters, imageFilters)
 			assert.Equal(t, tc.nameFilters, nameFilters)
 			assert.Equal(t, tc.namespaceFilters, namespaceFilters)
 			assert.Equal(t, tc.filterErrors, filterErrors)
-			assert.Equal(t, tc.expectedErrMsg, err)
 		})
 	}
 }

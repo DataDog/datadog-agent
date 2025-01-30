@@ -20,7 +20,6 @@ dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # 
 # especially at higher thread counts.
 dependency "libjemalloc" if linux_target?
 
-dependency 'agent-dependencies'
 dependency 'datadog-agent-dependencies'
 
 source path: '..'
@@ -30,6 +29,11 @@ always_build true
 
 build do
   license :project_license
+
+  bundled_agents = []
+  if heroku_target?
+    bundled_agents = ["process-agent"]
+  end
 
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
@@ -87,23 +91,24 @@ build do
       do_windows_sysprobe = "--windows-sysprobe"
     end
     command "inv -e rtloader.clean"
-    command "inv -e rtloader.make --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\"\"", :env => env
+    command "inv -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\"\"", :env => env
     command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
-    command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
-    command "inv -e systray.build --major-version #{major_version_arg} --rebuild", env: env
+    command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
+    command "inv -e systray.build --major-version #{major_version_arg}", env: env
   else
     command "inv -e rtloader.clean"
     command "inv -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env
     command "inv -e rtloader.install"
+    bundle_arg = bundled_agents.map { |k| "--bundle #{k}" }.join(" ")
 
     include_sds = ""
     if linux_target?
         include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
-    command "inv -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env
+    command "inv -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
 
     if heroku_target?
-      command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent", env: env
+      command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent --bundle agent", env: env
     end
   end
 
@@ -121,7 +126,8 @@ build do
 
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
-  move 'bin/agent/dist/conf.d', "#{conf_dir}/"
+  copy 'bin/agent/dist/conf.d/.', "#{conf_dir}"
+  delete 'bin/agent/dist/conf.d'
 
   unless windows_target?
     copy 'bin/agent', "#{install_dir}/bin/"
@@ -132,8 +138,10 @@ build do
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
-  platform = windows_arch_i386? ? "x86" : "x64"
-  command "invoke trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+  if not bundled_agents.include? "trace-agent"
+    platform = windows_arch_i386? ? "x86" : "x64"
+    command "invoke trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+  end
 
   if windows_target?
     copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
@@ -142,7 +150,9 @@ build do
   end
 
   # Process agent
-  command "invoke -e process-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+  if not bundled_agents.include? "process-agent"
+    command "invoke -e process-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+  end
 
   if windows_target?
     copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
@@ -156,6 +166,7 @@ build do
       command "invoke -e system-probe.build #{fips_args}", env: env
     elsif linux_target?
       command "invoke -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env
+      command "!(objdump -p ./bin/system-probe/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])')"
     end
 
     if windows_target?
@@ -188,11 +199,11 @@ build do
   # CWS Instrumentation
   cws_inst_support = !heroku_target? && linux_target?
   if cws_inst_support
-    command "invoke -e cws-instrumentation.build", :env => env
+    command "invoke -e cws-instrumentation.build #{fips_args}", :env => env
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
   end
 
-  # OTel agent
+  # OTel agent - can never be bundled
   if ot_target?
     unless windows_target?
       command "invoke -e otel-agent.build", :env => env
@@ -271,7 +282,13 @@ build do
     end
   end
 
-  python_scripts_dir = "#{project_dir}/omnibus/python-scripts"
-  mkdir "#{install_dir}/python-scripts"
-  copy "#{python_scripts_dir}/*", "#{install_dir}/python-scripts"
+  block do
+    python_scripts_dir = "#{project_dir}/omnibus/python-scripts"
+    mkdir "#{install_dir}/python-scripts"
+    Dir.glob("#{python_scripts_dir}/*").each do |file|
+      unless File.basename(file).end_with?('_tests.py')
+        copy file, "#{install_dir}/python-scripts"
+      end
+    end
+  end
 end

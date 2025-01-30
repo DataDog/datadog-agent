@@ -423,7 +423,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	}
 
 	if uint32(count) < ranges && !staticRanges {
-		log.Warnf("discovered fewer ranges than expected: %d < %d", count, ranges)
+		log.Debugf("discovered fewer ranges than expected: %d < %d", count, ranges)
 	}
 
 	for i, id := range mapids {

@@ -27,7 +27,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const autoscalerNowHandleMsgEvent = "Autoscaler is now handled by the Cluster-Agent"
@@ -73,7 +73,7 @@ type ControllerContext struct {
 	IsLeaderFunc           func() bool
 	EventRecorder          record.EventRecorder
 	WorkloadMeta           workloadmeta.Component
-	DatadogClient          optional.Option[datadogclient.Component]
+	DatadogClient          option.Option[datadogclient.Component]
 	StopCh                 chan struct{}
 }
 
@@ -129,9 +129,11 @@ func StartControllers(ctx *ControllerContext) k8serrors.Aggregate {
 // startMetadataController starts the informers needed for metadata collection.
 // The synchronization of the informers is handled by the controller.
 func startMetadataController(ctx *ControllerContext, _ chan error) {
+	useEndpointSlices := pkgconfigsetup.Datadog().GetBool("kubernetes_use_endpoint_slices")
 	metaController := newMetadataController(
-		ctx.InformerFactory.Core().V1().Endpoints(),
+		ctx.InformerFactory,
 		ctx.WorkloadMeta,
+		useEndpointSlices,
 	)
 	go metaController.run(ctx.StopCh)
 }

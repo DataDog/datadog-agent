@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -104,7 +104,7 @@ func NewDefaultContainerProvider(wmeta workloadmeta.Component, tagger tagger.Com
 	}
 
 	// TODO(components): stop relying on globals and use injected components instead whenever possible.
-	return NewContainerProvider(metrics.GetProvider(optional.NewOption(wmeta)), wmeta, containerFilter, tagger)
+	return NewContainerProvider(metrics.GetProvider(option.New(wmeta)), wmeta, containerFilter, tagger)
 }
 
 // GetContainers returns containers found on the machine
@@ -120,7 +120,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 			annotations = pod.Annotations
 		}
 
-		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
+		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.RawName, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
 			continue
 		}
 
@@ -209,7 +209,7 @@ func (p *containerProvider) GetPidToCid(cacheValidity time.Duration) map[int]str
 			annotations = pod.Annotations
 		}
 
-		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
+		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.RawName, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
 			continue
 		}
 

@@ -168,7 +168,7 @@ func (h *MultiLineHandler) sendBuffer() {
 		if h.isBufferTruncated && pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs") {
 			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("multiline_regex"))
 		}
-		if h.isBufferTruncated && pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs") {
+		if h.linesCombined > 1 && pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs") {
 			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.MultiLineSourceTag(h.multiLineTagValue))
 		}
 		h.outputFn(msg)

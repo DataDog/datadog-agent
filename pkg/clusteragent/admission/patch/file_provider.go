@@ -18,7 +18,8 @@ import (
 // filePatchProvider this is a stub and will be used for e2e testing only
 type filePatchProvider struct {
 	file                  string
-	isLeaderNotif         <-chan struct{}
+	leadershipStateNotif  <-chan struct{}
+	isLeaderFunc          func() bool
 	pollInterval          time.Duration
 	subscribers           map[TargetObjKind]chan Request
 	lastSuccessfulRefresh time.Time
@@ -27,13 +28,14 @@ type filePatchProvider struct {
 
 var _ patchProvider = &filePatchProvider{}
 
-func newfileProvider(file string, isLeaderNotif <-chan struct{}, clusterName string) *filePatchProvider {
+func newfileProvider(file string, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, clusterName string) *filePatchProvider {
 	return &filePatchProvider{
-		file:          file,
-		isLeaderNotif: isLeaderNotif,
-		pollInterval:  15 * time.Second,
-		subscribers:   make(map[TargetObjKind]chan Request),
-		clusterName:   clusterName,
+		file:                 file,
+		leadershipStateNotif: leadershipStateNotif,
+		pollInterval:         15 * time.Second,
+		subscribers:          make(map[TargetObjKind]chan Request),
+		clusterName:          clusterName,
+		isLeaderFunc:         isLeaderFunc,
 	}
 }
 
@@ -49,9 +51,11 @@ func (fpp *filePatchProvider) start(stopCh <-chan struct{}) {
 	defer ticker.Stop()
 	for {
 		select {
-		case <-fpp.isLeaderNotif:
-			log.Info("Got a leader notification, polling from file")
-			fpp.process(true)
+		case <-fpp.leadershipStateNotif:
+			if fpp.isLeaderFunc() {
+				log.Info("Got a leader notification, polling from file")
+				fpp.process(true)
+			}
 		case <-ticker.C:
 			fpp.process(false)
 		case <-stopCh:

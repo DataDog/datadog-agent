@@ -21,7 +21,7 @@ func newParamStack() *paramStack {
 }
 
 func (s *paramStack) isEmpty() bool {
-	return len(s.arr) == 0
+	return s == nil || len(s.arr) == 0
 }
 
 func (s *paramStack) pop() *ditypes.Param {

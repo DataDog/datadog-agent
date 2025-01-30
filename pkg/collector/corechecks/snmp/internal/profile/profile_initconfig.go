@@ -19,6 +19,9 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 			}
 			profConfig.Definition = *profDefinition
 		}
+		if profConfig.Definition.Name == "" {
+			profConfig.Definition.Name = name
+		}
 		initConfigProfiles[name] = profConfig
 	}
 

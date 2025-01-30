@@ -34,7 +34,6 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -45,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -138,11 +138,7 @@ func TestKafkaProtocolParsing(t *testing.T) {
 	serverHost := "127.0.0.1"
 	require.NoError(t, kafka.RunServer(t, serverHost, kafkaPort))
 
-	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !prebuilt.IsDeprecated() {
-		modes = append(modes, ebpftest.Prebuilt)
-	}
-	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(KafkaProtocolParsingSuite))
 	})
 }
@@ -521,14 +517,14 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 						require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 
 						var telemetryMap *kafka.RawKernelTelemetry
-						require.Eventually(t, func() bool {
+						require.EventuallyWithT(t, func(collect *assert.CollectT) {
 							telemetryMap, err = kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
-							require.NoError(t, err)
+							require.NoError(collect, err)
 
 							// Ensure that the other buckets remain unchanged before verifying the expected bucket.
 							for idx := 0; idx < kafka.TopicNameBuckets; idx++ {
 								if idx != tt.expectedBucketIndex {
-									require.Equal(t, currentRawKernelTelemetry.Topic_name_size_buckets[idx],
+									require.Equal(collect, currentRawKernelTelemetry.Topic_name_size_buckets[idx],
 										telemetryMap.Topic_name_size_buckets[idx],
 										"Expected bucket (%d) to remain unchanged", idx)
 								}
@@ -536,7 +532,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 
 							// Verify that the expected bucket contains the correct number of occurrences.
 							expectedNumberOfOccurrences := fixCount(2) // (1 produce request + 1 fetch request)
-							return uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Topic_name_size_buckets[tt.expectedBucketIndex] == telemetryMap.Topic_name_size_buckets[tt.expectedBucketIndex]
+							require.Equal(collect, uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Topic_name_size_buckets[tt.expectedBucketIndex], telemetryMap.Topic_name_size_buckets[tt.expectedBucketIndex])
 						}, time.Second*3, time.Millisecond*100)
 
 						// Update the current raw kernel telemetry for the next iteration
@@ -559,7 +555,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					client.Client.Close()
 				}
 			})
-			monitor := newKafkaMonitor(t, cfg)
+			monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 			if tls && cfg.EnableGoTLSSupport {
 				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
@@ -1157,7 +1153,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 	can.runServer()
 	proxyPid := can.runProxy()
 
-	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
+	monitor := setupUSMTLSMonitor(t, getDefaultTestConfiguration(tls), useExistingConsumer)
 	if tls {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
 	}
@@ -1385,7 +1381,7 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 	can.runServer()
 	proxyPid := can.runProxy()
 
-	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
+	monitor := setupUSMTLSMonitor(t, getDefaultTestConfiguration(tls), useExistingConsumer)
 	if tls {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
 	}
@@ -1514,7 +1510,7 @@ func TestKafkaInFlightMapCleaner(t *testing.T) {
 	cfg := getDefaultTestConfiguration(false)
 	cfg.HTTPMapCleanerInterval = 5 * time.Second
 	cfg.HTTPIdleConnectionTTL = time.Second
-	monitor := newKafkaMonitor(t, cfg)
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	ebpfNow, err := ddebpf.NowNanoseconds()
 	require.NoError(t, err)
 	inFlightMap, _, err := monitor.ebpfProgram.GetMap("kafka_in_flight")
@@ -1690,29 +1686,11 @@ func validateProduceFetchCountWithErrorCodes(t *assert.CollectT, kafkaStats map[
 	}
 }
 
-func newKafkaMonitor(t *testing.T, cfg *config.Config) *Monitor {
-	monitor, err := NewMonitor(cfg, nil)
-	skipIfNotSupported(t, err)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		monitor.Stop()
-	})
-	t.Cleanup(utils.ResetDebugger)
-
-	err = monitor.Start()
-	require.NoError(t, err)
-	return monitor
-}
-
 // This test will help us identify if there is any verifier problems while loading the Kafka binary in the CI environment
 func TestLoadKafkaBinary(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !prebuilt.IsDeprecated() {
-		modes = append(modes, ebpftest.Prebuilt)
-	}
-	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		t.Run("debug", func(t *testing.T) {
 			loadKafkaBinary(t, true)
 		})
@@ -1730,5 +1708,5 @@ func loadKafkaBinary(t *testing.T, debug bool) {
 	cfg.MaxTrackedConnections = 1000
 	cfg.BPFDebug = debug
 
-	newKafkaMonitor(t, cfg)
+	setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 }

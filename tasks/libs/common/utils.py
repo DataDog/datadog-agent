@@ -517,13 +517,16 @@ def gitlab_section(section_name, collapsed=False, echo=False):
     try:
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
-            print(f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}")
+            print(
+                f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}",
+                flush=True,
+            )
         elif echo:
             print(color_message(f"> {section_name}...", 'bold'))
         yield
     finally:
         if in_ci:
-            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K")
+            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", flush=True)
 
 
 def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
@@ -661,3 +664,15 @@ def agent_working_directory():
     from tasks.libs.common.worktree import LOCAL_DIRECTORY, WORKTREE_DIRECTORY, is_worktree
 
     return WORKTREE_DIRECTORY if is_worktree() else LOCAL_DIRECTORY
+
+
+def is_macos():
+    return sys.platform == 'darwin'
+
+
+def is_linux():
+    return sys.platform.startswith('linux')
+
+
+def is_windows():
+    return sys.platform == 'win32'

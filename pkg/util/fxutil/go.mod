@@ -4,7 +4,7 @@ go 1.22.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0
+	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.23.0
@@ -12,7 +12,7 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
-	github.com/DataDog/datadog-agent/pkg/util/optional => ../optional
+	github.com/DataDog/datadog-agent/pkg/util/option => ../option
 
 )
 
@@ -24,6 +24,6 @@ require (
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/sys v0.27.0 // indirect
+	golang.org/x/sys v0.29.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

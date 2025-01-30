@@ -59,11 +59,59 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:        "",
-			profilesJSON:    "[]",
+			provider: "",
+			profilesJSON: `[{
+				"securityContext": {
+					"readOnlyRootFilesystem": true
+				}
+			}]`,
 			ExpectError:     false,
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
+				webhook := NewWebhook(mockConfig)
+				sidecar := webhook.getDefaultSidecarTemplate()
+				webhook.addSecurityConfigToAgent(sidecar)
+				return &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "pod-name",
+					},
+					Spec: corev1.PodSpec{
+						InitContainers: []corev1.Container{*webhook.getSecurityInitTemplate()},
+						Containers: []corev1.Container{
+							{Name: "container-name"},
+							*sidecar,
+						},
+						Volumes: *webhook.getSecurityVolumeTemplates(),
+					},
+				}
+			},
+		},
+		{
+			Name: "should inject sidecar, no security features if default overridden to false",
+			Pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pod-name",
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Name: "container-name"},
+					},
+				},
+			},
+			provider: "",
+			profilesJSON: `[{
+				"securityContext": {
+					"readOnlyRootFilesystem": false
+				}
+			}]`,
+			ExpectError:     false,
+			ExpectInjection: true,
+			ExpectedPodAfterInjection: func() *corev1.Pod {
+				sidecar := *NewWebhook(mockConfig).getDefaultSidecarTemplate()
+				// Records the false readOnlyRootFilesystem but doesn't add the initContainers, volumes and mounts
+				sidecar.SecurityContext = &corev1.SecurityContext{
+					ReadOnlyRootFilesystem: pointer.Ptr(false),
+				}
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "pod-name",
@@ -71,7 +119,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
 							{Name: "container-name"},
-							*NewWebhook(mockConfig).getDefaultSidecarTemplate(),
+							sidecar,
 						},
 					},
 				}
@@ -157,8 +205,12 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:        "",
-			profilesJSON:    "[]",
+			provider: "",
+			profilesJSON: `[{
+				"securityContext": {
+					"readOnlyRootFilesystem": false
+				}
+			}]`,
 			ExpectError:     false,
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
@@ -168,6 +220,9 @@ func TestInjectAgentSidecar(t *testing.T) {
 					Name:  "DD_AUTO_EXIT_NOPROCESS_ENABLED",
 					Value: "true",
 				})
+				defaultContainer.SecurityContext = &corev1.SecurityContext{
+					ReadOnlyRootFilesystem: pointer.Ptr(false),
+				}
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "pod-name",
@@ -199,14 +254,20 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:        "fargate",
-			profilesJSON:    "[]",
+			provider: "fargate",
+			profilesJSON: `[{
+				"securityContext": {
+					"readOnlyRootFilesystem": true
+				}
+			}]`,
 			ExpectError:     false,
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
-				sidecar := *NewWebhook(mockConfig).getDefaultSidecarTemplate()
+				webhook := NewWebhook(mockConfig)
+				sidecar := webhook.getDefaultSidecarTemplate()
+				webhook.addSecurityConfigToAgent(sidecar)
 				_, _ = withEnvOverrides(
-					&sidecar,
+					sidecar,
 					corev1.EnvVar{
 						Name:  "DD_EKS_FARGATE",
 						Value: "true",
@@ -221,13 +282,13 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				)
 
-				sidecar.VolumeMounts = []corev1.VolumeMount{
+				sidecar.VolumeMounts = append(sidecar.VolumeMounts, []corev1.VolumeMount{
 					{
 						Name:      "ddsockets",
 						MountPath: "/var/run/datadog",
 						ReadOnly:  false,
 					},
-				}
+				}...)
 
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -238,6 +299,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 					Spec: corev1.PodSpec{
 						ShareProcessNamespace: pointer.Ptr(true),
+						InitContainers:        []corev1.Container{*webhook.getSecurityInitTemplate()},
 						Containers: []corev1.Container{
 							{
 								Name: "container-name",
@@ -259,16 +321,16 @@ func TestInjectAgentSidecar(t *testing.T) {
 									},
 								},
 							},
-							sidecar,
+							*sidecar,
 						},
-						Volumes: []corev1.Volume{
-							{
+						Volumes: append(*webhook.getSecurityVolumeTemplates(),
+							corev1.Volume{
 								Name: "ddsockets",
 								VolumeSource: corev1.VolumeSource{
 									EmptyDir: &corev1.EmptyDirVolumeSource{},
 								},
 							},
-						},
+						),
 					},
 				}
 			},
@@ -287,28 +349,33 @@ func TestInjectAgentSidecar(t *testing.T) {
 			},
 			provider: "fargate",
 			profilesJSON: `[{
-        "env": [
-            {"name": "ENV_VAR_1", "valueFrom": {"secretKeyRef": {"name": "my-secret", "key": "secret-key"}}},
-            {"name": "ENV_VAR_2", "value": "value2"}
-        ],
-        "resources": {
-            "limits": {
-                "cpu": "1",
-                "memory": "512Mi"
-            },
-            "requests": {
-                "cpu": "0.5",
-                "memory": "256Mi"
-            }
-        }
-    }]`,
+		    "env": [
+		        {"name": "ENV_VAR_1", "valueFrom": {"secretKeyRef": {"name": "my-secret", "key": "secret-key"}}},
+		        {"name": "ENV_VAR_2", "value": "value2"}
+		    ],
+		    "resources": {
+		        "limits": {
+		            "cpu": "1",
+		            "memory": "512Mi"
+		        },
+		        "requests": {
+		            "cpu": "0.5",
+		            "memory": "256Mi"
+		        }
+		    },
+			"securityContext": {
+				"readOnlyRootFilesystem": true
+			}
+		}]`,
 			ExpectError:     false,
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
-				sidecar := *NewWebhook(mockConfig).getDefaultSidecarTemplate()
+				webhook := NewWebhook(mockConfig)
+				sidecar := webhook.getDefaultSidecarTemplate()
+				webhook.addSecurityConfigToAgent(sidecar)
 
 				_, _ = withEnvOverrides(
-					&sidecar,
+					sidecar,
 					corev1.EnvVar{
 						Name:  "DD_EKS_FARGATE",
 						Value: "true",
@@ -336,18 +403,18 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				)
 
-				_ = withResourceLimits(&sidecar, corev1.ResourceRequirements{
+				_ = withResourceLimits(sidecar, corev1.ResourceRequirements{
 					Limits:   corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
 					Requests: corev1.ResourceList{"cpu": resource.MustParse("0.5"), "memory": resource.MustParse("256Mi")},
 				})
 
-				sidecar.VolumeMounts = []corev1.VolumeMount{
+				sidecar.VolumeMounts = append(sidecar.VolumeMounts, []corev1.VolumeMount{
 					{
 						Name:      "ddsockets",
 						MountPath: "/var/run/datadog",
 						ReadOnly:  false,
 					},
-				}
+				}...)
 
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -358,6 +425,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 					Spec: corev1.PodSpec{
 						ShareProcessNamespace: pointer.Ptr(true),
+						InitContainers:        []corev1.Container{*webhook.getSecurityInitTemplate()},
 						Containers: []corev1.Container{
 							{
 								Name: "container-name",
@@ -379,16 +447,16 @@ func TestInjectAgentSidecar(t *testing.T) {
 									},
 								},
 							},
-							sidecar,
+							*sidecar,
 						},
-						Volumes: []corev1.Volume{
-							{
+						Volumes: append(*webhook.getSecurityVolumeTemplates(),
+							corev1.Volume{
 								Name: "ddsockets",
 								VolumeSource: corev1.VolumeSource{
 									EmptyDir: &corev1.EmptyDirVolumeSource{},
 								},
 							},
-						},
+						),
 					},
 				}
 			},
@@ -640,6 +708,83 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 			for _, unexpectedVar := range test.unexpectedEnvVars {
 				_, exist := envVarsMap[unexpectedVar]
 				assert.False(t, exist)
+			}
+		})
+	}
+}
+
+func TestIsReadOnlyRootFilesystem(t *testing.T) {
+	tests := []struct {
+		name     string
+		profile  string
+		expected bool
+	}{
+		{
+			name:     "no profile",
+			profile:  "",
+			expected: false,
+		},
+		{
+			name:     "empty or default profile",
+			profile:  "[]",
+			expected: false,
+		},
+		{
+			name: "profile without security context",
+			profile: `[{
+				"env": [
+					{"name": "ENV_VAR_2", "value": "value2"}
+				],
+			}]`,
+			expected: false,
+		},
+		{
+			name: "profile with security context, readOnlyRootFilesystem empty",
+			profile: `[{
+				"securityContext": {}
+			}]`,
+			expected: false,
+		},
+		{
+			name: "profile with security context, readOnlyRootFilesystem true",
+			profile: `[{
+				"securityContext": {
+					"readOnlyRootFilesystem": true
+				}
+			}]`,
+			expected: true,
+		},
+		{
+			name: "profile with security context, readOnlyRootFilesystem false",
+			profile: `[{
+				"securityContext": {
+					"readOnlyRootFilesystem": false
+				}
+			}]`,
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profile)
+			webhook := NewWebhook(mockConfig)
+			sidecar := webhook.getDefaultSidecarTemplate()
+
+			// Webhook properly parses profile config
+			assert.Equal(tt, test.expected, webhook.isReadOnlyRootFilesystem())
+
+			if test.expected {
+				// Webhook properly applies the security context to the sidecar
+				webhook.addSecurityConfigToAgent(sidecar)
+				assert.NotNil(t, sidecar.SecurityContext)
+				assert.NotNil(t, sidecar.SecurityContext.ReadOnlyRootFilesystem)
+				assert.Equal(t, test.expected, *sidecar.SecurityContext.ReadOnlyRootFilesystem)
+			} else {
+				assert.Nil(t, sidecar.SecurityContext)
+				profile, _ := loadSidecarProfiles(test.profile)
+				applyProfileOverrides(sidecar, profile)
 			}
 		})
 	}

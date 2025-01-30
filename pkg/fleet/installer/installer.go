@@ -8,6 +8,7 @@ package installer
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -17,24 +18,24 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
 	packageDatadogAgent     = "datadog-agent"
 	packageAPMInjector      = "datadog-apm-inject"
+	packageAPMLibraries     = "datadog-apm-libraries"
 	packageDatadogInstaller = "datadog-installer"
 )
 
@@ -56,7 +57,7 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(ctx context.Context, pkg string, version string) error
+	InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -73,7 +74,6 @@ type installerImpl struct {
 	m sync.Mutex
 
 	env        *env.Env
-	cdn        *cdn.CDN
 	db         *db.PackagesDB
 	downloader *oci.Downloader
 	packages   *repository.Repositories
@@ -93,13 +93,8 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
-	cdn, err := cdn.New(env, filepath.Join(paths.RunPath, "rc_cmd"))
-	if err != nil {
-		return nil, fmt.Errorf("could not create CDN client: %w", err)
-	}
 	return &installerImpl{
 		env:        env,
-		cdn:        cdn,
 		db:         db,
 		downloader: oci.NewDownloader(env, env.HTTPClient()),
 		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
@@ -160,13 +155,13 @@ func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error)
 func (i *installerImpl) Install(ctx context.Context, url string, args []string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	pkg, err := i.downloader.Download(ctx, url)
+	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
 	}
-	span, ok := tracer.SpanFromContext(ctx)
+	span, ok := telemetry.SpanFromContext(ctx)
 	if ok {
-		span.SetTag(ext.ResourceName, pkg.Name)
+		span.SetResourceName(pkg.Name)
 		span.SetTag("package_version", pkg.Version)
 	}
 	dbPkg, err := i.db.GetPackage(pkg.Name)
@@ -176,6 +171,10 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	if dbPkg.Name == pkg.Name && dbPkg.Version == pkg.Version {
 		log.Infof("package %s version %s is already installed", pkg.Name, pkg.Version)
 		return nil
+	}
+	err = i.preparePackage(ctx, pkg.Name, args) // Preinst
+	if err != nil {
+		return fmt.Errorf("could not prepare package: %w", err)
 	}
 	err = checkAvailableDiskSpace(i.packages, pkg)
 	if err != nil {
@@ -203,11 +202,21 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
-	err = i.configurePackage(ctx, pkg.Name)
+	err = i.configurePackage(ctx, pkg.Name) // Config
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
 	}
-	err = i.setupPackage(ctx, pkg.Name, args)
+	if pkg.Name == packageDatadogInstaller {
+		// We must handle the configuration of some packages that are not
+		// don't have an OCI. To properly configure their configuration repositories,
+		// we call configurePackage when setting up the installer; which is the only
+		// package that is always installed.
+		err = i.configurePackage(ctx, packageAPMLibraries)
+		if err != nil {
+			return fmt.Errorf("could not configure package: %w", err)
+		}
+	}
+	err = i.setupPackage(ctx, pkg.Name, args) // Postinst
 	if err != nil {
 		return fmt.Errorf("could not setup package: %w", err)
 	}
@@ -321,27 +330,27 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
-	return i.promoteExperiment(ctx, pkg)
+	err = i.promoteExperiment(ctx, pkg)
+	if err != nil {
+		return err
+	}
+
+	// Update db
+	state, err := repository.GetState()
+	if err != nil {
+		return fmt.Errorf("could not get repository state: %w", err)
+	}
+	return i.db.SetPackage(db.Package{
+		Name:             pkg,
+		Version:          state.Stable,
+		InstallerVersion: version.AgentVersion,
+	})
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string) error {
+func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-
-	config, err := i.cdn.Get(ctx, pkg)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrDownloadFailed,
-			fmt.Errorf("could not get cdn config: %w", err),
-		)
-	}
-	if config.State().GetVersion() != version {
-		return installerErrors.Wrap(
-			installerErrors.ErrDownloadFailed,
-			fmt.Errorf("version mismatch: expected %s, got %s", config.State().GetVersion(), version),
-		)
-	}
 
 	tmpDir, err := i.packages.MkdirTemp()
 	if err != nil {
@@ -352,7 +361,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	}
 	defer os.RemoveAll(tmpDir)
 
-	err = config.Write(tmpDir)
+	err = i.writeConfig(tmpDir, rawConfig)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
@@ -467,9 +476,9 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	}
 
 	// remove all from disk
-	span, _ := tracer.StartSpanFromContext(ctx, "remove_all")
+	span, _ := telemetry.StartSpanFromContext(ctx, "remove_all")
 	err = os.RemoveAll(i.packagesDir)
-	defer span.Finish(tracer.WithError(err))
+	defer span.Finish(err)
 	if err != nil {
 		log.Warnf("could not delete packages dir: %v", err)
 	}
@@ -560,18 +569,9 @@ func (i *installerImpl) close() error {
 		}
 		i.db = nil
 	}
-	if i.cdn != nil {
-		if cdnErr := i.cdn.Close(); cdnErr != nil {
-			cdnErr = fmt.Errorf("failed to close Remote Config cdn: %w", cdnErr)
-			errs = append(errs, cdnErr)
-		}
-		i.cdn = nil
-	}
-
 	if len(errs) > 0 {
 		return errors.Join(errs...)
 	}
-
 	return nil
 }
 
@@ -615,6 +615,17 @@ func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error
 	}
 }
 
+func (i *installerImpl) preparePackage(ctx context.Context, pkg string, _ []string) error {
+	switch pkg {
+	case packageDatadogInstaller:
+		return packages.PrepareInstaller(ctx)
+	case packageDatadogAgent:
+		return packages.PrepareAgent(ctx)
+	default:
+		return nil
+	}
+}
+
 func (i *installerImpl) setupPackage(ctx context.Context, pkg string, args []string) error {
 	switch pkg {
 	case packageDatadogInstaller:
@@ -642,37 +653,67 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 }
 
 func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err error) {
-	if !i.env.RemotePolicies {
+	span, _ := telemetry.StartSpanFromContext(ctx, "configure_package")
+	defer func() { span.Finish(err) }()
+	// TODO: Windows support
+	if runtime.GOOS == "windows" {
 		return nil
 	}
-
-	span, _ := tracer.StartSpanFromContext(ctx, "configure_package")
-	defer func() { span.Finish(tracer.WithError(err)) }()
-
-	switch pkg {
-	case packageDatadogAgent, packageAPMInjector:
-		config, err := i.cdn.Get(ctx, pkg)
-		if err != nil {
-			return fmt.Errorf("could not get %s CDN config: %w", pkg, err)
-		}
-		tmpDir, err := i.configs.MkdirTemp()
-		if err != nil {
-			return fmt.Errorf("could not create temporary directory: %w", err)
-		}
-		defer os.RemoveAll(tmpDir)
-
-		err = config.Write(tmpDir)
-		if err != nil {
-			return fmt.Errorf("could not write %s config: %w", pkg, err)
-		}
-		err = i.configs.Create(pkg, config.State().GetVersion(), tmpDir)
-		if err != nil {
-			return fmt.Errorf("could not create %s repository: %w", pkg, err)
-		}
-		return nil
-	default:
-		return nil
+	tmpDir, err := i.configs.MkdirTemp()
+	if err != nil {
+		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
+	defer os.RemoveAll(tmpDir)
+	err = i.configs.Create(pkg, "empty", tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not create %s repository: %w", pkg, err)
+	}
+	return nil
+}
+
+var (
+	allowedConfigFiles = []string{
+		"datadog.yaml",
+		"security-agent.yaml",
+		"system-probe.yaml",
+		"libraries_config.yaml",
+		"conf.d/*.yaml",
+	}
+)
+
+func configNameAllowed(file string) bool {
+	for _, allowedFile := range allowedConfigFiles {
+		match, err := filepath.Match(allowedFile, file)
+		if err != nil {
+			return false
+		}
+		if match {
+			return true
+		}
+	}
+	return false
+}
+
+func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
+	var configs map[string]interface{}
+	err := json.Unmarshal(rawConfig, &configs)
+	if err != nil {
+		return fmt.Errorf("could not unmarshal config: %w", err)
+	}
+	for file, config := range configs {
+		if !configNameAllowed(file) {
+			return fmt.Errorf("config file %s is not allowed", file)
+		}
+		serializedConfig, err := yaml.Marshal(config)
+		if err != nil {
+			return fmt.Errorf("could not marshal config: %w", err)
+		}
+		err = os.WriteFile(filepath.Join(dir, file), serializedConfig, 0644)
+		if err != nil {
+			return fmt.Errorf("could not write config file: %w", err)
+		}
+	}
+	return nil
 }
 
 const (

@@ -23,10 +23,12 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 )
 
@@ -55,6 +57,9 @@ type k8sSuite struct {
 	Fakeintake      *fakeintake.Client
 	K8sConfig       *restclient.Config
 	K8sClient       *kubernetes.Clientset
+
+	startTime time.Time
+	outputDir string
 }
 
 func TestKindSuite(t *testing.T) {
@@ -63,6 +68,14 @@ func TestKindSuite(t *testing.T) {
 
 func (suite *k8sSuite) SetupSuite() {
 	ctx := context.Background()
+	suite.startTime = time.Now()
+
+	// Create the root output directory for the test suite session
+	sessionDirectory, err := runner.GetProfile().CreateOutputSubDir(suite.getSuiteSessionSubdirectory())
+	if err != nil {
+		suite.T().Errorf("unable to create session output directory: %v", err)
+	}
+	suite.outputDir = sessionDirectory
 
 	stackConfig := runner.ConfigMap{
 		"ddagent:deploy":        auto.ConfigValue{Value: "true"},
@@ -210,4 +223,14 @@ func (suite *k8sSuite) summarizeManifests() {
 			fmt.Printf(" - type:%d, name:%s, ns:%s, kind:%s, apiVer:%s, uid:%s, collected:%s\n", typ, manif.Metadata.Name, manif.Metadata.Namespace, manif.Kind, manif.APIVersion, uid, p.CollectedTime.Format(time.RFC3339))
 		}
 	}
+}
+
+func (suite *k8sSuite) SessionOutputDir() string {
+	return suite.outputDir
+}
+
+func (suite *k8sSuite) getSuiteSessionSubdirectory() string {
+	suiteStartTimePart := suite.startTime.Format("2006_01_02_15_04_05")
+	testPart := common.SanitizeDirectoryName(suite.T().Name())
+	return fmt.Sprintf("%s_%s", testPart, suiteStartTimePart)
 }

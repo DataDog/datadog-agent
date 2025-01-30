@@ -209,11 +209,17 @@ type Config struct {
 	// default is true
 	EnableConntrackAllNamespaces bool
 
-	// EnableEbpfConntracker enables the ebpf based network conntracker. Used only for testing at the moment
+	// EnableEbpfConntracker enables the ebpf based network conntracker
 	EnableEbpfConntracker bool
+
+	// EnableCiliumLBConntracker enables the cilium load balancer conntracker
+	EnableCiliumLBConntracker bool
 
 	// ClosedChannelSize specifies the size for closed channel for the tracer
 	ClosedChannelSize int
+
+	// ClosedBufferWakeupCount specifies the number of events that will buffer in a perf buffer before userspace is woken up.
+	ClosedBufferWakeupCount int
 
 	// ExcludedSourceConnections is a map of source connections to blacklist
 	ExcludedSourceConnections map[string][]string
@@ -285,6 +291,15 @@ type Config struct {
 	// EnableUSMEventStream enables USM to use the event stream instead
 	// of netlink for receiving process events.
 	EnableUSMEventStream bool
+
+	// CustomBatchingEnabled enables the use of custom batching for eBPF perf events with perf buffers
+	CustomBatchingEnabled bool
+
+	// USMKernelBufferPages defines the number of pages to allocate for the USM kernel buffer, used for either ring buffers or perf maps.
+	USMKernelBufferPages int
+
+	// USMDataChannelSize specifies the size of the data channel for USM, used to temporarily store data from the kernel in user mode before processing.
+	USMDataChannelSize int
 }
 
 // New creates a config for the network tracer
@@ -315,8 +330,9 @@ func New() *Config {
 		MaxTrackedConnections:          uint32(cfg.GetInt64(sysconfig.FullKeyPath(spNS, "max_tracked_connections"))),
 		MaxClosedConnectionsBuffered:   uint32(cfg.GetInt64(sysconfig.FullKeyPath(spNS, "max_closed_connections_buffered"))),
 		MaxFailedConnectionsBuffered:   uint32(cfg.GetInt64(sysconfig.FullKeyPath(netNS, "max_failed_connections_buffered"))),
-		ClosedConnectionFlushThreshold: cfg.GetInt(sysconfig.FullKeyPath(spNS, "closed_connection_flush_threshold")),
-		ClosedChannelSize:              cfg.GetInt(sysconfig.FullKeyPath(spNS, "closed_channel_size")),
+		ClosedConnectionFlushThreshold: cfg.GetInt(sysconfig.FullKeyPath(netNS, "closed_connection_flush_threshold")),
+		ClosedChannelSize:              cfg.GetInt(sysconfig.FullKeyPath(netNS, "closed_channel_size")),
+		ClosedBufferWakeupCount:        cfg.GetInt(sysconfig.FullKeyPath(netNS, "closed_buffer_wakeup_count")),
 		MaxConnectionsStateBuffered:    cfg.GetInt(sysconfig.FullKeyPath(spNS, "max_connection_state_buffered")),
 		ClientStateExpiry:              2 * time.Minute,
 
@@ -331,6 +347,7 @@ func New() *Config {
 		ProtocolClassificationEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_protocol_classification")),
 
 		NPMRingbuffersEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ringbuffers")),
+		CustomBatchingEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_custom_batching")),
 
 		EnableHTTPMonitoring:       cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http_monitoring")),
 		EnableHTTP2Monitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http2_monitoring")),
@@ -360,6 +377,7 @@ func New() *Config {
 		IgnoreConntrackInitFailure:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "ignore_conntrack_init_failure")),
 		ConntrackInitTimeout:         cfg.GetDuration(sysconfig.FullKeyPath(netNS, "conntrack_init_timeout")),
 		EnableEbpfConntracker:        cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpf_conntracker")),
+		EnableCiliumLBConntracker:    cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_cilium_lb_conntracker")),
 
 		EnableGatewayLookup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_gateway_lookup")),
 
@@ -388,6 +406,8 @@ func New() *Config {
 		EnableUSMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_connection_rollup")),
 		EnableUSMRingBuffers:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_ring_buffers")),
 		EnableUSMEventStream:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
+		USMKernelBufferPages:      cfg.GetInt(sysconfig.FullKeyPath(smNS, "kernel_buffer_pages")),
+		USMDataChannelSize:        cfg.GetInt(sysconfig.FullKeyPath(smNS, "data_channel_size")),
 	}
 
 	httpRRKey := sysconfig.FullKeyPath(smNS, "http_replace_rules")
@@ -414,8 +434,8 @@ func New() *Config {
 		log.Info("network tracer DNS inspection disabled by configuration")
 	}
 
-	if c.EnableProcessEventMonitoring {
-		log.Info("network process event monitoring enabled")
+	if !c.EnableProcessEventMonitoring {
+		log.Info("network process event monitoring disabled")
 	}
 	return c
 }

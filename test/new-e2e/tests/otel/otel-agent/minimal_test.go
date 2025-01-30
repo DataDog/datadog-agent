@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 )
 
@@ -32,8 +32,8 @@ var minimalProvidedConfig string
 //go:embed testdata/minimal-full-config.yml
 var minimalFullConfig string
 
-//go:embed testdata/minimal-sources.json
-var minimalSources string
+//go:embed testdata/sources.json
+var sources string
 
 func TestOTelAgentMinimal(t *testing.T) {
 	values := `
@@ -43,7 +43,7 @@ datadog:
     containerCollectUsingFiles: false
 `
 	t.Parallel()
-	e2e.Run(t, &minimalTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(minimalConfig)))))
+	e2e.Run(t, &minimalTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(minimalConfig)))))
 }
 
 var minimalParams = utils.IAParams{
@@ -82,7 +82,7 @@ func (s *minimalTestSuite) TestOTelAgentInstalled() {
 }
 
 func (s *minimalTestSuite) TestOTelFlareExtensionResponse() {
-	utils.TestOTelFlareExtensionResponse(s, minimalProvidedConfig, minimalFullConfig, minimalSources)
+	utils.TestOTelFlareExtensionResponse(s, minimalProvidedConfig, minimalFullConfig, sources)
 }
 
 func (s *minimalTestSuite) TestOTelFlareFiles() {

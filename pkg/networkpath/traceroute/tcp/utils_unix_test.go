@@ -19,6 +19,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/ipv4"
+
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/testutils"
+)
+
+var (
+	innerSrcIP = net.ParseIP("10.0.0.1")
+	innerDstIP = net.ParseIP("192.168.1.1")
 )
 
 type (
@@ -40,7 +47,7 @@ type (
 )
 
 func Test_handlePackets(t *testing.T) {
-	_, tcpBytes := createMockTCPPacket(createMockIPv4Header(dstIP, srcIP, 6), createMockTCPLayer(443, 12345, 28394, 28395, true, true, true), false)
+	_, tcpBytes := testutils.CreateMockTCPPacket(testutils.CreateMockIPv4Header(dstIP, srcIP, 6), testutils.CreateMockTCPLayer(443, 12345, 28394, 28395, true, true, true), false)
 
 	tt := []struct {
 		description string
@@ -120,8 +127,8 @@ func Test_handlePackets(t *testing.T) {
 			description: "successful ICMP parsing returns IP, port, and type code",
 			ctxTimeout:  500 * time.Millisecond,
 			conn: &mockRawConn{
-				header:  createMockIPv4Header(srcIP, dstIP, 1),
-				payload: createMockICMPPacket(nil, createMockICMPLayer(layers.ICMPv4CodeTTLExceeded), createMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP), createMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false),
+				header:  testutils.CreateMockIPv4Header(srcIP, dstIP, 1),
+				payload: testutils.CreateMockICMPWithTCPPacket(nil, testutils.CreateMockICMPLayer(layers.ICMPv4CodeTTLExceeded), testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP), testutils.CreateMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false),
 			},
 			localIP:          innerSrcIP,
 			localPort:        12345,
@@ -137,7 +144,7 @@ func Test_handlePackets(t *testing.T) {
 			description: "successful TCP parsing returns IP, port, and type code",
 			ctxTimeout:  500 * time.Millisecond,
 			conn: &mockRawConn{
-				header:  createMockIPv4Header(dstIP, srcIP, 6),
+				header:  testutils.CreateMockIPv4Header(dstIP, srcIP, 6),
 				payload: tcpBytes,
 			},
 			localIP:          srcIP,

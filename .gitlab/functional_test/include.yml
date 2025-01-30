@@ -1,6 +1,6 @@
 ---
 # functional_test stage
-# Contains jobs which run kitchen tests on the security-agent and on system-probe
+# Contains jobs which run e2e tests on the security-agent and on system-probe
 
 include:
   - .gitlab/functional_test/serverless.yml

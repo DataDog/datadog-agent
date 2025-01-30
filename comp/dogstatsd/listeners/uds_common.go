@@ -27,7 +27,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
@@ -59,7 +59,7 @@ type UDSListener struct {
 	OriginDetection         bool
 	config                  model.Reader
 
-	wmeta optional.Option[workloadmeta.Component]
+	wmeta option.Option[workloadmeta.Component]
 
 	transport string
 
@@ -96,22 +96,17 @@ type netUnixConn interface {
 // CloseFunction is a function that closes a connection
 type CloseFunction func(unixConn netUnixConn) error
 
-func setupUnixConn(conn netUnixConn, originDetection bool, config model.Reader) (bool, error) {
+func setupUnixConn(conn syscall.RawConn, originDetection bool, address string) (bool, error) {
 	if originDetection {
 		err := enableUDSPassCred(conn)
 		if err != nil {
 			log.Errorf("dogstatsd-uds: error enabling origin detection: %s", err)
 			originDetection = false
 		} else {
-			log.Debugf("dogstatsd-uds: enabling origin detection on %s", conn.LocalAddr())
+			log.Debugf("dogstatsd-uds: enabling origin detection on %s", address)
 		}
 	}
 
-	if rcvbuf := config.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
-		if err := conn.SetReadBuffer(rcvbuf); err != nil {
-			return originDetection, fmt.Errorf("could not set socket rcvbuf: %s", err)
-		}
-	}
 	return originDetection, nil
 }
 
@@ -150,9 +145,7 @@ func NewUDSOobPoolManager() *packets.PoolManager[[]byte] {
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (*UDSListener, error) {
-	originDetection := cfg.GetBool("dogstatsd_origin_detection")
-
+func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component, originDetection bool) (*UDSListener, error) {
 	listener := &UDSListener{
 		OriginDetection:              originDetection,
 		packetOut:                    packetOut,
@@ -204,18 +197,13 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 	l.telemetryStore.tlmUDSConnections.Inc(tlmListenerID, l.transport)
 	defer func() {
 		_ = closeFunc(conn)
+		packetsBuffer.Flush()
 		packetsBuffer.Close()
 		if telemetryWithFullListenerID {
 			l.clearTelemetry(tlmListenerID)
 		}
 		l.telemetryStore.tlmUDSConnections.Dec(tlmListenerID, l.transport)
 	}()
-
-	var err error
-	l.OriginDetection, err = setupUnixConn(conn, l.OriginDetection, l.config)
-	if err != nil {
-		return err
-	}
 
 	t1 := time.Now()
 	var t2 time.Time
@@ -230,6 +218,12 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 			rateLimiter = nil
 		} else {
 			log.Info("DogStatsD rate limiter enabled")
+		}
+	}
+
+	if rcvbuf := l.config.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
+		if err := conn.SetReadBuffer(rcvbuf); err != nil {
+			log.Warnf("could not set socket rcvbuf: %s", err)
 		}
 	}
 
@@ -327,6 +321,7 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 				udsOriginDetectionErrors.Add(1)
 				l.telemetryStore.tlmUDSOriginDetectionError.Inc(tlmListenerID, l.transport)
 			} else {
+				packet.ProcessID = uint32(pid)
 				packet.Origin = container
 				if capBuff != nil {
 					capBuff.ContainerID = container

@@ -46,6 +46,9 @@ func printSecurityActivityDumpMessage(prefix string, msg *api.ActivityDumpMessag
 	if len(msg.GetMetadata().GetContainerID()) > 0 {
 		fmt.Printf("%s  container ID: %s\n", prefix, msg.GetMetadata().GetContainerID())
 	}
+	if len(msg.GetMetadata().GetCGroupID()) > 0 {
+		fmt.Printf("%s  cgroup ID: %s\n", prefix, msg.GetMetadata().GetCGroupID())
+	}
 	if len(msg.GetTags()) > 0 {
 		fmt.Printf("%s  tags: %s\n", prefix, strings.Join(msg.GetTags(), ", "))
 	}

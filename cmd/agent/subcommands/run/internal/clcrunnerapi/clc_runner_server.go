@@ -19,7 +19,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/gorilla/mux"
 
 	v1 "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi/v1"
@@ -27,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
@@ -85,7 +85,7 @@ func StartCLCRunnerServer(extraHandlers map[string]http.Handler, ac autodiscover
 	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := pkglogsetup.NewLogWriter(4, seelog.WarnLvl)
+	logWriter, _ := pkglogsetup.NewLogWriter(4, log.WarnLvl)
 
 	srv := &http.Server{
 		Handler:           r,

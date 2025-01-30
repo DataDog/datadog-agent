@@ -7,8 +7,7 @@ from collections import OrderedDict
 from invoke.exceptions import Exit
 
 from tasks.libs.common.constants import TAG_FOUND_TEMPLATE
-from tasks.libs.common.git import get_default_branch
-from tasks.libs.common.worktree import is_worktree
+from tasks.libs.common.git import get_default_branch, is_agent6
 from tasks.libs.releasing.documentation import _stringify_config, nightly_entry_for, release_entry_for
 from tasks.libs.releasing.version import (
     VERSION_RE,
@@ -25,8 +24,9 @@ from tasks.libs.types.version import Version
 # The order matters, eg. when fetching matching tags for an Agent 6 entry,
 # tags starting with 6 will be preferred to tags starting with 7.
 COMPATIBLE_MAJOR_VERSIONS = {6: ["6", "7"], 7: ["7"]}
+INTEGRATIONS_CORE_JSON_FIELD = "INTEGRATIONS_CORE_VERSION"
 RELEASE_JSON_FIELDS_TO_UPDATE = [
-    "INTEGRATIONS_CORE_VERSION",
+    INTEGRATIONS_CORE_JSON_FIELD,
     "OMNIBUS_SOFTWARE_VERSION",
     "OMNIBUS_RUBY_VERSION",
     "MACOS_BUILD_VERSION",
@@ -337,7 +337,7 @@ def set_new_release_branch(branch):
     _save_release_json(rj)
 
 
-def generate_repo_data(warning_mode, next_version, release_branch):
+def generate_repo_data(ctx, warning_mode, next_version, release_branch):
     repos = ["integrations-core"] if warning_mode else ALL_REPOS
     previous_tags = find_previous_tags("release-a7", repos, RELEASE_JSON_FIELDS_TO_UPDATE)
     data = {}
@@ -347,7 +347,7 @@ def generate_repo_data(warning_mode, next_version, release_branch):
             branch = (
                 next_version.branch()
                 if repo == "integrations-core"
-                else (DEFAULT_BRANCHES_AGENT6 if is_worktree() else DEFAULT_BRANCHES).get(repo, get_default_branch())
+                else (DEFAULT_BRANCHES_AGENT6 if is_agent6(ctx) else DEFAULT_BRANCHES).get(repo, get_default_branch())
             )
         data[repo] = {
             'branch': branch,

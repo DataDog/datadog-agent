@@ -25,10 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -45,16 +45,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
@@ -90,11 +91,12 @@ func (s *service) Run(svcctx context.Context) error {
 
 	params := &cliParams{}
 	err := fxutil.OneShot(
-		func(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component,
-			telemetry telemetry.Component, _ workloadmeta.Component, _ *cliParams, statusComponent status.Component, _ autoexit.Component, settings settings.Component, wmeta workloadmeta.Component) error {
+		func(log log.Component, config config.Component, secrets secrets.Component, _ statsd.Component, _ sysprobeconfig.Component,
+			telemetry telemetry.Component, _ workloadmeta.Component, _ *cliParams, statusComponent status.Component, _ autoexit.Component,
+			settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component) error {
 			defer start.StopAgent(log)
 
-			err := start.RunAgent(log, config, telemetry, statusComponent, settings, wmeta)
+			err := start.RunAgent(log, config, secrets, telemetry, statusComponent, settings, wmeta, at)
 			if err != nil {
 				if errors.Is(err, start.ErrAllComponentsDisabled) {
 					// If all components are disabled, we should exit cleanly
@@ -121,19 +123,10 @@ func (s *service) Run(svcctx context.Context) error {
 
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
-		workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
-
-			catalog := workloadmeta.NodeAgent
-
-			if config.GetBool("security_agent.remote_workloadmeta") {
-				catalog = workloadmeta.Remote
-			}
-
-			return workloadmeta.Params{
-				AgentType: catalog,
-			}
+		workloadmetafx.Module(workloadmeta.Params{
+			AgentType: workloadmeta.Remote,
 		}),
-		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, wmeta workloadmeta.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
+		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, wmeta workloadmeta.Component, compression logscompression.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
 			stopper := startstop.NewSerialStopper()
 
 			statsdClient, err := statsd.CreateForHostPort(setup.GetBindHost(config), config.GetInt("dogstatsd_port"))
@@ -142,12 +135,12 @@ func (s *service) Run(svcctx context.Context) error {
 				return status.NewInformationProvider(nil), nil, err
 			}
 
-			hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
+			hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO())
 			if err != nil {
 				return status.NewInformationProvider(nil), nil, err
 			}
 
-			runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, wmeta)
+			runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, wmeta, compression)
 			if err != nil {
 				return status.NewInformationProvider(nil), nil, err
 			}
@@ -173,9 +166,7 @@ func (s *service) Run(svcctx context.Context) error {
 		statusimpl.Module(),
 
 		fetchonlyimpl.Module(),
-		configsyncimpl.OptionalModule(),
-		// Force the instantiation of the component
-		fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
+		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 		autoexitimpl.Module(),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{
@@ -186,6 +177,7 @@ func (s *service) Run(svcctx context.Context) error {
 			}
 		}),
 		settingsimpl.Module(),
+		logscompressionfx.Module(),
 	)
 
 	return err

@@ -8,11 +8,12 @@
 package eventparser
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	"github.com/kr/pretty"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCountBufferUsedByTypeDefinition(t *testing.T) {
@@ -109,6 +110,28 @@ func TestParseParamValue(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "same sized string",
+			inputBuffer: []byte{
+				65, 65, 65,
+			},
+			inputDefinition: &ditypes.Param{
+				Type: "string", Size: 0x3, Kind: 0x18,
+			},
+			expectedValue: &ditypes.Param{
+				ValueStr: "AAA", Type: "string", Size: 0x3, Kind: 0x18,
+			},
+		},
+		{
+			name:        "empty string",
+			inputBuffer: []byte{},
+			inputDefinition: &ditypes.Param{
+				Type: "string", Size: 0x0, Kind: 0x18,
+			},
+			expectedValue: &ditypes.Param{
+				ValueStr: "", Type: "string", Size: 0x0, Kind: 0x18,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -131,10 +154,6 @@ func TestReadParams(t *testing.T) {
 			name: "Basic slice of structs",
 			inputBuffer: []byte{
 				23, 2, 0, // Slice with 2 elements
-				25, 3, 0, // Slice elements are each a struct with 3 fields
-				8, 1, 0, // Struct field 1 is a uint8 (size 1)
-				9, 2, 0, // Struct field 2 is a uint16 (size 2)
-				8, 1, 0, // Struct field 3 is a uint8 (size 1)
 				25, 3, 0, // Slice elements are each a struct with 3 fields
 				8, 1, 0, // Struct field 1 is a uint8 (size 1)
 				9, 2, 0, // Struct field 2 is a uint16 (size 2)
@@ -167,11 +186,7 @@ func TestReadParams(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			output := readParams(tt.inputBuffer)
-			if !reflect.DeepEqual(output, tt.expectedResult) {
-				fmt.Printf("Got: %v\n", output)
-				fmt.Printf("Expected: %v\n", tt.expectedResult)
-				t.Errorf("Didn't read correctly!")
-			}
+			assert.Equal(t, output, tt.expectedResult)
 		})
 	}
 }
@@ -234,13 +249,6 @@ func TestParseTypeDefinition(t *testing.T) {
 				25, 2, 0, // Struct field 4 is a struct with 2 fields
 				8, 1, 0, // Nested struct field 1 is a uint8 (size 1)
 				8, 1, 0, // Nested struct field 2 is a uint8 (size 1)
-				25, 4, 0, // Slice elements are each a struct with 2 fields
-				8, 1, 0, // Struct field 1 is a uint8 (size 1)
-				8, 1, 0, // Struct field 2 is a uint8 (size 1)
-				8, 1, 0, // Struct field 3 is a uint8 (size 1)
-				25, 2, 0, // Struct field 4 is a struct with 2 fields
-				8, 1, 0, // Nested struct field 1 is a uint8 (size 1)
-				8, 1, 0, // Nested struct field 2 is a uint8 (size 1)
 				1, 2, 3, // Content of slice element 1 (top-level uint8, then 2 second tier uint8s)
 				4, 5, 6, // Content of slice element 2 (top-level uint8, then 2 second tier uint8s)
 				// Padding
@@ -288,11 +296,174 @@ func TestParseTypeDefinition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			typeDefinition := parseTypeDefinition(tt.inputBuffer)
-			if !reflect.DeepEqual(typeDefinition, tt.expectedResult) {
-				fmt.Printf("%v\n", typeDefinition)
-				fmt.Printf("%v\n", tt.expectedResult)
-				t.Errorf("Not equal!")
+			if !paramsAreEqual(typeDefinition, tt.expectedResult) {
+				t.Errorf("params are not equal\nExpected: %s\nReceived: %s\n", pretty.Sprint(tt.expectedResult), pretty.Sprint(typeDefinition))
 			}
+		})
+	}
+}
+
+func paramsAreEqual(p1, p2 *ditypes.Param) bool {
+	if p1 == nil && p2 == nil {
+		return true
+	}
+	if p1 == nil || p2 == nil {
+		return false
+	}
+	if p1.ValueStr != p2.ValueStr || p1.Type != p2.Type || p1.Size != p2.Size || p1.Kind != p2.Kind {
+		return false
+	}
+	if len(p1.Fields) != len(p2.Fields) {
+		return false
+	}
+	for i := range p1.Fields {
+		if !paramsAreEqual(p1.Fields[i], p2.Fields[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func TestParseParams(t *testing.T) {
+	type testCase struct {
+		Name           string
+		Buffer         []byte
+		ExpectedOutput []*ditypes.Param
+	}
+
+	testCases := []testCase{
+		{
+			Name:   "uint slice ok",
+			Buffer: []byte{23, 3, 0, 7, 8, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			ExpectedOutput: []*ditypes.Param{
+				{
+					Type: "slice",
+					Size: 3,
+					Kind: byte(reflect.Slice),
+					Fields: []*ditypes.Param{
+						{
+							Kind:     byte(reflect.Uint),
+							ValueStr: "1",
+							Type:     "uint",
+							Size:     8,
+						},
+						{
+							Kind:     byte(reflect.Uint),
+							ValueStr: "2",
+							Type:     "uint",
+							Size:     8,
+						},
+						{
+							Kind:     byte(reflect.Uint),
+							ValueStr: "3",
+							Type:     "uint",
+							Size:     8,
+						},
+					},
+				},
+			},
+		},
+		{
+			Name:   "uint pointer ok",
+			Buffer: []byte{22, 8, 0, 7, 8, 0, 123, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			ExpectedOutput: []*ditypes.Param{
+				{
+					Type: "ptr",
+					Size: 8,
+					Kind: byte(reflect.Pointer),
+					Fields: []*ditypes.Param{
+						{
+							Kind:     byte(reflect.Uint),
+							ValueStr: "123",
+							Type:     "uint",
+							Size:     8,
+						},
+					},
+				},
+			},
+		},
+		{
+			Name:   "struct pointer ok",
+			Buffer: []byte{22, 8, 0, 25, 3, 0, 1, 1, 0, 2, 8, 0, 4, 2, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			ExpectedOutput: []*ditypes.Param{
+				{
+					Type: "ptr",
+					Size: 8,
+					Kind: byte(reflect.Pointer),
+					Fields: []*ditypes.Param{
+						{
+							Type: "struct",
+							Size: 3,
+							Kind: byte(reflect.Struct),
+							Fields: []*ditypes.Param{
+								{
+									Kind:     byte(reflect.Bool),
+									ValueStr: "true",
+									Type:     "bool",
+									Size:     1,
+								},
+								{
+									Kind:     byte(reflect.Int),
+									ValueStr: "1",
+									Type:     "int",
+									Size:     8,
+								},
+								{
+									Kind:     byte(reflect.Int16),
+									ValueStr: "2",
+									Type:     "int16",
+									Size:     2,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name:   "struct pointer nil",
+			Buffer: []byte{22, 8, 0, 25, 3, 0, 1, 1, 0, 2, 8, 0, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			ExpectedOutput: []*ditypes.Param{
+				{
+					Type: "ptr",
+					Size: 8,
+					Kind: byte(reflect.Pointer),
+					Fields: []*ditypes.Param{
+						{
+							Type: "struct",
+							Size: 3,
+							Kind: byte(reflect.Struct),
+							Fields: []*ditypes.Param{
+								{
+									Kind:     byte(reflect.Bool),
+									ValueStr: "false",
+									Type:     "bool",
+									Size:     1,
+								},
+								{
+									Kind:     byte(reflect.Int),
+									ValueStr: "0",
+									Type:     "int",
+									Size:     8,
+								},
+								{
+									Kind:     byte(reflect.Int16),
+									ValueStr: "0",
+									Type:     "int16",
+									Size:     2,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for i := range testCases {
+		t.Run(testCases[i].Name, func(t *testing.T) {
+			result := readParams(testCases[i].Buffer)
+			assert.Equal(t, testCases[i].ExpectedOutput, result)
 		})
 	}
 }

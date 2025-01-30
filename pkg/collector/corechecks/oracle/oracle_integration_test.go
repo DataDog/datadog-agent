@@ -424,6 +424,14 @@ func buildConnectionString(connectionConfig config.ConnectionConfig) string {
 	return connStr
 }
 
+func TestCanConnectTags(t *testing.T) {
+	chk, sender := newDefaultCheck(t, "", "")
+	err := chk.Run()
+	require.NoError(t, err)
+
+	sender.AssertServiceCheck(t, "oracle.can_connect", servicecheck.ServiceCheckOK, chk.dbHostname, nil, "")
+}
+
 func TestLargeUint64Binding(t *testing.T) {
 	var err error
 	c, _ := newDefaultCheck(t, "", "")

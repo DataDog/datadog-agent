@@ -8,7 +8,6 @@ package client
 import (
 	"fmt"
 	"net/http"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 )
@@ -29,7 +28,7 @@ const (
 )
 
 // NewHostAgentClient creates an Agent client for host install
-func NewHostAgentClient(context e2e.Context, hostOutput remote.HostOutput, waitForAgentReady bool) (agentclient.Agent, error) {
+func NewHostAgentClient(context common.Context, hostOutput remote.HostOutput, waitForAgentReady bool) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(hostOutput.OSFamily)
 	params.ShouldWaitForReady = waitForAgentReady
 
@@ -42,7 +41,7 @@ func NewHostAgentClient(context e2e.Context, hostOutput remote.HostOutput, waitF
 	commandRunner := newAgentCommandRunner(context.T(), ae)
 
 	if params.ShouldWaitForReady {
-		if err := waitForReadyTimeout(context.T(), host, commandRunner, agentReadyTimeout); err != nil {
+		if err := waitForReadyTimeout(commandRunner, agentReadyTimeout); err != nil {
 			return nil, err
 		}
 	}
@@ -51,7 +50,7 @@ func NewHostAgentClient(context e2e.Context, hostOutput remote.HostOutput, waitF
 }
 
 // NewHostAgentClientWithParams creates an Agent client for host install with custom parameters
-func NewHostAgentClientWithParams(context e2e.Context, hostOutput remote.HostOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
+func NewHostAgentClientWithParams(context common.Context, hostOutput remote.HostOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(hostOutput.OSFamily, options...)
 
 	host, err := NewHost(context, hostOutput)
@@ -63,7 +62,7 @@ func NewHostAgentClientWithParams(context e2e.Context, hostOutput remote.HostOut
 	commandRunner := newAgentCommandRunner(context.T(), ae)
 
 	if params.ShouldWaitForReady {
-		if err := waitForReadyTimeout(context.T(), host, commandRunner, agentReadyTimeout); err != nil {
+		if err := waitForReadyTimeout(commandRunner, agentReadyTimeout); err != nil {
 			return nil, err
 		}
 	}
@@ -74,7 +73,7 @@ func NewHostAgentClientWithParams(context e2e.Context, hostOutput remote.HostOut
 }
 
 // NewDockerAgentClient creates an Agent client for a Docker install
-func NewDockerAgentClient(context e2e.Context, dockerAgentOutput agent.DockerAgentOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
+func NewDockerAgentClient(context common.Context, dockerAgentOutput agent.DockerAgentOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(dockerAgentOutput.DockerManager.Host.OSFamily, options...)
 	ae := newAgentDockerExecutor(context, dockerAgentOutput)
 	commandRunner := newAgentCommandRunner(context.T(), ae)
@@ -126,7 +125,7 @@ func waitForAgentsReady(tt *testing.T, host *Host, params *agentclientparams.Par
 }
 
 func processAgentRequest(params *agentclientparams.Params, host *Host) (*http.Request, bool, error) {
-	return makeStatusEndpointRequest(params, host, "http://localhost:%d/agent/status", params.ProcessAgentPort)
+	return makeStatusEndpointRequest(params, host, "https://localhost:%d/agent/status", params.ProcessAgentPort)
 }
 
 func traceAgentRequest(params *agentclientparams.Params, host *Host) (*http.Request, bool, error) {
@@ -180,98 +179,6 @@ func fetchAuthTokenCommand(authTokenPath string, osFamily osComp.Family) string 
 	return fmt.Sprintf("sudo cat %s", authTokenPath)
 }
 
-func waitForReadyTimeout(t *testing.T, host *Host, commandRunner *agentCommandRunner, timeout time.Duration) error {
-	err := commandRunner.waitForReadyTimeout(timeout)
-
-	if err != nil {
-		// Propagate the original error if we have another error here
-		localErr := generateAndDownloadFlare(t, commandRunner, host)
-
-		if localErr != nil {
-			t.Errorf("Could not generate and get a flare: %v", localErr)
-		}
-	}
-
-	return err
-}
-
-func generateAndDownloadFlare(t *testing.T, commandRunner *agentCommandRunner, host *Host) error {
-	root, err := e2e.CreateRootOutputDir()
-	if err != nil {
-		return fmt.Errorf("could not get root output directory: %w", err)
-	}
-	outputDir, err := e2e.CreateTestOutputDir(root, t)
-	if err != nil {
-		return fmt.Errorf("could not get output directory: %w", err)
-	}
-	flareFound := false
-
-	_, err = commandRunner.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send", "--local"}))
-	if err != nil {
-		t.Errorf("Error while generating the flare: %v.", err)
-		// Do not return now, the flare may be generated locally but was not uploaded because there's no fake intake
-	}
-
-	flareRegex, err := regexp.Compile(`datadog-agent-.*\.zip`)
-	if err != nil {
-		return fmt.Errorf("could not compile regex: %w", err)
-	}
-
-	tmpFolder, err := host.GetTmpFolder()
-	if err != nil {
-		return fmt.Errorf("could not get tmp folder: %w", err)
-	}
-
-	entries, err := host.ReadDir(tmpFolder)
-	if err != nil {
-		return fmt.Errorf("could not read directory: %w", err)
-	}
-
-	for _, entry := range entries {
-		if flareRegex.MatchString(entry.Name()) {
-			t.Logf("Found flare file: %s", entry.Name())
-
-			if host.osFamily != osComp.WindowsFamily {
-				_, err = host.Execute(fmt.Sprintf("sudo chmod 744 %s/%s", tmpFolder, entry.Name()))
-				if err != nil {
-					return fmt.Errorf("could not update permission of flare file %s/%s : %w", tmpFolder, entry.Name(), err)
-				}
-			}
-
-			t.Logf("Downloading flare file in: %s", outputDir)
-			err = host.GetFile(fmt.Sprintf("%s/%s", tmpFolder, entry.Name()), fmt.Sprintf("%s/%s", outputDir, entry.Name()))
-
-			if err != nil {
-				return fmt.Errorf("could not download flare file from %s/%s : %w", tmpFolder, entry.Name(), err)
-			}
-
-			flareFound = true
-		}
-	}
-
-	if !flareFound {
-		t.Errorf("Could not find a flare. Retrieving logs directly instead...")
-
-		logsFolder, err := host.GetLogsFolder()
-		if err != nil {
-			return fmt.Errorf("could not get logs folder: %w", err)
-		}
-
-		entries, err = host.ReadDir(logsFolder)
-
-		if err != nil {
-			return fmt.Errorf("could not read directory: %w", err)
-		}
-
-		for _, entry := range entries {
-			t.Logf("Found log file: %s. Downloading file in: %s", entry.Name(), outputDir)
-
-			err = host.GetFile(fmt.Sprintf("%s/%s", logsFolder, entry.Name()), fmt.Sprintf("%s/%s", outputDir, entry.Name()))
-			if err != nil {
-				return fmt.Errorf("could not download log file from %s/%s : %w", logsFolder, entry.Name(), err)
-			}
-		}
-	}
-
-	return nil
+func waitForReadyTimeout(commandRunner *agentCommandRunner, timeout time.Duration) error {
+	return commandRunner.waitForReadyTimeout(timeout)
 }

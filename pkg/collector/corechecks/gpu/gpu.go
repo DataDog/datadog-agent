@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -28,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -47,21 +48,39 @@ type Check struct {
 	collectors     []nvidia.Collector      // collectors for NVML metrics
 	nvmlLib        nvml.Interface          // NVML library interface
 	tagger         tagger.Component        // Tagger instance to add tags to outgoing metrics
+	telemetry      *checkTelemetry         // Telemetry component to emit internal telemetry
+}
+
+type checkTelemetry struct {
+	nvmlMetricsSent     telemetry.Counter
+	collectorErrors     telemetry.Counter
+	activeMetrics       telemetry.Gauge
+	sysprobeMetricsSent telemetry.Counter
 }
 
 // Factory creates a new check factory
-func Factory(tagger tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
-		return newCheck(tagger)
+func Factory(tagger tagger.Component, telemetry telemetry.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
+		return newCheck(tagger, telemetry)
 	})
 }
 
-func newCheck(tagger tagger.Component) check.Check {
+func newCheck(tagger tagger.Component, telemetry telemetry.Component) check.Check {
 	return &Check{
 		CheckBase:     core.NewCheckBase(CheckName),
 		config:        &CheckConfig{},
 		activeMetrics: make(map[model.StatsKey]bool),
 		tagger:        tagger,
+		telemetry:     newCheckTelemetry(telemetry),
+	}
+}
+
+func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
+	return &checkTelemetry{
+		nvmlMetricsSent:     tm.NewCounter(CheckName, "nvml_metrics_sent", []string{"collector"}, "Number of NVML metrics sent"),
+		collectorErrors:     tm.NewCounter(CheckName, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
+		activeMetrics:       tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
+		sysprobeMetricsSent: tm.NewCounter(CheckName, "sysprobe_metrics_sent", nil, "Number of metrics sent based on system probe data"),
 	}
 }
 
@@ -85,7 +104,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 
 	var err error
-	c.collectors, err = nvidia.BuildCollectors(c.nvmlLib)
+	c.collectors, err = nvidia.BuildCollectors(&nvidia.CollectorDependencies{NVML: c.nvmlLib, Tagger: c.tagger})
 	if err != nil {
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
@@ -146,6 +165,8 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 		c.activeMetrics[key] = true
 	}
 
+	c.telemetry.sysprobeMetricsSent.Add(float64(3 * len(stats.Metrics)))
+
 	// Remove the PIDs that we didn't see in this check
 	for key, active := range c.activeMetrics {
 		if !active {
@@ -158,25 +179,36 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 		}
 	}
 
+	c.telemetry.activeMetrics.Set(float64(len(c.activeMetrics)))
+
 	return nil
 }
 
 func (c *Check) getTagsForKey(key model.StatsKey) []string {
-	entityID := taggertypes.NewEntityID(taggertypes.ContainerID, key.ContainerID)
-	tags, err := c.tagger.Tag(entityID, c.tagger.ChecksCardinality())
-	if err != nil {
-		log.Errorf("Error collecting container tags for process %d: %s", key.PID, err)
+	// PID is always added
+	tags := []string{
+		// Per-PID metrics are subject to change due to high cardinality
+		fmt.Sprintf("pid:%d", key.PID),
 	}
 
 	// Container ID tag will be added or not depending on the tagger configuration
-	// PID and GPU UUID are always added as they're not relying on the tagger yet
-	keyTags := []string{
-		// Per-PID metrics are subject to change due to high cardinality
-		fmt.Sprintf("pid:%d", key.PID),
-		fmt.Sprintf("gpu_uuid:%s", key.DeviceUUID),
+	containerEntityID := taggertypes.NewEntityID(taggertypes.ContainerID, key.ContainerID)
+	containerTags, err := c.tagger.Tag(containerEntityID, c.tagger.ChecksCardinality())
+	if err != nil {
+		log.Errorf("Error collecting container tags for process %d: %s", key.PID, err)
+	} else {
+		tags = append(tags, containerTags...)
 	}
 
-	return append(tags, keyTags...)
+	gpuEntityID := taggertypes.NewEntityID(taggertypes.GPU, key.DeviceUUID)
+	gpuTags, err := c.tagger.Tag(gpuEntityID, c.tagger.ChecksCardinality())
+	if err != nil {
+		log.Errorf("Error collecting GPU tags for process %d: %s", key.PID, err)
+	} else {
+		tags = append(tags, gpuTags...)
+	}
+
+	return tags
 }
 
 func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
@@ -186,6 +218,7 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
 		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
 		metrics, collectErr := collector.Collect()
 		if collectErr != nil {
+			c.telemetry.collectorErrors.Add(1, collector.Name())
 			err = multierror.Append(err, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
 		}
 
@@ -193,6 +226,8 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
 			metricName := gpuMetricsNs + metric.Name
 			snd.Gauge(metricName, metric.Value, "", metric.Tags)
 		}
+
+		c.telemetry.nvmlMetricsSent.Add(float64(len(metrics)), collector.Name())
 	}
 
 	return err

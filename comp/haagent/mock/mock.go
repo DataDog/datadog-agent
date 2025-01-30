@@ -19,12 +19,13 @@ import (
 type mockHaAgent struct {
 	Logger log.Component
 
-	group   string
-	enabled bool
+	configID string
+	enabled  bool
+	state    haagent.State
 }
 
-func (m *mockHaAgent) GetGroup() string {
-	return m.group
+func (m *mockHaAgent) GetConfigID() string {
+	return m.configID
 }
 
 func (m *mockHaAgent) Enabled() bool {
@@ -34,14 +35,17 @@ func (m *mockHaAgent) Enabled() bool {
 func (m *mockHaAgent) SetLeader(_ string) {
 }
 
-func (m *mockHaAgent) IsLeader() bool { return false }
+func (m *mockHaAgent) GetState() haagent.State { return haagent.Standby }
 
-func (m *mockHaAgent) SetGroup(group string) {
-	m.group = group
+func (m *mockHaAgent) SetConfigID(configID string) {
+	m.configID = configID
 }
 
 func (m *mockHaAgent) SetEnabled(enabled bool) {
 	m.enabled = enabled
+}
+func (m *mockHaAgent) SetState(state haagent.State) {
+	m.state = state
 }
 
 func (m *mockHaAgent) ShouldRunIntegration(_ string) bool {
@@ -52,15 +56,16 @@ func (m *mockHaAgent) ShouldRunIntegration(_ string) bool {
 type Component interface {
 	haagent.Component
 
-	SetGroup(string)
+	SetConfigID(string)
 	SetEnabled(bool)
+	SetState(haagent.State)
 }
 
 // NewMockHaAgent returns a new Mock
 func NewMockHaAgent() haagent.Component {
 	return &mockHaAgent{
-		enabled: false,
-		group:   "group01",
+		enabled:  false,
+		configID: "config01",
 	}
 }
 

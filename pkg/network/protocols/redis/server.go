@@ -3,10 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package redis provides a Redis client to interact with a Redis server.
-
 //go:build test
 
+// Package redis provides a Redis client to interact with a Redis server.
 package redis
 
 import (

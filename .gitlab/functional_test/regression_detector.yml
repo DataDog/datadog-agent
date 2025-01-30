@@ -22,7 +22,7 @@ single-machine-performance-regression_detector:
       - outputs/decision_record.md # for posterity, this is appended to final PR comment
     when: always
   variables:
-    SMP_VERSION: 0.19.3
+    SMP_VERSION: 0.20.2
   # See 'decision_record.md' for the determination of whether this job passes or fails.
   allow_failure: false
   script:
@@ -37,7 +37,7 @@ single-machine-performance-regression_detector:
     - mkdir outputs # Also needed for smp job sync step
     # Compute merge base of current commit and `main`
     - git fetch origin
-    - SMP_BASE_BRANCH=$(inv release.get-release-json-value base_branch)
+    - SMP_BASE_BRANCH=$(inv release.get-release-json-value base_branch --no-worktree)
     - echo "Looking for merge base for branch ${SMP_BASE_BRANCH}"
     - SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/${SMP_BASE_BRANCH})
     - echo "Merge base is ${SMP_MERGE_BASE}"
@@ -100,7 +100,7 @@ single-machine-performance-regression_detector:
     - echo "${BASELINE_SHA} | ${BASELINE_IMAGE}"
     - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-amd64
     - echo "${CI_COMMIT_SHA} | ${COMPARISON_IMAGE}"
-    - SMP_TAGS="ci_pipeline_id=${CI_PIPELINE_ID},ci_job_id=${CI_JOB_ID}"
+    - SMP_TAGS="ci_pipeline_id=${CI_PIPELINE_ID},ci_job_id=${CI_JOB_ID},ci_commit_branch=${CI_COMMIT_BRANCH}"
     - echo "Tags passed through SMP are ${SMP_TAGS}"
     - RUST_LOG="info,aws_config::profile::credentials=error"
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"

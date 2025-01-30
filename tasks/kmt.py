@@ -628,13 +628,13 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
         variables={"mode": "-m744"},
     )
 
-    verifier_files = glob("pkg/ebpf/verifier/**/*.go")
+    verifier_files = glob("pkg/ebpf/verifier/*")
     nw.build(
         rule="gobin",
         pool="gobuild",
-        inputs=["./pkg/ebpf/verifier/calculator/main.go"],
+        inputs=[os.path.abspath("./pkg/ebpf/verifier/calculator/main.go")],
         outputs=[os.fspath(kmt_paths.dependencies / "verifier-calculator")],
-        implicit=verifier_files,
+        implicit=[os.path.abspath(f) for f in verifier_files],
         variables={
             "go": go_path,
             "chdir": "true",
@@ -738,17 +738,18 @@ def prepare(
         )
 
     if ci:
-        domains = None
         stack = "ci"
         return _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only)
 
-    if alien_vms is not None:
-        err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
-    else:
-        err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
-    stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
-    domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
-    assert len(domains) > 0, err_msg
+    domains = None
+    if not compile_only:
+        if alien_vms is not None:
+            err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
+        else:
+            err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+        stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
+        domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
+        assert len(domains) > 0, err_msg
 
     _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only, domains=domains)
 
@@ -873,11 +874,10 @@ def build_run_config(run: str | None, packages: list[str]):
     c: dict[str, Any] = {}
 
     if len(packages) == 0:
-        return {"filters": {"*": {"exclude": False}}}
+        packages = ["*"]
 
     for p in packages:
-        if p[:2] == "./":
-            p = p[2:]
+        p = p.removeprefix("./")
         if run is not None:
             c["filters"] = {p: {"run-only": [run]}}
         else:
@@ -1201,15 +1201,9 @@ def test(
             info(f"[+] Preparing {component} for {arch}")
             _prepare(ctx, stack, component, arch, packages=packages, verbose=verbose, domains=domains)
 
-    if run is not None and packages is None:
-        raise Exit("Package must be provided when specifying test")
-
     pkgs = []
     if packages is not None:
         pkgs = [os.path.relpath(os.path.realpath(p)) for p in go_package_dirs(packages.split(","), [NPM_TAG, BPF_TAG])]
-
-    if run is not None and len(pkgs) > 1:
-        raise Exit("Only a single package can be specified when running specific tests")
 
     paths = KMTPaths(stack, Arch.local())  # Arch is not relevant to the test result paths, which is what we want now
     shutil.rmtree(paths.test_results, ignore_errors=True)  # Reset test-results folder
@@ -1372,7 +1366,7 @@ def clean(ctx: Context, stack: str | None = None, container=False, image=False):
         stack
     ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
 
-    ctx.run("rm -rf ./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg")
+    ctx.run("rm -rf ./test/new-e2e/tests/sysprobe-functional/artifacts/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
     ctx.run(f"rm {get_kmt_os().shared_dir}/*.tar.gz", warn=True)
 
@@ -2219,7 +2213,7 @@ def install_ddagent(
     assert len(domains) > 0, err_msg
 
     if version is not None:
-        check_version(version)
+        check_version(ctx, version)
     else:
         with open("release.json") as f:
             release = json.load(f)
@@ -2290,7 +2284,7 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, k
         _, test_jobs = get_all_jobs_for_pipeline(pipeline_id)
         for job in test_jobs:
             complexity_name = f"verifier-complexity-{job.arch}-{job.distro}-{job.component}"
-            complexity_data_fname = f"test/kitchen/{complexity_name}.tar.gz"
+            complexity_data_fname = f"test/new-e2e/tests/{complexity_name}.tar.gz"
             data = job.artifact_file_binary(complexity_data_fname, ignore_not_found=True)
             if data is None:
                 print(f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found")

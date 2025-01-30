@@ -24,6 +24,12 @@ const (
 	CGroupManagerSystemd                          // systemd
 )
 
+// CGroup flags
+const (
+	SystemdService CGroupFlags = (0 << 8)
+	SystemdScope   CGroupFlags = (1 << 8)
+)
+
 const (
 	// ContainerRuntimeDocker is used to specify that a container is managed by Docker
 	ContainerRuntimeDocker = "docker"

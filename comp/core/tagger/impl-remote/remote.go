@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package remotetaggerimpl implements a remote Tagger.
-package remotetaggerimpl
+// Package remoteimpl implements a remote Tagger.
+package remoteimpl
 
 import (
 	"context"
@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
@@ -35,6 +36,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -43,9 +45,13 @@ import (
 const (
 	noTimeout         = 0 * time.Minute
 	streamRecvTimeout = 10 * time.Minute
+	cacheExpiration   = 1 * time.Minute
 )
 
-var errTaggerStreamNotStarted = errors.New("tagger stream not started")
+var (
+	errTaggerStreamNotStarted                        = errors.New("tagger stream not started")
+	errTaggerFailedGenerateContainerIDFromOriginInfo = errors.New("tagger failed to generate container ID from origin info")
+)
 
 // Requires defines the dependencies for the remote tagger.
 type Requires struct {
@@ -75,6 +81,7 @@ type remoteTagger struct {
 	log log.Component
 
 	conn   *grpc.ClientConn
+	token  string
 	client pb.AgentSecureClient
 	stream pb.AgentSecure_TaggerStreamEntitiesClient
 
@@ -248,6 +255,93 @@ func (t *remoteTagger) LegacyTag(entity string, cardinality types.TagCardinality
 
 	entityID := types.NewEntityID(prefix, id)
 	return t.Tag(entityID, cardinality)
+}
+
+// GenerateContainerIDFromOriginInfo returns a container ID for the given Origin Info.
+func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
+	fail := true
+	defer func() {
+		if fail {
+			t.telemetryStore.OriginInfoRequests.Inc("failed")
+		} else {
+			t.telemetryStore.OriginInfoRequests.Inc("success")
+		}
+	}()
+
+	key := cache.BuildAgentKey(
+		"remoteTagger",
+		"originInfo",
+		origindetection.OriginInfoString(originInfo),
+	)
+
+	cachedContainerID, err := cache.GetWithExpiration(key, func() (containerID string, err error) {
+		containerID, err = t.queryContainerIDFromOriginInfo(originInfo)
+		return containerID, err
+	}, cacheExpiration)
+
+	if err != nil {
+		return "", err
+	}
+	fail = false
+	return cachedContainerID, nil
+}
+
+// queryContainerIDFromOriginInfo calls the local tagger to get the container ID from the Origin Info.
+func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (containerID string, err error) {
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 200 * time.Millisecond
+	expBackoff.MaxInterval = 1 * time.Second
+	expBackoff.MaxElapsedTime = 15 * time.Second
+
+	err = backoff.Retry(func() error {
+		select {
+		case <-t.ctx.Done():
+			return &backoff.PermanentError{Err: errTaggerFailedGenerateContainerIDFromOriginInfo}
+		default:
+		}
+
+		// Fetch the auth token
+		if t.token == "" {
+			var authError error
+			t.token, authError = t.options.TokenFetcher()
+			if authError != nil {
+				_ = t.log.Errorf("unable to fetch auth token, will possibly retry: %s", authError)
+				return authError
+			}
+		}
+
+		// Create the context with the auth token
+		queryCtx, queryCancel := context.WithCancel(
+			metadata.NewOutgoingContext(t.ctx, metadata.MD{
+				"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
+			}),
+		)
+		defer queryCancel()
+
+		// Call the gRPC method to get the container ID from the origin info
+		containerIDResponse, err := t.client.TaggerGenerateContainerIDFromOriginInfo(queryCtx, &pb.GenerateContainerIDFromOriginInfoRequest{
+			ExternalData: &pb.GenerateContainerIDFromOriginInfoRequest_ExternalData{
+				Init:          &originInfo.ExternalData.Init,
+				ContainerName: &originInfo.ExternalData.ContainerName,
+				PodUID:        &originInfo.ExternalData.PodUID,
+			},
+		})
+		if err != nil {
+			_ = t.log.Errorf("unable to generate container ID from origin info, will retry: %s", err)
+			return err
+		}
+
+		if containerIDResponse == nil {
+			_ = t.log.Warnf("unable to generate container ID from origin info, will retry: %s", err)
+			return errors.New("containerIDResponse is nil")
+		}
+		containerID = containerIDResponse.ContainerID
+
+		t.log.Debugf("Container ID generated successfully from origin info %+v: %s", originInfo, containerID)
+		return nil
+	}, expBackoff)
+
+	return containerID, err
 }
 
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.

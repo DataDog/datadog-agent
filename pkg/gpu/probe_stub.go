@@ -11,6 +11,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -21,6 +22,7 @@ type ProbeDependencies struct {
 	Telemetry      telemetry.Component
 	NvmlLib        nvml.Interface
 	ProcessMonitor any // uprobes.ProcessMonitor is only compiled with the linux_bpf build tag, so we need to use type any here
+	WorkloadMeta   workloadmeta.Component
 }
 
 // Probe is not implemented on non-linux systems

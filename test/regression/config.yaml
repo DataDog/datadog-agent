@@ -1,9 +1,7 @@
 lading:
-  version: 0.24.0
+  version: 0.25.4
 
 target:
-  cpu_allotment: 8
-  memory_allotment: 30g
 
 # Link templates for reports.
 #

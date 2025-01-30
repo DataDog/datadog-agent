@@ -24,21 +24,19 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
+	networkConfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -49,7 +47,7 @@ func TestMain(m *testing.M) {
 	if logLevel == "" {
 		logLevel = "warn"
 	}
-	log.SetupLogger(seelog.Default, logLevel)
+	log.SetupLogger(log.Default(), logLevel)
 	os.Exit(m.Run())
 }
 
@@ -103,11 +101,7 @@ func TestHTTP(t *testing.T) {
 	if kv < usmconfig.MinimumKernelVersion {
 		t.Skipf("USM is not supported on %v", kv)
 	}
-	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !prebuilt.IsDeprecated() {
-		modes = append(modes, ebpftest.Prebuilt)
-	}
-	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(HTTPTestSuite))
 	})
 }
@@ -122,7 +116,7 @@ func (s *HTTPTestSuite) TestHTTPStats() {
 	})
 	t.Cleanup(srvDoneFn)
 
-	monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
+	monitor := setupUSMTLSMonitor(t, getHTTPCfg(), useExistingConsumer)
 
 	resp, err := nethttp.Get(fmt.Sprintf("http://%s/%d/test", serverAddr, nethttp.StatusNoContent))
 	require.NoError(t, err)
@@ -154,7 +148,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	slowServerAddr := "localhost:8080"
 	fastServerAddr := "localhost:8081"
 
-	monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
+	monitor := setupUSMTLSMonitor(t, getHTTPCfg(), useExistingConsumer)
 	slowSrvDoneFn := testutil.HTTPServer(t, slowServerAddr, testutil.Options{
 		SlowResponse: time.Millisecond * 500, // Half a second.
 		WriteTimeout: time.Millisecond * 200,
@@ -229,7 +223,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
+			monitor := setupUSMTLSMonitor(t, getHTTPCfg(), useExistingConsumer)
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				EnableKeepAlive: true,
 			})
@@ -286,9 +280,10 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := utils.NewUSMEmptyConfig()
+			cfg.EnableHTTPMonitoring = true
 			cfg.HTTPMapCleanerInterval = time.Duration(tt.mapCleanerIntervalSeconds) * time.Second
 			cfg.HTTPIdleConnectionTTL = time.Duration(tt.httpIdleConnectionTTLSeconds) * time.Second
-			monitor := newHTTPMonitorWithCfg(t, cfg)
+			monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 
 			slowResponseTimeout := time.Duration(tt.slowResponseTime) * time.Second
 			serverTimeout := slowResponseTimeout + time.Second
@@ -352,7 +347,7 @@ func (s *HTTPTestSuite) TestSanity() {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, keepAliveEnabled := range []bool{true, false} {
 				t.Run(testNameHelper("with keep alive", "without keep alive", keepAliveEnabled), func(t *testing.T) {
-					monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
+					monitor := setupUSMTLSMonitor(t, getHTTPCfg(), useExistingConsumer)
 
 					srvDoneFn := testutil.HTTPServer(t, tt.serverAddress, testutil.Options{EnableKeepAlive: keepAliveEnabled})
 					t.Cleanup(srvDoneFn)
@@ -378,7 +373,7 @@ func (s *HTTPTestSuite) TestSanity() {
 func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	t := s.T()
 
-	monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
+	monitor := setupUSMTLSMonitor(t, getHTTPCfg(), useExistingConsumer)
 
 	serverAddr := "127.0.0.1:8080"
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
@@ -413,7 +408,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 	t := s.T()
 
-	monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
+	monitor := setupUSMTLSMonitor(t, getHTTPCfg(), useExistingConsumer)
 
 	const req = "GET /200/foobar HTTP/1.1\n"
 	const rsp = "HTTP/1.1 200 OK\n"
@@ -640,21 +635,10 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 	return occurrences
 }
 
-func newHTTPMonitorWithCfg(t *testing.T, cfg *config.Config) *Monitor {
+func getHTTPCfg() *networkConfig.Config {
+	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
-
-	monitor, err := NewMonitor(cfg, nil)
-	skipIfNotSupported(t, err)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		monitor.Stop()
-		libtelemetry.Clear()
-	})
-
-	// at this stage the test can be legitimately skipped due to missing BTF information
-	// in the context of CO-RE
-	require.NoError(t, monitor.Start())
-	return monitor
+	return cfg
 }
 
 func skipIfNotSupported(t *testing.T, err error) {

@@ -101,7 +101,7 @@ func TestTcpProcessorRtt(t *testing.T) {
 	// t=300 us, for a round trip of 100us
 	synack.timestampNs = 300 * 1000
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 
 	f.runPkt(syn)
 	// round trip has not completed yet
@@ -123,7 +123,7 @@ func TestTcpProcessorRttRetransmit(t *testing.T) {
 	// t=300 us, for a round trip of 100us
 	synack.timestampNs = 300 * 1000
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 
 	f.runPkt(syn)
 	// round trip has not completed yet

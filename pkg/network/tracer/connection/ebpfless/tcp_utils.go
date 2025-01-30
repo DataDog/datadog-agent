@@ -16,33 +16,74 @@ import (
 
 	"github.com/google/gopacket/layers"
 
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 const ebpflessModuleName = "ebpfless_network_tracer"
 
+// PCAPTuple represents a unique key for an ebpfless tracer connection.
+// It represents a network.ConnectionTuple with only the fields that are available
+// via packet capture: PID and Direction are zeroed out.
+type PCAPTuple network.ConnectionTuple
+
+func connDirectionFromPktType(pktType uint8) network.ConnectionDirection {
+	switch pktType {
+	case unix.PACKET_HOST:
+		return network.INCOMING
+	case unix.PACKET_OUTGOING:
+		return network.OUTGOING
+	default:
+		return network.UNKNOWN
+	}
+}
+
+// ProcessResult represents what the ebpfless tracer should do with ConnectionStats after processing a packet
+type ProcessResult uint8
+
+const (
+	// ProcessResultNone - the updated ConnectionStats should NOT be stored in the connection map.
+	// Usually, this is because the connection is not established yet.
+	ProcessResultNone ProcessResult = iota
+	// ProcessResultStoreConn - the updated ConnectionStats should be stored in the connection map.
+	// This happens when the connection is established.
+	ProcessResultStoreConn
+	// ProcessResultCloseConn - this connection is done and its ConnectionStats should be passed
+	// to the ebpfless tracer's closed connection handler.
+	ProcessResultCloseConn
+	// ProcessResultMapFull - this connection can't be tracked because the TCPProcessor's connection
+	// map is full. This connection should be removed from the tracer as well.
+	ProcessResultMapFull
+)
+
 var statsTelemetry = struct {
-	missedTCPConnections telemetry.Counter
-	missingTCPFlags      telemetry.Counter
-	tcpSynAndFin         telemetry.Counter
-	tcpRstAndSyn         telemetry.Counter
-	tcpRstAndFin         telemetry.Counter
+	expiredPendingConns     telemetry.Counter
+	droppedPendingConns     telemetry.Counter
+	droppedEstablishedConns telemetry.Counter
+	missedTCPHandshakes     telemetry.Counter
+	missingTCPFlags         telemetry.Counter
+	tcpSynAndFin            telemetry.Counter
+	tcpRstAndSyn            telemetry.Counter
+	tcpRstAndFin            telemetry.Counter
 }{
-	telemetry.NewCounter(ebpflessModuleName, "missed_tcp_connections", []string{}, "Counter measuring the number of TCP connections where we missed the SYN handshake"),
-	telemetry.NewCounter(ebpflessModuleName, "missing_tcp_flags", []string{}, "Counter measuring packets encountered with none of SYN, FIN, ACK, RST set"),
-	telemetry.NewCounter(ebpflessModuleName, "tcp_syn_and_fin", []string{}, "Counter measuring packets encountered with SYN+FIN together"),
-	telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_syn", []string{}, "Counter measuring packets encountered with RST+SYN together"),
-	telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_fin", []string{}, "Counter measuring packets encountered with RST+FIN together"),
+	expiredPendingConns:     telemetry.NewCounter(ebpflessModuleName, "expired_pending_conns", nil, "Counter measuring the number of TCP connections which expired because it took too long to complete the handshake"),
+	droppedPendingConns:     telemetry.NewCounter(ebpflessModuleName, "dropped_pending_conns", nil, "Counter measuring the number of TCP connections which were dropped during the handshake (because the map was full)"),
+	droppedEstablishedConns: telemetry.NewCounter(ebpflessModuleName, "dropped_established_conns", nil, "Counter measuring the number of TCP connections which were dropped while established (because the map was full)"),
+	missedTCPHandshakes:     telemetry.NewCounter(ebpflessModuleName, "missed_tcp_handshakes", nil, "Counter measuring the number of TCP connections where we missed the SYN handshake"),
+	missingTCPFlags:         telemetry.NewCounter(ebpflessModuleName, "missing_tcp_flags", nil, "Counter measuring packets encountered with none of SYN, FIN, ACK, RST set"),
+	tcpSynAndFin:            telemetry.NewCounter(ebpflessModuleName, "tcp_syn_and_fin", nil, "Counter measuring packets encountered with SYN+FIN together"),
+	tcpRstAndSyn:            telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_syn", nil, "Counter measuring packets encountered with RST+SYN together"),
+	tcpRstAndFin:            telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_fin", nil, "Counter measuring packets encountered with RST+FIN together"),
 }
 
 const tcpSeqMidpoint = 0x80000000
 
-type ConnStatus uint8 //nolint:revive // TODO
+type connStatus uint8
 
 const (
-	ConnStatClosed      ConnStatus = iota //nolint:revive // TODO
-	ConnStatAttempted                     //nolint:revive // TODO
-	ConnStatEstablished                   //nolint:revive // TODO
+	connStatClosed connStatus = iota
+	connStatAttempted
+	connStatEstablished
 )
 
 var connStatusLabels = []string{
@@ -51,32 +92,46 @@ var connStatusLabels = []string{
 	"Established",
 }
 
-type SynState uint8 //nolint:revive // TODO
+type synState uint8
 
 const (
-	SynStateNone  SynState = iota //nolint:revive // TODO
-	SynStateSent                  //nolint:revive // TODO
-	SynStateAcked                 //nolint:revive // TODO
+	// synStateNone - Nothing seen yet (initial state)
+	synStateNone synState = iota
+	// synStateSent - We have seen the SYN but not its ACK
+	synStateSent
+	// synStateAcked - SYN is ACK'd for this side of the connection.
+	// If both sides are synStateAcked, the connection is established.
+	synStateAcked
+	// synStateMissed is effectively the same as synStateAcked but represents
+	// capturing a preexisting connection where we didn't get to see the SYN.
+	synStateMissed
 )
 
-func (ss *SynState) update(synFlag, ackFlag bool) {
+func (ss *synState) update(synFlag, ackFlag bool) {
 	// for simplicity, this does not consider the sequence number of the SYNs and ACKs.
 	// if these matter in the future, change this to store SYN seq numbers
-	if *ss == SynStateNone && synFlag {
-		*ss = SynStateSent
+	if *ss == synStateNone && synFlag {
+		*ss = synStateSent
 	}
-	if *ss == SynStateSent && ackFlag {
-		*ss = SynStateAcked
+	if *ss == synStateSent && ackFlag {
+		*ss = synStateAcked
+	}
+
+	// this allows synStateMissed to recover via SYN in order to pass TestUnusualAckSyn
+	if *ss == synStateMissed && synFlag {
+		*ss = synStateAcked
 	}
 	// if we see ACK'd traffic but missed the SYN, assume the connection started before
 	// the datadog-agent starts.
-	if *ss == SynStateNone && ackFlag {
-		statsTelemetry.missedTCPConnections.Inc()
-		*ss = SynStateAcked
+	if *ss == synStateNone && ackFlag {
+		*ss = synStateMissed
 	}
 }
+func (ss *synState) isSynAcked() bool {
+	return *ss == synStateAcked || *ss == synStateMissed
+}
 
-func LabelForState(tcpState ConnStatus) string { //nolint:revive // TODO
+func labelForState(tcpState connStatus) string {
 	idx := int(tcpState)
 	if idx < len(connStatusLabels) {
 		return connStatusLabels[idx]
@@ -105,7 +160,7 @@ func debugPacketDir(pktType uint8) string {
 	}
 }
 
-func debugTcpFlags(tcp *layers.TCP) string { //nolint:revive // TODO
+func debugTCPFlags(tcp *layers.TCP) string {
 	var flags []string
 	if tcp.RST {
 		flags = append(flags, "RST")
@@ -123,5 +178,5 @@ func debugTcpFlags(tcp *layers.TCP) string { //nolint:revive // TODO
 }
 
 func debugPacketInfo(pktType uint8, tcp *layers.TCP, payloadLen uint16) string {
-	return fmt.Sprintf("pktType=%+v ports=(%+v, %+v) size=%d seq=%+v ack=%+v flags=%s", debugPacketDir(pktType), uint16(tcp.SrcPort), uint16(tcp.DstPort), payloadLen, tcp.Seq, tcp.Ack, debugTcpFlags(tcp))
+	return fmt.Sprintf("pktType=%+v ports=(%+v, %+v) size=%d seq=%+v ack=%+v flags=%s", debugPacketDir(pktType), uint16(tcp.SrcPort), uint16(tcp.DstPort), payloadLen, tcp.Seq, tcp.Ack, debugTCPFlags(tcp))
 }

@@ -14,8 +14,6 @@ import (
 	"io"
 	"math"
 
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
@@ -185,7 +183,7 @@ func getSymbolsUnified(f *safeelf.File, typ safeelf.SectionType, filter symbolFi
 		}
 
 		// Checking the symbol is relevant for us.
-		if !filter.want(string(symbolNameBuf[:symbolNameSize])) {
+		if !filter.want(symbolNameBuf[:symbolNameSize]) {
 			continue
 		}
 
@@ -222,7 +220,7 @@ func getSymbols(f *safeelf.File, typ safeelf.SectionType, filter symbolFilter) (
 // returned.
 func GetAllSymbolsByName(elfFile *safeelf.File, filter symbolFilter) (map[string]safeelf.Symbol, error) {
 	regularSymbols, regularSymbolsErr := getSymbols(elfFile, safeelf.SHT_SYMTAB, filter)
-	if regularSymbolsErr != nil && log.ShouldLog(seelog.TraceLvl) {
+	if regularSymbolsErr != nil && log.ShouldLog(log.TraceLvl) {
 		log.Tracef("Failed getting regular symbols of elf file: %s", regularSymbolsErr)
 	}
 
@@ -231,7 +229,7 @@ func GetAllSymbolsByName(elfFile *safeelf.File, filter symbolFilter) (map[string
 	numWanted := filter.getNumWanted()
 	if len(regularSymbols) != numWanted {
 		dynamicSymbols, dynamicSymbolsErr = getSymbols(elfFile, safeelf.SHT_DYNSYM, filter)
-		if dynamicSymbolsErr != nil && log.ShouldLog(seelog.TraceLvl) {
+		if dynamicSymbolsErr != nil && log.ShouldLog(log.TraceLvl) {
 			log.Tracef("Failed getting dynamic symbols of elf file: %s", dynamicSymbolsErr)
 		}
 	}

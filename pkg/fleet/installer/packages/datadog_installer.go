@@ -41,6 +41,17 @@ func addDDAgentGroup(ctx context.Context) error {
 	return exec.CommandContext(ctx, "groupadd", "--system", "dd-agent").Run()
 }
 
+// PrepareInstaller prepares the installer
+func PrepareInstaller(ctx context.Context) error {
+	if err := stopUnit(ctx, installerUnit); err != nil {
+		log.Warnf("Failed to stop unit %s: %s", installerUnit, err)
+	}
+	if err := disableUnit(ctx, installerUnit); err != nil {
+		log.Warnf("Failed to disable %s: %s", installerUnit, err)
+	}
+	return nil
+}
+
 // SetupInstaller installs and starts the installer systemd units
 func SetupInstaller(ctx context.Context) (err error) {
 	defer func() {
@@ -60,7 +71,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error adding dd-agent user to dd-agent group: %w", err)
 	}
-	ddAgentUID, ddAgentGID, err := GetAgentIDs()
+	ddAgentUID, ddAgentGID, err := getAgentIDs()
 	if err != nil {
 		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
 	}
@@ -140,14 +151,6 @@ func SetupInstaller(ctx context.Context) (err error) {
 		return fmt.Errorf("error creating %s: %w", systemdPath, err)
 	}
 
-	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the system probe
-	if os.Getenv("DD_REMOTE_UPDATES") != "true" {
-		if err = systemdReload(ctx); err != nil {
-			return err
-		}
-		return nil
-	}
-
 	for _, unit := range installerUnits {
 		if err = loadUnit(ctx, unit); err != nil {
 			return err
@@ -165,8 +168,8 @@ func SetupInstaller(ctx context.Context) (err error) {
 	return startInstallerStable(ctx)
 }
 
-// GetAgentIDs returns the UID and GID of the dd-agent user and group.
-func GetAgentIDs() (uid, gid int, err error) {
+// getAgentIDs returns the UID and GID of the dd-agent user and group.
+func getAgentIDs() (uid, gid int, err error) {
 	ddAgentUser, err := user.Lookup("dd-agent")
 	if err != nil {
 		return -1, -1, fmt.Errorf("dd-agent user not found: %w", err)

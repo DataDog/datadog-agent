@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
+	"github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -83,13 +84,13 @@ func (c *collector) Pull(ctx context.Context) error {
 		return err
 	}
 
-	events := c.parsePods(updatedPods)
+	events := parsePods(updatedPods)
 
 	if time.Since(c.lastExpire) >= c.expireFreq {
 		var expiredIDs []string
 		expiredIDs, err = c.watcher.Expire()
 		if err == nil {
-			events = append(events, c.parseExpires(expiredIDs)...)
+			events = append(events, parseExpires(expiredIDs)...)
 			c.lastExpire = time.Now()
 		}
 	}
@@ -107,7 +108,7 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
+func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 	events := []workloadmeta.CollectorEvent{}
 
 	for _, pod := range pods {
@@ -131,14 +132,14 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			ID:   podMeta.UID,
 		}
 
-		podInitContainers, initContainerEvents := c.parsePodContainers(
+		podInitContainers, initContainerEvents := parsePodContainers(
 			pod,
 			pod.Spec.InitContainers,
 			pod.Status.InitContainers,
 			&podID,
 		)
 
-		podContainers, containerEvents := c.parsePodContainers(
+		podContainers, containerEvents := parsePodContainers(
 			pod,
 			pod.Spec.Containers,
 			pod.Status.Containers,
@@ -194,7 +195,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 	return events
 }
 
-func (c *collector) parsePodContainers(
+func parsePodContainers(
 	pod *kubelet.Pod,
 	containerSpecs []kubelet.ContainerSpec,
 	containerStatuses []kubelet.ContainerStatus,
@@ -427,21 +428,6 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	return env
 }
 
-func extractGPUVendor(gpuNamePrefix kubelet.ResourceName) string {
-	gpuVendor := ""
-	switch gpuNamePrefix {
-	case kubelet.ResourcePrefixNvidiaMIG, kubelet.ResourceGenericNvidiaGPU:
-		gpuVendor = "nvidia"
-	case kubelet.ResourcePrefixAMDGPU:
-		gpuVendor = "amd"
-	case kubelet.ResourcePrefixIntelGPU:
-		gpuVendor = "intel"
-	default:
-		gpuVendor = string(gpuNamePrefix)
-	}
-	return gpuVendor
-}
-
 func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
 	resources := workloadmeta.ContainerResources{}
 	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
@@ -453,24 +439,14 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 	}
 
 	// extract GPU resource info from the possible GPU sources
-	uniqueGPUVendor := make(map[string]bool)
-
-	resourceKeys := make([]kubelet.ResourceName, 0, len(spec.Resources.Requests))
+	uniqueGPUVendor := make(map[string]struct{})
 	for resourceName := range spec.Resources.Requests {
-		resourceKeys = append(resourceKeys, resourceName)
-	}
-
-	for _, gpuResourceName := range kubelet.GetGPUResourceNames() {
-		for _, resourceKey := range resourceKeys {
-			if strings.HasPrefix(string(resourceKey), string(gpuResourceName)) {
-				if gpuReq, found := spec.Resources.Requests[resourceKey]; found {
-					resources.GPURequest = pointer.Ptr(uint64(gpuReq.Value()))
-					uniqueGPUVendor[extractGPUVendor(gpuResourceName)] = true
-					break
-				}
-			}
+		gpuName, found := gpu.ExtractSimpleGPUName(gpu.ResourceGPU(resourceName))
+		if found {
+			uniqueGPUVendor[gpuName] = struct{}{}
 		}
 	}
+
 	gpuVendorList := make([]string, 0, len(uniqueGPUVendor))
 	for GPUVendor := range uniqueGPUVendor {
 		gpuVendorList = append(gpuVendorList, GPUVendor)
@@ -490,7 +466,7 @@ func findContainerSpec(name string, specs []kubelet.ContainerSpec) *kubelet.Cont
 	return nil
 }
 
-func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
+func parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
 	events := make([]workloadmeta.CollectorEvent, 0, len(expiredIDs))
 	podTerminatedTime := time.Now()
 

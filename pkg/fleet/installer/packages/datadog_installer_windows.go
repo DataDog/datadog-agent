@@ -10,78 +10,80 @@ package packages
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 )
 
 const (
 	datadogInstaller = "datadog-installer"
 )
 
+// PrepareInstaller prepares the installer
+func PrepareInstaller(_ context.Context) error {
+	return nil
+}
+
 // SetupInstaller installs and starts the installer
-func SetupInstaller(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "setup_installer")
-	defer func() {
-		if err != nil {
-			log.Errorf("Failed to setup installer: %s", err)
-		}
-		span.Finish(tracer.WithError(err))
-	}()
-	cmd, err := msiexec("stable", datadogInstaller, "/i", nil)
-	if err == nil {
-		// This is the first time that we are installing the installer,
-		// so we can run it synchronously.
-		err = cmd.Run()
+func SetupInstaller(_ context.Context) error {
+	rootPath := ""
+	_, err := os.Stat(paths.RootTmpDir)
+	// If bootstrap has not been called before, `paths.RootTmpDir` might not exist
+	if os.IsExist(err) {
+		rootPath = paths.RootTmpDir
 	}
-	return err
+	tempDir, err := os.MkdirTemp(rootPath, "datadog-installer")
+	if err != nil {
+		return err
+	}
+
+	cmd, err := msi.Cmd(msi.Install(), msi.WithMsiFromPackagePath("stable", datadogInstaller), msi.WithLogFile(path.Join(tempDir, "setup_installer.log")))
+	if err != nil {
+		return fmt.Errorf("failed to setup installer: %w", err)
+	}
+	output, err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to setup installer: %w\n%s", err, string(output))
+	}
+	return nil
 }
 
 // RemoveInstaller removes the installer
-func RemoveInstaller(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "remove_installer")
-	defer func() {
-		if err != nil {
-			log.Errorf("Failed to remove installer: %s", err)
-		}
-		span.Finish(tracer.WithError(err))
-	}()
-	err = removeProduct("Datadog Installer")
-	return err
+func RemoveInstaller(_ context.Context) error {
+	return msi.RemoveProduct("Datadog Installer")
 }
 
 // StartInstallerExperiment starts the installer experiment
-func StartInstallerExperiment(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "start_installer_experiment")
-	defer func() {
-		if err != nil {
-			log.Errorf("Failed to start installer experiment: %s", err)
-		}
-		span.Finish(tracer.WithError(err))
-	}()
-	cmd, err := msiexec("experiment", datadogInstaller, "/i", nil)
-	if err == nil {
-		// Launch the msiexec process asynchronously.
-		err = cmd.Start()
+func StartInstallerExperiment(_ context.Context) error {
+	tempDir, err := os.MkdirTemp(paths.RootTmpDir, "datadog-installer")
+	if err != nil {
+		return err
 	}
-	return err
+
+	cmd, err := msi.Cmd(msi.Install(), msi.WithMsiFromPackagePath("experiment", datadogInstaller), msi.WithLogFile(path.Join(tempDir, "start_installer_experiment.log")))
+	if err != nil {
+		return fmt.Errorf("failed to start installer experiment: %w", err)
+	}
+	// Launch the msiexec process asynchronously.
+	return cmd.FireAndForget()
 }
 
 // StopInstallerExperiment stops the installer experiment
-func StopInstallerExperiment(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "stop_installer_experiment")
-	defer func() {
-		if err != nil {
-			log.Errorf("Failed to stop installer experiment: %s", err)
-		}
-		span.Finish(tracer.WithError(err))
-	}()
-	cmd, err := msiexec("stable", datadogInstaller, "/i", nil)
-	if err == nil {
-		// Launch the msiexec process asynchronously.
-		err = cmd.Start()
+func StopInstallerExperiment(_ context.Context) error {
+	tempDir, err := os.MkdirTemp(paths.RootTmpDir, "datadog-installer")
+	if err != nil {
+		return err
 	}
-	return err
+
+	cmd, err := msi.Cmd(msi.Install(), msi.WithMsiFromPackagePath("stable", datadogInstaller), msi.WithLogFile(path.Join(tempDir, "stop_installer_experiment.log")))
+	if err != nil {
+		return fmt.Errorf("failed to stop installer experiment: %w", err)
+	}
+	// Launch the msiexec process asynchronously.
+	return cmd.FireAndForget()
 }
 
 // PromoteInstallerExperiment promotes the installer experiment

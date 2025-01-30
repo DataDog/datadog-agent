@@ -1,10 +1,9 @@
 Param(
     [Parameter(Mandatory=$true)]
     [string] $package,
-    [string] $version
+    [string] $version,
+    [string] $omnibusOutput = "$(Get-Location)\omnibus\pkg\"
 )
-
-$omnibusOutput = "$($Env:REPO_ROOT)\omnibus\pkg\"
 
 if (-not (Test-Path C:\tools\datadog-package.exe)) {
     Write-Host "Downloading datadog-package.exe"
@@ -26,10 +25,14 @@ if (Test-Path $omnibusOutput\$packageName) {
 
 # datadog-package takes a folder as input and will package everything in that, so copy the msi to its own folder
 Remove-Item -Recurse -Force C:\oci-pkg -ErrorAction SilentlyContinue
-New-Item -ItemType Directory C:\oci-pkg
+New-Item -ItemType Directory C:\oci-pkg | Out-Null
 Copy-Item (Get-ChildItem $omnibusOutput\${package}-${version}-x86_64.msi).FullName -Destination C:\oci-pkg\${package}-${version}-x86_64.msi
 
 # The argument --archive-path ".\omnibus\pkg\datadog-agent-${version}.tar.gz" is currently broken and has no effects
 & C:\tools\datadog-package.exe create --package $package --os windows --arch amd64 --archive --version $version C:\oci-pkg
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to create OCI package"
+    exit 1
+}
 
 Move-Item ${package}-${version}-windows-amd64.tar $omnibusOutput\$packageName

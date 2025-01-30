@@ -38,6 +38,8 @@ type Config struct {
 type ConfigParams struct {
 	AWS       AWS    `yaml:"aws"`
 	Azure     Azure  `yaml:"azure"`
+	GCP       GCP    `yaml:"gcp"`
+	Local     Local  `yaml:"local"`
 	Agent     Agent  `yaml:"agent"`
 	OutputDir string `yaml:"outputDir"`
 	Pulumi    Pulumi `yaml:"pulumi"`
@@ -60,6 +62,19 @@ type Azure struct {
 	PublicKeyPath      string `yaml:"publicKeyPath"`
 	PrivateKeyPath     string `yaml:"privateKeyPath"`
 	PrivateKeyPassword string `yaml:"privateKeyPassword"`
+}
+
+// GCP instance contains GCP related parameters
+type GCP struct {
+	Account            string `yaml:"account"`
+	PublicKeyPath      string `yaml:"publicKeyPath"`
+	PrivateKeyPath     string `yaml:"privateKeyPath"`
+	PrivateKeyPassword string `yaml:"privateKeyPassword"`
+}
+
+// Local instance contains local related parameters
+type Local struct {
+	PublicKeyPath string `yaml:"publicKeyPath"`
 }
 
 // Agent instance contains agent related parameters
@@ -135,12 +150,26 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		value = s.config.ConfigParams.Agent.APPKey
 	case KeyPairName:
 		value = s.config.ConfigParams.AWS.KeyPairName
-	case PublicKeyPath:
+	case AWSPublicKeyPath:
 		value = s.config.ConfigParams.AWS.PublicKeyPath
-	case PrivateKeyPath:
+	case AWSPrivateKeyPath:
 		value = s.config.ConfigParams.AWS.PrivateKeyPath
-	case PrivateKeyPassword:
+	case AWSPrivateKeyPassword:
 		value = s.config.ConfigParams.AWS.PrivateKeyPassword
+	case AzurePrivateKeyPassword:
+		value = s.config.ConfigParams.Azure.PrivateKeyPassword
+	case AzurePrivateKeyPath:
+		value = s.config.ConfigParams.Azure.PrivateKeyPath
+	case AzurePublicKeyPath:
+		value = s.config.ConfigParams.Azure.PublicKeyPath
+	case GCPPrivateKeyPassword:
+		value = s.config.ConfigParams.GCP.PrivateKeyPassword
+	case GCPPrivateKeyPath:
+		value = s.config.ConfigParams.GCP.PrivateKeyPath
+	case GCPPublicKeyPath:
+		value = s.config.ConfigParams.GCP.PublicKeyPath
+	case LocalPublicKeyPath:
+		value = s.config.ConfigParams.Local.PublicKeyPath
 	case StackParameters:
 		value = s.stackParamsJSON
 	case ExtraResourcesTags:

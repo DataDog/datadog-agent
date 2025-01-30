@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 import unittest
 from collections import OrderedDict
@@ -7,10 +8,11 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
-from invoke import MockContext, Result
+from invoke import Context, MockContext, Result
 from invoke.exceptions import Exit
 
 from tasks import release
+from tasks.libs.common.gomodules import GoModule
 from tasks.libs.releasing.documentation import nightly_entry_for, parse_table, release_entry_for
 from tasks.libs.releasing.json import (
     COMPATIBLE_MAJOR_VERSIONS,
@@ -634,7 +636,7 @@ class TestGenerateRepoData(unittest.TestCase):
     def test_integrations_core_only_main(self):
         next_version = MagicMock()
         next_version.branch.return_value = "9.1.x"
-        repo_data = generate_repo_data(True, next_version, "main")
+        repo_data = generate_repo_data(Context(), True, next_version, "main")
         self.assertEqual(len(repo_data), 1)
         self.assertEqual("9.1.x", repo_data["integrations-core"]["branch"])
         self.assertEqual("9.1.1-rc.0", repo_data["integrations-core"]["previous_tag"])
@@ -645,7 +647,7 @@ class TestGenerateRepoData(unittest.TestCase):
     def test_integrations_core_only_release(self):
         next_version = MagicMock()
         next_version.branch.return_value = "9.1.x"
-        repo_data = generate_repo_data(True, next_version, "9.1.x")
+        repo_data = generate_repo_data(Context(), True, next_version, "9.1.x")
         self.assertEqual(len(repo_data), 1)
         self.assertEqual("9.1.x", repo_data["integrations-core"]["branch"])
         self.assertEqual("9.1.1-rc.0", repo_data["integrations-core"]["previous_tag"])
@@ -664,7 +666,7 @@ class TestGenerateRepoData(unittest.TestCase):
     def test_all_repos_default_branch(self):
         next_version = MagicMock()
         next_version.branch.return_value = "9.1.x"
-        repo_data = generate_repo_data(False, next_version, "main")
+        repo_data = generate_repo_data(Context(), False, next_version, "main")
         self.assertEqual(len(repo_data), 5)
         self.assertEqual("9.1.x", repo_data["integrations-core"]["branch"])
         self.assertEqual("9.1.1-rc.0", repo_data["integrations-core"]["previous_tag"])
@@ -691,7 +693,7 @@ class TestGenerateRepoData(unittest.TestCase):
     def test_all_repos_release(self):
         next_version = MagicMock()
         next_version.branch.return_value = "9.1.x"
-        repo_data = generate_repo_data(False, next_version, "9.1.x")
+        repo_data = generate_repo_data(Context(), False, next_version, "9.1.x")
         self.assertEqual(len(repo_data), 5)
         self.assertEqual("9.1.x", repo_data["integrations-core"]["branch"])
         self.assertEqual("9.1.x", repo_data["omnibus-software"]["branch"])
@@ -701,6 +703,7 @@ class TestGenerateRepoData(unittest.TestCase):
 
 
 class TestCheckForChanges(unittest.TestCase):
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -715,7 +718,7 @@ class TestCheckForChanges(unittest.TestCase):
             }
         ),
     )
-    def test_no_changes(self, version_mock, print_mock):
+    def test_no_changes(self, version_mock, print_mock, _):
         next = MagicMock()
         next.tag_pattern.return_value = "7.55.0*"
         next.__str__.return_value = "7.55.0-rc.2"
@@ -757,6 +760,7 @@ class TestCheckForChanges(unittest.TestCase):
         release.check_for_changes(c, "main")
         print_mock.assert_called_with("false")
 
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -772,7 +776,7 @@ class TestCheckForChanges(unittest.TestCase):
         ),
     )
     @patch('os.chdir', new=MagicMock())
-    def test_changes_new_commit_first_repo(self, version_mock, print_mock):
+    def test_changes_new_commit_first_repo(self, version_mock, print_mock, _):
         with mock_git_clone():
             next = MagicMock()
             next.tag_pattern.return_value = "7.55.0*"
@@ -835,6 +839,7 @@ class TestCheckForChanges(unittest.TestCase):
             print_mock.assert_has_calls(calls)
             self.assertEqual(print_mock.call_count, 3)
 
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -850,7 +855,7 @@ class TestCheckForChanges(unittest.TestCase):
         ),
     )
     @patch('os.chdir', new=MagicMock())
-    def test_changes_new_commit_all_repo(self, version_mock, print_mock):
+    def test_changes_new_commit_all_repo(self, version_mock, print_mock, _):
         with mock_git_clone():
             next = MagicMock()
             next.tag_pattern.return_value = "7.55.0*"
@@ -919,6 +924,7 @@ class TestCheckForChanges(unittest.TestCase):
             print_mock.assert_has_calls(calls)
             self.assertEqual(print_mock.call_count, 9)
 
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -933,7 +939,7 @@ class TestCheckForChanges(unittest.TestCase):
             }
         ),
     )
-    def test_changes_new_release_one_repo(self, version_mock, print_mock):
+    def test_changes_new_release_one_repo(self, version_mock, print_mock, _):
         next = MagicMock()
         next.tag_pattern.return_value = "7.55.0*"
         next.__str__.return_value = "7.55.0-rc.2"
@@ -983,6 +989,7 @@ class TestCheckForChanges(unittest.TestCase):
         print_mock.assert_has_calls(calls, any_order=True)
         self.assertEqual(print_mock.call_count, 2)
 
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -998,7 +1005,7 @@ class TestCheckForChanges(unittest.TestCase):
         ),
     )
     @patch('os.chdir', new=MagicMock())
-    def test_changes_new_commit_second_repo_branch_out(self, version_mock, print_mock):
+    def test_changes_new_commit_second_repo_branch_out(self, version_mock, print_mock, _):
         with mock_git_clone():
             next = MagicMock()
             next.tag_pattern.return_value = "7.55.0*"
@@ -1062,6 +1069,7 @@ class TestCheckForChanges(unittest.TestCase):
             self.assertEqual(print_mock.call_count, 3)
 
     # def test_no_changes_warning(self, print_mock):
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -1072,7 +1080,7 @@ class TestCheckForChanges(unittest.TestCase):
             }
         ),
     )
-    def test_no_changes_warning(self, version_mock, print_mock):
+    def test_no_changes_warning(self, version_mock, print_mock, _):
         next = MagicMock()
         next.tag_pattern.return_value = "7.55.0*"
         next.__str__.return_value = "7.55.0-rc.2"
@@ -1090,6 +1098,7 @@ class TestCheckForChanges(unittest.TestCase):
         release.check_for_changes(c, "main", True)
         print_mock.assert_called_with("false")
 
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -1102,7 +1111,7 @@ class TestCheckForChanges(unittest.TestCase):
     )
     @patch('tasks.release.release_manager', new=MagicMock(return_value="release_manager"))
     @patch('tasks.release.warn_new_commits', new=MagicMock())
-    def test_changes_other_repo_warning(self, version_mock, print_mock):
+    def test_changes_other_repo_warning(self, version_mock, print_mock, _):
         next = MagicMock()
         next.tag_pattern.return_value = "7.55.0*"
         next.__str__.return_value = "7.55.0-rc.2"
@@ -1120,6 +1129,7 @@ class TestCheckForChanges(unittest.TestCase):
         release.check_for_changes(c, "main", True)
         print_mock.assert_called_with("false")
 
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -1132,7 +1142,7 @@ class TestCheckForChanges(unittest.TestCase):
     )
     @patch('tasks.release.release_manager', new=MagicMock(return_value="release_manager"))
     @patch('tasks.release.warn_new_commits', new=MagicMock())
-    def test_changes_integrations_core_warning(self, version_mock, print_mock):
+    def test_changes_integrations_core_warning(self, version_mock, print_mock, _):
         next = MagicMock()
         next.tag_pattern.return_value = "7.55.0*"
         next.__str__.return_value = "7.55.0-rc.2"
@@ -1155,6 +1165,7 @@ class TestCheckForChanges(unittest.TestCase):
         print_mock.assert_has_calls(calls)
         self.assertEqual(print_mock.call_count, 2)
 
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -1167,7 +1178,7 @@ class TestCheckForChanges(unittest.TestCase):
     )
     @patch('tasks.release.release_manager', new=MagicMock(return_value="release_manager"))
     @patch('tasks.release.warn_new_commits', new=MagicMock())
-    def test_changes_integrations_core_warning_branch_out(self, version_mock, print_mock):
+    def test_changes_integrations_core_warning_branch_out(self, version_mock, print_mock, _):
         next = MagicMock()
         next.tag_pattern.return_value = "7.55.0*"
         next.__str__.return_value = "7.55.0-rc.2"
@@ -1189,3 +1200,96 @@ class TestCheckForChanges(unittest.TestCase):
         ]
         print_mock.assert_has_calls(calls)
         self.assertEqual(print_mock.call_count, 2)
+
+
+class TestUpdateModules(unittest.TestCase):
+    @patch('tasks.release.agent_context', new=MagicMock())
+    def test_update_module_no_run_for_optional_in_agent_6(self):
+        c = MockContext(run=Result("yolo"))
+        new_e2e = GoModule('test/new-e2e')
+        new_e2e._dependencies = ['pkg/util/optional', 'pkg/utils/pointer']
+        optional = GoModule('pkg/util/optional')
+        optional._dependencies = []
+        pointer = GoModule('pkg/utils/pointer')
+        pointer._dependencies = []
+        with patch('tasks.release.get_default_modules') as mock_modules:
+            mock_dict = MagicMock()
+            mock_dict.values.return_value = [new_e2e]
+            mock_dict.__getitem__.side_effect = [new_e2e, optional, pointer]
+            mock_modules.return_value = mock_dict
+            release.update_modules(c, version="6.53.1337")
+        edit_optional = re.compile(r"pkg/util/optional.*test/new-e2e")
+        self.assertFalse(any(edit_optional.search(call[0][0]) for call in c.run.call_args_list))
+        self.assertEqual(c.run.call_count, 1)
+
+    @patch('tasks.release.agent_context', new=MagicMock())
+    def test_update_module_optional_in_agent_7(self):
+        c = MockContext(run=Result("yolo"))
+        new_e2e = GoModule('test/new-e2e')
+        new_e2e._dependencies = ['pkg/util/optional', 'pkg/utils/pointer']
+        optional = GoModule('pkg/util/optional')
+        optional._dependencies = []
+        pointer = GoModule('pkg/utils/pointer')
+        pointer._dependencies = []
+        with patch('tasks.release.get_default_modules') as mock_modules:
+            mock_dict = MagicMock()
+            mock_dict.values.return_value = [new_e2e]
+            mock_dict.__getitem__.side_effect = [new_e2e, optional, pointer]
+            mock_modules.return_value = mock_dict
+            release.update_modules(c, version="7.53.1337")
+        edit_optional = re.compile(r"pkg/util/optional.*test/new-e2e")
+        self.assertTrue(any(edit_optional.search(call[0][0]) for call in c.run.call_args_list))
+        self.assertEqual(c.run.call_count, 2)
+
+
+class TestTagModules(unittest.TestCase):
+    @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(2)]))
+    @patch('tasks.release.agent_context', new=MagicMock())
+    def test_2_tags(self):
+        c = MockContext(run=Result("yolo"))
+        with patch('tasks.release.get_default_modules') as mock_modules:
+            mock_dict = MagicMock()
+            mock_dict.values.return_value = 2 * [GoModule('pkg/one')]
+            mock_modules.return_value = mock_dict
+            release.tag_modules(c, version="version")
+        self.assertEqual(c.run.call_count, 1)
+        c.run.assert_called_with("git push origin 0 1")
+
+    @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(3)]))
+    @patch('tasks.release.agent_context', new=MagicMock())
+    def test_3_tags(self):
+        c = MockContext(run=Result("yolo"))
+        with patch('tasks.release.get_default_modules') as mock_modules:
+            mock_dict = MagicMock()
+            mock_dict.values.return_value = 3 * [GoModule('pkg/one')]
+            mock_modules.return_value = mock_dict
+            release.tag_modules(c, version="version")
+        self.assertEqual(c.run.call_count, 1)
+        c.run.assert_called_with("git push origin 0 1 2")
+
+    @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(4)]))
+    @patch('tasks.release.agent_context', new=MagicMock())
+    def test_4_tags(self):
+        c = MockContext(run=Result("yolo"))
+        with patch('tasks.release.get_default_modules') as mock_modules:
+            mock_dict = MagicMock()
+            mock_dict.values.return_value = 4 * [GoModule('pkg/one')]
+            mock_modules.return_value = mock_dict
+            release.tag_modules(c, version="version")
+        self.assertEqual(c.run.call_count, 2)
+        calls = [
+            call("git push origin 0 1 2"),
+            call("git push origin 3"),
+        ]
+        c.run.assert_has_calls(calls)
+
+    @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(100)]))
+    @patch('tasks.release.agent_context', new=MagicMock())
+    def test_100_tags(self):
+        c = MockContext(run=Result("yolo"))
+        with patch('tasks.release.get_default_modules') as mock_modules:
+            mock_dict = MagicMock()
+            mock_dict.values.return_value = 100 * [GoModule('pkg/one')]
+            mock_modules.return_value = mock_dict
+            release.tag_modules(c, version="version")
+        self.assertEqual(c.run.call_count, 34)

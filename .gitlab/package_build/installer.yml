@@ -101,9 +101,14 @@ installer-install-scripts:
     RELEASE_VERSION: "$RELEASE_VERSION_7"
   script:
     - !reference [.retrieve_linux_go_deps]
-    - echo "About to build for $RELEASE_VERSION"
+    - VERSION="$(inv agent.version --url-safe)-1" || exit $?
+    - echo "About to build for $VERSION"
     - mkdir -p $OMNIBUS_PACKAGE_DIR
-    - inv -e installer.build-linux-script && mv ./bin/installer/setup.sh $OMNIBUS_PACKAGE_DIR/install-djm.sh
+    - inv -e installer.build-linux-script "default" "$VERSION"
+    - inv -e installer.build-linux-script "databricks" "$VERSION"
+    - inv -e installer.build-linux-script "emr" "$VERSION"
+    - inv -e installer.build-linux-script "dataproc" "$VERSION"
+    - mv ./bin/installer/install*.sh $OMNIBUS_PACKAGE_DIR/
     - ls -la $OMNIBUS_PACKAGE_DIR
   artifacts:
     expire_in: 2 weeks
@@ -191,7 +196,7 @@ installer-arm64-oci:
 
 windows-installer-amd64:
   stage: package_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  extends: .windows_docker_default
   needs: ["go_mod_tidy_check", "go_deps"]
   rules:
     - !reference [.except_mergequeue]
@@ -219,8 +224,8 @@ windows-installer-amd64:
       -e S3_OMNIBUS_CACHE_BUCKET="$S3_OMNIBUS_CACHE_BUCKET"
       -e USE_S3_CACHING="$USE_S3_CACHING"
       -e API_KEY_ORG2=${API_KEY_ORG2}
-      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
-      c:\mnt\tasks\winbuildscripts\buildinstaller.bat
+      ${WINBUILDIMAGE}
+      powershell -C "c:\mnt\tasks\winbuildscripts\Build-InstallerPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
   after_script:
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
   artifacts:

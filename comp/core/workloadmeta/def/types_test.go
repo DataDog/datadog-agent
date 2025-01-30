@@ -149,3 +149,36 @@ func TestMergeECSContainer(t *testing.T) {
 	assert.Nil(t, container2.ECSContainer)
 	assert.EqualValues(t, container1.ECSContainer.DisplayName, "ecs-container-1")
 }
+
+func TestMergeGPU(t *testing.T) {
+	gpu1 := GPU{
+		EntityID: EntityID{
+			Kind: KindGPU,
+			ID:   "gpu-1-id",
+		},
+		EntityMeta: EntityMeta{
+			Name: "gpu-1",
+		},
+		Vendor:     "nvidia",
+		Device:     "",
+		ActivePIDs: []int{123, 456},
+	}
+	gpu2 := GPU{
+		EntityID: EntityID{
+			Kind: KindGPU,
+			ID:   "gpu-1-id",
+		},
+		EntityMeta: EntityMeta{
+			Name: "gpu-1",
+		},
+		Vendor:     "nvidia",
+		Device:     "tesla",
+		ActivePIDs: []int{654},
+	}
+
+	err := gpu1.Merge(&gpu2)
+	assert.NoError(t, err)
+	assert.Equal(t, gpu1.Device, "tesla")
+	assert.ElementsMatch(t, gpu1.ActivePIDs, []int{654})
+	assert.Equal(t, gpu1.Vendor, "nvidia")
+}

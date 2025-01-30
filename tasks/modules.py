@@ -45,7 +45,7 @@ def generate_dummy_package(ctx, folder):
     try:
         import_paths = []
         for mod in get_default_modules().values():
-            if mod.path != "." and mod.should_test() and mod.importable:
+            if mod.path != "." and mod.should_test():
                 import_paths.append(mod.import_path)
 
         os.mkdir(folder)

@@ -10,7 +10,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 
 	"github.com/DataDog/test-infra-definitions/components/os"
@@ -46,7 +47,7 @@ type vmSuiteWithUserData struct {
 
 type vmTestCase struct {
 	testName    string
-	provisioner e2e.Provisioner
+	provisioner provisioners.Provisioner
 	suite       e2e.Suite[environments.Host]
 }
 

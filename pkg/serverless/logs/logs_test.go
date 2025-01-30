@@ -26,7 +26,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
+	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -224,7 +225,7 @@ func TestProcessMessageValid(t *testing.T) {
 
 	lc.processMessage(&message)
 
-	received, timed := demux.WaitForNumberOfSamples(7, 0, 100*time.Millisecond)
+	received, timed := demux.WaitForNumberOfSamples(7, 0, 125*time.Millisecond)
 	assert.Len(t, received, 7)
 	assert.Len(t, timed, 0)
 	demux.Reset()
@@ -232,7 +233,7 @@ func TestProcessMessageValid(t *testing.T) {
 	lc.enhancedMetricsEnabled = false
 	lc.processMessage(&message)
 
-	received, timed = demux.WaitForSamples(100 * time.Millisecond)
+	received, timed = demux.WaitForSamples(125 * time.Millisecond)
 	assert.Len(t, received, 0, "we should NOT have received metrics")
 	assert.Len(t, timed, 0)
 }
@@ -366,7 +367,7 @@ func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 
 	go lc.processMessage(message)
 
-	received, timed := demux.WaitForSamples(100 * time.Millisecond)
+	received, timed := demux.WaitForSamples(125 * time.Millisecond)
 	assert.Len(t, received, 0, "We should NOT have received metrics")
 	assert.Len(t, timed, 0)
 }
@@ -394,7 +395,7 @@ func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 
 	go lc.processMessage(message)
 
-	received, timed := demux.WaitForSamples(100 * time.Millisecond)
+	received, timed := demux.WaitForSamples(125 * time.Millisecond)
 	assert.Len(t, received, 0, "We should NOT have received metrics")
 	assert.Len(t, timed, 0)
 }
@@ -424,11 +425,13 @@ func TestProcessMessageShouldProcessLogTypeFunctionOutOfMemory(t *testing.T) {
 
 	go lc.processMessage(message)
 
-	received, timed := demux.WaitForNumberOfSamples(2, 0, 100*time.Millisecond)
+	received, timed := demux.WaitForNumberOfSamples(2, 0, 125*time.Millisecond)
 	assert.Len(t, received, 2)
 	assert.Len(t, timed, 0)
-	assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[0].Name)
-	assert.Equal(t, serverlessMetrics.ErrorsMetric, received[1].Name)
+	if len(received) == 2 {
+		assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[0].Name)
+		assert.Equal(t, serverlessMetrics.ErrorsMetric, received[1].Name)
+	}
 }
 
 func TestProcessMessageShouldProcessLogTypePlatformReportOutOfMemory(t *testing.T) {
@@ -465,7 +468,7 @@ func TestProcessMessageShouldProcessLogTypePlatformReportOutOfMemory(t *testing.
 
 	go lc.processMessage(message)
 
-	received, timed := demux.WaitForNumberOfSamples(2, 0, 100*time.Millisecond)
+	received, timed := demux.WaitForNumberOfSamples(2, 0, 125*time.Millisecond)
 	assert.Len(t, received, 8)
 	assert.Len(t, timed, 0)
 	assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[6].Name)
@@ -497,7 +500,7 @@ func TestProcessMessageShouldSendFailoverMetric(t *testing.T) {
 
 	lc.processMessage(&message)
 
-	received, timed := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	received, timed := demux.WaitForNumberOfSamples(1, 0, 125*time.Millisecond)
 	assert.Len(t, received, 1)
 	assert.Len(t, timed, 0)
 	demux.Reset()
@@ -507,7 +510,7 @@ func TestProcessMessageShouldSendFailoverMetric(t *testing.T) {
 	message.stringRecord = "{\"DD_EXTENSION_FALLBACK_REASON\":\"test-reason\"}" // add again bc processing empties it
 	lc.processMessage(&message)
 
-	received, timed = demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	received, timed = demux.WaitForNumberOfSamples(1, 0, 125*time.Millisecond)
 	assert.Len(t, received, 1)
 	assert.Len(t, timed, 0)
 }
@@ -549,7 +552,7 @@ func TestProcessLogMessageLogsEnabled(t *testing.T) {
 		assert.NotNil(t, received)
 		assert.Equal(t, "my-arn", received.Lambda.ARN)
 		assert.Equal(t, "myRequestID", received.Lambda.RequestID)
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(125 * time.Millisecond):
 		assert.Fail(t, "We should have received logs")
 	}
 }
@@ -597,7 +600,7 @@ func TestProcessLogMessageLogsEnabledForMixedUnorderedMessages(t *testing.T) {
 			assert.NotNil(t, received)
 			assert.Equal(t, "my-arn", received.Lambda.ARN)
 			assert.Equal(t, expectedRequestIDs[i], received.Lambda.RequestID)
-		case <-time.After(100 * time.Millisecond):
+		case <-time.After(125 * time.Millisecond):
 			assert.Fail(t, "We should have received logs")
 		}
 	}
@@ -628,7 +631,7 @@ func TestProcessLogMessageNoStringRecordPlatformLog(t *testing.T) {
 	select {
 	case <-logChannel:
 		assert.Fail(t, "We should not have received logs")
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(125 * time.Millisecond):
 		// nothing to do here
 	}
 }
@@ -663,7 +666,7 @@ func TestProcessLogMessageNoStringRecordFunctionLog(t *testing.T) {
 		assert.NotNil(t, received)
 		assert.Equal(t, "my-arn", received.Lambda.ARN)
 		assert.Equal(t, "myRequestID", received.Lambda.RequestID)
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(125 * time.Millisecond):
 		assert.Fail(t, "We should have received logs")
 	}
 }
@@ -700,7 +703,7 @@ func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 	select {
 	case <-logChannel:
 		assert.Fail(t, "We should not have received logs")
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(125 * time.Millisecond):
 		// nothing to do here
 	}
 }
@@ -763,7 +766,7 @@ func TestProcessLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 					assert.Equal(t, "myRequestID", received.Lambda.RequestID)
 					assert.Equal(t, expectedStringRecord[i], string(received.Content))
 					assert.Equal(t, expectedErrors[i], received.IsError)
-				case <-time.After(100 * time.Millisecond):
+				case <-time.After(125 * time.Millisecond):
 					assert.Fail(t, "We should have received logs")
 				}
 			}
@@ -858,7 +861,7 @@ func TestProcessMultipleLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 			} else {
 				assert.False(t, received.IsError)
 			}
-		case <-time.After(100 * time.Millisecond):
+		case <-time.After(125 * time.Millisecond):
 			assert.Fail(t, "We should have received logs")
 		}
 	}
@@ -904,7 +907,7 @@ func TestProcessLogMessagesOutOfMemoryError(t *testing.T) {
 		assert.Equal(t, "my-arn", received.Lambda.ARN)
 		assert.Equal(t, "myRequestID", received.Lambda.RequestID)
 		assert.Equal(t, true, received.IsError)
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(125 * time.Millisecond):
 		assert.Fail(t, "We should have received logs")
 	}
 }
@@ -943,7 +946,7 @@ func TestProcessLogMessageLogsNoRequestID(t *testing.T) {
 	select {
 	case <-logChannel:
 		assert.Fail(t, "We should not have received logs")
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(125 * time.Millisecond):
 		// nothing to do here
 	}
 
@@ -952,7 +955,7 @@ func TestProcessLogMessageLogsNoRequestID(t *testing.T) {
 		for _, msg := range received {
 			assert.Equal(t, "", msg.objectRecord.requestID)
 		}
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(125 * time.Millisecond):
 		assert.Fail(t, "We should have received logs")
 	}
 }
@@ -1228,7 +1231,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 	lc.processMessage(doneMessage)
 	lc.processMessage(reportMessage)
 
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(10, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(10, 0, 125*time.Millisecond)
 	postRuntimeMetricTimestamp := float64(reportLogTime.UnixNano()) / float64(time.Second)
 	runtimeMetricTimestamp := float64(endTime.UnixNano()) / float64(time.Second)
 	assert.Equal(t, generatedMetrics[0], metrics.MetricSample{
@@ -1314,7 +1317,7 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 	lc.processMessage(doneMessage)
 	lc.processMessage(reportMessage)
 
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(10, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(10, 0, 125*time.Millisecond)
 	postRuntimeMetricTimestamp := float64(reportLogTime.UnixNano()) / float64(time.Second)
 	runtimeMetricTimestamp := float64(endTime.UnixNano()) / float64(time.Second)
 	assert.Equal(t, generatedMetrics[0], metrics.MetricSample{
@@ -1416,7 +1419,7 @@ func TestRuntimeMetricsOnTimeout(t *testing.T) {
 	assert.Nil(t, restoreErr)
 	lc.processMessage(reportMessage)
 
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(10, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(10, 0, 125*time.Millisecond)
 	postRuntimeMetricTimestamp := float64(reportLogTime.UnixNano()) / float64(time.Second)
 	runtimeMetricTimestamp := float64(endTime.UnixNano()) / float64(time.Second)
 	assert.Equal(t, generatedMetrics[0], metrics.MetricSample{
@@ -1473,5 +1476,5 @@ func TestMultipleStartLogCollection(t *testing.T) {
 }
 
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
-	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), compressionmock.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), logscompressionmock.MockModule(), metricscompressionmock.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }

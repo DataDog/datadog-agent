@@ -11,6 +11,7 @@ import os.path
 import re
 import shutil
 import tempfile
+from collections import defaultdict
 from pathlib import Path
 
 import yaml
@@ -20,11 +21,26 @@ from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
+from tasks.libs.common.color import Color
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import get_default_modules
-from tasks.libs.common.utils import REPO_PATH, color_message, running_in_ci
+from tasks.libs.common.utils import REPO_PATH, color_message, gitlab_section, running_in_ci
+from tasks.testwasher import TestWasher
 from tasks.tools.e2e_stacks import destroy_remote_stack
+
+
+class TestState:
+    """Describes the state of a test, if it has failed and if it is flaky."""
+
+    FAILED = True, False
+    FLAKY_FAILED = True, True
+    SUCCESS = False, False
+    FLAKY_SUCCESS = False, True
+
+    @staticmethod
+    def get_human_readable_state(failing: bool, flaky: bool) -> str:
+        return f'{"Failing" if failing else "Successful"} / {"Flaky" if flaky else "Non-flaky"}'
 
 
 @task(
@@ -66,10 +82,14 @@ def run(
     test_washer=False,
     agent_image="",
     cluster_agent_image="",
+    logs_post_processing=False,
+    logs_post_processing_test_depth=1,
+    logs_folder="e2e_logs",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
     """
+
     if shutil.which("pulumi") is None:
         raise Exit(
             "pulumi CLI not found, Pulumi needs to be installed on the system (see https://github.com/DataDog/test-infra-definitions/blob/main/README.md)",
@@ -107,8 +127,22 @@ def run(
     if test_run_name != "":
         test_run_arg = f"-run {test_run_name}"
 
+    # Create temporary file for flaky patterns config
+    tmp_flaky_patterns_config = tempfile.NamedTemporaryFile(suffix="flaky_patterns_config.yaml", delete_on_close=False)
+    tmp_flaky_patterns_config.write(b"{}")
+    tmp_flaky_patterns_config.close()
+    flaky_patterns_config = tmp_flaky_patterns_config.name
+    env_vars["E2E_FLAKY_PATTERNS_CONFIG"] = flaky_patterns_config
+
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} {json_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
+    scrubber_raw_command = ""
+    # Scrub the test output to avoid leaking API or APP keys when running in the CI
+    if running_in_ci():
+        scrubber_raw_command = (
+            # Using custom go command piped with scrubber sed instructions https://github.com/gotestyourself/gotestsum#custom-go-test-command
+            f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
+        )
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {scrubber_raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
 
     args = {
         "go_mod": "readonly",
@@ -131,6 +165,7 @@ def run(
         "src_agent_version": f"-src-agent-version {src_agent_version}" if src_agent_version else '',
         "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else '',
         "keep_stacks": '-keep-stacks' if keep_stacks else '',
+        "flaky_patterns_config": f'--flaky-patterns-config={flaky_patterns_config}' if flaky_patterns_config else '',
         "extra_flags": extra_flags,
     }
 
@@ -147,7 +182,9 @@ def run(
         test_profiler=None,
     )
 
-    success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
+    success = process_test_result(
+        test_res, junit_tar, AgentFlavor.base, test_washer, extra_flakes_config=flaky_patterns_config
+    )
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI
@@ -162,7 +199,25 @@ def run(
         print(
             f'To run this test locally, use: `{command}`. '
             'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'
+            '\nYou can troubleshoot e2e test failures with this documentation: https://datadoghq.atlassian.net/wiki/x/7gIo0'
         )
+
+    if logs_post_processing:
+        if len(test_res) == 1:
+            post_processed_output = post_process_output(
+                test_res[0].result_json_path, test_depth=logs_post_processing_test_depth
+            )
+            os.makedirs(logs_folder, exist_ok=True)
+            write_result_to_log_files(post_processed_output, logs_folder)
+
+            pretty_print_logs(
+                test_res[0].result_json_path, post_processed_output, flakes_files=["flakes.yaml", flaky_patterns_config]
+            )
+        else:
+            print(
+                color_message("WARNING", "yellow")
+                + f": Logs post processing expect only test result for test/new-e2e module. Skipping because result contains test for {len(test_res)} modules."
+            )
 
     if not success:
         raise Exit(code=1)
@@ -251,6 +306,136 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
         print(f"Stack {stack} destroyed successfully")
     for stack in failed_stack:
         print(f"Failed to destroy stack {stack}")
+
+
+def post_process_output(path: str, test_depth: int = 1):
+    """
+    Post process the test results to add the test run name
+    path: path to the test result json file
+    test_depth: depth of the test name to consider
+
+    By default the test_depth is set to 1, which means that the logs will be splitted depending on the test suite name.
+    If we use a single test suite to run multiple tests we can increase the test_depth to split the logs per test.
+    For example with:
+    TestPackages/run_ubuntu
+    TestPackages/run_centos
+    TestPackages/run_debian
+    We should set test_depth to 2 to avoid mixing all the logs of the different tested platform
+    """
+
+    def is_parent(parent: list[str], child: list[str]) -> bool:
+        for i in range(len(parent)):
+            if parent[i] != child[i]:
+                return False
+        return True
+
+    logs_per_test = {}
+    with open(path) as f:
+        all_lines = f.readlines()
+
+        # Initalize logs_per_test with all test names
+        for line in all_lines:
+            json_line = json.loads(line)
+            if "Package" not in json_line or "Test" not in json_line or "Output" not in json_line:
+                continue
+            splitted_test = json_line["Test"].split("/")
+            if len(splitted_test) < test_depth:
+                continue
+            if json_line["Package"] not in logs_per_test:
+                logs_per_test[json_line["Package"]] = {}
+
+            test_name = splitted_test[: min(test_depth, len(splitted_test))]
+            logs_per_test[json_line["Package"]]["/".join(test_name)] = []
+
+        for line in all_lines:
+            json_line = json.loads(line)
+            if "Package" not in json_line or "Test" not in json_line or "Output" not in json_line:
+                continue
+
+            if "===" in json_line["Output"]:  # Ignore these lines that are produced when running test concurrently
+                continue
+
+            splitted_test = json_line["Test"].split("/")
+
+            if len(splitted_test) < test_depth:  # Append logs to all children tests
+                for test_name in logs_per_test[json_line["Package"]]:
+                    if is_parent(splitted_test, test_name.split("/")):
+                        logs_per_test[json_line["Package"]][test_name].append(json_line["Output"])
+                continue
+
+            logs_per_test[json_line["Package"]]["/".join(splitted_test[:test_depth])].append(json_line["Output"])
+    return logs_per_test
+
+
+def write_result_to_log_files(logs_per_test, log_folder):
+    for package, tests in logs_per_test.items():
+        for test, logs in tests.items():
+            sanitized_package_name = re.sub(r"[^\w_. -]", "_", package)
+            sanitized_test_name = re.sub(r"[^\w_. -]", "_", test)
+            with open(f"{log_folder}/{sanitized_package_name}.{sanitized_test_name}.log", "w") as f:
+                f.write("".join(logs))
+
+
+class TooManyLogsError(Exception):
+    pass
+
+
+def pretty_print_test_logs(logs_per_test: list[tuple[str, str, str]], max_size):
+    # Compute size in bytes of what we are about to print. If it exceeds max_size, we skip printing because it will make the Gitlab logs almost completely collapsed.
+    # By default Gitlab has a limit of 500KB per job log, so we want to avoid printing too much.
+    size = 0
+    for _, _, logs in logs_per_test:
+        size += len("".join(logs).encode())
+    if size > max_size and running_in_ci():
+        raise TooManyLogsError
+    for package, test, logs in logs_per_test:
+        with gitlab_section("Complete logs for " + package + "." + test, collapsed=True):
+            print("".join(logs))
+
+    return size
+
+
+def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_files=None):
+    """Pretty prints logs with a specific order.
+
+    Print order:
+        1. Failing and non flaky tests
+        2. Failing and flaky tests
+        3. Successful and non flaky tests
+        4. Successful and flaky tests
+    """
+
+    result_json_name = result_json_path.split("/")[-1]
+    result_json_dir = result_json_path.removesuffix('/' + result_json_name)
+    washer = TestWasher(test_output_json_file=result_json_name, flakes_file_paths=flakes_files or ["flakes.yaml"])
+    failing_tests, marked_flaky_tests = washer.parse_test_results(result_json_dir)
+    all_known_flakes = washer.merge_known_flakes(marked_flaky_tests)
+
+    try:
+        # (failing, flaky) -> [(package, test_name, logs)]
+        categorized_logs = defaultdict(list)
+
+        # Split flaky / non flaky tests
+        for package, tests in logs_per_test.items():
+            package_flaky = all_known_flakes.get(package, set())
+            package_failing = failing_tests.get(package, set())
+            for test_name, logs in tests.items():
+                state = test_name in package_failing, test_name in package_flaky
+                categorized_logs[state].append((package, test_name, logs))
+
+        for failing, flaky in [TestState.FAILED, TestState.FLAKY_FAILED, TestState.SUCCESS, TestState.FLAKY_SUCCESS]:
+            logs_to_print = categorized_logs[failing, flaky]
+            if not logs_to_print:
+                continue
+
+            print(f'* {color_message(TestState.get_human_readable_state(failing, flaky), Color.BOLD)} job logs:')
+            # Print till the size limit is reached
+            max_size -= pretty_print_test_logs(logs_to_print, max_size)
+    except TooManyLogsError:
+        print(
+            color_message("WARNING", "yellow")
+            + f": Too many logs to print, skipping logs printing to avoid Gitlab collapse. You can find your logs properly organized in the job artifacts: https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{os.getenv('CI_JOB_ID')}/artifacts/browse/e2e-output/logs/"
+        )
 
 
 @task

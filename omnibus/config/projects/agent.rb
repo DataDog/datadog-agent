@@ -224,6 +224,11 @@ if do_build
   # Datadog agent
   dependency 'datadog-agent'
 
+  # This depends on the agent and must be added after it
+  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    dependency 'datadog-security-agent-policies'
+  end
+
   # System-probe
   if sysprobe_enabled?
     dependency 'system-probe'
@@ -237,27 +242,6 @@ if do_build
 
   if linux_target?
     dependency 'datadog-security-agent-policies'
-    if fips_mode?
-      dependency 'openssl-fips-provider'
-    end
-  end
-
-  # Include traps db file in snmp.d/traps_db/
-  dependency 'snmp-traps'
-
-  # Additional software
-  if windows_target?
-    if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-      dependency 'datadog-windows-filter-driver'
-    end
-    if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-      dependency 'datadog-windows-apminject'
-    end
-    if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
-      dependency 'datadog-windows-procmon-driver'
-      ## this is a duplicate of the above dependency in linux
-      dependency 'datadog-security-agent-policies'
-    end
   end
 
   # this dependency puts few files out of the omnibus install dir and move them
@@ -349,8 +333,26 @@ if windows_target?
     windows_symbol_stripping_file bin
   end
 
-  if ENV['SIGN_WINDOWS_DD_WCS']
-    BINARIES_TO_SIGN = GO_BINARIES + [
+  if windows_signing_enabled?
+    # Sign additional binaries from here.
+    # We can't request signing from the respective components/software definitions
+    # for now since the binaries may be restored from cache, which would
+    # shortcut the associated build directives, which would not schedule the files
+    # for signing.
+    PYTHON_BINARIES = [
+      "#{python_3_embedded}\\python.exe",
+      "#{python_3_embedded}\\pythonw.exe",
+      "#{python_3_embedded}\\python3.dll",
+      "#{python_3_embedded}\\python312.dll",
+    ]
+    OPENSSL_BINARIES = [
+      "#{python_3_embedded}\\DLLs\\libcrypto-3-x64.dll",
+      "#{python_3_embedded}\\DLLs\\libssl-3-x64.dll",
+      "#{python_3_embedded}\\bin\\openssl.exe",
+      fips_mode? ? "#{python_3_embedded}\\lib\\ossl-modules\\fips.dll" : nil,
+    ].compact
+
+    BINARIES_TO_SIGN = GO_BINARIES + PYTHON_BINARIES + OPENSSL_BINARIES + [
       "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
     ]

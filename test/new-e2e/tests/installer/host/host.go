@@ -7,7 +7,6 @@
 package host
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os/user"
@@ -15,14 +14,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -79,7 +76,25 @@ func (h *Host) setSystemdVersion() {
 
 // InstallDocker installs Docker on the host if it is not already installed.
 func (h *Host) InstallDocker() {
-	defer func() { h.remote.MustExecute("sudo systemctl start docker") }()
+	defer func() {
+		// This defer will basically restart docker from a clean state, to avoid any issues in between tests.
+		// It will:
+		// - 1. Stop docker (if it's running)
+		// - 2. Reset failed status
+		// - 3. Remove the network directory to avoid network collision
+		// - 4. Start docker again
+		_, _ = h.remote.Execute("sudo systemctl stop docker")
+		_, err := h.remote.Execute("sudo systemctl reset-failed docker")
+		if err != nil {
+			h.t.Logf("warn: failed to reset-failed for docker.d: %v", err)
+		}
+		_, err = h.remote.Execute("sudo rm -rf /var/lib/docker/network")
+		if err != nil {
+			h.t.Logf("warn: failed to remove /var/lib/docker/network: %v", err)
+		}
+		_, err = h.remote.Execute("sudo systemctl start docker")
+		require.NoErrorf(h.t, err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))
+	}()
 	if _, err := h.remote.Execute("command -v docker"); err == nil {
 		return
 	}
@@ -149,11 +164,15 @@ func (h *Host) WaitForUnitActive(units ...string) {
 }
 
 // WaitForUnitActivating waits for a systemd unit to be activating
-func (h *Host) WaitForUnitActivating(units ...string) {
+func (h *Host) WaitForUnitActivating(t *testing.T, units ...string) {
 	for _, unit := range units {
 		_, err := h.remote.Execute(fmt.Sprintf("timeout=60; unit=%s; while ! grep -q \"Active: activating\" <(sudo systemctl status $unit) && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
-		require.NoError(h.t, err, "unit %s did not become activating. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
-
+		if err != nil {
+			h.t.Logf("installer logs:\n%s", h.remote.MustExecute("sudo journalctl -xeu datadog-installer"))
+			h.t.Logf("installer exp logs:\n%s", h.remote.MustExecute("sudo journalctl -xeu datadog-installer-exp"))
+			h.t.Logf("unit %s logs:\n%s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
+		}
+		require.NoError(t, err, "unit %s did not become activating", unit)
 	}
 }
 
@@ -201,10 +220,8 @@ func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 		require.NoErrorf(
 			h.t,
 			err,
-			"package %s not installed by the installer. install logs: \n%s\n%s",
+			"package %s not installed by the installer",
 			pkg,
-			h.remote.MustExecute("cat /tmp/datadog-installer-stdout.log"),
-			h.remote.MustExecute("cat /tmp/datadog-installer-stderr.log"),
 		)
 	}
 }
@@ -253,7 +270,9 @@ func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
 	for _, pkg := range pkgs {
 		switch h.pkgManager {
 		case "apt":
-			h.remote.MustExecute("! dpkg-query -l " + pkg)
+			// If a package is removed but not purged, it will be in the "rc" state (opposed to "ii" for installed)
+			// if it's been purged, the command will return an error
+			h.remote.MustExecute(fmt.Sprintf("dpkg-query -l %[1]s | grep '^rc' || ! dpkg-query -l %[1]s", pkg))
 		case "yum", "zypper":
 			h.remote.MustExecute("! rpm -q " + pkg)
 		default:
@@ -647,7 +666,7 @@ func (s *State) AssertDirExists(path string, perms fs.FileMode, user string, gro
 func (s *State) AssertPathDoesNotExist(path string) {
 	path = evalSymlinkPath(path, s.FS)
 	_, ok := s.FS[path]
-	assert.False(s.t, ok, "something exists at path", path)
+	assert.False(s.t, ok, "something exists at path %s", path)
 }
 
 // AssertFileExistsAnyUser asserts that a file exists on the host with the given perms.
@@ -731,139 +750,4 @@ func (s *State) AssertUnitsDead(names ...string) {
 		assert.True(s.t, ok, "unit %v is not running", name)
 		assert.Equal(s.t, Dead, unit.SubState, "unit %v is not running", name)
 	}
-}
-
-// LocalCDN is a local CDN for testing.
-type LocalCDN struct {
-	host *Host
-	// DirPath is the path to the local CDN directory.
-	DirPath string
-	lock    sync.Mutex
-}
-
-type orderConfig struct {
-	Order            []string          `json:"order"`
-	ScopeExpressions []scopeExpression `json:"scope_expressions"`
-}
-type scopeExpression struct {
-	Expression string `json:"expression"`
-	PolicyID   string `json:"config_id"`
-}
-
-// NewLocalCDN creates a new local CDN.
-func NewLocalCDN(host *Host) *LocalCDN {
-	localCDNPath := fmt.Sprintf("/tmp/local_cdn/%s", uuid.New().String())
-	host.remote.MustExecute(fmt.Sprintf("mkdir -p %s", localCDNPath))
-
-	// Create order file
-	orderPath := filepath.Join(localCDNPath, "configuration_order")
-	orderContent := orderConfig{
-		Order:            []string{},
-		ScopeExpressions: []scopeExpression{},
-	}
-	orderBytes, err := json.Marshal(orderContent)
-	require.NoError(host.t, err)
-
-	_, err = host.remote.WriteFile(orderPath, orderBytes)
-	require.NoError(host.t, err)
-
-	return &LocalCDN{
-		host:    host,
-		DirPath: localCDNPath,
-		lock:    sync.Mutex{},
-	}
-}
-
-// AddLayer adds a layer to the local CDN. It'll be last in order.
-func (c *LocalCDN) AddLayer(name string, content string) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	layerPath := filepath.Join(c.DirPath, name)
-
-	jsonContent := fmt.Sprintf(`{"name": "%s", %s}`, name, content)
-
-	_, err := c.host.remote.WriteFile(layerPath, []byte(jsonContent))
-	require.NoError(c.host.t, err)
-
-	// Add at the end of the order file
-	orderPath := filepath.Join(c.DirPath, "configuration_order")
-	orderContent := orderConfig{}
-	orderBytes, err := c.host.remote.ReadFile(orderPath)
-	require.NoError(c.host.t, err)
-	err = json.Unmarshal(orderBytes, &orderContent)
-	require.NoError(c.host.t, err)
-	orderContent.Order = append(orderContent.Order, name)
-	orderContent.ScopeExpressions = append(orderContent.ScopeExpressions, scopeExpression{
-		Expression: "true",
-		PolicyID:   name,
-	})
-	orderBytes, err = json.Marshal(orderContent)
-	require.NoError(c.host.t, err)
-	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
-	require.NoError(c.host.t, err)
-
-	return nil
-}
-
-// UpdateLayer updates a layer in the local CDN.
-func (c *LocalCDN) UpdateLayer(name string, content string) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	layerPath := filepath.Join(c.DirPath, name)
-
-	jsonContent := fmt.Sprintf(`{"name": "%s","config": {%s}}`, name, content)
-
-	_, err := c.host.remote.WriteFile(layerPath, []byte(jsonContent))
-	require.NoError(c.host.t, err)
-
-	return nil
-}
-
-// RemoveLayer removes a layer from the local CDN.
-func (c *LocalCDN) RemoveLayer(name string) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	layerPath := filepath.Join(c.DirPath, name)
-	err := c.host.remote.Remove(layerPath)
-	require.NoError(c.host.t, err)
-
-	// Remove from order file
-	orderPath := filepath.Join(c.DirPath, "configuration_order")
-	orderContent := orderConfig{}
-	orderBytes, err := c.host.remote.ReadFile(orderPath)
-	require.NoError(c.host.t, err)
-	err = json.Unmarshal(orderBytes, &orderContent)
-	require.NoError(c.host.t, err)
-	newOrder := []string{}
-	for _, layer := range orderContent.Order {
-		if layer != name {
-			newOrder = append(newOrder, layer)
-		}
-	}
-	orderContent.Order = newOrder
-	orderBytes, err = json.Marshal(orderContent)
-	require.NoError(c.host.t, err)
-	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
-	require.NoError(c.host.t, err)
-	return nil
-}
-
-// Reorder reorders the layers in the local CDN.
-func (c *LocalCDN) Reorder(orderedLayerNames []string) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	orderPath := filepath.Join(c.DirPath, "configuration_order")
-	orderContent := orderConfig{
-		Order: orderedLayerNames,
-	}
-	orderBytes, err := json.Marshal(orderContent)
-	require.NoError(c.host.t, err)
-	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
-	require.NoError(c.host.t, err)
-
-	return nil
 }

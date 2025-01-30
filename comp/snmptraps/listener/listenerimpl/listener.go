@@ -8,6 +8,7 @@ package listenerimpl
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"net"
@@ -167,7 +168,8 @@ func validatePacket(p *gosnmp.SnmpPacket, c *config.TrapsConfig) error {
 
 	// At least one of the known community strings must match.
 	for _, community := range c.CommunityStrings {
-		if community == p.Community {
+		// Simple string equality check, but in constant time to avoid timing attacks
+		if subtle.ConstantTimeCompare([]byte(community), []byte(p.Community)) == 1 {
 			return nil
 		}
 	}

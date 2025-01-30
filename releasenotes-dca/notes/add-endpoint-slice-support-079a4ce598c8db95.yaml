@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Added support for EndpointSlices in the metadata controller. This feature,
+    enabled by setting `kubernetesUseEndpointSlices` to `true`, resolves limitations
+    of Endpoints resources, particularly for services with more than 1000 addresses.
+    Must add `endpointslices` to DCA cluster role.
+fixes:
+  - |
+    Resolved a bug where `kube_service` tags were not properly deleted when a
+    service's ties to pods on a specific node were removed but the service itself
+    was not deleted.

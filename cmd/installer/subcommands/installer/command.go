@@ -22,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"gopkg.in/yaml.v2"
 )
 
@@ -89,14 +87,14 @@ func UnprivilegedCommands(_ *command.GlobalParams) []*cobra.Command {
 type cmd struct {
 	t    *telemetry.Telemetry
 	ctx  context.Context
-	span ddtrace.Span
+	span *telemetry.Span
 	env  *env.Env
 }
 
 func newCmd(operation string) *cmd {
 	env := env.FromEnv()
 	t := newTelemetry(env)
-	span, ctx := newSpan(operation)
+	span, ctx := telemetry.StartSpanFromEnv(context.Background(), operation)
 	setInstallerUmask(span)
 	return &cmd{
 		t:    t,
@@ -107,12 +105,9 @@ func newCmd(operation string) *cmd {
 }
 
 func (c *cmd) Stop(err error) {
-	c.span.Finish(tracer.WithError(err))
+	c.span.Finish(err)
 	if c.t != nil {
-		err := c.t.Stop(context.Background())
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to stop telemetry: %v\n", err)
-		}
+		c.t.Stop()
 	}
 }
 
@@ -226,26 +221,8 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 	if site == "" {
 		site = config.Site
 	}
-	t, err := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
-	if err != nil {
-		fmt.Printf("failed to initialize telemetry: %v\n", err)
-		return nil
-	}
-	err = t.Start(context.Background())
-	if err != nil {
-		fmt.Printf("failed to start telemetry: %v\n", err)
-		return nil
-	}
+	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
 	return t
-}
-
-func newSpan(operationName string) (ddtrace.Span, context.Context) {
-	var spanOptions []ddtrace.StartSpanOption
-	spanContext, ok := telemetry.SpanContextFromEnv()
-	if ok {
-		spanOptions = append(spanOptions, tracer.ChildOf(spanContext))
-	}
-	return tracer.StartSpanFromContext(context.Background(), operationName, spanOptions...)
 }
 
 func versionCommand() *cobra.Command {
@@ -287,6 +264,7 @@ func bootstrapCommand() *cobra.Command {
 }
 
 func setupCommand() *cobra.Command {
+	flavor := ""
 	cmd := &cobra.Command{
 		Use:     "setup",
 		Hidden:  true,
@@ -294,9 +272,13 @@ func setupCommand() *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			cmd := newCmd("setup")
 			defer func() { cmd.Stop(err) }()
-			return setup.Setup(cmd.ctx, cmd.env)
+			if flavor == "" {
+				return setup.Agent7InstallScript(cmd.ctx, cmd.env)
+			}
+			return setup.Setup(cmd.ctx, cmd.env, flavor)
 		},
 	}
+	cmd.Flags().StringVar(&flavor, "flavor", "", "The setup flavor")
 	return cmd
 }
 
@@ -418,10 +400,10 @@ func promoteExperimentCommand() *cobra.Command {
 
 func installConfigExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "install-config-experiment <package> <version>",
+		Use:     "install-config-experiment <package> <version> <config>",
 		Short:   "Install a config experiment",
 		GroupID: "installer",
-		Args:    cobra.ExactArgs(2),
+		Args:    cobra.ExactArgs(3),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_config_experiment")
 			if err != nil {
@@ -430,7 +412,7 @@ func installConfigExperimentCommand() *cobra.Command {
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			i.span.SetTag("params.version", args[1])
-			return i.InstallConfigExperiment(i.ctx, args[0], args[1])
+			return i.InstallConfigExperiment(i.ctx, args[0], args[1], []byte(args[2]))
 		},
 	}
 	return cmd

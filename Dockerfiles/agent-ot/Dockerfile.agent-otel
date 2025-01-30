@@ -1,5 +1,5 @@
-ARG AGENT_VERSION=7.57.0-v1.0-ot-beta-jmx
-ARG AGENT_BRANCH=7.57.x-otel-beta-v1
+ARG AGENT_VERSION=7.59.0-v1.1.0-ot-beta-jmx
+ARG AGENT_BRANCH=7.59.x
 # Use the Ubuntu Slim AMD64 base image
 FROM ubuntu:24.04 AS builder
 

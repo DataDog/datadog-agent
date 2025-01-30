@@ -32,6 +32,7 @@ type Instance struct {
 	Port       int32
 	IamEnabled bool
 	Engine     string
+	DbName     string
 }
 
 const (
@@ -45,45 +46,52 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 	if len(dbClusterIdentifiers) == 0 {
 		return nil, fmt.Errorf("at least one database cluster identifier is required")
 	}
-	clusterInstances, err := c.client.DescribeDBInstances(ctx,
-		&rds.DescribeDBInstancesInput{
-			Filters: []types.Filter{
-				{
-					Name:   aws.String("db-cluster-id"),
-					Values: dbClusterIdentifiers,
-				},
-			},
-		})
-	if err != nil {
-		return nil, fmt.Errorf("error running GetAuroraClusterEndpoints %v", err)
-	}
 	clusters := make(map[string]*AuroraCluster, 0)
-	for _, db := range clusterInstances.DBInstances {
-		if db.Endpoint != nil && db.DBClusterIdentifier != nil {
-			if db.Endpoint.Address == nil || db.DBInstanceStatus == nil || strings.ToLower(*db.DBInstanceStatus) != "available" {
-				continue
-			}
-			// Add to list of instances for the cluster
-			instance := &Instance{
-				Endpoint: *db.Endpoint.Address,
-			}
-			// Set if IAM is configured for the endpoint
-			if db.IAMDatabaseAuthenticationEnabled != nil {
-				instance.IamEnabled = *db.IAMDatabaseAuthenticationEnabled
-			}
-			// Set the port, if it is known
-			if db.Endpoint.Port != nil {
-				instance.Port = *db.Endpoint.Port
-			}
-			if db.Engine != nil {
-				instance.Engine = *db.Engine
-			}
-			if _, ok := clusters[*db.DBClusterIdentifier]; !ok {
-				clusters[*db.DBClusterIdentifier] = &AuroraCluster{
-					Instances: make([]*Instance, 0),
+	for _, clusterID := range dbClusterIdentifiers {
+		// TODO: Seth Samuel: This method is not paginated, so if there are more than 100 instances in a cluster, we will only get the first 100
+		// We should add pagination support to this method at some point
+		clusterInstances, err := c.client.DescribeDBInstances(ctx,
+			&rds.DescribeDBInstancesInput{
+				Filters: []types.Filter{
+					{
+						Name:   aws.String("db-cluster-id"),
+						Values: []string{clusterID},
+					},
+				},
+			})
+		if err != nil {
+			return nil, fmt.Errorf("error running GetAuroraClusterEndpoints %v", err)
+		}
+		for _, db := range clusterInstances.DBInstances {
+			if db.Endpoint != nil && db.DBClusterIdentifier != nil {
+				if db.Endpoint.Address == nil || db.DBInstanceStatus == nil || strings.ToLower(*db.DBInstanceStatus) != "available" {
+					continue
 				}
+				// Add to list of instances for the cluster
+				instance := &Instance{
+					Endpoint: *db.Endpoint.Address,
+				}
+				// Set if IAM is configured for the endpoint
+				if db.IAMDatabaseAuthenticationEnabled != nil {
+					instance.IamEnabled = *db.IAMDatabaseAuthenticationEnabled
+				}
+				// Set the port, if it is known
+				if db.Endpoint.Port != nil {
+					instance.Port = *db.Endpoint.Port
+				}
+				if db.Engine != nil {
+					instance.Engine = *db.Engine
+				}
+				if db.DBName != nil {
+					instance.DbName = *db.DBName
+				}
+				if _, ok := clusters[*db.DBClusterIdentifier]; !ok {
+					clusters[*db.DBClusterIdentifier] = &AuroraCluster{
+						Instances: make([]*Instance, 0),
+					}
+				}
+				clusters[*db.DBClusterIdentifier].Instances = append(clusters[*db.DBClusterIdentifier].Instances, instance)
 			}
-			clusters[*db.DBClusterIdentifier].Instances = append(clusters[*db.DBClusterIdentifier].Instances, instance)
 		}
 	}
 	if len(clusters) == 0 {

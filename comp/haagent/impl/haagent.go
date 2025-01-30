@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.uber.org/atomic"
@@ -18,14 +19,14 @@ import (
 type haAgentImpl struct {
 	log            log.Component
 	haAgentConfigs *haAgentConfigs
-	isLeader       *atomic.Bool
+	state          *atomic.String
 }
 
 func newHaAgentImpl(log log.Component, haAgentConfigs *haAgentConfigs) *haAgentImpl {
 	return &haAgentImpl{
 		log:            log,
 		haAgentConfigs: haAgentConfigs,
-		isLeader:       atomic.NewBool(false),
+		state:          atomic.NewString(string(haagent.Unknown)),
 	}
 }
 
@@ -33,12 +34,12 @@ func (h *haAgentImpl) Enabled() bool {
 	return h.haAgentConfigs.enabled
 }
 
-func (h *haAgentImpl) GetGroup() string {
-	return h.haAgentConfigs.group
+func (h *haAgentImpl) GetConfigID() string {
+	return h.haAgentConfigs.configID
 }
 
-func (h *haAgentImpl) IsLeader() bool {
-	return h.isLeader.Load()
+func (h *haAgentImpl) GetState() haagent.State {
+	return haagent.State(h.state.Load())
 }
 
 func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
@@ -47,27 +48,48 @@ func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
 		h.log.Warnf("error getting the hostname: %v", err)
 		return
 	}
-	newIsLeader := agentHostname == leaderAgentHostname
-	prevIsLeader := h.isLeader.Load()
-	if newIsLeader != prevIsLeader {
-		h.log.Infof("agent role switched from %s to %s", leaderStateToRole(prevIsLeader), leaderStateToRole(newIsLeader))
-		h.isLeader.Store(newIsLeader)
+
+	var newState haagent.State
+	if agentHostname == leaderAgentHostname {
+		newState = haagent.Active
 	} else {
-		h.log.Debugf("agent role not changed (current role: %s)", leaderStateToRole(prevIsLeader))
+		newState = haagent.Standby
 	}
+
+	prevState := h.GetState()
+
+	if newState != prevState {
+		h.log.Infof("agent state switched from %s to %s", prevState, newState)
+		h.state.Store(string(newState))
+	} else {
+		h.log.Debugf("agent state not changed (current state: %s)", prevState)
+	}
+}
+
+func (h *haAgentImpl) resetAgentState() {
+	h.state.Store(string(haagent.Unknown))
 }
 
 // ShouldRunIntegration return true if the agent integrations should to run.
 // When ha-agent is disabled, the agent behave as standalone agent (non HA) and will always run all integrations.
 func (h *haAgentImpl) ShouldRunIntegration(integrationName string) bool {
 	if h.Enabled() && validHaIntegrations[integrationName] {
-		return h.isLeader.Load()
+		return h.GetState() == haagent.Active
 	}
 	return true
 }
 
 func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	h.log.Debugf("Updates received: count=%d", len(updates))
+
+	// New updates arrived, but if the list of updates is empty,
+	// it means we don't have any updates applying to this agent anymore.
+	// In this case, reset HA Agent setting to default states.
+	if len(updates) == 0 {
+		h.log.Warn("Empty update received. Resetting Agent State to Unknown.")
+		h.resetAgentState()
+		return
+	}
 
 	for configPath, rawConfig := range updates {
 		h.log.Debugf("Received config %s: %s", configPath, string(rawConfig.Config))
@@ -81,17 +103,17 @@ func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyS
 			})
 			continue
 		}
-		if haAgentMsg.Group != h.GetGroup() {
-			h.log.Warnf("Skipping invalid HA_AGENT update %s: expected group %s, got %s",
-				configPath, h.GetGroup(), haAgentMsg.Group)
+		if haAgentMsg.ConfigID != h.GetConfigID() {
+			h.log.Warnf("Skipping invalid HA_AGENT update %s: expected configID %s, got %s",
+				configPath, h.GetConfigID(), haAgentMsg.ConfigID)
 			applyStateCallback(configPath, state.ApplyStatus{
 				State: state.ApplyStateError,
-				Error: "group does not match",
+				Error: "config_id does not match",
 			})
 			continue
 		}
 
-		h.SetLeader(haAgentMsg.Leader)
+		h.SetLeader(haAgentMsg.ActiveAgent)
 
 		h.log.Debugf("Processed config %s: %v", configPath, haAgentMsg)
 

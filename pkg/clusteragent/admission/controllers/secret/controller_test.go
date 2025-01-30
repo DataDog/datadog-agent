@@ -175,7 +175,7 @@ func (f *fixture) run(stopCh <-chan struct{}) *Controller {
 		f.client,
 		factory.Core().V1().Secrets(),
 		func() bool { return true },
-		make(chan struct{}),
+		make(<-chan struct{}),
 		cfg,
 	)
 

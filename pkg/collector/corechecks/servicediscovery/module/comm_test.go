@@ -15,10 +15,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	httptestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 )
@@ -30,8 +31,9 @@ const (
 // TestIgnoreComm checks that the 'sshd' command is ignored and the 'node' command is not
 func TestIgnoreComm(t *testing.T) {
 	serverDir := buildFakeServer(t)
-	url, mockContainerProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
@@ -50,16 +52,21 @@ func TestIgnoreComm(t *testing.T) {
 	goodPid := goodCmd.Process.Pid
 	badPid := badCmd.Process.Pid
 
+	seen := make(map[int]model.Service)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		svcMap := getServicesMap(collect, url)
-		assert.Contains(collect, svcMap, goodPid)
-		assert.NotContains(collect, svcMap, badPid)
+		resp := getServices(collect, url)
+		for _, s := range resp.StartedServices {
+			seen[s.PID] = s
+		}
+
+		assert.Contains(collect, seen, goodPid)
+		assert.NotContains(collect, seen, badPid)
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
 // TestIgnoreCommsLengths checks that the map contains names no longer than 15 bytes.
 func TestIgnoreCommsLengths(t *testing.T) {
-	discovery := newDiscovery(nil)
+	discovery := newDiscovery(nil, nil)
 	require.NotEmpty(t, discovery)
 	require.Equal(t, len(discovery.config.ignoreComms), 10)
 
@@ -115,7 +122,7 @@ func TestShouldIgnoreComm(t *testing.T) {
 
 	serverBin := buildTestBin(t)
 	serverDir := filepath.Dir(serverBin)
-	discovery := newDiscovery(nil)
+	discovery := newDiscovery(nil, nil)
 	require.NotEmpty(t, discovery)
 	require.NotEmpty(t, discovery.config.ignoreComms)
 	require.Equal(t, len(discovery.config.ignoreComms), 10)
@@ -137,16 +144,10 @@ func TestShouldIgnoreComm(t *testing.T) {
 				_ = cmd.Process.Kill()
 			})
 
-			var proc *process.Process
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				proc, err = customNewProcess(int32(cmd.Process.Pid))
-				assert.NoError(collect, err)
-			}, 2*time.Second, 100*time.Millisecond)
-
-			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				ignore := discovery.shouldIgnoreComm(proc)
+				ignore := discovery.shouldIgnoreComm(int32(cmd.Process.Pid))
 				assert.Equal(collect, test.ignore, ignore)
-			}, 500*time.Millisecond, 100*time.Millisecond)
+			}, 2*time.Second, 100*time.Millisecond)
 		})
 	}
 }
@@ -193,9 +194,8 @@ func BenchmarkProcName(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		// create a new process on each iteration to eliminate name caching from the calculation
-		proc, err := customNewProcess(int32(cmd.Process.Pid))
-		if err != nil {
-			b.Fatal(err)
+		proc := &process.Process{
+			Pid: int32(cmd.Process.Pid),
 		}
 		comm, err := proc.Name()
 		if err != nil {
@@ -209,18 +209,14 @@ func BenchmarkProcName(b *testing.B) {
 
 // BenchmarkShouldIgnoreComm benchmarks reading of command name from /proc/<pid>/comm.
 func BenchmarkShouldIgnoreComm(b *testing.B) {
-	discovery := newDiscovery(nil)
+	discovery := newDiscovery(nil, nil)
 	cmd := startProcessLongComm(b)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		proc, err := customNewProcess(int32(cmd.Process.Pid))
-		if err != nil {
-			b.Fatal(err)
-		}
-		ok := discovery.shouldIgnoreComm(proc)
+		ok := discovery.shouldIgnoreComm(int32(cmd.Process.Pid))
 		if ok {
 			b.Fatalf("process should not have been ignored")
 		}

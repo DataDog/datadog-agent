@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -60,6 +61,7 @@ func TestBundleDependencies(t *testing.T) {
 		rdnsquerier.MockModule(),
 		npcollectorimpl.MockModule(),
 		statsd.MockModule(),
+		fetchonlyimpl.MockModule(),
 	)
 }
 

@@ -100,6 +100,7 @@ func openCacheDB(path string, agentVersion string, apiKey string) (*bbolt.DB, er
 		if errors.Is(err, bbolt.ErrTimeout) {
 			return nil, fmt.Errorf("rc db is locked. Please check if another instance of the agent is running and using the same `run_path` parameter")
 		}
+		log.Infof("Failed to open remote configuration database %s", err)
 		return recreate(path, agentVersion, apiKeyHash)
 	}
 
@@ -124,6 +125,7 @@ func openCacheDB(path string, agentVersion string, apiKey string) (*bbolt.DB, er
 	})
 	if err != nil {
 		_ = db.Close()
+		log.Infof("Failed to validate remote configuration database %s", err)
 		return recreate(path, agentVersion, apiKeyHash)
 	}
 
@@ -139,6 +141,8 @@ func openCacheDB(path string, agentVersion string, apiKey string) (*bbolt.DB, er
 type remoteConfigAuthKeys struct {
 	apiKey string
 
+	parJWT string
+
 	rcKeySet bool
 	rcKey    *msgpgo.RemoteConfigKey
 }
@@ -146,6 +150,7 @@ type remoteConfigAuthKeys struct {
 func (k *remoteConfigAuthKeys) apiAuth() api.Auth {
 	auth := api.Auth{
 		APIKey: k.apiKey,
+		PARJWT: k.parJWT,
 	}
 	if k.rcKeySet {
 		auth.UseAppKey = true
@@ -154,12 +159,15 @@ func (k *remoteConfigAuthKeys) apiAuth() api.Auth {
 	return auth
 }
 
-func getRemoteConfigAuthKeys(apiKey string, rcKey string) (remoteConfigAuthKeys, error) {
+func getRemoteConfigAuthKeys(apiKey string, rcKey string, parJWT string) (remoteConfigAuthKeys, error) {
 	if rcKey == "" {
 		return remoteConfigAuthKeys{
 			apiKey: apiKey,
+			parJWT: parJWT,
 		}, nil
 	}
+
+	// Legacy auth with RC specific keys
 	rcKey = strings.TrimPrefix(rcKey, "DDRCM_")
 	encoding := base32.StdEncoding.WithPadding(base32.NoPadding)
 	rawKey, err := encoding.DecodeString(rcKey)
@@ -176,6 +184,7 @@ func getRemoteConfigAuthKeys(apiKey string, rcKey string) (remoteConfigAuthKeys,
 	}
 	return remoteConfigAuthKeys{
 		apiKey:   apiKey,
+		parJWT:   parJWT,
 		rcKeySet: true,
 		rcKey:    &key,
 	}, nil

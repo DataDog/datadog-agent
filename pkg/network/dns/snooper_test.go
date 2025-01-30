@@ -230,7 +230,7 @@ func TestDNSFailedResponseCount(t *testing.T) {
 		"nonexistenent.net.com",
 		"missingdomain.com",
 	}
-	queryIP, queryPort, reps, _ := testdns.SendDNSQueries(t, domains, testdns.GetServerIP(t), "tcp")
+	queryIP, queryPort, reps, _ := testdns.SendDNSQueries(domains, testdns.GetServerIP(t), "tcp")
 	for _, rep := range reps {
 		require.NotNil(t, rep)
 		require.Equal(t, rep.Rcode, mdns.RcodeNameError) // All the queries should have failed
@@ -281,7 +281,7 @@ func TestDNSOverNonPort53(t *testing.T) {
 	shutdown, port := newTestServer(t, localhost, "udp")
 	defer shutdown()
 
-	queryIP, queryPort, reps, err := testdns.SendDNSQueriesOnPort(t, domains, net.ParseIP(localhost), strconv.Itoa(int(port)), "udp")
+	queryIP, queryPort, reps, err := testdns.SendDNSQueriesOnPort(domains, net.ParseIP(localhost), strconv.Itoa(int(port)), "udp")
 	require.NoError(t, err)
 	require.NotNil(t, reps[0])
 
@@ -334,7 +334,7 @@ func TestDNSOverUDPTimeoutCount(t *testing.T) {
 
 	invalidServerIP := "8.8.8.90"
 	domainQueried := "agafsdfsdasdfsd"
-	queryIP, queryPort, reps, err := testdns.SendDNSQueries(t, []string{domainQueried}, net.ParseIP(invalidServerIP), "udp")
+	queryIP, queryPort, reps, err := testdns.SendDNSQueries([]string{domainQueried}, net.ParseIP(invalidServerIP), "udp")
 	require.ErrorIs(t, err, os.ErrDeadlineExceeded, "error should be i/o timeout")
 	require.Len(t, reps, 1)
 	require.Nil(t, reps[0])
@@ -358,7 +358,7 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 
 	invalidServerIP := "8.8.8.90"
 	domainQueried := "agafsdfsdasdfsd"
-	queryIP, queryPort, reps, err := testdns.SendDNSQueries(t, []string{domainQueried}, net.ParseIP(invalidServerIP), "udp")
+	queryIP, queryPort, reps, err := testdns.SendDNSQueries([]string{domainQueried}, net.ParseIP(invalidServerIP), "udp")
 	require.ErrorIs(t, err, os.ErrDeadlineExceeded, "error should be i/o timeout")
 	require.Len(t, reps, 1)
 	require.Nil(t, reps[0])

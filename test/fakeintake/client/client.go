@@ -775,9 +775,6 @@ func (c *Client) get(route string) ([]byte, error) {
 	var body []byte
 	err := backoff.Retry(func() error {
 		tmpResp, err := http.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
-		if err, ok := err.(net.Error); ok && err.Timeout() {
-			panic(fmt.Sprintf("fakeintake call timed out: %v", err))
-		}
 		if err != nil {
 			return err
 		}
@@ -812,6 +809,9 @@ func (c *Client) get(route string) ([]byte, error) {
 		body, err = io.ReadAll(tmpResp.Body)
 		return err
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
+	if err, ok := err.(net.Error); ok && err.Timeout() {
+		panic(fmt.Sprintf("fakeintake call timed out: %v", err))
+	}
 	return body, err
 }
 

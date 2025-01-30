@@ -9,8 +9,7 @@ package postgres
 
 import (
 	"fmt"
-
-	"github.com/cihub/seelog"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
@@ -174,7 +173,53 @@ func (t *Telemetry) Count(tx *ebpf.EbpfEvent, eventWrapper *EventWrapper) {
 
 // Log logs the postgres stats summary
 func (t *Telemetry) Log() {
-	if log.ShouldLog(seelog.DebugLvl) {
+	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("postgres stats summary: %s", t.metricGroup.Summary())
+	}
+}
+
+// kernelTelemetry  provides empirical kernel statistics about the number of messages in each TCP packet
+type kernelTelemetry struct {
+	metricGroup        *libtelemetry.MetricGroup
+	reachedMaxMessages *libtelemetry.TLSAwareCounter
+	fragmentedPackets  *libtelemetry.TLSAwareCounter
+	msgCountBuckets    [ebpf.MsgCountNumBuckets]*libtelemetry.TLSAwareCounter // Postgres messages counters divided into buckets
+}
+
+// newKernelTelemetry this is the Postgres message counter store.
+func newKernelTelemetry() *kernelTelemetry {
+	metricGroup := libtelemetry.NewMetricGroup("usm.postgres", libtelemetry.OptStatsd)
+	kernelTel := &kernelTelemetry{
+		metricGroup: metricGroup,
+	}
+	kernelTel.reachedMaxMessages = libtelemetry.NewTLSAwareCounter(metricGroup, "max_messages")
+	kernelTel.fragmentedPackets = libtelemetry.NewTLSAwareCounter(metricGroup, "incomplete_messages")
+
+	for i := range kernelTel.msgCountBuckets {
+		kernelTel.msgCountBuckets[i] = libtelemetry.NewTLSAwareCounter(metricGroup, "messages_count_bucket_"+strconv.Itoa(i+1))
+	}
+	return kernelTel
+}
+
+// update the postgres message counter store with new counters from the kernel, return immediately if nothing to add.
+func (t *kernelTelemetry) update(kernCounts *ebpf.PostgresKernelMsgCount, isTLS bool) {
+	if kernCounts == nil {
+		return
+	}
+
+	t.reachedMaxMessages.Set(int64(kernCounts.Reached_max_messages), isTLS)
+	t.fragmentedPackets.Set(int64(kernCounts.Fragmented_packets), isTLS)
+
+	for i := range t.msgCountBuckets {
+		v := kernCounts.Msg_count_buckets[i]
+		t.msgCountBuckets[i].Set(int64(v), isTLS)
+	}
+}
+
+// Log logs summary of telemetry
+func (t *kernelTelemetry) Log() {
+	if log.ShouldLog(log.DebugLvl) {
+		s := t.metricGroup.Summary()
+		log.Debugf("postgres kernel telemetry, summary: %s", s)
 	}
 }

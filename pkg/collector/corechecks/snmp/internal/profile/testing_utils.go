@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/mohae/deepcopy"
-
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
@@ -20,7 +18,7 @@ import (
 
 // CopyProfileDefinition copies a profile, it's used for testing
 func CopyProfileDefinition(profileDef profiledefinition.ProfileDefinition) profiledefinition.ProfileDefinition {
-	return deepcopy.Copy(profileDef).(profiledefinition.ProfileDefinition)
+	return *profileDef.Clone()
 }
 
 // SetConfdPathAndCleanProfiles is used for testing only
@@ -64,6 +62,7 @@ func FixtureProfileDefinitionMap() ProfileConfigMap {
 	return ProfileConfigMap{
 		"f5-big-ip": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
+				Name:         "f5-big-ip",
 				Metrics:      metrics,
 				Extends:      []string{"_base.yaml", "_generic-if.yaml"},
 				Device:       profiledefinition.DeviceMeta{Vendor: "f5"},
@@ -183,6 +182,7 @@ func FixtureProfileDefinitionMap() ProfileConfigMap {
 		},
 		"another_profile": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
+				Name:         "another_profile",
 				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.32473.1.1"},
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "anotherMetric"}, MetricType: ""},

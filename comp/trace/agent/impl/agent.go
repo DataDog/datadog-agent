@@ -24,6 +24,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -39,7 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -61,13 +62,14 @@ type dependencies struct {
 	Shutdowner fx.Shutdowner
 
 	Config             config.Component
-	Secrets            optional.Option[secrets.Component]
+	Secrets            option.Option[secrets.Component]
 	Context            context.Context
 	Params             *Params
 	TelemetryCollector telemetry.TelemetryCollector
 	Statsd             statsd.Component
 	Tagger             tagger.Component
 	Compressor         compression.Component
+	At                 authtoken.Component
 }
 
 var _ traceagent.Component = (*component)(nil)
@@ -89,10 +91,11 @@ type component struct {
 
 	cancel             context.CancelFunc
 	config             config.Component
-	secrets            optional.Option[secrets.Component]
+	secrets            option.Option[secrets.Component]
 	params             *Params
 	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
+	at                 authtoken.Component
 	wg                 *sync.WaitGroup
 }
 
@@ -115,6 +118,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		params:             deps.Params,
 		telemetryCollector: deps.TelemetryCollector,
 		tagger:             deps.Tagger,
+		at:                 deps.At,
 		wg:                 &sync.WaitGroup{},
 	}
 	statsdCl, err := setupMetrics(deps.Statsd, c.config, c.telemetryCollector)

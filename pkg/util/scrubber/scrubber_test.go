@@ -28,6 +28,16 @@ func TestNewWithDefaults(t *testing.T) {
 	assert.Equal(t, len(scrubberEmpty.multiLineReplacers), len(scrubber.multiLineReplacers))
 }
 
+func TestLastUpdated(t *testing.T) {
+	scrubber := NewWithDefaults()
+	for _, replacer := range scrubber.singleLineReplacers {
+		assert.NotNil(t, replacer.LastUpdated, "single line replacer has no LastUpdated: %v", replacer)
+	}
+	for _, replacer := range scrubber.multiLineReplacers {
+		assert.NotNil(t, replacer.LastUpdated, "multi line replacer has no LastUpdated: %v", replacer)
+	}
+}
+
 func TestRepl(t *testing.T) {
 	scrubber := New()
 	scrubber.AddReplacer(SingleLine, Replacer{

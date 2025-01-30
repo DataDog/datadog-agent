@@ -44,8 +44,8 @@ BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
 
-KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
-KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
+TEST_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "new-e2e", "tests"))
+E2E_ARTIFACT_DIR = os.path.join(TEST_DIR, "sysprobe-functional/artifacts")
 TEST_PACKAGES_LIST = [
     "./pkg/ebpf/...",
     "./pkg/network/...",
@@ -348,7 +348,7 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     for prog in test_programs:
         infile = os.path.join(ebpf_c_dir, f"{prog}.c")
         outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-        ninja_ebpf_program(
+        ninja_ebpf_co_re_program(
             nw, infile, outfile, {"flags": test_flags}
         )  # All test ebpf programs are just for testing, so we always build them with debug symbols
 
@@ -525,7 +525,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/ebpf/types.go": [
                 "pkg/ebpf/c/lock_contention.h",
             ],
-            "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/types.h"],
+            "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/base_event.h"],
             "pkg/gpu/ebpf/kprobe_types.go": [
                 "pkg/gpu/ebpf/c/types.h",
             ],
@@ -604,7 +604,7 @@ def ninja_generate(
             )
             ninja_define_co_re_compiler(nw, arch=arch, compiler=ebpf_compiler)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
-            ninja_test_ebpf_programs(nw, build_dir)
+            ninja_test_ebpf_programs(nw, co_re_build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
@@ -676,7 +676,7 @@ def get_libpcap_cgo_flags(ctx, install_path: str = None):
 def build(
     ctx,
     race=False,
-    incremental_build=True,
+    rebuild=False,
     major_version='7',
     go_mod="readonly",
     arch: str = CURRENT_ARCH,
@@ -711,7 +711,7 @@ def build(
         bundle_ebpf=bundle_ebpf,
         go_mod=go_mod,
         race=race,
-        incremental_build=incremental_build,
+        rebuild=rebuild,
         strip_binary=strip_binary,
         arch=arch,
         static=static,
@@ -733,7 +733,7 @@ def clean(
 def build_sysprobe_binary(
     ctx,
     race=False,
-    incremental_build=True,
+    rebuild=False,
     major_version='7',
     go_mod="readonly",
     arch: str = CURRENT_ARCH,
@@ -784,7 +784,7 @@ def build_sysprobe_binary(
     args = {
         "go_mod": go_mod,
         "race_opt": " -race" if race else "",
-        "build_type": "" if incremental_build else " -a",
+        "build_type": " -a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": binary,
         "gcflags": gcflags,
@@ -822,7 +822,7 @@ def test(
     Run tests on eBPF parts
     If skip_object_files is set to True, this won't rebuild object files
     If output_path is set, we run `go test` with the flags `-c -o output_path`, which *compiles* the test suite
-    into a single binary. This artifact is meant to be used in conjunction with kitchen tests.
+    into a single binary. This artifact is meant to be used in conjunction with e2e tests.
     """
     if os.getenv("GOPATH") is None:
         raise Exit(
@@ -958,11 +958,11 @@ def go_package_dirs(packages, build_tags):
     return [p for p in target_packages if len(p) > 0]
 
 
-BUILD_COMMIT = os.path.join(KITCHEN_ARTIFACT_DIR, "build.commit")
+BUILD_COMMIT = os.path.join(E2E_ARTIFACT_DIR, "build.commit")
 
 
 def clean_build(ctx):
-    if not os.path.exists(KITCHEN_ARTIFACT_DIR):
+    if not os.path.exists(E2E_ARTIFACT_DIR):
         return True
 
     if not os.path.exists(BUILD_COMMIT):
@@ -983,9 +983,9 @@ def full_pkg_path(name):
 
 
 @task
-def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
+def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
     """
-    Compile test suite for kitchen
+    Compile test suite for e2e tests
     """
     build_tags = [NPM_TAG]
     if not is_windows:
@@ -994,8 +994,8 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
     target_packages = go_package_dirs(TEST_PACKAGES_LIST, build_tags)
 
     # Clean up previous build
-    if os.path.exists(KITCHEN_ARTIFACT_DIR) and (packages == "" or clean_build(ctx)):
-        shutil.rmtree(KITCHEN_ARTIFACT_DIR)
+    if os.path.exists(E2E_ARTIFACT_DIR) and (packages == "" or clean_build(ctx)):
+        shutil.rmtree(E2E_ARTIFACT_DIR)
     elif packages != "":
         packages = [full_pkg_path(name) for name in packages.split(",")]
         # make sure valid packages were provided.
@@ -1008,22 +1008,22 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
     if os.path.exists(BUILD_COMMIT):
         os.remove(BUILD_COMMIT)
 
-    os.makedirs(KITCHEN_ARTIFACT_DIR, exist_ok=True)
+    os.makedirs(E2E_ARTIFACT_DIR, exist_ok=True)
 
     # clean target_packages only
     for pkg_dir in target_packages:
         test_dir = pkg_dir.lstrip(os.getcwd())
-        if os.path.exists(os.path.join(KITCHEN_ARTIFACT_DIR, test_dir)):
-            shutil.rmtree(os.path.join(KITCHEN_ARTIFACT_DIR, test_dir))
+        if os.path.exists(os.path.join(E2E_ARTIFACT_DIR, test_dir)):
+            shutil.rmtree(os.path.join(E2E_ARTIFACT_DIR, test_dir))
 
     # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
-    # These artifacts will be "vendored" inside a chef recipe like the following:
-    # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/network/testsuite
-    # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/network/netlink/testsuite
-    # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/testsuite
-    # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/bytecode/testsuite
+    # These artifacts will be "vendored" inside:
+    # test/new-e2e/tests/sysprobe-functional/artifacts/pkg/network/testsuite
+    # test/new-e2e/tests/sysprobe-functional/artifacts/pkg/network/netlink/testsuite
+    # test/new-e2e/tests/sysprobe-functional/artifacts/pkg/ebpf/testsuite
+    # test/new-e2e/tests/sysprobe-functional/artifacts/pkg/ebpf/bytecode/testsuite
     for i, pkg in enumerate(target_packages):
-        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, os.path.relpath(pkg, os.getcwd()))
+        target_path = os.path.join(E2E_ARTIFACT_DIR, os.path.relpath(pkg, os.getcwd()))
         target_bin = "testsuite"
         if is_windows:
             target_bin = "testsuite.exe"
@@ -1072,13 +1072,10 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
         f"{gopath}/bin/gotestsum",
     ]
 
-    files_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "..")
+    files_dir = os.path.join(E2E_ARTIFACT_DIR, "..")
     for cf in copy_files:
         if os.path.exists(cf):
             shutil.copy(cf, files_dir)
-
-    if not ci:
-        kitchen_prepare_btfs(ctx, files_dir)
 
     ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
     ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
@@ -1462,6 +1459,7 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
         print(f"All {total_metadata_files} object files have valid metadata")
 
 
+@task(aliases=["object-files"])
 def build_object_files(
     ctx,
     major_version='7',
@@ -1583,15 +1581,6 @@ def build_cws_object_files(
         copy_bundled_ebpf_files(ctx, arch=arch)
 
 
-@task
-def object_files(
-    ctx, kernel_release=None, with_unit_test=False, arch: str = CURRENT_ARCH, ebpf_compiler: str = 'clang'
-):
-    build_object_files(
-        ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, arch=arch, ebpf_compiler=ebpf_compiler
-    )
-
-
 def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
     run_ninja(
         ctx,
@@ -1626,59 +1615,6 @@ def check_for_ninja(ctx):
     else:
         ctx.run("which ninja")
     ctx.run("ninja --version")
-
-
-def is_bpftool_compatible(ctx):
-    try:
-        ctx.run("bpftool gen min_core_btf 2>&1 | grep -q \"'min_core_btf' needs at least 3 arguments, 0 found\"")
-        return True
-    except Exception:
-        return False
-
-
-def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
-    btf_dir = "/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/btf"
-
-    if arch == "x64":
-        arch = "x86_64"
-    elif arch == "arm64":
-        arch = "aarch64"
-
-    if not os.path.exists(f"{btf_dir}/kitchen-btfs-{arch}.tar.xz"):
-        exit("BTFs for kitchen test environments not found. Please update & re-provision your dev VM.")
-
-    sudo = "sudo" if not is_root() else ""
-    ctx.run(f"{sudo} chmod -R 0777 {btf_dir}")
-
-    if not os.path.exists(f"{btf_dir}/kitchen-btfs-{arch}"):
-        ctx.run(
-            f"mkdir {btf_dir}/kitchen-btfs-{arch} && "
-            + f"tar xf {btf_dir}/kitchen-btfs-{arch}.tar.xz -C {btf_dir}/kitchen-btfs-{arch}"
-        )
-
-    can_minimize = True
-    if not is_bpftool_compatible(ctx):
-        print(
-            "Cannot minimize BTFs: bpftool version 6 or higher is required: preparing kitchen environment with full sized BTFs instead."
-        )
-        can_minimize = False
-
-    if can_minimize:
-        co_re_programs = " ".join(glob.glob("/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/*.o"))
-        generate_minimized_btfs(
-            ctx,
-            source_dir=f"{btf_dir}/kitchen-btfs-{arch}",
-            output_dir=f"{btf_dir}/minimized-btfs",
-            bpf_programs=co_re_programs,
-        )
-
-        ctx.run(
-            f"cd {btf_dir}/minimized-btfs && "
-            + "tar -cJf minimized-btfs.tar.xz * && "
-            + f"mv minimized-btfs.tar.xz {files_dir}"
-        )
-    else:
-        ctx.run(f"cp {btf_dir}/kitchen-btfs-{arch}.tar.xz {files_dir}/minimized-btfs.tar.xz")
 
 
 # list of programs we do not want to minimize against
@@ -1722,7 +1658,10 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
 
         nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
         nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $input_bpf_programs")
-        nw.rule(name="compress_minimized_btf", command="tar -cJf $out -C $tar_working_directory $rel_in && rm $in")
+        nw.rule(
+            name="compress_minimized_btf",
+            command="tar --mtime=@0 -cJf $out -C $tar_working_directory $rel_in && rm $in",
+        )
 
         for root, dirs, files in os.walk(source_dir):
             path_from_root = os.path.relpath(root, source_dir)
@@ -1835,7 +1774,8 @@ def process_btfhub_archive(ctx, branch="main"):
                                             dst_file = os.path.join(dst_dir, file)
                                             if os.path.exists(dst_file):
                                                 raise Exit(message=f"{dst_file} already exists")
-                                            shutil.move(src_file, os.path.join(dst_dir, file))
+
+                                            shutil.move(src_file, dst_file)
 
         # generate both tarballs
         for arch in ["x86_64", "arm64"]:
@@ -1845,7 +1785,8 @@ def process_btfhub_archive(ctx, branch="main"):
             if os.path.exists(btfs_dir):
                 with ctx.cd(temp_dir):
                     # include btfs-$ARCH as prefix for all paths
-                    ctx.run(f"tar -cf {output_path} btfs-{arch}")
+                    # set modification time to zero to ensure deterministic tarball
+                    ctx.run(f"tar --mtime=@0 -cf {output_path} btfs-{arch}")
 
 
 @task
@@ -2080,3 +2021,40 @@ def copy_ebpf_and_related_files(ctx: Context, target: Path | str, arch: Arch | N
     ctx.run(f"chmod 0444 {target}/*.o {target}/*.c {target}/co-re/*.o")
     ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {target}")
     ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {target}")
+
+
+@task
+def build_usm_debugger(
+    ctx,
+    arch: str = CURRENT_ARCH,
+    strip_binary=False,
+):
+    build_object_files(ctx)
+
+    build_dir = os.path.join("pkg", "ebpf", "bytecode", "build", arch)
+
+    # copy compilation artifacts to the debugger root directory for the purposes of embedding
+    usm_programs = [
+        os.path.join(build_dir, "co-re", "usm-debug.o"),
+        os.path.join(build_dir, "co-re", "shared-libraries-debug.o"),
+    ]
+
+    embedded_dir = os.path.join(".", "pkg", "network", "usm", "debugger", "cmd")
+
+    for p in usm_programs:
+        print(p)
+        shutil.copy(p, embedded_dir)
+
+    arch_obj = Arch.from_str(arch)
+    ldflags, gcflags, env = get_build_flags(ctx, arch=arch_obj)
+
+    cmd = 'go build -tags="linux_bpf,usm_debugger" -o bin/usm-debugger -ldflags="{ldflags}" ./pkg/network/usm/debugger/cmd/'
+
+    if strip_binary:
+        ldflags += ' -s -w'
+
+    args = {
+        "ldflags": ldflags,
+    }
+
+    ctx.run(cmd.format(**args), env=env)

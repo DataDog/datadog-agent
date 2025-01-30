@@ -378,6 +378,194 @@ int self_exec(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+void* connect_thread_ipv4(void *arg) {
+    int s = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    connect(s, (struct sockaddr*)arg, sizeof(struct sockaddr));
+    return NULL;
+}
+
+int test_accept_af_inet(int argc, char** argv) {
+    pthread_t thread;
+
+    if (argc != 5) {
+        fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
+        fprintf(stderr, "Arg1: IP address where the socket should bind to\n");
+        fprintf(stderr, "Arg2: IP address where the socket should connect to\n");
+        fprintf(stderr, "Arg3: Port to bind\n");
+        fprintf(stderr, "Arg4: Pass sockaddr_in <true/false>\n");
+        return EXIT_FAILURE;
+    }
+
+    const char* bind_to = argv[1];
+    const char* connect_to = argv[2];
+    int port = atoi(argv[3]);
+
+    struct sockaddr_in *sockAddrPtr = NULL;
+    struct sockaddr_in sockAddr;
+    memset(&sockAddr, 0, sizeof(struct sockaddr_in));
+
+    socklen_t sockLen = sizeof(struct sockaddr_in);
+
+    if (strcmp(argv[4], "true") == 0) {
+        sockAddrPtr = &sockAddr;
+    }
+
+    int s;
+    s = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    int ip32 = 0;
+
+    struct sockaddr_in bindAddr;
+    memset(&bindAddr, 0, sizeof(struct sockaddr_in));
+    bindAddr.sin_family = AF_INET;
+    if (inet_pton(AF_INET, bind_to, &ip32) != 1) {
+        perror("inet_pton bind_to");
+        return EXIT_FAILURE;
+    }
+
+    bindAddr.sin_addr.s_addr = htonl(ip32);
+    bindAddr.sin_port = htons(port);
+
+    struct sockaddr_in connectAddr;
+    memset(&connectAddr, 0, sizeof(struct sockaddr_in));
+    connectAddr.sin_family = AF_INET;
+    if (inet_pton(AF_INET, connect_to, &ip32) != 1) {
+        perror("inet_pton connect_to");
+        return EXIT_FAILURE;
+    }
+
+    connectAddr.sin_addr.s_addr = ip32;
+    connectAddr.sin_port = htons(port);
+
+    if (bind(s, (struct sockaddr*)&bindAddr, sizeof(struct sockaddr)) < 0) {
+        close(s);
+        perror("Failed to bind");
+        return EXIT_FAILURE;
+    }
+
+    if (listen(s, 10) < 0) {
+        close(s);
+        perror("Failed to listen");
+        return EXIT_FAILURE;
+    }
+
+    pthread_create(&thread, NULL, connect_thread_ipv4, (void*)&connectAddr);
+
+    if (accept(s, (struct sockaddr*)sockAddrPtr, &sockLen) < 0) {
+        perror("Failed to accept");
+    }
+
+    close(s);
+    pthread_join(thread, NULL);
+    return EXIT_SUCCESS;
+}
+
+void* connect_thread_ipv6(void *arg) {
+    int s = socket(PF_INET6, SOCK_STREAM, IPPROTO_TCP);
+    connect(s, (struct sockaddr_in6*)arg, sizeof(struct sockaddr_in6));
+
+    return NULL;
+}
+
+int test_accept_af_inet6(int argc, char** argv) {
+    pthread_t thread;
+
+    if (argc != 5) {
+        fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
+        fprintf(stderr, "Arg1: IP address where the socket should bind to\n");
+        fprintf(stderr, "Arg2: IP address where the socket should connect to\n");
+        fprintf(stderr, "Arg3: Port to bind\n");
+        fprintf(stderr, "Arg4: Pass sockaddr_in <true/false>\n");
+        return EXIT_FAILURE;
+    }
+
+    const char* bind_to = argv[1];
+    const char* connect_to = argv[2];
+    int port = atoi(argv[3]);
+
+    struct sockaddr_in6 *sockAddrPtr = NULL;
+    struct sockaddr_in6 sockAddr;
+    memset(&sockAddr, 0, sizeof(struct sockaddr_in6));
+
+    socklen_t sockLen = sizeof(struct sockaddr_in6);
+
+    if (strcmp(argv[4], "true") == 0) {
+        sockAddrPtr = &sockAddr;
+    }
+
+    int s;
+    s = socket(PF_INET6, SOCK_STREAM, IPPROTO_TCP);
+
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    struct in6_addr ip6;
+
+    struct sockaddr_in6 bindAddr;
+    memset(&bindAddr, 0, sizeof(struct sockaddr_in6));
+    bindAddr.sin6_family = AF_INET6;
+    if (inet_pton(AF_INET6, bind_to, &ip6) != 1) {
+        perror("inet_pton bind_to");
+        return EXIT_FAILURE;
+    }
+    bindAddr.sin6_addr = ip6;
+    bindAddr.sin6_port = htons(port);
+
+    struct sockaddr_in6 connectAddr;
+    memset(&connectAddr, 0, sizeof(struct sockaddr_in6));
+    connectAddr.sin6_family = AF_INET6;
+    if (inet_pton(AF_INET6, connect_to, &ip6) != 1) {
+        perror("inet_pton connect_to");
+        return EXIT_FAILURE;
+    }
+    connectAddr.sin6_addr = ip6;
+    connectAddr.sin6_port = htons(port);
+
+    if (bind(s, &bindAddr, sizeof(struct sockaddr_in6)) < 0) {
+        close(s);
+        perror("Failed to bind");
+        return EXIT_FAILURE;
+    }
+
+    if (listen(s, 10) < 0) {
+        close(s);
+        perror("Failed to listen");
+        return EXIT_FAILURE;
+    }
+
+    pthread_create(&thread, NULL, connect_thread_ipv6, (void*)&connectAddr);
+
+    if (accept(s, (struct sockaddr*)sockAddrPtr, &sockLen) < 0) {
+        perror("Failed to accept");
+    }
+
+    pthread_join(thread, NULL);
+    close (s);
+    return EXIT_SUCCESS;
+}
+
+int test_accept(int argc, char** argv) {
+    if (argc <= 2) {
+        fprintf(stderr, "Please specify an addr_type\n");
+        return EXIT_FAILURE;
+    }
+
+    if(strcmp(argv[1],"AF_INET") == 0) {
+        return test_accept_af_inet(argc - 1, argv + 1);
+    } else if(strcmp(argv[1], "AF_INET6") == 0) {
+        return test_accept_af_inet6(argc - 1, argv + 1);
+    }
+
+    return EXIT_FAILURE;
+}
+
 int test_bind_af_inet(int argc, char** argv) {
 
     if (argc != 3) {
@@ -868,6 +1056,49 @@ int test_new_netns_exec(int argc, char **argv) {
     return EXIT_FAILURE;
 }
 
+int test_network_flow_send_udp4(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "Please specify the remote IP address and port\n");
+        return EXIT_FAILURE;
+    }
+
+    int sockfd;
+    struct sockaddr_in server_addr;
+    const char *message = "DATA";
+
+    // Create a DGRAM socket
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+        fprintf(stderr, "Socket creation failed\n");
+        return EXIT_FAILURE;
+    }
+
+    // Configure server address structure
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(atoi(argv[2]));
+    server_addr.sin_addr.s_addr = inet_addr(argv[1]);
+
+    // Send the message
+    if (sendto(sockfd, message, strlen(message), 0, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        fprintf(stderr, "Failed to send data\n");
+        close(sockfd);
+        return EXIT_FAILURE;
+    }
+
+    printf("Message sent: %s\n", message);
+    pid_t pid;
+
+    // Get the process ID
+    pid = getpid();
+    printf("Process ID: %d\n", pid);
+
+    // Close the socket
+    close(sockfd);
+    printf("Socket closed.\n");
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -915,6 +1146,8 @@ int main(int argc, char **argv) {
             exit_code = test_process_set(sub_argc, sub_argv);
         } else if (strcmp(cmd, "self-exec") == 0) {
             exit_code = self_exec(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "accept") == 0) {
+            exit_code = test_accept(sub_argc, sub_argv);
         } else if (strcmp(cmd, "bind") == 0) {
             exit_code = test_bind(sub_argc, sub_argv);
         } else if (strcmp(cmd, "connect") == 0) {
@@ -947,6 +1180,8 @@ int main(int argc, char **argv) {
             exit_code = test_slow_cat(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-write") == 0) {
             exit_code = test_slow_write(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "network_flow_send_udp4") == 0) {
+            exit_code = test_network_flow_send_udp4(sub_argc, sub_argv);
         }
         else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);

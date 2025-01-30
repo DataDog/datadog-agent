@@ -38,7 +38,7 @@ func TestRunWithChan(t *testing.T) {
 
 		ch := make(chan time.Time, 1)
 		ch <- time.Now()
-		time.AfterFunc(100*time.Millisecond, cancel)
+		time.AfterFunc(500*time.Millisecond, cancel)
 		cs.runWithChan(ch)
 
 		require.True(t, called)

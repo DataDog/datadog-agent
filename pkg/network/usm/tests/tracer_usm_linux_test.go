@@ -62,6 +62,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -141,7 +142,7 @@ type USMSuite struct {
 }
 
 func TestUSMSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(USMSuite))
 	})
 }
@@ -429,15 +430,15 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 
 			// Perform the TLS handshake
 			require.NoError(t, tlsConn.Handshake())
-
-			require.Eventually(t, func() bool {
-				payload := getConnections(t, tr)
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				payload := getConnections(collect, tr)
 				for _, c := range payload.Conns {
 					if c.DPort == srvPortU16 || c.SPort == srvPortU16 {
-						return c.ProtocolStack.Contains(protocols.TLS) == tt.shouldBeTLS
+						require.Equal(collect, c.ProtocolStack.Contains(protocols.TLS), tt.shouldBeTLS)
+						return
 					}
 				}
-				return false
+				require.Fail(collect, "")
 			}, 10*time.Second, 100*time.Millisecond)
 		})
 	}
@@ -502,14 +503,14 @@ func (s *USMSuite) TestTLSClassification() {
 			},
 			validation: func(t *testing.T, tr *tracer.Tracer) {
 				// Iterate through active connections until we find connection created above
-				require.Eventuallyf(t, func() bool {
-					payload := getConnections(t, tr)
+				require.EventuallyWithTf(t, func(collect *assert.CollectT) {
+					payload := getConnections(collect, tr)
 					for _, c := range payload.Conns {
 						if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) {
-							return true
+							return
 						}
 					}
-					return false
+					require.Fail(collect, "")
 				}, 4*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", portAsString)
 			},
 		})
@@ -574,8 +575,8 @@ func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 
 	// Iterate through active connections until we find connection created above
 	var foundIncoming, foundOutgoing bool
-	require.Eventuallyf(t, func() bool {
-		payload := getConnections(t, tr)
+	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
+		payload := getConnections(collect, tr)
 
 		for _, c := range payload.Conns {
 			if !foundIncoming && c.DPort == uint16(portAsValue) && c.ProtocolStack.Contains(protocols.TLS) {
@@ -586,7 +587,8 @@ func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 				foundOutgoing = true
 			}
 		}
-		return foundIncoming && foundOutgoing
+		require.True(collect, foundIncoming)
+		require.True(collect, foundOutgoing)
 	}, 4*time.Second, 100*time.Millisecond, "couldn't find matching TLS connection")
 }
 

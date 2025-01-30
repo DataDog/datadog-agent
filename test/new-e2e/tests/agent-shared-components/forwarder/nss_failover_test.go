@@ -31,6 +31,8 @@ import (
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
@@ -42,7 +44,7 @@ type multiFakeIntakeEnv struct {
 	Fakeintake2 *components.FakeIntake
 }
 
-func (e *multiFakeIntakeEnv) Init(ctx e2e.Context) error {
+func (e *multiFakeIntakeEnv) Init(ctx common.Context) error {
 	if e.Agent != nil {
 		agent, err := client.NewHostAgentClient(ctx, e.Host.HostOutput, true)
 		if err != nil {
@@ -82,7 +84,7 @@ var customLogsConfigTmplFile string
 //go:embed testfixtures/config.yaml.tmpl
 var configTmplFile string
 
-func multiFakeIntakeAWS(agentOptions ...agentparams.Option) e2e.Provisioner {
+func multiFakeIntakeAWS(agentOptions ...agentparams.Option) provisioners.Provisioner {
 	runFunc := func(ctx *pulumi.Context, env *multiFakeIntakeEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -116,7 +118,7 @@ func multiFakeIntakeAWS(agentOptions ...agentparams.Option) e2e.Provisioner {
 		return nil
 	}
 
-	return e2e.NewTypedPulumiProvisioner("aws-nssfailover", runFunc, nil)
+	return provisioners.NewTypedPulumiProvisioner("aws-nssfailover", runFunc, nil)
 }
 
 type multiFakeIntakeSuite struct {
@@ -142,6 +144,9 @@ func TestMultiFakeintakeSuite(t *testing.T) {
 //
 // TODO: handle APM traces
 func (v *multiFakeIntakeSuite) TestNSSFailover() {
+	// Ensure that both fakeintakes are using the same scheme
+	v.Assert().Equal(v.Env().Fakeintake1.Scheme, v.Env().Fakeintake2.Scheme)
+
 	agentConfig, err := readTmplConfig(configTmplFile)
 	v.NoError(err)
 
@@ -160,7 +165,7 @@ func (v *multiFakeIntakeSuite) TestNSSFailover() {
 	agentOptions := []agentparams.Option{
 		agentparams.WithAgentConfig(agentConfig),
 		agentparams.WithLogs(),
-		agentparams.WithIntakeHostname(intakeName),
+		agentparams.WithIntakeHostname(v.Env().Fakeintake1.Scheme, intakeName),
 		agentparams.WithIntegration("custom_logs.d", customLogsConfig),
 	}
 	v.UpdateEnv(multiFakeIntakeAWS(agentOptions...))

@@ -68,7 +68,7 @@ func TestNotRunning(t *testing.T) {
 
 	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	require.NoError(t, err)
-	statusURL := fmt.Sprintf("http://%s/agent/status", addressPort)
+	statusURL := fmt.Sprintf("https://%s/agent/status", addressPort)
 
 	var b strings.Builder
 	getAndWriteStatus(log.NoopLogger, statusURL, &b)

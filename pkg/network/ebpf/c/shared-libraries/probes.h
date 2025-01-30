@@ -4,6 +4,7 @@
 #include "bpf_telemetry.h"
 #include "bpf_bypass.h"
 
+#include "pid_tgid.h"
 #include "shared-libraries/types.h"
 
 static __always_inline void fill_path_safe(lib_path_t *path, const char *path_argument) {
@@ -17,43 +18,35 @@ static __always_inline void fill_path_safe(lib_path_t *path, const char *path_ar
     }
 }
 
-static __always_inline void do_sys_open_helper_enter(const char *filename) {
-    lib_path_t path = { 0 };
-    if (bpf_probe_read_user_with_telemetry(path.buf, sizeof(path.buf), filename) >= 0) {
+static __always_inline bool fill_lib_path(lib_path_t *path, const char *path_argument) {
+    path->pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());
+    if (bpf_probe_read_user_with_telemetry(path->buf, sizeof(path->buf), path_argument) >= 0) {
 // Find the null character and clean up the garbage following it
 #pragma unroll
         for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
-            if (path.len) {
-                path.buf[i] = 0;
-            } else if (path.buf[i] == 0) {
-                path.len = i;
+            if (path->buf[i] == 0) {
+                path->len = i;
+                break;
             }
         }
     } else {
-        fill_path_safe(&path, filename);
+        fill_path_safe(path, path_argument);
     }
 
-    // Bail out if the path size is larger than our buffer
-    if (!path.len) {
-        return;
-    }
+    return path->len > 0;
+}
 
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    path.pid = pid_tgid >> 32;
-    bpf_map_update_with_telemetry(open_at_args, &pid_tgid, &path, BPF_ANY);
+static __always_inline void do_sys_open_helper_enter(const char *filename) {
+    lib_path_t path = { 0 };
+    if (fill_lib_path(&path, filename)) {
+        u64 pid_tgid = bpf_get_current_pid_tgid();
+        bpf_map_update_with_telemetry(open_at_args, &pid_tgid, &path, BPF_ANY);
+    }
     return;
 }
 
-static __always_inline void do_sys_open_helper_exit(exit_sys_ctx *args) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-
-    // If file couldn't be opened, bail out
-    if (args->ret < 0) {
-        goto cleanup;
-    }
-
-    lib_path_t *path = bpf_map_lookup_elem(&open_at_args, &pid_tgid);
-    if (path == NULL) {
+static __always_inline void push_event_if_relevant(void *ctx, lib_path_t *path, long return_code) {
+    if (return_code < 0) {
         return;
     }
 
@@ -79,32 +72,57 @@ static __always_inline void do_sys_open_helper_exit(exit_sys_ctx *args) {
         }
     }
     if (!is_shared_library) {
-        goto cleanup;
+        return;
     }
-
+    if (i + LIB_SO_SUFFIX_SIZE > path->len) {
+        return;
+    }
     u64 crypto_libset_enabled = 0;
     LOAD_CONSTANT("crypto_libset_enabled", crypto_libset_enabled);
 
     if (crypto_libset_enabled && (match6chars(0, 'l', 'i', 'b', 's', 's', 'l') || match6chars(0, 'c', 'r', 'y', 'p', 't', 'o') || match6chars(0, 'g', 'n', 'u', 't', 'l', 's'))) {
-        bpf_perf_event_output((void *)args, &crypto_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
-        goto cleanup;
+        bpf_perf_event_output(ctx, &crypto_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
+        return;
     }
 
     u64 gpu_libset_enabled = 0;
     LOAD_CONSTANT("gpu_libset_enabled", gpu_libset_enabled);
 
     if (gpu_libset_enabled && (match6chars(0, 'c', 'u', 'd', 'a', 'r', 't'))) {
-        bpf_perf_event_output((void *)args, &gpu_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
+        bpf_perf_event_output(ctx, &gpu_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
+    }
+}
+
+static __always_inline void do_sys_open_helper_exit(exit_sys_ctx *args) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    lib_path_t *path = bpf_map_lookup_elem(&open_at_args, &pid_tgid);
+    if (path == NULL) {
+        return;
     }
 
-cleanup:
+    push_event_if_relevant(args, path, args->ret);
     bpf_map_delete_elem(&open_at_args, &pid_tgid);
     return;
+}
+
+// This definition is the same for all architectures.
+#ifndef O_WRONLY
+#define O_WRONLY        00000001
+#endif
+
+static __always_inline int should_ignore_flags(int flags)
+{
+    return flags & O_WRONLY;
 }
 
 SEC("tracepoint/syscalls/sys_enter_open")
 int tracepoint__syscalls__sys_enter_open(enter_sys_open_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
+
+    if (should_ignore_flags(args->flags)) {
+        return 0;
+    }
+
     do_sys_open_helper_enter(args->filename);
     return 0;
 }
@@ -119,6 +137,11 @@ int tracepoint__syscalls__sys_exit_open(exit_sys_ctx *args) {
 SEC("tracepoint/syscalls/sys_enter_openat")
 int tracepoint__syscalls__sys_enter_openat(enter_sys_openat_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
+
+    if (should_ignore_flags(args->flags)) {
+        return 0;
+    }
+
     do_sys_open_helper_enter(args->filename);
     return 0;
 }
@@ -133,6 +156,15 @@ int tracepoint__syscalls__sys_exit_openat(exit_sys_ctx *args) {
 SEC("tracepoint/syscalls/sys_enter_openat2")
 int tracepoint__syscalls__sys_enter_openat2(enter_sys_openat2_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
+
+    if (args->how != NULL) {
+        __u64 flags = 0;
+        bpf_probe_read_user(&flags, sizeof(flags), &args->how->flags);
+        if (should_ignore_flags(flags)) {
+            return 0;
+        }
+    }
+
     do_sys_open_helper_enter(args->filename);
     return 0;
 }
@@ -141,6 +173,19 @@ SEC("tracepoint/syscalls/sys_exit_openat2")
 int tracepoint__syscalls__sys_exit_openat2(exit_sys_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
     do_sys_open_helper_exit(args);
+    return 0;
+}
+
+SEC("fexit/do_sys_openat2")
+int BPF_BYPASSABLE_PROG(do_sys_openat2_exit, int dirfd, const char *pathname, openat2_open_how *how, long ret) {
+    if (how != NULL && should_ignore_flags(how->flags)) {
+        return 0;
+    }
+
+    lib_path_t path = { 0 };
+    if (fill_lib_path(&path, pathname)) {
+        push_event_if_relevant(ctx, &path, ret);
+    }
     return 0;
 }
 

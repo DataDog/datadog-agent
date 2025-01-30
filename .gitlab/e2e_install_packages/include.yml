@@ -9,3 +9,4 @@ include:
   - .gitlab/e2e_install_packages/centos.yml
   - .gitlab/e2e_install_packages/suse.yml
   - .gitlab/e2e_install_packages/windows.yml
+  - .gitlab/e2e_install_packages/installer.yml
