@@ -967,6 +967,7 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
     new_jobs['variables']['PARENT_PIPELINE_ID'] = 'undefined'
     new_jobs['variables']['PARENT_COMMIT_SHA'] = 'undefined'
     new_jobs['variables']['PARENT_COMMIT_SHORT_SHA'] = 'undefined'
+    new_jobs['stages'] = ["new-e2e-fips"]
 
     updated_jobs = update_child_job_variables(kept_job)
     for job, job_details in updated_jobs.items():
