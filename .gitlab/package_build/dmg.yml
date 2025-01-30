@@ -169,8 +169,11 @@ new-agent_dmg-x64-a7:
     - rm -f ~/.build_setup; touch ~/.build_setup
     - rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
     - mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
-    # Temporary omnibus dir
-    - rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
+    # Omnibus
+    - |
+      rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
+      rm -rf _omnibus_cache_key_files && mkdir -p _omnibus_cache_key_files
+      cp ./{release.json,omnibus/Gemfile} _omnibus_cache_key_files
     # Clone agent
     - |
       mkdir -p $HOME/go
