@@ -152,7 +152,7 @@ new-agent_dmg-x64-a7:
   #   - export RELEASE_VERSION=$RELEASE_VERSION_7
   script:
     # Setup
-    - KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh agent-api-key-org-2) || exit $?; export KEY
+    - KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh codecov) || exit $?; export KEY
     - if [ -n "$KEY" ]; then echo OK; fi
     - exit
     - |
