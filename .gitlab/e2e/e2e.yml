@@ -594,7 +594,6 @@ new-e2e-otel-eks-init:
     E2E_INIT_ONLY: "true"
     ON_NIGHTLY_FIPS: "false"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
-
   allow_failure: true
 
 new-e2e-otel-eks:
@@ -612,6 +611,7 @@ new-e2e-otel-eks:
     TARGETS: ./tests/otel
     EXTRA_PARAMS: --run "TestOTelAgentIA(EKS|USTEKS)"
     TEAM: otel
+    ON_NIGHTLY_FIPS: "false" # Contains only OTelAgent tests that cannot succeed before we have a FIPS+OTel image
     E2E_PRE_INITIALIZED: "true"
 
 new-e2e-otel:
