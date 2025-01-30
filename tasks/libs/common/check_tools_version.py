@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 
 from invoke import Context, Exit
@@ -101,4 +102,15 @@ def check_tools_version(ctx: Context, tools_list: list[str], debug: bool = False
                 should_exit = should_exit or tools_versions[tool]['exit_on_error']
     if should_exit:
         raise Exit(code=1)
+    return True
+
+
+def check_tools_installed(tools: list) -> bool:
+    """
+    Check if the tools are installed in the system.
+    """
+    for tool in tools:
+        if not shutil.which(tool):
+            print(f"{tool} is not installed. Please install it before running this task.")
+            return False
     return True
