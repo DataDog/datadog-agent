@@ -11,6 +11,7 @@
 package model
 
 import (
+	"net"
 	"net/netip"
 	"time"
 
@@ -750,6 +751,14 @@ type OnDemandEvent struct {
 // LoginUIDWriteEvent is used to propagate login UID updates to user space
 type LoginUIDWriteEvent struct {
 	AUID uint32 `field:"-"`
+}
+
+// SnapshottedBoundSocket represents a snapshotted bound socket
+type SnapshottedBoundSocket struct {
+	IP       net.IP
+	Port     uint16
+	Family   uint16
+	Protocol uint16
 }
 
 // RawPacketEvent represents a packet event

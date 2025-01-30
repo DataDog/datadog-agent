@@ -6,9 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
 enhancements:
   - |
-    The Datadog Cluster Agent admission controller agent sidecar injection now sets up
-    Agent sidecars to run with securityContext of `readOnlyRootFilesystem:false` by default.
-    Advanced users can customize the securityContext via clusterAgent.admissionController.agentSidecarInjection.profiles.
+    APM: Fix a formatting bug where the trace-agent's PID from "agent status" could be displayed in scientific notation for large PIDs.
