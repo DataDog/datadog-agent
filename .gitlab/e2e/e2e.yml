@@ -752,7 +752,7 @@ generate-fips-e2e-pipeline:
   #   - tests_windows_sysprobe_x64
   tags: ["arch:amd64"]
   script:
-    - inv -e pipeline.generate-fips-e2e-pipeline
+    - inv -e fips.generate-fips-e2e-pipeline
   artifacts:
     paths:
       - $CI_PROJECT_DIR/fips-e2e-gitlab-ci.yml

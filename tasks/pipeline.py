@@ -1,4 +1,3 @@
-import copy
 import os
 import pprint
 import re
@@ -19,17 +18,14 @@ from tasks.libs.ciproviders.gitlab_api import (
     get_gitlab_repo,
     gitlab_configuration_is_modified,
     refresh_pipeline,
-    resolve_gitlab_ci_configuration,
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_commit_sha, get_current_branch, get_default_branch
 from tasks.libs.common.utils import (
     get_all_allowed_repo_branches,
-    gitlab_section,
     is_allowed_repo_branch,
 )
 from tasks.libs.owners.parsing import read_owners
-from tasks.libs.pipeline.generation import remove_fields, update_child_job_variables, update_needs_parent
 from tasks.libs.pipeline.notifications import send_slack_message
 from tasks.libs.pipeline.tools import (
     FilteredOutException,
@@ -922,76 +918,3 @@ def compare_to_itself(ctx):
         ctx.run(f"git checkout {current_branch}", hide=True)
         ctx.run(f"git branch -D {new_branch}", hide=True)
         ctx.run(f"git push origin :{new_branch}", hide=True)
-
-
-@task
-def generate_fips_e2e_pipeline(ctx, generate_config=False):
-    """
-    Generate a child pipeline with updated e2e tests variables
-    """
-
-    skipped_test_fips = {
-        "new-e2e-otel": "TestOTelAgent",  # No FIPS + OTel image exists yet so these tests will never succeed
-        "new-e2e-aml": ".*TestJMXFIPSMode",  # These tests are explicitly testing the agent when FIPS is disabled
-    }
-
-    if generate_config:
-        # Read gitlab config
-        config = resolve_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
-    else:
-        # Read gitlab config, which is computed and stored in compute_gitlab_ci_config job
-        if not os.path.exists("artifacts/after.gitlab-ci.yml"):
-            raise Exit(
-                "The configuration is not stored as artifact. Please ensure you ran the compute_gitlab_ci_config job, or set generate_config to True"
-            )
-        with open("artifacts/after.gitlab-ci.yml") as f:
-            config = yaml.safe_load(f)[".gitlab-ci.yml"]
-
-    # Lets keep only variables and jobs with flake finder variable
-    kept_job = {}
-    for job, job_details in config.items():
-        if (
-            'variables' in job_details
-            and 'ON_NIGHTLY_FIPS' in job_details['variables']
-            and job_details['variables']['ON_NIGHTLY_FIPS'] == "true"
-            and not job.startswith(".")
-            and job_details["stage"] == "e2e"
-        ):
-            kept_job[job] = job_details
-
-    # Remove rules, extends and retry from the jobs, update needs to point to parent pipeline
-    for job in list(kept_job.values()):
-        remove_fields(job)
-        if "needs" in job:
-            print("JOB", job)
-            job["needs"] = update_needs_parent(
-                job["needs"], deps_to_keep=["go_e2e_deps", "tests_windows_sysprobe_x64", "tests_windows_secagent_x64"]
-            )
-
-    new_jobs = {}
-    new_jobs['variables'] = copy.deepcopy(config['variables'])
-    new_jobs['variables']['PARENT_PIPELINE_ID'] = 'undefined'
-    new_jobs['variables']['PARENT_COMMIT_SHA'] = 'undefined'
-    new_jobs['variables']['PARENT_COMMIT_SHORT_SHA'] = 'undefined'
-    new_jobs['stages'] = ["new-e2e-fips"]
-
-    updated_jobs = update_child_job_variables(kept_job)
-    for job, job_details in updated_jobs.items():
-        new_jobs[f"{job}-fips"] = job_details
-        new_jobs[f"{job}-fips"]["stage"] = "new-e2e-fips"
-        new_jobs[f"{job}-fips"]["variables"]["E2E_FIPS"] = (
-            "true"  # Add E2E_FIPS variable to the job, to force using FIPS
-        )
-        if job in skipped_test_fips:
-            if "EXTRA_PARAMS" in new_jobs[f"{job}-fips"]["variables"]:
-                new_jobs[f"{job}-fips"]["variables"]["EXTRA_PARAMS"] += f' --skip "{skipped_test_fips[job]}"'
-            else:
-                new_jobs[f"{job}-fips"]["variables"]["EXTRA_PARAMS"] = f'--skip "{skipped_test_fips[job]}"'
-        if 'E2E_PRE_INITIALIZED' in new_jobs[f"{job}-fips"]['variables']:
-            del new_jobs[f"{job}-fips"]['variables']['E2E_PRE_INITIALIZED']
-
-    with open("fips-e2e-gitlab-ci.yml", "w") as f:
-        f.write(yaml.safe_dump(new_jobs))
-
-    with gitlab_section("Fips e2e generated pipeline", collapsed=True):
-        print(yaml.safe_dump(new_jobs))
