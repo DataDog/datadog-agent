@@ -52,7 +52,8 @@ def update_needs_parent(needs, deps_to_keep):
 
 def remove_fields(job, fields=('rules', 'extends', 'retry')):
     """
-    Remove the needs, rules, extends and retry from the job
+    Remove the fields from the job configuration.
+    By default it will remove rules, extends and retry fields.
     """
     for step in fields:
         if step in job:

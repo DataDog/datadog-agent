@@ -730,26 +730,25 @@ generate-fips-e2e-pipeline:
   stage: e2e
   rules:
     - !reference [.except_disable_e2e_tests]
-    - !reference [.on_deploy_nightly_repo_branch]
+    # - !reference [.on_deploy_nightly_repo_branch] # Should be kept manual until all the FIPS tests are passing
     - !reference [.manual]
-  needs: [compute_gitlab_ci_config]
-  # needs:
-  #   - compute_gitlab_ci_config
-  #   - deploy_deb_testing-a7_arm64
-  #   - deploy_deb_testing-a7_x64
-  #   - deploy_rpm_testing-a7_arm64
-  #   - deploy_rpm_testing-a7_x64
-  #   - deploy_suse_rpm_testing_arm64-a7
-  #   - deploy_suse_rpm_testing_x64-a7
-  #   - deploy_windows_testing-a7
-  #   - deploy_installer_oci
-  #   - deploy_agent_oci
-  #   - qa_cws_instrumentation
-  #   - qa_dca
-  #   - qa_dogstatsd
-  #   - qa_agent
-  #   - qa_agent_ot
-  #   - tests_windows_sysprobe_x64
+  needs:
+    - compute_gitlab_ci_config
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
+    - deploy_windows_testing-a7
+    - deploy_installer_oci
+    - deploy_agent_oci
+    - qa_cws_instrumentation
+    - qa_dca
+    - qa_dogstatsd
+    - qa_agent
+    - qa_agent_ot
+    - tests_windows_sysprobe_x64
   tags: ["arch:amd64"]
   script:
     - inv -e fips.generate-fips-e2e-pipeline

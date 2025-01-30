@@ -17,7 +17,9 @@ from tasks.libs.pipeline.generation import remove_fields, update_child_job_varia
 @task
 def generate_fips_e2e_pipeline(ctx, generate_config=False):
     """
-    Generate a child pipeline with updated e2e tests variables
+    Generate a child pipeline containing all the jobs in e2e stage that the ON_NIGHTLY_FIPS variable is set to true.
+    The generated pipeline will have the same configuration as the parent pipeline, but with the E2E_FIPS variable set to true.
+    All the references to CI_PIPELINE_ID, CI_COMMIT_SHA and CI_COMMIT_SHORT_SHA will be replaced by PARENT_PIPELINE_ID, PARENT_COMMIT_SHA and PARENT_COMMIT_SHORT_SHA respectively.
     """
 
     skipped_test_fips = {
