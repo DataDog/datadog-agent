@@ -390,14 +390,6 @@ func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 
 // Run collects process data (regular metadata + stats) and/or realtime process data (stats only)
 func (p *ProcessCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
-	if p.networkID == "" {
-		networkID, err := retryGetNetworkID(p.sysprobeClient)
-		if err != nil {
-			log.Warnf("error getting network ID: %s", err)
-		}
-		p.networkID = networkID
-	}
-
 	if options == nil {
 		return p.run(nextGroupID(), false)
 	}
