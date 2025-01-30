@@ -144,6 +144,14 @@ def run(
         )
     cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {scrubber_raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
 
+    # Strings can come with extra double-quotes which can break the command, remove them
+    clean_run = []
+    clean_skip = []
+    for r in run:
+        clean_run.append(r.replace('"', ''))
+    for s in skip:
+        clean_skip.append(s.replace('"', ''))
+
     args = {
         "go_mod": "readonly",
         "timeout": "4h",
@@ -151,8 +159,8 @@ def run(
         "nocache": '-count=1' if not cache else '',
         "REPO_PATH": REPO_PATH,
         "commit": get_commit_sha(ctx, short=True),
-        "run": '-test.run ' + '"({})"'.format('|'.join(run)) if run else '',
-        "skip": '-test.skip ' + '"({})"'.format('|'.join(skip)) if skip else '',
+        "run": '-test.run ' + '"({})"'.format('|'.join(clean_run)) if run else '',
+        "skip": '-test.skip ' + '"({})"'.format('|'.join(clean_skip)) if skip else '',
         "test_run_arg": test_run_arg,
         "osversion": f"-osversion {osversion}" if osversion else '',
         "platform": f"-platform {platform}" if platform else '',
