@@ -20,7 +20,7 @@ type TargetFilter struct {
 	disabledNamespaces map[string]bool
 }
 
-// targetInternal is the struct we use to conver the config based target into
+// targetInternal is the struct we use to convert the config based target into
 // something more performant to check against.
 type targetInternal struct {
 	name              string
