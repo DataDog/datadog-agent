@@ -34,6 +34,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction RunPostInstPythonScript { get; }
 
+        public ManagedAction RunPreRemovePythonScriptRollback { get; }
+
         public ManagedAction RunPreRemovePythonScript { get; }
 
         public ManagedAction DecompressPythonDistributions { get; }
@@ -246,7 +248,9 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties(
-                    "PROJECTLOCATION=[PROJECTLOCATION], embedded2_SIZE=[embedded2_SIZE], embedded3_SIZE=[embedded3_SIZE]");
+                    "PROJECTLOCATION=[PROJECTLOCATION], " +
+                    "embedded3_SIZE=[embedded3_SIZE], " +
+                    "AgentFlavor=[AgentFlavor]");
 
             PrepareDecompressPythonDistributions = new CustomAction<CustomActions>(
                 new Id(nameof(PrepareDecompressPythonDistributions)),
@@ -307,6 +311,19 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
+            RunPreRemovePythonScriptRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(RunPreRemovePythonScriptRollback)),
+                    CustomActions.RunPreRemovePythonScriptRollback,
+                    Return.check,
+                    When.Before,
+                    new Step(RunPreRemovePythonScript.Id),
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            };
 
             ConfigureUser = new CustomAction<CustomActions>(
                     new Id(nameof(ConfigureUser)),

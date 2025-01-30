@@ -402,13 +402,15 @@ func (s *TracerSuite) TestTCPConnsReported() {
 		// Test
 		connections := getConnections(collect, tr)
 
-		if forward == nil {
-			// Server-side
-			forward, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		// Server-side
+		newForward, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		if newForward != nil {
+			forward = newForward
 		}
-		if reverse == nil {
-			// Client-side
-			reverse, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		// Client-side
+		newReverse, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if newReverse != nil {
+			reverse = newReverse
 		}
 
 		require.NotNil(collect, forward)

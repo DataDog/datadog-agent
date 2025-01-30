@@ -32,8 +32,15 @@ type Event interface {
 func eventTypeFromFields(model Model, state *State) (EventType, error) {
 	var eventType EventType
 
+	// if there are no fields, we can't determine the event type
+	// this is not uncommon, especially in macros
+	if len(state.fieldValues) == 0 {
+		return eventType, nil
+	}
+
+	ev := model.NewEvent()
 	for field := range state.fieldValues {
-		evt, _, err := model.NewEvent().GetFieldMetadata(field)
+		evt, _, err := ev.GetFieldMetadata(field)
 		if err != nil {
 			return "", err
 		}
