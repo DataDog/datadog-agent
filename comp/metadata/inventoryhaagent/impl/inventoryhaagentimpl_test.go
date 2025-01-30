@@ -11,23 +11,17 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func getProvides(t *testing.T, confOverrides map[string]any) (Provides, error) {
-	l := logmock.New(t)
 	cfg := config.NewMock(t)
 	for k, v := range confOverrides {
 		cfg.SetWithoutSource(k, v)
@@ -36,12 +30,7 @@ func getProvides(t *testing.T, confOverrides map[string]any) (Provides, error) {
 		Log:        logmock.New(t),
 		Config:     cfg,
 		Serializer: serializermock.NewMetricSerializer(t),
-		AuthToken: fxutil.Test[authtoken.Component](t,
-			authtokenimpl.Module(),
-			fx.Provide(func() log.Component { return l }),
-			fx.Provide(func() config.Component { return cfg }),
-		),
-		HaAgent: haagentmock.NewMockHaAgent(),
+		HaAgent:    haagentmock.NewMockHaAgent(),
 	}
 	return NewComponent(r)
 }
