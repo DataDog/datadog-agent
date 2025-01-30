@@ -70,13 +70,8 @@ func (h *haAgentImpl) resetAgentState() {
 	h.state.Store(string(haagent.Unknown))
 }
 
-// ShouldRunIntegration return true if the agent integrations should to run.
-// When ha-agent is disabled, the agent behave as standalone agent (non HA) and will always run all integrations.
-func (h *haAgentImpl) ShouldRunIntegration(integrationName string) bool {
-	if h.Enabled() && validHaIntegrations[integrationName] {
-		return h.GetState() == haagent.Active
-	}
-	return true
+func (h *haAgentImpl) IsActive() bool {
+	return h.GetState() == haagent.Active
 }
 
 // IsHaIntegration return true if it's an HA integration.

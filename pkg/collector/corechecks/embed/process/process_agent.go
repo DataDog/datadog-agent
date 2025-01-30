@@ -248,6 +248,11 @@ func (c *ProcessAgentCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	return nil, nil
 }
 
+// IsHAEnabled returns if High Availability is enabled for this check
+func (c *ProcessAgentCheck) IsHAEnabled() bool {
+	return false
+}
+
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
 	return option.New(newCheck)

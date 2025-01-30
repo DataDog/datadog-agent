@@ -51,6 +51,7 @@ type CheckBase struct {
 	telemetry      bool
 	initConfig     string
 	instanceConfig string
+	haEnabled      bool
 }
 
 // NewCheckBase returns a check base struct with a given check name
@@ -148,6 +149,10 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, initConf
 				return err
 			}
 			s.SetNoIndex(commonOptions.NoIndex)
+		}
+
+		if commonOptions.HAEnabled {
+			c.haEnabled = true
 		}
 
 		c.source = source
@@ -284,4 +289,9 @@ func (c *CheckBase) GetSenderStats() (stats.SenderStats, error) {
 // GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
 func (c *CheckBase) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	return nil, nil
+}
+
+// IsHAEnabled returns if High Availability is enabled for this check
+func (c *CheckBase) IsHAEnabled() bool {
+	return c.haEnabled
 }

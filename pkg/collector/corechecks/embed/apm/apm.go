@@ -254,6 +254,10 @@ func (c *APMCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	return nil, nil
 }
 
+func (c *APMCheck) IsHAEnabled() bool {
+	return false
+}
+
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
 	return option.New(newCheck)

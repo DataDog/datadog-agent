@@ -23,9 +23,6 @@ type Component interface {
 	// the state is set to active, otherwise standby.
 	SetLeader(leaderAgentHostname string)
 
-	// ShouldRunIntegration returns true if the integration should be run
-	ShouldRunIntegration(integrationName string) bool
-
-	// IsHaIntegration return true if it's an HA integration.
-	IsHaIntegration(integrationName string) bool
+	// IsActive returns true if the agent should run checks
+	IsActive() bool
 }

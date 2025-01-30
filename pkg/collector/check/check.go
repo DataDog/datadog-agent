@@ -54,6 +54,8 @@ type Check interface {
 	InstanceConfig() string
 	// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
 	GetDiagnoses() ([]diagnosis.Diagnosis, error)
+	// IsHAEnabled returns if High Availability is enabled for this check
+	IsHAEnabled() bool
 }
 
 // Info is an interface to pull information from types capable to run checks. This is a subsection from the Check
