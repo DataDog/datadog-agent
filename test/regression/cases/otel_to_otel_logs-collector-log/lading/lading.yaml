@@ -5,7 +5,7 @@ generator:
       headers:
         content-type: "application/x-protobuf"
       target_uri: "http://127.0.0.1:4318/v1/logs"
-      bytes_per_second: "6 Mb"
+      bytes_per_second: "4 Mb"
       parallel_connections: 5
       method:
         post:
@@ -27,4 +27,4 @@ blackhole:
       body_variant: "nothing"
 target_metrics:
   - prometheus:
-      uri: "http://0.0.0.0:8888/telemetry"            
+      uri: "http://0.0.0.0:8888/metrics"

@@ -27,4 +27,4 @@ blackhole:
       body_variant: "nothing"
 target_metrics:
   - prometheus:
-      uri: "http://0.0.0.0:8888/telemetry"      
+      uri: "http://0.0.0.0:8888/metrics"      
