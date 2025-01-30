@@ -10,6 +10,12 @@ bazel_dep(
     version = "3.1.0",
 )
 
+########################
+## Local overiddes    ##
+## dev/debug purposes ##
+########################
+# local_path_override(module_name = "rules_foreign_cc", path = "/home/hugo.beauzee/dev/rules_foreign_cc")
+
 #########################
 ## Native dependencies ##
 #########################
