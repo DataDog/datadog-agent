@@ -127,37 +127,29 @@ INSTALLER_TAGS = {"docker", "ec2", "kubelet"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = {
+    "containerd",
     "no_dynamic_plugins",
+    "cri",
+    "crio",
     "datadog.no_waf",
+    "ec2",
+    "docker",
+    "fargateprocess",
+    "kubelet",
+    "netcgo",
+    "podman",
     "zlib",
     "zstd",
-    "fargateprocess",
-    "containerd",
-    "crio",
-    "cri",
-    "docker",
-    "ec2",
-    "kubelet",
-    "podman",
 }
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
-PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
-    {
-        "containerd",
-        "no_dynamic_plugins",
-        "cri",
-        "crio",
-        "docker",
-        "ec2",
-        "jetson",
-        "kubeapiserver",
-        "kubelet",
-        "orchestrator",
-        "podman",
-        "systemd",
-    }
-)
+PROCESS_AGENT_HEROKU_TAGS = {
+    "datadog.no_waf",
+    "fargateprocess",
+    "netcgo",
+    "zlib",
+    "zstd",
+}
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
 SECURITY_AGENT_TAGS = {
