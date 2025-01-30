@@ -929,6 +929,11 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
     """
     Generate a child pipeline with updated e2e tests variables
     """
+
+    skipped_test_fips = {
+        "new-e2e-otel": "TestOTelAgent"  # No FIPS + OTel image exists yet so these tests will never succeed
+    }
+
     if generate_config:
         # Read gitlab config
         config = resolve_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
@@ -976,6 +981,11 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
         new_jobs[f"{job}-fips"]["variables"]["E2E_FIPS"] = (
             "true"  # Add E2E_FIPS variable to the job, to force using FIPS
         )
+        if job in skipped_test_fips:
+            if "EXTRA_PARAMS" in new_jobs[f"{job}-fips"]["variables"]:
+                new_jobs[f"{job}-fips"]["variables"]["EXTRA_PARAMS"] += f' --skip "{skipped_test_fips[job]}"'
+            else:
+                new_jobs[f"{job}-fips"]["variables"]["EXTRA_PARAMS"] = f'--skip "{skipped_test_fips[job]}"'
         if 'E2E_PRE_INITIALIZED' in new_jobs[f"{job}-fips"]['variables']:
             del new_jobs[f"{job}-fips"]['variables']['E2E_PRE_INITIALIZED']
 
