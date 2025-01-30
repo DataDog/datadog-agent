@@ -269,8 +269,9 @@ def tag_version(
 
 @task
 def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
-    tag_version(ctx, release_branch, commit, push, force, devel=True)
-    tag_modules(ctx, release_branch, commit, push, force, devel=True, trust=True)
+    with agent_context(ctx, get_default_branch(major=int(release_branch[0]))):
+        tag_version(ctx, release_branch, commit, push, force, devel=True)
+        tag_modules(ctx, release_branch, commit, push, force, devel=True, trust=True)
 
 
 @task
