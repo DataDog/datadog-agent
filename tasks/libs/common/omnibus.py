@@ -332,6 +332,12 @@ def send_build_metrics(ctx, overall_duration):
             f'aws.cmd ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
             hide=True,
         ).stdout.strip()
+    elif sys.platform == 'darwin':
+        # TODO A: Make a function
+        dd_api_key = ctx.run(
+            f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}',
+            hide=True,
+        ).stdout.strip()
     else:
         dd_api_key = ctx.run(
             f'vault kv get -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}',
@@ -350,6 +356,12 @@ def send_cache_miss_event(ctx, pipeline_id, job_name, job_id):
     if sys.platform == 'win32':
         dd_api_key = ctx.run(
             f'aws.cmd ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
+            hide=True,
+        ).stdout.strip()
+    elif sys.platform == 'darwin':
+        # TODO A: Make a function
+        dd_api_key = ctx.run(
+            f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}',
             hide=True,
         ).stdout.strip()
     else:
