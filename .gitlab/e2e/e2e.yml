@@ -225,6 +225,22 @@ new-e2e-fips-compliance-test:
     TARGETS: ./tests/fips-compliance
     TEAM: agent-shared-components
 
+new-e2e-windows-fips-compliance-test:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_fips
+    - deploy_windows_testing-a7-fips
+  rules:
+    - !reference [.on_asc_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/fips-compliance
+    TEAM: windows-agent
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestWindowsVM$"
+
 new-e2e-windows-service-test:
   extends: .new_e2e_template
   needs:
