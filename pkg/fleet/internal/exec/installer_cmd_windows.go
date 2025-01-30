@@ -15,11 +15,11 @@ import (
 	"syscall"
 )
 
-func (i *InstallerExec) newCmd(_ context.Context, cmd *exec.Cmd, command string, args []string) *exec.Cmd {
+func (i *InstallerExec) newCmd(_ context.Context, command string, args []string) *exec.Cmd {
 	// os.Interrupt is not supported on Windows
 	// It gives " run failed: exec: canceling Cmd: not supported by windows"
 	escapedBinPath := fmt.Sprintf(`"%s"`, strings.ReplaceAll(i.installerBinPath, "/", `\`))
-	cmd = exec.Command(i.installerBinPath)
+	cmd := exec.Command(i.installerBinPath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: strings.Join(append([]string{escapedBinPath, command}, args...), " ")}
 	return cmd
 }
