@@ -147,6 +147,17 @@ class DynamicMockContext:
 
 
 class TestOnDiskImageSizeCalculation(unittest.TestCase):
+    def tearDown(self):
+        try:
+            os.remove('rm ./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_archive.tar.gz')
+            os.remove('rm ./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_metadata.json')
+        except OSError:
+            pass
+        try:
+            os.remove('rm ./tasks/unit_tests/testdata/fake_agent_image/without_tar_gz_archive/some_metadata.json')
+        except OSError:
+            pass
+
     def test_compute_image_size(self):
         actualContext = Context()
         c = MockContext(
@@ -161,8 +172,6 @@ class TestOnDiskImageSizeCalculation(unittest.TestCase):
         os.chdir(os.path.abspath('./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/'))
         context = DynamicMockContext(actual_context=actualContext, mock_context=c)
         calculated_size = calculate_image_on_disk_size(context, "some_url")
-        os.remove('./some_archive.tar.gz')
-        os.remove('some_metadata.json')
         os.chdir(cwd)
         assert calculated_size == 5861
 
@@ -178,6 +187,5 @@ class TestOnDiskImageSizeCalculation(unittest.TestCase):
         os.chdir(os.path.abspath('./tasks/unit_tests/testdata/fake_agent_image/without_tar_gz_archive/'))
         context = DynamicMockContext(actual_context=actualContext, mock_context=c)
         calculated_size = calculate_image_on_disk_size(context, "some_url")
-        os.remove('some_metadata.json')
         os.chdir(cwd)
         assert calculated_size == 3

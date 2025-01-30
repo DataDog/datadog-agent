@@ -63,7 +63,7 @@ def display_pr_comment(
             with_error = True
 
     body_error_footer += "\n</details>\n"
-    body = f"Please find below the results from static quality gates\n{body_error+body_error_footer if with_error else ""}\n\n{body_info if with_info else ""}"
+    body = f"Please find below the results from static quality gates\n{body_error+body_error_footer if with_error else ''}\n\n{body_info if with_info else ''}"
 
     pr_commenter(ctx, title=title, body=body)
 
@@ -108,7 +108,7 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
     )
 
     print(f"The following gates are going to run:\n\t- {"\n\t- ".join(gate_list)}")
-    final_state = True
+    final_state = "success"
     gate_states = []
     for gate in gate_list:
         gate_inputs = config[gate]
@@ -121,18 +121,15 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
             gate_states.append({"name": gate, "state": True, "error_type": None, "message": None})
         except AssertionError as e:
             print(f"Gate {gate} failed ! (AssertionError)")
-            final_state = False
+            final_state = "failure"
             gate_states.append({"name": gate, "state": False, "error_type": "AssertionError", "message": str(e)})
         except Exception:
             print(f"Gate {gate} failed ! (StackTrace)")
-            final_state = False
+            final_state = "failure"
             gate_states.append(
                 {"name": gate, "state": False, "error_type": "StackTrace", "message": traceback.format_exc()}
             )
-    if not final_state:
-        ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"failure\"")
-    else:
-        ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"success\"")
+    ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
 
     _print_quality_gates_report(gate_states)
 
@@ -141,4 +138,4 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
     github = GithubAPI()
     branch = os.environ["CI_COMMIT_BRANCH"]
     if github.get_pr_for_branch(branch).totalCount > 0:
-        display_pr_comment(ctx, final_state, gate_states, metric_handler)
+        display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)

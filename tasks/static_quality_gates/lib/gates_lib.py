@@ -39,21 +39,21 @@ def byte_to_string(size):
     return f"{s}{size_name[i]}"
 
 
-def string_to_byte(string):
-    if not string:
+def string_to_byte(size: str):
+    if not size:
         return 0
     size_name = ("KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB")
     value = None
     power = 0
     for k, unit in enumerate(size_name):
-        if unit in string:
-            value = float(string.replace(unit, ""))
+        if unit in size:
+            value = float(size.replace(unit, ""))
             power = k + 1  # We start with KiB = 1024^1
             break
     if value:
         return int(value * math.pow(1024, power))
     else:
-        return int(string)
+        return int(size)
 
 
 def read_byte_input(byte_input):
