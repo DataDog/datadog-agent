@@ -41,7 +41,7 @@ from tasks.libs.common.git import (
 )
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.common.worktree import agent_context, maybe_agent_context
+from tasks.libs.common.worktree import agent_context
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
     DEFAULT_SLACK_CHANNEL,
@@ -174,15 +174,7 @@ def __tag_single_module(ctx, module, tag_name, commit, force_option, devel):
 
 @task
 def tag_modules(
-    ctx,
-    release_branch=None,
-    commit="HEAD",
-    push=True,
-    force=False,
-    devel=False,
-    version=None,
-    trust=False,
-    skip_context=False,
+    ctx, release_branch=None, commit="HEAD", push=True, force=False, devel=False, version=None, trust=False
 ):
     """Create tags for Go nested modules for a given Datadog Agent version.
 
@@ -192,7 +184,6 @@ def tag_modules(
         push: Will push the tags to the origin remote (on by default).
         force: Will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
         devel: Will create -devel tags (used after creation of the release branch).
-        skip_context: Skip the agent context. Useful when the context is already set up.
 
     Examples:
         $ inv -e release.tag-modules 7.27.x                 # Create tags and push them to origin
@@ -205,7 +196,7 @@ def tag_modules(
     agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
     tags = []
-    with maybe_agent_context(not skip_context, ctx, release_branch, skip_checkout=release_branch is None):
+    with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         force_option = __get_force_option(force)
         for module in get_default_modules().values():
             # Skip main module; this is tagged at tag_version via __tag_single_module.
@@ -233,7 +224,6 @@ def tag_version(
     version=None,
     trust=False,
     start_qual=False,
-    skip_context=False,
 ):
     """Create tags for a given Datadog Agent version.
 
@@ -244,7 +234,6 @@ def tag_version(
         force: Will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
         devel: Will create -devel tags (used after creation of the release branch)
         start_qual: Will start the qualification phase for agent 6 release candidate by adding a qualification tag
-        skip_context: Skip the agent context. Useful when the context is already set up.
 
     Examples:
         $ inv -e release.tag-version -r 7.27.x            # Create tags and push them to origin
@@ -258,7 +247,7 @@ def tag_version(
 
     # Always tag the main module
     force_option = __get_force_option(force)
-    with maybe_agent_context(not skip_context, ctx, release_branch, skip_checkout=release_branch is None):
+    with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         tags = __tag_single_module(ctx, get_default_modules()["."], agent_version, commit, force_option, devel)
 
         # create or update the qualification tag using the force option (points tag to next RC)
@@ -578,8 +567,8 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
         # tag_version only takes the highest version (Agent 7 currently), and creates
         # the tags for all supported versions
         # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
-        tag_version(ctx, version=str(new_version), force=False, start_qual=start_qual, skip_context=True)
-        tag_modules(ctx, version=str(new_version), force=False, skip_context=True)
+        tag_version(ctx, version=str(new_version), force=False, start_qual=start_qual)
+        tag_modules(ctx, version=str(new_version), force=False)
 
         print(color_message(f"Waiting until the {new_version} tag appears in Gitlab", "bold"))
         gitlab_tag = None
