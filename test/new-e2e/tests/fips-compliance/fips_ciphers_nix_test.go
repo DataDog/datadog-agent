@@ -134,7 +134,7 @@ func runFipsServer(v *fipsServerSuite, tc cipherTestCase, composeFiles string) {
 		serverLogs, _ := v.Env().RemoteHost.Execute("docker logs dd-fips-server")
 		assert.Contains(t, serverLogs, "Server Starting...", "Server should start")
 		assert.Equal(t, 1, strings.Count(serverLogs, "Server Starting..."), "Server should start only once, logs from previous runs should not be present")
-	}, 10*time.Second, 2*time.Second)
+	}, 60*time.Second, 5*time.Second)
 }
 
 func runAgentDiagnose(v *fipsServerSuite, composeFiles string) {

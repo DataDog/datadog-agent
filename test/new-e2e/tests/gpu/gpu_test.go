@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -27,6 +28,7 @@ import (
 
 var devMode = flag.Bool("devmode", false, "enable dev mode")
 var imageTag = flag.String("image-tag", "main", "Docker image tag to use")
+var mandatoryMetricTags = []string{"gpu_uuid", "gpu_device", "gpu_vendor"}
 
 type gpuSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -39,11 +41,21 @@ func dockerImageName() string {
 	return fmt.Sprintf("%s:%s", vectorAddDockerImg, *imageTag)
 }
 
+func mandatoryMetricTagRegexes() []*regexp.Regexp {
+	regexes := make([]*regexp.Regexp, 0, len(mandatoryMetricTags))
+	for _, tag := range mandatoryMetricTags {
+		regexes = append(regexes, regexp.MustCompile(fmt.Sprintf("%s:.*", tag)))
+	}
+
+	return regexes
+}
+
 // TestGPUSuite runs tests for the VM interface to ensure its implementation is correct.
 // Not to be run in parallel, as some tests wait until the checks are available.
 func TestGPUSuite(t *testing.T) {
-	// incident-33572
-	flake.Mark(t)
+	// incident-33572. Pulumi seems to sometimes fail to create the stack with an error
+	// we are not able to debug from the logs. We mark the test as flaky in that case only.
+	flake.MarkOnLog(t, "error: an unhandled error occurred: waiting for RPCs:")
 	provParams := getDefaultProvisionerParams()
 
 	// Append our vectorAdd image for testing
@@ -93,6 +105,11 @@ func (v *gpuSuite) runCudaDockerWorkload() string {
 	v.Require().NoError(err)
 	v.Require().NotEmpty(out)
 
+	v.T().Cleanup(func() {
+		// Cleanup the container
+		_, _ = v.Env().RemoteHost.Execute(fmt.Sprintf("docker rm -f %s", containerName))
+	})
+
 	containerIDCmd := fmt.Sprintf("docker inspect -f {{.Id}} %s", containerName)
 	idOut, err := v.Env().RemoteHost.Execute(containerIDCmd)
 	v.Require().NoError(err)
@@ -125,26 +142,6 @@ func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
 	}, 2*time.Minute, 10*time.Second)
 }
 
-func (v *gpuSuite) requireGPUTags(metric *aggregator.MetricSeries) {
-	foundRequiredTags := map[string]bool{
-		"gpu_uuid":   false,
-		"gpu_device": false,
-		"gpu_vendor": false,
-	}
-
-	for _, tag := range metric.Tags {
-		for requiredTag := range foundRequiredTags {
-			if strings.HasPrefix(tag, requiredTag+":") {
-				foundRequiredTags[requiredTag] = true
-			}
-		}
-	}
-
-	for requiredTag, found := range foundRequiredTags {
-		v.Require().True(found, "required tag %s not found in %v", requiredTag, metric)
-	}
-}
-
 func (v *gpuSuite) TestVectorAddProgramDetected() {
 	flake.Mark(v.T())
 
@@ -155,13 +152,9 @@ func (v *gpuSuite) TestVectorAddProgramDetected() {
 		// memory usage" and that might be zero at the time it's checked
 		metricNames := []string{"gpu.utilization", "gpu.memory.max"}
 		for _, metricName := range metricNames {
-			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0))
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
-
-			for _, metric := range metrics {
-				v.requireGPUTags(metric)
-			}
 		}
 	}, 5*time.Minute, 10*time.Second)
 }
@@ -174,22 +167,26 @@ func (v *gpuSuite) TestNvmlMetricsPresent() {
 		for _, metricName := range metricNames {
 			// We don't care about values, as long as the metrics are there. Values come from NVML
 			// so we cannot control that.
-			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName)
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
 			assert.NoError(c, err)
-			assert.Greater(c, len(metrics), 0, "no metric '%s' found")
 
-			for _, metric := range metrics {
-				v.requireGPUTags(metric)
-			}
+			assert.Greater(c, len(metrics), 0, "no metric '%s' found", metricName)
 		}
 	}, 5*time.Minute, 10*time.Second)
 }
 
 func (v *gpuSuite) TestWorkloadmetaHasGPUs() {
-	out, err := v.Env().RemoteHost.Execute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
-	v.Require().NoError(err)
-	v.Contains(out, "=== Entity gpu sources(merged):[runtime] id: ")
+	var out string
+	// Wait until our collector has ran and we have GPUs in the workloadmeta. We don't have exact control on the timing of execution
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		var err error
+		out, err = v.Env().RemoteHost.Execute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
+		assert.NoError(c, err)
+		assert.Contains(c, out, "=== Entity gpu sources(merged):[runtime] id: ")
+	}, 30*time.Second, 1*time.Second)
+
 	if v.T().Failed() {
+		// log the output for debugging in case of failure
 		v.T().Log(out)
 	}
 }

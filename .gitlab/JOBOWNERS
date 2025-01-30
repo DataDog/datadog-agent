@@ -14,16 +14,17 @@ build_clang_*                        @DataDog/ebpf-platform
 build_processed_btfhub_archive       @DataDog/ebpf-platform
 
 # Deps fetch
-fetch_openjdk                        @DataDog/agent-metrics-logs
+fetch_openjdk                        @DataDog/agent-metrics
 
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
-tests_*                              @DataDog/multiple
-tests_ebpf*                          @DataDog/ebpf-platform
-tests_windows_sysprobe*              @DataDog/windows-kernel-integrations
-security_go_generate_check           @DataDog/agent-security
+tests_*                                 @DataDog/multiple
+tests_ebpf*                             @DataDog/ebpf-platform
+tests_windows_sysprobe*                 @DataDog/windows-kernel-integrations
+security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
+protobuf_test                           @DataDog/multiple
 
 # Send count metrics about Golang dependencies
 golang_deps_send_count_metrics       @DataDog/agent-shared-components
@@ -33,7 +34,7 @@ golang_deps_commenter                @DataDog/ebpf-platform
 
 # Binary build
 build_system-probe*                  @DataDog/ebpf-platform
-cluster_agent_cloudfoundry-build*    @Datadog/platform-integrations
+cluster_agent_cloudfoundry-build*    @Datadog/agent-integrations
 cluster_agent-build*                 @DataDog/container-integrations
 cws_instrumentation-build*           @DataDog/agent-security
 build_serverless*                    @DataDog/serverless
@@ -127,7 +128,7 @@ deploy_containers-cws-instrumentation* @DataDog/agent-security
 # Trigger release
 trigger_manual_prod_release            @DataDog/agent-delivery
 trigger_auto_staging_release           @DataDog/agent-delivery
-generate_windows_gitlab_runner_bump_pr @DataDog/agent-delivery
+generate_windows_gitlab_runner_bump_pr* @DataDog/agent-delivery
 
 # Integration test
 integration_tests_windows*    @DataDog/windows-agent

@@ -92,7 +92,7 @@ deploy_containers-a7-win-only:
 deploy_containers-a7-ot:
   extends: .deploy_containers-a7-base-ot
   rules:
-    !reference [.manual_on_deploy_auto_on_rc-ot]
+    !reference [.manual_on_deploy_auto_on_rc]
   parallel:
     matrix:
       - JMX:
@@ -116,7 +116,7 @@ deploy_containers-a7-win-only-rc:
 deploy_containers-a7-ot-rc:
   extends: .deploy_containers-a7-base-ot
   rules:
-    !reference [.on_rc-ot]
+    !reference [.on_rc]
   variables:
     VERSION: 7-ot-beta-rc
   parallel:
@@ -155,14 +155,14 @@ deploy_containers-a7_internal-rc:
 deploy_containers-a7-ot_internal:
   extends: .deploy_containers-a7-base-ot
   rules:
-    !reference [.on_internal_final-ot]
+    !reference [.on_internal_final]
   variables:
     JMX: "-jmx"
 
 deploy_containers-a7-ot_internal-rc:
   extends: .deploy_containers-a7-base-ot
   rules:
-    !reference [.on_internal_rc-ot]
+    !reference [.on_internal_rc]
   variables:
     VERSION: 7-ot-beta-rc
   parallel:
@@ -242,7 +242,7 @@ deploy_containers_latest-a7-ot:
   extends: .deploy_containers-a7-base-ot
   stage: deploy_containers
   rules:
-    !reference [.on_final-ot]
+    !reference [.on_final]
   dependencies: []
   variables:
     VERSION: 7-ot-beta

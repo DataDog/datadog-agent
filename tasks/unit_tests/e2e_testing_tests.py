@@ -11,7 +11,7 @@ class TestE2ETesting(unittest.TestCase):
         flakes_file = "tasks/unit_tests/testdata/flakes_2.yaml"
         path = "tasks/unit_tests/testdata/test_output_failure_marker.json"
 
-        pretty_print_logs(path, post_process_output(path), flakes_file=flakes_file)
+        pretty_print_logs(path, post_process_output(path), flakes_files=[flakes_file])
 
         # Failing / flaky, successful / non flaky
         self.assertEqual(p.call_count, 2)
@@ -28,7 +28,7 @@ class TestE2ETesting(unittest.TestCase):
         flakes_file = "tasks/unit_tests/testdata/flakes_1.yaml"
         path = "tasks/unit_tests/testdata/test_output_failure_no_marker.json"
 
-        pretty_print_logs(path, post_process_output(path), flakes_file=flakes_file)
+        pretty_print_logs(path, post_process_output(path), flakes_files=[flakes_file])
 
         # Failing / flaky, successful / non flaky
         self.assertEqual(p.call_count, 2)
