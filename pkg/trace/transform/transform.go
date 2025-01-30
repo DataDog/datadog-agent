@@ -226,9 +226,19 @@ func OtelSpanToDDSpan(
 // TagSpanIfContainsExceptionEvent tags spans that contain at least on exception span event.
 func TagSpanIfContainsExceptionEvent(otelspan ptrace.Span, ddspan *pb.Span) {
 	for i := range otelspan.Events().Len() {
-		if otelspan.Events().At(i).Name() == "exception" {
+		spanEvent := otelspan.Events().At(i)
+		if spanEvent.Name() == "exception" {
 			ddspan.Meta["_dd.span_events.has_exception"] = "true"
-			return
+			ddspan.Error = 1
+		}
+		if v, ok := spanEvent.Attributes().Get("exception.type"); ok {
+			ddspan.Meta["error.type"] = v.AsString()
+		}
+		if v, ok := spanEvent.Attributes().Get("exception.message"); ok {
+			ddspan.Meta["error.message"] = v.AsString()
+		}
+		if v, ok := spanEvent.Attributes().Get("exception.stacktrace"); ok {
+			ddspan.Meta["error.stack"] = v.AsString()
 		}
 	}
 }
