@@ -42,7 +42,7 @@ func NewTargetFilter(targets []Target, disabledNamespaces []string, containerReg
 	internalTargets := make([]targetInternal, len(targets))
 	for i, t := range targets {
 		// Convert the pod selector to a label selector.
-		podSelector, err := t.Selector.AsLabelSelector()
+		podSelector, err := t.PodSelector.AsLabelSelector()
 		if err != nil {
 			return nil, fmt.Errorf("could not convert selector to label selector: %w", err)
 		}

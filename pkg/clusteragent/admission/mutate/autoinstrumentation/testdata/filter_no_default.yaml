@@ -7,7 +7,7 @@ apm_config:
       - "system"
     targets:
       - name: "Billing Service"
-        selector:
+        podSelector:
           matchLabels:
             app: "billing-service"
         namespaceSelector:
@@ -16,12 +16,12 @@ apm_config:
         ddTraceVersions:
           python: "default"
       - name: "Microservices"
-        selector:
+        podSelector:
           matchLabels:
             language: "java"
         ddTraceVersions:
           java: "default"
       - name: "Unknown Language"
-        selector:
+        podSelector:
           matchLabels:
             language: "unknown"

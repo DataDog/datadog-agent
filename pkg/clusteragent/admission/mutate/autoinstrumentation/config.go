@@ -58,10 +58,10 @@ type Target struct {
 	// Name is the name of the target. It will be appended to the pod annotations to identify the target that was used.
 	// Full config key: apm_config.instrumentation.targets[].name
 	Name string `mapstructure:"name"`
-	// Selector is the pod selector to match the pods to apply the auto instrumentation to. It will be used in
+	// PodSelector is the pod selector to match the pods to apply the auto instrumentation to. It will be used in
 	// conjunction with the NamespaceSelector to match the pods. Full config key:
 	// apm_config.instrumentation.targets[].selector
-	Selector PodSelector `mapstructure:"selector"`
+	PodSelector PodSelector `mapstructure:"podSelector"`
 	// NamespaceSelector is the namespace selector to match the namespaces to apply the auto instrumentation to. It will
 	// be used in conjunction with the Selector to match the pods. Full config key:
 	// apm_config.instrumentation.targets[].namespaceSelector

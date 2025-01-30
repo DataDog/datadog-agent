@@ -6,7 +6,7 @@ apm_config:
       - "hacks"
     targets:
       - name: "Billing Service"
-        selector:
+        podSelector:
           matchLabels:
             app: "billing-service"
           matchExpressions:

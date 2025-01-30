@@ -5,7 +5,7 @@ apm_config:
       python: "default"
     targets:
       - name: "Billing Service"
-        selector:
+        podSelector:
           matchLabels:
             app: "billing-service"
           matchExpressions:

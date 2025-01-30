@@ -68,7 +68,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				Targets: []Target{
 					{
 						Name: "Billing Service",
-						Selector: PodSelector{
+						PodSelector: PodSelector{
 							MatchLabels: map[string]string{
 								"app": "billing-service",
 							},
