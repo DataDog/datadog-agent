@@ -1716,7 +1716,11 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenBlkidLabelsAreReport
 
 	assert.Nil(t, err)
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
 }
 
 func TestGivenADiskCheckWithTagByLabelConfiguredTrue_WhenCheckRuns_ThenBlkidLabelsAreReportedAsTags(t *testing.T) {
@@ -1733,7 +1737,11 @@ tag_by_label: true
 
 	assert.Nil(t, err)
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
 }
 
 func TestGivenADiskCheckWithTagByLabelConfiguredFalse_WhenCheckRuns_ThenBlkidLabelsAreNotReportedAsTags(t *testing.T) {
@@ -1750,7 +1758,11 @@ tag_by_label: false
 
 	assert.Nil(t, err)
 	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
 	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
 }
 
 func TestGivenADiskCheckWithTagByLabelConfiguredTrue_WhenCheckRunsAndBlkidReturnsError_ThenBlkidLabelsAreNotReportedAsTags(t *testing.T) {
@@ -1770,7 +1782,11 @@ tag_by_label: true
 
 	assert.Nil(t, err)
 	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
 	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
 }
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenReadWriteServiceCheckNotReported(t *testing.T) {
