@@ -14,7 +14,7 @@ import (
 	"go.uber.org/fx"
 )
 
-// team: agent-metrics-logs
+// team: agent-metrics
 
 // EventType represents the type of events emitted by the collector
 type EventType uint32

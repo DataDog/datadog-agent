@@ -6,9 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
-enhancements:
+features:
   - |
-    The Datadog Cluster Agent admission controller agent sidecar injection now sets up
-    Agent sidecars to run with securityContext of `readOnlyRootFilesystem:false` by default.
-    Advanced users can customize the securityContext via clusterAgent.admissionController.agentSidecarInjection.profiles.
+    Add new `card:` common field to DogStatsD Datagram specification to allow
+    customer to specify the cardinality of the metric. This field is optional.

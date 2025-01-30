@@ -91,7 +91,9 @@ use (
 	pkg/logs/status/utils
 	pkg/logs/util/testutils
 	pkg/metrics
+	pkg/network/payload
 	pkg/networkdevice/profile
+	pkg/networkpath/payload
 	pkg/obfuscate
 	pkg/orchestrator/model
 	pkg/process/util/api

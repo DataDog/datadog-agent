@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// team: agent-processing-and-routing
+// team: agent-logs
 
 // Component is the component type.
 type Component interface {
