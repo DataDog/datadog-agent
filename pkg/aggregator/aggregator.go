@@ -308,6 +308,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		})
 	}
 
+	// configID can only change on agent restart, and will only change if the configuration applied by Fleet Automation changes
 	configID := pkgconfigsetup.Datadog().GetString("config_id")
 
 	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
