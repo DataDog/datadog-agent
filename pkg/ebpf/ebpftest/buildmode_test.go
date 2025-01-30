@@ -24,7 +24,7 @@ func TestBuildModeConstants(t *testing.T) {
 		assert.False(t, cfg.AllowPrebuiltFallback)
 		assert.False(t, cfg.AllowRuntimeCompiledFallback)
 		assert.Equal(t, "false", os.Getenv("NETWORK_TRACER_FENTRY_TESTS"))
-		assert.Equal(t, "false", os.Getenv("DD_NETWORK_CONFIG_ENABLE_EBPFLESS"))
+		assert.Equal(t, "false", os.Getenv("DD_ENABLE_EBPFLESS"))
 
 		assert.Equal(t, Prebuilt, GetBuildMode())
 	})
@@ -35,7 +35,7 @@ func TestBuildModeConstants(t *testing.T) {
 		assert.False(t, cfg.AllowPrebuiltFallback)
 		assert.False(t, cfg.AllowRuntimeCompiledFallback)
 		assert.Equal(t, "false", os.Getenv("NETWORK_TRACER_FENTRY_TESTS"))
-		assert.Equal(t, "false", os.Getenv("DD_NETWORK_CONFIG_ENABLE_EBPFLESS"))
+		assert.Equal(t, "false", os.Getenv("DD_ENABLE_EBPFLESS"))
 
 		assert.Equal(t, RuntimeCompiled, GetBuildMode())
 	})
@@ -46,7 +46,7 @@ func TestBuildModeConstants(t *testing.T) {
 		assert.False(t, cfg.AllowPrebuiltFallback)
 		assert.False(t, cfg.AllowRuntimeCompiledFallback)
 		assert.Equal(t, "false", os.Getenv("NETWORK_TRACER_FENTRY_TESTS"))
-		assert.Equal(t, "false", os.Getenv("DD_NETWORK_CONFIG_ENABLE_EBPFLESS"))
+		assert.Equal(t, "false", os.Getenv("DD_ENABLE_EBPFLESS"))
 
 		assert.Equal(t, CORE, GetBuildMode())
 	})
@@ -57,7 +57,7 @@ func TestBuildModeConstants(t *testing.T) {
 		assert.False(t, cfg.AllowPrebuiltFallback)
 		assert.False(t, cfg.AllowRuntimeCompiledFallback)
 		assert.Equal(t, "true", os.Getenv("NETWORK_TRACER_FENTRY_TESTS"))
-		assert.Equal(t, "false", os.Getenv("DD_NETWORK_CONFIG_ENABLE_EBPFLESS"))
+		assert.Equal(t, "false", os.Getenv("DD_ENABLE_EBPFLESS"))
 
 		assert.Equal(t, Fentry, GetBuildMode())
 	})
@@ -68,7 +68,7 @@ func TestBuildModeConstants(t *testing.T) {
 		assert.False(t, cfg.AllowPrebuiltFallback)
 		assert.False(t, cfg.AllowRuntimeCompiledFallback)
 		assert.Equal(t, "false", os.Getenv("NETWORK_TRACER_FENTRY_TESTS"))
-		assert.Equal(t, "true", os.Getenv("DD_NETWORK_CONFIG_ENABLE_EBPFLESS"))
+		assert.Equal(t, "true", os.Getenv("DD_ENABLE_EBPFLESS"))
 
 		assert.Equal(t, Ebpfless, GetBuildMode())
 	})
