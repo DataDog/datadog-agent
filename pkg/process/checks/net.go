@@ -531,8 +531,10 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 // retryGetNetworkID attempts to fetch the network_id maxRetries times before failing
 func retryGetNetworkID(sysProbeClient *http.Client) (string, error) {
 	const maxRetries = 3
+	var err error
+	var networkID string
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		networkID, err := getNetworkID(sysProbeClient)
+		networkID, err = getNetworkID(sysProbeClient)
 		if err == nil {
 			return networkID, nil
 		}
@@ -544,7 +546,7 @@ func retryGetNetworkID(sysProbeClient *http.Client) (string, error) {
 		)
 		time.Sleep(50 * time.Millisecond)
 	}
-	return "", fmt.Errorf("failed to get network ID after %d attempts", maxRetries)
+	return "", fmt.Errorf("failed to get network ID after %d attempts: %s", maxRetries, err)
 }
 
 // getNetworkID fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
