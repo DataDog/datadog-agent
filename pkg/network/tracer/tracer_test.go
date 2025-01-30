@@ -69,10 +69,6 @@ func TestTracerSuite(t *testing.T) {
 	})
 }
 
-func isFentry() bool {
-	return ebpftest.GetBuildMode() == ebpftest.Fentry
-}
-
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 	if ebpftest.GetBuildMode() == ebpftest.Ebpfless {
 		env.SetFeatures(t, env.ECSFargate)
