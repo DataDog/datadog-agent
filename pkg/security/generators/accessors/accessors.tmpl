@@ -134,11 +134,11 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					{{if $Field.Handler }}
 						{{$Event = "ev"}}
 					{{end}}
-					{{$AncestorFunc := "newAncestorsIterator"}}
+					{{$AncestorFunc := "newIterator"}}
 					{{if $Field.GetArrayPrefix}}
-						{{$AncestorFunc = "newAncestorsIteratorArray"}}
+						{{$AncestorFunc = "newIteratorArray"}}
 					{{end}}
-					results := {{$AncestorFunc}}(iterator, field, ctx, {{$Event}}, func(ev *Event, current *{{$Field.Iterator.OrigType}}) {{$Field.GetArrayPrefix}}{{$Field.ReturnType}} {
+					results := {{$AncestorFunc}}(iterator, "{{$Field.Iterator.Name}}", ctx, {{$Event}}, func(ev *Event, current *{{$Field.Iterator.OrigType}}) {{$Field.GetArrayPrefix}}{{$Field.ReturnType}} {
 						{{range $Check := $Checks}}
 							{{if $Field.Iterator.Name | HasPrefix $Check}}
 								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
