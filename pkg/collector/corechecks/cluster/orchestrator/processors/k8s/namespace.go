@@ -59,7 +59,7 @@ func (h *NamespaceHandlers) BuildMessageBody(ctx processors.ProcessorContext, re
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NamespaceHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (namespaceModel interface{}) {
 	r := resource.(*corev1.Namespace)
-	return k8sTransformers.ExtractNamespace(r)
+	return k8sTransformers.ExtractNamespace(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

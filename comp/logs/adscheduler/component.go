@@ -6,7 +6,7 @@
 // Package adscheduler is glue code to connect autodiscovery to the logs agent. It receives and filters events and converts them into log sources.
 package adscheduler
 
-// team: agent-metrics-logs
+// team: agent-logs
 
 // Component is the component type.
 type Component interface{}

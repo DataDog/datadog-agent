@@ -28,6 +28,8 @@ TEAMS = (
     'agent-shared-components',
     'agent-integrations',
     'agent-metrics-logs',
+    'agent-metrics',
+    'agent-logs',
     'platform-integrations',
     'agent-ci-experience',
     'asm-go',

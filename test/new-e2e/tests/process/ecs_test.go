@@ -74,6 +74,8 @@ func TestECSEC2TestSuite(t *testing.T) {
 
 func (s *ECSEC2Suite) TestProcessCheck() {
 	t := s.T()
+	// https://datadoghq.atlassian.net/browse/CTK-4587
+	flake.Mark(t)
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {

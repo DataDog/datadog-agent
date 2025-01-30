@@ -303,7 +303,8 @@ type FileRegistry interface {
 // AttachCallback is a callback that is called whenever a probe is attached successfully
 type AttachCallback func(*manager.Probe, *utils.FilePath)
 
-var NopOnAttachCallback AttachCallback = nil //nolint:revive // TODO
+// NopOnAttachCallback is a callback that indicates that no action should be taken for the callback
+var NopOnAttachCallback AttachCallback
 
 // UprobeAttacher is a struct that handles the attachment of uprobes to processes and libraries
 type UprobeAttacher struct {

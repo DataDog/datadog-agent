@@ -14,14 +14,23 @@ from invoke.tasks import task
 from tasks.go import tidy
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.git import check_uncommitted_changes, get_git_config, revert_git_config, set_git_config
+from tasks.libs.common.constants import (
+    GITHUB_REPO_NAME,
+)
+from tasks.libs.common.git import (
+    check_clean_branch_state,
+    check_uncommitted_changes,
+    get_git_config,
+    revert_git_config,
+    set_git_config,
+)
 
 LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.117.0"
+OCB_VERSION = "0.118.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -89,6 +98,10 @@ def find_matching_components(manifest, components_to_match: dict, present: bool)
 
 
 def versions_equal(version1, version2):
+    idx = version1.find("/")
+    if idx != -1:
+        # version may be in the format of "v1.xx.0/v0.yyy.0"
+        version1 = version1[idx + 1 :]
     # strip leading 'v' if present
     if version1.startswith("v"):
         version1 = version1[1:]
@@ -416,7 +429,7 @@ class CollectorRepo:
 
     def fetch_latest_release(self):
         gh = GithubAPI(self.repo)
-        self.version = gh.latest_release()
+        self.version = gh.latest_release_tag()
         return self.version
 
     def fetch_module_versions(self):
@@ -516,12 +529,20 @@ def pull_request(ctx):
         ctx.run('git add .')
         if check_uncommitted_changes(ctx):
             branch_name = f"update-otel-collector-dependencies-{OCB_VERSION}"
+            gh = GithubAPI(repository=GITHUB_REPO_NAME)
             ctx.run(f'git switch -c {branch_name}')
             ctx.run(
                 f'git commit -m "Update OTel Collector dependencies to {OCB_VERSION} and generate OTel Agent" --no-verify'
             )
+            try:
+                # don't check if local branch exists; we just created it
+                check_clean_branch_state(ctx, gh, branch_name)
+            except Exit as e:
+                # local branch already exists, so skip error if this is thrown
+                if "already exists locally" not in str(e):
+                    print(e)
+                    return
             ctx.run(f'git push -u origin {branch_name} --no-verify')  # skip pre-commit hook if installed locally
-            gh = GithubAPI()
             gh.create_pr(
                 pr_title=f"Update OTel Collector dependencies to v{OCB_VERSION}",
                 pr_body=f"This PR updates the dependencies of the OTel Collector to v{OCB_VERSION} and generates the OTel Agent code.",
