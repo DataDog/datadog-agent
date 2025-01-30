@@ -182,6 +182,136 @@ func Test_handlePackets(t *testing.T) {
 	}
 }
 
+func TestListenPackets(t *testing.T) {
+	_, tcpBytes := testutils.CreateMockTCPPacket(testutils.CreateMockIPv4Header(dstIP, srcIP, 6), testutils.CreateMockTCPLayer(443, 12345, 28394, 28395, true, true, true), false)
+
+	tt := []struct {
+		description string
+		// input
+		icmpConn   rawConnWrapper
+		tcpConn    rawConnWrapper
+		timeout    time.Duration
+		localIP    net.IP
+		localPort  uint16
+		remoteIP   net.IP
+		remotePort uint16
+		seqNum     uint32
+		// output
+		expectedIP   net.IP
+		expectedPort uint16
+		expectedType uint8
+		expectedCode uint8
+		errMsg       string
+	}{
+		{
+			description: "both connections timeout",
+			icmpConn: &mockRawConn{
+				readTimeoutCount: 100,
+				readDeadline:     time.Now().Add(500 * time.Millisecond),
+				readFromErr:      errors.New("icmp timeout error"),
+			},
+			tcpConn: &mockRawConn{
+				readTimeoutCount: 100,
+				readDeadline:     time.Now().Add(500 * time.Millisecond),
+				readFromErr:      errors.New("tcp timeout error"),
+			},
+			timeout: 300 * time.Millisecond,
+		},
+		{
+			description: "both connections error before timeout",
+			icmpConn: &mockRawConn{
+				readFromErr: errors.New("read error"),
+			},
+			tcpConn: &mockRawConn{
+				readFromErr: errors.New("read error"),
+			},
+			timeout: 300 * time.Millisecond,
+			errMsg:  "read error; read error", // both errors should be returned in any order
+		},
+		{
+			description: "icmp connection returns error",
+			icmpConn: &mockRawConn{
+				readFromErr: errors.New("icmp read error"),
+			},
+			tcpConn: &mockRawConn{
+				readTimeoutCount: 100,
+				readDeadline:     time.Now().Add(500 * time.Millisecond),
+			},
+			timeout: 300 * time.Millisecond,
+			errMsg:  "icmp read error",
+		},
+		{
+			description: "tcp connection returns error",
+			icmpConn: &mockRawConn{
+				readTimeoutCount: 100,
+				readDeadline:     time.Now().Add(500 * time.Millisecond),
+			},
+			tcpConn: &mockRawConn{
+				readFromErr: errors.New("tcp read error"),
+			},
+			timeout: 300 * time.Millisecond,
+			errMsg:  "tcp read error",
+		},
+		{
+			description: "successful ICMP parsing returns IP, port, and type code",
+			icmpConn: &mockRawConn{
+				header:  testutils.CreateMockIPv4Header(srcIP, dstIP, 1),
+				payload: testutils.CreateMockICMPWithTCPPacket(nil, testutils.CreateMockICMPLayer(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded), testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP), testutils.CreateMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false),
+			},
+			tcpConn: &mockRawConn{
+				readTimeoutCount: 100,
+				readDeadline:     time.Now().Add(500 * time.Millisecond),
+			},
+			timeout:      500 * time.Millisecond,
+			localIP:      innerSrcIP,
+			localPort:    12345,
+			remoteIP:     innerDstIP,
+			remotePort:   443,
+			seqNum:       28394,
+			expectedIP:   srcIP,
+			expectedPort: 0,
+			expectedType: 0,
+			expectedCode: 0,
+		},
+		{
+			description: "successful TCP parsing returns IP, port, and type code",
+			icmpConn: &mockRawConn{
+				readTimeoutCount: 100,
+			},
+			tcpConn: &mockRawConn{
+				header:  testutils.CreateMockIPv4Header(dstIP, srcIP, 6),
+				payload: tcpBytes,
+			},
+			timeout:      500 * time.Millisecond,
+			localIP:      srcIP,
+			localPort:    12345,
+			remoteIP:     dstIP,
+			remotePort:   443,
+			seqNum:       28394,
+			expectedIP:   dstIP,
+			expectedPort: 443,
+			expectedType: 0,
+			expectedCode: 0,
+		},
+	}
+
+	for _, test := range tt {
+		t.Run(test.description, func(t *testing.T) {
+			actualIP, actualPort, actualTypeCode, _, actualErr := listenPackets(test.icmpConn, test.tcpConn, test.timeout, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
+			if test.errMsg != "" {
+				require.Error(t, actualErr)
+				assert.True(t, strings.Contains(actualErr.Error(), test.errMsg), "error mismatch: expected %q, got %q", test.errMsg, actualErr.Error())
+				return
+			}
+			require.NoError(t, actualErr)
+			assert.Truef(t, test.expectedIP.Equal(actualIP), "mismatch source IPs: expected %s, got %s", test.expectedIP.String(), actualIP.String())
+			assert.Equal(t, test.expectedPort, actualPort)
+			assert.Equal(t, test.expectedType, actualTypeCode.Type())
+			assert.Equal(t, test.expectedCode, actualTypeCode.Code())
+		})
+	}
+}
+
 func (m *mockRawConn) SetReadDeadline(t time.Time) error {
 	if m.setReadDeadlineErr != nil {
 		return m.setReadDeadlineErr

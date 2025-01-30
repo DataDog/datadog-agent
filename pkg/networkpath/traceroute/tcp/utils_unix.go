@@ -73,13 +73,17 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 		select {
 		case <-ctx.Done():
 			log.Trace("timed out waiting for responses")
-			return net.IP{}, 0, 0, time.Time{}, nil
+			return net.IP{}, 0, 0, time.Time{}, err
 		case resp := <-respChan:
 			if resp.Err == nil {
 				return resp.IP, resp.Port, 0, resp.Time, nil // TODO: update response code to include ICMP type and code
 			}
 
-			err = multierr.Append(err, resp.Err)
+			// avoid adding canceled errors to the error list
+			// TODO: maybe just return nil on timeout?
+			if _, isCanceled := resp.Err.(common.CanceledError); !isCanceled {
+				err = multierr.Append(err, resp.Err)
+			}
 		}
 	}
 
@@ -104,6 +108,8 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, localIP net.IP, loc
 		now := time.Now()
 		err := conn.SetReadDeadline(now.Add(time.Millisecond * 100))
 		if err != nil {
+			// TODO: is this a good idea or should we just return the error
+			// once we hit the deadline?
 			return response{
 				Err: fmt.Errorf("failed to read: %w", err),
 			}
