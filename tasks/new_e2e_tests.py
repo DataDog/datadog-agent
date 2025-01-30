@@ -44,7 +44,7 @@ class TestState:
 
 
 @task(
-    iterable=['tags', 'targets', 'configparams'],
+    iterable=['tags', 'targets', 'configparams', 'run', 'skip'],
     help={
         'profile': 'Override auto-detected runner profile (local or CI)',
         'tags': 'Build tags to use',
@@ -64,8 +64,8 @@ def run(
     targets=[],  # noqa: B006
     configparams=[],  # noqa: B006
     verbose=True,
-    run="",
-    skip="",
+    run=[],  # noqa: B006
+    skip=[],  # noqa: B006
     osversion="",
     platform="",
     arch="",
@@ -151,8 +151,8 @@ def run(
         "nocache": '-count=1' if not cache else '',
         "REPO_PATH": REPO_PATH,
         "commit": get_commit_sha(ctx, short=True),
-        "run": '-test.run ' + run if run else '',
-        "skip": '-test.skip ' + skip if skip else '',
+        "run": '-test.run ' + '"({})"'.format('|'.join(run)) if run else '',
+        "skip": '-test.skip ' + '"({})"'.format('|'.join(skip)) if skip else '',
         "test_run_arg": test_run_arg,
         "osversion": f"-osversion {osversion}" if osversion else '',
         "platform": f"-platform {platform}" if platform else '',
