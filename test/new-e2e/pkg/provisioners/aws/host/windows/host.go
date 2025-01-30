@@ -251,7 +251,7 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 		// We want Agent setup to happen after FIPS mode setup, but only
 		// because that's the use case we are interested in.
 		// Ideally the provisioner would allow the user to specify the order of
-		// the resources.
+		// the resources, but that's not supported right now.
 		params.agentOptions = append(params.agentOptions,
 			agentparams.WithPulumiResourceOptions(
 				pulumi.DependsOn(fipsMode.Resources)))
