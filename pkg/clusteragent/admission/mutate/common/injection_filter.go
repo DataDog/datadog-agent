@@ -17,23 +17,21 @@ import (
 
 // NewInjectionFilter constructs an injection filter.
 func NewInjectionFilter(enabled bool, enabledNamespaces []string, disabledNamespaces []string) (InjectionFilter, error) {
-	filter, err := makeAPMSSINamespaceFilter(enabledNamespaces, disabledNamespaces)
+	filter, err := makeNamespaceFilter(enabledNamespaces, disabledNamespaces)
 
 	injectionFilter := &injectionFilter{
-		apmInstrumentationEnabled: enabled,
-		filter:                    filter,
-
-		err: err,
+		enabled: enabled,
+		filter:  filter,
+		err:     err,
 	}
 
 	return &injectionFilterImpl{NSFilter: injectionFilter}, err
 }
 
 type injectionFilter struct {
-	apmInstrumentationEnabled bool
-
-	filter *containers.Filter
-	err    error
+	enabled bool
+	filter  *containers.Filter
+	err     error
 }
 
 // IsNamespaceEligible returns true of APM Single Step Instrumentation
@@ -45,7 +43,7 @@ type injectionFilter struct {
 // This DOES NOT respect `mutate_unlabelled` since it is a namespace
 // specific check.
 func (f *injectionFilter) IsNamespaceEligible(ns string) bool {
-	if !f.apmInstrumentationEnabled {
+	if !f.enabled {
 		log.Debugf("APM Instrumentation is disabled")
 		return false
 	}
@@ -68,7 +66,7 @@ func (f *injectionFilter) Err() error {
 	return f.err
 }
 
-// makeAPMSSINamespaceFilter returns the filter used by APM SSI to filter namespaces.
+// makeNamespaceFilter returns the filter used by APM SSI to filter namespaces.
 // The filter excludes two namespaces by default: "kube-system" and the
 // namespace where datadog is installed.
 //
@@ -82,21 +80,21 @@ func (f *injectionFilter) Err() error {
 //     namespaces that are not included in the list of disabled namespaces and that
 //     are not one of the ones disabled by default.
 //   - Enabled and disabled namespaces: return error.
-func makeAPMSSINamespaceFilter(apmEnabledNamespaces, apmDisabledNamespaces []string) (*containers.Filter, error) {
-	if len(apmEnabledNamespaces) > 0 && len(apmDisabledNamespaces) > 0 {
+func makeNamespaceFilter(enabledNamespaces, disabledNamespaces []string) (*containers.Filter, error) {
+	if len(enabledNamespaces) > 0 && len(disabledNamespaces) > 0 {
 		return nil, fmt.Errorf("enabled_namespaces and disabled_namespaces configuration cannot be set together")
 	}
 
 	// Prefix the namespaces as needed by the containers.Filter.
 	prefix := containers.KubeNamespaceFilterPrefix
-	apmEnabledNamespacesWithPrefix := make([]string, len(apmEnabledNamespaces))
-	apmDisabledNamespacesWithPrefix := make([]string, len(apmDisabledNamespaces))
+	enabledNamespacesWithPrefix := make([]string, len(enabledNamespaces))
+	disabledNamespacesWithPrefix := make([]string, len(disabledNamespaces))
 
-	for i := range apmEnabledNamespaces {
-		apmEnabledNamespacesWithPrefix[i] = prefix + fmt.Sprintf("^%s$", apmEnabledNamespaces[i])
+	for i := range enabledNamespaces {
+		enabledNamespacesWithPrefix[i] = prefix + fmt.Sprintf("^%s$", enabledNamespaces[i])
 	}
-	for i := range apmDisabledNamespaces {
-		apmDisabledNamespacesWithPrefix[i] = prefix + fmt.Sprintf("^%s$", apmDisabledNamespaces[i])
+	for i := range disabledNamespaces {
+		disabledNamespacesWithPrefix[i] = prefix + fmt.Sprintf("^%s$", disabledNamespaces[i])
 	}
 
 	disabledByDefault := []string{
@@ -105,14 +103,14 @@ func makeAPMSSINamespaceFilter(apmEnabledNamespaces, apmDisabledNamespaces []str
 	}
 
 	var filterExcludeList []string
-	if len(apmEnabledNamespacesWithPrefix) > 0 && len(apmDisabledNamespacesWithPrefix) == 0 {
+	if len(enabledNamespacesWithPrefix) > 0 && len(disabledNamespacesWithPrefix) == 0 {
 		// In this case, we want to include only the namespaces in the enabled list.
 		// In the containers.Filter, the include list is checked before the
 		// exclude list, that's why we set the exclude list to all namespaces.
 		filterExcludeList = []string{prefix + ".*"}
 	} else {
-		filterExcludeList = append(apmDisabledNamespacesWithPrefix, disabledByDefault...)
+		filterExcludeList = append(disabledNamespacesWithPrefix, disabledByDefault...)
 	}
 
-	return containers.NewFilter(containers.GlobalFilter, apmEnabledNamespacesWithPrefix, filterExcludeList)
+	return containers.NewFilter(containers.GlobalFilter, enabledNamespacesWithPrefix, filterExcludeList)
 }
