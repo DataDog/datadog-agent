@@ -303,14 +303,17 @@ func fetchEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) err
 	var drvInfo ethtool_drvinfo
 	req.Data = uintptr(unsafe.Pointer(&drvInfo))
 	_, _, errno := getSyscall(unix.SYS_IOCTL, uintptr(ethtoolSocket), uintptr(ETHTOOL_GDRVINFO), uintptr(unsafe.Pointer(&req)))
-	if errno != 0 {
+	if errno == unix.ENOTTY {
+		log.Debugf("driver info and other ethtool stats are not supported for interface: %s", interfaceIO.Name)
+		return nil
+	} else if errno != 0 {
 		return errors.New("failed to get driver info for interface " + interfaceIO.Name + ": " + fmt.Sprintf("%d", errno))
 	}
 
 	driverName := string(bytes.Trim([]byte(drvInfo.Driver[:]), "\x00"))
 	driverVersion := string(bytes.Trim([]byte(drvInfo.Version[:]), "\x00"))
 
-	// Fetch stats names (ETHTOOL_GSTRINGS)
+	// Fetch stats set info (ETHTOOL_GSSET_INFO) and names (ETHTOOL_GSTRINGS)
 	var stringSet ethtool_gstrings
 	stringSet.Cmd = ETHTOOL_GSTRINGS
 	stringSet.StringSet = ETH_SS_STATS

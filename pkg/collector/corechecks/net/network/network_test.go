@@ -10,6 +10,7 @@ package network
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"syscall"
 	"testing"
 	"unsafe"
@@ -94,6 +95,9 @@ func (m *MockSyscall) Syscall(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err sys
 
 		switch cmd {
 		case uintptr(ETHTOOL_GDRVINFO):
+			if string(bytes.Trim(req.Name[:], "\x00")) == "virtual_iface" {
+				return 0, 0, 25
+			}
 			drvInfo := (*ethtool_drvinfo)(unsafe.Pointer(req.Data))
 			drvInfo.Driver = "mock_driver"
 			drvInfo.Version = "mock_version"
@@ -679,6 +683,94 @@ func TestFetchEthtoolStats(t *testing.T) {
 	expectedTags := []string{"interface:eth0", "driver_name:mock_driver", "driver_version:mock_version"}
 	mockSender.AssertCalled(t, "Rate", "system.net.tx_packets", float64(12345), "", expectedTags)
 	mockSender.AssertCalled(t, "Rate", "system.net.rx_bytes", float64(67890), "", expectedTags)
+}
+
+func TestFetchEthtoolStatsErrorBadSocket(t *testing.T) {
+	mockSyscall := new(MockSyscall)
+
+	getSyscall = mockSyscall.Syscall
+	getSocket = func(domain int, typ int, proto int) (int, error) {
+		return 0, errors.New("bad socket")
+	}
+	getClose = mockSyscall.Close
+
+	net := &fakeNetworkStats{
+		counterStats: []net.IOCountersStat{
+			{
+				Name:        "virtual_iface",
+				BytesRecv:   100,
+				BytesSent:   200,
+				PacketsRecv: 300,
+				Dropin:      400,
+				Errin:       500,
+				PacketsSent: 600,
+				Dropout:     700,
+				Errout:      800,
+			},
+		},
+	}
+
+	networkCheck := NetworkCheck{
+		net: net,
+	}
+
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test")
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	err := networkCheck.Run()
+	assert.Equal(t, errors.New("bad socket"), err)
+}
+
+func TestFetchEthtoolStatsENOTTY(t *testing.T) {
+	mockSyscall := new(MockSyscall)
+
+	mockSyscall.On("Socket", mock.Anything, mock.Anything, mock.Anything).Return(1, nil)
+	mockSyscall.On("Syscall", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(uintptr(0), uintptr(0), syscall.Errno(0))
+	mockSyscall.On("Close", mock.Anything).Return(nil)
+
+	getSyscall = mockSyscall.Syscall
+	getSocket = mockSyscall.Socket
+	getClose = mockSyscall.Close
+
+	net := &fakeNetworkStats{
+		counterStats: []net.IOCountersStat{
+			{
+				Name:        "virtual_iface",
+				BytesRecv:   100,
+				BytesSent:   200,
+				PacketsRecv: 300,
+				Dropin:      400,
+				Errin:       500,
+				PacketsSent: 600,
+				Dropout:     700,
+				Errout:      800,
+			},
+		},
+	}
+
+	networkCheck := NetworkCheck{
+		net: net,
+	}
+
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test")
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	err := networkCheck.Run()
+	assert.Nil(t, err)
+
+	expectedTagsIfNoError := []string{"interface:virtual_iface", "driver_name:mock_driver", "driver_version:mock_version"}
+	mockSender.AssertNotCalled(t, "Rate", "system.net.tx_packets", float64(12345), "", expectedTagsIfNoError)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.rx_bytes", float64(67890), "", expectedTagsIfNoError)
 }
 
 func TestNetStatTCPExtCountersUsingCorrectMockedProcfsPath(t *testing.T) {
