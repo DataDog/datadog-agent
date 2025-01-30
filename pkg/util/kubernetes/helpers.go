@@ -8,10 +8,6 @@ package kubernetes
 import (
 	"strconv"
 	"strings"
-
-	"k8s.io/apimachinery/pkg/api/resource"
-
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // KubeAllowedEncodeStringAlphaNums holds the charactes allowed in replicaset names from as parent deployment
@@ -104,15 +100,4 @@ func removeKubernetesNameSuffix(name string) string {
 	}
 
 	return name[:lastDash]
-}
-
-// FormatCPURequests converts a CPU request to a percentage of a CPU core pointer
-// For 100Mi, AsApproximate returns 0.1, we return 10%
-func FormatCPURequests(cpuRequest resource.Quantity) *float64 {
-	return pointer.Ptr(cpuRequest.AsApproximateFloat64() * 100)
-}
-
-// FormatMemoryRequests converts a memory request to a uint64 pointer
-func FormatMemoryRequests(memoryRequest resource.Quantity) *uint64 {
-	return pointer.Ptr(uint64(memoryRequest.Value()))
 }
