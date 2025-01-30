@@ -165,7 +165,7 @@ new-agent_dmg-x64-a7:
       export INSTALL_DIR=/tmp/celian/bin
       export CONFIG_DIR=/tmp/celian/config
       export GOPATH="$GOROOT"
-      export OMNIBUS_DIR=omnibus
+      export OMNIBUS_DIR=omnibus_build
     - rm -f ~/.build_setup; touch ~/.build_setup
     - rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
     - mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
