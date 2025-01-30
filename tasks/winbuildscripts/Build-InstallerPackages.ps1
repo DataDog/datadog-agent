@@ -52,8 +52,8 @@ Invoke-BuildScript `
         $inv_args += $ReleaseVersion
     }
 
-    Write-Host "inv -e winbuild.installer-package $inv_args"
-    inv -e winbuild.installer-package @inv_args
+    Write-Host "deva inv -e winbuild.installer-package $inv_args"
+    deva inv -e winbuild.installer-package @inv_args
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build the agent package"
         exit 1

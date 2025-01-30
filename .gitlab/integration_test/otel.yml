@@ -9,9 +9,9 @@ integration_tests_otel:
   needs: ["go_deps"]
   script:
     - !reference [.retrieve_linux_go_deps]
-    - inv check-otel-build
-    - inv check-otel-module-versions
-    - inv otel-agent.integration-test
+    - deva inv check-otel-build
+    - deva inv check-otel-module-versions
+    - deva inv otel-agent.integration-test
   rules:
     - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
       when: never
