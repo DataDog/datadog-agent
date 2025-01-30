@@ -70,7 +70,6 @@ func TestFIPSCiphersSuite(t *testing.T) {
 				),
 			),
 		),
-		e2e.WithSkipDeleteOnFailure(),
 	)
 }
 
@@ -138,7 +137,7 @@ func runFipsServer(v *fipsServerSuite, tc cipherTestCase, composeFiles string) {
 }
 
 func runAgentDiagnose(v *fipsServerSuite, composeFiles string) {
-	_ = v.Env().RemoteHost.MustExecute(fmt.Sprintf(`docker-compose -f %s exec agent sh -c "GOFIPS=1 DD_DD_URL=https://dd-fips-server:443 agent diagnose --include connectivity-datadog-core-endpoints --local"`, strings.TrimSpace(composeFiles)))
+	_ = v.Env().RemoteHost.MustExecute(fmt.Sprintf(`docker-compose -f %s exec agent sh -c "DD_DD_URL=https://dd-fips-server:443 agent diagnose --include connectivity-datadog-core-endpoints --local"`, strings.TrimSpace(composeFiles)))
 }
 
 func stopFipsServer(v *fipsServerSuite, composeFiles string) {
