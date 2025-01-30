@@ -152,7 +152,7 @@ def build(
     the values from `invoke.yaml` will be used.
 
     Example invokation:
-        inv agent.build --build-exclude=systemd
+        deva inv agent.build --build-exclude=systemd
     """
     flavor = AgentFlavor[flavor]
 
@@ -399,7 +399,7 @@ def exec(
     """
     Execute 'agent <subcommand>' against the currently running Agent.
 
-    This works against an agent run via `inv agent.run`.
+    This works against an agent run via `deva inv agent.run`.
     Basically this just simplifies creating the path for both the agent binary and config.
     """
     agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
@@ -743,7 +743,7 @@ def version(
         # In theory we'd need to have one format for each package type (deb, rpm, msi, pkg).
         # However, there are a few things that allow us in practice to have only one variable for everything:
         # - the deb and rpm safe version formats are identical (the only difference is an additional rule on Wind River Linux, which doesn't apply to us).
-        #   Moreover, of the two rules, we actually really only use the first one (because we always use inv agent.version --url-safe).
+        #   Moreover, of the two rules, we actually really only use the first one (because we always use deva inv agent.version --url-safe).
         # - the msi version name uses the raw version string. The only difference with the deb / rpm versions
         #   is therefore that dashes are replaced by tildes. We're already doing the reverse operation in agent-release-management
         #   to get the correct msi name.

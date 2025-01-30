@@ -38,7 +38,7 @@ Invoke-BuildScript `
     & .\tasks\winbuildscripts\pre-go-build.ps1
 
     # Lint rtloader
-    & inv -e rtloader.format --raise-if-changed
+    & deva inv -e rtloader.format --raise-if-changed
     $err = $LASTEXITCODE
     Write-Host Format result is $err
     if($err -ne 0){
@@ -47,7 +47,7 @@ Invoke-BuildScript `
     }
 
     # Lint Go
-    & inv -e linter.go --debug
+    & deva inv -e linter.go --debug
     $err = $LASTEXITCODE
     Write-Host Go linter result is $err
     if($err -ne 0){

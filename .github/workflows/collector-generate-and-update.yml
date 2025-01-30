@@ -26,17 +26,17 @@ jobs:
         with:
           go-version-file: .go-version
 
-      - name: Install Dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - name: Install deva
+        uses: ./.github/actions/install-deva
+        with:
+          features: legacy-tasks
 
       - name: Run Collector Update Script
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          inv -e install-tools
-          inv -e collector.update
-          inv -e collector.generate
-          inv -e generate-licenses
-          inv -e collector.pull-request
+          deva inv -e install-tools
+          deva inv -e collector.update
+          deva inv -e collector.generate
+          deva inv -e generate-licenses
+          deva inv -e collector.pull-request

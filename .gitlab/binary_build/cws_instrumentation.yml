@@ -3,8 +3,8 @@
   stage: binary_build
   needs: ["go_mod_tidy_check"]
   script:
-    - inv check-go-version
-    - inv -e cws-instrumentation.build --arch-suffix
+    - deva inv check-go-version
+    - deva inv -e cws-instrumentation.build --arch-suffix
   artifacts:
     paths:
       - $CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation.$ARCH

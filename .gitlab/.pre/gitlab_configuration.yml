@@ -7,10 +7,10 @@ test_gitlab_configuration:
     - !reference [.on_gitlab_changes]
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
-    - inv -e linter.gitlab-ci
-    - inv -e linter.job-change-path
-    - inv -e linter.gitlab-change-paths
-    - inv -e linter.ssm-parameters
+    - deva inv -e linter.gitlab-ci
+    - deva inv -e linter.job-change-path
+    - deva inv -e linter.gitlab-change-paths
+    - deva inv -e linter.ssm-parameters
 
 test_gitlab_compare_to:
   stage: .pre
@@ -22,10 +22,9 @@ test_gitlab_compare_to:
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - !reference [.setup_agent_github_app]
-    - python -m pip uninstall -y setuptools wheel
-    - python -m pip install setuptools wheel --break-system-packages
-    - python -m pip install -r tasks/requirements.txt --break-system-packages
-    - inv pipeline.compare-to-itself
+    - pip install datadog-agent-dev=="$(cat .deva/version)" --break-system-packages
+    - deva self dep sync -f legacy-tasks
+    - deva inv pipeline.compare-to-itself
 
 # Computes and uploads the GitLab CI configuration diff as an artifact
 compute_gitlab_ci_config:
@@ -41,7 +40,7 @@ compute_gitlab_ci_config:
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - mkdir -p artifacts
-    - inv -e gitlab.compute-gitlab-ci-config --before-file artifacts/before.gitlab-ci.yml --after-file artifacts/after.gitlab-ci.yml --diff-file artifacts/diff.gitlab-ci.yml
+    - deva inv -e gitlab.compute-gitlab-ci-config --before-file artifacts/before.gitlab-ci.yml --after-file artifacts/after.gitlab-ci.yml --diff-file artifacts/diff.gitlab-ci.yml
   artifacts:
     when: always
     paths:
@@ -55,8 +54,8 @@ lint_gitlab_ci:
   needs: [compute_gitlab_ci_config]
   script:
     - status=0
-    - inv -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml || status=1
-    - inv -e linter.gitlab-ci-jobs-owners --config-file artifacts/after.gitlab-ci.yml || status=1
+    - deva inv -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml || status=1
+    - deva inv -e linter.gitlab-ci-jobs-owners --config-file artifacts/after.gitlab-ci.yml || status=1
     - |
       if [ $status != 0 ]; then
         echo "At least one linter failed, exiting..." >& 2
@@ -69,4 +68,4 @@ lint_gitlab_ci_jobs_codeowners:
   tags: ["arch:arm64"]
   needs: []
   script:
-    - inv -e linter.gitlab-ci-jobs-codeowners --all-files
+    - deva inv -e linter.gitlab-ci-jobs-codeowners --all-files

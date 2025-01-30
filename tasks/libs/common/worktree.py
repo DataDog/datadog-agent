@@ -40,7 +40,7 @@ def init_env(ctx, branch: str | None = None, commit: str | None = None):
             for filter_option in ["--filter=blob:none", ""]
         ):
             raise Exit(
-                f'{color_message("Error", Color.RED)}: Cannot initialize worktree environment. You might want to reset the worktree directory with `inv worktree.remove`',
+                f'{color_message("Error", Color.RED)}: Cannot initialize worktree environment. You might want to reset the worktree directory with `deva inv worktree.remove`',
                 code=1,
             )
 
@@ -112,7 +112,7 @@ def enter_env(ctx, branch: str | None, skip_checkout=False, commit: str | None =
         current_branch = get_current_branch(ctx)
         assert (
             current_branch == branch
-        ), f"skip_checkout is True but the current branch ({current_branch}) is not {branch}. You should check out the branch before using this command, this can be safely done with `inv worktree.checkout {branch}`."
+        ), f"skip_checkout is True but the current branch ({current_branch}) is not {branch}. You should check out the branch before using this command, this can be safely done with `deva inv worktree.checkout {branch}`."
 
 
 def exit_env():

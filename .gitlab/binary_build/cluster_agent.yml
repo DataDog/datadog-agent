@@ -7,8 +7,8 @@
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
-    - inv check-go-version
-    - inv -e cluster-agent.build --release-version "$RELEASE_VERSION_7"
+    - deva inv check-go-version
+    - deva inv -e cluster-agent.build --release-version "$RELEASE_VERSION_7"
   artifacts:
     paths:
       - $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent
