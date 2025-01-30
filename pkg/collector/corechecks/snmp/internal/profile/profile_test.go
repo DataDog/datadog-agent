@@ -31,14 +31,9 @@ func Test_loadProfiles(t *testing.T) {
 			name:      "OK Use init config profiles",
 			mockConfd: "conf.d",
 			profiles: ProfileConfigMap{
-				"my-init-config-profile": ProfileConfig{
-					Definition: profiledefinition.ProfileDefinition{
-						Name: "my-init-config-profile",
-					},
-				},
+				"my-init-config-profile": ProfileConfig{},
 				"f5-big-ip": ProfileConfig{ // should have precedence over user profiles
 					Definition: profiledefinition.ProfileDefinition{
-						Name: "f5-big-ip",
 						Metrics: []profiledefinition.MetricsConfig{
 							{
 								Symbol: profiledefinition.SymbolConfig{
@@ -64,7 +59,6 @@ func Test_loadProfiles(t *testing.T) {
 			profiles: ProfileConfigMap{
 				"my-init-config-profile": ProfileConfig{
 					Definition: profiledefinition.ProfileDefinition{
-						Name: "my-init-config-profile",
 						MetricTags: profiledefinition.MetricTagConfigList{
 							{
 								Match: "invalidRegex({[",
@@ -102,7 +96,7 @@ func Test_loadProfiles(t *testing.T) {
 			}
 			var actualProfilesNames []string
 			for profileName := range actualProfiles {
-				actualProfilesNames = append(actualProfilesNames, profileName)
+				actualProfilesNames = append(actualProfilesNames, actualProfiles[profileName].Definition.Name)
 			}
 			sort.Strings(actualProfilesNames)
 			sort.Strings(tt.expectedProfileNames)

@@ -66,6 +66,13 @@ github_team = "agent-delivery"
 github_labels = ["team/agent-delivery"]
 exclude_members = ["KSerrania"]
 
+[teams."Agent Discovery"]
+jira_project = "DSCVR"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "agent-discovery"
+github_labels = ["team/agent-discovery"]
+
 [teams."Universal Service Monitoring"]
 jira_project = "USMON"
 jira_issue_type = "Task"
