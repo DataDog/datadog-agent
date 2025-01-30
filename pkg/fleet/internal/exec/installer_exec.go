@@ -10,13 +10,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
@@ -69,8 +68,15 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 }
 
 // Install installs a package.
-func (i *InstallerExec) Install(ctx context.Context, url string, _ []string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "install", url)
+func (i *InstallerExec) Install(ctx context.Context, url string, args []string, forceInstall bool) (err error) {
+	var cmdLineArgs = []string{url}
+	if forceInstall {
+		cmdLineArgs = append(cmdLineArgs, "--force")
+	}
+	if len(args) > 0 {
+		cmdLineArgs = append(cmdLineArgs, fmt.Sprintf("--install_args \"%s\"", strings.Join(args, ",")))
+	}
+	cmd := i.newInstallerCmd(ctx, "install", cmdLineArgs...)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }

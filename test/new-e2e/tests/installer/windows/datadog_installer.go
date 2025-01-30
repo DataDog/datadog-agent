@@ -153,10 +153,10 @@ func (d *DatadogInstaller) RunInstallScript(extraEnvVars map[string]string) (str
 		envVars[k] = v
 	}
 	envVars["DD_INSTALLER_URL"] = artifactURL
-	// TODO: Use install script from pipeline
-	cmd := `Set-ExecutionPolicy Bypass -Scope Process -Force;
+
+	cmd := fmt.Sprintf(`Set-ExecutionPolicy Bypass -Scope Process -Force;
 		[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
-		iex ((New-Object System.Net.WebClient).DownloadString('https://s3.amazonaws.com/dd-agent-mstesting/Install-Datadog.ps1'));`
+		iex ((New-Object System.Net.WebClient).DownloadString('https://installtesting.datad0g.com/%s/scripts/Install-Datadog.ps1'))`, d.env.Environment.PipelineID())
 	return d.env.RemoteHost.Execute(cmd, client.WithEnvVariables(envVars))
 }
 
