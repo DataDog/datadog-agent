@@ -1,11 +1,5 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.0.0-20250129172314-517df3f51a84 h1:2nL9G1SdPYbC2U0bvXEGj85+Y+muJgSDgzxmdnV4Xkk=
-github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.0.0-20250129172314-517df3f51a84/go.mod h1:JfSEpaM7XJkpFsODUZhbbYIvwxmUbW8zHZIGKdQrLnY=
-github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel h1:RIKbeFWoz0pNR14O2RWMmvcJ//VQeJK3L9v/y93M4HE=
-github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel/go.mod h1:2o49+wHcks97lVSdK4BQllo5UZgbmASgqgK882Gg9GY=
-github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel h1:hNKm+VRH3lfOzSnhKUj3Dr+MI99pxhRlL36qoPK6WCA=
-github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel/go.mod h1:BECd5pnMX9MEnARCAV+S7M0Sk/gYwopL7QlhCFdXSI0=
 github.com/DataDog/viper v1.14.0 h1:dIjTe/uJiah+QFqFZ+MXeqgmUvWhg37l37ZxFWxr3is=
 github.com/DataDog/viper v1.14.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
