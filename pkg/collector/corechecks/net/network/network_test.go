@@ -689,7 +689,7 @@ func TestFetchEthtoolStatsErrorBadSocket(t *testing.T) {
 	mockSyscall := new(MockSyscall)
 
 	getSyscall = mockSyscall.Syscall
-	getSocket = func(domain int, typ int, proto int) (int, error) {
+	getSocket = func(_ int, _ int, _ int) (int, error) {
 		return 0, errors.New("bad socket")
 	}
 	getClose = mockSyscall.Close
