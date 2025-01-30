@@ -75,7 +75,9 @@ modules:
   comp/otelcol/ddflareextension/def: default
   comp/otelcol/ddflareextension/impl: default
   comp/otelcol/ddprofilingextension/def: default
+    used_by_otel: true
   comp/otelcol/ddprofilingextension/impl: default
+    used_by_otel: true
   comp/otelcol/logsagentpipeline:
     used_by_otel: true
   comp/otelcol/logsagentpipeline/logsagentpipelineimpl:
