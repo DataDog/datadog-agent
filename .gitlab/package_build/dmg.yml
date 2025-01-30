@@ -170,7 +170,7 @@ new-agent_dmg-x64-a7:
     - rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
     - mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
     # Temporary omnibus dir
-    - rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIUBS_DIR"
+    - rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
     # Clone agent
     - |
       mkdir -p $HOME/go
