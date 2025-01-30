@@ -175,22 +175,6 @@ new-e2e-agent-shared-components:
     TARGETS: ./tests/agent-shared-components
     TEAM: agent-shared-components
 
-new-e2e-windows-agent-fips:
-  extends: .new_e2e_template
-  needs:
-    - !reference [.needs_new_e2e_template]
-    - deploy_windows_testing-a7-fips
-  rules:
-    - !reference [.on_deploy]
-    - !reference [.on_e2e_or_windows_installer_changes]
-    - !reference [.manual]
-  variables:
-    TARGETS: ./tests/fips
-    TEAM: windows-agent
-  parallel:
-    matrix:
-      - EXTRA_PARAMS: --run "TestWindowsVM$"
-
 new-e2e-agent-subcommands:
   extends: .new_e2e_template_needs_deb_windows_x64
   rules:
