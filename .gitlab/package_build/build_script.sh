@@ -41,10 +41,12 @@ source .venv/bin/activate
 python3 -m pip install -r requirements.txt
 
 # Clean up previous builds
-sudo rm -rf /opt/datadog-agent ./vendor ./vendor-new /var/cache/omnibus/src/* ./omnibus/Gemfile.lock
+# TODO
+# sudo rm -rf /opt/datadog-agent ./vendor ./vendor-new /var/cache/omnibus/src/* ./omnibus/Gemfile.lock
+sudo rm -rf ./opt/datadog-agent ./vendor ./vendor-new ./var/cache/omnibus/src/* ./omnibus/Gemfile.lock
 
 # Create target folders
-sudo mkdir -p /opt/datadog-agent /var/cache/omnibus && sudo chown "$USER" /opt/datadog-agent /var/cache/omnibus
+sudo mkdir -p ./opt/datadog-agent ./var/cache/omnibus && sudo chown "$USER" ./opt/datadog-agent ./var/cache/omnibus
 
 # Set bundler install path to cached folder
 pushd omnibus && bundle config set --local path 'vendor/bundle' && popd
@@ -79,7 +81,7 @@ if false; then
 
     # Unlock the keychain to get access to the signing certificates
     security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
-    inv -e $INVOKE_TASK --hardened-runtime --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" || exit 1
+    inv -e $INVOKE_TASK --hardened-runtime --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
     # Lock the keychain once we're done
     security lock-keychain "$KEYCHAIN_NAME"
 else

@@ -151,6 +151,7 @@ new-agent_dmg-x64-a7:
   # before_script:
   #   - export RELEASE_VERSION=$RELEASE_VERSION_7
   script:
+    - set -e
     - !reference [.vault_login]
     # Setup
     - |
@@ -169,7 +170,7 @@ new-agent_dmg-x64-a7:
     - rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
     - mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
     # Temporary omnibus dir
-    - rm -rf "$OMNIBUS_DIR" && cp -r /omnibus "$OMNIUBS_DIR" && ls "$OMNIBUS_DIR"
+    - rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIUBS_DIR"
     # Clone agent
     - |
       mkdir -p $HOME/go
