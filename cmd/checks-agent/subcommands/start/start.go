@@ -11,11 +11,12 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"runtime"
 	"runtime/debug"
 
-	// _ "net/http/pprof"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -240,15 +241,13 @@ func start(
 
 	defer StopAgent(cancel, log)
 
-	// go func() {
-	// 	port := config.GetString("checks_agent_debug_port")
-	// 	addr := net.JoinHostPort("localhost", port)
-	// 	http.Handle("/telemetry", telemetry.Handler())
-	// 	err := http.ListenAndServe(addr, nil)
-	// 	if err != nil {
-	// 		log.Warnf("pprof server: %s", err)
-	// 	}
-	// }()
+	go func() {
+		addr := net.JoinHostPort("localhost", "6060")
+		err := http.ListenAndServe(addr, nil)
+		if err != nil {
+			log.Warnf("pprof server: %s", err)
+		}
+	}()
 
 	token := authToken.Get()
 

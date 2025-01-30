@@ -111,7 +111,7 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 		return
 	}
 
-	log.Infof("python to aggregator response: %s", string(resp))
+	log.Debug(fmt.Sprintf("python to aggregator response: %s", string(resp)))
 }
 
 // SubmitServiceCheck is the method exposed to Python scripts to submit service checks
