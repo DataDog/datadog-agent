@@ -1258,7 +1258,7 @@ func debugging(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
 	config.BindEnvAndSetDefault("c_core_dump", false)
 	config.BindEnvAndSetDefault("go_core_dump", false)
-	config.BindEnvAndSetDefault("memtrack_enabled", true)
+	config.BindEnvAndSetDefault("memtrack_enabled", false)
 	config.BindEnvAndSetDefault("tracemalloc_debug", false)
 	config.BindEnvAndSetDefault("tracemalloc_include", "")
 	config.BindEnvAndSetDefault("tracemalloc_exclude", "")
