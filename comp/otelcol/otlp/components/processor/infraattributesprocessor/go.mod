@@ -34,8 +34,8 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.62.0
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.62.0
+	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.62.1-rc.1
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.62.1-rc.1
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/component v0.115.0
 	go.opentelemetry.io/collector/component/componenttest v0.115.0
@@ -52,7 +52,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.62.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.62.1-rc.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
