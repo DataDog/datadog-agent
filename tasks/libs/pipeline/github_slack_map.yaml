@@ -48,3 +48,4 @@
 '@datadog/apm-ecosystems-performance': '#apm-benchmarking-platform'
 '@DataDog/container-ecosystems': '#container-ecosystems-ops'
 '@datadog/injection-platform': '#injection-platform'
+'@datadog/agent-discovery': '#agent-discovery'
