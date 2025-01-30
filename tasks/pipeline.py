@@ -931,7 +931,8 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
     """
 
     skipped_test_fips = {
-        "new-e2e-otel": "TestOTelAgent"  # No FIPS + OTel image exists yet so these tests will never succeed
+        "new-e2e-otel": "TestOTelAgent",  # No FIPS + OTel image exists yet so these tests will never succeed
+        "new-e2e-aml": ".*TestJMXFIPSMode",  # These tests are explicitly testing the agent when FIPS is disabled
     }
 
     if generate_config:
