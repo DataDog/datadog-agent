@@ -386,7 +386,10 @@ func Initialize(paths ...string) error {
 	}
 
 	if fipsEnabled {
-		initFIPS(PythonHome)
+		err := initFIPS(PythonHome)
+		if err != nil {
+			log.Warnf("Error initializing FIPS mode: %v", err)
+		}
 	}
 
 	//nolint:revive // TODO(AML) Fix revive linter
