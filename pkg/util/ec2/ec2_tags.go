@@ -101,7 +101,7 @@ func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 	if err == nil {
 		return tags, nil
 	}
-	log.Warnf("unable to get tags using default credentials (falling back to instance role): %s", err)
+	log.Debugf("unable to get tags using default credentials (falling back to instance role): %s", err)
 
 	// If the above fails, for backward compatibility, fall back to our legacy
 	// behavior, where we explicitly query instance role to get credentials.
