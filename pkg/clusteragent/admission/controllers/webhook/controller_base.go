@@ -30,6 +30,7 @@ import (
 	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling"
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
@@ -103,7 +104,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	// of the components that use it via the injectionFilter parameter.
 	// TODO: for now we ignore the error returned by NewInjectionFilter, but we should not and surface it
 	//       in the admission controller section in agent status.
-	injectionFilter, _ := autoinstrumentation.NewInjectionFilter(datadogConfig)
+	injectionFilter, _ := mutatecommon.NewInjectionFilter(datadogConfig)
 
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook

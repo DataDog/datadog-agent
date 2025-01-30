@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -175,7 +174,7 @@ func Test_injectTags(t *testing.T) {
 	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filter, _ := autoinstrumentation.NewInjectionFilter(datadogConfig)
+			filter, _ := common.NewInjectionFilter(datadogConfig)
 			webhook := NewWebhook(wmeta, datadogConfig, filter)
 			_, err := webhook.injectTags(tt.pod, "ns", nil)
 			assert.NoError(t, err)
@@ -277,7 +276,7 @@ func TestGetAndCacheOwner(t *testing.T) {
 	owner := newOwner(kubeObj)
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	config := fxutil.Test[config.Component](t, core.MockBundle())
-	filter, _ := autoinstrumentation.NewInjectionFilter(config)
+	filter, _ := common.NewInjectionFilter(config)
 	webhook := NewWebhook(wmeta, config, filter)
 
 	// Cache hit

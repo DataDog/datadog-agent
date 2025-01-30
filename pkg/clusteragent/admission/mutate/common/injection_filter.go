@@ -3,15 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver
-
-package autoinstrumentation
+package common
 
 import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -19,7 +16,7 @@ import (
 
 // NewInjectionFilter constructs an injection filter using the autoinstrumentation
 // GetNamespaceInjectionFilter.
-func NewInjectionFilter(datadogConfig config.Component) (mutatecommon.InjectionFilter, error) {
+func NewInjectionFilter(datadogConfig config.Component) (InjectionFilter, error) {
 	filter, err := makeAPMSSINamespaceFilter(
 		datadogConfig.GetStringSlice("apm_config.instrumentation.enabled_namespaces"),
 		datadogConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces"),
@@ -31,7 +28,8 @@ func NewInjectionFilter(datadogConfig config.Component) (mutatecommon.InjectionF
 
 		err: err,
 	}
-	return mutatecommon.NewInjectionFilter(injectionFilter), err
+
+	return &injectionFilterImpl{NSFilter: injectionFilter}, err
 }
 
 type injectionFilter struct {

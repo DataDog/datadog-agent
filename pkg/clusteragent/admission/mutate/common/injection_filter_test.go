@@ -5,14 +5,13 @@
 
 //go:build kubeapiserver
 
-package autoinstrumentation
+package common
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -69,7 +68,6 @@ func TestFailingInjectionConfig(t *testing.T) {
 			enabledNamespaces:      []string{"enabled-ns"},
 			disabledNamespaces:     []string{"disabled-ns"},
 			expectedFilterError:    true,
-			expectedWebhookError:   true,
 			expectedNamespaces: map[string]bool{
 				"enabled-ns":   false,
 				"disabled-ns":  false,
@@ -80,9 +78,6 @@ func TestFailingInjectionConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
-			wmeta := common.FakeStoreWithDeployment(t, nil)
-
 			c := mockconfig.New(t)
 			c.SetWithoutSource("apm_config.instrumentation.enabled", tt.instrumentationEnabled)
 			c.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", tt.enabledNamespaces)
@@ -90,13 +85,6 @@ func TestFailingInjectionConfig(t *testing.T) {
 
 			nsFilter, _ := NewInjectionFilter(c)
 			require.NotNil(t, nsFilter, "we should always get a filter")
-
-			_, err := NewWebhook(wmeta, c, nsFilter)
-			if tt.expectedWebhookError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
 
 			checkedNamespaces := map[string]bool{}
 			for ns := range tt.expectedNamespaces {

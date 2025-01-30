@@ -30,9 +30,9 @@ type InjectionFilter interface {
 // the InjectionFilter encapsulates the logic for deciding whether
 // we can do pod mutation based on a NSFilter (NamespaceInjectionFilter).
 // See: InjectionFilter.ShouldMutatePod.
-func NewInjectionFilter(filter NamespaceInjectionFilter) InjectionFilter {
-	return &injectionFilterImpl{NSFilter: filter}
-}
+// func NewInjectionFilter(filter NamespaceInjectionFilter) InjectionFilter {
+// 	return &injectionFilterImpl{NSFilter: filter}
+// }
 
 type injectionFilterImpl struct {
 	NSFilter NamespaceInjectionFilter

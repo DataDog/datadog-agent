@@ -1657,7 +1657,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.mem != "" {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
 			}
-			filter, _ := NewInjectionFilter(conf)
+			filter, _ := common.NewInjectionFilter(conf)
 			wh, err := NewWebhook(wmeta, conf, filter)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("injectLibInitContainer() error = %v, wantErr %v", err, tt.wantErr)
@@ -3327,7 +3327,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				}
 			}
 
-			filter, _ := NewInjectionFilter(mockConfig)
+			filter, _ := common.NewInjectionFilter(mockConfig)
 			webhook, errInitAPMInstrumentation := NewWebhook(wmeta, mockConfig, filter)
 			if tt.wantWebhookInitErr {
 				require.Error(t, errInitAPMInstrumentation)
@@ -3591,7 +3591,7 @@ func TestShouldInject(t *testing.T) {
 }
 
 func mustWebhook(t *testing.T, wmeta workloadmeta.Component, ddConfig config.Component) *Webhook {
-	filter, _ := NewInjectionFilter(ddConfig)
+	filter, _ := common.NewInjectionFilter(ddConfig)
 	webhook, err := NewWebhook(wmeta, ddConfig, filter)
 	require.NoError(t, err)
 	return webhook
