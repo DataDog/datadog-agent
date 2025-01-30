@@ -212,10 +212,8 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 
 	profileName = profile.Name
 	profileVersion = profile.Version
-	// TODO(ndm-core) I don't think this can ever happen.
-	//  If the profile provides a static vendor then it should have been populated in the store no matter what.
 	if vendor == "" {
-		vendor = profile.GetVendor()
+		vendor = profile.Device.Vendor
 	}
 
 	return devicemetadata.DeviceMetadata{

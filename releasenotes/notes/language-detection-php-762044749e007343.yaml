@@ -6,7 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+enhancements:
   - |
-    Include `gpu_vendor` pod tags on the Datadog Cluster Agent when
-    enabling datadog.clusterTagger.collectKubernetesTags.
+    Language detection adds support for detecting PHP.

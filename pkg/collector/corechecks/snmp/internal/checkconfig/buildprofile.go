@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"maps"
 	"slices"
 )
 
@@ -59,14 +60,15 @@ func (c *CheckConfig) BuildProfile(sysObjectID string) (profiledefinition.Profil
 		profile.Name = rootProfile.Name
 		profile.Version = rootProfile.Version
 		profile.StaticTags = append(profile.StaticTags, "snmp_profile:"+rootProfile.Name)
-		vendor := rootProfile.GetVendor()
+		vendor := rootProfile.Device.Vendor
 		if vendor != "" {
 			profile.StaticTags = append(profile.StaticTags, "device_vendor:"+vendor)
 		}
 		profile.StaticTags = append(profile.StaticTags, rootProfile.StaticTags...)
-		profile.Metadata = rootProfile.Metadata
+		profile.Metadata = maps.Clone(rootProfile.Metadata)
 		profile.Metrics = append(profile.Metrics, rootProfile.Metrics...)
 		profile.MetricTags = append(profile.MetricTags, rootProfile.MetricTags...)
+		profile.Device.Vendor = rootProfile.Device.Vendor
 	}
 	profile.Metadata = updateMetadataDefinitionWithDefaults(profile.Metadata, c.CollectTopology)
 

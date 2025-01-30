@@ -104,12 +104,15 @@ def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
 
 
 @task
-def install_protoc(ctx, version="26.1"):
+def install_protoc(ctx, version=None):
     """
     Installs the requested version of protoc in the specified folder (by default /usr/local/bin).
-    Required generate the golang code based on .prod (inv generate-protobuf).
+    Required generate the golang code based on .prod (inv protobuf.generate).
     """
-
+    if version is None:
+        version_file = ".protoc-version"
+        with open(version_file) as f:
+            version = f.read().strip()
     if sys.platform == 'win32':
         print("protoc is not supported on Windows")
         raise Exit(code=1)

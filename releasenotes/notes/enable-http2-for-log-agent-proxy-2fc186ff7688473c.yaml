@@ -6,7 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+features:
   - |
-    When the Datadog Cluster Agent injects the Datadog Agent as a sidecar
-    on a Job, the agent will now exit when the main Job completes.
+    Log Agent now officially supports http2 transport to proxy.

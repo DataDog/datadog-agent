@@ -247,6 +247,7 @@ func handleNonEmbedded(module *common.Module, field seclField, prefixedFieldName
 
 func addLengthOpField(module *common.Module, alias string, field *common.StructField) *common.StructField {
 	lengthField := *field
+	lengthField.GenGetters = false
 	lengthField.IsLength = true
 	lengthField.Name += ".length"
 	lengthField.OrigType = "int"
