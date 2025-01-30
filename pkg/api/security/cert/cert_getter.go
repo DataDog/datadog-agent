@@ -81,7 +81,7 @@ func fetchAgentIPCCert(config configModel.Reader, certCreationAllowed bool) ([]b
 		return nil, nil, fmt.Errorf("unable to read authentication IPC cert/key files: %s", e.Error())
 	}
 
-	// Demultiplexing cert and key from file
+	// Reading and decoding cert and key from file
 	var block *pem.Block
 
 	block, rest := pem.Decode(certAndKey)
