@@ -68,6 +68,7 @@ func (c *CheckConfig) BuildProfile(sysObjectID string) (profiledefinition.Profil
 		profile.Metadata = maps.Clone(rootProfile.Metadata)
 		profile.Metrics = append(profile.Metrics, rootProfile.Metrics...)
 		profile.MetricTags = append(profile.MetricTags, rootProfile.MetricTags...)
+		profile.Device.Vendor = rootProfile.Device.Vendor
 	}
 	profile.Metadata = updateMetadataDefinitionWithDefaults(profile.Metadata, c.CollectTopology)
 
