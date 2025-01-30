@@ -451,5 +451,5 @@ def compute_config_build_tags(targets="all", build_include=None, build_exclude=N
 
 def add_fips_tags(tags: list[str], fips_mode: bool) -> list[str]:
     if fips_mode:
-        tags.append("goexperiment.systemcrypto")
+        tags.extend(["goexperiment.systemcrypto", "requirefips"])
     return tags
