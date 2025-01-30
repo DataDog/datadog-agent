@@ -104,7 +104,10 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	// of the components that use it via the injectionFilter parameter.
 	// TODO: for now we ignore the error returned by NewInjectionFilter, but we should not and surface it
 	//       in the admission controller section in agent status.
-	injectionFilter, _ := mutatecommon.NewInjectionFilter(datadogConfig)
+	enabled := datadogConfig.GetBool("apm_config.instrumentation.enabled")
+	enabledNamespaces := datadogConfig.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
+	disabledNamespaces := datadogConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
+	injectionFilter, _ := mutatecommon.NewInjectionFilter(enabled, enabledNamespaces, disabledNamespaces)
 
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook

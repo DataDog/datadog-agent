@@ -8,7 +8,6 @@ package common
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -16,14 +15,15 @@ import (
 
 // NewInjectionFilter constructs an injection filter using the autoinstrumentation
 // GetNamespaceInjectionFilter.
-func NewInjectionFilter(datadogConfig config.Component) (InjectionFilter, error) {
-	filter, err := makeAPMSSINamespaceFilter(
-		datadogConfig.GetStringSlice("apm_config.instrumentation.enabled_namespaces"),
-		datadogConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces"),
-	)
+func NewInjectionFilter(enabled bool, enabledNamespaces []string, disabledNamespaces []string) (InjectionFilter, error) {
 
+	// datadogConfig.GetStringSlice("apm_config.instrumentation.enabled_namespaces"),
+	// datadogConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces"),
+	filter, err := makeAPMSSINamespaceFilter(enabledNamespaces, disabledNamespaces)
+
+	// datadogConfig.GetBool("apm_config.instrumentation.enabled")
 	injectionFilter := &injectionFilter{
-		apmInstrumentationEnabled: datadogConfig.GetBool("apm_config.instrumentation.enabled"),
+		apmInstrumentationEnabled: enabled,
 		filter:                    filter,
 
 		err: err,
@@ -87,7 +87,7 @@ func (f *injectionFilter) Err() error {
 //   - Enabled and disabled namespaces: return error.
 func makeAPMSSINamespaceFilter(apmEnabledNamespaces, apmDisabledNamespaces []string) (*containers.Filter, error) {
 	if len(apmEnabledNamespaces) > 0 && len(apmDisabledNamespaces) > 0 {
-		return nil, fmt.Errorf("apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces configuration cannot be set together")
+		return nil, fmt.Errorf("enabled_namespaces and disabled_namespaces configuration cannot be set together")
 	}
 
 	// Prefix the namespaces as needed by the containers.Filter.

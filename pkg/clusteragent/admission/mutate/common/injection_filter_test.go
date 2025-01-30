@@ -11,8 +11,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestFailingInjectionConfig(t *testing.T) {
@@ -78,12 +76,7 @@ func TestFailingInjectionConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := mockconfig.New(t)
-			c.SetWithoutSource("apm_config.instrumentation.enabled", tt.instrumentationEnabled)
-			c.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", tt.enabledNamespaces)
-			c.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", tt.disabledNamespaces)
-
-			nsFilter, _ := NewInjectionFilter(c)
+			nsFilter, _ := NewInjectionFilter(tt.instrumentationEnabled, tt.enabledNamespaces, tt.disabledNamespaces)
 			require.NotNil(t, nsFilter, "we should always get a filter")
 
 			checkedNamespaces := map[string]bool{}

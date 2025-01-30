@@ -78,7 +78,7 @@ func TestInjectHostIP(t *testing.T) {
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
-	filter, _ := mutatecommon.NewInjectionFilter(datadogConfig)
+	filter, _ := mutatecommon.NewInjectionFilter(false, nil, nil)
 	webhook := NewWebhook(wmeta, filter, datadogConfig)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
@@ -91,7 +91,7 @@ func TestInjectService(t *testing.T) {
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "service"})
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
-	filter, _ := mutatecommon.NewInjectionFilter(datadogConfig)
+	filter, _ := mutatecommon.NewInjectionFilter(false, nil, nil)
 	webhook := NewWebhook(wmeta, filter, datadogConfig)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
@@ -122,7 +122,7 @@ func TestInjectEntityID(t *testing.T) {
 				fx.Replace(config.MockParams{Overrides: tt.configOverrides}),
 			)
 			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
-			filter, _ := mutatecommon.NewInjectionFilter(datadogConfig)
+			filter, _ := mutatecommon.NewInjectionFilter(false, nil, nil)
 			webhook := NewWebhook(wmeta, filter, datadogConfig)
 			injected, err := webhook.inject(pod, "", nil)
 			assert.Nil(t, err)
@@ -311,7 +311,7 @@ func TestInjectSocket(t *testing.T) {
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
-	filter, _ := mutatecommon.NewInjectionFilter(datadogConfig)
+	filter, _ := mutatecommon.NewInjectionFilter(false, nil, nil)
 	webhook := NewWebhook(wmeta, filter, datadogConfig)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
@@ -340,7 +340,7 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 		}),
 	)
 	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
-	filter, _ := mutatecommon.NewInjectionFilter(datadogConfig)
+	filter, _ := mutatecommon.NewInjectionFilter(false, nil, nil)
 	webhook := NewWebhook(wmeta, filter, datadogConfig)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
@@ -437,7 +437,7 @@ func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
 
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
-	filter, _ := mutatecommon.NewInjectionFilter(datadogConfig)
+	filter, _ := mutatecommon.NewInjectionFilter(false, nil, nil)
 	webhook := NewWebhook(wmeta, filter, datadogConfig)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.True(t, injected)
@@ -478,7 +478,7 @@ func TestJSONPatchCorrectness(t *testing.T) {
 				fx.Replace(config.MockParams{Overrides: tt.overrides}),
 			)
 			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
-			filter, _ := mutatecommon.NewInjectionFilter(datadogConfig)
+			filter, _ := mutatecommon.NewInjectionFilter(false, nil, nil)
 			webhook := NewWebhook(wmeta, filter, datadogConfig)
 			request := admission.Request{
 				Object:    podJSON,
@@ -510,7 +510,7 @@ func BenchmarkJSONPatch(b *testing.B) {
 
 	wmeta := fxutil.Test[workloadmeta.Component](b, core.MockBundle())
 	datadogConfig := fxutil.Test[config.Component](b, core.MockBundle())
-	filter, _ := mutatecommon.NewInjectionFilter(datadogConfig)
+	filter, _ := mutatecommon.NewInjectionFilter(false, nil, nil)
 	webhook := NewWebhook(wmeta, filter, datadogConfig)
 	podJSON := obj.(*admiv1.AdmissionReview).Request.Object.Raw
 

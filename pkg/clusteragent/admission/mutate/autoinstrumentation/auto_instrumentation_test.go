@@ -1657,7 +1657,10 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.mem != "" {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
 			}
-			filter, _ := common.NewInjectionFilter(conf)
+			enabled := conf.GetBool("apm_config.instrumentation.enabled")
+			enabledNamespaces := conf.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
+			disabledNamespaces := conf.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
+			filter, _ := common.NewInjectionFilter(enabled, enabledNamespaces, disabledNamespaces)
 			wh, err := NewWebhook(wmeta, conf, filter)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("injectLibInitContainer() error = %v, wantErr %v", err, tt.wantErr)
@@ -3327,7 +3330,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				}
 			}
 
-			filter, _ := common.NewInjectionFilter(mockConfig)
+			enabled := mockConfig.GetBool("apm_config.instrumentation.enabled")
+			enabledNamespaces := mockConfig.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
+			disabledNamespaces := mockConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
+			filter, _ := common.NewInjectionFilter(enabled, enabledNamespaces, disabledNamespaces)
 			webhook, errInitAPMInstrumentation := NewWebhook(wmeta, mockConfig, filter)
 			if tt.wantWebhookInitErr {
 				require.Error(t, errInitAPMInstrumentation)
@@ -3591,7 +3597,10 @@ func TestShouldInject(t *testing.T) {
 }
 
 func mustWebhook(t *testing.T, wmeta workloadmeta.Component, ddConfig config.Component) *Webhook {
-	filter, _ := common.NewInjectionFilter(ddConfig)
+	enabled := ddConfig.GetBool("apm_config.instrumentation.enabled")
+	enabledNamespaces := ddConfig.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
+	disabledNamespaces := ddConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
+	filter, _ := common.NewInjectionFilter(enabled, enabledNamespaces, disabledNamespaces)
 	webhook, err := NewWebhook(wmeta, ddConfig, filter)
 	require.NoError(t, err)
 	return webhook
