@@ -144,7 +144,7 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscov
 // Used to make testing easier
 func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component, wmeta workloadmeta.Component, secretResolver secrets.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
 	configSource := sources.NewConfigSources()
-	fmt.Println("HOLY AIDS?")
+	fmt.Println("------------------------------------------------------")
 	waitTime := time.Duration(cliParams.inactivityTimeout) * time.Second
 	waitCtx, _ := context.WithTimeout(
 		context.Background(), waitTime)

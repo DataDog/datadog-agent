@@ -292,6 +292,8 @@ func run(
 		return nil
 	}
 
+	fmt.Println("----------------------------------")
+
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	// check.InitializeInventoryChecksContext(invChecks)
 	// pkgcollector.InitPython(common.GetPythonPaths()...)
