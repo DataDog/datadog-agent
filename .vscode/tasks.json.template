@@ -3,7 +3,7 @@
     "tasks": [
         {
             "label": "build agent",
-            "command": "invoke -e agent.build",
+            "command": "deva inv -e agent.build",
             "args": [],
             "type": "shell",
             "group": {
@@ -14,35 +14,35 @@
         },
         {
             "label": "clean",
-            "command": "invoke -e agent.clean",
+            "command": "deva inv -e agent.clean",
             "args": [],
             "type": "shell",
             "problemMatcher": []
         },
         {
             "label": "install dependencies",
-            "command": "invoke -e deps",
+            "command": "deva inv -e deps",
             "args": [],
             "type": "shell",
             "problemMatcher": []
         },
         {
             "label": "go linters",
-            "command": "invoke -e linter.go",
+            "command": "deva inv -e linter.go",
             "args": [],
             "type": "shell",
             "problemMatcher": []
         },
         {
             "label": "go tests",
-            "command": "invoke -e test",
+            "command": "deva inv -e test",
             "args": [],
             "type": "shell",
             "problemMatcher": []
         },
         {
             "label": "go linters and tests",
-            "command": "invoke -e test",
+            "command": "deva inv -e test",
             "args": [],
             "type": "shell",
             "problemMatcher": []
