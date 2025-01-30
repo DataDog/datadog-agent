@@ -10,7 +10,6 @@ import sys
 import traceback
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -20,11 +19,6 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import is_linux, is_windows, running_in_pyapp
-
-if TYPE_CHECKING:
-    from collections.abc import Generator
-
-PYTHON_REQUIREMENTS = ["requirements.txt", "tasks/requirements.txt"]
 
 
 @dataclass
@@ -43,7 +37,6 @@ def setup(ctx, vscode=False):
         check_git_repo,
         check_python_version,
         check_go_version,
-        update_python_dependencies,
         install_go_tools,
         install_protoc,
         enable_pre_commit,
@@ -53,7 +46,7 @@ def setup(ctx, vscode=False):
         setup_functions.append(setup_vscode)
     else:
         print(
-            f'{color_message("warning:", Color.ORANGE)} Skipping vscode setup, run `inv setup --vscode` to setup vscode as well'
+            f'{color_message("warning:", Color.ORANGE)} Skipping vscode setup, run `deva inv setup --vscode` to setup vscode as well'
         )
 
     results = []
@@ -158,16 +151,6 @@ def check_python_version(_ctx) -> SetupResult:
     return SetupResult("Check Python version", status, message)
 
 
-def update_python_dependencies(ctx) -> Generator[SetupResult]:
-    print(color_message("Updating Python dependencies...", Color.BLUE))
-
-    for requirement_file in PYTHON_REQUIREMENTS:
-        print(color_message(f"Updating Python dependencies from {requirement_file}...", Color.BLUE))
-
-        ctx.run(f"pip install -r {requirement_file}", hide=True)
-        yield SetupResult(f"Update Python dependencies from {requirement_file}", Status.OK)
-
-
 @task
 def pre_commit(ctx, interactive=True):
     """Will set up pre-commit hooks.
@@ -205,7 +188,7 @@ def pre_commit(ctx, interactive=True):
         if os.path.isfile(".pre-commit-config-devagent.yaml"):
             os.remove(".pre-commit-config-devagent.yaml")
 
-        # We use a custom version that use deva instead of inv directly, that requires the venv to be loaded
+        # We use a custom version that use deva instead of deva inv directly, that requires the venv to be loaded
         from pre_commit import update_pyapp_file
 
         config_file = update_pyapp_file()
