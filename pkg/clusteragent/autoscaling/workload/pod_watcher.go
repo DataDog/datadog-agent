@@ -73,7 +73,7 @@ func (pw *PodWatcherImpl) GetPodsForOwner(owner NamespacedPodOwner) []*workloadm
 	return res
 }
 
-// Start subscribes to workloadmeta events and indexes pods by their owner.
+// Run subscribes to workloadmeta events and indexes pods by their owner.
 func (pw *PodWatcherImpl) Run(ctx context.Context) {
 	log.Debug("Starting PodWatcher")
 
