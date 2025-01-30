@@ -77,7 +77,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
@@ -294,20 +293,28 @@ func run(
 	}
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
-	check.InitializeInventoryChecksContext(invChecks)
-	pkgcollector.InitPython(common.GetPythonPaths()...)
-	commonchecks.RegisterChecks(wmeta, tagger, config, telemetry)
+	// check.InitializeInventoryChecksContext(invChecks)
+	// pkgcollector.InitPython(common.GetPythonPaths()...)
+	// commonchecks.RegisterChecks(wmeta, tagger, config, telemetry)
 
-	common.LoadComponents(secretResolver, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+	fmt.Println("agent check ANDREWQIAN1", ac)
+	fmt.Println("agent check ANDREWQIAN2", pkgconfigsetup.Datadog().GetString("confd_path"))
+	fmt.Println("agent check ANDREWQIAN3", context.Background())
+	common.LoadComponents(nil, nil, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger)
+	// pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger)
 
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
-
+	fmt.Println("TEST TODAY AGENT CHECK-----")
+	fmt.Println("hehexd1", waitCtx)
+	fmt.Println("hehexd2", []string{cliParams.checkName})
+	fmt.Println("hehexd3", int(cliParams.discoveryMinInstances))
+	fmt.Println("hehexd4", cliParams.instanceFilter)
+	fmt.Println("hehexd5", ac)
 	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
 	fmt.Println("ALL CONFIGS AGENT CHECK COMMAND ", allConfigs)
 	for _, config := range allConfigs {
