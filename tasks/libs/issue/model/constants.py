@@ -28,6 +28,8 @@ TEAMS = (
     'agent-shared-components',
     'agent-integrations',
     'agent-metrics-logs',
+    'agent-metrics',
+    'agent-logs',
     'platform-integrations',
     'agent-ci-experience',
     'asm-go',
@@ -39,4 +41,5 @@ TEAMS = (
     'apm-onboarding',
     'fleet',
     'agent-processing-and-routing',
+    'agent-discovery',
 )

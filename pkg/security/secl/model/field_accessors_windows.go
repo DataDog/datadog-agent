@@ -83,17 +83,6 @@ func (ev *Event) GetExecFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
 }
 
-// GetExecFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetExecFilePathLength() int {
-	if ev.GetEventType().String() != "exec" {
-		return 0
-	}
-	if ev.Exec.Process == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent))
-}
-
 // GetExecPid returns the value of the field, resolving if necessary
 func (ev *Event) GetExecPid() uint32 {
 	if ev.GetEventType().String() != "exec" {
@@ -168,17 +157,6 @@ func (ev *Event) GetExitFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent)
 }
 
-// GetExitFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetExitFilePathLength() int {
-	if ev.GetEventType().String() != "exit" {
-		return 0
-	}
-	if ev.Exit.Process == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent))
-}
-
 // GetExitPid returns the value of the field, resolving if necessary
 func (ev *Event) GetExitPid() uint32 {
 	if ev.GetEventType().String() != "exit" {
@@ -237,27 +215,6 @@ func (ev *Event) GetProcessAncestorsFilePath() []string {
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent)
-		values = append(values, result)
-		ptr = iterator.Next(ctx)
-	}
-	return values
-}
-
-// GetProcessAncestorsFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessAncestorsFilePathLength() []int {
-	if ev.BaseEvent.ProcessContext == nil {
-		return []int{}
-	}
-	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		return []int{}
-	}
-	var values []int
-	ctx := eval.NewContext(ev)
-	iterator := &ProcessAncestorsIterator{}
-	ptr := iterator.Front(ctx)
-	for ptr != nil {
-		element := (*ProcessCacheEntry)(ptr)
-		result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent))
 		values = append(values, result)
 		ptr = iterator.Next(ctx)
 	}
@@ -338,14 +295,6 @@ func (ev *Event) GetProcessFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
-// GetProcessFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessFilePathLength() int {
-	if ev.BaseEvent.ProcessContext == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent))
-}
-
 // GetProcessParentEnvp returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEnvp() []string {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -372,17 +321,6 @@ func (ev *Event) GetProcessParentFilePath() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
-}
-
-// GetProcessParentFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessParentFilePathLength() int {
-	if ev.BaseEvent.ProcessContext == nil {
-		return 0
-	}
-	if ev.BaseEvent.ProcessContext.Parent == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent))
 }
 
 // GetProcessParentPid returns the value of the field, resolving if necessary
