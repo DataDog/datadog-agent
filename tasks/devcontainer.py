@@ -9,6 +9,7 @@ import sys
 from collections import OrderedDict
 from functools import wraps
 from pathlib import Path
+from enum import Enum
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -25,12 +26,18 @@ DEVCONTAINER_NAME = "datadog_agent_devcontainer"
 DEVCONTAINER_IMAGE = "registry.ddbuild.io/ci/datadog-agent-devenv:1-arm64"
 
 
+class Skaffold_profile(Enum):
+    NONE = None
+    KIND = "kind"
+    MINIKUBE = "minikube"
+
 @task
 def setup(
     _,
     target="agent",
     build_include=None,
     build_exclude=None,
+    skaffold_profile=None,
     flavor=AgentFlavor.base.name,
     image='',
 ):
@@ -50,6 +57,7 @@ def setup(
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     use_tags = get_build_tags(build_include, build_exclude)
+    use_tags.append("test") # always include the test tag for autocompletion in vscode
 
     if not os.path.exists(DEVCONTAINER_DIR):
         os.makedirs(DEVCONTAINER_DIR)
@@ -83,6 +91,7 @@ def setup(
         "--name",
         "datadog_agent_devcontainer",
     ]
+    devcontainer["features"] = {}
     devcontainer["remoteUser"] = "datadog"
     devcontainer["mounts"] = [
         "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind,consistency=cached",
@@ -108,16 +117,70 @@ def setup(
                 },
                 "gopls": {"formatting.local": "github.com/DataDog/datadog-agent"},
             },
-            "extensions": ["golang.Go"],
+            "extensions": ["golang.Go","ms-python.python","redhat.vscode-yaml"],
         }
     }
-    devcontainer["postStartCommand"] = (
+
+    # onCreateCommond runs the install-tools and deps tasks only when the devcontainer is created and not each time
+    # the container is started
+    devcontainer["onCreateCommand"] = (
         f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && invoke -e install-tools && invoke -e deps"
     )
 
-    devcontainer["remoteEnv"] = {"GITLAB_TOKEN": "${localEnv:GITLAB_TOKEN}"}
+    devcontainer["containerEnv"] = {
+        "GITLAB_TOKEN": "${localEnv:GITLAB_TOKEN}",
+    }
+
+    configure_skaffold(devcontainer, Skaffold_profile(skaffold_profile))
+
     with open(fullpath, "w") as sf:
         json.dump(devcontainer, sf, indent=4, sort_keys=False, separators=(',', ': '))
+
+def configure_skaffold(devcontainer: dict, profile: Skaffold_profile):
+    if profile == Skaffold_profile.KIND:
+        devcontainer["runArgs"].append("--network=host") # to connect to the kind api-server
+        # add requires extensions
+        additional_extensions = ["GoogleCloudTools.cloudcode"]
+        devcontainer["customizations"]["vscode"]["extensions"].extend(additional_extensions)
+        
+        # Additionnal features
+        additional_features = {
+            "ghcr.io/rio/features/skaffold:2": {},
+            "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {},
+            "ghcr.io/devcontainers-extra/features/kind:1": {},
+            "ghcr.io/dhoeric/features/google-cloud-cli:1": {},
+        }
+        devcontainer["features"].update(additional_features)
+
+        # Addionnal settings
+        additional_settings = {
+            "cloudcode.features.completion": False,
+            "cloudcode.ai.assistance.enabled": False,
+            "cloudcode.cloudsdk.checkForMissing": False,
+            "cloudcode.cloudsdk.autoInstall": False,
+            "cloudcode.autoDependencies": "off",
+            "cloudcode.enableGkeAutopilotSupport": False,
+            "cloudcode.enableMinikubeGcpAuthPlugin": False,
+            "cloudcode.enableTelemetry": False,
+            "cloudcode.updateAdcOnLogin": False,
+            "cloudcode.useGcloudAuthSkaffold": False,
+            "cloudcode.yaml.validate": False,
+        }
+        devcontainer["customizations"]["vscode"]["settings"].update(additional_settings)
+
+        # add envvars to deploy the agent
+        additional_envvars = {
+            "DD_API_KEY": "${localEnv:DD_API_KEY}",
+            "DD_APP_KEY": "${localEnv:DD_APP_KEY}",
+        }
+        devcontainer["containerEnv"].update(additional_envvars)
+
+        # add Datadog helm chart registry to the devcontainer
+        devcontainer["onCreateCommand"] += " && helm repo add datadog https://helm.datadoghq.com && helm repo update"
+
+    elif profile == Skaffold_profile.MINIKUBE:
+        # TODO: add minikube specific settings
+        pass
 
 
 @task
