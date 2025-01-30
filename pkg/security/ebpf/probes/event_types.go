@@ -49,6 +49,8 @@ func NetworkSelectors() []manager.ProbesSelector {
 			kprobeOrFentry("inet_shutdown"),
 			kprobeOrFentry("inet_bind"),
 			kretprobeOrFexit("inet_bind"),
+			kprobeOrFentry("inet6_bind"),
+			kretprobeOrFexit("inet6_bind"),
 			kprobeOrFentry("sk_common_release"),
 			kprobeOrFentry("path_get"),
 			kprobeOrFentry("proc_fd_link"),
