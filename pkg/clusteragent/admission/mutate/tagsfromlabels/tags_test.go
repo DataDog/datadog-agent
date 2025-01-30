@@ -174,8 +174,7 @@ func Test_injectTags(t *testing.T) {
 	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filter, _ := common.NewInjectionFilter(false, nil, nil)
-			webhook := NewWebhook(wmeta, datadogConfig, filter)
+			webhook := NewWebhook(wmeta, datadogConfig)
 			_, err := webhook.injectTags(tt.pod, "ns", nil)
 			assert.NoError(t, err)
 			assert.Len(t, tt.pod.Spec.Containers, 1)
@@ -276,8 +275,7 @@ func TestGetAndCacheOwner(t *testing.T) {
 	owner := newOwner(kubeObj)
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	config := fxutil.Test[config.Component](t, core.MockBundle())
-	filter, _ := common.NewInjectionFilter(false, nil, nil)
-	webhook := NewWebhook(wmeta, config, filter)
+	webhook := NewWebhook(wmeta, config)
 
 	// Cache hit
 	cache.Cache.Set(ownerInfo.buildID(testNamespace), owner, webhook.ownerCacheTTL)

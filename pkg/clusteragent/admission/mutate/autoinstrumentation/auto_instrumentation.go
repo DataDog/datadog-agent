@@ -51,7 +51,8 @@ type Webhook struct {
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 
-	wmeta workloadmeta.Component
+	wmeta           workloadmeta.Component
+	injectionFilter mutatecommon.InjectionFilter
 
 	// use to store all the config option from the config component to avoid costly lookups in the admission webhook hot path.
 	config webhookConfig
@@ -62,19 +63,19 @@ type Webhook struct {
 }
 
 // NewWebhook returns a new Webhook dependent on the injection filter.
-func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, filter mutatecommon.InjectionFilter) (*Webhook, error) {
-	// Note: the webhook is not functional with the filter being disabled--
-	//       and the filter is _global_! so we need to make sure that it was
-	//       initialized as it validates the configuration itself.
-	if filter == nil {
-		return nil, errors.New("filter required for auto_instrumentation webhook")
-	} else if err := filter.InitError(); err != nil {
-		return nil, fmt.Errorf("filter error: %w", err)
-	}
-
-	config, err := retrieveConfig(datadogConfig, filter)
+func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*Webhook, error) {
+	config, err := retrieveConfig(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve autoinstrumentation config, err: %w", err)
+	}
+
+	injectionFilter, err := mutatecommon.NewInjectionFilter(
+		config.InstrumentationConfig.Enabled,
+		config.InstrumentationConfig.EnabledNamespaces,
+		config.InstrumentationConfig.DisabledNamespaces,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error creating injection filter: %w", err)
 	}
 
 	webhook := &Webhook{
@@ -83,6 +84,7 @@ func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, fi
 		resources:       map[string][]string{"": {"pods"}},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
+		injectionFilter: injectionFilter,
 		wmeta:           wmeta,
 
 		config: config,
@@ -147,7 +149,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 
 // isPodEligible checks whether we are allowed to inject in this pod.
 func (w *Webhook) isPodEligible(pod *corev1.Pod) bool {
-	return w.config.injectionFilter.ShouldMutatePod(pod)
+	return w.injectionFilter.ShouldMutatePod(pod)
 }
 
 func (w *Webhook) inject(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
@@ -408,7 +410,7 @@ func (w *Webhook) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 		languageDetection *libInfoLanguageDetection
 	)
 
-	if w.config.injectionFilter.IsNamespaceEligible(pod.Namespace) {
+	if w.injectionFilter.IsNamespaceEligible(pod.Namespace) {
 		source = libInfoSourceSingleStepInstrumentation
 		languageDetection = w.getLibrariesLanguageDetection(pod)
 	}
@@ -751,7 +753,7 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLib
 		log.Errorf("Cannot inject library configuration into pod %s: %s", mutatecommon.PodString(pod), err)
 	}
 
-	if w.config.injectionFilter.IsNamespaceEligible(pod.Namespace) {
+	if w.injectionFilter.IsNamespaceEligible(pod.Namespace) {
 		_ = basicLibConfigInjector{}.mutatePod(pod)
 	}
 

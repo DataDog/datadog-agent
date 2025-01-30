@@ -13,15 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NewInjectionFilter constructs an injection filter using the autoinstrumentation
-// GetNamespaceInjectionFilter.
+// NewInjectionFilter constructs an injection filter.
 func NewInjectionFilter(enabled bool, enabledNamespaces []string, disabledNamespaces []string) (InjectionFilter, error) {
-
-	// datadogConfig.GetStringSlice("apm_config.instrumentation.enabled_namespaces"),
-	// datadogConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces"),
 	filter, err := makeAPMSSINamespaceFilter(enabledNamespaces, disabledNamespaces)
 
-	// datadogConfig.GetBool("apm_config.instrumentation.enabled")
 	injectionFilter := &injectionFilter{
 		apmInstrumentationEnabled: enabled,
 		filter:                    filter,

@@ -30,7 +30,6 @@ import (
 	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling"
-	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
@@ -99,16 +98,6 @@ type Webhook interface {
 // doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
 // the agent sidecar webhook needs to remove it.
 func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component, demultiplexer demultiplexer.Component) []Webhook {
-	// Note: the auto_instrumentation pod injection filter is used across
-	// multiple mutating webhooks, so we add it as a hard dependency to each
-	// of the components that use it via the injectionFilter parameter.
-	// TODO: for now we ignore the error returned by NewInjectionFilter, but we should not and surface it
-	//       in the admission controller section in agent status.
-	enabled := datadogConfig.GetBool("apm_config.instrumentation.enabled")
-	enabledNamespaces := datadogConfig.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
-	disabledNamespaces := datadogConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
-	injectionFilter, _ := mutatecommon.NewInjectionFilter(enabled, enabledNamespaces, disabledNamespaces)
-
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook
 	var mutatingWebhooks []Webhook
@@ -125,15 +114,15 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	// Add Mutating webhooks.
 	if c.config.isMutationEnabled() {
 		mutatingWebhooks = []Webhook{
-			configWebhook.NewWebhook(wmeta, injectionFilter, datadogConfig),
-			tagsfromlabels.NewWebhook(wmeta, datadogConfig, injectionFilter),
+			configWebhook.NewWebhook(wmeta, datadogConfig),
+			tagsfromlabels.NewWebhook(wmeta, datadogConfig),
 			agentsidecar.NewWebhook(datadogConfig),
 			autoscaling.NewWebhook(pa, datadogConfig),
 		}
 		webhooks = append(webhooks, mutatingWebhooks...)
 
 		// APM Instrumentation webhook needs to be registered after the configWebhook webhook.
-		apm, err := autoinstrumentation.NewWebhook(wmeta, datadogConfig, injectionFilter)
+		apm, err := autoinstrumentation.NewWebhook(wmeta, datadogConfig)
 		if err == nil {
 			webhooks = append(webhooks, apm)
 		} else {

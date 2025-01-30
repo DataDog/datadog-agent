@@ -56,10 +56,15 @@ type Webhook struct {
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, injectionFilter mutatecommon.InjectionFilter) *Webhook {
+func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) *Webhook {
+	enabled := datadogConfig.GetBool("admission_controller.inject_tags.enabled.enabled")
+	enabledNamespaces := datadogConfig.GetStringSlice("admission_controller.inject_tags.enabled_namespaces")
+	disabledNamespaces := datadogConfig.GetStringSlice("admission_controller.inject_tags.disabled_namespaces")
+	injectionFilter, _ := mutatecommon.NewInjectionFilter(enabled, enabledNamespaces, disabledNamespaces)
+
 	return &Webhook{
 		name:            webhookName,
-		isEnabled:       datadogConfig.GetBool("admission_controller.inject_tags.enabled"),
+		isEnabled:       enabled,
 		endpoint:        datadogConfig.GetString("admission_controller.inject_tags.endpoint"),
 		resources:       map[string][]string{"": {"pods"}},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
@@ -154,7 +159,6 @@ func (w *Webhook) injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) (
 
 	if !w.injectionFilter.ShouldMutatePod(pod) {
 		// Ignore pod if it has the label admission.datadoghq.com/enabled=false
-		// or Single step configuration is disabled
 		return false, nil
 	}
 

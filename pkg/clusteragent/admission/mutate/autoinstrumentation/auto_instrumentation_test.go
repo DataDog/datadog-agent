@@ -1657,11 +1657,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.mem != "" {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
 			}
-			enabled := conf.GetBool("apm_config.instrumentation.enabled")
-			enabledNamespaces := conf.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
-			disabledNamespaces := conf.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
-			filter, _ := common.NewInjectionFilter(enabled, enabledNamespaces, disabledNamespaces)
-			wh, err := NewWebhook(wmeta, conf, filter)
+			wh, err := NewWebhook(wmeta, conf)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("injectLibInitContainer() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -3330,11 +3326,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				}
 			}
 
-			enabled := mockConfig.GetBool("apm_config.instrumentation.enabled")
-			enabledNamespaces := mockConfig.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
-			disabledNamespaces := mockConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
-			filter, _ := common.NewInjectionFilter(enabled, enabledNamespaces, disabledNamespaces)
-			webhook, errInitAPMInstrumentation := NewWebhook(wmeta, mockConfig, filter)
+			webhook, errInitAPMInstrumentation := NewWebhook(wmeta, mockConfig)
 			if tt.wantWebhookInitErr {
 				require.Error(t, errInitAPMInstrumentation)
 				return
@@ -3597,11 +3589,7 @@ func TestShouldInject(t *testing.T) {
 }
 
 func mustWebhook(t *testing.T, wmeta workloadmeta.Component, ddConfig config.Component) *Webhook {
-	enabled := ddConfig.GetBool("apm_config.instrumentation.enabled")
-	enabledNamespaces := ddConfig.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
-	disabledNamespaces := ddConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
-	filter, _ := common.NewInjectionFilter(enabled, enabledNamespaces, disabledNamespaces)
-	webhook, err := NewWebhook(wmeta, ddConfig, filter)
+	webhook, err := NewWebhook(wmeta, ddConfig)
 	require.NoError(t, err)
 	return webhook
 }

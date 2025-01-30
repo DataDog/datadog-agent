@@ -171,15 +171,15 @@ type webhookConfig struct {
 	// keep pointers to bool to differentiate between unset and false
 	// for backward compatibility with the previous implementation.
 	// TODO: remove the pointers when the backward compatibility is not needed anymore.
-	asmEnabled       *bool
-	iastEnabled      *bool
-	asmScaEnabled    *bool
-	profilingEnabled *string
+	asmEnabled            *bool
+	iastEnabled           *bool
+	asmScaEnabled         *bool
+	profilingEnabled      *string
+	InstrumentationConfig *InstrumentationConfig
 
 	// configuration for the libraries init-containers to inject.
 	containerRegistry           string
 	injectorImageTag            string
-	injectionFilter             mutatecommon.InjectionFilter
 	pinnedLibraries             []libInfo
 	initSecurityContext         *corev1.SecurityContext
 	defaultResourceRequirements initResourceRequirementConfiguration
@@ -188,7 +188,7 @@ type webhookConfig struct {
 type initResourceRequirementConfiguration map[corev1.ResourceName]resource.Quantity
 
 // retrieveConfig retrieves the configuration for the autoinstrumentation webhook from the datadog config
-func retrieveConfig(datadogConfig config.Component, injectionFilter mutatecommon.InjectionFilter) (webhookConfig, error) {
+func retrieveConfig(datadogConfig config.Component) (webhookConfig, error) {
 	webhookConfig := webhookConfig{
 		isEnabled: datadogConfig.GetBool("admission_controller.auto_instrumentation.enabled"),
 		endpoint:  datadogConfig.GetString("admission_controller.auto_instrumentation.endpoint"),
@@ -203,7 +203,6 @@ func retrieveConfig(datadogConfig config.Component, injectionFilter mutatecommon
 		profilingEnabled: getOptionalStringValue(datadogConfig, "admission_controller.auto_instrumentation.profiling.enabled"),
 
 		containerRegistry: mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry"),
-		injectionFilter:   injectionFilter,
 	}
 
 	instCfg, err := NewInstrumentationConfig(datadogConfig)
@@ -211,6 +210,7 @@ func retrieveConfig(datadogConfig config.Component, injectionFilter mutatecommon
 		return webhookConfig, err
 	}
 
+	webhookConfig.InstrumentationConfig = instCfg
 	webhookConfig.pinnedLibraries = getPinnedLibraries(instCfg.LibVersions, webhookConfig.containerRegistry)
 	webhookConfig.injectorImageTag = instCfg.InjectorImageTag
 

@@ -86,10 +86,15 @@ type Webhook struct {
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(wmeta workloadmeta.Component, injectionFilter mutatecommon.InjectionFilter, datadogConfig config.Component) *Webhook {
+func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) *Webhook {
+	enabled := datadogConfig.GetBool("admission_controller.inject_config.enabled")
+	enabledNamespaces := datadogConfig.GetStringSlice("admission_controller.inject_config.enabled_namespaces")
+	disabledNamespaces := datadogConfig.GetStringSlice("admission_controller.inject_config.disabled_namespaces")
+	injectionFilter, _ := mutatecommon.NewInjectionFilter(enabled, enabledNamespaces, disabledNamespaces)
+
 	return &Webhook{
 		name:            webhookName,
-		isEnabled:       datadogConfig.GetBool("admission_controller.inject_config.enabled"),
+		isEnabled:       enabled,
 		endpoint:        datadogConfig.GetString("admission_controller.inject_config.endpoint"),
 		resources:       map[string][]string{"": {"pods"}},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
