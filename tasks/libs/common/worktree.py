@@ -136,3 +136,18 @@ def agent_context(ctx, branch: str | None = None, skip_checkout=False, commit: s
     finally:
         # Exit
         exit_env()
+
+
+def maybe_agent_context(
+    condition: bool, ctx, branch: str | None = None, skip_checkout=False, commit: str | None = None
+):
+    """Like agent_context if condition is True, otherwise does nothing."""
+
+    @contextmanager
+    def empty_context():
+        yield
+
+    if condition:
+        return agent_context(ctx, branch, skip_checkout=skip_checkout, commit=commit)
+    else:
+        return empty_context()
