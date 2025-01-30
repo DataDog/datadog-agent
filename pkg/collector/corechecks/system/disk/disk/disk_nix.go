@@ -27,8 +27,8 @@ var (
 	diskPartitions = disk.Partitions
 	diskUsage      = disk.Usage
 	diskIOCounters = disk.IOCounters
-	runBlkid       = func(device string) (string, error) {
-		out, err := exec.Command("blkid", device).Output()
+	runBlkid       = func() (string, error) {
+		out, err := exec.Command("blkid").Output()
 		if err != nil {
 			return "", err
 		}
@@ -39,7 +39,8 @@ var (
 // Check stores disk-specific additional fields
 type Check struct {
 	core.CheckBase
-	cfg *diskConfig
+	cfg          *diskConfig
+	deviceLabels map[string]string
 }
 
 // Run executes the check
@@ -48,7 +49,12 @@ func (c *Check) Run() error {
 	if err != nil {
 		return err
 	}
-
+	if c.cfg.tagByLabel {
+		err = c.fetchAllDeviceLabels()
+		if err != nil {
+			log.Debugf("Unable to fetch device labels: %s", err)
+		}
+	}
 	err = c.collectPartitionMetrics(sender)
 	if err != nil {
 		return err
@@ -104,14 +110,9 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 		tags = append(tags, fmt.Sprintf("device_name:%s", filepath.Base(partition.Device)))
 		tags = append(tags, c.getDeviceTags(partition.Device, partition.Mountpoint)...)
-
-		labels, err := c.getDeviceLabels(partition.Device)
-		if err != nil {
-			log.Debugf("Unable to get label tags for '%s' device: %s", partition.Device, err)
-		} else {
-			for _, label := range labels {
-				tags = append(tags, fmt.Sprintf("label:%s", label), fmt.Sprintf("device_label:%s", label))
-			}
+		label, ok := c.deviceLabels[partition.Device]
+		if ok {
+			tags = append(tags, fmt.Sprintf("label:%s", label), fmt.Sprintf("device_label:%s", label))
 		}
 		c.sendPartitionMetrics(sender, usage, tags)
 

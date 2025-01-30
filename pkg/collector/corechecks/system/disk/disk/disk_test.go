@@ -10,7 +10,6 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"fmt"
 
 	"testing"
 
@@ -149,12 +148,16 @@ func setupDefaultMocks() {
 	diskIOCounters = func(_names ...string) (map[string]disk.IOCountersStat, error) {
 		return ioCountersData, nil
 	}
-	blkidData := map[string]string{
-		"/dev/sda1": `UUID="abc-123" LABEL="MYLABEL1"`,
-		"/dev/sda2": `UUID="def-456" LABEL="MYLABEL2"`,
-	}
-	runBlkid = func(device string) (string, error) {
-		return fmt.Sprintf("%s: %s", device, blkidData[device]), nil
+	blkidData := string(`
+/dev/sda1: UUID="abc-123" LABEL="MYLABEL1"
+/dev/sda2: UUID=\"def-456\" LABEL="MYLABEL2"
+/dev/sda3: UUID=\"def-789\"
+
+/dev/sda4:
+/dev/sda5
+`)
+	runBlkid = func() (string, error) {
+		return blkidData, nil
 	}
 }
 
@@ -210,7 +213,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllIOCountersMetrics
 
 func TestGivenADiskCheckWithFileSystemGlobalBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	initConfig := integration.Data([]byte(`
@@ -231,7 +234,7 @@ file_system_global_blacklist:
 
 func TestGivenADiskCheckWithDeviceGlobalBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	initConfig := integration.Data([]byte(`
@@ -252,7 +255,7 @@ device_global_blacklist:
 
 func TestGivenADiskCheckWithMountpointGlobalBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	initConfig := integration.Data([]byte(`
@@ -273,7 +276,7 @@ mount_point_global_blacklist:
 
 func TestGivenADiskCheckWithFileSystemWhiteListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -294,7 +297,7 @@ file_system_whitelist:
 
 func TestGivenADiskCheckWithFileSystemBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -315,7 +318,7 @@ file_system_blacklist:
 
 func TestGivenADiskCheckWithDeviceWhiteListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -336,7 +339,7 @@ device_whitelist:
 
 func TestGivenADiskCheckWithDeviceBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -357,7 +360,7 @@ device_blacklist:
 
 func TestGivenADiskCheckWithMountPointWhiteListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -378,7 +381,7 @@ mount_point_whitelist:
 
 func TestGivenADiskCheckWithMountPointBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -399,7 +402,7 @@ mount_point_blacklist:
 
 func TestGivenADiskCheckWithExcludedMountPointReConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -420,7 +423,7 @@ excluded_mountpoint_re:
 
 func TestGivenADiskCheckWithExcludedFileSystemsConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -441,7 +444,7 @@ excluded_filesystems:
 
 func TestGivenADiskCheckWithExcludedDisksConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -462,7 +465,7 @@ excluded_disks:
 
 func TestGivenADiskCheckWithExcludedDisksReConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -917,7 +920,7 @@ func TestGivenADiskCheckWithExcludedDiskReIncorrectlyConfigured_WhenCheckIsConfi
 
 func TestGivenADiskCheckWithDeviceIncludeConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseDevicesAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -945,7 +948,7 @@ device_include:
 
 func TestGivenADiskCheckWithDeviceWhiteListConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseDevicesAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -973,7 +976,7 @@ device_whitelist:
 
 func TestGivenADiskCheckWithDeviceIncludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1059,7 +1062,7 @@ file_system_global_exclude:
 
 func TestGivenADiskCheckWithFileSystemExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1079,7 +1082,7 @@ file_system_exclude:
 
 func TestGivenADiskCheckWithFileSystemBlackListConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1099,7 +1102,7 @@ file_system_blacklist:
 
 func TestGivenADiskCheckWithExcludedFileSystemsConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1119,7 +1122,7 @@ excluded_filesystems:
 
 func TestGivenADiskCheckWithFileSystemExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1134,7 +1137,7 @@ file_system_exclude:
 
 func TestGivenADiskCheckWithFileSystemIncludeConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseFileSystemsAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1154,7 +1157,7 @@ file_system_include:
 
 func TestGivenADiskCheckWithFileSystemWhiteListConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseFileSystemsAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1174,7 +1177,7 @@ file_system_whitelist:
 
 func TestGivenADiskCheckWithFileSystemIncludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1260,7 +1263,7 @@ mount_point_global_exclude:
 
 func TestGivenADiskCheckWithMountPointExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1288,7 +1291,7 @@ mount_point_exclude:
 
 func TestGivenADiskCheckWithMountPointBlackListConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1316,7 +1319,7 @@ mount_point_blacklist:
 
 func TestGivenADiskCheckWithMountPointExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1331,7 +1334,7 @@ mount_point_exclude:
 
 func TestGivenADiskCheckWithExcludedMountPointReConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("excluded_mountpoint_re: /dev/.*"))
@@ -1356,7 +1359,7 @@ func TestGivenADiskCheckWithExcludedMountPointReConfigured_WhenCheckRuns_ThenUsa
 
 func TestGivenADiskCheckWithExcludedMountPointReIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("excluded_mountpoint_re: /dev/(.*"))
@@ -1368,7 +1371,7 @@ func TestGivenADiskCheckWithExcludedMountPointReIncorrectlyConfigured_WhenCheckI
 
 func TestGivenADiskCheckWithMountPointIncludeConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseMountPointsAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1396,7 +1399,7 @@ mount_point_include:
 
 func TestGivenADiskCheckWithMountPointWhiteListConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseMountPointsAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1424,7 +1427,7 @@ mount_point_whitelist:
 
 func TestGivenADiskCheckWithMountPointIncludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1439,7 +1442,7 @@ mount_point_include:
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturnsAPartitionWithZeroTotal_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	diskPartitions = func(_ bool) ([]disk.PartitionStat, error) {
@@ -1475,7 +1478,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturns
 
 func TestGivenADiskCheckWithMinDiskSizeConfiguredTo100Config_WhenCheckRunsAndUsageSystemCallReturnsAPartitionWith10Total_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	diskPartitions = func(_ bool) ([]disk.PartitionStat, error) {
@@ -1520,7 +1523,7 @@ func TestGivenADiskCheckWithMinDiskSizeConfiguredTo100Config_WhenCheckRunsAndUsa
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenUsageMetricsAreNotReportedWithFileSystemTags(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
@@ -1544,7 +1547,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenUsageMetricsAreNotRe
 
 func TestGivenADiskCheckWithTagByFileSystemFalseConfigured_WhenCheckRuns_ThenUsageMetricsAreReportedWithFileSystemTags(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("tag_by_filesystem: false"))
@@ -1569,7 +1572,7 @@ func TestGivenADiskCheckWithTagByFileSystemFalseConfigured_WhenCheckRuns_ThenUsa
 
 func TestGivenADiskCheckWithTagByFileSystemTrueConfigured_WhenCheckRuns_ThenUsageMetricsAreReportedWithFileSystemTags(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("tag_by_filesystem: true"))
@@ -1594,7 +1597,7 @@ func TestGivenADiskCheckWithTagByFileSystemTrueConfigured_WhenCheckRuns_ThenUsag
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenUsageMetricsAreNotReportedWithMountPointTags(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
@@ -1618,7 +1621,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenUsageMetricsAreNotRe
 
 func TestGivenADiskCheckWithUseMountConfigured_WhenCheckRuns_ThenUsageMetricsAreReportedWithMountPointTags(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("use_mount: true"))
@@ -1643,7 +1646,7 @@ func TestGivenADiskCheckWithUseMountConfigured_WhenCheckRuns_ThenUsageMetricsAre
 
 func TestGivenADiskCheckWithDeviceTagReConfigured_WhenCheckRuns_ThenUsageMetricsAreReportedWithTheseTags(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1672,7 +1675,7 @@ device_tag_re:
 
 func TestGivenADiskCheckWithDeviceTagReIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1688,7 +1691,7 @@ device_tag_re:
 
 func TestGivenADiskCheckWithUseLsblkAndBlkidCacheFileConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1704,7 +1707,7 @@ blkid_cache_file: /run/blkid/blkid.tab
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenBlkidLabelsAreReportedAsTags(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
@@ -1718,7 +1721,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenBlkidLabelsAreReport
 
 func TestGivenADiskCheckWithTagByLabelConfiguredTrue_WhenCheckRuns_ThenBlkidLabelsAreReportedAsTags(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1735,7 +1738,7 @@ tag_by_label: true
 
 func TestGivenADiskCheckWithTagByLabelConfiguredFalse_WhenCheckRuns_ThenBlkidLabelsAreNotReportedAsTags(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1752,10 +1755,10 @@ tag_by_label: false
 
 func TestGivenADiskCheckWithTagByLabelConfiguredTrue_WhenCheckRunsAndBlkidReturnsError_ThenBlkidLabelsAreNotReportedAsTags(t *testing.T) {
 	setupDefaultMocks()
-	runBlkid = func(_device string) (string, error) {
+	runBlkid = func() (string, error) {
 		return "", errors.New("error calling blkid")
 	}
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1772,7 +1775,7 @@ tag_by_label: true
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenReadWriteServiceCheckNotReported(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
@@ -1785,7 +1788,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenReadWriteServiceChec
 
 func TestGivenADiskCheckWithServiceCheckRwFalseConfigured_WhenCheckRuns_ThenReadWriteServiceCheckNotReported(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1801,7 +1804,7 @@ service_check_rw: false
 
 func TestGivenADiskCheckWithServiceCheckRwTrueConfigured_WhenCheckRuns_ThenReadWriteServiceCheckReported(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := new(Check)
+	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`

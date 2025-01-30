@@ -8,7 +8,6 @@
 package disk
 
 import (
-	"bufio"
 	"errors"
 	"regexp"
 	"strings"
@@ -277,10 +276,7 @@ func (c *Check) configureExcludeFileSystem(instanceConfig map[interface{}]interf
 		}
 	}
 	// Force exclusion of CDROM (iso9660) from disk check
-	regexp, err := regexp.Compile("iso9660")
-	if err != nil {
-		return err
-	}
+	regexp, _ := regexp.Compile("iso9660")
 	c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, *regexp)
 	return nil
 }
@@ -379,29 +375,42 @@ func (c *Check) getDeviceTags(device, mountpoint string) []string {
 	return tags
 }
 
-func (c *Check) getDeviceLabels(device string) ([]string, error) {
-	if c.cfg.tagByLabel {
-		log.Debugf("Getting device labels for [device: %s]", device)
-		rawOutput, err := runBlkid(device)
-		log.Debugf("blkid outout: '%s' [error: %s]", rawOutput, err)
-		if err != nil {
-			return nil, err
-		}
-		labels := []string{}
-		labelRegex := regexp.MustCompile(`LABEL="([^"]+)"`)
-		scanner := bufio.NewScanner(strings.NewReader(rawOutput))
-		for scanner.Scan() {
-			line := scanner.Text()
-			if match := labelRegex.FindStringSubmatch(line); len(match) == 2 {
-				labels = append(labels, match[1])
-			}
-		}
-		log.Debugf("getLabelTags: %s", labels)
-		return labels, nil
-	} else {
-		log.Debugf("'tag_by_filesystem' not enabled, returning empty device labels list")
-		return []string{}, nil
+func (c *Check) fetchAllDeviceLabels() error {
+	log.Debugf("Fetching all device labels")
+	rawOutput, err := runBlkid()
+	log.Debugf("blkid output: '%s' [error: %s]", rawOutput, err)
+	if err != nil {
+		return err
 	}
+	// Regex to capture LABEL="some_label"
+	labelRegex := regexp.MustCompile(`LABEL="([^"]+)"`)
+	lines := strings.Split(strings.TrimSpace(string(rawOutput)), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		log.Debugf("processing line: '%s'", line)
+		if line == "" {
+			continue
+		}
+		// Typically line looks like:
+		// /dev/sda1: UUID="..." TYPE="ext4" LABEL="root"
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) < 2 {
+			// skip malformed lines
+			continue
+		}
+		device := strings.TrimSpace(parts[0])  // e.g. "/dev/sda1"
+		details := strings.TrimSpace(parts[1]) // e.g. `UUID="..." TYPE="ext4" LABEL="root"`
+		match := labelRegex.FindStringSubmatch(details)
+		if len(match) == 2 {
+			// match[1] is everything captured by ([^"]+)
+			c.deviceLabels[device] = match[1]
+		} else {
+			// No label found for this device
+			c.deviceLabels[device] = ""
+		}
+
+	}
+	return nil
 }
 
 // Factory creates a new check factory
@@ -411,6 +420,7 @@ func Factory() option.Option[func() check.Check] {
 
 func newCheck() check.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(CheckName),
+		CheckBase:    core.NewCheckBase(CheckName),
+		deviceLabels: make(map[string]string),
 	}
 }
