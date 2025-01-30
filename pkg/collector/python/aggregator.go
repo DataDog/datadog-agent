@@ -12,6 +12,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"sync"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -38,6 +40,16 @@ type metric struct {
 	Hostname        string   `json:"hostname,omitempty"`
 	Tags            []string `json:"tags,omitempty"`
 	FlushFirstValue bool     `json:"flush_first_value,omitempty"`
+}
+
+var httpOnce sync.Once
+var httpClient *http.Client
+
+func getHTTPClient() *http.Client {
+	httpOnce.Do(func() {
+		httpClient = util.GetClient(false)
+	})
+	return httpClient
 }
 
 // SubmitMetric is the method exposed to Python scripts to submit metrics
@@ -72,7 +84,7 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 
 	// Send the HTTP request
 	url := fmt.Sprintf("https://localhost:%v/v1/grpc/aggregator/metrics", pkgconfigsetup.Datadog().GetInt("cmd_port"))
-	hc := util.GetClient(false)
+	hc := getHTTPClient()
 	// Construct the POST payload.
 	payload := metric{
 		CheckId:         goCheckID,
@@ -90,7 +102,9 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 		return
 	}
 
-	resp, err := util.DoPost(hc, url, "application/json", bytes.NewBuffer(postData))
+	resp, err := util.DoPostWithOptions(hc, url, "application/json", bytes.NewBuffer(postData), &util.ReqOptions{
+		Conn: util.LeaveConnectionOpen,
+	})
 
 	if err != nil {
 		log.Errorf("Error submitting metric to the aggregator: %v", err)

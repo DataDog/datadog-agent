@@ -121,6 +121,41 @@ func DoPost(c *http.Client, url string, contentType string, body io.Reader) (res
 	return resp, nil
 }
 
+// DoPost is a wrapper around performing HTTP POST requests
+func DoPostWithOptions(c *http.Client, url string, contentType string, body io.Reader, options *ReqOptions) (resp []byte, e error) {
+	if options.Authtoken == "" {
+		options.Authtoken = GetAuthToken()
+	}
+
+	if options.Ctx == nil {
+		options.Ctx = context.Background()
+	}
+
+	req, e := http.NewRequestWithContext(options.Ctx, "POST", url, body)
+	if e != nil {
+		return resp, e
+	}
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Authorization", "Bearer "+options.Authtoken)
+	if options.Conn == CloseConnection {
+		req.Close = true
+	}
+
+	r, e := c.Do(req)
+	if e != nil {
+		return resp, e
+	}
+	resp, e = io.ReadAll(r.Body)
+	r.Body.Close()
+	if e != nil {
+		return resp, e
+	}
+	if r.StatusCode >= 400 {
+		return resp, errors.New(string(resp))
+	}
+	return resp, nil
+}
+
 // DoPostChunked is a wrapper around performing HTTP POST requests that stream chunked data
 func DoPostChunked(c *http.Client, url string, contentType string, body io.Reader, onChunk func([]byte)) error {
 	req, e := http.NewRequest("POST", url, body)

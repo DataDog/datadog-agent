@@ -7,12 +7,10 @@
 package remoteimpl
 
 import (
-	"bufio"
 	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -65,17 +63,6 @@ type Provides struct {
 	Endpoint api.AgentEndpointProvider
 }
 
-// Custom HTTP client with Authorization header middleware
-type customClient struct {
-	client *http.Client
-	token  string
-}
-
-func (c *customClient) Do(req *http.Request) (*http.Response, error) {
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.token))
-	return c.client.Do(req)
-}
-
 type remoteTagger struct {
 	store   *tagStore
 	ready   bool
@@ -86,7 +73,7 @@ type remoteTagger struct {
 
 	// conn   *grpc.ClientConn
 	token  string
-	client *customClient
+	client *httputils.HttpStream
 
 	streamCtx    context.Context
 	streamCancel context.CancelFunc
@@ -187,12 +174,16 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 		},
 	}
 
-	customClient := &customClient{
-		client: client,
-		token:  token,
+	url := fmt.Sprintf("https://localhost%v/v1/grpc/tagger/stream_entities", t.options.Target)
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		t.log.Warnf("Failed to create request: %v", err)
+		return err
 	}
 
-	t.client = customClient
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+
+	t.client = httputils.NewStream(client, req)
 
 	t.log.Info("remote tagger initialized successfully")
 
@@ -205,10 +196,7 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 func (t *remoteTagger) Stop() error {
 	t.cancel()
 
-	// err := t.conn.Close()
-	// if err != nil {
-	// 	return err
-	// }
+	t.client.Close()
 
 	t.telemetryTicker.Stop()
 
@@ -480,53 +468,29 @@ func (t *remoteTagger) run() {
 			}
 		}
 	}()
+	t.client.Connect()
 	for {
-		url := fmt.Sprintf("https://localhost%v/v1/grpc/tagger/stream_entities", t.options.Target)
-		req, err := http.NewRequest("POST", url, nil)
-		if err != nil {
-			t.log.Warnf("Failed to create request: %v", err)
-			return
-		}
-		// Send the HTTP request
-		resp, err := t.client.Do(req)
-		if err != nil {
-			t.log.Warnf("Failed to send request: %v", err)
-			continue
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			t.log.Warnf("Received non-200 response: %d %s", resp.StatusCode, resp.Status)
-		}
-
-		t.log.Info("Received 200 response: %d %s", resp.StatusCode, resp.Status)
-
-		// Read the streaming response
-		reader := bufio.NewReader(resp.Body)
-
-		for {
-			line, err := reader.ReadString('\n')
-			if err != nil {
-				if err == io.EOF {
-					fmt.Println("Stream closed by server")
-					break
-				}
-				t.log.Warnf("Error reading response: %v", err)
-			}
+		select {
+		case data := <-t.client.Data:
 			results := results{}
-			err = json.Unmarshal([]byte(line), &results)
+			err := json.Unmarshal(data, &results)
 			if err != nil {
 				t.log.Warnf("Failed to parse json: %v", err)
 				break
 			}
 
 			t.telemetryStore.Receives.Inc()
-
+			t.log.Debugf("Got tagger information: %+v", results)
 			err = t.processResponse(results)
 			if err != nil {
 				t.log.Warnf("error processing event received from remote tagger: %s", err)
 				continue
 			}
+		case clientErr := <-t.client.Error:
+			t.log.Warnf("Error from remote tagger: %v", clientErr)
+		case <-t.client.Exit:
+			t.log.Debug("Tagger Stream closed.")
+			return
 		}
 	}
 }
@@ -577,56 +541,6 @@ func (t *remoteTagger) processResponse(results results) error {
 
 	return nil
 }
-
-// // startTaggerStream tries to establish a stream with the remote gRPC endpoint.
-// // Since the entire remote tagger really depends on this working, it'll keep on
-// // retrying with an exponential backoff until maxElapsed (or forever if
-// // maxElapsed == 0) or the tagger is stopped.
-// func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
-// 	expBackoff := backoff.NewExponentialBackOff()
-// 	expBackoff.InitialInterval = 500 * time.Millisecond
-// 	expBackoff.MaxInterval = 5 * time.Minute
-// 	expBackoff.MaxElapsedTime = maxElapsed
-
-// 	return backoff.Retry(func() error {
-// 		select {
-// 		case <-t.ctx.Done():
-// 			return &backoff.PermanentError{Err: errTaggerStreamNotStarted}
-// 		default:
-// 		}
-
-// 		token, err := t.options.TokenFetcher()
-// 		if err != nil {
-// 			t.log.Infof("unable to fetch auth token, will possibly retry: %s", err)
-// 			return err
-// 		}
-
-// 		t.streamCtx, t.streamCancel = context.WithCancel(
-// 			metadata.NewOutgoingContext(t.ctx, metadata.MD{
-// 				"authorization": []string{fmt.Sprintf("Bearer %s", token)},
-// 			}),
-// 		)
-
-// 		prefixes := make([]string, 0)
-// 		for prefix := range t.filter.GetPrefixes() {
-// 			prefixes = append(prefixes, string(prefix))
-// 		}
-
-// 		t.stream, err = t.client.TaggerStreamEntities(t.streamCtx, &pb.StreamTagsRequest{
-// 			Cardinality: pb.TagCardinality(t.filter.GetCardinality()),
-// 			StreamingID: uuid.New().String(),
-// 			Prefixes:    prefixes,
-// 		})
-// 		if err != nil {
-// 			t.log.Infof("unable to establish stream, will possibly retry: %s", err)
-// 			return err
-// 		}
-
-// 		t.log.Info("tagger stream established successfully")
-
-// 		return nil
-// 	}, expBackoff)
-// }
 
 func (t *remoteTagger) writeList(w http.ResponseWriter, _ *http.Request) {
 	response := t.List()

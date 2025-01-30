@@ -7,12 +7,10 @@
 package start
 
 import (
-	"bufio"
 	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"runtime"
 	"runtime/debug"
@@ -57,6 +55,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -213,17 +212,6 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 	)
 }
 
-// Custom HTTP client with Authorization header middleware
-type customClient struct {
-	client *http.Client
-	token  string
-}
-
-func (c *customClient) Do(req *http.Request) (*http.Response, error) {
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.token))
-	return c.client.Do(req)
-}
-
 func start(
 	cliParams *CLIParams,
 	memoryStats memoryStats,
@@ -274,10 +262,14 @@ func start(
 		},
 	}
 
-	customClient := &customClient{
-		client: client,
-		token:  token,
+	url := fmt.Sprintf("https://localhost:%v/v1/grpc/autodiscovery/stream_configs", config.GetInt("cmd_port"))
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		return err
 	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+
+	stream := httputils.NewStream(client, req)
 
 	// TODO: figure out how to initial.ize checks contexts
 	// check.InitializeInventoryChecksContext(invChecks)
@@ -285,22 +277,20 @@ func start(
 	scheduler := pkgcollector.InitCheckScheduler(option.New(collector), &mockSenderManager{}, option.None[integrations.Component](), tagger)
 
 	// Start the scheduler
-	go startScheduler(ctx, customClient, scheduler, log, config)
+	go startScheduler(ctx, stream, scheduler, log, config)
 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh, log)
 
-	err := Run(ctx, cliParams, config, log)
+	err = Run(ctx, cliParams, config, log)
 	if err != nil {
 		return err
 	}
 
-	// if err := setupInternalProfiling(config); err != nil {
-	// 	return log.Errorf("Error while setuping internal profiling, exiting: %v", err)
-	// }
-
 	// Block here until we receive a stop signal
 	<-stopCh
+
+	stream.Close()
 
 	return nil
 }
@@ -358,38 +348,6 @@ func StopAgent(cancel context.CancelFunc, log log.Component) {
 	log.Flush()
 }
 
-// type autodiscoveryStream struct {
-// 	autodiscoveryStream       core.AgentSecure_AutodiscoveryStreamConfigClient
-// 	autodiscoveryStreamCancel context.CancelFunc
-// }
-
-// func (a *autodiscoveryStream) initStream(ctx context.Context, client core.AgentSecureClient, log log.Component) error {
-// 	expBackoff := backoff.NewExponentialBackOff()
-// 	expBackoff.InitialInterval = 500 * time.Millisecond
-// 	expBackoff.MaxInterval = 5 * time.Minute
-// 	expBackoff.MaxElapsedTime = 0 * time.Minute
-
-// 	return backoff.Retry(func() error {
-// 		select {
-// 		case <-ctx.Done():
-// 			return &backoff.PermanentError{}
-// 		default:
-// 		}
-
-// 		stream, err := client.AutodiscoveryStreamConfig(ctx, nil)
-// 		if err != nil {
-// 			log.Infof("unable to establish stream, will possibly retry: %s", err)
-// 			// We need to handle the case that the kernel agent dies
-// 			return err
-// 		}
-
-// 		a.autodiscoveryStream = stream
-
-// 		log.Info("autodiscovery stream established successfully")
-// 		return nil
-// 	}, expBackoff)
-// }
-
 type auConfig struct {
 	integration.Config
 	EventType string `json:"event_type,omitempty"`
@@ -399,86 +357,43 @@ type results struct {
 	Results map[string][]auConfig `json:"result,omitempty"`
 }
 
-func startScheduler(ctx context.Context, client *customClient, scheduler *pkgcollector.CheckScheduler, log log.Component, config config.Component) {
-	url := fmt.Sprintf("https://localhost:%v/v1/grpc/autodiscovery/stream_configs", config.GetInt("cmd_port"))
-	req, err := http.NewRequest("POST", url, nil)
-	if err != nil {
-		log.Warnf("Failed to create request: %v", err)
-		return
-	}
-	// Send the HTTP request
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Warnf("Failed to send request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		log.Warnf("Received non-200 response: %d %s", resp.StatusCode, resp.Status)
-	}
-
-	log.Info("Received 200 response: %d %s", resp.StatusCode, resp.Status)
-
-	// Read the streaming response
-	reader := bufio.NewReader(resp.Body)
+func startScheduler(ctx context.Context, client *httputils.HttpStream, scheduler *pkgcollector.CheckScheduler, log log.Component, config config.Component) {
+	client.Connect()
 	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				fmt.Println("Stream closed by server")
+		select {
+		case data := <-client.Data:
+			results := results{}
+			log.Debugf("RECEIVED DATA: %s", string(data))
+			err := json.Unmarshal(data, &results)
+			if err != nil {
+				log.Warnf("Failed to parse json: %v", err)
 				break
 			}
-			log.Warnf("Error reading response: %v", err)
-		}
-		results := results{}
-		err = json.Unmarshal([]byte(line), &results)
-		if err != nil {
-			log.Warnf("Failed to parse json: %v", err)
-			break
-		}
 
-		scheduleConfigs := []integration.Config{}
-		unscheduleConfigs := []integration.Config{}
+			scheduleConfigs := []integration.Config{}
+			unscheduleConfigs := []integration.Config{}
 
-		for _, configs := range results.Results {
-			for _, config := range configs {
-				log.Infof("received autodiscovery scheduler config event %s for check %s", config.EventType, config.Name)
-				if config.EventType == "SCHEDULE" {
-					scheduleConfigs = append(scheduleConfigs, config.Config)
-				} else if config.EventType == "UNSCHEDULE" {
-					unscheduleConfigs = append(scheduleConfigs, config.Config)
+			for _, configs := range results.Results {
+				for _, config := range configs {
+					log.Infof("received autodiscovery scheduler config event %s for check %s", config.EventType, config.Name)
+					if config.EventType == "SCHEDULE" {
+						scheduleConfigs = append(scheduleConfigs, config.Config)
+					} else if config.EventType == "UNSCHEDULE" {
+						unscheduleConfigs = append(scheduleConfigs, config.Config)
+					}
 				}
 			}
-		}
 
-		scheduler.Schedule(scheduleConfigs)
-		scheduler.Unschedule(unscheduleConfigs)
+			scheduler.Schedule(scheduleConfigs)
+			scheduler.Unschedule(unscheduleConfigs)
+		case err := <-client.Error:
+			log.Debug("Autodiscovery Stream Error: %v", err)
+		case <-client.Exit:
+			log.Debug("Stream closed.")
+			return
+		}
 	}
 }
-
-// func setupInternalProfiling(config config.Component) error {
-// 	runtime.MemProfileRate = 1
-// 	site := fmt.Sprintf(profiling.ProfilingURLTemplate, config.GetString("site"))
-
-// 	// We need the trace agent runnning to send profiles
-// 	profSettings := profiling.Settings{
-// 		ProfilingURL:         site,
-// 		Socket:               "/var/run/datadog/apm.socket",
-// 		Env:                  "local",
-// 		Service:              "checks-agent",
-// 		Period:               config.GetDuration("internal_profiling.period"),
-// 		CPUDuration:          config.GetDuration("internal_profiling.cpu_duration"),
-// 		MutexProfileFraction: config.GetInt("internal_profiling.mutex_profile_fraction"),
-// 		BlockProfileRate:     config.GetInt("internal_profiling.block_profile_rate"),
-// 		WithGoroutineProfile: config.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-// 		WithBlockProfile:     config.GetBool("internal_profiling.enable_block_profiling"),
-// 		WithMutexProfile:     config.GetBool("internal_profiling.enable_mutex_profiling"),
-// 		WithDeltaProfiles:    config.GetBool("internal_profiling.delta_profiles"),
-// 		CustomAttributes:     config.GetStringSlice("internal_profiling.custom_attributes"),
-// 	}
-
-// 	return profiling.Start(profSettings)
-// }
 
 // heapDelta returns the delta in KB between
 // the current heap size and the previous heap size.
