@@ -386,9 +386,9 @@ func startScheduler(ctx context.Context, client *httputils.HttpStream, scheduler
 			scheduler.Schedule(scheduleConfigs)
 			scheduler.Unschedule(unscheduleConfigs)
 		case err := <-client.Error:
-			log.Debug("Autodiscovery Stream Error: %v", err)
+			log.Warnf("Autodiscovery Stream Error: %v", err)
 		case <-client.Exit:
-			log.Debug("Stream closed.")
+			log.Warnf("Stream closed.")
 			return
 		}
 	}

@@ -189,11 +189,11 @@ service AgentSecure {
     
     // Send metrics to internal aggregator
     rpc SendCheckMetric(datadog.aggregator.Metric) returns (datadog.aggregator.MetricResponse) {
-    option (google.api.http) = {
-        post: "/v1/grpc/aggregator/metrics"
-        body: "*"
+        option (google.api.http) = {
+            post: "/v1/grpc/aggregator/metrics"
+            body: "*"
+        };
     };
-};
 
 }
 

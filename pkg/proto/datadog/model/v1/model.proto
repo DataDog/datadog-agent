@@ -49,7 +49,7 @@ message StreamTagsResponse {
 }
 
 message StreamTagsEvent {
-    EventType type = 1;
+    string type = 1;
     Entity entity = 2;
 }
 
