@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package fips
+package fipscompliance
 
 import (
 	_ "embed"
@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 //go:embed fixtures/e2e_fips_test.py
@@ -36,13 +37,16 @@ type windowsVMSuite struct {
 	installPath string
 }
 
+// TestWindowsVM tests that the FIPS Agent can report metrics to the fakeintake
 func TestWindowsVM(t *testing.T) {
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.Provisioner(
 		// Enable FIPS mode on the host (done before Agent install)
 		awsHostWindows.WithFIPSModeOptions(fipsmode.WithFIPSModeEnabled()),
-		// Use FIPS Agent package
 		awsHostWindows.WithAgentOptions(
+			// Use FIPS Agent package
 			agentparams.WithFlavor(agentparams.FIPSFlavor),
+			// Install custom check that reports the FIPS mode of Python
+			// TODO ADXT-881: Need forward slashes to workaround test-infra bug
 			agentparams.WithFile(
 				`C:/ProgramData/Datadog/checks.d/e2e_fips_test.py`,
 				fipsTestCheck,
@@ -71,8 +75,11 @@ func (s *windowsVMSuite) SetupSuite() {
 	s.Require().NoError(err)
 }
 
+// TestVersionCommands tests that the version command for each of the Agent binaries
+// works when FIPS mode is enabled and panics when GOFIPS=1 AND the system is not in FIPS mode.
 func (s *windowsVMSuite) TestVersionCommands() {
 	host := s.Env().RemoteHost
+
 	windowsCommon.EnableFIPSMode(host)
 	s.Run("System FIPS Enabled", func() {
 		s.testAgentBinaries(func(executable string) {
@@ -83,6 +90,7 @@ func (s *windowsVMSuite) TestVersionCommands() {
 			s.Assert().NoError(err)
 		})
 	})
+
 	windowsCommon.DisableFIPSMode(host)
 	s.Run("System FIPS Disabled", func() {
 		s.testAgentBinaries(func(executable string) {
@@ -95,11 +103,52 @@ func (s *windowsVMSuite) TestVersionCommands() {
 	})
 }
 
+// TestAgentStatusOutput tests that the Agent status command reports the correct FIPS mode status
+func (s *windowsVMSuite) TestAgentStatusOutput() {
+	host := s.Env().RemoteHost
+
+	windowsCommon.EnableFIPSMode(host)
+	s.Run("status command", func() {
+		s.Run("gofips enabled", func() {
+			status, err := s.execAgentCommandWithFIPS("agent.exe", "status")
+			require.NoError(s.T(), err)
+			assert.Contains(s.T(), status, "FIPS Mode: enabled")
+		})
+
+		s.Run("gofips disabled", func() {
+			status, err := s.execAgentCommand("agent.exe", "status")
+			require.NoError(s.T(), err)
+			assert.Contains(s.T(), status, "FIPS Mode: enabled", "FIPS Mode should not depend on GOFIPS")
+		})
+	})
+
+	windowsCommon.DisableFIPSMode(host)
+	s.Run("status command", func() {
+		s.Run("gofips disabled", func() {
+			status, err := s.execAgentCommand("agent.exe", "status")
+			require.NoError(s.T(), err)
+			assert.Contains(s.T(), status, "FIPS Mode: disabled")
+		})
+	})
+
+}
+
 // TestReportsFIPSStatusMetrics tests that the custom check from our fixtures
 // is able to report metrics while in FIPS mode. These metric values are based
 // on the status of Python's FIPS mode.
 func (s *windowsVMSuite) TestReportsFIPSStatusMetrics() {
-	// Install custom check
+	host := s.Env().RemoteHost
+	// Restart the Agent and reset the aggregator to ensure the metrics are fresh
+	// with FIPS mode enabled.
+	err := windowsCommon.StopService(host, "datadogagent")
+	require.NoError(s.T(), err)
+	err = s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+	err = windowsCommon.EnableFIPSMode(host)
+	require.NoError(s.T(), err)
+	err = windowsCommon.StartService(host, "datadogagent")
+	require.NoError(s.T(), err)
+
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("e2e.fips_mode", fakeintakeclient.WithMetricValueHigherThan(0))
 		assert.NoError(c, err)
@@ -111,6 +160,7 @@ func (s *windowsVMSuite) TestReportsFIPSStatusMetrics() {
 	}, 5*time.Minute, 10*time.Second)
 }
 
+// testAgentBinaries runs a subtest for each of the Agent binaries in the install path
 func (s *windowsVMSuite) testAgentBinaries(subtest func(executable string)) {
 	executables := []string{"agent.exe", "agent/system-probe.exe", "agent/trace-agent.exe",
 		"agent/process-agent.exe", "agent/security-agent.exe"}
@@ -123,10 +173,9 @@ func (s *windowsVMSuite) testAgentBinaries(subtest func(executable string)) {
 
 func (s *windowsVMSuite) execAgentCommand(executable, command string, options ...client.ExecuteOption) (string, error) {
 	host := s.Env().RemoteHost
-
 	s.Require().NotEmpty(s.installPath)
-	agentPath := filepath.Join(s.installPath, "bin", executable)
 
+	agentPath := filepath.Join(s.installPath, "bin", executable)
 	cmd := fmt.Sprintf(`& "%s" %s`, agentPath, command)
 	return host.Execute(cmd, options...)
 }
