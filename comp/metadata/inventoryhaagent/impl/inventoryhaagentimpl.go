@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -49,14 +48,12 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 type inventoryhaagentimpl struct {
 	util.InventoryPayload
 
-	conf       config.Component
-	log        log.Component
-	m          sync.Mutex
-	data       haAgentMetadata
-	hostname   string
-	authToken  authtoken.Component
-	httpClient *http.Client
-	haAgent    haagent.Component
+	conf     config.Component
+	log      log.Component
+	m        sync.Mutex
+	data     haAgentMetadata
+	hostname string
+	haAgent  haagent.Component
 }
 
 func (i *inventoryhaagentimpl) refreshMetadata() {

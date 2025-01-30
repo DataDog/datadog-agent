@@ -52,16 +52,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	i := &inventoryhaagentimpl{
-		conf:      reqs.Config,
-		log:       reqs.Log,
-		hostname:  hname,
-		data:      make(haAgentMetadata),
-		authToken: reqs.AuthToken,
-		httpClient: &http.Client{
-			Transport: tr,
-			Timeout:   httpTO,
-		},
-		haAgent: reqs.HaAgent,
+		conf:     reqs.Config,
+		log:      reqs.Log,
+		hostname: hname,
+		data:     make(haAgentMetadata),
+		haAgent:  reqs.HaAgent,
 	}
 
 	i.InventoryPayload = util.CreateInventoryPayload(reqs.Config, reqs.Log, reqs.Serializer, i.getPayload, "ha-agent.json")

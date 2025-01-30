@@ -6,12 +6,8 @@
 package inventoryhaagentimpl
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
-
-const httpTO = 5 * time.Second
 
 func scrub(s string) string {
 	// Errors come from internal use of a Reader interface. Since we are reading from a buffer, no errors
