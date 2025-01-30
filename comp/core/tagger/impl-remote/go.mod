@@ -212,3 +212,7 @@ replace github.com/DataDog/datadog-agent/pkg/util/grpc => ../../../../pkg/util/g
 replace github.com/DataDog/datadog-agent/pkg/util/http => ../../../../pkg/util/http
 
 replace github.com/DataDog/datadog-agent/pkg/util/option => ../../../../pkg/util/option
+
+replace github.com/DataDog/datadog-agent/pkg/api => ../../../../pkg/api
+
+replace github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
