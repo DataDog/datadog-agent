@@ -219,7 +219,7 @@ func (c *Check) configureExcludeDevice(instanceConfig map[interface{}]interface{
 			}
 		}
 	}
-	excludedDiskRe, found := instanceConfig["excluded_disk_re"] //Maintained for backwards compatibility. It would now be easier to add regular expressions to the 'device_exclude' list key
+	excludedDiskRe, found := instanceConfig["excluded_disk_re"]
 	if excludedDiskRe, ok := excludedDiskRe.(string); found && ok {
 		var err error
 		regexp, err := regexp.Compile(excludedDiskRe)
@@ -325,7 +325,7 @@ func (c *Check) configureExcludeMountPoint(instanceConfig map[interface{}]interf
 			}
 		}
 	}
-	excludedMountPointRe, found := instanceConfig["excluded_mountpoint_re"] //Maintained for backwards compatibility. It would now be easier to add regular expressions to the 'device_exclude' list key
+	excludedMountPointRe, found := instanceConfig["excluded_mountpoint_re"]
 	if excludedMountPointRe, ok := excludedMountPointRe.(string); found && ok {
 		var err error
 		regexp, err := regexp.Compile(excludedMountPointRe)
