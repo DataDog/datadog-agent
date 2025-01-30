@@ -152,6 +152,9 @@ new-agent_dmg-x64-a7:
   #   - export RELEASE_VERSION=$RELEASE_VERSION_7
   script:
     - !reference [.vault_login]
+    - KEY="$(vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/agent-api-key-org-2)"
+    - if [ -n "$KEY" ]; then echo "OK!"; fi
+    - exit
     # Setup
     - |
       export INTEGRATION_WHEELS_CACHE_BUCKET=dd-agent-omnibus
