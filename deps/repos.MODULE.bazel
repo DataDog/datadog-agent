@@ -163,12 +163,12 @@ http_archive(
     url = "https://github.com/SELinuxProject/selinux/releases/download/{0}/libsepol-{0}.tar.gz".format(LIBSEPOL_VERSION),
 )
 
-LIBSELINUX_VERSION = "3.5"
+LIBSELINUX_VERSION = "3.8"
 
 http_archive(
     name = "libselinux",
     build_file_content = all_content,
-    sha256 = "9a3a3705ac13a2ccca2de6d652b6356fead10f36fb33115c185c5ccdf29eec19",
+    sha256 = "0c3756bca047c9270281d7c4dcdecd000b72e38a183c930661eba9690839b541",
     strip_prefix = "libselinux-{0}".format(LIBSELINUX_VERSION),
     url = "https://github.com/SELinuxProject/selinux/releases/download/{0}/libselinux-{0}.tar.gz".format(LIBSELINUX_VERSION),
 )
