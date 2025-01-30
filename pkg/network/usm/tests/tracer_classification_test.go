@@ -54,6 +54,9 @@ func setupTracer(t testing.TB, cfg *config.Config) *tracer.Tracer {
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
+		cfg.ProtocolClassificationEnabled = false
+	}
 
 	tr, err := tracer.NewTracer(cfg, nil)
 	require.NoError(t, err)
