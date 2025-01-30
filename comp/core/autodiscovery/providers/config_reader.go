@@ -6,6 +6,7 @@
 package providers
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -22,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	cache "github.com/patrickmn/go-cache"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 type configFormat struct {
@@ -371,8 +372,9 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 	}
 
 	// Parse configuration
-	// Try UnmarshalStrict first, so we can warn about duplicated keys
-	if strictErr := yaml.UnmarshalStrict(yamlFile, &cf); strictErr != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(yamlFile))
+	decoder.KnownFields(true)
+	if strictErr := decoder.Decode(&cf); strictErr != nil {
 		if err := yaml.Unmarshal(yamlFile, &cf); err != nil {
 			return conf, err
 		}

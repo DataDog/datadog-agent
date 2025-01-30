@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // CheckInstallation run tests to check the installation of the agent

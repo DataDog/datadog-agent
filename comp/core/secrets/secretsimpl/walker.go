@@ -41,7 +41,11 @@ func (w *walker) slice(currentSlice []interface{}, yamlPath []string) error {
 			}
 			currentSlice[idx] = newValue
 		case map[interface{}]interface{}:
-			if err := w.hash(v, path); err != nil {
+			if err := w.hash1(v, path); err != nil {
+				return err
+			}
+		case map[string]interface{}:
+			if err := w.hash2(v, path); err != nil {
 				return err
 			}
 		case []interface{}:
@@ -53,9 +57,9 @@ func (w *walker) slice(currentSlice []interface{}, yamlPath []string) error {
 	return nil
 }
 
-// hash handles map types, the walker will recursively explore each element of the map continuing its search for
+// hash1 handles map types, the walker will recursively explore each element of the map continuing its search for
 // strings to replace.
-func (w *walker) hash(currentMap map[interface{}]interface{}, yamlPath []string) error {
+func (w *walker) hash1(currentMap map[interface{}]interface{}, yamlPath []string) error {
 	for configKey := range currentMap {
 		path := yamlPath
 		if newkey, ok := configKey.(string); ok {
@@ -70,7 +74,42 @@ func (w *walker) hash(currentMap map[interface{}]interface{}, yamlPath []string)
 				return err
 			}
 		case map[interface{}]interface{}:
-			if err := w.hash(v, path); err != nil {
+			if err := w.hash1(v, path); err != nil {
+				return err
+			}
+		case map[string]interface{}:
+			if err := w.hash2(v, path); err != nil {
+				return err
+			}
+		case []interface{}:
+			if err := w.slice(v, path); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// hash2 handles map types, the walker will recursively explore each element of the map continuing its search for
+// strings to replace.
+func (w *walker) hash2(currentMap map[string]interface{}, yamlPath []string) error {
+	for configKey := range currentMap {
+		path := yamlPath
+		path = append(path, configKey)
+
+		switch v := currentMap[configKey].(type) {
+		case string:
+			if newValue, err := w.string(v, path); err == nil {
+				currentMap[configKey] = newValue
+			} else {
+				return err
+			}
+		case map[interface{}]interface{}:
+			if err := w.hash1(v, path); err != nil {
+				return err
+			}
+		case map[string]interface{}:
+			if err := w.hash2(v, path); err != nil {
 				return err
 			}
 		case []interface{}:
@@ -87,7 +126,9 @@ func (w *walker) hash(currentMap map[interface{}]interface{}, yamlPath []string)
 func (w *walker) walk(data *interface{}) error {
 	switch v := (*data).(type) {
 	case map[interface{}]interface{}:
-		return w.hash(v, nil)
+		return w.hash1(v, nil)
+	case map[string]interface{}:
+		return w.hash2(v, nil)
 	case []interface{}:
 		return w.slice(v, nil)
 	default:
