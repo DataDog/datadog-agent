@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/icmp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/google/gopacket/layers"
 	"go.uber.org/multierr"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/sys/unix"
@@ -54,7 +53,7 @@ func sendPacket(rawConn rawConnWrapper, header *ipv4.Header, payload []byte) err
 // receives a matching packet within the timeout, a blank response is returned.
 // Once a matching packet is received by a listener, it will cause the other listener
 // to be canceled, and data from the matching packet will be returned to the caller
-func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
+func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) response {
 	respChan := make(chan response, 2)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -73,10 +72,12 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 		select {
 		case <-ctx.Done():
 			log.Trace("timed out waiting for responses")
-			return net.IP{}, 0, 0, time.Time{}, err
+			return response{
+				Err: err,
+			}
 		case resp := <-respChan:
 			if resp.Err == nil {
-				return resp.IP, resp.Port, 0, resp.Time, nil // TODO: update response code to include ICMP type and code
+				return resp
 			}
 
 			// avoid adding canceled errors to the error list
@@ -87,7 +88,9 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 		}
 	}
 
-	return net.IP{}, 0, 0, time.Time{}, err
+	return response{
+		Err: err,
+	}
 }
 
 // handlePackets in its current implementation should listen for the first matching

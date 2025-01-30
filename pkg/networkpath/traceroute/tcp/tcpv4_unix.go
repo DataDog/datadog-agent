@@ -113,22 +113,23 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawCo
 	}
 
 	start := time.Now()
-	hopIP, hopPort, icmpType, end, err := listenPackets(rawIcmpConn, rawTCPConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
-	if err != nil {
-		log.Errorf("failed to listen for packets: %s", err.Error())
+	resp := listenPackets(rawIcmpConn, rawTCPConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
+	if resp.Err != nil {
+		log.Errorf("failed to listen for packets: %s", resp.Err.Error())
 		return nil, err
 	}
 
 	rtt := time.Duration(0)
-	if !hopIP.Equal(net.IP{}) {
-		rtt = end.Sub(start)
+	if !resp.IP.Equal(net.IP{}) {
+		rtt = resp.Time.Sub(start)
 	}
 
 	return &common.Hop{
-		IP:       hopIP,
-		Port:     hopPort,
-		ICMPType: icmpType,
+		IP:       resp.IP,
+		Port:     resp.Port,
+		ICMPType: resp.Type,
+		ICMPCode: resp.Code,
 		RTT:      rtt,
-		IsDest:   hopIP.Equal(t.Target),
+		IsDest:   resp.IP.Equal(t.Target),
 	}, nil
 }

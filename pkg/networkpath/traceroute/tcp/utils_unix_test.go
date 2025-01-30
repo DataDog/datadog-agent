@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -197,11 +199,8 @@ func TestListenPackets(t *testing.T) {
 		remotePort uint16
 		seqNum     uint32
 		// output
-		expectedIP   net.IP
-		expectedPort uint16
-		expectedType uint8
-		expectedCode uint8
-		errMsg       string
+		expectedResponse response
+		errMsg           string
 	}{
 		{
 			description: "both connections timeout",
@@ -262,16 +261,17 @@ func TestListenPackets(t *testing.T) {
 				readTimeoutCount: 100,
 				readDeadline:     time.Now().Add(500 * time.Millisecond),
 			},
-			timeout:      500 * time.Millisecond,
-			localIP:      innerSrcIP,
-			localPort:    12345,
-			remoteIP:     innerDstIP,
-			remotePort:   443,
-			seqNum:       28394,
-			expectedIP:   srcIP,
-			expectedPort: 0,
-			expectedType: 0,
-			expectedCode: 0,
+			timeout:    500 * time.Millisecond,
+			localIP:    innerSrcIP,
+			localPort:  12345,
+			remoteIP:   innerDstIP,
+			remotePort: 443,
+			seqNum:     28394,
+			expectedResponse: response{
+				IP:   srcIP,
+				Type: layers.ICMPv4TypeTimeExceeded,
+				Code: layers.ICMPv4CodeTTLExceeded,
+			},
 		},
 		{
 			description: "successful TCP parsing returns IP, port, and type code",
@@ -282,32 +282,32 @@ func TestListenPackets(t *testing.T) {
 				header:  testutils.CreateMockIPv4Header(dstIP, srcIP, 6),
 				payload: tcpBytes,
 			},
-			timeout:      500 * time.Millisecond,
-			localIP:      srcIP,
-			localPort:    12345,
-			remoteIP:     dstIP,
-			remotePort:   443,
-			seqNum:       28394,
-			expectedIP:   dstIP,
-			expectedPort: 443,
-			expectedType: 0,
-			expectedCode: 0,
+			timeout:    500 * time.Millisecond,
+			localIP:    srcIP,
+			localPort:  12345,
+			remoteIP:   dstIP,
+			remotePort: 443,
+			seqNum:     28394,
+			expectedResponse: response{
+				IP:   dstIP,
+				Port: 443,
+			},
 		},
 	}
 
 	for _, test := range tt {
 		t.Run(test.description, func(t *testing.T) {
-			actualIP, actualPort, actualTypeCode, _, actualErr := listenPackets(test.icmpConn, test.tcpConn, test.timeout, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
+			actualResponse := listenPackets(test.icmpConn, test.tcpConn, test.timeout, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
 			if test.errMsg != "" {
-				require.Error(t, actualErr)
-				assert.True(t, strings.Contains(actualErr.Error(), test.errMsg), "error mismatch: expected %q, got %q", test.errMsg, actualErr.Error())
+				require.Error(t, actualResponse.Err)
+				assert.True(t, strings.Contains(actualResponse.Err.Error(), test.errMsg), "error mismatch: expected %q, got %q", test.errMsg, actualResponse.Err.Error())
 				return
 			}
-			require.NoError(t, actualErr)
-			assert.Truef(t, test.expectedIP.Equal(actualIP), "mismatch source IPs: expected %s, got %s", test.expectedIP.String(), actualIP.String())
-			assert.Equal(t, test.expectedPort, actualPort)
-			assert.Equal(t, test.expectedType, actualTypeCode.Type())
-			assert.Equal(t, test.expectedCode, actualTypeCode.Code())
+			require.NoError(t, actualResponse.Err)
+			diff := cmp.Diff(test.expectedResponse, actualResponse,
+				cmpopts.IgnoreFields(response{}, "Time"), // not important for this test
+			)
+			assert.Empty(t, diff)
 		})
 	}
 }
