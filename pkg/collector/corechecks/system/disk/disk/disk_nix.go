@@ -205,6 +205,10 @@ func (c *Check) collectDiskMetrics(sender sender.Sender) error {
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 		tags = append(tags, fmt.Sprintf("device_name:%s", deviceName))
 		tags = append(tags, c.getDeviceTags(deviceName, "")...)
+		label, ok := c.deviceLabels[deviceName]
+		if ok {
+			tags = append(tags, fmt.Sprintf("label:%s", label), fmt.Sprintf("device_label:%s", label))
+		}
 		c.sendDiskMetrics(sender, ioCounters, tags)
 	}
 
