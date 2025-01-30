@@ -8,8 +8,6 @@ package inventoryhaagentimpl
 
 import (
 	"context"
-	"crypto/tls"
-	"net/http"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -44,11 +42,6 @@ type Provides struct {
 // NewComponent creates a new inventoryhaagentimpl component
 func NewComponent(reqs Requires) (Provides, error) {
 	hname, _ := hostname.Get(context.Background())
-	// HTTP client need not verify ha-agent cert since it's self-signed
-	// at start-up. TLS used for encryption not authentication.
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
 	i := &inventoryhaagentimpl{
 		conf:     reqs.Config,
 		log:      reqs.Log,
