@@ -44,7 +44,7 @@ type injectionFilter struct {
 // specific check.
 func (f *injectionFilter) IsNamespaceEligible(ns string) bool {
 	if !f.enabled {
-		log.Debugf("APM Instrumentation is disabled")
+		log.Debugf("injection filter is disabled")
 		return false
 	}
 
