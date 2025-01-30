@@ -6,8 +6,6 @@
 package agenttests
 
 import (
-	"fmt"
-	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
@@ -43,12 +41,11 @@ func (s *testInstallScriptSuite) TestInstallAgentPackage() {
 
 func (s *testInstallScriptSuite) InstallLastStable() {
 	// Arrange
-	structuredStableAgentVersion, err := agentVersion.New(s.StableAgentVersion().Version(), "")
-	s.Require().NoError(err, "Agent version was in the wrong format")
 
 	// Act
 	output, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
-		"DD_AGENT_MINOR_VERSION": fmt.Sprintf("%d.0", structuredStableAgentVersion.Minor),
+		"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": s.StableAgentVersion().PackageVersion(),
+		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        "install.datadoghq.com",
 	}))
 
 	// Assert
@@ -57,7 +54,7 @@ func (s *testInstallScriptSuite) InstallLastStable() {
 		HasARunningDatadogInstallerService().
 		HasARunningDatadogAgentService().
 		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, structuredStableAgentVersion.GetNumber())
+			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
 }
 
