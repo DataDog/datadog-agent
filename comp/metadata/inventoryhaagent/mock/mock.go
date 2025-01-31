@@ -7,18 +7,8 @@
 package mock
 
 import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
 	inventoryhaagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryhaagent/def"
 )
-
-// Module defines the fx options for the mock component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock))
-}
 
 type inventoryhaagentMock struct{}
 
