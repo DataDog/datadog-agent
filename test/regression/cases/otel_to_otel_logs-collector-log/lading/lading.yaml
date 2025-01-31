@@ -25,6 +25,6 @@ blackhole:
   - http:
       binding_addr: "127.0.0.1:9094"
       body_variant: "nothing"
-# target_metrics:
-#   - prometheus:
-#       uri: "http://0.0.0.0:8888/metrics"
+target_metrics:
+  - prometheus:
+      uri: "http://0.0.0.0:8888/metrics"
