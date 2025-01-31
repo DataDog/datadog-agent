@@ -20,9 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
-	k8s "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
 )
@@ -58,9 +55,9 @@ func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 		providers["ec2"] = &providerDef{10, ec2.GetTags}
 	}
 
-	if env.IsFeaturePresent(env.Kubernetes) {
-		providers["kubernetes"] = &providerDef{10, k8s.NewKubeNodeTagsProvider(conf).GetTags}
-	}
+	// if env.IsFeaturePresent(env.Kubernetes) {
+	// 	providers["kubernetes"] = &providerDef{10, k8s.NewKubeNodeTagsProvider(conf).GetTags}
+	// }
 
 	if env.IsFeaturePresent(env.Docker) {
 		providers["docker"] = &providerDef{1, docker.GetTags}
@@ -123,16 +120,16 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 		hostTags = appendToHostTags(hostTags, []string{"env:" + env})
 	}
 
-	hname, _ := hostname.Get(ctx)
-	clusterName := clustername.GetClusterNameTagValue(ctx, hname)
-	if clusterName != "" {
-		clusterNameTags := []string{"kube_cluster_name:" + clusterName}
-		if !conf.GetBool("disable_cluster_name_tag_key") {
-			clusterNameTags = append(clusterNameTags, "cluster_name:"+clusterName)
-			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
-		}
-		hostTags = appendToHostTags(hostTags, clusterNameTags)
-	}
+	// hname, _ := hostname.Get(ctx)
+	// clusterName := clustername.GetClusterNameTagValue(ctx, hname)
+	// if clusterName != "" {
+	// 	clusterNameTags := []string{"kube_cluster_name:" + clusterName}
+	// 	if !conf.GetBool("disable_cluster_name_tag_key") {
+	// 		clusterNameTags = append(clusterNameTags, "cluster_name:"+clusterName)
+	// 		log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
+	// 	}
+	// 	hostTags = appendToHostTags(hostTags, clusterNameTags)
+	// }
 
 	if haagenthelpers.IsEnabled(conf) {
 		hostTags = appendToHostTags(hostTags, haagenthelpers.GetHaAgentTags(conf))

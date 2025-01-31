@@ -8,8 +8,6 @@ package telemetry
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -66,8 +64,7 @@ func NewStore(telemetryComp telemetry.Component) *Store {
 			"poll_duration",
 			[]string{"provider"},
 			"Poll duration distribution by config provider (in seconds).",
-			// The default prometheus buckets are adapted to measure response time of network services
-			prometheus.DefBuckets,
+			[]float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
 	}

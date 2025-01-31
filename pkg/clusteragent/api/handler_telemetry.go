@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -22,7 +20,7 @@ var (
 
 	apiElapsed = telemetry.NewHistogramWithOpts("", "api_elapsed",
 		[]string{"handler", "status", "forwarded"}, "Poll duration distribution by config provider (in seconds).",
-		prometheus.DefBuckets,
+		[]float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
 

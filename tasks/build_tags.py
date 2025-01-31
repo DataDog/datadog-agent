@@ -17,6 +17,7 @@ from tasks.flavor import AgentFlavor
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
 ALL_TAGS = {
+    "cluodfoundry",
     "clusterchecks",
     "consul",
     "containerd",
@@ -62,6 +63,7 @@ ALL_TAGS = {
 
 # AGENT_TAGS lists the tags needed when building the agent.
 AGENT_TAGS = {
+    "cluodfoundry",
     "consul",
     "containerd",
     "no_dynamic_plugins",
@@ -204,7 +206,8 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 
 
 # CHECKS_AGENT_TAGS lists the tags needed when building the checks agent
-CHECKS_AGENT_TAGS = {"zlib", "zstd", "python"}
+# serverless tag is to ensure we do not include telemetry in the checks agent
+CHECKS_AGENT_TAGS = {"zlib", "zstd", "python", "serverless"}
 
 CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 

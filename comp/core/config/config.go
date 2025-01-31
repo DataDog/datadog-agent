@@ -17,6 +17,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 )
 
 // Reader is a subset of Config that only allows reading of configuration
@@ -79,7 +80,9 @@ func NewServerlessConfig(path string) (Component, error) {
 }
 
 func newComponent(deps dependencies) (provides, error) {
+	rss.Before("config")
 	c, err := newConfig(deps)
+	rss.After("config")
 	return provides{
 		Comp:          c,
 		FlareProvider: flaretypes.NewProvider(c.fillFlare),

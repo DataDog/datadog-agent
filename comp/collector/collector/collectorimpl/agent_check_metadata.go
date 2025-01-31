@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/stats"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
@@ -100,7 +100,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}
 
-	configErrors := autodiscoveryimpl.GetConfigErrors()
+	configErrors := stats.GetConfigErrors()
 	for check, e := range configErrors {
 		status := []interface{}{
 			check, check, "initialization", "ERROR", e,

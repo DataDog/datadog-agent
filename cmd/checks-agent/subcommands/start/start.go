@@ -9,32 +9,26 @@ package start
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
+	"runtime"
+	"runtime/debug"
+
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
-	"time"
 
-	"github.com/cenkalti/backoff"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/metadata"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/onlycollectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/proto"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -47,27 +41,84 @@ import (
 	remoteTagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	haagentfxnoop "github.com/DataDog/datadog-agent/comp/haagent/fx-noop"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 )
 
 type CLIParams struct {
 	confPath    string
 	pidfilePath string
+}
+
+type memoryStats struct {
+	heapSize uint64
+}
+
+type mockSender struct{}
+
+func (m *mockSender) Commit()                                                                     {}
+func (m *mockSender) Gauge(metric string, value float64, hostname string, tags []string)          {}
+func (m *mockSender) GaugeNoIndex(metric string, value float64, hostname string, tags []string)   {}
+func (m *mockSender) Rate(metric string, value float64, hostname string, tags []string)           {}
+func (m *mockSender) Count(metric string, value float64, hostname string, tags []string)          {}
+func (m *mockSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {}
+func (m *mockSender) MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
+}
+func (m *mockSender) Counter(metric string, value float64, hostname string, tags []string)      {}
+func (m *mockSender) Histogram(metric string, value float64, hostname string, tags []string)    {}
+func (m *mockSender) Historate(metric string, value float64, hostname string, tags []string)    {}
+func (m *mockSender) Distribution(metric string, value float64, hostname string, tags []string) {}
+func (m *mockSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string) {
+}
+func (m *mockSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
+}
+func (m *mockSender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
+	return nil
+}
+func (m *mockSender) CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
+	return nil
+}
+func (m *mockSender) Event(e event.Event)                                  {}
+func (m *mockSender) EventPlatformEvent(rawEvent []byte, eventType string) {}
+func (m *mockSender) GetSenderStats() stats.SenderStats {
+	return stats.SenderStats{}
+}
+func (m *mockSender) DisableDefaultHostname(disable bool) {}
+func (m *mockSender) SetCheckCustomTags(tags []string)    {}
+func (m *mockSender) SetCheckService(service string)      {}
+func (m *mockSender) SetNoIndex(noIndex bool)             {}
+func (m *mockSender) FinalizeCheckServiceTag()            {}
+func (m *mockSender) OrchestratorMetadata(msgs []types.ProcessMessageBody, clusterID string, nodeType int) {
+}
+func (m *mockSender) OrchestratorManifest(msgs []types.ProcessMessageBody, clusterID string) {}
+
+type mockSenderManager struct{}
+
+func (m *mockSenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
+	return &mockSender{}, nil
+}
+func (m *mockSenderManager) SetSender(sender.Sender, checkid.ID) error {
+	return nil
+}
+func (m *mockSenderManager) DestroySender(id checkid.ID) {
+
+}
+func (m *mockSenderManager) GetDefaultSender() (sender.Sender, error) {
+	return &mockSender{}, nil
 }
 
 // MakeCommand returns the start subcommand for the 'dogstatsd' command.
@@ -78,7 +129,12 @@ func MakeCommand() *cobra.Command {
 		Short: "Start Checks Agent",
 		Long:  `Runs Checks Agent in the foreground`,
 		RunE: func(*cobra.Command, []string) error {
-			return RunChecksAgent(cliParams, "", start)
+			heapSize := getAlloc()
+
+			fmt.Printf("value before Fx components = %d KB\n", heapSize)
+			return RunChecksAgent(cliParams, "", start, memoryStats{
+				heapSize: heapSize,
+			})
 		},
 	}
 
@@ -89,9 +145,10 @@ func MakeCommand() *cobra.Command {
 	return startCmd
 }
 
-func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{}) error {
+func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{}, memstats memoryStats) error {
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
+		fx.Supply(memstats),
 
 		// Configuration
 		fx.Supply(config.NewParams(
@@ -113,23 +170,7 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		fx.Supply(secrets.NewEnabledParams()),
 		secretsimpl.Module(),
 		telemetryimpl.Module(),
-		collectorimpl.Module(),
-		// Sending metrics to the backend
-		metricscompressionimpl.Module(),
-		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
-		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
-		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
-		eventplatformreceiverimpl.Module(),
-		defaultforwarder.Module(defaultforwarder.NewParams()),
-		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
-		// already migrated components to request it.
-		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
-			return demuxInstance.Serializer()
-		}),
-
-		fx.Provide(func(ms serializer.MetricSerializer) option.Option[serializer.MetricSerializer] {
-			return option.New[serializer.MetricSerializer](ms)
-		}),
+		onlycollectorimpl.Module(),
 		hostnameimpl.Module(),
 		remoteTagger.Module(tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) {
@@ -144,34 +185,46 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		}),
 
 		fetchonlyimpl.Module(),
-		haagentfx.Module(),
+		haagentfxnoop.Module(),
 
 		pidimpl.Module(),
 		fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
+		fx.Provide(func() sender.SenderManager {
+			return &mockSenderManager{}
+		}),
 	)
 }
 
 func start(
 	cliParams *CLIParams,
+	memoryStats memoryStats,
 	config config.Component,
 	log log.Component,
 	collector collector.Component,
-	demultiplexer demultiplexer.Component,
+	senderManager sender.SenderManager,
 	tagger tagger.Component,
 	authToken authtoken.Component,
-	telemetry telemetry.Component,
+	_ telemetry.Component,
 	_ pid.Component,
 ) error {
+	currentheapSize := getAlloc()
+	fmt.Printf("value after Fx components = %d KB\n", currentheapSize)
+	fmt.Printf("heap size delta after components initialization = %d KB\n", heapDelta(memoryStats.heapSize, currentheapSize))
 
+	// Free memory after initializing all components to return memory to the OS
+	// as soon as possible. That way RSS will be lower
+	debug.FreeOSMemory()
+
+	currentheapSize = getAlloc()
+	fmt.Printf("value after FreeOSMemory = %d KB\n", currentheapSize)
+	fmt.Printf("heap size delta after FreeOSMemory = %d KB\n", heapDelta(memoryStats.heapSize, currentheapSize))
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
 	defer StopAgent(cancel, log)
 
 	go func() {
-		port := config.GetString("checks_agent_debug_port")
-		addr := net.JoinHostPort("localhost", port)
-		http.Handle("/telemetry", telemetry.Handler())
+		addr := net.JoinHostPort("localhost", "6060")
 		err := http.ListenAndServe(addr, nil)
 		if err != nil {
 			log.Warnf("pprof server: %s", err)
@@ -184,39 +237,28 @@ func start(
 		return fmt.Errorf("unable to fetch authentication token")
 	}
 
-	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
 	}
-	ctx, StreamCancel := context.WithCancel(metadata.NewOutgoingContext(ctx, md))
-	defer StreamCancel()
 
-	// NOTE: we're using InsecureSkipVerify because the gRPC server only
-	// persists its TLS certs in memory, and we currently have no
-	// infrastructure to make them available to clients. This is NOT
-	// equivalent to grpc.WithInsecure(), since that assumes a non-TLS
-	// connection.
-	creds := credentials.NewTLS(&tls.Config{
-		InsecureSkipVerify: true,
-	})
-
-	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
-		ctx,
-		fmt.Sprintf(":%v", config.GetInt("cmd_port")),
-		grpc.WithTransportCredentials(creds),
-	)
+	url := fmt.Sprintf("https://localhost:%v/v1/grpc/autodiscovery/stream_configs", config.GetInt("cmd_port"))
+	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		return err
 	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
-	client := core.NewAgentSecureClient(conn)
+	stream := httputils.NewStream(client, req)
 
-	// TODO: figure out how to initial.ize checks context
+	// TODO: figure out how to initial.ize checks contexts
 	// check.InitializeInventoryChecksContext(invChecks)
 
-	scheduler := pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, option.None[integrations.Component](), tagger)
+	scheduler := pkgcollector.InitCheckScheduler(option.New(collector), &mockSenderManager{}, option.None[integrations.Component](), tagger)
 
-	// // Start the scheduler
-	go startScheduler(ctx, StreamCancel, client, scheduler, log)
+	// Start the scheduler
+	go startScheduler(ctx, stream, scheduler, log, config)
 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh, log)
@@ -226,12 +268,10 @@ func start(
 		return err
 	}
 
-	if err := setupInternalProfiling(config); err != nil {
-		return log.Errorf("Error while setuping internal profiling, exiting: %v", err)
-	}
-
 	// Block here until we receive a stop signal
 	<-stopCh
+
+	stream.Close()
 
 	return nil
 }
@@ -289,105 +329,68 @@ func StopAgent(cancel context.CancelFunc, log log.Component) {
 	log.Flush()
 }
 
-type autodiscoveryStream struct {
-	autodiscoveryStream       core.AgentSecure_AutodiscoveryStreamConfigClient
-	autodiscoveryStreamCancel context.CancelFunc
+type auConfig struct {
+	integration.Config
+	EventType string `json:"event_type,omitempty"`
 }
 
-func (a *autodiscoveryStream) initStream(ctx context.Context, client core.AgentSecureClient, log log.Component) error {
-	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 500 * time.Millisecond
-	expBackoff.MaxInterval = 5 * time.Minute
-	expBackoff.MaxElapsedTime = 0 * time.Minute
-
-	return backoff.Retry(func() error {
-		select {
-		case <-ctx.Done():
-			return &backoff.PermanentError{}
-		default:
-		}
-
-		stream, err := client.AutodiscoveryStreamConfig(ctx, nil)
-		if err != nil {
-			log.Infof("unable to establish stream, will possibly retry: %s", err)
-			// We need to handle the case that the kernel agent dies
-			return err
-		}
-
-		a.autodiscoveryStream = stream
-
-		log.Info("autodiscovery stream established successfully")
-		return nil
-	}, expBackoff)
+type results struct {
+	Results map[string][]auConfig `json:"result,omitempty"`
 }
 
-func startScheduler(ctx context.Context, f context.CancelFunc, client core.AgentSecureClient, scheduler *pkgcollector.CheckScheduler, log log.Component) {
-	// Start a stream using the grpc Client to consume autodiscovery updates for the different configurations
-	autodiscoveryStream := &autodiscoveryStream{
-		autodiscoveryStreamCancel: f,
-	}
-
+func startScheduler(ctx context.Context, client *httputils.HttpStream, scheduler *pkgcollector.CheckScheduler, log log.Component, config config.Component) {
+	client.Connect()
 	for {
-		if autodiscoveryStream.autodiscoveryStream == nil {
-			err := autodiscoveryStream.initStream(ctx, client, log)
+		select {
+		case data := <-client.Data:
+			results := results{}
+			log.Debugf("RECEIVED DATA: %s", string(data))
+			err := json.Unmarshal(data, &results)
 			if err != nil {
-				log.Warnf("error received trying to start stream: %s", err)
-				continue
-			}
-		}
-		log.Infof("autodiscoveryStream: %+v\n", autodiscoveryStream.autodiscoveryStream)
-
-		streamConfigs, err := autodiscoveryStream.autodiscoveryStream.Recv()
-
-		if err != nil {
-			autodiscoveryStream.autodiscoveryStreamCancel()
-
-			autodiscoveryStream.autodiscoveryStream = nil
-
-			if err != io.EOF {
-				log.Warnf("error received from autodiscovery stream: %s", err)
+				log.Warnf("Failed to parse json: %v", err)
+				break
 			}
 
-			continue
-		}
+			rss.Before("Autodiscovery Stream")
+			defer rss.After("Autodiscovery Stream")
 
-		scheduleConfigs := []integration.Config{}
-		unscheduleConfigs := []integration.Config{}
+			scheduleConfigs := []integration.Config{}
+			unscheduleConfigs := []integration.Config{}
 
-		for _, config := range streamConfigs.Configs {
-			log.Infof("received autodiscovery scheduler config event %s for check %s", config.EventType.String(), config.Name)
-			if config.EventType == core.ConfigEventType_SCHEDULE {
-				scheduleConfigs = append(scheduleConfigs, proto.AutodiscoveryConfigFromProtobufConfig(config))
-			} else if config.EventType == core.ConfigEventType_UNSCHEDULE {
-				unscheduleConfigs = append(unscheduleConfigs, proto.AutodiscoveryConfigFromProtobufConfig(config))
+			for _, configs := range results.Results {
+				for _, config := range configs {
+					log.Infof("received autodiscovery scheduler config event %s for check %s", config.EventType, config.Name)
+					if config.EventType == "SCHEDULE" {
+						scheduleConfigs = append(scheduleConfigs, config.Config)
+					} else if config.EventType == "UNSCHEDULE" {
+						unscheduleConfigs = append(scheduleConfigs, config.Config)
+					}
+				}
 			}
-		}
 
-		scheduler.Schedule(scheduleConfigs)
-		scheduler.Unschedule(unscheduleConfigs)
+			scheduler.Schedule(scheduleConfigs)
+			scheduler.Unschedule(unscheduleConfigs)
+		case err := <-client.Error:
+			log.Warnf("Autodiscovery Stream Error: %v", err)
+		case <-client.Exit:
+			log.Warnf("Stream closed.")
+			return
+		}
 	}
 }
 
-func setupInternalProfiling(config config.Component) error {
-	runtime.MemProfileRate = 1
-	site := fmt.Sprintf(profiling.ProfilingURLTemplate, config.GetString("site"))
-
-	// We need the trace agent runnning to send profiles
-	profSettings := profiling.Settings{
-		ProfilingURL:         site,
-		Socket:               "/var/run/datadog/apm.socket",
-		Env:                  "local",
-		Service:              "checks-agent",
-		Period:               config.GetDuration("internal_profiling.period"),
-		CPUDuration:          config.GetDuration("internal_profiling.cpu_duration"),
-		MutexProfileFraction: config.GetInt("internal_profiling.mutex_profile_fraction"),
-		BlockProfileRate:     config.GetInt("internal_profiling.block_profile_rate"),
-		WithGoroutineProfile: config.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-		WithBlockProfile:     config.GetBool("internal_profiling.enable_block_profiling"),
-		WithMutexProfile:     config.GetBool("internal_profiling.enable_mutex_profiling"),
-		WithDeltaProfiles:    config.GetBool("internal_profiling.delta_profiles"),
-		CustomAttributes:     config.GetStringSlice("internal_profiling.custom_attributes"),
+// heapDelta returns the delta in KB between
+// the current heap size and the previous heap size.
+func heapDelta(prev, cur uint64) uint64 {
+	if cur < prev {
+		return 0
 	}
+	return cur - prev
+}
 
-	return profiling.Start(profSettings)
+// getAlloc returns the current heap size in KB.
+func getAlloc() uint64 {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	return m.Alloc / 1024
 }

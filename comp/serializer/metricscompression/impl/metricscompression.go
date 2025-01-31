@@ -11,6 +11,7 @@ import (
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	zlib "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 )
 
 // Requires contains the config for Compression
@@ -20,8 +21,11 @@ type Requires struct {
 
 // NewCompressorReq returns the compression component
 func NewCompressorReq(req Requires) Provides {
+	rss.Before("metrciscompressionimpl")
+	comp := selector.FromConfig(req.Cfg)
+	rss.After("metrciscompressionimpl")
 	return Provides{
-		selector.FromConfig(req.Cfg),
+		Comp: comp,
 	}
 }
 

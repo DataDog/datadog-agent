@@ -16,6 +16,7 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
@@ -74,13 +75,23 @@ func (server *apiServer) startCMDServer(
 		remoteAgentRegistry: server.remoteAgentRegistry,
 		autodiscovery:       server.autoConfig,
 		configComp:          cfg,
+		demultiplexer:       server.demultiplexer,
 	})
 
 	dopts := []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewTLS(server.authToken.GetTLSClientConfig()))}
 
 	// starting grpc gateway
 	ctx := context.Background()
-	gwmux := runtime.NewServeMux()
+	gwmux := runtime.NewServeMux(
+		runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{
+			MarshalOptions: protojson.MarshalOptions{
+				UseProtoNames: true,
+			},
+			UnmarshalOptions: protojson.UnmarshalOptions{
+				DiscardUnknown: true,
+			},
+		}),
+	)
 	err = pb.RegisterAgentHandlerFromEndpoint(
 		ctx, gwmux, cmdAddr, dopts)
 	if err != nil {

@@ -6,10 +6,12 @@
 package util
 
 import (
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
 func TestGetNamespacedBaseOwnerReference(t *testing.T) {
@@ -51,7 +53,7 @@ func TestGetNamespacedBaseOwnerReference(t *testing.T) {
 
 	for i := range tests {
 		t.Run(tests[i].name, func(t *testing.T) {
-			actual := GetNamespacedBaseOwnerReference(&tests[i].input)
+			actual := GetNamespacedBaseOwnerReference(tests[i].input.Ownerref.Kind, tests[i].input.Ownerref.Name, tests[i].input.Namespace)
 			assert.True(t, reflect.DeepEqual(tests[i].expected, actual))
 		})
 	}

@@ -20,15 +20,11 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 /*
@@ -263,23 +259,23 @@ func addExpvarPythonInitErrors(msg string) error {
 	return errors.New(msg)
 }
 
-func sendTelemetry(pythonVersion string) {
-	tags := []string{
-		fmt.Sprintf("python_version:%s", pythonVersion),
-	}
-	if agentVersion, err := version.Agent(); err == nil {
-		tags = append(tags,
-			fmt.Sprintf("agent_version_major:%d", agentVersion.Major),
-			fmt.Sprintf("agent_version_minor:%d", agentVersion.Minor),
-			fmt.Sprintf("agent_version_patch:%d", agentVersion.Patch),
-		)
-	}
-	aggregator.AddRecurrentSeries(&metrics.Serie{
-		Name:   "datadog.agent.python.version",
-		Points: []metrics.Point{{Value: 1.0}},
-		Tags:   tagset.CompositeTagsFromSlice(tags),
-		MType:  metrics.APIGaugeType,
-	})
+func sendTelemetry(_ string) {
+	// tags := []string{
+	// 	fmt.Sprintf("python_version:%s", pythonVersion),
+	// }
+	// if agentVersion, err := version.Agent(); err == nil {
+	// 	tags = append(tags,
+	// 		fmt.Sprintf("agent_version_major:%d", agentVersion.Major),
+	// 		fmt.Sprintf("agent_version_minor:%d", agentVersion.Minor),
+	// 		fmt.Sprintf("agent_version_patch:%d", agentVersion.Patch),
+	// 	)
+	// }
+	// aggregator.AddRecurrentSeries(&metrics.Serie{
+	// 	Name:   "datadog.agent.python.version",
+	// 	Points: []metrics.Point{{Value: 1.0}},
+	// 	Tags:   tagset.CompositeTagsFromSlice(tags),
+	// 	MType:  metrics.APIGaugeType,
+	// })
 }
 
 func pathToBinary(name string, ignoreErrors bool) (string, error) {

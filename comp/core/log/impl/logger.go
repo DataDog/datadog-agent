@@ -15,6 +15,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 )
 
 // NewTemporaryLoggerWithoutInit returns a logger component instance. It assumes the logger has already been
@@ -51,6 +52,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		return Provides{}, errors.New("must call one of core.BundleParams.ForOneShot or ForDaemon")
 	}
 
+	rss.Before("log")
 	err := pkglogsetup.SetupLogger(
 		pkglogsetup.LoggerName(deps.Params.LoggerName()),
 		deps.Params.LogLevelFn(deps.Config),
@@ -69,6 +71,8 @@ func NewComponent(deps Requires) (Provides, error) {
 		l.Flush()
 		return nil
 	}})
+
+	rss.After("log")
 
 	return Provides{Comp: l}, nil
 }

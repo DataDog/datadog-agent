@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -122,14 +123,17 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 }
 
 func newSecretResolverProvider(deps dependencies) provides {
+	rss.Before("secrets")
 	resolver := newEnabledSecretResolver(deps.Telemetry)
 	resolver.enabled = deps.Params.Enabled
-	return provides{
+	provides := provides{
 		Comp:            resolver,
 		FlareProvider:   flaretypes.NewProvider(resolver.fillFlare),
 		InfoEndpoint:    api.NewAgentEndpointProvider(resolver.writeDebugInfo, "/secrets", "GET"),
 		RefreshEndpoint: api.NewAgentEndpointProvider(resolver.handleRefresh, "/secret/refresh", "GET"),
 	}
+	rss.After("secrets")
+	return provides
 }
 
 // fillFlare add the inventory payload to flares.

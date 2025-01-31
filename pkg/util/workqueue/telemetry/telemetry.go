@@ -9,7 +9,6 @@ package telemetry
 import (
 	"sync"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -165,7 +164,7 @@ func (q *QueueMetricsProvider) NewWorkDurationMetric(subsystem string) workqueue
 				name,
 				[]string{},
 				description,
-				prometheus.DefBuckets,
+				[]float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 				commonOpts,
 			)}
 		},

@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -80,6 +81,8 @@ func NewScheduler(checksPipe chan<- check.Check) *Scheduler {
 // Enter schedules a `Check`s for execution accordingly to the `Check.Interval()` value.
 // If the interval is 0, the check is supposed to run only once.
 func (s *Scheduler) Enter(check check.Check) error {
+	rss.Before("Scheduler.Enter")
+	defer rss.After("Scheduler.Enter")
 	// enqueue immediately if this is a one-time schedule
 	if check.Interval() == 0 {
 		s.enqueueOnce(check)
@@ -154,6 +157,8 @@ func (s *Scheduler) Cancel(id checkid.ID) error {
 // Run is the Scheduler main loop.
 // This doesn't block but waits for the queues to be ready before returning.
 func (s *Scheduler) Run() {
+	rss.Before("Scheduler.Run")
+	defer rss.After("Scheduler.Run")
 	// Invoking Run does nothing if the Scheduler is already running
 	if s.running.Load() {
 		log.Debug("Scheduler is already running")

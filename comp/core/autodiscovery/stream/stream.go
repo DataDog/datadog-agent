@@ -103,10 +103,11 @@ func (s *scheduler) handleEvent(configs []integration.Config, eventType pb.Confi
 // }
 
 func protobufConfigFromAutodiscoveryConfigs(config []integration.Config, eventType pb.ConfigEventType) []*pb.Config {
+	log.Warnf("protobufConfigFromAutodiscoveryConfigs %s", eventType.String())
 	res := make([]*pb.Config, 0, len(config))
 	for _, c := range config {
 		protobufConfig := proto.ProtobufConfigFromAutodiscoveryConfig(&c)
-		protobufConfig.EventType = eventType
+		protobufConfig.EventType = eventType.String()
 		res = append(res, protobufConfig)
 	}
 	return res

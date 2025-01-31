@@ -299,6 +299,26 @@ func (mr *MockAgentSecureClientMockRecorder) RegisterRemoteAgent(ctx, in interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterRemoteAgent", reflect.TypeOf((*MockAgentSecureClient)(nil).RegisterRemoteAgent), varargs...)
 }
 
+// SendCheckMetric mocks base method.
+func (m *MockAgentSecureClient) SendCheckMetric(ctx context.Context, in *core.Metric, opts ...grpc.CallOption) (*core.MetricResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "SendCheckMetric", varargs...)
+	ret0, _ := ret[0].(*core.MetricResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SendCheckMetric indicates an expected call of SendCheckMetric.
+func (mr *MockAgentSecureClientMockRecorder) SendCheckMetric(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendCheckMetric", reflect.TypeOf((*MockAgentSecureClient)(nil).SendCheckMetric), varargs...)
+}
+
 // TaggerFetchEntity mocks base method.
 func (m *MockAgentSecureClient) TaggerFetchEntity(ctx context.Context, in *core.FetchEntityRequest, opts ...grpc.CallOption) (*core.FetchEntityResponse, error) {
 	m.ctrl.T.Helper()
@@ -903,6 +923,21 @@ func (m *MockAgentSecureServer) RegisterRemoteAgent(arg0 context.Context, arg1 *
 func (mr *MockAgentSecureServerMockRecorder) RegisterRemoteAgent(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterRemoteAgent", reflect.TypeOf((*MockAgentSecureServer)(nil).RegisterRemoteAgent), arg0, arg1)
+}
+
+// SendCheckMetric mocks base method.
+func (m *MockAgentSecureServer) SendCheckMetric(arg0 context.Context, arg1 *core.Metric) (*core.MetricResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SendCheckMetric", arg0, arg1)
+	ret0, _ := ret[0].(*core.MetricResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SendCheckMetric indicates an expected call of SendCheckMetric.
+func (mr *MockAgentSecureServerMockRecorder) SendCheckMetric(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendCheckMetric", reflect.TypeOf((*MockAgentSecureServer)(nil).SendCheckMetric), arg0, arg1)
 }
 
 // TaggerFetchEntity mocks base method.

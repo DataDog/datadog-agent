@@ -68,7 +68,7 @@ var (
 		"response_duration",
 		[]string{"mutation_type", "webhook_name", "webhook_type"},
 		"Webhook response duration distribution (in seconds).",
-		prometheus.DefBuckets, // The default prometheus buckets are adapted to measure response time
+		[]float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 	LibInjectionAttempts = telemetry.NewCounterWithOpts("admission_webhooks", "library_injection_attempts",

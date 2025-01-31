@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
@@ -32,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -56,6 +58,7 @@ type serverSecure struct {
 	remoteAgentRegistry remoteagentregistry.Component
 	autodiscovery       autodiscovery.Component
 	configComp          config.Component
+	demultiplexer       demultiplexer.Component
 }
 
 func (s *grpcServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -220,6 +223,51 @@ func (s *serverSecure) AutodiscoveryStreamConfig(_ *emptypb.Empty, out pb.AgentS
 func (s *serverSecure) GetHostTags(ctx context.Context, _ *pb.HostTagRequest) (*pb.HostTagReply, error) {
 	tags := hosttags.Get(ctx, true, s.configComp)
 	return &pb.HostTagReply{System: tags.System, GoogleCloudPlatform: tags.GoogleCloudPlatform}, nil
+}
+
+func (s *serverSecure) SendCheckMetric(_ context.Context, metric *pb.Metric) (*pb.MetricResponse, error) {
+	checkID := metric.GetCheckId()
+	metricType := metric.GetType()
+	metricName := metric.GetMetricName()
+	metricValue := metric.GetValue()
+	hostname := metric.GetHostname()
+	tags := metric.GetTags()
+	flushInterval := metric.GetFlushFirstValue()
+
+	sender, err := s.demultiplexer.GetSender(checkid.ID(checkID))
+	if err != nil || sender == nil {
+		return &pb.MetricResponse{
+			Status: "fail",
+		}, fmt.Errorf("Error submitting metric. No sender: %v", err)
+	}
+
+	switch metricType {
+	case "GAUGE":
+		log.Debugf("RPC SendCheckMetric GAUGE %s %f %s %v", metricName, metricValue, hostname, tags)
+		sender.Gauge(metricName, metricValue, hostname, tags)
+	case "RATE":
+		log.Debugf("RPC SendCheckMetric RATE %s %f %s %v", metricName, metricValue, hostname, tags)
+		sender.Rate(metricName, metricValue, hostname, tags)
+	case "COUNT":
+		log.Debugf("RPC SendCheckMetric COUNT %s %f %s %v", metricName, metricValue, hostname, tags)
+		sender.Count(metricName, metricValue, hostname, tags)
+	case "MONOTONIC_COUNT":
+		log.Debugf("RPC SendCheckMetric MONOTONIC_COUNT %s %f %s %v", metricName, metricValue, hostname, tags)
+		sender.MonotonicCountWithFlushFirstValue(metricName, metricValue, hostname, tags, flushInterval)
+	case "COUNTER":
+		log.Debugf("RPC SendCheckMetric COUNTER %s %f %s %v", metricName, metricValue, hostname, tags)
+		sender.Counter(metricName, metricValue, hostname, tags)
+	case "HISTOGRAM":
+		log.Debugf("RPC SendCheckMetric HISTOGRAM %s %f %s %v", metricName, metricValue, hostname, tags)
+		sender.Histogram(metricName, metricValue, hostname, tags)
+	case "HISTORATE":
+		log.Debugf("RPC SendCheckMetric HISTORATE %s %f %s %v", metricName, metricValue, hostname, tags)
+		sender.Historate(metricName, metricValue, hostname, tags)
+	}
+
+	return &pb.MetricResponse{
+		Status: "ok",
+	}, nil
 }
 
 func init() {

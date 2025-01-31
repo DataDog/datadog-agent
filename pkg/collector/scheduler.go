@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -81,6 +82,8 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 
 // Schedule schedules configs to checks
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
+	rss.Before("CheckScheduler.Schedule")
+	defer rss.After("CheckScheduler.Schedule")
 	if coll, ok := s.collector.Get(); ok {
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {

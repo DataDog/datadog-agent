@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package autodiscoveryimpl
+package stats
 
 import (
 	"expvar"
@@ -17,7 +17,7 @@ var (
 	errorStats = newAcErrorStats()
 )
 
-func setupAcErrors() {
+func SetupAcErrors() {
 	acErrors.Set("ConfigErrors", expvar.Func(func() interface{} {
 		return errorStats.getConfigErrors()
 	}))
@@ -102,4 +102,22 @@ func GetConfigErrors() map[string]string {
 // GetResolveWarnings get the resolve warnings/errors
 func GetResolveWarnings() map[string][]string {
 	return errorStats.getResolveWarnings()
+}
+
+func RemoveConfigError(name string) {
+	errorStats.removeConfigError(name)
+}
+
+func SetConfigError(name, err string) {
+	errorStats.setConfigError(name, err)
+}
+
+// RemoveConfigError remove the config error
+func SetResolveWarning(name string, err string) {
+	errorStats.setResolveWarning(name, err)
+}
+
+// RemoveConfigError remove the config error
+func RemoveResolveWarnings(name string) {
+	errorStats.removeResolveWarnings(name)
 }
