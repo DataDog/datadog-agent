@@ -16,7 +16,7 @@
 '@datadog/container-intake': '#process-agent-ops'
 '@datadog/agent-metrics-logs': '#agent-metrics-logs'
 '@datadog/agent-metrics': '#agent-metrics'
-'@datadog/agent-logs': '#agent-logs'
+'@datadog/agent-log-pipelines': '#agent-log-pipelines'
 '@datadog/agent-processing-and-routing': '#agent-processing-and-routing'
 '@datadog/agent-runtimes': '#agent-runtimes-ops'
 '@datadog/agent-configuration': '#agent-configuration-ops'

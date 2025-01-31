@@ -255,19 +255,19 @@ Package defaultforwarder implements a component to send payloads to the backend
 
 ### [comp/forwarder/eventplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatform)
 
-*Datadog Team*: agent-logs
+*Datadog Team*: agent-log-pipelines
 
 Package eventplatform contains the logic for forwarding events to the event platform
 
 ### [comp/forwarder/eventplatformreceiver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver)
 
-*Datadog Team*: agent-logs
+*Datadog Team*: agent-log-pipelines
 
 Package eventplatformreceiver implements the receiver for the event platform package
 
 ### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
 
-*Datadog Team*: agent-logs
+*Datadog Team*: agent-log-pipelines
 
 Package orchestrator implements the orchestrator forwarder component.
 
@@ -277,7 +277,7 @@ Package orchestratorinterface defines the interface for the orchestrator forward
 
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs) (Component Bundle)
 
-*Datadog Team*: agent-logs
+*Datadog Team*: agent-log-pipelines
 
 
 
@@ -643,7 +643,7 @@ Package rdnsquerier provides the reverse DNS querier component.
 
 ### [comp/serializer/logscompression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/logscompression)
 
-*Datadog Team*: agent-logs
+*Datadog Team*: agent-log-pipelines
 
 Package logscompression provides the component for logs compression
 

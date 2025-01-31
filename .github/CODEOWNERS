@@ -193,8 +193,8 @@
 /cmd/agent/subcommands/dogstatsd*       @DataDog/agent-metrics-logs
 /cmd/agent/subcommands/remoteconfig     @Datadog/remote-config
 /cmd/agent/subcommands/snmp             @DataDog/ndm-core
-/cmd/agent/subcommands/streamlogs       @DataDog/agent-logs
-/cmd/agent/subcommands/analyzelogs      @DataDog/agent-logs
+/cmd/agent/subcommands/streamlogs       @DataDog/agent-log-pipelines
+/cmd/agent/subcommands/analyzelogs      @DataDog/agent-log-pipelines
 /cmd/agent/subcommands/streamep         @DataDog/container-integrations
 /cmd/agent/subcommands/taggerlist       @DataDog/container-platform
 /cmd/agent/subcommands/workloadlist     @DataDog/container-platform
@@ -280,7 +280,7 @@
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-delivery
 /omnibus/config/software/openscap.rb                      @DataDog/agent-cspm
-/omnibus/config/software/sds.rb                           @DataDog/agent-logs
+/omnibus/config/software/sds.rb                           @DataDog/agent-log-pipelines
 /omnibus/config/software/snmp-traps.rb                    @DataDog/ndm-core
 /omnibus/resources/*/msi/                                 @DataDog/windows-agent
 
@@ -295,7 +295,7 @@
 /comp/core @DataDog/agent-runtimes
 /comp/dogstatsd @DataDog/agent-metrics
 /comp/forwarder @DataDog/agent-metrics
-/comp/logs @DataDog/agent-logs
+/comp/logs @DataDog/agent-log-pipelines
 /comp/metadata @DataDog/agent-configuration
 /comp/ndmtmp @DataDog/ndm-core
 /comp/netflow @DataDog/ndm-integrations
@@ -324,9 +324,9 @@
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/tagger @DataDog/container-platform
 /comp/core/workloadmeta @DataDog/container-platform
-/comp/forwarder/eventplatform @DataDog/agent-logs
-/comp/forwarder/eventplatformreceiver @DataDog/agent-logs
-/comp/forwarder/orchestrator @DataDog/agent-logs
+/comp/forwarder/eventplatform @DataDog/agent-log-pipelines
+/comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
+/comp/forwarder/orchestrator @DataDog/agent-log-pipelines
 /comp/metadata/haagent @DataDog/ndm-core
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/trace/etwtracer @DataDog/windows-agent
@@ -335,7 +335,7 @@
 /comp/haagent @DataDog/ndm-core
 /comp/languagedetection/client @DataDog/container-platform
 /comp/rdnsquerier @DataDog/ndm-integrations
-/comp/serializer/logscompression @DataDog/agent-logs
+/comp/serializer/logscompression @DataDog/agent-log-pipelines
 /comp/serializer/metricscompression @DataDog/agent-metrics
 /comp/snmpscan @DataDog/ndm-core
 # END COMPONENTS
@@ -382,8 +382,8 @@
 /comp/core/autodiscovery/listeners/cloudfoundry*.go  @DataDog/agent-integrations
 /comp/core/autodiscovery/listeners/snmp*.go   @DataDog/ndm-core
 /comp/core/autodiscovery/providers/           @DataDog/container-platform
-/comp/core/autodiscovery/providers/file*.go   @DataDog/agent-logs
-/comp/core/autodiscovery/providers/config_reader*.go @DataDog/container-platform @DataDog/agent-logs
+/comp/core/autodiscovery/providers/file*.go   @DataDog/agent-log-pipelines
+/comp/core/autodiscovery/providers/config_reader*.go @DataDog/container-platform @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/cloudfoundry*.go  @DataDog/agent-integrations
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/remote-config
 /pkg/cloudfoundry                       @Datadog/agent-integrations
@@ -497,17 +497,17 @@
 /pkg/languagedetection                  @DataDog/container-intake @DataDog/universal-service-monitoring @DataDog/agent-discovery
 /pkg/linters/                           @DataDog/agent-devx-loops
 /pkg/linters/components/                @DataDog/agent-runtimes
-/pkg/logs/                              @DataDog/agent-logs
-/pkg/logs/launchers/windowsevent        @DataDog/agent-logs @DataDog/windows-agent
-/pkg/logs/tailers/windowsevent          @DataDog/agent-logs @DataDog/windows-agent
-/pkg/logs/util/windowsevent             @DataDog/agent-logs @DataDog/windows-agent
-/pkg/logs/client                        @DataDog/agent-logs
-/pkg/logs/diagnostic                    @DataDog/agent-logs
-/pkg/logs/message                       @DataDog/agent-logs
-/pkg/logs/pipeline                      @DataDog/agent-logs
-/pkg/logs/processor                     @DataDog/agent-logs
-/pkg/logs/sds                           @DataDog/agent-logs
-/pkg/logs/sender                        @DataDog/agent-logs
+/pkg/logs/                              @DataDog/agent-log-pipelines
+/pkg/logs/launchers/windowsevent        @DataDog/agent-log-pipelines @DataDog/windows-agent
+/pkg/logs/tailers/windowsevent          @DataDog/agent-log-pipelines @DataDog/windows-agent
+/pkg/logs/util/windowsevent             @DataDog/agent-log-pipelines @DataDog/windows-agent
+/pkg/logs/client                        @DataDog/agent-log-pipelines
+/pkg/logs/diagnostic                    @DataDog/agent-log-pipelines
+/pkg/logs/message                       @DataDog/agent-log-pipelines
+/pkg/logs/pipeline                      @DataDog/agent-log-pipelines
+/pkg/logs/processor                     @DataDog/agent-log-pipelines
+/pkg/logs/sds                           @DataDog/agent-log-pipelines
+/pkg/logs/sender                        @DataDog/agent-log-pipelines
 /pkg/process/                           @DataDog/container-intake
 /pkg/process/util/address*.go           @DataDog/Networks
 /pkg/process/checks/net*.go             @DataDog/Networks
@@ -590,7 +590,7 @@
 /tasks/trace_agent.py                   @DataDog/agent-apm
 /tasks/rtloader.py                      @DataDog/agent-metrics
 /tasks/security_agent.py                @DataDog/agent-security
-/tasks/sds.py                           @DataDog/agent-logs
+/tasks/sds.py                           @DataDog/agent-log-pipelines
 /tasks/systray.py                       @DataDog/windows-agent
 /tasks/winbuildscripts/                 @DataDog/windows-agent
 /tasks/winbuild.py                      @DataDog/windows-agent
@@ -642,7 +642,7 @@
 /test/new-e2e/tests/sysprobe-functional     @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/security-agent-functional     @DataDog/windows-kernel-integrations @DataDog/agent-security
 /test/new-e2e/tests/cws                       @DataDog/agent-security
-/test/new-e2e/tests/agent-metrics-logs   @DataDog/agent-logs
+/test/new-e2e/tests/agent-log-pipelines       @DataDog/agent-log-pipelines
 /test/new-e2e/tests/windows                   @DataDog/windows-agent @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/apm                       @DataDog/agent-apm
 /test/new-e2e/tests/remote-config             @DataDog/remote-config
@@ -664,7 +664,7 @@
 /tools/retry_file_dump/                 @DataDog/agent-metrics
 /tools/windows/                         @DataDog/windows-agent
 /tools/windows/DatadogAgentInstaller/WixSetup/localization-en-us.wxl @DataDog/windows-agent @DataDog/documentation
-/tools/agent_QA/                        @DataDog/agent-metrics @DataDog/agent-logs
+/tools/agent_QA/                        @DataDog/agent-metrics @DataDog/agent-log-pipelines
 
 /internal/tools/                        @DataDog/agent-devx-loops @DataDog/agent-devx-infra
 /internal/third_party/client-go         @DataDog/container-platform

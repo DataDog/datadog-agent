@@ -30,7 +30,7 @@ TEAMS = (
     'agent-integrations',
     'agent-metrics-logs',
     'agent-metrics',
-    'agent-logs',
+    'agent-log-pipelines',
     'platform-integrations',
     'agent-ci-experience',
     'asm-go',
