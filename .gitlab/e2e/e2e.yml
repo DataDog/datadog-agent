@@ -225,7 +225,7 @@ new-e2e-windows-fips-compliance-test:
     - qa_agent_fips
     - deploy_windows_testing-a7-fips
   rules:
-    - !reference [.on_asc_or_e2e_changes]
+    - !reference [.on_arun_or_e2e_changes]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/fips-compliance
