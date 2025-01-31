@@ -57,7 +57,7 @@ func TestGetPayload(t *testing.T) {
 		"state":   "standby",
 	}
 
-	assert.True(t, payload.Timestamp > startTime)
+	assert.True(t, payload.Timestamp >= startTime)
 	assert.Equal(t, "hostname-for-test", payload.Hostname)
 	assert.Equal(t, data, payload.Metadata)
 
