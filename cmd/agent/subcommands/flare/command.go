@@ -46,9 +46,9 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	haagentmetadatafx "github.com/DataDog/datadog-agent/comp/metadata/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
-	inventoryhaagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryhaagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel/inventoryotelimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
@@ -139,7 +139,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				hostimpl.Module(),
 				inventoryhostimpl.Module(),
 				inventoryotelimpl.Module(),
-				inventoryhaagentfx.Module(),
+				haagentmetadatafx.Module(),
 				resourcesimpl.Module(),
 				authtokenimpl.Module(),
 				// inventoryagent require a serializer. Since we're not actually sending the payload to

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package inventoryhaagentimpl
+package haagentimpl
 
 import (
 	"bytes"
@@ -33,9 +33,9 @@ func getProvides(t *testing.T, confOverrides map[string]any) (Provides, error) {
 	return NewComponent(r)
 }
 
-func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *inventoryhaagentimpl {
+func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *haagentimpl {
 	p, _ := getProvides(t, confOverrides)
-	return p.Comp.(*inventoryhaagentimpl)
+	return p.Comp.(*haagentimpl)
 }
 
 func TestGetPayload(t *testing.T) {

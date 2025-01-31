@@ -287,6 +287,12 @@ send logs.
 Package metadata implements the "metadata" bundle, providing services and support for all the metadata payload sent
 by the Agent.
 
+### [comp/metadata/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/haagent)
+
+*Datadog Team*: ndm-core
+
+Package haagent implements a component to generate the 'ha_agent_metadata' metadata payload for inventory.
+
 ### [comp/metadata/host](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/host)
 
 Package host implements a component to generate the 'host' metadata payload (also known as "v5").
@@ -298,12 +304,6 @@ Package inventoryagent implements a component to generate the 'datadog_agent' me
 ### [comp/metadata/inventorychecks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventorychecks)
 
 Package inventorychecks implements a component to generate the 'check_metadata' metadata payload for inventory.
-
-### [comp/metadata/inventoryhaagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryhaagent)
-
-*Datadog Team*: ndm-core
-
-Package inventoryhaagent implements a component to generate the 'ha_agent_metadata' metadata payload for inventory.
 
 ### [comp/metadata/inventoryhost](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryhost)
 

@@ -86,7 +86,7 @@ func TestShowMetadataInventoryOtelCommand(t *testing.T) {
 		})
 }
 
-func TestShowMetadataInventoryHaAgentCommand(t *testing.T) {
+func TestShowMetadataHaAgentCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"diagnose", "show-metadata", "ha-agent"},

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package inventoryhaagentimpl implements a component to generate the 'ha_agent_metadata' metadata payload for inventory.
-package inventoryhaagentimpl
+// Package haagentimpl implements a component to generate the 'ha_agent_metadata' metadata payload for inventory.
+package haagentimpl
 
 import (
 	"encoding/json"
@@ -46,7 +46,7 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 	return nil, fmt.Errorf("could not split inventories agent payload any more, payload is too big for intake")
 }
 
-type inventoryhaagentimpl struct {
+type haagentimpl struct {
 	util.InventoryPayload
 
 	conf     config.Component
@@ -57,7 +57,7 @@ type inventoryhaagentimpl struct {
 	haAgent  haagentcomp.Component
 }
 
-func (i *inventoryhaagentimpl) refreshMetadata() {
+func (i *haagentimpl) refreshMetadata() {
 	isEnabled := i.haAgent.Enabled()
 
 	if !isEnabled {
@@ -70,7 +70,7 @@ func (i *inventoryhaagentimpl) refreshMetadata() {
 	i.data["state"] = string(i.haAgent.GetState())
 }
 
-func (i *inventoryhaagentimpl) getPayload() marshaler.JSONMarshaler {
+func (i *haagentimpl) getPayload() marshaler.JSONMarshaler {
 	i.m.Lock()
 	defer i.m.Unlock()
 
@@ -84,7 +84,7 @@ func (i *inventoryhaagentimpl) getPayload() marshaler.JSONMarshaler {
 	}
 }
 
-func (i *inventoryhaagentimpl) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+func (i *haagentimpl) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 	// GetAsJSON already return scrubbed data
 	scrubbed, err := i.GetAsJSON()
 	if err != nil {
@@ -95,13 +95,13 @@ func (i *inventoryhaagentimpl) writePayloadAsJSON(w http.ResponseWriter, _ *http
 }
 
 // Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
-func (i *inventoryhaagentimpl) Get() haAgentMetadata {
+func (i *haagentimpl) Get() haAgentMetadata {
 	i.m.Lock()
 	defer i.m.Unlock()
 	return i.getDataCopy()
 }
 
-func (i *inventoryhaagentimpl) getDataCopy() haAgentMetadata {
+func (i *haagentimpl) getDataCopy() haAgentMetadata {
 	data := haAgentMetadata{}
 	maps.Copy(data, i.data)
 	return data

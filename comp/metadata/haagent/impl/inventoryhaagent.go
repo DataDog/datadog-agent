@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package inventoryhaagentimpl implements the inventoryhaagentimpl component interface
-package inventoryhaagentimpl
+// Package haagentimpl implements the haagentimpl component interface
+package haagentimpl
 
 import (
 	"context"
@@ -15,14 +15,14 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	haagentcomp "github.com/DataDog/datadog-agent/comp/haagent/def"
+	haagent "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	inventoryhaagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryhaagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
-// Requires defines the dependencies for the inventoryhaagentimpl component
+// Requires defines the dependencies for the haagentimpl component
 type Requires struct {
 	Log        log.Component
 	Config     config.Component
@@ -30,19 +30,19 @@ type Requires struct {
 	HaAgent    haagentcomp.Component
 }
 
-// Provides defines the output of the inventoryhaagentimpl component
+// Provides defines the output of the haagentimpl component
 type Provides struct {
-	Comp                 inventoryhaagent.Component
+	Comp                 haagent.Component
 	Provider             runnerimpl.Provider
 	FlareProvider        flaretypes.Provider
 	StatusHeaderProvider status.HeaderInformationProvider
 	Endpoint             api.AgentEndpointProvider
 }
 
-// NewComponent creates a new inventoryhaagentimpl component
+// NewComponent creates a new haagentimpl component
 func NewComponent(reqs Requires) (Provides, error) {
 	hname, _ := hostname.Get(context.Background())
-	i := &inventoryhaagentimpl{
+	i := &haagentimpl{
 		conf:     reqs.Config,
 		log:      reqs.Log,
 		hostname: hname,

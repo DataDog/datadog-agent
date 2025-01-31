@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package fx provides the fx module for the inventoryhaagent component
+// Package fx provides the fx module for the haagent component
 package fx
 
 import (
-	inventoryhaagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryhaagent/def"
-	inventoryhaagentimpl "github.com/DataDog/datadog-agent/comp/metadata/inventoryhaagent/impl"
+	haagent "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
+	haagentimpl "github.com/DataDog/datadog-agent/comp/metadata/haagent/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -16,8 +16,8 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			inventoryhaagentimpl.NewComponent,
+			haagentimpl.NewComponent,
 		),
-		fxutil.ProvideOptional[inventoryhaagent.Component](),
+		fxutil.ProvideOptional[haagent.Component](),
 	)
 }

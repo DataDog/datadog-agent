@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package inventoryhaagent implements a component to generate the 'ha_agent_metadata' metadata payload for inventory.
-package inventoryhaagent
+// Package haagent implements a component to generate the 'ha_agent_metadata' metadata payload for inventory.
+package haagent
 
 // team: ndm-core
 
