@@ -15,7 +15,8 @@
 '@datadog/agent-metrics-logs': AMLII
 '@datadog/agent-metrics': AGTMETRICS
 '@datadog/agent-logs': AGNTLOG
-'@datadog/agent-shared-components': ASCII
+'@datadog/agent-runtimes': ARUN
+'@datadog/agent-configuration': ACFG
 '@datadog/container-app': CAP
 '@datadog/metrics-aggregation': AGGR
 '@datadog/serverless': SVLS
@@ -44,3 +45,4 @@
 '@datadog/injection-platform': INPLAT
 '@datadog/agent-processing-and-routing': APR
 '@DataDog/container-ecosystems': CECO
+'@datadog/agent-discovery': DSCVR

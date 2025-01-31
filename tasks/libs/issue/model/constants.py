@@ -25,7 +25,8 @@ TEAMS = (
     'opentelemetry',
     'universal-service-monitoring',
     'agent-build-and-releases',
-    'agent-shared-components',
+    'agent-configuration',
+    'agent-runtimes',
     'agent-integrations',
     'agent-metrics-logs',
     'agent-metrics',
@@ -41,4 +42,5 @@ TEAMS = (
     'apm-onboarding',
     'fleet',
     'agent-processing-and-routing',
+    'agent-discovery',
 )

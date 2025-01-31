@@ -36,10 +36,14 @@ func TestLinuxNetworkPathIntegrationSuite(t *testing.T) {
 
 func (s *linuxNetworkPathIntegrationTestSuite) TestLinuxNetworkPathIntegrationMetrics() {
 	fakeIntake := s.Env().FakeIntake
+	hostname := s.Env().Agent.Client.Hostname()
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assertMetrics(fakeIntake, c, [][]string{
 			testAgentRunningMetricTagsTCP,
 			testAgentRunningMetricTagsUDP,
 		})
+
+		s.checkDatadogEUTCP(c, hostname)
+		s.checkGoogleDNSUDP(c, hostname)
 	}, 5*time.Minute, 3*time.Second)
 }

@@ -29,7 +29,7 @@ class TestGuessFromKeywords(unittest.TestCase):
 
     def test_with_a_file(self):
         issue = MagicMock(title="fix bug", body="It comes from the file pkg/agent/build.py")
-        self.assertEqual(guess_from_keywords(issue), "agent-shared-components")
+        self.assertEqual(guess_from_keywords(issue), "agent-runtimes")
 
     def test_no_match(self):
         issue = MagicMock(title="fix bug", body="It comes from the file... hm I don't know.")
