@@ -710,9 +710,15 @@ def print_overall_pipeline_stats(ctx, n_days=90):
     all_prs: list[github.PullRequest.PullRequest] = []
     for page in range(1000):
         print('Fetching page', page)
-        prs_page = prs.get_page(page)
-
-        recent_prs = [pr for pr in prs_page if pr.updated_at >= min_date]
+        for _ in range(100):
+            try:
+                prs_page = prs.get_page(page)
+                recent_prs = [pr for pr in prs_page if pr.updated_at >= min_date]
+                break
+            except Exception:
+                print('Rate limit / 502, sleeping')
+                time.sleep(10)
+                continue
         all_prs.extend(recent_prs)
 
         # At least one pr is outdated, other PRs will be outdated as well
