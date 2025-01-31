@@ -65,8 +65,23 @@ func (s *fipsAgentSuite) TestWithSystemFIPSDisabled() {
 	windowsCommon.DisableFIPSMode(host)
 
 	s.Run("version command", func() {
-		_, err := s.execAgentCommand("version")
-		assertErrorContainsFIPSPanic(s.T(), err, "agent should panic when system FIPS is disabled")
+		s.Run("gofips enabled", func() {
+			_, err := s.execAgentCommandWithFIPS("version")
+			assertErrorContainsFIPSPanic(s.T(), err, "agent should panic when GOFIPS=1 but system FIPS is disabled")
+		})
+
+		s.Run("gofips disabled", func() {
+			_, err := s.execAgentCommand("version")
+			require.NoError(s.T(), err)
+		})
+	})
+
+	s.Run("status command", func() {
+		s.Run("gofips disabled", func() {
+			status, err := s.execAgentCommand("status")
+			require.NoError(s.T(), err)
+			assert.Contains(s.T(), status, "FIPS Mode: disabled")
+		})
 	})
 }
 
@@ -82,14 +97,22 @@ func (s *fipsAgentSuite) TestWithSystemFIPSEnabled() {
 
 		s.Run("gofips disabled", func() {
 			_, err := s.execAgentCommand("version")
-			assertErrorContainsFIPSPanic(s.T(), err, "agent should panic when attempted to run in GOFIPS=0 mode but system is in FIPS Mode")
+			require.NoError(s.T(), err)
 		})
 	})
 
 	s.Run("status command", func() {
-		status, err := s.execAgentCommand("status")
-		require.NoError(s.T(), err)
-		assert.Contains(s.T(), status, "FIPS Mode: enabled")
+		s.Run("gofips enabled", func() {
+			status, err := s.execAgentCommand("status")
+			require.NoError(s.T(), err)
+			assert.Contains(s.T(), status, "FIPS Mode: enabled")
+		})
+
+		s.Run("gofips disabled", func() {
+			status, err := s.execAgentCommand("status")
+			require.NoError(s.T(), err)
+			assert.Contains(s.T(), status, "FIPS Mode: enabled")
+		})
 	})
 }
 
