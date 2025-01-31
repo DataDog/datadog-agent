@@ -72,14 +72,10 @@ func (s *fipsAgentSuite) SetupSuite() {
 	_, err = s.InstallAgent(host, opts...)
 	require.NoError(s.T(), err)
 
-	if s.installPath == "" {
-		s.installPath, err = windowsAgent.GetInstallPathFromRegistry(host)
-		require.NoError(s.T(), err)
-	}
-	if s.configRoot == "" {
-		s.configRoot, err = windowsAgent.GetConfigRootFromRegistry(host)
-		require.NoError(s.T(), err)
-	}
+	s.installPath, err = windowsAgent.GetInstallPathFromRegistry(host)
+	require.NoError(s.T(), err)
+	s.configRoot, err = windowsAgent.GetConfigRootFromRegistry(host)
+	require.NoError(s.T(), err)
 }
 
 func (s *fipsAgentSuite) TestFIPSProviderPresent() {
