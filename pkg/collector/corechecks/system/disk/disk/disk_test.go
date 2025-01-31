@@ -526,10 +526,10 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturns
 	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 
 	w.Flush()
-	assert.Contains(t, b.String(), "Unable to get disk metrics of / mount point")
-	assert.Contains(t, b.String(), "Unable to get disk metrics of /home mount point")
-	assert.Contains(t, b.String(), "Unable to get disk metrics of /run mount point")
-	assert.Contains(t, b.String(), "Unable to get disk metrics of /dev/shm mount point")
+	assert.Contains(t, b.String(), "Unable to get disk metrics for /: error calling diskUsage. You can exclude this mountpoint in the settings if it is invalid.")
+	assert.Contains(t, b.String(), "Unable to get disk metrics for /home: error calling diskUsage. You can exclude this mountpoint in the settings if it is invalid.")
+	assert.Contains(t, b.String(), "Unable to get disk metrics for /run: error calling diskUsage. You can exclude this mountpoint in the settings if it is invalid.")
+	assert.Contains(t, b.String(), "Unable to get disk metrics for /dev/shm: error calling diskUsage. You can exclude this mountpoint in the settings if it is invalid.")
 
 }
 
