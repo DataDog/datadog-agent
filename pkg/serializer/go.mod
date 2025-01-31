@@ -82,13 +82,13 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/json v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1
 	github.com/DataDog/datadog-agent/pkg/version v0.59.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.24.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.25.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/json-iterator/go v1.1.12
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3
 	github.com/stretchr/testify v1.10.0
-	google.golang.org/protobuf v1.36.3
+	google.golang.org/protobuf v1.36.4
 )
 
 require (
