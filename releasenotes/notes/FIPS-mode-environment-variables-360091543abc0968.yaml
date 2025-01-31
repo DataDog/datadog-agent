@@ -7,4 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 ---
 security:
-  - "The `OPENSSL_CONF` and `OPENSSL_MODULES` environment variables are now\nset when running in FIPS mode. This allows applications to use the \nOpenSSL configuration and modules from the Agent.\n"
+  - "The ``OPENSSL_CONF`` and ``OPENSSL_MODULES`` environment variables are now\nset when running in FIPS mode. This allows applications to use the \nOpenSSL configuration and modules from the Agent.\n"
