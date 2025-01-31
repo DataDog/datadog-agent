@@ -307,6 +307,7 @@ require (
 	github.com/mmcloughlin/avo v0.6.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/onsi/ginkgo/v2 v2.20.2 // indirect
+	github.com/onsi/gomega v1.34.2 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.81.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.81.0 // indirect
