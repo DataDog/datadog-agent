@@ -336,6 +336,12 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 
 	podInfo := c.currentBatch.getOrAddPodInfo(pod)
 	containerInfo := podInfo.getOrAddContainerInfo(containerName, isInitcontainer)
+
+	if process.Language == nil || process.Language.Name == "" {
+		c.logger.Debugf("no language detected for process %s", process.ID)
+		return
+	}
+
 	added := containerInfo.Add(process.Language.Name)
 	if added {
 		c.freshlyUpdatedPods[pod.Name] = struct{}{}

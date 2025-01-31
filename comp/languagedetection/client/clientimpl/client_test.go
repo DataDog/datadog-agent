@@ -137,7 +137,7 @@ func TestClientSend(t *testing.T) {
 			Kind: "replicaset",
 			ID:   "dummyid",
 		},
-		containers: map[langUtil.Container]struct{}{
+		containers: map[languagemodels.Container]struct{}{
 			{
 				Name: "java-cont",
 				Init: false,
@@ -201,7 +201,7 @@ func TestClientSendFreshPods(t *testing.T) {
 			Kind: "replicaset",
 			ID:   "dummyid",
 		},
-		containers: map[langUtil.Container]struct{}{
+		containers: map[languagemodels.Container]struct{}{
 			{
 				Name: "java-cont",
 				Init: false,
@@ -247,11 +247,11 @@ func TestClientSendFreshPods(t *testing.T) {
 
 func TestClientSendContainerWithoutLanguage(t *testing.T) {
 	client, respCh := newTestClient(t)
-	containers := langUtil.ContainersLanguages{
-		langUtil.Container{
+	containers := languagemodels.ContainersLanguages{
+		languagemodels.Container{
 			Name: "undetectedable-language-container",
 			Init: false,
-		}: langUtil.LanguageSet{},
+		}: languagemodels.LanguageSet{},
 	}
 
 	podInfo := &podInfo{
@@ -426,7 +426,7 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 					Name: "nginx-replicaset-name",
 					Kind: "replicaset",
 				},
-				containers: map[langUtil.Container]struct{}{
+				containers: map[languagemodels.Container]struct{}{
 					{
 						Name: "nginx-cont-name",
 						Init: false,
@@ -775,7 +775,7 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 					Name: "nginx-replicaset-name",
 					Kind: "replicaset",
 				},
-				containers: map[langUtil.Container]struct{}{
+				containers: map[languagemodels.Container]struct{}{
 					{
 						Name: "nginx-cont-name",
 						Init: false,
