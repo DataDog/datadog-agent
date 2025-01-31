@@ -152,8 +152,28 @@ func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error)
 	return hasPackage, nil
 }
 
+// ForceInstall installs or updates a package, even if it's already installed
+func (i *installerImpl) ForceInstall(ctx context.Context, url string, args []string) error {
+	return i.doInstall(ctx, url, args, func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool {
+		if dbPkg.Name == pkg.Name && dbPkg.Version == pkg.Version {
+			log.Warnf("package %s version %s is already installed, updating it anyway", pkg.Name, pkg.Version)
+		}
+		return true
+	})
+}
+
 // Install installs or updates a package.
-func (i *installerImpl) Install(ctx context.Context, url string, args []string, force bool) error {
+func (i *installerImpl) Install(ctx context.Context, url string, args []string) error {
+	return i.doInstall(ctx, url, args, func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool {
+		if dbPkg.Name == pkg.Name && dbPkg.Version == pkg.Version {
+			log.Warnf("package %s version %s is already installed", pkg.Name, pkg.Version)
+			return false
+		}
+		return true
+	})
+}
+
+func (i *installerImpl) doInstall(ctx context.Context, url string, args []string, shouldInstallPredicate func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
@@ -169,12 +189,8 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string, 
 	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
 		return fmt.Errorf("could not get package: %w", err)
 	}
-	if dbPkg.Name == pkg.Name && dbPkg.Version == pkg.Version {
-		log.Warnf("package %s version %s is already installed", pkg.Name, pkg.Version)
-		if !force {
-			return nil
-		}
-		log.Warnf("overriding existing version")
+	if !shouldInstallPredicate(dbPkg, pkg) {
+		return nil
 	}
 	err = i.preparePackage(ctx, pkg.Name, args) // Preinst
 	if err != nil {

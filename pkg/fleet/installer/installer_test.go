@@ -212,7 +212,7 @@ func TestPurge(t *testing.T) {
 	rootPath := t.TempDir()
 	installer := newTestPackageManager(t, s, rootPath, t.TempDir())
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, false)
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 
