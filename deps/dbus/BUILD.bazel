@@ -14,8 +14,13 @@ configure_make(
     lib_source = "@dbus//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
-            "libdbus.so",
+            "libdbus-1.so",
         ],
     }),
+    deps = [
+        "//deps/expat",
+    ],
     visibility = ["//visibility:public"],
+    # Workaround for https://github.com/bazel-contrib/rules_foreign_cc/issues/1160
+    env = {"LD": ""},
 )
