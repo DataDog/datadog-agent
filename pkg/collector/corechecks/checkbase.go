@@ -151,8 +151,8 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, initConf
 			s.SetNoIndex(commonOptions.NoIndex)
 		}
 
-		if commonOptions.HAEnabled {
-			c.haEnabled = true
+		if commonOptions.HAEnabled != nil {
+			c.haEnabled = *commonOptions.HAEnabled
 		}
 
 		c.source = source
