@@ -28,30 +28,10 @@ const (
 	CheckName = "service_discovery"
 
 	refreshInterval = 1 * time.Minute
-	heartbeatTime   = 15 * time.Minute
 )
 
-type serviceInfo struct {
-	meta          ServiceMetadata
-	service       model.Service
-	LastHeartbeat time.Time
-}
-
-type serviceEvents struct {
-	start     []serviceInfo
-	stop      []serviceInfo
-	heartbeat []serviceInfo
-}
-
-type discoveredServices struct {
-	potentials      map[int]*serviceInfo
-	runningServices map[int]*serviceInfo
-
-	events serviceEvents
-}
-
 type osImpl interface {
-	DiscoverServices() (*discoveredServices, error)
+	DiscoverServices() (*model.ServicesResponse, error)
 }
 
 var newOSImpl func() (osImpl, error)
@@ -112,24 +92,21 @@ func (c *Check) Run() error {
 		return nil
 	}
 
-	disc, err := c.os.DiscoverServices()
+	response, err := c.os.DiscoverServices()
 	if err != nil {
 		return err
 	}
 
-	log.Debugf("runningServices: %d | potentials: %d",
-		len(disc.runningServices),
-		len(disc.potentials),
-	)
-	metricDiscoveredServices.Set(float64(len(disc.runningServices)))
+	log.Debugf("runningServices: %d", response.RunningServicesCount)
+	metricDiscoveredServices.Set(float64(response.RunningServicesCount))
 
-	for _, p := range disc.events.start {
+	for _, p := range response.StartedServices {
 		c.sender.sendStartServiceEvent(p)
 	}
-	for _, p := range disc.events.heartbeat {
+	for _, p := range response.HeartbeatServices {
 		c.sender.sendHeartbeatServiceEvent(p)
 	}
-	for _, p := range disc.events.stop {
+	for _, p := range response.StoppedServices {
 		c.sender.sendEndServiceEvent(p)
 	}
 

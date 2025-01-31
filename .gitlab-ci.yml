@@ -620,6 +620,12 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
+.not_on_release_branch_or_tagged_commit:
+  - <<: *if_release_branch
+    when: never
+  - <<: *if_tagged_commit
+    when: never
+
 .only_main:
   - <<: *if_not_main_branch
     when: never
@@ -815,14 +821,24 @@ workflow:
         - test/new-e2e/tests/remote-config/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-.on_asc_or_e2e_changes:
+.on_arun_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - cmd/**/*
         - pkg/**/*
         - comp/**/*
-        - test/new-e2e/tests/agent-shared-components/**/*
+        - test/new-e2e/tests/agent-runtimes/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_acfg_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/**/*
+        - pkg/**/*
+        - comp/**/*
+        - test/new-e2e/tests/agent-configuration//**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_subcommands_or_e2e_changes:

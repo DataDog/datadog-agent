@@ -75,7 +75,7 @@ generate_windows_gitlab_runner_bump_pr:
       when: never
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+){0,1}$/
       when: never
-    - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$/
+    - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
 
   script:
     # We are using the agent platform auto PR github app to access the buildenv repository (already used for macOS builds)
@@ -95,7 +95,7 @@ generate_windows_gitlab_runner_bump_pr_manual:
       when: never
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+){0,1}$/
       when: never
-    - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$/
+    - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
       when: manual
   script:
     # We are using the agent platform auto PR github app to access the buildenv repository (already used for macOS builds)

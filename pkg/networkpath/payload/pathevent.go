@@ -6,7 +6,7 @@
 // Package payload contains Network Path payload
 package payload
 
-import "github.com/DataDog/datadog-agent/pkg/network"
+import "github.com/DataDog/datadog-agent/pkg/network/payload"
 
 // Protocol defines supported network protocols
 // Please define new protocols based on the Keyword from:
@@ -48,7 +48,7 @@ type NetworkPathHop struct {
 // about the source of a path
 type NetworkPathSource struct {
 	Hostname    string       `json:"hostname"`
-	Via         *network.Via `json:"via,omitempty"`
+	Via         *payload.Via `json:"via,omitempty"`
 	NetworkID   string       `json:"network_id,omitempty"` // Today this will be a VPC ID since we only resolve AWS resources
 	Service     string       `json:"service,omitempty"`
 	ContainerID string       `json:"container_id,omitempty"`
