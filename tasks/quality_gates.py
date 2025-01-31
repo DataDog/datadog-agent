@@ -50,7 +50,7 @@ def display_pr_comment(
 
         def getMetric(metric_name, gate_name=gate['name']):
             try:
-                return metric_handler.get_formated_metric(gate_name, metric_name)
+                return metric_handler.get_formatted_metric(gate_name, metric_name)
             except KeyError:
                 return "DataNotFound"
 

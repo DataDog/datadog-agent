@@ -52,6 +52,8 @@ def string_to_byte(size: str):
             break
     if value:
         return int(value * math.pow(1024, power))
+    elif "B" in size:
+        return int(size.replace("B", ""))
     else:
         return int(size)
 
@@ -83,7 +85,7 @@ class GateMetricHandler:
         self.git_ref = git_ref
         self.bucket_branch = bucket_branch
 
-    def get_formated_metric(self, gate_name, metric_name):
+    def get_formatted_metric(self, gate_name, metric_name):
         return byte_to_string(self.metrics[gate_name][metric_name])
 
     def register_metric(self, gate_name, metric_name, metric_value):
