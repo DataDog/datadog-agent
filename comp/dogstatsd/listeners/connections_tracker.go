@@ -76,7 +76,7 @@ func (t *ConnectionTracker) HandleConnections() {
 			}
 		case conn := <-t.connToClose:
 			if err := conn.Close(); err != nil {
-				log.Infof("dogstatsd-%s: failed to close connection: %v", t.name, err)
+				log.Warnf("dogstatsd-%s: failed to close connection: %v", t.name, err)
 			}
 
 			if _, ok := t.connections[conn]; !ok {
@@ -101,7 +101,7 @@ func (t *ConnectionTracker) HandleConnections() {
 				}
 
 				if err != nil {
-					log.Debugf("dogstatsd-%s: failed to shutdown connection (write): %v", t.name, err)
+					log.Warnf("dogstatsd-%s: failed to shutdown connection (write): %v", t.name, err)
 					err = nil
 				}
 			}
@@ -121,7 +121,7 @@ func (t *ConnectionTracker) HandleConnections() {
 				}
 
 				if err != nil {
-					log.Debugf("dogstatsd-%s: failed to shutdown connection (read): %v", t.name, err)
+					log.Warnf("dogstatsd-%s: failed to shutdown connection (read): %v", t.name, err)
 					err = nil
 				}
 			}
