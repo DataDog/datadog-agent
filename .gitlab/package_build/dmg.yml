@@ -143,7 +143,6 @@ new-agent_dmg-x64-a7:
   tags: ["macos:ventura-amd64-test", "specific:true"]
   needs: []
   timeout: 6h
-  parallel: 5
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -155,9 +154,6 @@ new-agent_dmg-x64-a7:
     - swift --version
     - xcrun --version
     - 'echo "$(xcrun --find swift-stdlib-tool)" "$(xcrun --find bitcode_strip)"'
-    - '"$(xcrun --find swift-stdlib-tool)" --version'
-    - '"$(xcrun --find bitcode_strip)" --version'
-    - exit
     - set -e
     - !reference [.vault_login]
     # Setup
