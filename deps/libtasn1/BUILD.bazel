@@ -8,7 +8,10 @@ configure_make(
     lib_source = "@libtasn1//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
+            "libtasn1.so",
         ],
     }),
     visibility = ["//visibility:public"],
+    # Workaround for https://github.com/bazel-contrib/rules_foreign_cc/issues/1160
+    env = {"LD": ""},
 )
