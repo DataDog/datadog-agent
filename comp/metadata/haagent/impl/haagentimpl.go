@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 type haAgentMetadata = map[string]interface{}
@@ -30,7 +29,6 @@ type Payload struct {
 	Hostname  string          `json:"hostname"`
 	Timestamp int64           `json:"timestamp"`
 	Metadata  haAgentMetadata `json:"ha_agent_metadata"`
-	UUID      string          `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -80,7 +78,6 @@ func (i *haagentimpl) getPayload() marshaler.JSONMarshaler {
 		Hostname:  i.hostname,
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  i.getDataCopy(),
-		UUID:      uuid.GetUUID(),
 	}
 }
 
