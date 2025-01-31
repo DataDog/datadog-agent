@@ -52,11 +52,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	i.InventoryPayload = util.CreateInventoryPayload(reqs.Config, reqs.Log, reqs.Serializer, i.getPayload, "ha-agent.json")
 
-	if i.Enabled {
-		// We want to be notified when the configuration is updated
-		reqs.Config.OnUpdate(func(_ string, _, _ any) { i.Refresh() })
-	}
-
 	return Provides{
 		Comp:                 i,
 		Provider:             i.MetadataProvider(),

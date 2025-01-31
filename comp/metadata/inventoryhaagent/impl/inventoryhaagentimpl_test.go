@@ -16,8 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
 
@@ -84,14 +82,6 @@ func TestGet(t *testing.T) {
 func TestFlareProviderFilename(t *testing.T) {
 	io := getTestInventoryPayload(t, nil)
 	assert.Equal(t, "ha-agent.json", io.FlareFileName)
-}
-
-func TestConfigRefresh(t *testing.T) {
-	io := getTestInventoryPayload(t, nil)
-
-	assert.False(t, io.RefreshTriggered())
-	pkgconfigsetup.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
-	assert.True(t, io.RefreshTriggered())
 }
 
 func TestStatusHeaderProvider(t *testing.T) {
