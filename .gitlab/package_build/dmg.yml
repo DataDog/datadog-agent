@@ -192,7 +192,7 @@ new-agent_dmg-x64-a7:
     # # TODO: Proper way
     # - cp -r ./* "$AGENT_DIR"
     # TODO: xcode 14.2?
-    # - sudo xcode-select -s /Applications/Xcode_14.3.1.app
+    # - xcode-select -s /Applications/Xcode_14.3.1.app
     # TODO: # Remove preinstalled environment
     # -  |
     #    # The base box ships a few things that can have unwanted effects on the MacOS build.

@@ -43,10 +43,11 @@ python3 -m pip install -r requirements.txt
 # Clean up previous builds
 # TODO
 # sudo rm -rf /opt/datadog-agent ./vendor ./vendor-new /var/cache/omnibus/src/* ./omnibus/Gemfile.lock
-sudo rm -rf ./opt/datadog-agent ./vendor ./vendor-new ./var/cache/omnibus/src/* ./omnibus/Gemfile.lock
+rm -rf ./opt/datadog-agent ./vendor ./vendor-new ./var/cache/omnibus/src/* ./omnibus/Gemfile.lock
 
 # Create target folders
-sudo mkdir -p ./opt/datadog-agent ./var/cache/omnibus && sudo chown "$USER" ./opt/datadog-agent ./var/cache/omnibus
+mkdir -p ./opt/datadog-agent ./var/cache/omnibus && chown "$USER" ./opt/datadog-agent ./var/cache/omnibus
+# sudo mkdir -p ./opt/datadog-agent ./var/cache/omnibus && sudo chown "$USER" ./opt/datadog-agent ./var/cache/omnibus
 
 # Set bundler install path to cached folder
 pushd omnibus && bundle config set --local path 'vendor/bundle' && popd
