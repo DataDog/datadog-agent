@@ -109,7 +109,7 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		}
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 		tags = append(tags, fmt.Sprintf("device_name:%s", filepath.Base(partition.Device)))
-		tags = append(tags, c.getDeviceTags(partition.Device, partition.Mountpoint)...)
+		tags = append(tags, c.getDeviceTags(deviceName)...)
 		label, ok := c.deviceLabels[partition.Device]
 		if ok {
 			tags = append(tags, fmt.Sprintf("label:%s", label), fmt.Sprintf("device_label:%s", label))
@@ -204,7 +204,7 @@ func (c *Check) collectDiskMetrics(sender sender.Sender) error {
 		tags := []string{}
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 		tags = append(tags, fmt.Sprintf("device_name:%s", deviceName))
-		tags = append(tags, c.getDeviceTags(deviceName, "")...)
+		tags = append(tags, c.getDeviceTags(deviceName)...)
 		label, ok := c.deviceLabels[deviceName]
 		if ok {
 			tags = append(tags, fmt.Sprintf("label:%s", label), fmt.Sprintf("device_label:%s", label))

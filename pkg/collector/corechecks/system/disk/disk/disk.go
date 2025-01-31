@@ -360,11 +360,11 @@ func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
 	return false
 }
 
-func (c *Check) getDeviceTags(device, mountpoint string) []string {
+func (c *Check) getDeviceTags(device string) []string {
 	tags := []string{}
-	log.Debugf("Getting device tags for [device: %s] [mountpoint: %s]", device, mountpoint)
+	log.Debugf("Getting device tags for device '%s'", device)
 	for re, deviceTags := range c.cfg.deviceTagRe {
-		if re.MatchString(device) || (mountpoint != "" && re.MatchString(mountpoint)) {
+		if re.MatchString(device) {
 			tags = append(tags, deviceTags...)
 		}
 	}
