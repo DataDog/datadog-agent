@@ -140,7 +140,7 @@ agent_dmg-x64-a7:
 new-agent_dmg-x64-a7:
   stage: package_build
   extends: .macos_gitlab
-  tags: ["macos:ventura-arm64-test", "specific:true"]
+  tags: ["macos:ventura-amd64-test", "specific:true"]
   needs: []
   timeout: 6h
   artifacts:
@@ -169,7 +169,7 @@ new-agent_dmg-x64-a7:
     - rm -f ~/.build_setup; touch ~/.build_setup
     - rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
     - mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
-    # Omnibus
+    # Omnibus TODO: Useless?
     - |
       rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
       rm -rf _omnibus_cache_key_files && mkdir -p _omnibus_cache_key_files
