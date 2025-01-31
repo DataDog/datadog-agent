@@ -166,8 +166,6 @@ func (h *MultiLineHandler) sendBuffer() {
 		msg := h.msg
 		msg.SetContent(content)
 		msg.RawDataLen = h.linesLen
-		msg.Status = h.msg.Status
-		msg.ParsingExtra.Timestamp = h.timestamp
 
 		msg.ParsingExtra.IsTruncated = h.isBufferTruncated
 		if h.isBufferTruncated && pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs") {
