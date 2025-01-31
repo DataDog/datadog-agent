@@ -151,6 +151,12 @@ new-agent_dmg-x64-a7:
   # before_script:
   #   - export RELEASE_VERSION=$RELEASE_VERSION_7
   script:
+    - swift --version
+    - xcrun --version
+    - 'echo "$(xcrun --find swift-stdlib-tool)" "$(xcrun --find bitcode_strip)"'
+    - '"$(xcrun --find swift-stdlib-tool)" --version'
+    - '"$(xcrun --find bitcode_strip)" --version'
+    - exit
     - set -e
     - !reference [.vault_login]
     # Setup
