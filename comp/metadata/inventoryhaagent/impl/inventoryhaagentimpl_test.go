@@ -52,13 +52,17 @@ func TestGetPayload(t *testing.T) {
 	p := io.getPayload()
 	payload := p.(*Payload)
 
-	data := copyAndScrub(haAgentMetadata{
+	data := haAgentMetadata{
 		"enabled": true,
 		"state":   "standby",
-	})
+	}
 
 	assert.True(t, payload.Timestamp > startTime)
 	assert.Equal(t, "hostname-for-test", payload.Hostname)
+	assert.Equal(t, data, payload.Metadata)
+
+	// check payload is a copy
+	io.data["state"] = "active"
 	assert.Equal(t, data, payload.Metadata)
 }
 

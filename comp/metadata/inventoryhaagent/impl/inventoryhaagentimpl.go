@@ -9,6 +9,7 @@ package inventoryhaagentimpl
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"sync"
 	"time"
@@ -75,13 +76,10 @@ func (i *inventoryhaagentimpl) getPayload() marshaler.JSONMarshaler {
 
 	i.refreshMetadata()
 
-	// Create a static scrubbed copy of agentMetadata for the payload
-	data := copyAndScrub(i.data)
-
 	return &Payload{
 		Hostname:  i.hostname,
 		Timestamp: time.Now().UnixNano(),
-		Metadata:  data,
+		Metadata:  i.Get(),
 		UUID:      uuid.GetUUID(),
 	}
 }
@@ -102,8 +100,6 @@ func (i *inventoryhaagentimpl) Get() haAgentMetadata {
 	defer i.m.Unlock()
 
 	data := haAgentMetadata{}
-	for k, v := range i.data {
-		data[k] = v
-	}
+	maps.Copy(data, i.data)
 	return data
 }
