@@ -9,15 +9,15 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/cache v0.63.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.63.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/cache v0.63.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/log v0.63.0-rc.4
 	github.com/shirou/gopsutil/v4 v4.24.12
 	golang.org/x/sys v0.29.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.63.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.63.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.63.0-rc.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.63.0-rc.4 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/ebitengine/purego v0.8.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
