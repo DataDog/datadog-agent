@@ -106,6 +106,12 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 		DeviceGetCudaComputeCapabilityFunc: func(nvml.Device) (int, int, nvml.Return) {
 			return 7, 5, nvml.SUCCESS
 		},
+		DeviceGetIndexFunc: func(nvml.Device) (int, nvml.Return) {
+			return 0, nvml.SUCCESS
+		},
+		DeviceGetMigModeFunc: func(nvml.Device) (int, int, nvml.Return) {
+			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
+		},
 	}
 }
 

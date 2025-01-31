@@ -14,7 +14,7 @@
 // logging output to `t.Log(..)`, for ease of investigation when a test fails.
 package log
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // Component is the component type.
 type Component interface {

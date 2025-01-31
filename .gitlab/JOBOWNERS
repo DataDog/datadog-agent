@@ -27,7 +27,7 @@ prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
 protobuf_test                           @DataDog/multiple
 
 # Send count metrics about Golang dependencies
-golang_deps_send_count_metrics       @DataDog/agent-shared-components
+golang_deps_send_count_metrics       @DataDog/agent-runtimes
 # Golang dependency diff generation
 golang_deps_diff                     @DataDog/ebpf-platform
 golang_deps_commenter                @DataDog/ebpf-platform
