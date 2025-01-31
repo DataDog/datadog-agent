@@ -59,7 +59,12 @@ func (m *testPackageManager) ConfigStates() (map[string]repository.State, error)
 	return args.Get(0).(map[string]repository.State), args.Error(1)
 }
 
-func (m *testPackageManager) Install(ctx context.Context, url string, installArgs []string, _ bool) error {
+func (m *testPackageManager) Install(ctx context.Context, url string, installArgs []string) error {
+	args := m.Called(ctx, url, installArgs)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) ForceInstall(ctx context.Context, url string, installArgs []string) error {
 	args := m.Called(ctx, url, installArgs)
 	return args.Error(0)
 }
