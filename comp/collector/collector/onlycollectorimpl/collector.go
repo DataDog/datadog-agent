@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 )
 
 const (
@@ -88,7 +89,9 @@ func Module() fxutil.Module {
 }
 
 func newProvides(deps dependencies) provides {
+	rss.Before("collector")
 	c := newCollector(deps)
+	rss.After("collector")
 
 	return provides{
 		Comp: c,
@@ -108,8 +111,9 @@ func newCollector(deps dependencies) *collectorImpl {
 		cancelCheckTimeout: deps.Config.GetDuration("check_cancel_timeout"),
 		createdAt:          time.Now(),
 	}
-
+	rss.Before("initPython")
 	pkgCollector.InitPython(pkgCollector.GetPythonPaths()...)
+	rss.After("initPython")
 
 	deps.Lc.Append(fx.Hook{
 		OnStart: c.start,
@@ -135,6 +139,8 @@ func (c *collectorImpl) notify(cid checkid.ID, e collector.EventType) {
 
 // start begins the collector's operation.  The scheduler will not run any checks until this has been called.
 func (c *collectorImpl) start(_ context.Context) error {
+	rss.Before("collector.start")
+	defer rss.After("collector.start")
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -173,6 +179,8 @@ func (c *collectorImpl) stop(_ context.Context) error {
 
 // RunCheck sends a Check in the execution queue
 func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
+	rss.Before("RunCheck")
+	defer rss.After("RunCheck")
 	c.m.Lock()
 	defer c.m.Unlock()
 

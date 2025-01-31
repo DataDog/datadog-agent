@@ -85,7 +85,6 @@ func (s *HttpStream) connectAndReadStream() {
 	defer resp.Body.Close()
 	switch resp.StatusCode {
 	case 200:
-		fmt.Println("READING STERAM DATA")
 		s.enterReadDataLoop(resp.Body)
 	default:
 		err = fmt.Errorf("Encountered unhandled status code: %v", resp.StatusCode)

@@ -26,6 +26,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -112,6 +113,8 @@ func (cl *PythonCheckLoader) Name() string {
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
 func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+	rss.Before("PythonCheckLoader.Load")
+	defer rss.After("PythonCheckLoader.Load")
 	if rtloader == nil {
 		return nil, fmt.Errorf("python is not initialized")
 	}

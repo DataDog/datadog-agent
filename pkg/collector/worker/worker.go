@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 	"github.com/DataDog/datadog-agent/pkg/util/utilizationtracker"
 )
 
@@ -132,6 +133,8 @@ func newWorkerWithOptions(
 
 // Run waits for checks and run them as long as they arrive on the channel
 func (w *Worker) Run() {
+	rss.Before("Worker.Run")
+	defer rss.After("Worker.Run")
 	log.Debugf("Runner %d, worker %d: Ready to process checks...", w.runnerID, w.ID)
 
 	alpha := 0.25 // converges to 99.98% of constant input in 30 iterations.

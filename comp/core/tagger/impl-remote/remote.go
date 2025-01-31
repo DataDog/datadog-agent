@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 )
 
 const (
@@ -98,6 +99,8 @@ type Options struct {
 
 // NewComponent returns a remote tagger
 func NewComponent(req Requires) (Provides, error) {
+	rss.Before("remoteTagger")
+	defer rss.After("remoteTagger")
 	remoteTagger, err := newRemoteTagger(req.Params, req.Config, req.Log, req.Telemetry)
 
 	if err != nil {

@@ -40,12 +40,6 @@ github.com/DataDog/datadog-agent/comp/haagent/impl-noop
 github.com/DataDog/datadog-agent/comp/logs/integrations/def
 github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags
 github.com/DataDog/datadog-agent/comp/metadata/inventorychecks
-github.com/DataDog/datadog-agent/comp/serializer/logscompression/def
-github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx
-github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl
-github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def
-github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx
-github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl
 github.com/DataDog/datadog-agent/pkg/aggregator/sender
 github.com/DataDog/datadog-agent/pkg/api/security
 github.com/DataDog/datadog-agent/pkg/api/security/cert
@@ -87,12 +81,6 @@ github.com/DataDog/datadog-agent/pkg/util/cachedfetch
 github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure
 github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce
 github.com/DataDog/datadog-agent/pkg/util/common
-github.com/DataDog/datadog-agent/pkg/util/compression
-github.com/DataDog/datadog-agent/pkg/util/compression/impl-gzip
-github.com/DataDog/datadog-agent/pkg/util/compression/impl-noop
-github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib
-github.com/DataDog/datadog-agent/pkg/util/compression/impl-zstd
-github.com/DataDog/datadog-agent/pkg/util/compression/selector
 github.com/DataDog/datadog-agent/pkg/util/containers
 github.com/DataDog/datadog-agent/pkg/util/defaultpaths
 github.com/DataDog/datadog-agent/pkg/util/dmi
@@ -113,6 +101,7 @@ github.com/DataDog/datadog-agent/pkg/util/log
 github.com/DataDog/datadog-agent/pkg/util/log/setup
 github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog
 github.com/DataDog/datadog-agent/pkg/util/option
+github.com/DataDog/datadog-agent/pkg/util/rss
 github.com/DataDog/datadog-agent/pkg/util/scrubber
 github.com/DataDog/datadog-agent/pkg/util/sort
 github.com/DataDog/datadog-agent/pkg/util/system
@@ -122,7 +111,6 @@ github.com/DataDog/datadog-agent/pkg/version
 github.com/DataDog/datadog-go/v5/statsd
 github.com/DataDog/go-sqllexer
 github.com/DataDog/viper
-github.com/DataDog/zstd
 github.com/benbjohnson/clock
 github.com/cespare/xxhash/v2
 github.com/cihub/seelog
@@ -160,6 +148,9 @@ github.com/shirou/gopsutil/v4/common
 github.com/shirou/gopsutil/v4/cpu
 github.com/shirou/gopsutil/v4/disk
 github.com/shirou/gopsutil/v4/internal/common
+github.com/shirou/gopsutil/v4/mem
+github.com/shirou/gopsutil/v4/net
+github.com/shirou/gopsutil/v4/process
 github.com/spf13/afero
 github.com/spf13/afero/internal/common
 github.com/spf13/afero/mem

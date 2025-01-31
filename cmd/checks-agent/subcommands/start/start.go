@@ -44,8 +44,6 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	haagentfxnoop "github.com/DataDog/datadog-agent/comp/haagent/fx-noop"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
-	logscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -58,6 +56,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 )
 
 type CLIParams struct {
@@ -172,23 +171,6 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		secretsimpl.Module(),
 		telemetryimpl.Module(),
 		onlycollectorimpl.Module(),
-		// Sending metrics to the backend
-		metricscompressionimpl.Module(),
-		// demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
-		// orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
-		// eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
-		// noopEventplatformreceiver.Module(),
-		// defaultforwarder.Module(defaultforwarder.NewParams()),
-		logscompressionimpl.Module(),
-		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
-		// already migrated components to request it.
-		// fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
-		// 	return demuxInstance.Serializer()
-		// }),
-
-		// fx.Provide(func(ms serializer.MetricSerializer) option.Option[serializer.MetricSerializer] {
-		// 	return option.New[serializer.MetricSerializer](ms)
-		// }),
 		hostnameimpl.Module(),
 		remoteTagger.Module(tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) {
@@ -222,7 +204,7 @@ func start(
 	senderManager sender.SenderManager,
 	tagger tagger.Component,
 	authToken authtoken.Component,
-	telemetry telemetry.Component,
+	_ telemetry.Component,
 	_ pid.Component,
 ) error {
 	currentheapSize := getAlloc()
@@ -368,6 +350,9 @@ func startScheduler(ctx context.Context, client *httputils.HttpStream, scheduler
 				log.Warnf("Failed to parse json: %v", err)
 				break
 			}
+
+			rss.Before("Autodiscovery Stream")
+			defer rss.After("Autodiscovery Stream")
 
 			scheduleConfigs := []integration.Config{}
 			unscheduleConfigs := []integration.Config{}

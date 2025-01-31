@@ -16,6 +16,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 )
 
 const (
@@ -190,6 +191,8 @@ func GetWithLegacyResolutionProvider(ctx context.Context) (Data, error) {
 }
 
 func getHostname(ctx context.Context, keyCache string, legacyHostnameResolution bool) (Data, error) {
+	rss.Before("getHostname")
+	defer rss.After("getHostname")
 	cacheHostnameKey := cache.BuildAgentKey(keyCache)
 
 	// first check if we have a hostname cached

@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 )
 
 /*
@@ -137,6 +138,8 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 
 // Run a Python check
 func (c *PythonCheck) Run() error {
+	rss.Before("PythonCheck.Run")
+	defer rss.After("PythonCheck.Run")
 	return c.runCheck(true)
 }
 
