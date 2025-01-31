@@ -1545,7 +1545,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenUsageMetricsAreNotRe
 	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"tmpfs", "filesystem:tmpfs"})
 }
 
-func TestGivenADiskCheckWithTagByFileSystemFalseConfigured_WhenCheckRuns_ThenUsageMetricsAreReportedWithFileSystemTags(t *testing.T) {
+func TestGivenADiskCheckWithTagByFileSystemFalseConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedWithFileSystemTags(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
