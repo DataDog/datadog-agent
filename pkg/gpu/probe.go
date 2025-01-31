@@ -188,6 +188,7 @@ func (p *Probe) start() error {
 	if err := p.m.Start(); err != nil {
 		return fmt.Errorf("failed to start manager: %w", err)
 	}
+	ddebpf.AddNameMappings(p.m.Manager, gpuModuleName)
 
 	if err := p.attacher.Start(); err != nil {
 		return fmt.Errorf("error starting uprobes attacher: %w", err)
@@ -199,6 +200,7 @@ func (p *Probe) start() error {
 func (p *Probe) Close() {
 	p.attacher.Stop()
 	_ = p.m.Stop(manager.CleanAll)
+	ddebpf.ClearNameMappings(gpuModuleName)
 	p.consumer.Stop()
 	p.eventHandler.Stop()
 }
