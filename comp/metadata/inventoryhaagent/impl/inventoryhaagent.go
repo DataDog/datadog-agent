@@ -14,7 +14,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	haagentcomp "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	inventoryhaagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryhaagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
@@ -27,7 +27,7 @@ type Requires struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
-	HaAgent    haagent.Component
+	HaAgent    haagentcomp.Component
 }
 
 // Provides defines the output of the inventoryhaagentimpl component

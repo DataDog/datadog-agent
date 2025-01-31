@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	haagentcomp "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -54,7 +54,7 @@ type inventoryhaagentimpl struct {
 	m        sync.Mutex
 	data     haAgentMetadata
 	hostname string
-	haAgent  haagent.Component
+	haAgent  haagentcomp.Component
 }
 
 func (i *inventoryhaagentimpl) refreshMetadata() {
