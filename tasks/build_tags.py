@@ -46,7 +46,7 @@ ALL_TAGS = {
     "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
     "python",
-    "requirefips", # used for Linux FIPS mode to avoid having to set GOFIPS
+    "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
     "sds",
     "serverless",
     "systemd",
