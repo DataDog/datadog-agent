@@ -516,16 +516,14 @@ func initFIPS(embeddedPath string) error {
 	if v := os.Getenv("OPENSSL_CONF"); v == "" {
 		pathToOpenSSLConf := filepath.Join(embeddedPath, "ssl", "openssl.cnf")
 		if _, err := os.Stat(pathToOpenSSLConf); os.IsNotExist(err) {
-			log.Errorf("The configuration file %s does not exist", pathToOpenSSLConf)
-			return nil
+			return errors.New("The configuration file " + pathToOpenSSLConf + " does not exist")
 		}
 		os.Setenv("OPENSSL_CONF", pathToOpenSSLConf)
 	}
 	if v := os.Getenv("OPENSSL_MODULES"); v == "" {
 		pathToOpenSSLModules := filepath.Join(embeddedPath, "lib", "ossl-modules")
 		if _, err := os.Stat(pathToOpenSSLModules); os.IsNotExist(err) {
-			log.Errorf("The directory %s does not exist", pathToOpenSSLModules)
-			return nil
+			return errors.New("The directory " + pathToOpenSSLModules + " does not exist")
 		}
 		os.Setenv("OPENSSL_MODULES", pathToOpenSSLModules)
 	}
