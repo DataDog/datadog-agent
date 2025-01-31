@@ -66,7 +66,7 @@ func (f *injectionFilter) Err() error {
 	return f.err
 }
 
-// makeNamespaceFilter returns the filter used by APM SSI to filter namespaces.
+// makeNamespaceFilter returns a filter with the provided enabled/disabled namespaces.
 // The filter excludes two namespaces by default: "kube-system" and the
 // namespace where datadog is installed.
 //
