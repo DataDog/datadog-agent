@@ -254,6 +254,7 @@ func (c *APMCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	return nil, nil
 }
 
+// IsHAEnabled returns if High Availability is enabled for this check
 func (c *APMCheck) IsHAEnabled() bool {
 	return false
 }
